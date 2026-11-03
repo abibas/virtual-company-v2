@@ -1,0 +1,27 @@
+{
+  "name": "@mwc/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Drizzle schema, SQL migrations and database handles (postgres.js, PGlite) for Most Wanted Corp v2.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./pglite": "./src/pglite.ts",
+    "./migrate": "./src/migrate.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "check:migrations": "node scripts/check-migrations.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/shared": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "postgres": "4.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.14",
+    "drizzle-kit": "0.31.11"
+  }
+}

@@ -7,12 +7,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
+    "./enums": "./src/enums.ts",
+    "./ids": "./src/ids.ts",
     "./ports": "./src/ports.ts"
   },
   "scripts": {
     "test": "vitest run"
   },
   "dependencies": {
+    "uuid": "14.0.3",
     "zod": "4.6.7"
   }
 }

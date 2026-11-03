@@ -11,8 +11,10 @@ tests. Why and how: `docs/plan-2026-11-03.md` (the approved plan), `docs/archite
 
 ## Status
 
-Stage **S0 — skeleton and one-command start**, step 1 (repo setup) done: workspace, config loader,
-port map, `mwc check`, docs. Next: `packages/db` with the first migration on PGlite (S0.2).
+Stage **S0 — skeleton and one-command start**: S0.1 (repo setup: workspace, config loader, port map,
+`mwc check`, docs) and S0.2 (`@mwc/db`: Drizzle schema v0 with `users`, `companies`, `audit_log`, the
+`0000_init` migration, PGlite tests, the migrations drift check) are done. Next: the server skeleton
+(S0.3).
 
 ## Start
 
@@ -42,7 +44,7 @@ Full map and rules: `docs/ports.md`.
 
 ```
 apps/        server, web, runner            (arrive in S0–S3)
-packages/    shared, cli (now); db, identity-core, identity-clerk, harness, testkit, mcp (later)
+packages/    shared, cli, db (now); identity-core, identity-clerk, harness, testkit, mcp (later)
 deploy/      compose.yml, Dockerfiles        (S0.5)
 docs/        plan, architecture, roadmap, ports
 ```

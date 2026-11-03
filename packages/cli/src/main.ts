@@ -2,7 +2,8 @@
  * mwc command dispatch. `mwc.ts` is the executable entry; everything it does goes through
  * `main()` so the commands can be tested without spawning a process.
  *
- *   mwc check [--fast] [--full]      lint, typecheck every package, run the tests (with coverage unless --fast)
+ *   mwc check [--fast] [--full]      lint, typecheck every package, check migrations drift, run the tests
+ *                                    (with coverage unless --fast)
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
  *   mwc help
  */
@@ -35,6 +36,14 @@ export function checkSteps(flags: ReadonlySet<string>, packageDirs: readonly str
   const steps: CheckStep[] = [{ label: 'biome', command: 'pnpm', args: ['exec', 'biome', 'check', '.'] }];
   for (const dir of packageDirs) {
     steps.push({ label: `typecheck ${dir}`, command: 'pnpm', args: ['exec', 'tsc', '--noEmit', '-p', dir] });
+  }
+  if (packageDirs.includes('packages/db')) {
+    // Straight on Node (its TypeScript support), so the step is one node process plus one drizzle-kit.
+    steps.push({
+      label: 'migrations drift',
+      command: process.execPath,
+      args: ['packages/db/scripts/check-migrations.ts'],
+    });
   }
   steps.push({
     label: 'tests',
@@ -125,7 +134,7 @@ function ports(flags: ReadonlySet<string>, options: Readonly<Record<string, stri
 
 const HELP = [
   'mwc commands:',
-  '  check [--fast] [--full]        lint, typecheck, test (coverage unless --fast)',
+  '  check [--fast] [--full]        lint, typecheck, migrations drift, test (coverage unless --fast)',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
   '  help',
   '',

@@ -93,6 +93,21 @@ describe('checkSteps', () => {
     expect(steps.at(-1)?.args).toContain('--coverage');
   });
 
+  it('checks migrations drift after the typechecks when packages/db exists', () => {
+    const steps = checkSteps(new Set(), ['packages/cli', 'packages/db']);
+    expect(steps.map((s) => s.label)).toEqual([
+      'biome',
+      'typecheck packages/cli',
+      'typecheck packages/db',
+      'migrations drift',
+      'tests',
+    ]);
+    expect(steps[3]).toMatchObject({
+      command: process.execPath,
+      args: ['packages/db/scripts/check-migrations.ts'],
+    });
+  });
+
   it('drops coverage with --fast', () => {
     expect(checkSteps(new Set(['fast']), []).at(-1)?.args).not.toContain('--coverage');
   });
