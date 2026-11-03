@@ -6,7 +6,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/index.ts', 'packages/cli/src/mwc.ts'],
+      // Only barrels (re-exports) and the CLI's executable entry are excluded.
+      exclude: ['**/*.test.ts', '**/src/index.ts', 'packages/cli/src/mwc.ts'],
       thresholds: {
         lines: 80,
         statements: 80,

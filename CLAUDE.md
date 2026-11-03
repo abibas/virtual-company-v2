@@ -39,7 +39,9 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
 
 Node 24 (`.nvmrc`), pnpm (pinned in `package.json`), TypeScript 7, Biome, Vitest.
 Relative imports use the `.ts` extension; packages export TypeScript sources directly
-(bundling happens only for the deployable images).
+(bundling happens only for the deployable images). `index.ts` is for barrel re-exports only;
+executable entry points are named `main.ts`/`mwc.ts` (coverage excludes only barrels and the
+CLI entry). Biome does not format Markdown.
 
 ```sh
 pnpm install            # also installs the git pre-push hook

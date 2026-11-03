@@ -5,7 +5,8 @@
   "description": "mwc: the developer and operator command line for Most Wanted Corp v2.",
   "type": "module",
   "exports": {
-    "./args": "./src/args.ts"
+    "./args": "./src/args.ts",
+    "./main": "./src/main.ts"
   },
   "scripts": {
     "test": "vitest run"
