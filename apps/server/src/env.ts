@@ -11,6 +11,8 @@ export interface AppDeps {
   readonly version: string;
   /** The current time; defaults to the system clock. Route code reads it as `c.var.clock()`. */
   readonly clock?: () => Date;
+  /** The built web UI (apps/web/dist) to serve for `/` and client routes; omitted in dev and tests. */
+  readonly webDist?: string;
 }
 
 /** Hono's environment for every route: the per-request variables middleware sets. */

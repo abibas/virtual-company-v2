@@ -2,7 +2,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { slotFromPath } from '@mwc/shared/ports';
 import { describe, expect, it } from 'vitest';
-import { type CheckStep, checkSteps, type MainIo, main, runCheck, workspacePackages } from './main.ts';
+import {
+  type CheckStep,
+  checkSteps,
+  type MainIo,
+  main,
+  runCheck,
+  spawnStep,
+  workspacePackages,
+} from './main.ts';
 
 function capture(extra: Partial<Pick<MainIo, 'cwd' | 'env'>> = {}) {
   const out: string[] = [];
@@ -17,6 +25,18 @@ function capture(extra: Partial<Pick<MainIo, 'cwd' | 'env'>> = {}) {
 }
 
 describe('main', () => {
+  it('runs dev through its dependency and returns its exit code', async () => {
+    const seen: string[][] = [];
+    const code = await main(['dev', '--down'], capture().io, {
+      dev: async (flags) => {
+        seen.push([...flags]);
+        return 0;
+      },
+    });
+    expect(code).toBe(0);
+    expect(seen).toEqual([['down']]);
+  });
+
   it('prints help for no command and for help', () => {
     for (const argv of [[], ['help']]) {
       const c = capture();
@@ -121,7 +141,7 @@ describe('checkSteps', () => {
   });
 
   it('adds the web build and the Playwright smoke with --full, run from apps/web on Node', () => {
-    const full = checkSteps(new Set(['full']), ['apps/web']);
+    const full = checkSteps(new Set(['full']), ['apps/web'], { docker: true, postgresRunning: false });
     expect(full.map((s) => s.label)).toEqual(['biome', 'typecheck apps/web', 'tests', 'web build', 'e2e']);
     expect(full.slice(-2)).toEqual([
       {
@@ -139,6 +159,46 @@ describe('checkSteps', () => {
     ]);
     expect(checkSteps(new Set(), ['apps/web']).map((s) => s.label)).not.toContain('e2e');
     expect(checkSteps(new Set(['full']), ['packages/cli']).map((s) => s.label)).not.toContain('e2e');
+  });
+
+  it('runs the db and server tests on the dev Postgres with --full, starting and stopping it', () => {
+    const dirs = ['apps/server', 'apps/web', 'packages/db'];
+    const full = checkSteps(new Set(['full']), dirs, { docker: true, postgresRunning: false });
+    expect(full.map((s) => s.label).slice(dirs.length + 3)).toEqual([
+      'postgres',
+      'tests on postgres',
+      'web build',
+      'e2e',
+      'postgres down',
+    ]);
+    const tests = full.find((s) => s.label === 'tests on postgres');
+    expect(tests?.env).toEqual({
+      TEST_DB: 'postgres',
+      TEST_DATABASE_URL: 'postgres://mwc:mwc@localhost:9952/mwc',
+    });
+    expect(tests?.args).toEqual([
+      'exec',
+      'vitest',
+      'run',
+      '--coverage',
+      '--coverage.reportsDirectory=coverage/postgres',
+    ]);
+  });
+
+  it('leaves a running dev Postgres alone, drops coverage with --fast, and skips the lane without Docker', () => {
+    const dirs = ['packages/db'];
+    const running = checkSteps(new Set(['full', 'fast']), dirs, { docker: true, postgresRunning: true });
+    expect(running.map((s) => s.label)).toEqual([
+      'biome',
+      'typecheck packages/db',
+      'db drift',
+      'tests',
+      'tests on postgres',
+    ]);
+    expect(running.at(-1)?.args).toEqual(['exec', 'vitest', 'run']);
+    const noDocker = checkSteps(new Set(['full']), dirs, { docker: false, postgresRunning: false });
+    expect(noDocker.map((s) => s.label)).not.toContain('tests on postgres');
+    expect(checkSteps(new Set(['full']), dirs).map((s) => s.label)).not.toContain('postgres');
   });
 
   it('points the --full steps at files the web package really has', () => {
@@ -166,11 +226,53 @@ describe('runCheck', () => {
     expect(c.err()).toContain('✗ mwc check failed: typecheck packages/a, tests');
   });
 
-  it('passes when every step passes and mentions the --full lanes', () => {
+  it('passes when every step passes, and says when --full skips the Postgres lane', () => {
     const c = capture();
     expect(runCheck(new Set(['full']), c.io, { packageDirs: [], runStep: () => true })).toBe(0);
-    expect(c.out()).toContain('--full: the Postgres lane arrives with S0.5');
+    expect(c.out()).toContain('Docker is not available, so the Postgres lane is skipped');
     expect(c.out()).toContain('✓ mwc check passed');
+  });
+
+  it('asks about Docker only for --full and plans the Postgres lane from the answer', () => {
+    let asked = 0;
+    const ran: string[] = [];
+    const deps = {
+      packageDirs: ['packages/db'],
+      runStep: (step: CheckStep) => ran.push(step.label) > 0,
+      lane: () => {
+        asked++;
+        return { docker: true, postgresRunning: false };
+      },
+    };
+    runCheck(new Set(), capture().io, deps);
+    expect(asked).toBe(0);
+    ran.length = 0;
+    const c = capture();
+    expect(runCheck(new Set(['full']), c.io, deps)).toBe(0);
+    expect(asked).toBe(1);
+    expect(ran.slice(-3)).toEqual(['postgres', 'tests on postgres', 'postgres down']);
+    expect(c.out()).not.toContain('skipped');
+  });
+});
+
+describe('spawnStep (one real node process)', () => {
+  it('runs the step in its cwd with its env added, and reports a missing command', () => {
+    const c = capture();
+    const probe = [
+      "const cwdOk = process.cwd().endsWith('packages/cli');",
+      "const envOk = process.env.MWC_PROBE === 'yes' && Boolean(process.env.PATH);",
+      'process.exit(cwdOk && envOk ? 0 : 1);',
+    ].join(' ');
+    const step: CheckStep = {
+      label: 'probe',
+      command: process.execPath,
+      args: ['-e', probe],
+      cwd: 'packages/cli',
+      env: { MWC_PROBE: 'yes' },
+    };
+    expect(spawnStep(step, c.io)).toBe(true);
+    expect(spawnStep({ label: 'missing', command: 'mwc-no-such-command', args: [] }, c.io)).toBe(false);
+    expect(c.err()).toContain('missing: ');
   });
 });
 

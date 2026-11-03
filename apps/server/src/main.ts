@@ -23,7 +23,13 @@ if (config.MWC_MIGRATE_ON_START) {
   await migrateToLatest(db);
 }
 
-const app = createApp({ db, config, logger, version });
+const app = createApp({
+  db,
+  config,
+  logger,
+  version,
+  ...(config.MWC_WEB_DIST ? { webDist: config.MWC_WEB_DIST } : {}),
+});
 const server = serve({ fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST }, (info) => {
   logger.info({ host: config.MWC_HOST, port: info.port, version }, 'listening');
 }) as Server;

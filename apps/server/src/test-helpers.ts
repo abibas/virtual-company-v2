@@ -1,6 +1,6 @@
 import type { DbHandle } from '@mwc/db';
 import { migrateToLatest } from '@mwc/db';
-import { createPgliteDb } from '@mwc/db/pglite';
+import { createTestDb } from '@mwc/db/testing';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import pino, { type Logger } from 'pino';
 import { createApp } from './app.ts';
@@ -48,13 +48,18 @@ export interface TestApp {
   close(): Promise<void>;
 }
 
-/** The app on a fresh in-memory PGlite (migrated unless `migrate: false`) with a capture logger. */
+/**
+ * The app on a fresh test database (migrated unless `migrate: false`) with a capture logger. The
+ * database is an in-memory PGlite, or a new Postgres database with TEST_DB=postgres (see
+ * `@mwc/db/testing`). A `deps.db` passed in is used as is and not closed.
+ */
 export async function createTestApp(
   options: { migrate?: boolean; deps?: Partial<AppDeps> } = {},
 ): Promise<TestApp> {
-  const db = options.deps?.db ?? (await createPgliteDb());
-  if (options.migrate !== false && !options.deps?.db) await migrateToLatest(db);
+  const testDb = options.deps?.db ? undefined : await createTestDb();
+  const db = options.deps?.db ?? (testDb as NonNullable<typeof testDb>).handle;
+  if (options.migrate !== false && testDb) await migrateToLatest(db);
   const { logger, lines } = captureLogger();
   const app = createApp({ db, config: testConfig, logger, version: TEST_VERSION, ...options.deps });
-  return { app, db, lines, close: () => db.close() };
+  return { app, db, lines, close: async () => testDb?.close() };
 }

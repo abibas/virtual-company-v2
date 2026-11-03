@@ -70,6 +70,16 @@ describe('loadConfig MWC_HOST and MWC_MIGRATE_ON_START', () => {
   });
 });
 
+describe('loadConfig MWC_WEB_DIST', () => {
+  it('is unset by default and when empty, and kept as given otherwise', () => {
+    expect(loadConfig(valid).MWC_WEB_DIST).toBeUndefined();
+    expect(loadConfig({ ...valid, MWC_WEB_DIST: '' }).MWC_WEB_DIST).toBeUndefined();
+    expect(loadConfig({ ...valid, MWC_WEB_DIST: '/app/apps/web/dist' }).MWC_WEB_DIST).toBe(
+      '/app/apps/web/dist',
+    );
+  });
+});
+
 describe('loadConfig with MWC_PORT_SLOT', () => {
   it("uses the slot's API port and public URL when MWC_PORT is not set", () => {
     const config = loadConfig({ ...valid, MWC_PORT_SLOT: '3' });

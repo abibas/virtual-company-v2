@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1
+#
+# The API server image. Node 24 runs the workspace's TypeScript sources directly (its built-in type
+# stripping; every source is erasable syntax, enforced by tsconfig), so the server has no build step
+# and no tsx at runtime. Only the web UI is built (Vite) and the server serves it from MWC_WEB_DIST.
+#
+#   docker build -f deploy/Dockerfile.server -t mwc-v2/server:local .
+#   docker run --rm -p 9950:9950 -e DATABASE_URL=postgres://... mwc-v2/server:local
+#
+# The same image runs the one-shot migration: node packages/db/scripts/migrate.ts
+
+ARG NODE_IMAGE=node:24.21.0-slim
+
+# pnpm at the version pinned in package.json ("packageManager"), through corepack.
+FROM ${NODE_IMAGE} AS pnpm
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    CI=true
+WORKDIR /app
+COPY package.json ./
+RUN corepack enable && corepack install
+
+# The web UI: apps/web/dist. The pnpm store is a build cache shared by both installs, so packages
+# download once and never land in an image layer.
+FROM pnpm AS web
+COPY . .
+RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store --filter "@mwc/web..." \
+ && pnpm --filter @mwc/web build
+
+# The server's production dependencies only (no dev tools, no PGlite, no pino-pretty). Its own
+# install, because a filtered install never removes what another stage put in node_modules/.pnpm.
+FROM pnpm AS prod
+COPY . .
+RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store --prod --filter "@mwc/server..."
+
+FROM ${NODE_IMAGE} AS runtime
+ENV NODE_ENV=production \
+    MWC_HOST=0.0.0.0 \
+    MWC_PORT=9950 \
+    MWC_WEB_DIST=/app/apps/web/dist
+WORKDIR /app
+COPY --from=prod /app/package.json /app/pnpm-workspace.yaml ./
+COPY --from=prod /app/node_modules ./node_modules
+COPY --from=prod /app/packages/shared ./packages/shared
+COPY --from=prod /app/packages/db ./packages/db
+COPY --from=prod /app/apps/server ./apps/server
+COPY --from=web /app/apps/web/dist ./apps/web/dist
+USER node
+EXPOSE 9950
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --start-interval=1s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.MWC_PORT || 9950) + '/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+CMD ["node", "apps/server/src/main.ts"]

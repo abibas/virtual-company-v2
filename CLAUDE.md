@@ -47,10 +47,17 @@ CLI entry). Biome does not format Markdown.
 
 ```sh
 pnpm install            # also installs the git pre-push hook
-pnpm mwc check          # biome, typecheck per package, tests with coverage
+pnpm dev                # dev Postgres (Docker, 9952) + migrations + API 9950 + web 9951; mwc dev --down stops PG
+pnpm mwc check          # biome, typecheck per package, db drift, tests with coverage
 pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
+pnpm mwc check --full   # + tests on the dev Postgres, web build, Playwright smoke (docs/testing.md)
 pnpm mwc ports          # the port map
 ```
+
+`deploy/`: `compose.yml` is the dev Postgres only; `compose.prod.yml` is the prod-like stack (9990/9992)
+built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Node 24 directly. Tests
+that need a database use `createTestDb()` (`@mwc/db/testing`): PGlite by default, a fresh database on
+the dev Postgres with `TEST_DB=postgres`; write them so they pass on both.
 
 ## Layout
 

@@ -3,9 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { MIGRATIONS_FOLDER, migrateToLatest, migrationStatus, readJournal } from './migrate.ts';
-import { createPgliteDb, type PgliteDbHandle } from './pglite.ts';
+import {
+  type DbHandle,
+  MIGRATIONS_FOLDER,
+  migrateToLatest,
+  migrationStatus,
+  readJournal,
+} from './migrate.ts';
 import { pingDb, queryRows } from './query.ts';
+import { createTestDb, type TestDb, testDbKind } from './testing.ts';
 
 const journal = readJournal();
 const lastTag = journal.at(-1)?.tag;
@@ -49,15 +55,19 @@ describe('readJournal', () => {
   });
 });
 
-describe('migrationStatus on PGlite', () => {
-  let handle: PgliteDbHandle | undefined;
+describe(`migrationStatus on ${testDbKind()}`, () => {
+  let testDb: TestDb | undefined;
   afterEach(async () => {
-    await handle?.close();
-    handle = undefined;
+    await testDb?.close();
+    testDb = undefined;
   });
+  const fresh = async () => {
+    testDb = await createTestDb();
+    return testDb.handle;
+  };
 
   it('reports nothing applied on a fresh database (no migrations table yet)', async () => {
-    handle = await createPgliteDb();
+    const handle = await fresh();
     expect(await migrationStatus(handle)).toEqual({
       applied: 0,
       expected: journal.length,
@@ -67,15 +77,17 @@ describe('migrationStatus on PGlite', () => {
   });
 
   it('reports nothing applied when the migrations table exists but is empty', async () => {
-    handle = await createPgliteDb();
-    await handle.client.exec(
-      'create schema drizzle; create table drizzle.__drizzle_migrations (id serial primary key, hash text not null, created_at bigint)',
+    const handle = await fresh();
+    await queryRows(handle, sql`create schema drizzle`);
+    await queryRows(
+      handle,
+      sql`create table drizzle.__drizzle_migrations (id serial primary key, hash text not null, created_at bigint)`,
     );
     expect(await migrationStatus(handle)).toMatchObject({ applied: 0, last: null, current: false });
   });
 
   it('is current after migrateToLatest, naming the last migration', async () => {
-    handle = await createPgliteDb();
+    const handle = await fresh();
     await migrateToLatest(handle);
     expect(await migrationStatus(handle)).toEqual({
       applied: journal.length,
@@ -86,7 +98,7 @@ describe('migrationStatus on PGlite', () => {
   });
 
   it('is behind when the code has a migration the database has not applied, and current after it', async () => {
-    handle = await createPgliteDb();
+    const handle = await fresh();
     await migrateToLatest(handle);
     const behind = await migrationStatus(handle, { migrationsFolder: aheadFolder });
     expect(behind).toEqual({
@@ -104,20 +116,21 @@ describe('migrationStatus on PGlite', () => {
   });
 
   it('rejects when the database does not answer', async () => {
-    handle = await createPgliteDb();
+    const handle = await fresh();
     await handle.close();
     await expect(migrationStatus(handle)).rejects.toThrow();
-    handle = undefined;
   });
 });
 
-describe('queryRows and pingDb on PGlite', () => {
-  let handle: PgliteDbHandle;
+describe(`queryRows and pingDb on ${testDbKind()}`, () => {
+  let testDb: TestDb;
+  let handle: DbHandle;
   beforeAll(async () => {
-    handle = await createPgliteDb();
+    testDb = await createTestDb();
+    handle = testDb.handle;
   });
   afterAll(async () => {
-    await handle.close();
+    await testDb.close();
   });
 
   it('returns the rows of a raw query as an array', async () => {

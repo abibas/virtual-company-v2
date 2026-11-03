@@ -163,6 +163,8 @@ Routing: `to_principal_id = nearestPersonUp(agent)` via `org_positions`, fallbac
 
 ## 13. Container stack (`deploy/compose.yml`)
 
+As built in S0.5: `deploy/compose.yml` (project `mwc-v2`) holds only the dev Postgres on 9952 that `mwc dev` and the `mwc check --full` Postgres lane use; the prod-like stack is `deploy/compose.prod.yml` (project `mwc-v2-prod`: `postgres` on 9992, the one-shot `migrate` running `node packages/db/scripts/migrate.ts`, `server` on 9990 serving `apps/web/dist`), built from `deploy/Dockerfile.server`, which runs the TypeScript sources on Node 24 directly (no tsx, no server build). `runner-local` joins in S3. The plan as approved:
+
 Services: `postgres` (17, :9952, volume) · `migrate` (one-shot `pnpm --filter @mwc/db migrate`; `server` has `depends_on: migrate: service_completed_successfully`) · `server` (:9950, serves `apps/web/dist`, `/healthz` `/readyz`) · `runner-local` (image `mwc/runner`: node 24 + pinned `claude` + git + gh; volumes `work:/work`, `runner-state:/var/lib/mwc-runner`; tmpfs `/run/mwc` for token files; `stop_grace_period: 90s`; healthcheck on :9953) · `web` only in dev (:9951). Env: `DATABASE_URL`, `MWC_MASTER_KEY`, `MWC_PUBLIC_URL`, `CLERK_*`, `MWC_RUN_TOKEN_PRIVATE_KEY`; runner: `MWC_SERVER_URL`, `MWC_ENROLL_TOKEN` (first boot only), `MWC_RUNNER_SELF_UPDATE=0`. The container runner's Claude access is a `credentials(kind=claude_oauth_token)` row (from `claude setup-token`, one year) delivered per run as `CLAUDE_CODE_OAUTH_TOKEN`. No Redis/NATS until several API replicas need fan-out. k8s later: `migrate` Job, `server` Deployment + Ingress (WS timeouts ≥ 120 s), `runner` Deployment/StatefulSet per pool, `terminationGracePeriodSeconds: 90`.
 
 ## 16. What we carry from v1 ("bytes and pieces")

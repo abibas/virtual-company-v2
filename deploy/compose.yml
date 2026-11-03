@@ -1,0 +1,30 @@
+# The dev Postgres on 127.0.0.1:9952 for `pnpm dev` (mwc dev) and the `mwc check --full` Postgres lane.
+#
+#   docker compose -f deploy/compose.yml up -d --wait postgres
+#   docker compose -f deploy/compose.yml down          # keeps the data volume (down -v drops it)
+#
+# The prod-like stack (server image, migrate step, its own Postgres) is deploy/compose.prod.yml.
+name: mwc-v2
+
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: mwc
+      POSTGRES_PASSWORD: mwc
+      POSTGRES_DB: mwc
+    ports:
+      - "127.0.0.1:9952:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Over TCP: the image's first-boot init server listens on the socket only, so it never passes.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U mwc -d mwc"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+volumes:
+  pgdata:

@@ -1,22 +1,25 @@
 import { isId } from '@mwc/shared/ids';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { migrateToLatest } from './migrate.ts';
-import { createPgliteDb, type PgliteDbHandle } from './pglite.ts';
+import { type DbHandle, migrateToLatest } from './migrate.ts';
+import { queryRows } from './query.ts';
 import { auditLog, companies, users } from './schema/index.ts';
 import { pgError } from './test-helpers.ts';
+import { createTestDb, type TestDb } from './testing.ts';
 
-let handle: PgliteDbHandle;
+let testDb: TestDb;
+let handle: DbHandle;
 let seq = 0;
 const unique = (prefix: string) => `${prefix}-${++seq}`;
 
 beforeAll(async () => {
-  handle = await createPgliteDb();
+  testDb = await createTestDb();
+  handle = testDb.handle;
   await migrateToLatest(handle);
 });
 afterAll(async () => {
-  await handle.close();
+  await testDb.close();
 });
 
 async function insertUser(email = `${unique('user')}@example.com`) {
@@ -197,10 +200,11 @@ describe('audit_log', () => {
   });
 
   it('has the entity index', async () => {
-    const result = await handle.client.query<{ indexdef: string }>(
-      "select indexdef from pg_indexes where indexname = 'audit_log_entity_idx'",
+    const [row] = await queryRows<{ indexdef: string }>(
+      handle,
+      sql`select indexdef from pg_indexes where indexname = 'audit_log_entity_idx'`,
     );
-    expect(result.rows[0]?.indexdef).toContain('(company_id, entity_type, entity_id, id)');
+    expect(row?.indexdef).toContain('(company_id, entity_type, entity_id, id)');
   });
 });
 

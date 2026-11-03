@@ -7,6 +7,7 @@ import { requestLog } from './http/request-log.ts';
 import { mountDocs } from './routes/docs.ts';
 import { healthRoutes } from './routes/health.ts';
 import { metaRoutes } from './routes/meta.ts';
+import { mountWeb } from './routes/web.ts';
 
 export type { AppDeps, AppEnv } from './env.ts';
 
@@ -32,6 +33,8 @@ export function createApp(deps: AppDeps) {
 
   const routes = app.route('/', healthRoutes(deps)).route('/', metaRoutes(deps));
   mountDocs(app, deps);
+  // Last: the UI only answers what no API route did.
+  if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
   return routes;
 }
 

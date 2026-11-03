@@ -4,7 +4,9 @@
  *
  *   mwc check [--fast] [--full]      lint, typecheck every package, check db drift (migrations and the
  *                                    schema diagram), run the tests (with coverage unless --fast);
- *                                    --full adds the web build and the Playwright smoke
+ *                                    --full adds the db and server tests on the dev Postgres (when
+ *                                    Docker is available), the web build and the Playwright smoke
+ *   mwc dev [--down]                 dev Postgres + migrations + API (9950) + web (9951); --down stops Postgres
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
  *   mwc help
  */
@@ -13,6 +15,15 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PORTS, SLOT_COUNT, slotFromPath, slotPorts } from '@mwc/shared/ports';
 import { parseArgs } from './args.ts';
+import {
+  DEV_COMPOSE_FILE,
+  DEV_DATABASE_URL,
+  postgresDown,
+  postgresUp,
+  runDev,
+  type Step,
+  systemDevDeps,
+} from './dev.ts';
 
 export interface MainIo {
   stdout(s: string): void;
@@ -26,16 +37,24 @@ export interface MainIo {
 const repoRoot = resolve(import.meta.dirname, '../../..');
 
 /** One step of `mwc check`: a label and the process to run from the repo root (or `cwd` under it). */
-export interface CheckStep {
-  readonly label: string;
-  readonly command: string;
-  readonly args: readonly string[];
-  /** Working directory relative to the repo root; the root when omitted. */
-  readonly cwd?: string;
+export type CheckStep = Step;
+
+/** What the --full Postgres lane needs to know about the machine before it plans its steps. */
+export interface FullLane {
+  /** The Docker daemon answers; without it the Postgres lane is skipped. */
+  readonly docker: boolean;
+  /** The dev Postgres (deploy/compose.yml) is already up, e.g. under `mwc dev`; then it is left as it is. */
+  readonly postgresRunning: boolean;
 }
 
+const NO_DOCKER: FullLane = { docker: false, postgresRunning: false };
+
 /** The steps of `mwc check` for the given workspace package directories, in order. */
-export function checkSteps(flags: ReadonlySet<string>, packageDirs: readonly string[]): CheckStep[] {
+export function checkSteps(
+  flags: ReadonlySet<string>,
+  packageDirs: readonly string[],
+  lane: FullLane = NO_DOCKER,
+): CheckStep[] {
   const steps: CheckStep[] = [{ label: 'biome', command: 'pnpm', args: ['exec', 'biome', 'check', '.'] }];
   for (const dir of packageDirs) {
     steps.push({ label: `typecheck ${dir}`, command: 'pnpm', args: ['exec', 'tsc', '--noEmit', '-p', dir] });
@@ -54,7 +73,28 @@ export function checkSteps(flags: ReadonlySet<string>, packageDirs: readonly str
     command: 'pnpm',
     args: ['exec', 'vitest', 'run', ...(flags.has('fast') ? [] : ['--coverage'])],
   });
-  if (flags.has('full') && packageDirs.includes('apps/web')) {
+  if (!flags.has('full')) return steps;
+
+  // The tests again with TEST_DB=postgres: the db and server integration tests then run on the dev
+  // Postgres through postgres.js, each on its own database created and dropped on that server
+  // (@mwc/db/testing), never the dev database itself. All projects run, because Vitest 5 reports no
+  // coverage when --project filters them; the cli and shared tests ignore TEST_DB (about a second).
+  const postgres = lane.docker && packageDirs.includes('packages/db');
+  if (postgres) {
+    if (!lane.postgresRunning) steps.push(postgresUp);
+    steps.push({
+      label: 'tests on postgres',
+      command: 'pnpm',
+      args: [
+        'exec',
+        'vitest',
+        'run',
+        ...(flags.has('fast') ? [] : ['--coverage', '--coverage.reportsDirectory=coverage/postgres']),
+      ],
+      env: { TEST_DB: 'postgres', TEST_DATABASE_URL: DEV_DATABASE_URL },
+    });
+  }
+  if (packageDirs.includes('apps/web')) {
     // Straight on Node from the web package (no pnpm or shell process in between): the production
     // build, then the Playwright smoke against it (which starts the in-memory API and vite preview).
     steps.push(
@@ -72,6 +112,8 @@ export function checkSteps(flags: ReadonlySet<string>, packageDirs: readonly str
       },
     );
   }
+  // Leave the machine as it was: stop the dev Postgres only if this run started it.
+  if (postgres && !lane.postgresRunning) steps.push(postgresDown);
   return steps;
 }
 
@@ -89,10 +131,12 @@ export function workspacePackages(root: string = repoRoot): string[] {
   return dirs;
 }
 
-function spawnStep(step: CheckStep, io: MainIo): boolean {
+/** Runs one step with inherited stdio from the repo root (or its `cwd`), adding its `env`; true when it exited 0. */
+export function spawnStep(step: CheckStep, io: MainIo): boolean {
   const result = spawnSync(step.command, step.args, {
     cwd: join(repoRoot, step.cwd ?? ''),
     stdio: 'inherit',
+    ...(step.env ? { env: { ...process.env, ...step.env } } : {}),
   });
   if (result.error) {
     io.stderr(`${step.label}: ${result.error.message}\n`);
@@ -101,20 +145,48 @@ function spawnStep(step: CheckStep, io: MainIo): boolean {
   return result.status === 0;
 }
 
+/** Asks Docker (two quick processes, only for --full) whether it runs and whether the dev Postgres is up. */
+function detectLane(): FullLane {
+  const docker =
+    spawnSync('docker', ['info', '--format', '{{.ServerVersion}}'], { stdio: 'ignore' }).status === 0;
+  if (!docker) return NO_DOCKER;
+  const ps = spawnSync(
+    'docker',
+    ['compose', '-f', DEV_COMPOSE_FILE, 'ps', '--status', 'running', '-q', 'postgres'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    },
+  );
+  return { docker, postgresRunning: ps.status === 0 && ps.stdout.trim() !== '' };
+}
+
 export interface CheckDeps {
   readonly packageDirs: readonly string[];
   /** Runs one step with inherited stdio; true when it passed. */
   runStep(step: CheckStep, io: MainIo): boolean;
+  /** Looks at Docker for the --full Postgres lane; not called without --full. */
+  lane?(): FullLane;
 }
 
 /** `mwc check`: every step runs even after a failure, so one run shows every problem. */
 export function runCheck(flags: ReadonlySet<string>, io: MainIo, deps?: CheckDeps): number {
-  const { packageDirs, runStep } = deps ?? { packageDirs: workspacePackages(), runStep: spawnStep };
+  const {
+    packageDirs,
+    runStep,
+    lane: detect,
+  } = deps ?? {
+    packageDirs: workspacePackages(),
+    runStep: spawnStep,
+    lane: detectLane,
+  };
+  let lane = NO_DOCKER;
   if (flags.has('full')) {
-    io.stdout('\n(--full: the Postgres lane arrives with S0.5)\n');
+    lane = detect?.() ?? NO_DOCKER;
+    if (!lane.docker) io.stdout('\n(--full: Docker is not available, so the Postgres lane is skipped)\n');
   }
   const failed: string[] = [];
-  for (const step of checkSteps(flags, packageDirs)) {
+  for (const step of checkSteps(flags, packageDirs, lane)) {
     io.stdout(`\n▶ ${step.label}\n`);
     if (!runStep(step, io)) failed.push(step.label);
   }
@@ -159,18 +231,33 @@ function ports(flags: ReadonlySet<string>, options: Readonly<Record<string, stri
 
 const HELP = [
   'mwc commands:',
-  '  check [--fast] [--full]        lint, typecheck, db drift, test (coverage unless --fast); --full: web build, e2e',
+  '  check [--fast] [--full]        lint, typecheck, db drift, test (coverage unless --fast);',
+  '                                 --full: tests on Postgres, web build, e2e',
+  '  dev [--down]                   Postgres, migrations, API on 9950 and web on 9951; --down stops Postgres',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
   '  help',
   '',
 ].join('\n');
 
-/** Run one `mwc` command; returns the process exit code (0 ok, 1 failed, 2 usage error). */
-export function main(argv: readonly string[], io: MainIo): number {
+export interface MainDeps {
+  /** `mwc dev` with its processes; the real ones by default. */
+  dev?(flags: ReadonlySet<string>, io: MainIo): Promise<number>;
+}
+
+const systemDev = (flags: ReadonlySet<string>, io: MainIo) =>
+  runDev(flags, io, systemDevDeps(repoRoot, io.env ?? process.env));
+
+/**
+ * Run one `mwc` command; returns the process exit code (0 ok, 1 failed, 2 usage error), as a
+ * promise for the long-running `dev`.
+ */
+export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): number | Promise<number> {
   const args = parseArgs(argv);
   switch (args.command) {
     case 'check':
       return runCheck(args.flags, io);
+    case 'dev':
+      return (deps.dev ?? systemDev)(args.flags, io);
     case 'ports':
       return ports(args.flags, args.options, io);
     case undefined:

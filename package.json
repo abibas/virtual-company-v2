@@ -9,8 +9,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks",
+    "prepare": "test -e .git && git config core.hooksPath .githooks || true",
     "mwc": "tsx packages/cli/src/mwc.ts",
+    "dev": "tsx packages/cli/src/mwc.ts dev",
     "check": "tsx packages/cli/src/mwc.ts check",
     "dev:server": "node --watch apps/server/src/main.ts",
     "dev:web": "pnpm --filter @mwc/web dev",

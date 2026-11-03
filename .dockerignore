@@ -1,0 +1,15 @@
+# Build context for deploy/Dockerfile.server: sources and manifests only.
+**/node_modules
+**/dist
+**/coverage
+**/test-results
+**/*.log
+**/.DS_Store
+.git
+.githooks
+.data
+worktrees
+docs/plan*
+.env
+.env.*
+!.env.example

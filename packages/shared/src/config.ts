@@ -25,6 +25,8 @@ const EnvSchema = z.object({
   MWC_HOST: z.preprocess(emptyAsUnset, z.union([z.ipv4(), z.ipv6(), z.hostname()]).default('127.0.0.1')),
   /** Apply pending migrations when the server starts (true/false, 1/0, yes/no, on/off). Default false. */
   MWC_MIGRATE_ON_START: z.preprocess(emptyAsUnset, z.stringbool().default(false)),
+  /** The built web UI (apps/web/dist) the server serves for `/`; the container image sets it. */
+  MWC_WEB_DIST: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
 });
 
 /**

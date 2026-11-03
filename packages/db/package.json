@@ -8,10 +8,12 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
     "./pglite": "./src/pglite.ts",
-    "./migrate": "./src/migrate.ts"
+    "./migrate": "./src/migrate.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate",
+    "migrate": "node scripts/migrate.ts",
     "check:migrations": "node scripts/check-migrations.ts",
     "diagram": "node scripts/schema-diagram.ts --write",
     "check:diagram": "node scripts/schema-diagram.ts --check",

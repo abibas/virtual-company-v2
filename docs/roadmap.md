@@ -22,7 +22,7 @@ Done when: fresh clone → `pnpm i && pnpm dev` serves the web on 9951 against t
 2. `@mwc/db`: drizzle config, `0000_init.sql` (`companies`, `users`, `audit_log`), `migrateToLatest()` — test: migrates on PGlite; a second run is a no-op. **Done 2026-11-03.** S0.2b: the generated schema diagram `docs/schema.md` (Mermaid ER diagram + a section per table), drift-checked by `mwc check`. **Done 2026-11-03.**
 3. `@mwc/server`: `createApp(deps)`, `/healthz`, `/readyz` (DB ping + migrations current), `/api/openapi.json`, `/api/docs`, request id + pino — tests: readyz 503 before migrate, 200 after. **Done 2026-11-03.**
 4. `@mwc/web`: Vite/React/Tailwind shell with the design tokens from the shared UI library's `theme.css` — Playwright: page loads, shows the API version. **Done 2026-11-03.**
-5. Compose (postgres, migrate, server, runner placeholder) + `mwc dev` orchestrator + `docs/ports.md`.
+5. Compose (postgres, migrate, server, runner placeholder) + `mwc dev` orchestrator + `docs/ports.md`. **Done 2026-11-03** (`deploy/compose.yml` = dev Postgres, `deploy/compose.prod.yml` = the prod-like stack, `deploy/Dockerfile.server`, `mwc dev`, the `--full` lane on Postgres, `docs/testing.md`).
 6. `@mwc/testkit` v0 + `mwc check` + pre-push hook + coverage thresholds.
 7. `CLAUDE.md` (v1 is read-only reference, ports, no secrets, no pushes, tenant id everywhere, tests per ticket), `README.md`, `docs/architecture.md` (this plan's sections 4–13), `docs/roadmap.md`.
 

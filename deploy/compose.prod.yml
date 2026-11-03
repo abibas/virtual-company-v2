@@ -1,0 +1,70 @@
+# The prod-like stack: the server image as it would run in the cloud, on 127.0.0.1:9990 (API and
+# web UI) with its own Postgres on 127.0.0.1:9992. A separate compose project (mwc-v2-prod) from the
+# dev Postgres in compose.yml, so both can run side by side and neither touches the other's data.
+#
+#   docker compose -f deploy/compose.prod.yml up -d --build --wait
+#   docker compose -f deploy/compose.prod.yml logs server
+#   docker compose -f deploy/compose.prod.yml down     # keeps the data volume (down -v drops it)
+name: mwc-v2-prod
+
+x-server-image: &server-image
+  image: mwc-v2/server:local
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile.server
+
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: mwc
+      POSTGRES_PASSWORD: mwc
+      POSTGRES_DB: mwc
+    ports:
+      - "127.0.0.1:9992:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U mwc -d mwc"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+
+  # One-shot: applies pending migrations, then exits; the server starts only when it succeeded.
+  migrate:
+    <<: *server-image
+    command: ["node", "packages/db/scripts/migrate.ts"]
+    environment:
+      DATABASE_URL: postgres://mwc:mwc@postgres:5432/mwc
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  server:
+    <<: *server-image
+    environment:
+      NODE_ENV: production
+      MWC_HOST: 0.0.0.0
+      MWC_PORT: "9950"
+      MWC_PUBLIC_URL: http://localhost:9990
+      MWC_LOG_LEVEL: info
+      DATABASE_URL: postgres://mwc:mwc@postgres:5432/mwc
+    ports:
+      - "127.0.0.1:9990:9950"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  # runner-local arrives with S3: image mwc/runner (Node 24 + a pinned claude + git + gh), dialing out
+  # to ws://server:9950/api/runner/ws, health on :9953, volumes work and runner-state,
+  # stop_grace_period 90s (docs/architecture.md section 13).
+
+volumes:
+  pgdata:
