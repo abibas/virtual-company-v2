@@ -1,0 +1,3 @@
+#!/bin/sh
+# Installed by `pnpm install` (root "prepare" sets core.hooksPath). Runs the fast check before any push.
+exec pnpm mwc check --fast

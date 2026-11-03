@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm refuses unapproved dependency build scripts. esbuild (via tsx and vite) only
+# verifies its platform binary in postinstall.
+allowBuilds:
+  esbuild: true

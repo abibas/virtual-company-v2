@@ -1,0 +1,23 @@
+# dependencies and builds
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# local data, never committed
+.data/
+worktrees/
+*.sqlite3
+*.log
+
+# environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# editors and OS
+.DS_Store
+.idea/
+.vscode/

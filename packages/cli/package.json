@@ -1,0 +1,16 @@
+{
+  "name": "@mwc/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "mwc: the developer and operator command line for Most Wanted Corp v2.",
+  "type": "module",
+  "exports": {
+    "./args": "./src/args.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/shared": "workspace:*"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "most-wanted-corp-v2",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Most Wanted Corp v2: humans and AI agents in one organization, rebuilt from scratch.",
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "mwc": "tsx packages/cli/src/mwc.ts",
+    "check": "tsx packages/cli/src/mwc.ts check",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.1.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}
