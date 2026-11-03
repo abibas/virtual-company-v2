@@ -5,9 +5,8 @@ mixes people and agents, tasks with one kept conversation per task, Claude Code 
 run on laptops, VMs or containers through a small outbound runner, and an inbox for everything
 that needs a person. Multi-tenant and container-deployable from the first commit.
 
-This is a clean rebuild of v1 (the Control Plane and the Paperclip fork), stage by stage, with
-tests. Why and how: `docs/plan-2026-11-03.md` (the approved plan), `docs/architecture.md`,
-`docs/roadmap.md`.
+This is a clean rebuild of the previous version (v1), stage by stage, with tests. Why and how:
+`docs/plan-2026-11-03.md` (the approved plan), `docs/architecture.md`, `docs/roadmap.md`.
 
 Schema diagram: [docs/schema.md](docs/schema.md) (a Mermaid ER diagram generated from the Drizzle schema).
 
@@ -47,7 +46,7 @@ docker compose -f deploy/compose.prod.yml down            # keeps the data volum
 Checks (lanes in `docs/testing.md`):
 
 ```sh
-pnpm mwc check          # lint, typecheck, db drift, tests with coverage
+pnpm mwc check          # lint, banned names, typecheck, db drift, tests with coverage
 pnpm mwc check --full   # + the tests on the dev Postgres, the web build and the Playwright smoke
 pnpm mwc ports          # the port map (9950–9999)
 ```

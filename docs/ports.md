@@ -1,6 +1,6 @@
 # Ports
 
-Everything v2 listens on lives in 9950–9999 so it never collides with v1 (3200, 8766, 54329), the AI gateway (8300), the Paperclip lab (3100), Playwright MCP (8931) or the Airia stacks. The constants are in `packages/shared/src/ports.ts`; `pnpm mwc ports` prints them.
+Everything v2 listens on lives in 9950–9999 so it never collides with v1 (3200, 8766, 54329), the AI gateway (8300), another local service (3100), Playwright MCP (8931) or the Airia stacks. The constants are in `packages/shared/src/ports.ts`; `pnpm mwc ports` prints them.
 
 ## 3. Port map (9950–9999)
 

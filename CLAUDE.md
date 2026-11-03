@@ -7,10 +7,11 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
 
 ## Rules
 
-- **v1 is read-only reference.** `/Users/abibas/PERSONAL/Most Wanted Corp` (Control Plane) and
-  `/Users/abibas/PERSONAL/most-wanted-paperclip` (the Paperclip fork) are never edited, run,
-  restarted or deployed from here. Their databases, `.data/`, `.env` files, keys and sign-ins are
-  never read.
+- **Earlier versions are reference only.** Earlier versions of the product live outside this
+  repository. They are reference only: never edit, run, restart or deploy them from here, and never
+  read their databases, data folders, `.env` files, keys or sign-ins.
+- **No legacy naming.** Names, paths and identifiers from earlier versions never appear in code,
+  schema, docs or commit messages; `mwc check` enforces the banned list (`packages/cli/src/banned.ts`).
 - **Ports 9950–9999 only.** API 9950, web 9951, Postgres 9952, runner health 9953, worktree
   slots 9960–9989 (`pnpm mwc ports --slot N`), prod-like compose 9990–9992. See `docs/ports.md`.
 - **No secrets in the repo.** Configuration comes from the environment (`.env.example` lists the
@@ -46,9 +47,9 @@ CLI entry). Biome does not format Markdown.
 `pnpm --filter @mwc/db diagram`.
 
 ```sh
-pnpm install            # also installs the git pre-push hook
+pnpm install            # also installs the git hooks (pre-push, commit-msg)
 pnpm dev                # dev Postgres (Docker, 9952) + migrations + API 9950 + web 9951; mwc dev --down stops PG
-pnpm mwc check          # biome, typecheck per package, db drift, tests with coverage
+pnpm mwc check          # biome, banned names, typecheck per package, db drift, tests with coverage
 pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
 pnpm mwc check --full   # + tests on the dev Postgres, web build, Playwright smoke (docs/testing.md)
 pnpm mwc ports          # the port map

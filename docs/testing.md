@@ -7,9 +7,17 @@ tests (house rule); the web is covered by a Playwright smoke.
 
 | Lane | Command | What runs | When |
 | --- | --- | --- | --- |
-| fast | `pnpm mwc check --fast` | Biome, `tsc --noEmit` per package (cli, db, shared, testkit, server, web), db drift (migrations and `docs/schema.md`), all Vitest tests on PGlite, no coverage | the git pre-push hook |
+| fast | `pnpm mwc check --fast` | Biome, banned names, `tsc --noEmit` per package (cli, db, shared, testkit, server, web), db drift (migrations and `docs/schema.md`), all Vitest tests on PGlite, no coverage | the git pre-push hook |
 | default | `pnpm mwc check` | the fast lane with coverage (v8, thresholds 80% lines/statements/functions, 70% branches; report in `coverage/`) | before every commit |
 | full | `pnpm mwc check --full` | the default lane, then the tests again on the dev Postgres, the web build and the Playwright smoke | before a push that touches the database, the server or the web, and at the end of a stage |
+
+**Banned names** (in every lane, in-process, one `git ls-files`): every file git tracks or would track
+(untracked files that are not ignored count too), except `pnpm-lock.yaml` and binary files, is scanned
+case-insensitively for the terms in `packages/cli/src/banned.ts`, names from earlier versions of the
+product that never appear in this repository; a hit fails the check with `file:line`. The terms are built
+from parts in that file, so the list never contains them. The `commit-msg` hook
+(`.githooks/commit-msg`, `mwc banned --message <file>`) applies the same list to each commit message
+(without git's `#` comment lines and the `git commit -v` diff). `pnpm mwc banned` runs the file scan alone.
 
 `--full` in order:
 
@@ -42,7 +50,7 @@ tests (house rule); the web is covered by a Playwright smoke.
 | Package | Tests | Database |
 | --- | --- | --- |
 | `packages/shared` | config, ports, ids, enums (unit) | none |
-| `packages/cli` | argument parsing, `mwc check` and `mwc dev` plans with fake processes, two short real-process checks of the spawn wrapper | none |
+| `packages/cli` | argument parsing, `mwc check` and `mwc dev` plans with fake processes, the banned-names scanner and the commit-msg hook's command, two short real-process checks of the spawn wrapper | none |
 | `packages/db` | schema constraints, migrations, `migrationStatus`, `queryRows`, the schema diagram, test database names and the stale-database sweep | `createTestDb()`: PGlite, or Postgres with `TEST_DB=postgres` |
 | `packages/testkit` | its own helpers (capture logger, fixed clock, JSON requests, `createTestApp`), and a guard that the workspace's dependency graph has no cycle except the dev-only testkit ↔ server one | `createTestApp()` |
 | `apps/server` | the API through `app.request()` (health, readiness, errors, request ids, OpenAPI, docs, static UI), the logger, graceful shutdown, one real `serve()` on an ephemeral port | `createTestApp()` on `createTestDb()` |

@@ -8,13 +8,23 @@
  *                                    Docker is available), the web build and the Playwright smoke
  *   mwc dev [--down]                 dev Postgres + migrations + API (9950) + web (9951); --down stops Postgres
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
+ *   mwc banned [--message FILE]      fail on a banned name (banned.ts) in the repository's files, or in
+ *                                    a commit message file (the commit-msg hook)
  *   mwc help
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PORTS, SLOT_COUNT, slotFromPath, slotPorts } from '@mwc/shared/ports';
 import { parseArgs } from './args.ts';
+import {
+  commitMessageText,
+  formatHits,
+  type ScanDeps,
+  scanFiles,
+  scanText,
+  systemScanDeps,
+} from './banned.ts';
 import {
   DEV_COMPOSE_FILE,
   DEV_DATABASE_URL,
@@ -36,8 +46,33 @@ export interface MainIo {
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
 
-/** One step of `mwc check`: a label and the process to run from the repo root (or `cwd` under it). */
-export type CheckStep = Step;
+/**
+ * One step of `mwc check`: a label and the process to run from the repo root (or `cwd` under it), or,
+ * with `run`, a check that runs inside this process (no process start; `command`/`args` then say how to
+ * run the same check on its own).
+ */
+export type CheckStep = Step & { readonly run?: (io: MainIo) => boolean };
+
+/** The banned-names scan of the repository's files, in this process (one `git ls-files`). */
+export function bannedNames(io: MainIo, deps: ScanDeps = systemScanDeps(repoRoot)): boolean {
+  const files = deps.listFiles();
+  const hits = scanFiles({ listFiles: () => files, readFile: deps.readFile });
+  if (hits.length > 0) {
+    io.stderr(
+      `${formatHits(hits)}Names from earlier versions never appear in this repository (CLAUDE.md).\n`,
+    );
+    return false;
+  }
+  io.stdout(`no banned names in ${files.length} files\n`);
+  return true;
+}
+
+const bannedStep: CheckStep = {
+  label: 'banned names',
+  command: process.execPath,
+  args: ['packages/cli/src/mwc.ts', 'banned'],
+  run: (io) => bannedNames(io),
+};
 
 /** What the --full Postgres lane needs to know about the machine before it plans its steps. */
 export interface FullLane {
@@ -55,7 +90,10 @@ export function checkSteps(
   packageDirs: readonly string[],
   lane: FullLane = NO_DOCKER,
 ): CheckStep[] {
-  const steps: CheckStep[] = [{ label: 'biome', command: 'pnpm', args: ['exec', 'biome', 'check', '.'] }];
+  const steps: CheckStep[] = [
+    { label: 'biome', command: 'pnpm', args: ['exec', 'biome', 'check', '.'] },
+    bannedStep,
+  ];
   for (const dir of packageDirs) {
     steps.push({ label: `typecheck ${dir}`, command: 'pnpm', args: ['exec', 'tsc', '--noEmit', '-p', dir] });
   }
@@ -131,8 +169,12 @@ export function workspacePackages(root: string = repoRoot): string[] {
   return dirs;
 }
 
-/** Runs one step with inherited stdio from the repo root (or its `cwd`), adding its `env`; true when it exited 0. */
+/**
+ * Runs one step with inherited stdio from the repo root (or its `cwd`), adding its `env`; true when it
+ * exited 0. A step with `run` runs in this process instead.
+ */
 export function spawnStep(step: CheckStep, io: MainIo): boolean {
+  if (step.run) return step.run(io);
   const result = spawnSync(step.command, step.args, {
     cwd: join(repoRoot, step.cwd ?? ''),
     stdio: 'inherit',
@@ -229,12 +271,39 @@ function ports(flags: ReadonlySet<string>, options: Readonly<Record<string, stri
   return 0;
 }
 
+/** `mwc banned`: the repository's files, or with `--message FILE` that commit message file. */
+function banned(
+  flags: ReadonlySet<string>,
+  options: Readonly<Record<string, string>>,
+  io: MainIo,
+  deps?: ScanDeps,
+): number {
+  if (flags.has('message')) {
+    io.stderr('mwc banned: --message needs a file\n');
+    return 2;
+  }
+  if (options.message === undefined) return bannedNames(io, deps) ? 0 : 1;
+  let raw: string;
+  try {
+    // git runs hooks from the top of the work tree and passes the path relative to it.
+    raw = readFileSync(resolve(io.cwd, options.message), 'utf8');
+  } catch (error) {
+    io.stderr(`mwc banned: cannot read ${options.message}: ${(error as Error).message}\n`);
+    return 2;
+  }
+  const hits = scanText('commit message', commitMessageText(raw));
+  if (hits.length === 0) return 0;
+  io.stderr(`${formatHits(hits)}Names from earlier versions never appear in commit messages (CLAUDE.md).\n`);
+  return 1;
+}
+
 const HELP = [
   'mwc commands:',
-  '  check [--fast] [--full]        lint, typecheck, db drift, test (coverage unless --fast);',
+  '  check [--fast] [--full]        lint, banned names, typecheck, db drift, test (coverage unless --fast);',
   '                                 --full: tests on Postgres, web build, e2e',
   '  dev [--down]                   Postgres, migrations, API on 9950 and web on 9951; --down stops Postgres',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
+  '  banned [--message FILE]        banned names in the repository, or in a commit message file',
   '  help',
   '',
 ].join('\n');
@@ -242,6 +311,8 @@ const HELP = [
 export interface MainDeps {
   /** `mwc dev` with its processes; the real ones by default. */
   dev?(flags: ReadonlySet<string>, io: MainIo): Promise<number>;
+  /** The files `mwc banned` scans; git's by default. */
+  scan?: ScanDeps;
 }
 
 const systemDev = (flags: ReadonlySet<string>, io: MainIo) =>
@@ -260,6 +331,8 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
       return (deps.dev ?? systemDev)(args.flags, io);
     case 'ports':
       return ports(args.flags, args.options, io);
+    case 'banned':
+      return banned(args.flags, args.options, io, deps.scan);
     case undefined:
     case 'help':
       io.stdout(HELP);

@@ -107,6 +107,7 @@ describe('checkSteps', () => {
     const steps = checkSteps(new Set(), ['packages/cli', 'packages/shared']);
     expect(steps.map((s) => s.label)).toEqual([
       'biome',
+      'banned names',
       'typecheck packages/cli',
       'typecheck packages/shared',
       'tests',
@@ -118,12 +119,13 @@ describe('checkSteps', () => {
     const steps = checkSteps(new Set(), ['packages/cli', 'packages/db']);
     expect(steps.map((s) => s.label)).toEqual([
       'biome',
+      'banned names',
       'typecheck packages/cli',
       'typecheck packages/db',
       'db drift',
       'tests',
     ]);
-    expect(steps[3]).toMatchObject({
+    expect(steps[4]).toMatchObject({
       command: process.execPath,
       args: ['packages/db/scripts/check-drift.ts'],
     });
@@ -142,7 +144,14 @@ describe('checkSteps', () => {
 
   it('adds the web build and the Playwright smoke with --full, run from apps/web on Node', () => {
     const full = checkSteps(new Set(['full']), ['apps/web'], { docker: true, postgresRunning: false });
-    expect(full.map((s) => s.label)).toEqual(['biome', 'typecheck apps/web', 'tests', 'web build', 'e2e']);
+    expect(full.map((s) => s.label)).toEqual([
+      'biome',
+      'banned names',
+      'typecheck apps/web',
+      'tests',
+      'web build',
+      'e2e',
+    ]);
     expect(full.slice(-2)).toEqual([
       {
         label: 'web build',
@@ -164,7 +173,7 @@ describe('checkSteps', () => {
   it('runs the db and server tests on the dev Postgres with --full, starting and stopping it', () => {
     const dirs = ['apps/server', 'apps/web', 'packages/db'];
     const full = checkSteps(new Set(['full']), dirs, { docker: true, postgresRunning: false });
-    expect(full.map((s) => s.label).slice(dirs.length + 3)).toEqual([
+    expect(full.map((s) => s.label).slice(dirs.length + 4)).toEqual([
       'postgres',
       'tests on postgres',
       'web build',
@@ -190,6 +199,7 @@ describe('checkSteps', () => {
     const running = checkSteps(new Set(['full', 'fast']), dirs, { docker: true, postgresRunning: true });
     expect(running.map((s) => s.label)).toEqual([
       'biome',
+      'banned names',
       'typecheck packages/db',
       'db drift',
       'tests',
@@ -221,7 +231,7 @@ describe('runCheck', () => {
       },
     });
     expect(code).toBe(1);
-    expect(ran).toEqual(['biome', 'typecheck packages/a', 'typecheck packages/b', 'tests']);
+    expect(ran).toEqual(['biome', 'banned names', 'typecheck packages/a', 'typecheck packages/b', 'tests']);
     expect(c.out()).toContain('▶ typecheck packages/b');
     expect(c.err()).toContain('✗ mwc check failed: typecheck packages/a, tests');
   });
@@ -252,6 +262,19 @@ describe('runCheck', () => {
     expect(asked).toBe(1);
     expect(ran.slice(-3)).toEqual(['postgres', 'tests on postgres', 'postgres down']);
     expect(c.out()).not.toContain('skipped');
+  });
+});
+
+describe('the banned names step', () => {
+  it('runs in this process: spawnStep calls run instead of starting a process', () => {
+    const [step] = checkSteps(new Set(['fast']), []).filter((s) => s.label === 'banned names');
+    expect(step?.run).toBeTypeOf('function');
+    expect(step?.args).toEqual(['packages/cli/src/mwc.ts', 'banned']);
+    const c = capture();
+    expect(
+      spawnStep({ label: 'inline', command: 'mwc-no-such-command', args: [], run: () => true }, c.io),
+    ).toBe(true);
+    expect(c.err()).toBe('');
   });
 });
 

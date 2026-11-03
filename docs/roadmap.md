@@ -4,12 +4,12 @@ Stages of the rebuild, each a sprint that ends in a tagged release and a review 
 
 ## 1. Context
 
-Ihor (2026-11-03) wants to stop growing v1 and re-implement the product from scratch, stage by stage, reviewing each stage and covering it with unit tests, so the result is clean, cloud-deployable as a container stack, and multi-tenant-ready. The new project lives in `/Users/abibas/PERSONAL/Most_Wanted_corp_v2` (created empty today) on ports 9950–9999 (verified free). This supersedes the parked v2 epic in the fork (MOS-68..75 named the folder "Most Wanted Corp v2" and ports 4100–4199; the PM updates the epic when v2 starts).
+Ihor (2026-11-03) wants to stop growing v1 and re-implement the product from scratch, stage by stage, reviewing each stage and covering it with unit tests, so the result is clean, cloud-deployable as a container stack, and multi-tenant-ready. The new project lives in `/Users/abibas/PERSONAL/Most_Wanted_corp_v2` (created empty today) on ports 9950–9999 (verified free). This supersedes the v2 epic parked in v1's task tracker (it named another folder and ports 4100–4199; the PM updates it when v2 starts).
 
 What v1 is (reference only; never written to):
-- **v1a Control Plane** (`Most Wanted Corp/Control Plane`, frozen since 2026-10-08): plain JS, Express 5, node:sqlite, Clerk login without webhooks, AES-256-GCM credential store, hardened Docker agent runtime, permission-prompt relay (`--permission-prompt-tool stdio`), 94 node tests, ~10k lines. A real second-user invitation was never tested.
-- **v1b Paperclip fork** (`most-wanted-paperclip`): 289 `mw:` commits (+56k lines) on a ~1M-line upstream (259 tables, 17 `mw_*`); the core hooks sit in two 19k–31k-line upstream files; almost no tests for fork logic. Remote execution on the Airia devbox = SSH over IAP + detached `setsid` runs + `sleep` placeholders + a hand-made reverse tunnel for MCP callbacks + a file-queue bridge for API calls. Recorded pain: server restarts kill runs, lease deadlocks, a shared MCP config moved the wrong task, Mac sleep lapsed leases, Stop did not reach the remote process, the box's `settings.json` overrode the run's gateway env.
-- Prior spec worth reusing: `Control Plane/design/product-roadmap.md` (entities, lifecycle, P0–P5) and `design/architecture.md`.
+- **v1, first application** (frozen since 2026-10-08): plain JS, Express 5, node:sqlite, Clerk login without webhooks, AES-256-GCM credential store, hardened Docker agent runtime, permission-prompt relay (`--permission-prompt-tool stdio`), 94 node tests, ~10k lines. A real second-user invitation was never tested.
+- **v1, second application** (our changes on top of a large third-party application): about 56k lines of ours on a ~1M-line base (259 tables); the core hooks sit in two 19k–31k-line base files; almost no tests for our logic. Remote execution on the Airia devbox = SSH over IAP + detached `setsid` runs + `sleep` placeholders + a hand-made reverse tunnel for MCP callbacks + a file-queue bridge for API calls. Recorded pain: server restarts kill runs, lease deadlocks, a shared MCP config moved the wrong task, Mac sleep lapsed leases, Stop did not reach the remote process, the box's `settings.json` overrode the run's gateway env.
+- Prior spec worth reusing: v1's product roadmap (entities, lifecycle, P0–P5) and its architecture notes.
 
 **First goal for v2:** one configured remote coding agent ("SLOP BOX", a single coder role) that Ihor's main Claude Code chat (CEO office) can message, and whose "needs input" / "blocked" states reach his inbox. Everything else grows from that, in the order below.
 
@@ -89,13 +89,13 @@ Done when the demo below passes on the Mac and then on the devbox:
 ### S6 — credentials and sign-ins
 
 Done when: the compose runner runs a task with a server-held Claude setup-token and no credentials on disk; GitHub and Jira sign-ins are stored encrypted per person and granted per agent; deliveries are audited.
-1. `credentials` store (v1a `credentials.js` ported, key versioning, AAD with company) + API — unit: tamper detection, wrong tenant.
-2. Claude setup-token flow in a throwaway container (PTY capture, as v1a `claude-login.js`), stored encrypted — integration with a fake container runner.
+1. `credentials` store (v1's AES-256-GCM credential store bound to owner and provider, ported, plus key versioning and the company in the AAD) + API — unit: tamper detection, wrong tenant.
+2. Claude setup-token flow in a throwaway container (PTY capture, as in v1), stored encrypted — integration with a fake container runner.
 3. GitHub `gh auth login --device`, Jira `acli` sign-in (v1 flows), per-agent grants, delivery in `run.start.secrets`, `credential_deliveries` audit.
 
-### S7 — work model ported from the fork (one ticket each, behind the same tests discipline)
+### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
-Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases (MOS-75), Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox, Codex driver. Each item cites the v1 file it replaces and ships with integration tests.
+Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox, Codex driver. Each item names the v1 behaviour it replaces and ships with integration tests.
 
 ### S8 — cloud deployment
 
@@ -111,6 +111,6 @@ Hardened compose for a VM (TLS via a reverse proxy, backups with `pg_dump` and r
 
 ## 20. Execution model and first steps
 
-- **Who executes (recommended):** the CEO office (this chat) writes `docs/architecture.md` and scaffolds S0 with Ihor watching, so the conventions (tenant layer, testkit, `mwc check`) exist before anyone else codes; from S1 the CORP product PM gets the stage tickets one at a time (as today), the Developer builds in worktrees with the port triplets, the PM closes deployed work; Ihor reviews each stage. The v2 epic in the fork (MOS-68..75) is rewritten by the PM from this plan (folder `Most_Wanted_corp_v2`, ports 9950–9999, stages S0–S8) on Ihor's go. Alternative: the CEO office executes S0–S2 directly and hands over at S3. Either way, runs and task assignments start only on his request.
+- **Who executes (recommended):** the CEO office (this chat) writes `docs/architecture.md` and scaffolds S0 with Ihor watching, so the conventions (tenant layer, testkit, `mwc check`) exist before anyone else codes; from S1 the CORP product PM gets the stage tickets one at a time (as today), the Developer builds in worktrees with the port triplets, the PM closes deployed work; Ihor reviews each stage. The v2 epic parked in v1's task tracker is rewritten by the PM from this plan (folder `Most_Wanted_corp_v2`, ports 9950–9999, stages S0–S8) on Ihor's go. Alternative: the CEO office executes S0–S2 directly and hands over at S3. Either way, runs and task assignments start only on his request.
 - **First commits:** S0.1–S0.7 above, then S1.2's real-Clerk contract test (the earliest external-dependency check), then S4.1's fake-`claude` fixtures recorded from the installed CLI (the earliest harness check).
-- **Not touched:** v1 (the Control Plane, the fork, its database, the devbox, his sign-ins) stays as is; the fork keeps running the current teams while v2 grows on 9950–9999.
+- **Not touched:** v1 (both applications, their databases, the devbox, his sign-ins) stays as is; v1 keeps running the current teams while v2 grows on 9950–9999.

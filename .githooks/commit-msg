@@ -1,0 +1,5 @@
+#!/bin/sh
+# Installed by `pnpm install` (root "prepare" sets core.hooksPath). Refuses a commit message that holds a
+# banned name: names from earlier versions of the product (packages/cli/src/banned.ts, CLAUDE.md).
+# Straight on Node (its TypeScript support): one process per commit.
+exec node packages/cli/src/mwc.ts banned --message "$1"
