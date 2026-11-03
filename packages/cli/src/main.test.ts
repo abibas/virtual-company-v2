@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { slotFromPath } from '@mwc/shared/ports';
 import { describe, expect, it } from 'vitest';
@@ -119,6 +119,34 @@ describe('checkSteps', () => {
   it('drops coverage with --fast', () => {
     expect(checkSteps(new Set(['fast']), []).at(-1)?.args).not.toContain('--coverage');
   });
+
+  it('adds the web build and the Playwright smoke with --full, run from apps/web on Node', () => {
+    const full = checkSteps(new Set(['full']), ['apps/web']);
+    expect(full.map((s) => s.label)).toEqual(['biome', 'typecheck apps/web', 'tests', 'web build', 'e2e']);
+    expect(full.slice(-2)).toEqual([
+      {
+        label: 'web build',
+        command: process.execPath,
+        args: ['node_modules/vite/bin/vite.js', 'build'],
+        cwd: 'apps/web',
+      },
+      {
+        label: 'e2e',
+        command: process.execPath,
+        args: ['node_modules/@playwright/test/cli.js', 'test'],
+        cwd: 'apps/web',
+      },
+    ]);
+    expect(checkSteps(new Set(), ['apps/web']).map((s) => s.label)).not.toContain('e2e');
+    expect(checkSteps(new Set(['full']), ['packages/cli']).map((s) => s.label)).not.toContain('e2e');
+  });
+
+  it('points the --full steps at files the web package really has', () => {
+    const root = resolve(import.meta.dirname, '../../..');
+    for (const step of checkSteps(new Set(['full']), ['apps/web']).filter((s) => s.cwd)) {
+      expect(existsSync(resolve(root, step.cwd ?? '', step.args[0] ?? ''))).toBe(true);
+    }
+  });
 });
 
 describe('runCheck', () => {
@@ -141,7 +169,7 @@ describe('runCheck', () => {
   it('passes when every step passes and mentions the --full lanes', () => {
     const c = capture();
     expect(runCheck(new Set(['full']), c.io, { packageDirs: [], runStep: () => true })).toBe(0);
-    expect(c.out()).toContain('--full: the Postgres and e2e lanes');
+    expect(c.out()).toContain('--full: the Postgres lane arrives with S0.5');
     expect(c.out()).toContain('✓ mwc check passed');
   });
 });

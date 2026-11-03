@@ -67,3 +67,9 @@ entry (config, Postgres, listen, graceful shutdown) and runs on Node's own TypeS
 Each module is a router from `newRouter()` mounted in `createApp`, with zod-openapi routes so
 `/api/openapi.json` and the web's typed client (`AppType`) follow the code. Errors are always
 `{ error: { code, message, requestId } }`; never put driver errors or stacks in a response.
+
+`apps/web`: React 19, Vite, Tailwind 4 (tokens in `src/styles.css`, copied from the shared UI library's
+`theme.css`; light and dark). It calls the API only through `src/api.ts` (`hc<AppType>`, a type-only import
+of `@mwc/server`, so no server code is bundled; `e2e/bundle.spec.ts` checks that). No UI unit tests: the
+Playwright smoke in `apps/web/e2e` runs in `pnpm mwc check --full` and `pnpm e2e` with the installed Google
+Chrome (`channel: 'chrome'`), never a downloaded browser.

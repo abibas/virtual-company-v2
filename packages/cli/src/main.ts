@@ -3,7 +3,8 @@
  * `main()` so the commands can be tested without spawning a process.
  *
  *   mwc check [--fast] [--full]      lint, typecheck every package, check db drift (migrations and the
- *                                    schema diagram), run the tests (with coverage unless --fast)
+ *                                    schema diagram), run the tests (with coverage unless --fast);
+ *                                    --full adds the web build and the Playwright smoke
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
  *   mwc help
  */
@@ -24,11 +25,13 @@ export interface MainIo {
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
 
-/** One step of `mwc check`: a label and the process to run from the repo root. */
+/** One step of `mwc check`: a label and the process to run from the repo root (or `cwd` under it). */
 export interface CheckStep {
   readonly label: string;
   readonly command: string;
   readonly args: readonly string[];
+  /** Working directory relative to the repo root; the root when omitted. */
+  readonly cwd?: string;
 }
 
 /** The steps of `mwc check` for the given workspace package directories, in order. */
@@ -51,6 +54,24 @@ export function checkSteps(flags: ReadonlySet<string>, packageDirs: readonly str
     command: 'pnpm',
     args: ['exec', 'vitest', 'run', ...(flags.has('fast') ? [] : ['--coverage'])],
   });
+  if (flags.has('full') && packageDirs.includes('apps/web')) {
+    // Straight on Node from the web package (no pnpm or shell process in between): the production
+    // build, then the Playwright smoke against it (which starts the in-memory API and vite preview).
+    steps.push(
+      {
+        label: 'web build',
+        command: process.execPath,
+        args: ['node_modules/vite/bin/vite.js', 'build'],
+        cwd: 'apps/web',
+      },
+      {
+        label: 'e2e',
+        command: process.execPath,
+        args: ['node_modules/@playwright/test/cli.js', 'test'],
+        cwd: 'apps/web',
+      },
+    );
+  }
   return steps;
 }
 
@@ -69,7 +90,10 @@ export function workspacePackages(root: string = repoRoot): string[] {
 }
 
 function spawnStep(step: CheckStep, io: MainIo): boolean {
-  const result = spawnSync(step.command, step.args, { cwd: repoRoot, stdio: 'inherit' });
+  const result = spawnSync(step.command, step.args, {
+    cwd: join(repoRoot, step.cwd ?? ''),
+    stdio: 'inherit',
+  });
   if (result.error) {
     io.stderr(`${step.label}: ${result.error.message}\n`);
     return false;
@@ -87,7 +111,7 @@ export interface CheckDeps {
 export function runCheck(flags: ReadonlySet<string>, io: MainIo, deps?: CheckDeps): number {
   const { packageDirs, runStep } = deps ?? { packageDirs: workspacePackages(), runStep: spawnStep };
   if (flags.has('full')) {
-    io.stdout('\n(--full: the Postgres and e2e lanes arrive with S0.5 and S0.6)\n');
+    io.stdout('\n(--full: the Postgres lane arrives with S0.5)\n');
   }
   const failed: string[] = [];
   for (const step of checkSteps(flags, packageDirs)) {
@@ -135,7 +159,7 @@ function ports(flags: ReadonlySet<string>, options: Readonly<Record<string, stri
 
 const HELP = [
   'mwc commands:',
-  '  check [--fast] [--full]        lint, typecheck, db drift, test (coverage unless --fast)',
+  '  check [--fast] [--full]        lint, typecheck, db drift, test (coverage unless --fast); --full: web build, e2e',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
   '  help',
   '',

@@ -11,9 +11,10 @@ Everything v2 listens on lives in 9950–9999 so it never collides with v1 (3200
 | 9952      | Postgres (dev compose)                                                                                                                       |
 | 9953      | Local runner health (`/healthz`)                                                                                                             |
 | 9954      | ngrok inspect UI (webhook tunnel forwards to 9950; dev only)                                                                                 |
-| 9955      | Web preview for e2e                                                                                                                          |
+| 9955      | Web preview for e2e (`vite preview` of the production build)                                                                                 |
 | 9956      | Drizzle Studio                                                                                                                               |
-| 9957–9959 | spare                                                                                                                                        |
+| 9957      | API for e2e (in-memory PGlite, `apps/server/src/dev-memory.ts`)                                                                              |
+| 9958–9959 | spare                                                                                                                                        |
 | 9960–9989 | Worktree triplets, slot k = 0..9: API `9960+3k`, web `9961+3k`, PG `9962+3k` (`MWC_PORT_SLOT`, or derived from the worktree path and probed) |
 | 9990–9992 | Compose "prod-like" stack (server, web static, PG)                                                                                           |
 | 9993–9999 | spare / Playwright reports                                                                                                                   |

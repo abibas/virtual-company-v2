@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens copied (values only) from the shared Control Center UI library:
+ * /Users/abibas/LAST_DANCE/ihors_memory/control_plane/assets/ui/styles/theme.css (colours, fonts)
+ * and its shell.css / controls.css (radii 2/3/4/9px, the 222px rail, 2px amber focus ring).
+ * That theme is dark only ("a nocturnal chart room"), so its values are the dark scheme here; the
+ * light scheme below is derived from the same hues with text colours darkened to keep 4.5:1 contrast.
+ * Fonts are not downloaded (no CDN): IBM Plex and Fraunces are used when installed, else the fallbacks.
+ */
+@theme static {
+  --color-ground: #0c100e;
+  --color-panel: #11161380;
+  --color-panel-solid: #111613;
+  --color-panel-2: #161c18;
+  --color-ink: #e7ece4;
+  --color-ink-2: #c4cdc2;
+  --color-dim: #97a398;
+  --color-faint: #66716a;
+  --color-line: rgba(151, 163, 152, 0.16);
+  --color-line-2: rgba(151, 163, 152, 0.26);
+  --color-amber: #e5a83b;
+  --color-amber-soft: rgba(229, 168, 59, 0.14);
+  --color-pulse: #7fba8e;
+  --color-pulse-soft: rgba(127, 186, 142, 0.13);
+  --color-info: #86aec2;
+  --color-alarm: #d96a5f;
+  --color-alarm-soft: rgba(217, 106, 95, 0.14);
+  /* The chart-paper grid drawn on the ground. */
+  --color-grid: rgba(150, 170, 155, 0.045);
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Fraunces", Georgia, serif;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 9px;
+
+  /* Tailwind's 4px step; the source's paddings (2, 6, 10, 14, 24px) are its halves and multiples. */
+  --spacing: 0.25rem;
+  --spacing-rail: 222px;
+
+  --text-label: 10.5px;
+  --tracking-label: 0.14em;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-ground: #f3f5f0;
+    --color-panel: #ffffffcc;
+    --color-panel-solid: #ffffff;
+    --color-panel-2: #e8ece5;
+    --color-ink: #121814;
+    --color-ink-2: #2b352e;
+    --color-dim: #56625a;
+    --color-faint: #848e87;
+    --color-line: rgba(40, 56, 44, 0.14);
+    --color-line-2: rgba(40, 56, 44, 0.24);
+    --color-amber: #8a5a0c;
+    --color-amber-soft: rgba(138, 90, 12, 0.12);
+    --color-pulse: #2c7442;
+    --color-pulse-soft: rgba(44, 116, 66, 0.12);
+    --color-info: #2f6a88;
+    --color-alarm: #ab3d35;
+    --color-alarm-soft: rgba(171, 61, 53, 0.1);
+    --color-grid: rgba(40, 60, 45, 0.05);
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark light;
+  }
+
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 27px, var(--color-grid) 27px 28px),
+      repeating-linear-gradient(90deg, transparent 0 27px, var(--color-grid) 27px 28px), var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 1px;
+  }
+}

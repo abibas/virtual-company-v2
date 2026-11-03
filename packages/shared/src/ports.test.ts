@@ -11,6 +11,7 @@ describe('port map', () => {
       PORTS.ngrokInspect,
       PORTS.webPreview,
       PORTS.drizzleStudio,
+      PORTS.e2eApi,
       PORTS.prodLike.api,
       PORTS.prodLike.web,
       PORTS.prodLike.postgres,

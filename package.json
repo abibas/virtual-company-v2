@@ -13,6 +13,8 @@
     "mwc": "tsx packages/cli/src/mwc.ts",
     "check": "tsx packages/cli/src/mwc.ts check",
     "dev:server": "node --watch apps/server/src/main.ts",
+    "dev:web": "pnpm --filter @mwc/web dev",
+    "e2e": "pnpm --filter @mwc/web e2e",
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome format --write ."

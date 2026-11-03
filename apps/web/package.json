@@ -1,0 +1,29 @@
+{
+  "name": "@mwc/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Most Wanted Corp v2 web UI (React, Vite, Tailwind).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "e2e": "vite build && playwright test"
+  },
+  "dependencies": {
+    "hono": "4.13.16",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@mwc/server": "workspace:*",
+    "@mwc/shared": "workspace:*",
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.2.1",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.5"
+  }
+}

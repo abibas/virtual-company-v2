@@ -11,6 +11,8 @@ export const PORTS = {
   ngrokInspect: 9954,
   webPreview: 9955,
   drizzleStudio: 9956,
+  /** The API on an in-memory PGlite that the web e2e smoke runs against (apps/server/src/dev-memory.ts). */
+  e2eApi: 9957,
   prodLike: { api: 9990, web: 9991, postgres: 9992 },
 } as const;
 
