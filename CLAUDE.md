@@ -42,6 +42,8 @@ Relative imports use the `.ts` extension; packages export TypeScript sources dir
 (bundling happens only for the deployable images). `index.ts` is for barrel re-exports only;
 executable entry points are named `main.ts`/`mwc.ts` (coverage excludes only barrels and the
 CLI entry). Biome does not format Markdown.
+`docs/schema.md` is generated; after a schema change run `pnpm --filter @mwc/db generate` and
+`pnpm --filter @mwc/db diagram`.
 
 ```sh
 pnpm install            # also installs the git pre-push hook

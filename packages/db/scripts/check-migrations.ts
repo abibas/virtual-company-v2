@@ -7,6 +7,7 @@
  * touched. Exit 0 when they agree, 1 on drift (the would-be SQL is printed), 2 when drizzle-kit fails.
  *
  * Runs on Node's own TypeScript support: `node scripts/check-migrations.ts` (no tsx process).
+ * `check-drift.ts` imports `checkMigrations()` to run it in the same process as the diagram check.
  */
 import { spawnSync } from 'node:child_process';
 import {
@@ -37,7 +38,8 @@ function snapshot(dir: string): Map<string, string> {
   return files;
 }
 
-function main(): number {
+/** The migrations drift check; returns the exit code (0 agree, 1 drift, 2 drizzle-kit failed). */
+export function checkMigrations(): number {
   if (!existsSync(drizzleKit)) {
     process.stderr.write(
       `check-migrations: drizzle-kit is not installed (${drizzleKit}); run pnpm install\n`,
@@ -108,4 +110,4 @@ function main(): number {
   }
 }
 
-process.exitCode = main();
+if (import.meta.main) process.exitCode = checkMigrations();

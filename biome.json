@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/coverage", "!**/.data", "!packages/db/migrations"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/coverage",
+      "!**/.data",
+      "!packages/db/migrations",
+      "!docs/schema.md"
+    ]
   },
   "formatter": {
     "enabled": true,

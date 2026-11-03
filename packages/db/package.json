@@ -13,6 +13,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "check:migrations": "node scripts/check-migrations.ts",
+    "diagram": "node scripts/schema-diagram.ts --write",
+    "check:diagram": "node scripts/schema-diagram.ts --check",
     "test": "vitest run"
   },
   "dependencies": {

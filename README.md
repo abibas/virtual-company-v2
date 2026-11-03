@@ -9,12 +9,14 @@ This is a clean rebuild of v1 (the Control Plane and the Paperclip fork), stage 
 tests. Why and how: `docs/plan-2026-11-03.md` (the approved plan), `docs/architecture.md`,
 `docs/roadmap.md`.
 
+Schema diagram: [docs/schema.md](docs/schema.md) (a Mermaid ER diagram generated from the Drizzle schema).
+
 ## Status
 
 Stage **S0 — skeleton and one-command start**: S0.1 (repo setup: workspace, config loader, port map,
 `mwc check`, docs) and S0.2 (`@mwc/db`: Drizzle schema v0 with `users`, `companies`, `audit_log`, the
-`0000_init` migration, PGlite tests, the migrations drift check) are done. Next: the server skeleton
-(S0.3).
+`0000_init` migration, PGlite tests, the migrations drift check) and S0.2b (the generated schema diagram
+`docs/schema.md`, drift-checked by `mwc check`) are done. Next: the server skeleton (S0.3).
 
 ## Start
 
@@ -46,5 +48,5 @@ Full map and rules: `docs/ports.md`.
 apps/        server, web, runner            (arrive in S0–S3)
 packages/    shared, cli, db (now); identity-core, identity-clerk, harness, testkit, mcp (later)
 deploy/      compose.yml, Dockerfiles        (S0.5)
-docs/        plan, architecture, roadmap, ports
+docs/        plan, architecture, roadmap, ports, schema (generated)
 ```

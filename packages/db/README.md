@@ -1,6 +1,7 @@
 # @mwc/db
 
 The Postgres schema (Drizzle), its SQL migrations, and database handles for Most Wanted Corp v2.
+The schema drawn as a diagram, with a section per table: [docs/schema.md](../../docs/schema.md) (generated).
 
 | Import            | What                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------- |
@@ -20,11 +21,15 @@ not yet recorded in `drizzle.__drizzle_migrations` (a second run is a no-op).
 3. Review the SQL. Constraints come from the schema (`check()`, `unique()`, `index()`, references), so
    the generated file is the whole truth; do not hand-edit it. If drizzle-kit cannot express something,
    append it to the generated file under a `-- custom:` comment that says why.
-4. Add or update the tests in `src/*.test.ts` (they run on PGlite), then `pnpm mwc check`.
+4. Run `pnpm --filter @mwc/db diagram` after a schema change; it rewrites `docs/schema.md` (the Mermaid
+   ER diagram and the per-table sections, from `src/diagram.ts`). `mwc check` fails if you forget.
+5. Add or update the tests in `src/*.test.ts` (they run on PGlite), then `pnpm mwc check`.
 
 Migrations are forward-only: never edit a migration that has been committed; write a new one.
-`pnpm --filter @mwc/db check:migrations` (also a step of `pnpm mwc check`) fails when the schema and
-`migrations/` disagree, that is when `generate` would write a new file.
+`pnpm --filter @mwc/db check:migrations` fails when the schema and `migrations/` disagree, that is when
+`generate` would write a new file; `pnpm --filter @mwc/db check:diagram` fails when `docs/schema.md` is
+not what `diagram` would write. `pnpm mwc check` runs both in its "db drift" step
+(`scripts/check-drift.ts`, one Node process).
 
 ## Conventions
 

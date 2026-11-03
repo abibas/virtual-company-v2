@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { slotFromPath } from '@mwc/shared/ports';
 import { describe, expect, it } from 'vitest';
@@ -93,19 +94,26 @@ describe('checkSteps', () => {
     expect(steps.at(-1)?.args).toContain('--coverage');
   });
 
-  it('checks migrations drift after the typechecks when packages/db exists', () => {
+  it('checks db drift (migrations and schema diagram) after the typechecks when packages/db exists', () => {
     const steps = checkSteps(new Set(), ['packages/cli', 'packages/db']);
     expect(steps.map((s) => s.label)).toEqual([
       'biome',
       'typecheck packages/cli',
       'typecheck packages/db',
-      'migrations drift',
+      'db drift',
       'tests',
     ]);
     expect(steps[3]).toMatchObject({
       command: process.execPath,
-      args: ['packages/db/scripts/check-migrations.ts'],
+      args: ['packages/db/scripts/check-drift.ts'],
     });
+  });
+
+  it('points the db drift step at a script that runs both drift checks', () => {
+    const [step] = checkSteps(new Set(), ['packages/db']).filter((s) => s.label === 'db drift');
+    const script = readFileSync(resolve(import.meta.dirname, '../../..', step?.args[0] ?? ''), 'utf8');
+    expect(script).toContain('checkMigrations()');
+    expect(script).toContain('checkDiagram()');
   });
 
   it('drops coverage with --fast', () => {
