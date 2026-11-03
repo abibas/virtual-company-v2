@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { brokenDb, createTestApp, LEVEL, type TestApp } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { brokenDb, createTestApp, LEVEL, type TestApp } from './test-helpers.ts';
 
 let dist: string;
 let t: TestApp;
@@ -16,7 +16,7 @@ beforeAll(async () => {
   );
   writeFileSync(join(dist, 'assets/index-abc123.js'), 'console.log("app")');
   writeFileSync(join(dist, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-  t = await createTestApp({ deps: { db: brokenDb(), webDist: dist } });
+  t = await createTestApp({ db: brokenDb(), webDist: dist });
 });
 afterAll(() => {
   rmSync(dist, { recursive: true, force: true });
@@ -68,15 +68,15 @@ describe('the built web UI (webDist)', () => {
   });
 
   it('serves nothing for / without webDist', async () => {
-    const plain = await createTestApp({ deps: { db: brokenDb() } });
+    const plain = await createTestApp({ db: brokenDb() });
     expect((await plain.app.request('/')).status).toBe(404);
   });
 
   it('warns at startup when the folder has no index.html, and falls through to the JSON 404', async () => {
     const empty = mkdtempSync(join(tmpdir(), 'mwc-web-empty-'));
     try {
-      const bare = await createTestApp({ deps: { db: brokenDb(), webDist: empty } });
-      expect(bare.lines.find((line) => line.msg.includes('no index.html'))?.level).toBe(LEVEL.warn);
+      const bare = await createTestApp({ db: brokenDb(), webDist: empty });
+      expect(bare.logs.find((line) => line.msg.includes('no index.html'))?.level).toBe(LEVEL.warn);
       expect((await bare.app.request('/somewhere')).status).toBe(404);
     } finally {
       rmSync(empty, { recursive: true, force: true });

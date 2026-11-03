@@ -55,9 +55,11 @@ pnpm mwc ports          # the port map
 ```
 
 `deploy/`: `compose.yml` is the dev Postgres only; `compose.prod.yml` is the prod-like stack (9990/9992)
-built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Node 24 directly. Tests
-that need a database use `createTestDb()` (`@mwc/db/testing`): PGlite by default, a fresh database on
-the dev Postgres with `TEST_DB=postgres`; write them so they pass on both.
+built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Node 24 directly. `mwc`
+itself runs on Node's own type stripping too (no tsx). Test helpers come from `@mwc/testkit` (a
+devDependency): `createTestApp()`, `createTestDb()` (PGlite by default, a fresh database on the dev
+Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock()`, `getJson`/`postJson`,
+`captureLogger()` (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
 
 ## Layout
 

@@ -57,6 +57,14 @@ export function readJournal(migrationsFolder: string = MIGRATIONS_FOLDER): Journ
   return journal.entries;
 }
 
+export interface MigrationStatusOptions extends MigrateOptions {
+  /**
+   * The journal to compare against, already read (`readJournal()`), so a caller that asks often (the
+   * server's `/readyz`) reads the file once at startup; when given, `migrationsFolder` is not read.
+   */
+  readonly journal?: readonly JournalEntry[];
+}
+
 export interface MigrationStatus {
   /** Migrations from the journal that the database has applied. */
   readonly applied: number;
@@ -73,12 +81,13 @@ export interface MigrationStatus {
  * migration counts as applied when its `when` is not after the newest `created_at` recorded in the
  * migrations table (that is what makes `migrateToLatest` skip it). A database without the table
  * has applied nothing. Rejects with the driver's error when the database does not answer.
+ * Pass `journal` to skip reading the journal file on every call.
  */
 export async function migrationStatus(
   handle: DbHandle,
-  options: MigrateOptions = {},
+  options: MigrationStatusOptions = {},
 ): Promise<MigrationStatus> {
-  const entries = readJournal(options.migrationsFolder);
+  const entries = options.journal ?? readJournal(options.migrationsFolder);
   const qualified = `${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`;
   const [table] = await queryRows<{ present: boolean }>(
     handle,

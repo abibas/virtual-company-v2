@@ -13,15 +13,12 @@ Schema diagram: [docs/schema.md](docs/schema.md) (a Mermaid ER diagram generated
 
 ## Status
 
-Stage **S0 — skeleton and one-command start**: S0.1 (repo setup: workspace, config loader, port map,
-`mwc check`, docs) and S0.2 (`@mwc/db`: Drizzle schema v0 with `users`, `companies`, `audit_log`, the
-`0000_init` migration, PGlite tests, the migrations drift check) and S0.2b (the generated schema diagram
-`docs/schema.md`, drift-checked by `mwc check`) and S0.3 (`@mwc/server`: the Hono API skeleton with
-`/healthz`, `/readyz`, `/api/version`, the OpenAPI 3.1 document at `/api/openapi.json` and Swagger UI at
-`/api/docs`, request ids and pino logs) and S0.4 (`@mwc/web`: the React/Vite/Tailwind shell with the
-shared UI library's design tokens, a Home page showing the API version and readiness through the typed
-Hono client, and a Playwright smoke) and S0.5 (the server image, the dev and prod-like compose stacks,
-`pnpm dev`, and the `--full` check lane on a real Postgres) are done. Next: `@mwc/testkit` v0 (S0.6).
+**S0 — skeleton and one-command start: done (v0.1.0).** The pnpm workspace, the config loader and port map,
+`@mwc/db` (Drizzle schema v0, `0000_init`, the generated schema diagram), `@mwc/server` (Hono with `/healthz`,
+`/readyz`, `/api/version`, OpenAPI and Swagger UI, request ids, pino), `@mwc/web` (the React/Vite/Tailwind
+shell and its Playwright smoke), the server image and compose stacks, `pnpm dev`, `@mwc/testkit`, and
+`mwc check` with its fast, default and full lanes (release notes in `docs/roadmap.md`).
+Next: **S1 — identity and companies**, starting with `@mwc/identity-core` (S1.1).
 
 ## Start
 
@@ -77,7 +74,7 @@ Full map and rules: `docs/ports.md`.
 
 ```
 apps/        server, web (now); runner      (S3)
-packages/    shared, cli, db (now); identity-core, identity-clerk, harness, testkit, mcp (later)
+packages/    shared, cli, db, testkit (now); identity-core, identity-clerk, harness, mcp (later)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server
 docs/        plan, architecture, roadmap, ports, testing, schema (generated)
 ```

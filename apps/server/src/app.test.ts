@@ -1,16 +1,23 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { isId } from '@mwc/shared/ids';
+import {
+  brokenDb,
+  createTestApp,
+  fixedClock,
+  LEVEL,
+  TEST_NOW,
+  TEST_VERSION,
+  type TestApp,
+} from '@mwc/testkit';
 import { HTTPException } from 'hono/http-exception';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REQUEST_ID_MAX_LENGTH } from './app.ts';
 import { errorCode } from './http/errors.ts';
-import { brokenDb, createTestApp, LEVEL, TEST_VERSION, type TestApp } from './test-helpers.ts';
 
-const fixedNow = new Date('2026-11-03T12:00:00.000Z');
 let t: TestApp;
 
 beforeAll(async () => {
-  t = await createTestApp({ deps: { clock: () => fixedNow } });
+  t = await createTestApp({ clock: fixedClock() });
   // Test-only routes, added after createApp the way a module router would be.
   t.app.get('/test/boom', () => {
     throw new Error('secret internals: password=hunter2');
@@ -39,7 +46,7 @@ afterAll(async () => {
 });
 
 const logFor = (requestId: string | null) =>
-  t.lines.filter((line) => line.msg === 'request' && line.requestId === requestId);
+  t.logs.filter((line) => line.msg === 'request' && line.requestId === requestId);
 
 describe('request id', () => {
   it('generates a UUID v7 when none is sent and echoes it in the response header', async () => {
@@ -103,7 +110,7 @@ describe('errors', () => {
       error: { code: 'internal', message: 'Internal server error', requestId: 'req-500' },
     });
     expect(text).not.toContain('hunter2');
-    const logged = t.lines.find((line) => line.msg === 'request failed' && line.requestId === 'req-500');
+    const logged = t.logs.find((line) => line.msg === 'request failed' && line.requestId === 'req-500');
     expect(logged?.level).toBe(LEVEL.error);
     const err = logged?.err as { message: string; stack: string };
     expect(err.message).toContain('secret internals');
@@ -198,11 +205,11 @@ describe('OpenAPI and docs', () => {
 describe('clock', () => {
   it('gives routes the injected clock', async () => {
     const res = await t.app.request('/test/clock');
-    expect(await res.json()).toEqual({ now: fixedNow.toISOString() });
+    expect(await res.json()).toEqual({ now: TEST_NOW });
   });
 
   it('defaults to the system clock', async () => {
-    const plain = await createTestApp({ deps: { db: brokenDb() } });
+    const plain = await createTestApp({ db: brokenDb() });
     plain.app.get('/test/clock', (c) => c.json({ now: c.var.clock().getTime() }));
     const before = Date.now();
     const { now } = (await (await plain.app.request('/test/clock')).json()) as { now: number };

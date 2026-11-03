@@ -1,5 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { type MigrationStatus, migrationStatus, pingDb } from '@mwc/db';
+import { type JournalEntry, type MigrationStatus, migrationStatus, pingDb, readJournal } from '@mwc/db';
 import type { AppDeps } from '../env.ts';
 import { newRouter } from '../http/router.ts';
 
@@ -63,10 +63,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 type DbCheck = { ok: true; migrations: MigrationStatus } | { ok: false; reason: string };
 
-async function checkDb(deps: AppDeps): Promise<DbCheck> {
+async function checkDb(deps: AppDeps, journal: readonly JournalEntry[]): Promise<DbCheck> {
   try {
     const migrations = await withTimeout(
-      pingDb(deps.db).then(() => migrationStatus(deps.db)),
+      pingDb(deps.db).then(() => migrationStatus(deps.db, { journal })),
       READY_TIMEOUT_MS,
     );
     if (!migrations.current) {
@@ -88,10 +88,12 @@ async function checkDb(deps: AppDeps): Promise<DbCheck> {
 }
 
 export function healthRoutes(deps: AppDeps) {
+  // Read once here, when the app is built: the journal only changes with a new deploy.
+  const journal = deps.journal ?? readJournal();
   return newRouter()
     .openapi(healthzRoute, (c) => c.json({ status: 'ok' as const, version: deps.version }, 200))
     .openapi(readyzRoute, async (c) => {
-      const check = await checkDb(deps);
+      const check = await checkDb(deps, journal);
       if (!check.ok) {
         return c.json({ status: 'not_ready' as const, reason: check.reason }, 503);
       }

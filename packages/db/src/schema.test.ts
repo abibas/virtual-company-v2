@@ -5,8 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type DbHandle, migrateToLatest } from './migrate.ts';
 import { queryRows } from './query.ts';
 import { auditLog, companies, users } from './schema/index.ts';
-import { pgError } from './test-helpers.ts';
-import { createTestDb, type TestDb } from './testing.ts';
+import { createTestDb, pgError, type TestDb } from './testing.ts';
 
 let testDb: TestDb;
 let handle: DbHandle;

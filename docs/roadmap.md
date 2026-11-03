@@ -23,8 +23,17 @@ Done when: fresh clone → `pnpm i && pnpm dev` serves the web on 9951 against t
 3. `@mwc/server`: `createApp(deps)`, `/healthz`, `/readyz` (DB ping + migrations current), `/api/openapi.json`, `/api/docs`, request id + pino — tests: readyz 503 before migrate, 200 after. **Done 2026-11-03.**
 4. `@mwc/web`: Vite/React/Tailwind shell with the design tokens from the shared UI library's `theme.css` — Playwright: page loads, shows the API version. **Done 2026-11-03.**
 5. Compose (postgres, migrate, server, runner placeholder) + `mwc dev` orchestrator + `docs/ports.md`. **Done 2026-11-03** (`deploy/compose.yml` = dev Postgres, `deploy/compose.prod.yml` = the prod-like stack, `deploy/Dockerfile.server`, `mwc dev`, the `--full` lane on Postgres, `docs/testing.md`).
-6. `@mwc/testkit` v0 + `mwc check` + pre-push hook + coverage thresholds.
-7. `CLAUDE.md` (v1 is read-only reference, ports, no secrets, no pushes, tenant id everywhere, tests per ticket), `README.md`, `docs/architecture.md` (this plan's sections 4–13), `docs/roadmap.md`.
+6. `@mwc/testkit` v0 + `mwc check` + pre-push hook + coverage thresholds. **Done 2026-11-03** (`mwc check`, the pre-push hook and the coverage thresholds landed with S0.1–S0.5; S0.6 adds `@mwc/testkit`, the stale test database sweep of the Postgres lane, `mwc` on plain Node without tsx, and the journal read once for `/readyz`).
+7. `CLAUDE.md` (v1 is read-only reference, ports, no secrets, no pushes, tenant id everywhere, tests per ticket), `README.md`, `docs/architecture.md` (this plan's sections 4–13), `docs/roadmap.md`. **Done 2026-11-03** (written with S0.1 and kept current by every step since; no separate commit).
+
+**S0 release notes (v0.1.0, `36ce2a3..v0.1.0`, S0.1–S0.6):**
+- pnpm workspace on Node 24 and TypeScript 7 with no build step (Node runs the sources), Biome, Vitest with coverage thresholds (80% lines/statements/functions, 70% branches), the zod config loader and the 9950–9999 port map with worktree slots.
+- `@mwc/db`: Drizzle schema v0 (`users`, `companies`, `audit_log`), the `0000_init` migration, `migrateToLatest`, `migrationStatus`, a migrations and schema-diagram drift check, the generated `docs/schema.md`.
+- `@mwc/server`: Hono with `/healthz`, `/readyz` (database ping and migrations current), `/api/version`, the OpenAPI 3.1 document and Swagger UI, request ids, pino logs, one error shape, graceful shutdown, the built UI served in production.
+- `@mwc/web`: React 19, Vite and Tailwind 4 with the shared UI tokens, the typed Hono client, and a Playwright smoke in the installed Chrome.
+- Containers: `deploy/compose.yml` (dev Postgres on 9952), `deploy/compose.prod.yml` (server image, one-shot migrate and its own Postgres on 9990/9992; the plan's "compose up on 9990–9992"), `deploy/Dockerfile.server`.
+- `mwc` (plain Node): `check` (fast, default and `--full` lanes: tests again on the dev Postgres, web build, e2e), `dev` (Postgres, migrations, API and web in one command), `ports`; the pre-push hook runs `mwc check --fast`.
+- `@mwc/testkit`: `createTestApp`, `createTestDb` (PGlite or Postgres, leftovers swept), `fixedClock`, JSON request helpers, a capture logger.
 
 ### S1 — identity and companies
 

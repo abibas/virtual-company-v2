@@ -175,9 +175,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: 5.1.0
         version: 5.1.0(vitest@5.1.0)
-      tsx:
-        specifier: 4.23.15
-        version: 4.23.15
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -215,6 +212,9 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@mwc/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
       pino-pretty:
         specifier: 13.2.0
         version: 13.2.0
@@ -292,6 +292,21 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
+
+  packages/testkit:
+    dependencies:
+      '@mwc/db':
+        specifier: workspace:*
+        version: link:../db
+      '@mwc/server':
+        specifier: workspace:*
+        version: link:../../apps/server
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../shared
+      pino:
+        specifier: 10.4.0
+        version: 10.4.0
 
 packages:
 

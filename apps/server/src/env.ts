@@ -1,4 +1,4 @@
-import type { DbHandle } from '@mwc/db';
+import type { DbHandle, JournalEntry } from '@mwc/db';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 
@@ -13,6 +13,11 @@ export interface AppDeps {
   readonly clock?: () => Date;
   /** The built web UI (apps/web/dist) to serve for `/` and client routes; omitted in dev and tests. */
   readonly webDist?: string;
+  /**
+   * The migrations the database must have for `/readyz` (`readJournal()` of `@mwc/db`). Omitted, the
+   * package's own journal is read once when the app is built, never per request.
+   */
+  readonly journal?: readonly JournalEntry[];
 }
 
 /** Hono's environment for every route: the per-request variables middleware sets. */

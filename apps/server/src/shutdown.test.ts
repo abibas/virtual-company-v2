@@ -1,9 +1,9 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { serve } from '@hono/node-server';
+import { captureLogger, createTestApp } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { gracefulShutdown, SHUTDOWN_TIMEOUT_MS } from './shutdown.ts';
-import { captureLogger, createTestApp } from './test-helpers.ts';
 
 function fakeServer(close: (callback: (error?: Error) => void) => void) {
   return { close: vi.fn(close), closeIdleConnections: vi.fn() } as unknown as Server;

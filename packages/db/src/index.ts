@@ -8,6 +8,7 @@ export {
   MIGRATIONS_TABLE,
   type MigrateOptions,
   type MigrationStatus,
+  type MigrationStatusOptions,
   migrateToLatest,
   migrationStatus,
   readJournal,

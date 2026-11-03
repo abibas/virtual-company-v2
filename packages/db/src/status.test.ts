@@ -115,6 +115,20 @@ describe(`migrationStatus on ${testDbKind()}`, () => {
     });
   });
 
+  it('uses a journal it is given and then never reads the migrations folder', async () => {
+    const handle = await fresh();
+    await migrateToLatest(handle);
+    const ahead = readJournal(aheadFolder);
+    // The folder does not exist: only the given journal can answer.
+    const status = await migrationStatus(handle, { journal: ahead, migrationsFolder: '/nonexistent' });
+    expect(status).toEqual({
+      applied: journal.length,
+      expected: journal.length + 1,
+      last: lastTag,
+      current: false,
+    });
+  });
+
   it('rejects when the database does not answer', async () => {
     const handle = await fresh();
     await handle.close();
