@@ -12,6 +12,8 @@ describe('loadConfig', () => {
       MWC_PORT: 9950,
       MWC_PUBLIC_URL: 'http://localhost:9950',
       MWC_LOG_LEVEL: 'info',
+      MWC_HOST: '127.0.0.1',
+      MWC_MIGRATE_ON_START: false,
     });
   });
 
@@ -39,6 +41,32 @@ describe('loadConfig', () => {
       const paths = (error as ConfigError).issues.map((issue) => issue.path).sort();
       expect(paths).toEqual(['DATABASE_URL', 'MWC_LOG_LEVEL', 'MWC_PORT', 'MWC_PORT_SLOT']);
     }
+  });
+});
+
+describe('loadConfig MWC_HOST and MWC_MIGRATE_ON_START', () => {
+  it('accepts an IPv4, IPv6 or host name for MWC_HOST and treats empty as the loopback default', () => {
+    for (const host of ['0.0.0.0', '127.0.0.1', '::', '::1', 'localhost', 'server.internal']) {
+      expect(loadConfig({ ...valid, MWC_HOST: host }).MWC_HOST).toBe(host);
+    }
+    expect(loadConfig({ ...valid, MWC_HOST: '' }).MWC_HOST).toBe('127.0.0.1');
+  });
+
+  it('rejects an MWC_HOST that is not an address or host name', () => {
+    for (const host of ['http://0.0.0.0', 'a b', '0.0.0.0:9950']) {
+      expect(() => loadConfig({ ...valid, MWC_HOST: host })).toThrow(/MWC_HOST/);
+    }
+  });
+
+  it('parses MWC_MIGRATE_ON_START as a boolean, false when unset or empty', () => {
+    for (const on of ['true', '1', 'yes', 'on']) {
+      expect(loadConfig({ ...valid, MWC_MIGRATE_ON_START: on }).MWC_MIGRATE_ON_START).toBe(true);
+    }
+    for (const off of ['false', '0', 'no', 'off', '']) {
+      expect(loadConfig({ ...valid, MWC_MIGRATE_ON_START: off }).MWC_MIGRATE_ON_START).toBe(false);
+    }
+    expect(loadConfig(valid).MWC_MIGRATE_ON_START).toBe(false);
+    expect(() => loadConfig({ ...valid, MWC_MIGRATE_ON_START: 'maybe' })).toThrow(/MWC_MIGRATE_ON_START/);
   });
 });
 

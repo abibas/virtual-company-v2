@@ -21,6 +21,10 @@ const EnvSchema = z.object({
   /** Defaults to http://localhost:<effective MWC_PORT>. */
   MWC_PUBLIC_URL: z.preprocess(emptyAsUnset, z.url().optional()),
   MWC_LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** The address the API binds to: loopback by default; the compose image sets 0.0.0.0. */
+  MWC_HOST: z.preprocess(emptyAsUnset, z.union([z.ipv4(), z.ipv6(), z.hostname()]).default('127.0.0.1')),
+  /** Apply pending migrations when the server starts (true/false, 1/0, yes/no, on/off). Default false. */
+  MWC_MIGRATE_ON_START: z.preprocess(emptyAsUnset, z.stringbool().default(false)),
 });
 
 /**

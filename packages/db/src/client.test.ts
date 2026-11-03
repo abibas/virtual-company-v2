@@ -12,6 +12,19 @@ describe('createDb', () => {
     await expect(handle.close()).resolves.toBeUndefined();
   });
 
+  it('routes notices to the given handler and leaves the postgres.js default otherwise', async () => {
+    // postgres.js keeps onnotice in its parsed options but leaves it out of their type.
+    const noticeHandler = (handle: ReturnType<typeof createDb>) =>
+      (handle.db.$client.options as { onnotice?: unknown }).onnotice;
+    const onnotice = () => {};
+    const handle = createDb(url, { onnotice });
+    expect(noticeHandler(handle)).toBe(onnotice);
+    await handle.close();
+    const plain = createDb(url);
+    expect(noticeHandler(plain)).not.toBe(onnotice);
+    await plain.close();
+  });
+
   it('takes the pool size from the options', async () => {
     const handle = createDb(url, { poolSize: 3 });
     expect(handle.db.$client.options.max).toBe(3);

@@ -3,6 +3,8 @@ packages:
   - packages/*
 
 # pnpm refuses unapproved dependency build scripts. esbuild (via tsx and vite) only
-# verifies its platform binary in postinstall.
+# verifies its platform binary in postinstall. @scarf/scarf (a dependency of swagger-ui-dist,
+# which serves /api/docs) only reports install analytics in postinstall, so it is refused.
 allowBuilds:
   esbuild: true
+  "@scarf/scarf": false

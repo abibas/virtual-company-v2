@@ -5,13 +5,18 @@ The schema drawn as a diagram, with a section per table: [docs/schema.md](../../
 
 | Import            | What                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------- |
-| `@mwc/db`         | `createDb(url, { poolSize })` (postgres.js, lazy connect), `migrateToLatest(handle)`, `diffFields`, the tables |
+| `@mwc/db`         | `createDb(url, { poolSize, onnotice })` (postgres.js, lazy connect), `migrateToLatest(handle)`, `migrationStatus(handle)`, `readJournal()`, `queryRows(handle, sql)`, `pingDb(handle)`, `diffFields`, the tables |
 | `@mwc/db/schema`  | the Drizzle tables and row types only                                                  |
 | `@mwc/db/pglite`  | `createPgliteDb()`: an in-memory PGlite handle for tests (PGlite is a dev dependency)   |
-| `@mwc/db/migrate` | `migrateToLatest(handle, { migrationsFolder? })`, `MIGRATIONS_FOLDER`                   |
+| `@mwc/db/migrate` | `migrateToLatest(handle, { migrationsFolder? })`, `migrationStatus`, `readJournal`, `MIGRATIONS_FOLDER`, `MIGRATIONS_SCHEMA`, `MIGRATIONS_TABLE` |
 
 Both handles are `{ driver, db, close() }`; `migrateToLatest` takes either and applies every migration
-not yet recorded in `drizzle.__drizzle_migrations` (a second run is a no-op).
+not yet recorded in `drizzle.__drizzle_migrations` (a second run is a no-op; the schema and table are
+pinned as `MIGRATIONS_SCHEMA`/`MIGRATIONS_TABLE`). `migrationStatus(handle)` returns
+`{ applied, expected, last, current }` by Drizzle's own rule (a journal entry counts as applied when its
+`when` is not after the newest recorded `created_at`); the server's `/readyz` uses it. `queryRows` runs raw
+SQL on either driver and returns the rows as an array (the drivers shape results differently).
+`createDb`'s `onnotice` receives Postgres notices (postgres.js prints them with `console.log` otherwise).
 
 ## Changing the schema
 

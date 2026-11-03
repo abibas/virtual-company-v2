@@ -1,5 +1,5 @@
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres, { type Sql } from 'postgres';
+import postgres, { type Notice, type Sql } from 'postgres';
 import * as schema from './schema/index.ts';
 
 export type Schema = typeof schema;
@@ -16,6 +16,11 @@ export interface PostgresDbHandle {
 export interface CreateDbOptions {
   /** Connections in the pool (postgres.js `max`). Default 10. */
   readonly poolSize?: number;
+  /**
+   * Where Postgres notices go (`NOTICE: schema "drizzle" already exists, skipping` and the like).
+   * postgres.js prints them with console.log by default; the server routes them to its logger.
+   */
+  readonly onnotice?: (notice: Notice) => void;
 }
 
 /**
@@ -23,7 +28,10 @@ export interface CreateDbOptions {
  * creating a handle never fails because the database is down; `/readyz` (S0.3) reports that.
  */
 export function createDb(url: string, options: CreateDbOptions = {}): PostgresDbHandle {
-  const client = postgres(url, { max: options.poolSize ?? 10 });
+  const client = postgres(url, {
+    max: options.poolSize ?? 10,
+    ...(options.onnotice ? { onnotice: options.onnotice } : {}),
+  });
   return {
     driver: 'postgres-js',
     db: drizzle(client, { schema }),

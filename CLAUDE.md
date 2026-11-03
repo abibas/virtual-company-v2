@@ -60,3 +60,10 @@ migrations, tenant layer), `packages/identity-core` and `packages/identity-clerk
 `packages/harness` (Claude Code driver), `packages/testkit`, `packages/cli` (`mwc`),
 `packages/mcp` (MCP server for humans' Claude Code), `deploy/` (compose and Dockerfiles),
 `docs/`. Packages appear as their stage lands (see `docs/roadmap.md`).
+
+`apps/server`: `createApp(deps)` in `src/app.ts` builds the Hono app from injected deps (db handle, config,
+logger, version, clock) so tests drive it with `app.request()` on PGlite; `src/main.ts` is the process
+entry (config, Postgres, listen, graceful shutdown) and runs on Node's own TypeScript support, no tsx.
+Each module is a router from `newRouter()` mounted in `createApp`, with zod-openapi routes so
+`/api/openapi.json` and the web's typed client (`AppType`) follow the code. Errors are always
+`{ error: { code, message, requestId } }`; never put driver errors or stacks in a response.
