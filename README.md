@@ -24,7 +24,9 @@ frontend tests for now); the Clerk connector (S1.2, `connectors/identity-clerk`,
 the provider contract that runs against the fake always and against the real Clerk development instance on
 request; the identity tables (S1.3, `0001_identity`) with the tenant layer `tenant(db, companyId)`, raw access
 only through `@mwc/db/system` (forbidden in server modules by Biome), and the database identity store, which passes
-the same store contract as the in-memory one; next S1.4, sign-in (`authn()`, `requireMembership()`, `GET /api/me`).
+the same store contract as the in-memory one; sign-in (S1.4: `authn()` for Clerk session tokens and personal API
+keys, `requireMembership(role)`, `GET /api/me` with reconcile on sign-in; `MWC_IDENTITY`, `MWC_WEB_ORIGIN`); next
+S1.5, companies.
 
 ## Start
 

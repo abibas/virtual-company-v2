@@ -10,7 +10,8 @@
     "./enums": "./src/enums.ts",
     "./identity": "./src/identity.ts",
     "./ids": "./src/ids.ts",
-    "./ports": "./src/ports.ts"
+    "./ports": "./src/ports.ts",
+    "./roles": "./src/roles.ts"
   },
   "scripts": {
     "test": "vitest run"

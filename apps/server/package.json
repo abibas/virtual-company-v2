@@ -2,7 +2,7 @@
   "name": "@mwc/server",
   "version": "0.0.0",
   "private": true,
-  "description": "The Most Wanted Corp v2 API server (Hono): health, readiness, OpenAPI docs, and later the domain API.",
+  "description": "The Most Wanted Corp v2 API server (Hono): health, readiness, OpenAPI docs, sign-in and roles, and the domain API.",
   "type": "module",
   "exports": {
     ".": "./src/app.ts",
@@ -16,6 +16,7 @@
     "@hono/swagger-ui": "0.6.2",
     "@hono/zod-openapi": "1.6.3",
     "@mwc/db": "workspace:*",
+    "@mwc/identity-clerk": "workspace:*",
     "@mwc/identity-core": "workspace:*",
     "@mwc/shared": "workspace:*",
     "drizzle-orm": "0.45.4",

@@ -1,4 +1,5 @@
 import type { DbHandle, JournalEntry } from '@mwc/db';
+import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 
@@ -18,6 +19,18 @@ export interface AppDeps {
    * package's own journal is read once when the app is built, never per request.
    */
   readonly journal?: readonly JournalEntry[];
+  /**
+   * The identity provider that signs people in (tests pass `FakeIdentityProvider`). Omitted, it comes from
+   * the configuration (`platform/identity.ts`): the Clerk connector for MWC_IDENTITY=clerk, none for `none`.
+   */
+  readonly identity?: IdentityProvider;
+}
+
+/** What the modules and the auth middleware get from `createApp`: the deps with their defaults applied. */
+export interface ServerDeps extends Omit<AppDeps, 'clock' | 'identity'> {
+  readonly clock: () => Date;
+  /** Undefined when sign-in is off (MWC_IDENTITY=none): routes behind `authn()` answer 503. */
+  readonly identity: IdentityProvider | undefined;
 }
 
 /** Hono's environment for every route: the per-request variables middleware sets. */

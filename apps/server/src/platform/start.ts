@@ -94,7 +94,8 @@ export async function start(
   const server = deps.serve(
     { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST },
     (info) => {
-      logger.info({ host: config.MWC_HOST, port: info.port, version, db: deps.dbLabel }, 'listening');
+      const line = { host: config.MWC_HOST, port: info.port, version, db: deps.dbLabel };
+      logger.info({ ...line, identity: config.MWC_IDENTITY }, 'listening');
     },
   );
   server.on('error', (error) => {

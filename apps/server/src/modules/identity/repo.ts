@@ -13,6 +13,7 @@ import type {
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import * as bookkeeping from './repo/bookkeeping.ts';
 import * as invitations from './repo/invitations.ts';
+import { getUserProfile, listUserCompanies, type UserCompany, type UserProfile } from './repo/me.ts';
 import * as memberships from './repo/memberships.ts';
 import * as users from './repo/users.ts';
 
@@ -109,6 +110,22 @@ export class DbIdentityStore implements IdentityStore {
   takeDeferred(key: string): Promise<NormalizedIdentityEvent[]> {
     return bookkeeping.takeDeferred(this.#db, key);
   }
+}
+
+export type { UserCompany, UserProfile } from './repo/me.ts';
+
+/** The user's profile (`GET /api/me`), by id. */
+export function userProfile(handle: DbHandle, id: string): Promise<UserProfile | undefined> {
+  return getUserProfile(rawDb(handle), id);
+}
+
+/** The user's memberships that are not removed, in companies that are not deleted (one company's, if given). */
+export function userCompanies(
+  handle: DbHandle,
+  userId: string,
+  onlyCompanyId?: string,
+): Promise<UserCompany[]> {
+  return listUserCompanies(rawDb(handle), userId, onlyCompanyId);
 }
 
 /** The database store on a handle. */

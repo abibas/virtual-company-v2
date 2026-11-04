@@ -196,6 +196,9 @@ importers:
       '@mwc/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@mwc/identity-clerk':
+        specifier: workspace:*
+        version: link:../../connectors/identity-clerk
       '@mwc/identity-core':
         specifier: workspace:*
         version: link:../../packages/identity-core

@@ -83,6 +83,7 @@ describe('start', () => {
       port: 9961,
       version: '1.2.3-test',
       db: 'postgres',
+      identity: 'none',
     });
     expect(started.config.MWC_PORT).toBe(9961);
     expect(await getJson(started.app, '/healthz')).toMatchObject({

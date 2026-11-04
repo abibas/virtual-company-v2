@@ -7,6 +7,8 @@ import type { AppDeps, AppEnv } from '../env.ts';
 
 export const OPENAPI_PATH = '/api/openapi.json';
 export const DOCS_PATH = '/api/docs';
+/** The security scheme routes behind `authn()` name: `security: [{ [BEARER_SCHEME]: [] }]`. */
+export const BEARER_SCHEME = 'bearer';
 const ASSETS_BASE = `${DOCS_PATH}/assets`;
 
 /** The Swagger UI files /api/docs loads, served from the installed swagger-ui-dist (no CDN). */
@@ -20,6 +22,11 @@ const cache = new Map<string, Promise<Uint8Array<ArrayBuffer>>>();
 
 /** The generated OpenAPI 3.1 document and the Swagger UI that renders it. */
 export function mountDocs(app: OpenAPIHono<AppEnv>, deps: AppDeps): void {
+  app.openAPIRegistry.registerComponent('securitySchemes', BEARER_SCHEME, {
+    type: 'http',
+    scheme: 'bearer',
+    description: 'A Clerk session token from the web app, or a personal API key (mwc_pk_...).',
+  });
   app.doc31(OPENAPI_PATH, {
     openapi: '3.1.0',
     info: {

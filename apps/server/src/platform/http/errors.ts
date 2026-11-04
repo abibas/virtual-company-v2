@@ -1,5 +1,7 @@
 import type { Hook } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
+import { isCompanyNotFound } from '@mwc/db';
+import { isIdentityProviderError } from '@mwc/identity-core';
 import type { Context, ErrorHandler, NotFoundHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -37,20 +39,43 @@ export function errorCode(status: number): string {
   return CODES[status] ?? 'error';
 }
 
-export function errorJson(c: Context<AppEnv>, status: ContentfulStatusCode, code: string, message: string) {
-  const body: ErrorBody = { error: { code, message, requestId: c.var.requestId } };
+/** The one message for a company that is missing, deleted, malformed or not the caller's (never leak which). */
+export const COMPANY_NOT_FOUND = 'Company not found';
+
+/** An error response in the common shape, from any route's context (also behind auth middleware). */
+export function errorJson<E extends AppEnv, S extends ContentfulStatusCode>(
+  c: Context<E>,
+  status: S,
+  code: string,
+  message: string,
+) {
+  const body: ErrorBody = { error: { code, message, requestId: c.get('requestId') } };
   return c.json(body, status);
 }
 
 /**
  * The app's error handler. A client error (an HTTPException below 500) keeps its status and
- * message. Anything else is a 500 whose body says only "Internal server error" and the request id;
- * the error and its stack go to the log, never to the client.
+ * message. `CompanyNotFoundError` (from `tenant()`) is a 404, and an identity provider that is down or
+ * rate limited a 503 `identity_unavailable` (with `Retry-After` when it said how long). Anything else is a
+ * 500 whose body says only "Internal server error" and the request id; the error and its stack go to the
+ * log, never to the client.
  */
 export function errorHandler(logger: Logger): ErrorHandler<AppEnv> {
   return (error, c) => {
     if (error instanceof HTTPException && error.status < 500) {
       return errorJson(c, error.status, errorCode(error.status), error.message || 'Request failed');
+    }
+    if (isCompanyNotFound(error)) return errorJson(c, 404, 'not_found', COMPANY_NOT_FOUND);
+    if (isIdentityProviderError(error) && error.retryable) {
+      logger.warn({ err: error, requestId: c.var.requestId }, 'identity provider unavailable');
+      if (error.retryAfterMs !== undefined)
+        c.header('retry-after', String(Math.ceil(error.retryAfterMs / 1000)));
+      return errorJson(
+        c,
+        503,
+        'identity_unavailable',
+        'The identity provider is unavailable; try again shortly',
+      );
     }
     logger.error(
       { err: error, requestId: c.var.requestId, method: c.req.method, path: c.req.path },

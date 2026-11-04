@@ -9,7 +9,9 @@ import type {
   VerifiedIdentity,
 } from '@mwc/shared/identity';
 import { IdentityProviderError } from './errors.ts';
-import { parseFakeToken } from './fake/tokens.ts';
+import { createFakeInvitation, listFakeInvitations, revokeFakeInvitation } from './fake/invitations.ts';
+import { createFakeOrganization, deleteFakeOrganization } from './fake/organizations.ts';
+import { verifyFakeToken } from './fake/tokens.ts';
 import { fakeWebhookFor, parseFakeWebhook } from './fake/webhooks.ts';
 import { type AcceptOptions, type FakeUserInput, FakeWorld } from './fake/world.ts';
 import type {
@@ -22,12 +24,12 @@ import type {
   WebhookRequest,
 } from './provider.ts';
 
+export { FAKE_CLOCK_SKEW_MS, type FakeToken, parseFakeToken } from './fake/tokens.ts';
 export { FAKE_SIGNATURE_HEADER } from './fake/webhooks.ts';
 export type { AcceptOptions, FakeUserInput } from './fake/world.ts';
 
 export const FAKE_ISSUER = 'https://identity.fake.mwc.test';
 const DEFAULT_SECRET = 'fake-webhook-secret';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Clerk's two default roles: owners and admins are `org:admin`, members and viewers `org:member`. */
 export const FAKE_ROLES: ProviderRoleMap = {
@@ -50,7 +52,8 @@ export interface FakeIdentityProviderOptions {
 
 /**
  * An in-memory `IdentityProvider` that behaves like Clerk where S1 depends on it: users, organizations,
- * memberships and invitations; `fake:<subject>[;org=<externalId>][;pending]` tokens; `accept()` as the
+ * memberships and invitations; `fake:<subject>[;org=<externalId>][;pending]` tokens (with optional `sid`,
+ * `iss`, `azp`, `exp` and `nbf` parts checked like Clerk's claims, `fake/tokens.ts`); `accept()` as the
  * invitee accepting (the membership gets the invitation's metadata); every change emitted as a
  * normalized event (`drainEvents()`), and signed as a webhook by `webhookFor()`; `failNext()` for
  * retry tests. The helpers that are not part of `IdentityProvider` (createUser, accept, ...) are
@@ -125,18 +128,15 @@ export class FakeIdentityProvider implements IdentityProvider {
 
   // --- IdentityProvider --------------------------------------------------------------------------
 
-  async verifyAccessToken(token: string, _ctx: VerifyTokenContext): Promise<VerifiedIdentity> {
+  /** `fake:<subject>` tokens with optional parts (`fake/tokens.ts`), checked like a Clerk session token. */
+  async verifyAccessToken(token: string, ctx: VerifyTokenContext): Promise<VerifiedIdentity> {
     this.#maybeFail('verifyAccessToken');
-    const { subject, org, pending } = parseFakeToken(token);
-    if (!this.#world.users.has(subject))
-      throw new IdentityProviderError('unauthorized', 'fake: no such user');
-    return {
+    const users = this.#world.users;
+    return verifyFakeToken(token, ctx, {
       issuer: this.issuer,
-      subject,
-      sessionId: `sess_${subject}`,
-      pending,
-      ...(org === undefined ? {} : { activeOrgExternalId: org }),
-    };
+      now: this.#world.now(),
+      exists: (subject) => users.has(subject),
+    });
   }
 
   async getUser(subject: string): Promise<ExternalUser | null> {
@@ -156,26 +156,7 @@ export class FakeIdentityProvider implements IdentityProvider {
 
   async createOrganization(input: CreateOrganizationInput): Promise<ExternalOrg> {
     this.#maybeFail('createOrganization');
-    if (input.slug !== undefined && [...this.#world.orgs.values()].some((org) => org.slug === input.slug)) {
-      throw new IdentityProviderError('conflict', `fake: slug ${input.slug} is taken`);
-    }
-    if (input.createdBySubject !== undefined) this.#world.user(input.createdBySubject);
-    const org: ExternalOrg = {
-      externalId: this.#world.id('org'),
-      name: input.name,
-      ...(input.slug === undefined ? {} : { slug: input.slug }),
-      metadata: { ...input.metadata },
-      updatedAt: this.#world.tick(),
-    };
-    this.#world.orgs.set(org.externalId, org);
-    this.#world.members.set(org.externalId, new Map());
-    this.#world.emit({ type: 'org.upserted', data: org }, org.updatedAt);
-    if (input.createdBySubject !== undefined) {
-      this.#world.addMembership(org.externalId, input.createdBySubject, FAKE_ROLES.toProvider('admin'), {
-        metadata: {},
-      });
-    }
-    return org;
+    return createFakeOrganization(this.#world, input, FAKE_ROLES.toProvider('admin'));
   }
 
   async findOrganizationByMetadata(key: string, value: string): Promise<ExternalOrg | null> {
@@ -185,11 +166,7 @@ export class FakeIdentityProvider implements IdentityProvider {
 
   async deleteOrganization(externalId: string): Promise<void> {
     this.#maybeFail('deleteOrganization');
-    if (!this.#world.orgs.delete(externalId)) return;
-    this.#world.members.delete(externalId);
-    for (const [id, invitation] of this.#world.invitations)
-      if (invitation.orgExternalId === externalId) this.#world.invitations.delete(id);
-    this.#world.emit({ type: 'org.deleted', data: { externalId } }, this.#world.tick());
+    deleteFakeOrganization(this.#world, externalId);
   }
 
   async *listOrganizationMembers(orgExternalId: string): AsyncIterable<ExternalMembership> {
@@ -223,46 +200,12 @@ export class FakeIdentityProvider implements IdentityProvider {
 
   async createInvitation(input: CreateInvitationInput): Promise<ExternalInvitation> {
     this.#maybeFail('createInvitation');
-    this.#world.org(input.orgExternalId);
-    const email = input.email.toLowerCase();
-    const invitations = [...this.#world.invitations.values()].filter(
-      (i) => i.orgExternalId === input.orgExternalId,
-    );
-    if (invitations.some((i) => i.email === email && i.status === 'pending')) {
-      throw new IdentityProviderError('conflict', `fake: ${email} already has a pending invitation`);
-    }
-    for (const subject of this.#world.members.get(input.orgExternalId)?.keys() ?? []) {
-      if (this.#world.users.get(subject)?.primaryEmail === email)
-        throw new IdentityProviderError('conflict', `fake: ${email} is a member`);
-    }
-    const now = this.#world.tick();
-    const invitation: ExternalInvitation = {
-      externalId: this.#world.id('orginv'),
-      orgExternalId: input.orgExternalId,
-      email,
-      providerRole: FAKE_ROLES.toProvider(input.role),
-      status: 'pending',
-      metadata: { ...input.metadata },
-      expiresAt: now + (input.expiresInDays ?? 30) * DAY_MS,
-      updatedAt: now,
-    };
-    this.#world.invitations.set(invitation.externalId, invitation);
-    return invitation;
+    return createFakeInvitation(this.#world, input, FAKE_ROLES.toProvider(input.role));
   }
 
   async revokeInvitation(orgExternalId: string, invitationExternalId: string): Promise<ExternalInvitation> {
     this.#maybeFail('revokeInvitation');
-    const invitation = this.#world.invitations.get(invitationExternalId);
-    if (!invitation || invitation.orgExternalId !== orgExternalId) {
-      throw new IdentityProviderError('not_found', `fake: no invitation ${invitationExternalId}`);
-    }
-    if (invitation.status === 'revoked') return invitation;
-    if (invitation.status !== 'pending')
-      throw new IdentityProviderError('conflict', `fake: invitation is ${invitation.status}`);
-    const revoked: ExternalInvitation = { ...invitation, status: 'revoked', updatedAt: this.#world.tick() };
-    this.#world.invitations.set(invitationExternalId, revoked);
-    this.#world.emit({ type: 'invitation.revoked', data: revoked }, revoked.updatedAt);
-    return revoked;
+    return revokeFakeInvitation(this.#world, orgExternalId, invitationExternalId);
   }
 
   async listInvitations(
@@ -270,10 +213,7 @@ export class FakeIdentityProvider implements IdentityProvider {
     status?: ExternalInvitationStatus,
   ): Promise<ExternalInvitation[]> {
     this.#maybeFail('listInvitations');
-    this.#world.org(orgExternalId);
-    return [...this.#world.invitations.values()].filter(
-      (i) => i.orgExternalId === orgExternalId && (status === undefined || i.status === status),
-    );
+    return listFakeInvitations(this.#world, orgExternalId, status);
   }
 
   async parseWebhook(request: WebhookRequest): Promise<NormalizedIdentityEvent | null> {

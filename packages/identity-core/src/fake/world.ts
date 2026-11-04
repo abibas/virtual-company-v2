@@ -134,6 +134,11 @@ export class FakeWorld {
 
   // --- what the provider uses ------------------------------------------------------------------
 
+  /** The clock's time in epoch milliseconds, without moving the event times (`tick`). */
+  now(): number {
+    return this.#clock().getTime();
+  }
+
   tick(): number {
     this.#lastTime = Math.max(this.#clock().getTime(), this.#lastTime + 1);
     return this.#lastTime;

@@ -65,8 +65,12 @@ a committed file. A bad value fails with the variable's name, never its value.
 | `CLERK_JWT_KEY`                | no       | the instance's JWT public key (PEM, escaped `\n` allowed): networkless token verification. Without it, tokens are verified with the JWKS that `@clerk/backend` fetches with the secret key and caches |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | no       | the webhook endpoint's `whsec_...` secret (S1.8). Without it, every delivery is refused as `unavailable` |
 
-The web origin that tokens are accepted from (`authorizedParties`, Clerk's `azp`) is passed by the caller on
-every `verifyAccessToken`; the server's variable for it arrives with `authn()` in S1.4.
+The server reads two more (`@mwc/shared/config`, S1.4):
+
+| Variable         | Default                                                                          | What |
+| ---------------- | -------------------------------------------------------------------------------- | ---- |
+| `MWC_IDENTITY`   | `clerk` when `CLERK_SECRET_KEY` is set, else `none`                              | `clerk` wires this connector (`apps/server/src/platform/identity.ts`) and needs both keys; `none` keeps health and the UI up and answers 503 `identity_not_configured` on every route behind `authn()` (the prod-like compose stack has no keys) |
+| `MWC_WEB_ORIGIN` | `http://localhost:9951` (the slot's web port with `MWC_PORT_SLOT`); in production the origin of `MWC_PUBLIC_URL` | the web origin session tokens must be issued to: the server passes it as `authorizedParties` (Clerk's `azp`) on every `verifyAccessToken` |
 
 ## How the connector uses Clerk
 

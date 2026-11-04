@@ -1,4 +1,4 @@
-export { type Config, ConfigError, ConfigSchema, loadConfig } from './config.ts';
+export { type Config, ConfigError, ConfigSchema, IdentityMode, loadConfig } from './config.ts';
 export {
   ActorKind,
   ApiKeyKind,
@@ -28,3 +28,4 @@ export {
 } from './identity.ts';
 export { idTime, isId, newId } from './ids.ts';
 export { PORTS, SLOT_BASE, SLOT_COUNT, type SlotPorts, slotFromPath, slotPorts } from './ports.ts';
+export { ROLE_RANK, roleAtLeast } from './roles.ts';

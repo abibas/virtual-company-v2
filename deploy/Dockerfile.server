@@ -46,6 +46,8 @@ COPY --from=prod /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=prod /app/node_modules ./node_modules
 COPY --from=prod /app/packages/shared ./packages/shared
 COPY --from=prod /app/packages/db ./packages/db
+COPY --from=prod /app/packages/identity-core ./packages/identity-core
+COPY --from=prod /app/connectors/identity-clerk ./connectors/identity-clerk
 COPY --from=prod /app/apps/server ./apps/server
 COPY --from=web /app/apps/web/dist ./apps/web/dist
 USER node

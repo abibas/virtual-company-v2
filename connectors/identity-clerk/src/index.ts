@@ -1,5 +1,5 @@
 // @mwc/identity-clerk: the Clerk identity connector (README.md, docs/clerk-setup.md). It implements
-// @mwc/identity-core's IdentityProvider; the server wires it (S1.4), modules only see the port.
+// @mwc/identity-core's IdentityProvider; the server wires it (platform/identity.ts), modules only see the port.
 export {
   type ClerkBackend,
   type ClerkBackendApi,

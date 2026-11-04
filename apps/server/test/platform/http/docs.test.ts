@@ -19,8 +19,21 @@ describe('OpenAPI and docs', () => {
     };
     expect(doc.openapi).toBe('3.1.0');
     expect(doc.info.version).toBe(TEST_VERSION);
-    expect(Object.keys(doc.paths)).toEqual(expect.arrayContaining(['/healthz', '/readyz', '/api/version']));
+    expect(Object.keys(doc.paths)).toEqual(
+      expect.arrayContaining(['/healthz', '/readyz', '/api/version', '/api/me']),
+    );
     expect(Object.keys(doc.paths['/readyz']?.get?.responses ?? {})).toEqual(['200', '503']);
+  });
+
+  it('documents the bearer credential and the routes that need it', async () => {
+    const doc = (await (await t.app.request('/api/openapi.json')).json()) as {
+      components: { securitySchemes: Record<string, { type: string; scheme: string }> };
+      paths: Record<string, { get?: { security?: unknown; responses: Record<string, unknown> } }>;
+    };
+    expect(doc.components.securitySchemes.bearer).toMatchObject({ type: 'http', scheme: 'bearer' });
+    expect(doc.paths['/api/me']?.get?.security).toEqual([{ bearer: [] }]);
+    expect(Object.keys(doc.paths['/api/me']?.get?.responses ?? {})).toEqual(['200', '401', '403', '503']);
+    expect(doc.paths['/healthz']?.get?.security).toBeUndefined();
   });
 
   it('serves the Swagger UI page with its assets from this server, not a CDN', async () => {

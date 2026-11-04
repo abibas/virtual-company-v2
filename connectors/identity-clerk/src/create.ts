@@ -13,7 +13,7 @@ export function clerkIdentityProvider(config: ClerkConfig, backend?: ClerkBacken
   });
 }
 
-/** The connector from the environment (`CLERK_*`, docs/clerk-setup.md); the server wires it in S1.4. */
+/** The connector from the environment (`CLERK_*`, docs/clerk-setup.md); the server's `platform/identity.ts` uses it. */
 export function createClerkIdentityProvider(
   env: Readonly<Record<string, string | undefined>> = process.env,
   backend?: ClerkBackend,

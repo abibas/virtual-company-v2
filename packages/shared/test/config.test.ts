@@ -14,6 +14,8 @@ describe('loadConfig', () => {
       MWC_LOG_LEVEL: 'info',
       MWC_HOST: '127.0.0.1',
       MWC_MIGRATE_ON_START: false,
+      MWC_WEB_ORIGIN: 'http://localhost:9951',
+      MWC_IDENTITY: 'none',
     });
   });
 
@@ -114,5 +116,87 @@ describe('loadConfig with MWC_PORT_SLOT', () => {
     expect(config.MWC_PORT_SLOT).toBeUndefined();
     expect(config.MWC_PORT).toBe(9950);
     expect(config.MWC_PUBLIC_URL).toBe('http://localhost:9950');
+  });
+});
+
+const SECRET = `sk_test_${'A1'.repeat(20)}`;
+const PUBLISHABLE = `pk_test_${Buffer.from('config-test.clerk.accounts.dev$').toString('base64')}`;
+
+describe('loadConfig identity', () => {
+  it('is none without a Clerk secret key, and clerk with both keys', () => {
+    expect(loadConfig(valid).MWC_IDENTITY).toBe('none');
+    const clerk = loadConfig({ ...valid, CLERK_SECRET_KEY: SECRET, CLERK_PUBLISHABLE_KEY: PUBLISHABLE });
+    expect(clerk).toMatchObject({
+      MWC_IDENTITY: 'clerk',
+      CLERK_SECRET_KEY: SECRET,
+      CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+    });
+    expect(clerk.CLERK_JWT_KEY).toBeUndefined();
+  });
+
+  it('lets MWC_IDENTITY=none switch sign-in off even with the keys set', () => {
+    const env = {
+      ...valid,
+      MWC_IDENTITY: 'none',
+      CLERK_SECRET_KEY: SECRET,
+      CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+    };
+    expect(loadConfig(env).MWC_IDENTITY).toBe('none');
+  });
+
+  it('names the missing key for clerk, never a value', () => {
+    for (const env of [
+      { ...valid, CLERK_SECRET_KEY: SECRET },
+      { ...valid, MWC_IDENTITY: 'clerk', CLERK_PUBLISHABLE_KEY: PUBLISHABLE },
+    ]) {
+      try {
+        loadConfig(env);
+        expect.unreachable('loadConfig should have thrown');
+      } catch (error) {
+        const issues = (error as ConfigError).issues;
+        expect(issues.map((issue) => issue.path)).toHaveLength(1);
+        expect(issues[0]?.message).toBe('required when MWC_IDENTITY is clerk');
+        expect((error as Error).message).not.toContain(SECRET);
+        expect((error as Error).message).not.toContain(PUBLISHABLE);
+      }
+    }
+    expect(() => loadConfig({ ...valid, MWC_IDENTITY: 'clerk' })).toThrow(/CLERK_SECRET_KEY/);
+    expect(() => loadConfig({ ...valid, MWC_IDENTITY: 'okta' })).toThrow(/MWC_IDENTITY/);
+  });
+
+  it('treats empty Clerk variables as unset', () => {
+    const config = loadConfig({
+      ...valid,
+      CLERK_SECRET_KEY: '',
+      CLERK_PUBLISHABLE_KEY: '',
+      CLERK_JWT_KEY: '',
+    });
+    expect(config.MWC_IDENTITY).toBe('none');
+    expect(config.CLERK_SECRET_KEY).toBeUndefined();
+  });
+});
+
+describe('loadConfig MWC_WEB_ORIGIN', () => {
+  it("defaults to the web dev server, or the slot's web port", () => {
+    expect(loadConfig(valid).MWC_WEB_ORIGIN).toBe('http://localhost:9951');
+    expect(loadConfig({ ...valid, MWC_PORT_SLOT: '2' }).MWC_WEB_ORIGIN).toBe('http://localhost:9967');
+  });
+
+  it('defaults to the origin of the public URL in production, where the server serves the UI', () => {
+    const prod = { ...valid, NODE_ENV: 'production', MWC_PUBLIC_URL: 'https://mwc.example.com/app/' };
+    expect(loadConfig(prod).MWC_WEB_ORIGIN).toBe('https://mwc.example.com');
+    expect(loadConfig({ ...valid, NODE_ENV: 'production', MWC_PORT: '9950' }).MWC_WEB_ORIGIN).toBe(
+      'http://localhost:9950',
+    );
+  });
+
+  it('keeps only the origin of an explicit value and refuses anything but http(s)', () => {
+    expect(loadConfig({ ...valid, MWC_WEB_ORIGIN: 'https://app.example.com/' }).MWC_WEB_ORIGIN).toBe(
+      'https://app.example.com',
+    );
+    expect(loadConfig({ ...valid, MWC_WEB_ORIGIN: '' }).MWC_WEB_ORIGIN).toBe('http://localhost:9951');
+    for (const origin of ['localhost:9951', 'ftp://x.test']) {
+      expect(() => loadConfig({ ...valid, MWC_WEB_ORIGIN: origin })).toThrow(/MWC_WEB_ORIGIN/);
+    }
   });
 });

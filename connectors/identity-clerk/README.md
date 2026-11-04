@@ -10,7 +10,8 @@ import { createClerkIdentityProvider } from '@mwc/identity-clerk';
 const identity = createClerkIdentityProvider(process.env); // CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, ...
 ```
 
-The server wires it in `apps/server/src/app.ts` (S1.4); modules depend on the port, never on this package.
+The server wires it in `apps/server/src/platform/identity.ts` when `MWC_IDENTITY` is `clerk` (S1.4); modules depend on the
+port, never on this package.
 
 ## Files
 

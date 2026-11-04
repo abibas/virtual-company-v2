@@ -18,7 +18,7 @@ Most_Wanted_corp_v2/
 │   │   │   ├── app.ts              wires platform + modules
 │   │   │   ├── platform/           cross-cutting, no business rules
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI
-│   │   │   │   ├── auth/           who is calling, role checks                 S1
+│   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
 │   │   │   │   ├── jobs/           background loops: outbox, reconcile, reaper S1/S4
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
@@ -98,8 +98,13 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
 - `src/app.ts` builds the Hono app: the platform middleware and handlers around the modules' routers.
 - `src/platform/` holds cross-cutting code without business rules: `env.ts` (the app's dependencies and
   Hono environment), `logger.ts`, `shutdown.ts`, `version.ts`, `start.ts`, and `http/` (the router
-  factory, request log, errors, the OpenAPI document and Swagger UI, the static web UI). Later `auth/`,
-  `jobs/` and `realtime/`.
+  factory, request log, errors, the OpenAPI document and Swagger UI, the static web UI), `identity.ts` (the
+  identity provider the configuration names: where the Clerk connector is wired), and `auth/` (S1.4): `authn()`
+  turns `Authorization: Bearer` into `c.var.actor` (`session.ts` for session tokens, `api-keys.ts` for API keys,
+  `bearer.ts` sorting them by shape, the run token slot), and `requireMembership(role)` (`membership.ts`) guards
+  `/api/companies/:companyId/...` with our memberships and puts `c.var.tenant` and `c.var.membership` on the
+  context; `actor.ts` holds the types. A module puts them on its routes with zod-openapi's `middleware`, and
+  gets the provider and the clock as `ServerDeps` (`env.ts`). Later `jobs/` and `realtime/`.
 - `src/modules/<area>/` is one business area. A module has up to these files:
 
   | File         | Role                                                                            |
@@ -184,7 +189,8 @@ code reaches tenant data only through `tenant(db, companyId)` (`packages/db/READ
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`) is `@mwc/db/system`, for the
 code that must see every company: the platform (startup, auth, jobs), migrations and scripts, the webhook inbox
-and the identity store. Biome forbids it, and the other raw entries (`@mwc/db/pglite`, `/migrate`, `/testing`), in
+and the identity store. `platform/auth` uses it to find a session's person in `user_identities` and an API key by
+its hash before any company is known. Biome forbids it, and the other raw entries (`@mwc/db/pglite`, `/migrate`, `/testing`), in
 `apps/server/src/modules/**` (`noRestrictedImports` in a `biome.json` override), with one exception: the identity
 module's `repo.ts` and `repo/`, the database `IdentityStore` that the projector and the webhook inbox use across
 companies. `packages/db/test/system.test.ts` runs Biome on a scratch tree with the repository's overrides to prove

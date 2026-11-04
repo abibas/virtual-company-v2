@@ -49,7 +49,10 @@ Every failure rejects with `IdentityProviderError`, never an SDK or network erro
 
 `FakeIdentityProvider` (`./fake`, also exported by `@mwc/testkit`) is the in-memory provider for tests:
 users, organizations, memberships and invitations that behave like Clerk where S1 depends on it; tokens
-`fake:<subject>` with optional `;org=<externalId>` and `;pending`; `createUser`, `updateUser`,
+`fake:<subject>` with optional `;org=<externalId>` and `;pending`, and `;sid=<id>`, `;iss=<issuer>`, `;azp=<origin>`,
+`;exp=<ms>` and `;nbf=<ms>`, which `verifyAccessToken` checks as Clerk checks its claims (another issuer, an origin outside
+the caller's `authorizedParties`, expired or not yet valid with 5 seconds of skew on the fake's clock: `unauthorized`);
+the parts live in `src/fake/` (`tokens`, `organizations`, `invitations`, `webhooks`, `world`); `createUser`, `updateUser`,
 `deleteUser`, `addMember` (a dashboard add) and `accept(invitationExternalId, subject)` (the membership
 gets the invitation's role, a copy of its private metadata and its id); every change emitted as a
 normalized event with strictly increasing `occurredAt` from an injectable clock (`drainEvents()`);
@@ -152,7 +155,7 @@ reconcile and user webhooks do.
   in one transaction. Deduplicating on `identity_events (provider, external_event_id)` and writing each change's
   `fields` as audit rows are the webhook inbox's (S1.8).
 - **Callers (S1.4–S1.10):** the webhook route (`parseWebhook` → dedupe → `project`), reconcile-on-sign-in
-  (`reconcileUser`), the jobs loop and "Sync now" (`reconcileOrganization`), and the outbox, which after
+  (`reconcileUser`, built in S1.4: `GET /api/me` in `apps/server/src/modules/identity/service.ts`), the jobs loop and "Sync now" (`reconcileOrganization`), and the outbox, which after
   linking a company to its new organization reconciles it so the creator's parked events apply.
 
 ## Known limits

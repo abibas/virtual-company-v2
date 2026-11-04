@@ -27,6 +27,35 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: Splitting the near-limit fake moved its warning to fan-in
+
+- **What happened:** S1.4 needed the fake identity provider to check token claims (`iss`, `azp`, `exp`, `nbf`, and a
+  `sid`), so server tests refuse a wrong issuer, a wrong origin and an expired token for real. `fake.ts` had been at
+  290 of 300 lines since S1.0b (the report's `near-limit`). It was split by concern: token verification to
+  `fake/tokens.ts` (22 → 95 lines), organizations to `fake/organizations.ts` (44), invitations to
+  `fake/invitations.ts` (73); `fake.ts` went from 290 to 230 lines, and its tests moved along the same seams (25
+  tests before and after). Each new part implements a port method and takes the port's own input type
+  (`CreateOrganizationInput`, `CreateInvitationInput`, `VerifyTokenContext`), so `provider.ts` went from 7 importers
+  to 10 and became a `fan-in` warning. The report stayed at 17 warnings in all, but one kind turned into another.
+- **Where:** `packages/identity-core/src/fake.ts`, `src/fake/`, `test/fake/` (S1.4).
+- **What was done:** kept the type imports; copying the port's types into each part to stay under the threshold
+  would have been worse.
+- **Suggested change:** in `packages/cli/src/structure/warnings.ts`, count only value imports for `fan-in` (or skip
+  `import type`). A port module such as `provider.ts` or `store.ts` is meant to be imported for its types.
+- **Status:** `open`.
+
+### 2026-11-04: Test-only routes for a platform guard
+
+- **What happened:** `requireMembership(role)` (S1.4) guards `/api/companies/:companyId/...`, but the first real
+  company route arrives with S1.5. The placement table has no row for a route that only tests need.
+- **Where:** `apps/server/test/fixtures/auth.ts` (`mountProbe`, `authWorld`), used by `test/platform/auth/*.test.ts`.
+- **What was done:** the probe routes (`GET /api/companies/:companyId/probe/<role>`, `authn()` then
+  `requireMembership(role)`) live in the test fixture and are mounted on `createTestApp().app` after `createApp`,
+  as `test/app.test.ts` already mounts `/test/clock`. Production wiring has none.
+- **Suggested change:** a placement-table row: "A route only tests need (a probe for platform middleware) →
+  the package's `test/fixtures/`, mounted on the test app; never in `src/`."
+- **Status:** `open`.
+
 ### 2026-11-04: A cross-tenant store has no row in the placement table
 
 - **What happened:** S1.3 needed a database `IdentityStore`. The placement table sends SQL to
@@ -35,7 +64,8 @@ Newest first, one entry per lesson:
   writes global tables (`users`, `user_identities`, `identity_marks`, `identity_parked_events`), so no single
   company's tenant fits. The table has no row for a store that must see every company.
 - **Where:** `apps/server/src/modules/identity/repo.ts` (117 lines) and `repo/` (users 68, memberships 95,
-  invitations 53, bookkeeping 37 lines); the exemption in `biome.json`; S1.3.
+  invitations 53, bookkeeping 37 lines); the exemption in `biome.json`; S1.3. S1.4 added `repo/me.ts` (67 lines),
+  the reads of `GET /api/me` across a person's companies, under the same exemption.
 - **What was done:** the store sits where the map puts the identity area, as its `repo.ts` with a `repo/` folder,
   and reads the raw database (`@mwc/db/system`). `biome.json` forbids that entry in `apps/server/src/modules/**`
   and turns the rule off for exactly `modules/identity/repo.ts` and `modules/identity/repo/**`;
