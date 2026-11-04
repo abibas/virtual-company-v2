@@ -5,8 +5,9 @@ A server module is one business area in `apps/server/src/modules/<area>/`. The l
 role file; create only the files the area needs. A company route sits behind `authn()` and `requireMembership(role)`
 (`platform/auth/`, S1.4), which put the company's `TenantDb` on `c.var.tenant`; a repo reaches tenant tables only
 through it (or through `tenant(db, companyId)` of `@mwc/db`). The live examples of authenticated routes are
-`modules/identity/routes.ts` (`GET /api/me`) and `modules/companies/` (S1.5: company routes, a service split into
-named functions, outbox handlers in `service/`). A new company and its first tenant rows go through
+`modules/identity/routes.ts` (`GET /api/me`), `modules/companies/` (S1.5: company routes, a service split into
+named functions, outbox handlers in `service/`) and `modules/members/` (S1.6: routes on `companyRoute`, a service
+split by use case in `service/`, decisions under the company's lock). A new company and its first tenant rows go through
 `withNewCompany` of `@mwc/db`, never `@mwc/db/system`.
 
 ## schemas.ts: the shapes, nothing else
@@ -104,7 +105,10 @@ export function notesRoutes(deps: ServerDeps) {
 }
 ```
 
-A path in a shared route base needs `as const` (`path: '/api/companies/{companyId}' as const`): typed as a plain
+Routes under one company share a base: `companyRoute(deps, { role, path, tag })` (`platform/auth/membership.ts`) gives
+`base` (the path as a literal type, the tag, the bearer credential, `companyMember(deps, role)`) and `refusals` (the
+guard's 401, 403 and 404) to spread into `createRoute` and its responses; override a refusal the service adds to (live
+example: `modules/members/routes.ts`). A path in a shared route base needs `as const` (`path: '/api/companies/{companyId}' as const`): typed as a plain
 `string` it collapses the web's typed client (`AppType`). When the routes outgrow one file, group them by path in
 `routes/<group>.ts`, each returning its own `newRouter()`, and let `routes.ts` mount them with `.route('/', ...)`
 (the live example: `modules/companies/routes.ts`, `routes/collection.ts` and `routes/company.ts`).

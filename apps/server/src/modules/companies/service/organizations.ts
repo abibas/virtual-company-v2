@@ -1,15 +1,12 @@
-import {
-  type Company,
-  type DbHandle,
-  diffFields,
-  type IdentityOutboxRow,
-  isCompanyNotFound,
-  type TenantDb,
-  tenant,
-} from '@mwc/db';
+import { type Company, type DbHandle, diffFields, type IdentityOutboxRow } from '@mwc/db';
 import { type IdentityProvider, isIdentityProviderError } from '@mwc/identity-core';
 import { type ExternalOrg, IDENTITY_METADATA } from '@mwc/shared/identity';
-import type { OutboxHandler, OutboxHandlers } from '../../../platform/jobs/outbox.ts';
+import {
+  type OutboxHandler,
+  type OutboxHandlers,
+  outboxProvider,
+  outboxTenant,
+} from '../../../platform/jobs/outbox.ts';
 import { companiesRepo } from '../repo.ts';
 import { audited } from '../rules.ts';
 
@@ -22,21 +19,6 @@ import { audited } from '../rules.ts';
 export interface OrganizationDeps {
   readonly db: DbHandle;
   readonly identity: IdentityProvider | undefined;
-}
-
-function providerOf(deps: OrganizationDeps): IdentityProvider {
-  if (deps.identity === undefined) throw new Error('No identity provider is configured (MWC_IDENTITY=none)');
-  return deps.identity;
-}
-
-/** The company's tenant, or undefined once it is deleted. */
-async function openTenant(db: DbHandle, companyId: string): Promise<TenantDb | undefined> {
-  try {
-    return await tenant(db, companyId);
-  } catch (error) {
-    if (isCompanyNotFound(error)) return undefined;
-    throw error;
-  }
 }
 
 /** The organization of `findOrganizationByMetadata`: the company's id in its private metadata. */
@@ -76,8 +58,8 @@ async function createOrganization(
 export function createOrgHandler(deps: OrganizationDeps): OutboxHandler {
   const repo = companiesRepo();
   return async (row: IdentityOutboxRow) => {
-    const provider = providerOf(deps);
-    const t = await openTenant(deps.db, row.companyId);
+    const provider = outboxProvider(deps.identity);
+    const t = await outboxTenant(deps.db, row.companyId);
     if (t === undefined || t.company.identityOrgId !== null) return;
     const company = t.company;
     const org: ExternalOrg =
@@ -103,7 +85,7 @@ export function createOrgHandler(deps: OrganizationDeps): OutboxHandler {
  */
 export function deleteOrgHandler(deps: OrganizationDeps): OutboxHandler {
   return async (row: IdentityOutboxRow) => {
-    const provider = providerOf(deps);
+    const provider = outboxProvider(deps.identity);
     const recorded = row.payload.orgExternalId;
     const orgId =
       typeof recorded === 'string' ? recorded : (await findOrganization(provider, row.companyId))?.externalId;

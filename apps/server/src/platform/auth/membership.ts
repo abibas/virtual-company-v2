@@ -3,7 +3,8 @@ import type { MembershipRole } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { eq } from 'drizzle-orm';
 import type { MiddlewareHandler } from 'hono';
-import { COMPANY_NOT_FOUND, errorJson } from '../http/errors.ts';
+import { BEARER_SCHEME } from '../http/docs.ts';
+import { COMPANY_NOT_FOUND, errorJson, errorResponse } from '../http/errors.ts';
 import type { AuthEnv, MemberEnv } from './actor.ts';
 import { type AuthDeps, authn } from './authn.ts';
 
@@ -55,4 +56,33 @@ export function companyMember(
   role: MembershipRole,
 ): [MiddlewareHandler<AuthEnv>, MiddlewareHandler<MemberEnv>] {
   return [authn(deps), requireMembership(deps, role)];
+}
+
+/** A path under one company: what `requireMembership` guards. */
+export type CompanyPath = `/api/companies/{companyId}${string}`;
+
+/**
+ * What every company route shares (spread `base` into `createRoute`, and `refusals` into its responses): the path
+ * (a literal type, so the web's typed client keeps it), the tag, the bearer credential and `companyMember(deps,
+ * role)`, and that guard's refusals in the OpenAPI document. A route whose service refuses more overrides them.
+ */
+export function companyRoute<P extends CompanyPath>(
+  deps: AuthDeps,
+  route: { readonly role: MembershipRole; readonly path: P; readonly tag: string },
+) {
+  return {
+    base: {
+      path: route.path,
+      tags: [route.tag],
+      security: [{ [BEARER_SCHEME]: [] }],
+      middleware: companyMember(deps, route.role),
+    },
+    refusals: {
+      401: errorResponse('No credential, or one that is not valid (`unauthenticated`)'),
+      403: errorResponse(`The caller's role is below ${route.role} (\`forbidden\`)`),
+      404: errorResponse(
+        'No such company, a deleted one, or one the caller is not an active member of (`not_found`)',
+      ),
+    },
+  };
 }

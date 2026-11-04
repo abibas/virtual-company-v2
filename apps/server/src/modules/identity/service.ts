@@ -3,8 +3,18 @@ import { type IdentityProvider, reconcileUser } from '@mwc/identity-core';
 import type { VerifiedIdentity } from '@mwc/shared/identity';
 import type { Actor } from '../../platform/auth/actor.ts';
 import type { ServerDeps } from '../../platform/env.ts';
-import { dbIdentityStore, type UserCompany, type UserProfile, userCompanies, userProfile } from './repo.ts';
+import {
+  dbIdentityStore,
+  type UserCompany,
+  type UserProfile,
+  userCompanies,
+  userProfile,
+  userProfiles,
+  userSubject,
+} from './repo.ts';
 import type { Me } from './schemas.ts';
+
+export type { UserCompany, UserProfile } from './repo.ts';
 
 /** How many reconciled sessions one server process remembers (the oldest are forgotten first). */
 export const REMEMBERED_SESSIONS = 10_000;
@@ -91,6 +101,25 @@ export function companiesOf(db: DbHandle, actor: Actor): Promise<UserCompany[]> 
 /** A person's profile (their primary email, lower-cased, and status), or undefined for an unknown id. */
 export function profileOf(db: DbHandle, userId: string): Promise<UserProfile | undefined> {
   return userProfile(db, userId);
+}
+
+/**
+ * The profiles of these people by user id, for a company's member list (users are global rows, read here, never by
+ * a new raw-access exemption); unknown ids are left out.
+ */
+export async function profilesOf(
+  db: DbHandle,
+  userIds: readonly string[],
+): Promise<Map<string, UserProfile>> {
+  return new Map((await userProfiles(db, userIds)).map((profile) => [profile.id, profile]));
+}
+
+/**
+ * The person's subject at the identity provider of this kind (`provider.kind`), which the provider's member calls
+ * name them by; undefined when they have no identity there.
+ */
+export function subjectOf(db: DbHandle, userId: string, provider: string): Promise<string | undefined> {
+  return userSubject(db, userId, provider);
 }
 
 function meView(profile: UserProfile, memberships: UserCompany[], actor: Actor): Me {

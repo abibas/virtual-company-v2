@@ -25,7 +25,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── health/         routes · service · repo · schemas           S0
 │   │   │   │   ├── identity/       identity store (repo), me, webhooks, sync   S1
 │   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
-│   │   │   │   ├── members/        memberships, invitations                    S1
+│   │   │   │   ├── members/        memberships (built), invitations             S1.6/S1.7
 │   │   │   │   ├── api-keys/                                                   S1
 │   │   │   │   ├── org/            agents, reporting chain, org chart          S2
 │   │   │   │   ├── machines/       enrollment, placements                      S3
@@ -105,11 +105,14 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   `/api/companies/:companyId/...` with our memberships and puts `c.var.tenant` and `c.var.membership` on the
   context; `actor.ts` holds the types. A module puts them on its routes with zod-openapi's `middleware`
   (`companyMember(deps, role)` gives both as the tuple zod-openapi needs to type the handler's `c.var`), and gets
-  the provider and the clock as `ServerDeps` (`env.ts`). `jobs/outbox.ts` (S1.5) is the identity outbox:
+  the provider and the clock as `ServerDeps` (`env.ts`); `companyRoute(deps, { role, path, tag })` (S1.6) is the
+  shared base of a company route (the path as a literal type, the tag, the bearer credential, `companyMember` and the
+  guard's refusals in the OpenAPI document). `jobs/outbox.ts` (S1.5) is the identity outbox:
   `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
   handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after
-  its last try); the modules own the handlers (`companies`: `create_org`, `delete_org`) and the loop that calls them
-  comes in S1.10. Later `realtime/`.
+  its last try), and what a handler starts with (`outboxProvider`, `outboxTenant`: the configured provider, the row's
+  company or none once deleted); the modules own the handlers (`companies`: `create_org`, `delete_org`; `members`:
+  `update_role`, `remove_member`) and the loop that calls them comes in S1.10. Later `realtime/`.
 - `src/modules/<area>/` is one business area. A module has up to these files:
 
   | File         | Role                                                                            |

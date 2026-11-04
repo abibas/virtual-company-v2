@@ -4,6 +4,7 @@ import { requestId } from 'hono/request-id';
 import { companiesRoutes } from './modules/companies/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes } from './modules/identity/index.ts';
+import { membersRoutes } from './modules/members/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
@@ -41,7 +42,8 @@ export function createApp(deps: AppDeps) {
   const routes = app
     .route('/', healthRoutes(deps))
     .route('/', identityRoutes(server))
-    .route('/', companiesRoutes(server));
+    .route('/', companiesRoutes(server))
+    .route('/', membersRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

@@ -1,8 +1,8 @@
 import { createRoute } from '@hono/zod-openapi';
 import type { MembershipRole } from '@mwc/shared/enums';
-import { companyMember } from '../../../platform/auth/membership.ts';
+import { companyRoute as sharedRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
-import { BEARER_SCHEME, jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
+import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { CompanyParamsSchema, CompanySchema, DeleteCompanySchema, UpdateCompanySchema } from '../schemas.ts';
@@ -11,23 +11,8 @@ import { type CompaniesService, companyView } from '../service.ts';
 /** `GET`, `PATCH` and `DELETE /api/companies/{companyId}`: read (member), rename (admin), delete (owner). */
 
 /** What every route here shares: the path, the bearer credential and the role guard, and the guard's refusals. */
-function companyRoute(deps: ServerDeps, role: MembershipRole) {
-  return {
-    base: {
-      path: '/api/companies/{companyId}' as const,
-      tags: ['companies'],
-      security: [{ [BEARER_SCHEME]: [] }],
-      middleware: companyMember(deps, role),
-    },
-    refusals: {
-      401: errorResponse('No credential, or one that is not valid (`unauthenticated`)'),
-      403: errorResponse(`The caller's role is below ${role} (\`forbidden\`)`),
-      404: errorResponse(
-        'No such company, a deleted one, or one the caller is not an active member of (`not_found`)',
-      ),
-    },
-  };
-}
+const companyRoute = (deps: ServerDeps, role: MembershipRole) =>
+  sharedRoute(deps, { role, path: '/api/companies/{companyId}', tag: 'companies' });
 
 const INVALID = errorResponse('The request does not match the schema (`invalid_request`)');
 

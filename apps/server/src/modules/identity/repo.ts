@@ -13,7 +13,13 @@ import type {
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import * as bookkeeping from './repo/bookkeeping.ts';
 import * as invitations from './repo/invitations.ts';
-import { getUserProfile, listUserCompanies, type UserCompany, type UserProfile } from './repo/me.ts';
+import {
+  getUserProfile,
+  getUserProfiles,
+  listUserCompanies,
+  type UserCompany,
+  type UserProfile,
+} from './repo/me.ts';
 import * as memberships from './repo/memberships.ts';
 import * as users from './repo/users.ts';
 
@@ -117,6 +123,20 @@ export type { UserCompany, UserProfile } from './repo/me.ts';
 /** The user's profile (`GET /api/me`), by id. */
 export function userProfile(handle: DbHandle, id: string): Promise<UserProfile | undefined> {
   return getUserProfile(rawDb(handle), id);
+}
+
+/** The profiles of these users (a company's member list); unknown ids are left out. */
+export function userProfiles(handle: DbHandle, ids: readonly string[]): Promise<UserProfile[]> {
+  return getUserProfiles(rawDb(handle), ids);
+}
+
+/** The user's subject at the identity provider of this kind (`clerk`, `fake`), or undefined when they have none. */
+export async function userSubject(
+  handle: DbHandle,
+  userId: string,
+  provider: string,
+): Promise<string | undefined> {
+  return (await users.getUserById(rawDb(handle), userId, provider))?.subject;
 }
 
 /** The user's memberships that are not removed, in companies that are not deleted (one company's, if given). */

@@ -27,6 +27,29 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: Every company module's routes import the platform's error helpers
+
+- **What happened:** S1.6's members routes need `errorJson` (a service refusal as the common error body) and
+  `errorResponse` (an error response in the OpenAPI document), like every route file before them, so
+  `apps/server/src/platform/http/errors.ts` went from 7 importers to 8 and became a `fan-in` warning (the report went
+  from 17 to 18). Its importers are `app.ts`, `platform/auth/authn.ts`, `platform/auth/membership.ts`,
+  `platform/http/router.ts`, `modules/identity/routes.ts`, `modules/companies/routes/collection.ts`,
+  `modules/companies/routes/company.ts` and `modules/members/routes.ts`. `platform/http/router.ts` (6 importers) and
+  `docs.ts` (5) follow the same curve: each new company module adds one or two route files. A second warning, on
+  `platform/auth/actor.ts` (9 importers, all for its types), was avoided by narrowing the members services to the acting
+  membership's id, which they read again under the company's lock anyway.
+- **Where:** `apps/server/src/modules/members/routes.ts` (S1.6). The same step moved the company route base S1.5 had in
+  `modules/companies/routes/company.ts` to `platform/auth/membership.ts` (`companyRoute`), since members needed the same
+  one, and the outbox handlers' `providerOf` / `openTenant` from `modules/companies/service/organizations.ts` to
+  `platform/jobs/outbox.ts` (`outboxProvider`, `outboxTenant`).
+- **What was done:** kept the direct import. A barrel or a facade that re-exports `errorJson` would move the count to
+  another file without changing who depends on the error contract.
+- **Suggested change:** in `packages/cli/src/structure/warnings.ts`, count a module's files as one importer (fan-in
+  across areas, not files), or list the platform files that are meant to be every module's API (`platform/env.ts`,
+  `platform/http/errors.ts`, `docs.ts`, `router.ts`, `platform/auth/actor.ts`) in `rules.ts` and leave them out of
+  `fan-in`. Either keeps the warning for files whose fan-in is a surprise.
+- **Status:** `open`.
+
 ### 2026-11-04: A module that reads across the caller's companies
 
 - **What happened:** S1.5's `GET /api/companies` lists the caller's companies, and the creation policy reads the

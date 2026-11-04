@@ -1,6 +1,13 @@
-import { type DbHandle, type IdentityOutboxRow, identityOutbox, type TenantDb } from '@mwc/db';
+import {
+  type DbHandle,
+  type IdentityOutboxRow,
+  identityOutbox,
+  isCompanyNotFound,
+  type TenantDb,
+  tenant,
+} from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import { isIdentityProviderError } from '@mwc/identity-core';
+import { type IdentityProvider, isIdentityProviderError } from '@mwc/identity-core';
 import type { IdentityOutboxOp } from '@mwc/shared/enums';
 import { and, eq } from 'drizzle-orm';
 import type { Logger } from 'pino';
@@ -9,7 +16,7 @@ import type { Logger } from 'pino';
  * The identity outbox (local first: a change lands here at once, the identity provider follows): enqueueing a
  * provider call in the caller's transaction, and recording what a handler made of one row. The jobs loop (S1.10)
  * picks the due rows and calls `processOutboxRow` with the handler of each row's op; the modules own the handlers
- * (`companies`: create_org, delete_org; later members and invitations).
+ * (`companies`: create_org, delete_org; `members`: update_role, remove_member; later invitations).
  */
 
 /** Tries of one row before it is given up as `failed` (about a day with the delays below). */
@@ -68,6 +75,22 @@ export function describeFailure(error: unknown): string {
 
 /** Does one row's provider call; resolving means done (also "nothing left to do"), rejecting means try again. */
 export type OutboxHandler = (row: IdentityOutboxRow) => Promise<void>;
+
+/** The provider a handler calls; none configured (MWC_IDENTITY=none) rejects, so the row is tried again later. */
+export function outboxProvider(identity: IdentityProvider | undefined): IdentityProvider {
+  if (identity === undefined) throw new Error('No identity provider is configured (MWC_IDENTITY=none)');
+  return identity;
+}
+
+/** The tenant of a row's company, or undefined once the company is deleted (a handler then has nothing to do). */
+export async function outboxTenant(db: DbHandle, companyId: string): Promise<TenantDb | undefined> {
+  try {
+    return await tenant(db, companyId);
+  } catch (error) {
+    if (isCompanyNotFound(error)) return undefined;
+    throw error;
+  }
+}
 
 /** The handlers a module offers, by op. */
 export type OutboxHandlers = Partial<Record<IdentityOutboxOp, OutboxHandler>>;

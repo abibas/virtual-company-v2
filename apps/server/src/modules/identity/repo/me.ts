@@ -1,8 +1,11 @@
-import { companies, memberships, users } from '@mwc/db';
+import { companies, isUuid, memberships, users } from '@mwc/db';
 import type { RawDb } from '@mwc/db/system';
-import { and, asc, eq, isNull, ne, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, type SQL } from 'drizzle-orm';
 
-/** What `GET /api/me` reads: the user and their memberships across companies (raw, as the identity repo is). */
+/**
+ * What `GET /api/me` reads, the user and their memberships across companies, and the profiles a company's member
+ * list shows (raw, as the identity repo is: users are global rows).
+ */
 
 export interface UserProfile {
   readonly id: string;
@@ -12,18 +15,24 @@ export interface UserProfile {
   readonly status: 'active' | 'deactivated';
 }
 
+const profileColumns = {
+  id: users.id,
+  primaryEmail: users.primaryEmail,
+  displayName: users.displayName,
+  imageUrl: users.imageUrl,
+  status: users.status,
+};
+
 export async function getUserProfile(db: RawDb, id: string): Promise<UserProfile | undefined> {
-  const [row] = await db
-    .select({
-      id: users.id,
-      primaryEmail: users.primaryEmail,
-      displayName: users.displayName,
-      imageUrl: users.imageUrl,
-      status: users.status,
-    })
-    .from(users)
-    .where(eq(users.id, id));
+  const [row] = await db.select(profileColumns).from(users).where(eq(users.id, id));
   return row;
+}
+
+/** The profiles of these users; unknown and malformed ids are left out. */
+export async function getUserProfiles(db: RawDb, ids: readonly string[]): Promise<UserProfile[]> {
+  const valid = [...new Set(ids)].filter(isUuid);
+  if (valid.length === 0) return [];
+  return db.select(profileColumns).from(users).where(inArray(users.id, valid));
 }
 
 export interface UserCompany {

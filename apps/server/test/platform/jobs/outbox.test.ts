@@ -1,7 +1,15 @@
-import { type IdentityOutboxRow, identityOutbox, tenant } from '@mwc/db';
+import { companies, type IdentityOutboxRow, identityOutbox, tenant } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { IdentityProviderError } from '@mwc/identity-core';
-import { captureLogger, createTestApp, fixedClock, seedCompany, type TestApp } from '@mwc/testkit';
+import {
+  brokenDb,
+  captureLogger,
+  createTestApp,
+  FakeIdentityProvider,
+  fixedClock,
+  seedCompany,
+  type TestApp,
+} from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
@@ -12,6 +20,8 @@ import {
   OUTBOX_MAX_ATTEMPTS,
   OUTBOX_MAX_DELAY_MS,
   outboxKey,
+  outboxProvider,
+  outboxTenant,
   processOutboxRow,
   retryDelayMs,
 } from '../../../src/platform/jobs/outbox.ts';
@@ -170,5 +180,25 @@ describe('processOutboxRow', () => {
     };
     expect(await processOutboxRow({ db: t.db, clock }, row, settle)).toBe('done');
     expect(await reread(row.id)).toMatchObject({ status: 'failed', attempts: 0 });
+  });
+});
+
+describe('outboxProvider and outboxTenant', () => {
+  it('gives the configured provider, and rejects without one so the row is tried again', () => {
+    const fake = new FakeIdentityProvider();
+    expect(outboxProvider(fake)).toBe(fake);
+    expect(() => outboxProvider(undefined)).toThrow('No identity provider is configured (MWC_IDENTITY=none)');
+  });
+
+  it("opens the row's company, undefined once it is deleted, and passes on a database failure", async () => {
+    expect((await outboxTenant(t.db, companyId))?.companyId).toBe(companyId);
+    const deleted = await seedCompany(t.db);
+    await rawDb(t.db)
+      .update(companies)
+      .set({ status: 'deleted' })
+      .where(eq(companies.id, deleted.company.id));
+    expect(await outboxTenant(t.db, deleted.company.id)).toBeUndefined();
+    expect(await outboxTenant(t.db, 'not-an-id')).toBeUndefined();
+    await expect(outboxTenant(brokenDb(), companyId)).rejects.toThrow();
   });
 });
