@@ -52,6 +52,28 @@ session for them and checks that the token is not `pending`, which it would be w
 Clerk has no owner and no viewer: those are local decisions, and the projector keeps them (rule 4 in
 `packages/identity-core/README.md`).
 
+## Invitations (S1.7)
+
+What the invitation flow relies on, and what is still unverified against the development instance (the contract
+run of S1.2 is pending):
+
+- **The emailed link** lands on `<MWC_WEB_ORIGIN>/accept-invitation` (the `redirectUrl` of each invitation): the web
+  dev server in development, the public URL in production. The page itself comes with S1.11.
+- **The private metadata reaches the membership.** An accepted membership is linked to our invitation by
+  `mwc_invitation_id` in the membership's private metadata (Clerk's membership objects carry no invitation id). If
+  Clerk does not copy it, `organizationInvitation.accepted` (and the reconcile's invitation list) still marks the
+  invitation accepted, but the membership is refused as unlinked and the person is not activated. The contract run
+  checks this; until then it is the flow's main open risk (`docs/plan-2026-11-03.md`, section 18).
+- **The member limit** (5 per organization on the Hobby plan) is Clerk's, not ours: nothing counts members here.
+  When Clerk refuses an invitation for it (its error code is `organization_membership_quota_exceeded`), the `invite`
+  outbox row records Clerk's message as `last_error`. Answered with a 4xx that maps to `invalid`, the row fails at
+  once and the invitation turns `failed` (its email is free again); answered with 403 (`unauthorized`), it is tried
+  again until its last try, which fails both. Which status Clerk uses is one of the things the contract run will show.
+- **Expiry.** Invitations are sent with the days our invitation has left (14 for a new one or a resend); our
+  `expires_at` decides: an acceptance after it activates nobody, and the membership is removed at Clerk.
+- **Resend** revokes Clerk's invitation and sends a new one with the same metadata (the Backend API has no resend for
+  organization invitations); `organizationInvitation.revoked` for the old one is ignored.
+
 ## Environment
 
 The connector reads these variables (`clerkConfigFromEnv`); `.env.example` lists them with empty values.

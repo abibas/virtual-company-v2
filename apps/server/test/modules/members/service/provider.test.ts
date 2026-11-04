@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   memberOutboxHandlers,
   OrganizationPendingError,
+  queueProviderRemovals,
   removeMemberHandler,
   updateRoleHandler,
 } from '../../../../src/modules/members/service/provider.ts';
@@ -238,5 +239,54 @@ describe('remove_member', () => {
 
   it('is offered with update_role by op for the jobs loop', () => {
     expect(Object.keys(memberOutboxHandlers(deps())).sort()).toEqual(['remove_member', 'update_role']);
+  });
+});
+
+describe('remove_member for a provider membership we refused', () => {
+  const removal = (subject: string, externalMembershipId = `orgmem_${subject}`) => ({
+    subject,
+    externalMembershipId,
+    invitationId: '019a4f0c-0000-7000-8000-000000000001',
+  });
+
+  it('is queued once per provider membership, and removes the person there', async () => {
+    const company = await membersCompany(w);
+    const subject = `stranger_${company.companyId.slice(-6)}`;
+    w.fake.createUser({ subject, email: `${subject}@x.test` });
+    const membership = w.fake.addMember(orgOf(company), subject, 'org:member');
+    const one = removal(subject, membership.externalMembershipId);
+    expect(await queueProviderRemovals(w.t.db, company.companyId, [one])).toBe(1);
+    expect(await queueProviderRemovals(w.t.db, company.companyId, [one])).toBe(0);
+    expect(await queueProviderRemovals(w.t.db, company.companyId, [])).toBe(0);
+    const row = await last(company.companyId, 'remove_member');
+    expect(row).toMatchObject({
+      idempotencyKey: `remove_member:provider:${membership.externalMembershipId}`,
+      payload: one,
+    });
+    expect(await runRemove(row)).toBe('done');
+    expect(await providerRoleOf(w, orgOf(company), subject)).toBeUndefined();
+    expect(await runRemove({ ...row, status: 'pending' })).toBe('done');
+  });
+
+  it('leaves an active member here alone, waits for the organization, and needs nothing in a deleted company', async () => {
+    const company = await membersCompany(w);
+    const member = await addMember(w, company, 'member');
+    await queueProviderRemovals(w.t.db, company.companyId, [removal(member.subject)]);
+    expect(await runRemove(await last(company.companyId, 'remove_member'))).toBe('done');
+    expect(await providerRoleOf(w, orgOf(company), member.subject)).toBe('org:member');
+
+    const provisioning = await membersCompany(w, { provisioning: true });
+    await queueProviderRemovals(w.t.db, provisioning.companyId, [removal('someone')]);
+    const waiting = await last(provisioning.companyId, 'remove_member');
+    expect(await runRemove(waiting)).toBe('retry');
+    expect((await last(provisioning.companyId, 'remove_member')).lastError).toBe(
+      new OrganizationPendingError(provisioning.companyId).message,
+    );
+    await rawDb(w.t.db)
+      .update(companies)
+      .set({ status: 'deleted' })
+      .where(eq(companies.id, provisioning.companyId));
+    expect(await runRemove(await last(provisioning.companyId, 'remove_member'))).toBe('done');
+    expect(await queueProviderRemovals(w.t.db, provisioning.companyId, [removal('late')])).toBe(0);
   });
 });

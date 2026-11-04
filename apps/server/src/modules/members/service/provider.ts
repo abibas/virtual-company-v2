@@ -1,19 +1,23 @@
 import type { DbHandle, IdentityOutboxRow, Membership } from '@mwc/db';
 import { type IdentityProvider, isIdentityProviderError } from '@mwc/identity-core';
 import {
+  enqueueOutbox,
   type OutboxHandler,
   type OutboxHandlers,
+  outboxKey,
   outboxProvider,
   outboxTenant,
 } from '../../../platform/jobs/outbox.ts';
-import { subjectOf } from '../../identity/service.ts';
+import { subjectOf, userOfSubject } from '../../identity/service.ts';
 import { membersRepo } from '../repo.ts';
 
 /**
  * A member at the identity provider: the `update_role` and `remove_member` outbox handlers, which the jobs loop
  * (S1.10) calls through `processOutboxRow` (`platform/jobs/outbox.ts`). Each pushes the membership as it is when it
  * runs, not as it was when the call was enqueued, so rows run late, twice or out of order converge on the latest
- * local state; a member the provider no longer has counts as done.
+ * local state; a member the provider no longer has counts as done. `remove_member` also removes a provider
+ * membership this product refused (`queueProviderRemovals`): one that came from an invitation revoked, expired or
+ * failed here.
  */
 
 export interface MemberSyncDeps {
@@ -84,11 +88,64 @@ export function updateRoleHandler(deps: MemberSyncDeps): OutboxHandler {
 }
 
 /**
+ * A provider membership this product refused: the person accepted an invitation that is revoked, expired or failed
+ * here (our database wins), so they are not a member here and must not stay one at the provider.
+ */
+export interface ProviderRemoval {
+  readonly subject: string;
+  readonly externalMembershipId: string;
+  readonly invitationId: string;
+}
+
+/**
+ * Queues a `remove_member` call for each refused provider membership, once per provider membership (its id is the
+ * key); returns how many were new. A deleted company needs none.
+ */
+export async function queueProviderRemovals(
+  db: DbHandle,
+  companyId: string,
+  removals: readonly ProviderRemoval[],
+): Promise<number> {
+  const t = removals.length === 0 ? undefined : await outboxTenant(db, companyId);
+  if (t === undefined) return 0;
+  let queued = 0;
+  for (const removal of removals) {
+    const row = await enqueueOutbox(t, {
+      op: 'remove_member',
+      idempotencyKey: outboxKey('remove_member', 'provider', removal.externalMembershipId),
+      payload: { ...removal },
+    });
+    if (row !== undefined) queued++;
+  }
+  return queued;
+}
+
+/**
+ * `remove_member` for a refused provider membership (`payload.subject`): removes the person from the organization
+ * unless they are an active member here by now (invited again and accepted since: the provider membership is then
+ * theirs by right).
+ */
+async function removeRefused(deps: MemberSyncDeps, row: IdentityOutboxRow, subject: string): Promise<void> {
+  const provider = outboxProvider(deps.identity);
+  const t = await outboxTenant(deps.db, row.companyId);
+  if (t === undefined) return;
+  const orgExternalId = t.company.identityOrgId;
+  if (orgExternalId === null) throw new OrganizationPendingError(t.companyId);
+  const userId = await userOfSubject(deps.db, provider.issuer, subject);
+  const membership = userId === undefined ? undefined : await membersRepo().getByUser(t, userId);
+  if (membership?.status === 'active') return;
+  await goneIsDone(() => provider.removeMember(orgExternalId, subject));
+}
+
+/**
  * `remove_member`: removes the person from the organization while their membership is still removed here. One that
- * is active again (invited back since) is left alone: the provider membership is then the new one.
+ * is active again (invited back since) is left alone: the provider membership is then the new one. A row about a
+ * refused provider membership (`payload.subject`) goes to `removeRefused`.
  */
 export function removeMemberHandler(deps: MemberSyncDeps): OutboxHandler {
   return async (row) => {
+    const refused = row.payload.subject;
+    if (typeof refused === 'string') return removeRefused(deps, row, refused);
     const target = await memberAtProvider(deps, row, (membership) => membership.status === 'removed');
     if (target === undefined) return;
     const { provider, orgExternalId, subject } = target;

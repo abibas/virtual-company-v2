@@ -108,7 +108,7 @@ export function notesRoutes(deps: ServerDeps) {
 Routes under one company share a base: `companyRoute(deps, { role, path, tag })` (`platform/auth/membership.ts`) gives
 `base` (the path as a literal type, the tag, the bearer credential, `companyMember(deps, role)`) and `refusals` (the
 guard's 401, 403 and 404) to spread into `createRoute` and its responses; override a refusal the service adds to (live
-example: `modules/members/routes.ts`). A path in a shared route base needs `as const` (`path: '/api/companies/{companyId}' as const`): typed as a plain
+example: `modules/members/routes/members.ts`). A path in a shared route base needs `as const` (`path: '/api/companies/{companyId}' as const`): typed as a plain
 `string` it collapses the web's typed client (`AppType`). When the routes outgrow one file, group them by path in
 `routes/<group>.ts`, each returning its own `newRouter()`, and let `routes.ts` mount them with `.route('/', ...)`
 (the live example: `modules/companies/routes.ts`, `routes/collection.ts` and `routes/company.ts`).

@@ -10,7 +10,9 @@ import {
   IDENTITY_EVENT_TYPES,
   IDENTITY_METADATA,
   IdentityMetadata,
+  INVITATION_DAYS,
   InvitationStatus,
+  invitationStatusAt,
   MembershipRole,
   MembershipStatus,
   NormalizedIdentityEvent,
@@ -210,5 +212,21 @@ describe('NormalizedIdentityEvent per type', () => {
     const event = { ...base, type: 'user.deleted', data: { subject: 's' } };
     expect(NormalizedIdentityEvent.safeParse({ ...event, provider: '' }).success).toBe(false);
     expect(NormalizedIdentityEvent.safeParse({ ...event, externalEventId: undefined }).success).toBe(false);
+  });
+});
+
+describe('invitationStatusAt', () => {
+  const expiresAt = new Date('2026-11-17T12:00:00.000Z');
+  const before = new Date(expiresAt.getTime() - 1);
+
+  it('counts a pending invitation as expired from its expiry on, and leaves every other status as stored', () => {
+    expect(INVITATION_DAYS).toBe(14);
+    expect(invitationStatusAt('pending', expiresAt, before)).toBe('pending');
+    expect(invitationStatusAt('pending', expiresAt, expiresAt)).toBe('expired');
+    expect(invitationStatusAt('pending', expiresAt, new Date(expiresAt.getTime() + 1))).toBe('expired');
+    for (const status of InvitationStatus.options.filter((s) => s !== 'pending')) {
+      expect(invitationStatusAt(status, expiresAt, before)).toBe(status);
+      expect(invitationStatusAt(status, expiresAt, new Date(expiresAt.getTime() + 86_400_000))).toBe(status);
+    }
   });
 });

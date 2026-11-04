@@ -36,3 +36,21 @@ export const MeSchema = z
   .openapi('Me');
 
 export type Me = z.infer<typeof MeSchema>;
+
+export const SyncParamsSchema = z.object({
+  companyId: z
+    .string()
+    .openapi({ param: { name: 'companyId', in: 'path' }, example: '019a4f0c-8c1e-7c4b-9a52-3d1f2b6e7a10' }),
+});
+
+/** What a company sync did (`reconcileCompany`). */
+export const CompanySyncSchema = z
+  .object({
+    organization: z.enum(['linked', 'pending']),
+    members: z.number().int(),
+    invitations: z.number().int(),
+    removed: z.number().int(),
+    changed: z.number().int(),
+    providerRemovals: z.number().int(),
+  })
+  .openapi('CompanySync');

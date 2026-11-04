@@ -23,9 +23,9 @@ Most_Wanted_corp_v2/
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         routes · service · repo · schemas           S0
-│   │   │   │   ├── identity/       identity store (repo), me, webhooks, sync   S1
+│   │   │   │   ├── identity/       identity store (repo), me, sync (built), webhooks S1.4/S1.7/S1.8
 │   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
-│   │   │   │   ├── members/        memberships (built), invitations             S1.6/S1.7
+│   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/                                                   S1
 │   │   │   │   ├── org/            agents, reporting chain, org chart          S2
 │   │   │   │   ├── machines/       enrollment, placements                      S3
@@ -110,9 +110,13 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   guard's refusals in the OpenAPI document). `jobs/outbox.ts` (S1.5) is the identity outbox:
   `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
   handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after
-  its last try), and what a handler starts with (`outboxProvider`, `outboxTenant`: the configured provider, the row's
-  company or none once deleted); the modules own the handlers (`companies`: `create_org`, `delete_org`; `members`:
-  `update_role`, `remove_member`) and the loop that calls them comes in S1.10. Later `realtime/`.
+  its last try, or at once for an `OutboxGiveUpError`: a refusal no retry fixes), and what a handler starts with
+  (`outboxProvider`, `outboxTenant`: the configured provider, the row's company or none once deleted; `isLastAttempt`);
+  the modules own the handlers (`companies`: `create_org`, `delete_org`; `members`: `update_role`, `remove_member`,
+  `invite`, `revoke_invite`) and the loop that calls them comes in S1.10. The identity module's
+  `service/sync.ts` (S1.7) holds two of the three acceptance paths, for the callers to come: `projectIdentityEvent`
+  (one normalized webhook event, S1.8) and `reconcileCompany` (a company against its organization, S1.10's periodic
+  reconcile and `POST /api/companies/:companyId/sync`); the third is `GET /api/me`. Later `realtime/`.
 - `src/modules/<area>/` is one business area. A module has up to these files:
 
   | File         | Role                                                                            |

@@ -27,6 +27,40 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: Invitations and their acceptance live in two modules that call each other
+
+- **What happened:** the map puts invitations in `members/` and sync and webhooks in `identity/`. S1.7 followed it:
+  invitations, their routes and the `invite` / `revoke_invite` handlers in `members/`, the acceptance paths
+  (`projectIdentityEvent`, `reconcileCompany`, `POST .../sync`) in `identity/service/sync.ts`. After projecting, sync
+  must queue `remove_member` for a provider membership it refused, and that call's payload and handler belong to
+  `members/service/provider.ts` (`queueProviderRemovals`). So `identity/service/sync.ts` imports a members service,
+  while `members/` already imports `identity/service.ts` (`profilesOf`, `subjectOf`, now `userOfSubject`). There is no
+  file-level cycle (`identity/service.ts` does not import `sync.ts`), but the two modules depend on each other, and
+  the sign-in path (`identity/service.ts`) cannot queue removals without making one, so it leaves them to the next
+  sync or webhook. A related trap: a read through another module's service runs on the `DbHandle`, so inside a tenant
+  transaction it waits forever on PGlite's one connection (the first draft of `createInvitation` hung 42 tests this
+  way); the member emails are now read before the transaction.
+- **Where:** `apps/server/src/modules/identity/service/sync.ts` (186 lines), `modules/members/service/provider.ts`
+  (159), `modules/members/service/invitations.ts` (`memberEmails`); S1.7.
+- **What was done:** kept the map's split; the removal is queued through the members service that owns its handler.
+  Importing `platform/jobs/outbox.ts` into `sync.ts` instead would also have made it an eighth importer (`fan-in`).
+- **Suggested change:** a placement-table row: "A rule about invitations that the projection paths apply (expiry,
+  refused acceptances) → the members module's service, called by the identity paths; identity owns only the store
+  and the paths." Or move sync to `members/` and keep `identity/` for the store, `me` and the webhook inbox. And a
+  line in the module template: "never call another module's service inside a tenant transaction; read before it".
+- **Status:** `open`.
+
+### 2026-11-04: A repo factory of method literals becomes a long function
+
+- **What happened:** `membersRepo()` returns an object literal of methods (the template's `repo.ts`). S1.7 added eight
+  invitation queries to it and the factory became a 92-line `long-function` (the report went from 18 to 19).
+- **Where:** `apps/server/src/modules/members/repo.ts` (130 lines); S1.7.
+- **What was done:** the new rows moved to a module-level object, `invitationRows`, that the factory spreads in; the
+  report is back at 18. The S1.6 methods stayed where they were.
+- **Suggested change:** show named functions bound by a short factory in the template's `repo.ts` (as the companies
+  service does), or split a repo by entity (`repo/invitations.ts`) once it serves two tables.
+- **Status:** `open`.
+
 ### 2026-11-04: Every company module's routes import the platform's error helpers
 
 - **What happened:** S1.6's members routes need `errorJson` (a service refusal as the common error body) and

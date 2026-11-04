@@ -16,7 +16,7 @@ import type { Logger } from 'pino';
  * The identity outbox (local first: a change lands here at once, the identity provider follows): enqueueing a
  * provider call in the caller's transaction, and recording what a handler made of one row. The jobs loop (S1.10)
  * picks the due rows and calls `processOutboxRow` with the handler of each row's op; the modules own the handlers
- * (`companies`: create_org, delete_org; `members`: update_role, remove_member; later invitations).
+ * (`companies`: create_org, delete_org; `members`: update_role, remove_member, invite, revoke_invite).
  */
 
 /** Tries of one row before it is given up as `failed` (about a day with the delays below). */
@@ -76,6 +76,22 @@ export function describeFailure(error: unknown): string {
 /** Does one row's provider call; resolving means done (also "nothing left to do"), rejecting means try again. */
 export type OutboxHandler = (row: IdentityOutboxRow) => Promise<void>;
 
+/**
+ * A failure no retry can fix (the provider refused the call for good, such as an invitation it will not send): a
+ * handler throws it to have `processOutboxRow` fail the row at once, with the cause's description as `last_error`.
+ */
+export class OutboxGiveUpError extends Error {
+  constructor(cause: unknown) {
+    super(describeFailure(cause), { cause });
+    this.name = 'OutboxGiveUpError';
+  }
+}
+
+/** True while a handler runs a row's last allowed try: failing now marks the row `failed` for good. */
+export function isLastAttempt(row: Pick<IdentityOutboxRow, 'attempts'>): boolean {
+  return row.attempts + 1 >= OUTBOX_MAX_ATTEMPTS;
+}
+
 /** The provider a handler calls; none configured (MWC_IDENTITY=none) rejects, so the row is tried again later. */
 export function outboxProvider(identity: IdentityProvider | undefined): IdentityProvider {
   if (identity === undefined) throw new Error('No identity provider is configured (MWC_IDENTITY=none)');
@@ -107,8 +123,8 @@ export interface OutboxDeps {
  * Runs `handler` on a pending row and records the outcome on it. Done: `status = done`, `completed_at`, the try
  * counted. A failure (the provider's error or any other) stays `pending` with the try counted, `last_error` and
  * `next_attempt_at` pushed back by `retryDelayMs`, so the loop tries it again later; the last allowed try that
- * fails marks it `failed`. A row that is not pending is skipped untouched. The outcome is written only while the
- * row is still pending.
+ * fails marks it `failed`, and so does an `OutboxGiveUpError` on any try. A row that is not pending is skipped
+ * untouched. The outcome is written only while the row is still pending.
  */
 export async function processOutboxRow(
   deps: OutboxDeps,
@@ -121,7 +137,7 @@ export async function processOutboxRow(
   try {
     await handler(row);
   } catch (error) {
-    const failed = attempts >= OUTBOX_MAX_ATTEMPTS;
+    const failed = attempts >= OUTBOX_MAX_ATTEMPTS || error instanceof OutboxGiveUpError;
     const retryAfterMs = isIdentityProviderError(error) ? error.retryAfterMs : undefined;
     const nextAttemptAt = new Date(deps.clock().getTime() + retryDelayMs(attempts, retryAfterMs));
     const lastError = describeFailure(error);

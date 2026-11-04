@@ -3,12 +3,17 @@ import { describe, expect, it } from 'vitest';
 import {
   auditedRole,
   checkPair,
+  daysLeft,
+  invitationExpiry,
+  inviteRefusal,
   LAST_OWNER,
   MEMBER_NOT_FOUND,
   type MemberState,
+  normalizeEmail,
   removalRefusal,
   roleChangeRefusal,
   sameRole,
+  storedStatuses,
   takesLastOwner,
 } from '../../../src/modules/members/rules.ts';
 import { ROLES } from '../../fixtures/members.ts';
@@ -119,5 +124,35 @@ describe('sameRole and auditedRole', () => {
       grantedRole: 'member',
       role: 'admin',
     });
+  });
+});
+
+describe('invitation rules', () => {
+  const now = new Date('2026-11-03T12:00:00.000Z');
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('normalizes an email, and lets an owner invite with any role and an admin with any but owner', () => {
+    expect(normalizeEmail('  Bob@Example.TEST ')).toBe('bob@example.test');
+    for (const role of ROLES) expect(inviteRefusal('owner', role)).toBeUndefined();
+    for (const role of ['admin', 'member', 'viewer'] as const)
+      expect(inviteRefusal('admin', role)).toBeUndefined();
+    expect(inviteRefusal('admin', 'owner')).toMatchObject({ status: 403, code: 'forbidden' });
+    for (const actor of ['member', 'viewer'] as const)
+      expect(code(inviteRefusal(actor, 'viewer'))).toBe('forbidden');
+  });
+
+  it('expires an invitation 14 days after it is sent, and gives the provider the whole days left', () => {
+    expect(invitationExpiry(now)).toEqual(new Date(now.getTime() + 14 * DAY));
+    expect(daysLeft(invitationExpiry(now), now)).toBe(14);
+    expect(daysLeft(new Date(now.getTime() + 13 * DAY + 1), now)).toBe(14);
+    expect(daysLeft(new Date(now.getTime() + 1), now)).toBe(1);
+    expect(daysLeft(new Date(now.getTime() - DAY), now)).toBe(1);
+  });
+
+  it('reads the stored statuses that can show as a filter (overdue pending ones show as expired)', () => {
+    expect(storedStatuses('all')).toBeUndefined();
+    expect(storedStatuses('pending')).toEqual(['pending']);
+    expect(storedStatuses('expired')).toEqual(['pending', 'expired']);
+    expect(storedStatuses('revoked')).toEqual(['revoked']);
   });
 });

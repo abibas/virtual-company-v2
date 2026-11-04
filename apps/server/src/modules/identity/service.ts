@@ -8,6 +8,7 @@ import {
   type UserCompany,
   type UserProfile,
   userCompanies,
+  userIdOf,
   userProfile,
   userProfiles,
   userSubject,
@@ -76,7 +77,7 @@ interface SignInDeps extends Pick<ServerDeps, 'db' | 'logger'> {
 async function signIn(deps: SignInDeps, actor: Actor, identity: VerifiedIdentity, now: () => Date) {
   const key = identity.sessionId && `${identity.issuer}|${identity.subject}|${identity.sessionId}`;
   if (actor.userId !== undefined && (!key || deps.reconciled.has(key))) return actor.userId;
-  const store = dbIdentityStore(deps.db, { provider: deps.provider.kind });
+  const store = dbIdentityStore(deps.db, { provider: deps.provider.kind, now });
   try {
     await retryOnUniqueViolation(() => reconcileUser(identity.subject, deps.provider, store, { now }));
   } catch (error) {
@@ -120,6 +121,11 @@ export async function profilesOf(
  */
 export function subjectOf(db: DbHandle, userId: string, provider: string): Promise<string | undefined> {
   return userSubject(db, userId, provider);
+}
+
+/** The local user of a subject at the provider whose tokens `issuer` signs; undefined for a person not linked here. */
+export function userOfSubject(db: DbHandle, issuer: string, subject: string): Promise<string | undefined> {
+  return userIdOf(db, issuer, subject);
 }
 
 function meView(profile: UserProfile, memberships: UserCompany[], actor: Actor): Me {

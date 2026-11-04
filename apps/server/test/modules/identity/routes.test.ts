@@ -4,7 +4,18 @@ import { createTestApp, FAKE_ISSUER, getJson, LEVEL, seedCompany } from '@mwc/te
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { type AuthWorld, addPerson, authWorld, bearer, seedApiKey } from '../../fixtures/auth.ts';
+import { call } from '../../fixtures/companies.ts';
+import {
+  acceptAtProvider,
+  DAY_MS,
+  invite,
+  memberWithEmail,
+  outboxRows,
+  runOutbox,
+  signUp,
+} from '../../fixtures/invitations.ts';
 import { acceptedInvitation } from '../../fixtures/me.ts';
+import { addMember, as, membersCompany } from '../../fixtures/members.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {
@@ -227,5 +238,81 @@ describe('GET /api/me: what it lists', () => {
     const all = await me(`fake:${person.subject}`);
     expect(all.body).toMatchObject({ memberships: [{ name: 'Away', role: 'owner' }, { name: 'Home' }] });
     getUser.mockRestore();
+  });
+});
+
+describe('acceptance on sign-in (GET /api/me)', () => {
+  it('activates the invitee with the role of our invitation the first time they sign in', async () => {
+    const acme = await membersCompany(w);
+    const sent = await invite(w, acme, 'signs-in@x.test', 'admin');
+    await runOutbox(w, acme.companyId);
+    const person = signUp(w, 'signs-in@x.test');
+    await acceptAtProvider(w, sent.id, person.subject);
+    expect(await memberWithEmail(w, acme, 'signs-in@x.test')).toBeUndefined();
+    expect(await me(`fake:${person.subject}`)).toMatchObject({
+      status: 200,
+      body: { memberships: [{ companyId: acme.companyId, role: 'admin', status: 'active' }] },
+    });
+    expect(await memberWithEmail(w, acme, 'signs-in@x.test')).toMatchObject({
+      role: 'admin',
+      status: 'active',
+    });
+  });
+
+  it('activates nobody from an invitation accepted after its expiry', async () => {
+    const acme = await membersCompany(w);
+    const sent = await invite(w, acme, 'expired-sign-in@x.test', 'member');
+    await runOutbox(w, acme.companyId);
+    w.clock.advance(15 * DAY_MS);
+    const person = signUp(w, 'expired-sign-in@x.test');
+    await acceptAtProvider(w, sent.id, person.subject);
+    expect(await me(`fake:${person.subject}`)).toMatchObject({ status: 200, body: { memberships: [] } });
+    expect(await memberWithEmail(w, acme, 'expired-sign-in@x.test')).toBeUndefined();
+  });
+});
+
+describe('POST /api/companies/:companyId/sync', () => {
+  const sync = (companyId: string) => `/api/companies/${companyId}/sync`;
+
+  it('reconciles the company now: an accepted invitation becomes an active member', async () => {
+    const acme = await membersCompany(w);
+    const sent = await invite(w, acme, 'sync-now@x.test', 'viewer');
+    await runOutbox(w, acme.companyId);
+    const person = signUp(w, 'sync-now@x.test');
+    await acceptAtProvider(w, sent.id, person.subject);
+    const res = await as(w, acme.owner)('POST', sync(acme.companyId));
+    expect(res).toMatchObject({
+      status: 200,
+      body: { organization: 'linked', members: 2, invitations: 1, removed: 0, providerRemovals: 0 },
+    });
+    expect(await memberWithEmail(w, acme, 'sync-now@x.test')).toMatchObject({
+      role: 'viewer',
+      status: 'active',
+    });
+    expect(await outboxRows(w, acme.companyId, 'remove_member')).toEqual([]);
+  });
+
+  it('is a 401, a 403 below admin, a 404 for an outsider, and a 503 while the provider is away', async () => {
+    const acme = await membersCompany(w);
+    expect((await call(w, undefined)('POST', sync(acme.companyId))).status).toBe(401);
+    const member = await addMember(w, acme, 'member');
+    expect(await as(w, member)('POST', sync(acme.companyId))).toMatchObject({
+      status: 403,
+      body: { error: { code: 'forbidden' } },
+    });
+    const admin = await addMember(w, acme, 'admin');
+    expect((await as(w, admin)('POST', sync(acme.companyId))).status).toBe(200);
+    const other = await membersCompany(w);
+    expect((await as(w, other.owner)('POST', sync(acme.companyId))).status).toBe(404);
+    w.fake.failNext('listOrganizationMembers');
+    expect(await as(w, acme.owner)('POST', sync(acme.companyId))).toMatchObject({
+      status: 503,
+      body: { error: { code: 'identity_unavailable' } },
+    });
+    const provisioning = await membersCompany(w, { provisioning: true });
+    expect(await as(w, provisioning.owner)('POST', sync(provisioning.companyId))).toMatchObject({
+      status: 200,
+      body: { organization: 'pending' },
+    });
   });
 });

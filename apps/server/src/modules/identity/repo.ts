@@ -29,6 +29,11 @@ export interface DbIdentityStoreOptions {
    * new person, and the identity `getUserById` returns.
    */
   readonly provider: string;
+  /**
+   * The current time (the app's clock; the system clock by default): a pending invitation past its expiry reads as
+   * `expired` from then on.
+   */
+  readonly now?: () => Date;
 }
 
 /**
@@ -43,16 +48,20 @@ export interface DbIdentityStoreOptions {
  */
 export class DbIdentityStore implements IdentityStore {
   readonly #db: RawDb;
+  readonly #options: DbIdentityStoreOptions;
   readonly #provider: string;
+  readonly #now: () => Date;
 
   constructor(db: RawDb, options: DbIdentityStoreOptions) {
     this.#db = db;
+    this.#options = options;
     this.#provider = options.provider;
+    this.#now = options.now ?? (() => new Date());
   }
 
   /** Runs `work` in one transaction (a savepoint when already inside one); an error rolls it all back. */
   transaction<T>(work: (store: DbIdentityStore) => Promise<T>): Promise<T> {
-    return this.#db.transaction((tx) => work(new DbIdentityStore(tx, { provider: this.#provider })));
+    return this.#db.transaction((tx) => work(new DbIdentityStore(tx, this.#options)));
   }
 
   getUser(issuer: string, subject: string): Promise<StoredUser | undefined> {
@@ -90,15 +99,15 @@ export class DbIdentityStore implements IdentityStore {
   }
 
   getInvitation(id: string): Promise<StoredInvitation | undefined> {
-    return invitations.getInvitation(this.#db, id);
+    return invitations.getInvitation(this.#db, id, this.#now());
   }
 
   getInvitationByExternalId(externalInvitationId: string): Promise<StoredInvitation | undefined> {
-    return invitations.getInvitationByExternalId(this.#db, externalInvitationId);
+    return invitations.getInvitationByExternalId(this.#db, externalInvitationId, this.#now());
   }
 
   updateInvitation(id: string, patch: InvitationPatch): Promise<StoredInvitation> {
-    return invitations.updateInvitation(this.#db, id, patch);
+    return invitations.updateInvitation(this.#db, id, patch, this.#now());
   }
 
   getMark(key: string): Promise<IdentityMark | undefined> {
@@ -137,6 +146,20 @@ export async function userSubject(
   provider: string,
 ): Promise<string | undefined> {
   return (await users.getUserById(rawDb(handle), userId, provider))?.subject;
+}
+
+/** The provider invitations a resend replaced in this company (`repo/invitations.ts`). */
+export function replacedInvitations(handle: DbHandle, companyId: string): Promise<Set<string>> {
+  return invitations.replacedExternalIds(rawDb(handle), companyId);
+}
+
+/** The local user's id for `(issuer, subject)`, or undefined when that person is not linked here. */
+export async function userIdOf(
+  handle: DbHandle,
+  issuer: string,
+  subject: string,
+): Promise<string | undefined> {
+  return (await users.getUser(rawDb(handle), issuer, subject))?.id;
 }
 
 /** The user's memberships that are not removed, in companies that are not deleted (one company's, if given). */

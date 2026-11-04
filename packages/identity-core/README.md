@@ -156,7 +156,11 @@ reconcile and user webhooks do.
   `fields` as audit rows are the webhook inbox's (S1.8).
 - **Callers (S1.4–S1.10):** the webhook route (`parseWebhook` → dedupe → `project`), reconcile-on-sign-in
   (`reconcileUser`, built in S1.4: `GET /api/me` in `apps/server/src/modules/identity/service.ts`), the jobs loop and "Sync now" (`reconcileOrganization`), and the outbox, which after
-  linking a company to its new organization reconciles it so the creator's parked events apply.
+  linking a company to its new organization reconciles it so the creator's parked events apply. S1.7 built the
+  server side of the webhook and periodic paths (`projectIdentityEvent`, `reconcileCompany` and
+  `POST /api/companies/:companyId/sync` in `apps/server/src/modules/identity/service/sync.ts`): the database store
+  reads a pending invitation past its expiry as `expired`, and a provider membership refused because its invitation
+  is revoked, expired or failed here is removed at the provider through the outbox (rule 6).
 
 ## Known limits
 

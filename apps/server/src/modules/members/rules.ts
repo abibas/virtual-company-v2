@@ -1,4 +1,5 @@
-import type { MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import type { InvitationStatus, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import { INVITATION_DAYS } from '@mwc/shared/identity';
 
 /** A refusal the routes answer in the common error shape. */
 export interface Refusal {
@@ -17,6 +18,7 @@ export const refuse = (status: Refusal['status'], code: string, message: string)
 
 export const MEMBER_NOT_FOUND = refuse(404, 'member_not_found', 'No such member in this company');
 export const LAST_OWNER = refuse(409, 'last_owner', 'The company must keep at least one active owner');
+export const NOT_ACTIVE = refuse(403, 'forbidden', 'You are no longer an active member of this company');
 
 /** The membership fields the rules read. */
 export interface MemberState {
@@ -33,9 +35,7 @@ export function checkPair<T extends MemberState>(
   actor: T | undefined,
   target: T | undefined,
 ): Refusal | { readonly actor: T; readonly target: T } {
-  if (actor?.status !== 'active') {
-    return refuse(403, 'forbidden', 'You are no longer an active member of this company');
-  }
+  if (actor?.status !== 'active') return NOT_ACTIVE;
   if (target === undefined || target.status === 'removed') return MEMBER_NOT_FOUND;
   return { actor, target };
 }
@@ -95,4 +95,57 @@ export function sameRole(
 /** The membership fields a role change audits. */
 export function auditedRole(row: { readonly role: MembershipRole; readonly grantedRole: MembershipRole }) {
   return { grantedRole: row.grantedRole, role: row.role };
+}
+
+// --- invitations (S1.7) -------------------------------------------------------------------------
+
+export const INVITATION_NOT_FOUND = refuse(404, 'invitation_not_found', 'No such invitation in this company');
+export const INVITATION_NOT_PENDING = refuse(
+  409,
+  'invitation_not_pending',
+  'The invitation is no longer pending (accepted, revoked, expired or failed)',
+);
+export const ALREADY_MEMBER = refuse(409, 'already_member', 'Someone with this email is a member already');
+export const INVITATION_PENDING = refuse(
+  409,
+  'invitation_pending',
+  'This email has a pending invitation already; resend that one instead',
+);
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** An email as invitations store and compare it: trimmed and lower-cased. */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Why `actor` may not invite someone as `role` (or resend or revoke such an invitation), or undefined when it may:
+ * the role rules for a newcomer, who holds the lowest role until then. An owner invites with any role, an admin with
+ * any role but owner.
+ */
+export function inviteRefusal(actor: MembershipRole, role: MembershipRole): Refusal | undefined {
+  return roleChangeRefusal(actor, 'viewer', role);
+}
+
+/** When an invitation sent, or sent again, at `now` expires. */
+export function invitationExpiry(now: Date): Date {
+  return new Date(now.getTime() + INVITATION_DAYS * DAY_MS);
+}
+
+/** The provider's `expiresInDays` for an invitation that expires at `expiresAt`: the whole days left, at least 1. */
+export function daysLeft(expiresAt: Date, now: Date): number {
+  return Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / DAY_MS));
+}
+
+/** What `GET .../invitations?status=` lists: one status as of now, or all of them. */
+export type InvitationFilter = InvitationStatus | 'all';
+
+/**
+ * The stored statuses that can show as `filter` (a pending row past its expiry shows as expired), or undefined for
+ * all; the caller still keeps only the rows whose status as of now is `filter`.
+ */
+export function storedStatuses(filter: InvitationFilter): readonly InvitationStatus[] | undefined {
+  if (filter === 'all') return undefined;
+  return filter === 'expired' ? ['pending', 'expired'] : [filter];
 }

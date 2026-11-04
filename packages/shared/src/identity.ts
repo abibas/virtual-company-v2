@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IdentityEventType } from './enums.ts';
+import { IdentityEventType, type InvitationStatus as InvitationStatusValue } from './enums.ts';
 
 /**
  * The provider-agnostic identity contracts (docs/architecture.md, "Identity flow"). An identity provider
@@ -123,3 +123,19 @@ export const IDENTITY_METADATA = {
   /** On an organization and an invitation: the local company id. */
   companyId: 'mwc_company_id',
 } as const;
+
+/** How long an invitation is valid, here (`invitations.expires_at`) and at the provider (Clerk `expiresInDays`). */
+export const INVITATION_DAYS = 14;
+
+/**
+ * An invitation's status as of `now`: a pending invitation whose `expiresAt` has passed counts as expired, whatever
+ * the stored status still says, so an acceptance that comes after the expiry never activates anyone. Every other
+ * status stands as stored.
+ */
+export function invitationStatusAt(
+  status: InvitationStatusValue,
+  expiresAt: Date,
+  now: Date,
+): InvitationStatusValue {
+  return status === 'pending' && expiresAt.getTime() <= now.getTime() ? 'expired' : status;
+}

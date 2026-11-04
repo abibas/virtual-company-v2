@@ -15,10 +15,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   describeFailure,
   enqueueOutbox,
+  isLastAttempt,
   OUTBOX_ERROR_LENGTH,
   OUTBOX_FIRST_DELAY_MS,
   OUTBOX_MAX_ATTEMPTS,
   OUTBOX_MAX_DELAY_MS,
+  OutboxGiveUpError,
   outboxKey,
   outboxProvider,
   outboxTenant,
@@ -166,6 +168,29 @@ describe('processOutboxRow', () => {
       lastError: 'still broken',
       nextAttemptAt: before,
     });
+  });
+
+  it('fails a row at once on a give-up, with the cause as its error, and tells a handler its last try', async () => {
+    const refused = new IdentityProviderError('invalid', 'quota exceeded');
+    const giveUp = new OutboxGiveUpError(refused);
+    expect(giveUp).toMatchObject({
+      name: 'OutboxGiveUpError',
+      message: 'invalid: quota exceeded',
+      cause: refused,
+    });
+    const row = await newRow();
+    const handler = async () => {
+      throw giveUp;
+    };
+    expect(await processOutboxRow({ db: t.db, clock }, row, handler)).toBe('failed');
+    expect(await reread(row.id)).toMatchObject({
+      status: 'failed',
+      attempts: 1,
+      lastError: 'invalid: quota exceeded',
+    });
+    expect(isLastAttempt({ attempts: 0 })).toBe(false);
+    expect(isLastAttempt({ attempts: OUTBOX_MAX_ATTEMPTS - 2 })).toBe(false);
+    expect(isLastAttempt({ attempts: OUTBOX_MAX_ATTEMPTS - 1 })).toBe(true);
   });
 
   it('skips a row that is not pending, and never overwrites a row settled meanwhile', async () => {
