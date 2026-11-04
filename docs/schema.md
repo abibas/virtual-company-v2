@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 12. Migrations: 2, the last is `0001_identity`.
+Tables: 12. Migrations: 3, the last is `0002_identity_inbox_ignored`.
 
 ```mermaid
 erDiagram
@@ -54,7 +54,7 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     text provider "not null"
     text external_event_id "not null"
-    text type "not null, user.upserted|user.deleted|org.upserted|org.deleted|membership.upserted|membership.deleted|invitation.accepted|invitation.revoked"
+    text type "not null, user.upserted|user.deleted|org.upserted|org.deleted|membership.upserted|membership.deleted|invitation.accepted|invitation.revoked|ignored"
     timestamptz occurred_at "not null"
     jsonb payload "not null"
     text status "not null, default 'pending', pending|processed|failed"
@@ -263,7 +263,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `provider` | `text` | no |  |  |  |
 | `external_event_id` | `text` | no |  |  |  |
-| `type` | `text` | no |  |  | `user.upserted`, `user.deleted`, `org.upserted`, `org.deleted`, `membership.upserted`, `membership.deleted`, `invitation.accepted`, `invitation.revoked` |
+| `type` | `text` | no |  |  | `user.upserted`, `user.deleted`, `org.upserted`, `org.deleted`, `membership.upserted`, `membership.deleted`, `invitation.accepted`, `invitation.revoked`, `ignored` |
 | `occurred_at` | `timestamp with time zone` | no |  |  |  |
 | `payload` | `jsonb` | no |  |  |  |
 | `status` | `text` | no | `'pending'` |  | `pending`, `processed`, `failed` |
@@ -279,7 +279,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Unique:**
   - `identity_events_provider_external_event_id_unique` (`provider`, `external_event_id`)
 - **Checks:**
-  - `identity_events_type_check`: `type` is one of `user.upserted`, `user.deleted`, `org.upserted`, `org.deleted`, `membership.upserted`, `membership.deleted`, `invitation.accepted`, `invitation.revoked`
+  - `identity_events_type_check`: `type` is one of `user.upserted`, `user.deleted`, `org.upserted`, `org.deleted`, `membership.upserted`, `membership.deleted`, `invitation.accepted`, `invitation.revoked`, `ignored`
   - `identity_events_status_check`: `status` is one of `pending`, `processed`, `failed`
   - `identity_events_attempts_check`: `"attempts" >= 0`
 - **Indexes:**

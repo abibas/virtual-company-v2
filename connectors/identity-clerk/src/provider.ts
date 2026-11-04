@@ -4,6 +4,7 @@ import {
   type IdentityProvider,
   IdentityProviderError,
   isIdentityProviderError,
+  type ProviderCapabilities,
   type UserOrganization,
   type VerifyTokenContext,
   type WebhookRequest,
@@ -14,8 +15,8 @@ import type {
   ExternalMembership,
   ExternalOrg,
   ExternalUser,
+  IdentityInboxEvent,
   MembershipRole,
-  NormalizedIdentityEvent,
   VerifiedIdentity,
 } from '@mwc/shared/identity';
 import { ClerkCalls } from './backend/calls.ts';
@@ -59,7 +60,8 @@ export class ClerkIdentityProvider implements IdentityProvider {
   readonly kind = 'clerk';
   readonly issuer: string;
   readonly roles = CLERK_ROLES;
-  readonly capabilities = { organizations: true, invitations: true, webhooks: true, scim: false } as const;
+  /** Webhooks only with the endpoint's signing secret: without it no delivery can be verified. */
+  readonly capabilities: ProviderCapabilities;
 
   readonly #backend: ClerkBackend;
   readonly #options: ClerkIdentityProviderOptions;
@@ -68,6 +70,8 @@ export class ClerkIdentityProvider implements IdentityProvider {
 
   constructor(options: ClerkIdentityProviderOptions) {
     this.issuer = options.issuer;
+    const webhooks = Boolean(options.webhookSigningSecret);
+    this.capabilities = { organizations: true, invitations: true, webhooks, scim: false };
     this.#backend = options.backend;
     this.#options = options;
     this.#gate = new RateGate(options.now ?? Date.now, options.invitationLimit ?? INVITATION_LIMIT);
@@ -215,7 +219,7 @@ export class ClerkIdentityProvider implements IdentityProvider {
     return found;
   }
 
-  parseWebhook(request: WebhookRequest): Promise<NormalizedIdentityEvent | null> {
+  parseWebhook(request: WebhookRequest): Promise<IdentityInboxEvent | null> {
     return parseClerkWebhook(this.#backend.verifyWebhook, this.#options.webhookSigningSecret, request);
   }
 }

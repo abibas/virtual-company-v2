@@ -54,6 +54,11 @@ const EnvSchema = z.object({
   CLERK_SECRET_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
   CLERK_PUBLISHABLE_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
   CLERK_JWT_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
+  /**
+   * The Clerk webhook endpoint's signing secret (`whsec_...`). Optional: without it `POST /api/webhooks/clerk`
+   * answers 503 `webhooks_not_configured` and reconcile keeps memberships current.
+   */
+  CLERK_WEBHOOK_SIGNING_SECRET: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
   /** `any`, `allowlist` or `none`. Defaults to `any`, and to `allowlist` in production. */
   MWC_COMPANY_CREATION: z.preprocess(emptyAsUnset, CompanyCreation.optional()),
   /** The emails MWC_COMPANY_CREATION=allowlist lets create companies, comma-separated, compared lower-cased. */

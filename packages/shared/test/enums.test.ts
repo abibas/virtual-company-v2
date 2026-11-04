@@ -5,6 +5,7 @@ import {
   CompanyStatus,
   IdentityEventStatus,
   IdentityEventType,
+  IdentityInboxType,
   IdentityOutboxOp,
   IdentityOutboxStatus,
   InvitationStatus,
@@ -23,6 +24,7 @@ describe('enums', () => {
     expect(PrincipalKind.options).toEqual(['person', 'agent']);
     expect(ApiKeyKind.options).toEqual(['personal', 'runner', 'scim']);
     expect(IdentityEventStatus.options).toEqual(['pending', 'processed', 'failed']);
+    expect(IdentityInboxType.options).toEqual([...IdentityEventType.options, 'ignored']);
     expect(IdentityOutboxOp.options).toEqual([
       'create_org',
       'invite',
@@ -46,6 +48,7 @@ describe('enums', () => {
     expect(identity.MembershipStatus).toBe(MembershipStatus);
     expect(identity.InvitationStatus).toBe(InvitationStatus);
     expect(identity.IdentityEventType).toBe(IdentityEventType);
+    expect(identity.IdentityInboxType).toBe(IdentityInboxType);
     expect(identity.IDENTITY_EVENT_TYPES).toEqual(IdentityEventType.options);
   });
 });

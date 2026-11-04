@@ -19,11 +19,11 @@ Most_Wanted_corp_v2/
 │   │   │   ├── platform/           cross-cutting, no business rules
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
-│   │   │   │   ├── jobs/           the outbox (built); loops: reconcile, reaper S1/S4
+│   │   │   │   ├── jobs/           outbox, retry policy (built); loops         S1/S4
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         routes · service · repo · schemas           S0
-│   │   │   │   ├── identity/       identity store (repo), me, sync (built), webhooks S1.4/S1.7/S1.8
+│   │   │   │   ├── identity/       identity store, me, sync, webhook inbox (built) S1.4–S1.8
 │   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/                                                   S1
@@ -113,10 +113,16 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   its last try, or at once for an `OutboxGiveUpError`: a refusal no retry fixes), and what a handler starts with
   (`outboxProvider`, `outboxTenant`: the configured provider, the row's company or none once deleted; `isLastAttempt`);
   the modules own the handlers (`companies`: `create_org`, `delete_org`; `members`: `update_role`, `remove_member`,
-  `invite`, `revoke_invite`) and the loop that calls them comes in S1.10. The identity module's
-  `service/sync.ts` (S1.7) holds two of the three acceptance paths, for the callers to come: `projectIdentityEvent`
-  (one normalized webhook event, S1.8) and `reconcileCompany` (a company against its organization, S1.10's periodic
-  reconcile and `POST /api/companies/:companyId/sync`); the third is `GET /api/me`. Later `realtime/`.
+  `invite`, `revoke_invite`) and the loop that calls them comes in S1.10. `jobs/retry.ts` (S1.8) is the retry policy
+  the outbox and the webhook inbox share (30 s doubling to 1 h, given up after 12 tries; `describeFailure` for
+  `last_error`). The identity module's `service/sync.ts` (S1.7) holds two of the three acceptance paths:
+  `projectIdentityEvent` (one normalized webhook event, projected with its audit rows in one transaction) and
+  `reconcileCompany` (a company against its organization, S1.10's periodic reconcile and
+  `POST /api/companies/:companyId/sync`); the third is `GET /api/me`. The webhook inbox (S1.8) is the same module:
+  `POST /api/webhooks/clerk` in its `routes.ts`, `service/webhooks.ts` (verify, record once, process inline),
+  `service/events.ts` (`processInboxEvent`, and `retryIdentityEvents` for S1.10's loop), and its raw database access
+  in `repo/events.ts` (the `identity_events` rows, claimed under `for update skip locked`) and `repo/audit.ts` (a
+  projection's audit rows), under the identity repo's Biome exemption. Later `realtime/`.
 - `src/modules/<area>/` is one business area. A module has up to these files:
 
   | File         | Role                                                                            |
@@ -210,7 +216,8 @@ a global row and tenant rows in one transaction without `@mwc/db/system`. `audit
 per-field audit rows of `diffFields` in the tenant's company, and `isUniqueViolation(error, constraint?)` tells a
 taken value (a 409) from a failure on both drivers.
 
-Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`) is `@mwc/db/system`, for the
+Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
+a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the
 code that must see every company: the platform (startup, auth, jobs), migrations and scripts, the webhook inbox
 and the identity store. `platform/auth` uses it to find a session's person in `user_identities` and an API key by
 its hash before any company is known. Biome forbids it, and the other raw entries (`@mwc/db/pglite`, `/migrate`, `/testing`), in

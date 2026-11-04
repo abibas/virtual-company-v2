@@ -54,3 +54,14 @@ export const CompanySyncSchema = z
     providerRemovals: z.number().int(),
   })
   .openapi('CompanySync');
+
+/** What `POST /api/webhooks/clerk` made of a verified delivery. */
+export const WebhookReceiptSchema = z
+  .object({
+    status: z.enum(['processed', 'failed', 'duplicate', 'ignored']).openapi({
+      description:
+        '`processed`: projected; `failed`: recorded, processing failed and is retried here; `duplicate`: a delivery ' +
+        'already received (nothing done); `ignored`: an event type this product does not project (recorded)',
+    }),
+  })
+  .openapi('WebhookReceipt');

@@ -1,5 +1,5 @@
 import { IdentityProviderError, type WebhookRequest } from '@mwc/identity-core';
-import { NormalizedIdentityEvent } from '@mwc/shared/identity';
+import { type IdentityInboxEvent, IgnoredIdentityEvent, NormalizedIdentityEvent } from '@mwc/shared/identity';
 import type { z } from 'zod';
 import type { ClerkWebhookEnvelope, VerifyWebhookFn } from './backend/client.ts';
 import {
@@ -96,26 +96,36 @@ async function verified(
  * Verifies a Clerk (svix) delivery with `@clerk/backend`'s `verifyWebhook` (signature over id, timestamp
  * and body; timestamps more than 5 minutes off are refused), then normalizes it. The svix id is the
  * event id (the caller dedupes on it), the envelope's `timestamp` the event time, and each object's
- * `updated_at` its ordering guard. Resolves null for a type this product does not use.
+ * `updated_at` its ordering guard. A type this product does not use (`session.created`,
+ * `organizationInvitation.created`, ...) resolves as an `ignored` event with Clerk's type; an envelope with no
+ * type at all as null.
  */
 export async function parseClerkWebhook(
   verify: VerifyWebhookFn,
   signingSecret: string | undefined,
   request: WebhookRequest,
-): Promise<NormalizedIdentityEvent | null> {
+): Promise<IdentityInboxEvent | null> {
   if (!signingSecret) {
     throw new IdentityProviderError('unavailable', 'clerk: CLERK_WEBHOOK_SIGNING_SECRET is not set');
   }
   const envelope = await verified(verify, signingSecret, request);
-  const body = bodyOf(envelope.type, envelope.data);
-  if (body === null) return null;
   const sentAt = Number(header(request, 'svix-timestamp')) * 1000;
-  const event = NormalizedIdentityEvent.safeParse({
-    ...body,
+  const base = {
     provider: 'clerk',
     externalEventId: header(request, 'svix-id'),
     occurredAt: typeof envelope.timestamp === 'number' ? envelope.timestamp : sentAt,
-  });
+  };
+  const body = bodyOf(envelope.type, envelope.data);
+  if (body === null) return ignoredOf(base, envelope.type);
+  const event = NormalizedIdentityEvent.safeParse({ ...body, ...base });
   if (!event.success) throw new IdentityProviderError('invalid', `clerk: bad ${envelope.type} event`);
+  return event.data;
+}
+
+/** A verified delivery of a type this product does not use, or null when the envelope names no type. */
+function ignoredOf(base: Record<string, unknown>, type: unknown): IdentityInboxEvent | null {
+  if (typeof type !== 'string' || type === '') return null;
+  const event = IgnoredIdentityEvent.safeParse({ ...base, type: 'ignored', data: { providerType: type } });
+  if (!event.success) throw new IdentityProviderError('invalid', `clerk: bad ${type} event`);
   return event.data;
 }

@@ -73,7 +73,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
     );
   });
 
-  it('takes a database at 0000_init with data to 0001_identity, keeping the rows', async () => {
+  it('takes a database at 0000_init with data to the latest migration, keeping the rows', async () => {
     const handle = await fresh();
     // A migrations folder holding only 0000_init, as the repository was before S1.3.
     const first = mkdtempSync(join(tmpdir(), 'mwc-0000-'));
@@ -101,7 +101,11 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
     );
 
     await migrateToLatest(handle);
-    expect(await migrationStatus(handle)).toMatchObject({ applied: 2, last: '0001_identity', current: true });
+    expect(await migrationStatus(handle)).toMatchObject({
+      applied: journal.entries.length,
+      last: journal.entries.at(-1)?.tag,
+      current: true,
+    });
     const [kept] = await queryRows<{ slug: string; email: string }>(
       handle,
       sql`select c.slug, u.primary_email as email from companies c join users u on u.id = c.created_by_user_id`,

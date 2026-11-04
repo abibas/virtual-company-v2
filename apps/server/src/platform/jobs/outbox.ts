@@ -11,6 +11,14 @@ import { type IdentityProvider, isIdentityProviderError } from '@mwc/identity-co
 import type { IdentityOutboxOp } from '@mwc/shared/enums';
 import { and, eq } from 'drizzle-orm';
 import type { Logger } from 'pino';
+import {
+  describeFailure,
+  ERROR_LENGTH,
+  RETRY_FIRST_DELAY_MS,
+  RETRY_MAX_ATTEMPTS,
+  RETRY_MAX_DELAY_MS,
+  retryDelayMs,
+} from './retry.ts';
 
 /**
  * The identity outbox (local first: a change lands here at once, the identity provider follows): enqueueing a
@@ -19,14 +27,15 @@ import type { Logger } from 'pino';
  * (`companies`: create_org, delete_org; `members`: update_role, remove_member, invite, revoke_invite).
  */
 
-/** Tries of one row before it is given up as `failed` (about a day with the delays below). */
-export const OUTBOX_MAX_ATTEMPTS = 12;
+/** Tries of one row before it is given up as `failed` (the jobs' retry policy, `retry.ts`). */
+export const OUTBOX_MAX_ATTEMPTS = RETRY_MAX_ATTEMPTS;
 /** The first retry delay; it doubles with every failed try. */
-export const OUTBOX_FIRST_DELAY_MS = 30_000;
+export const OUTBOX_FIRST_DELAY_MS = RETRY_FIRST_DELAY_MS;
 /** The longest retry delay, unless the provider asked for longer (Retry-After). */
-export const OUTBOX_MAX_DELAY_MS = 3_600_000;
+export const OUTBOX_MAX_DELAY_MS = RETRY_MAX_DELAY_MS;
 /** `last_error` is cut to this many characters. */
-export const OUTBOX_ERROR_LENGTH = 500;
+export const OUTBOX_ERROR_LENGTH = ERROR_LENGTH;
+export { describeFailure, retryDelayMs };
 
 /** The deterministic idempotency key of a provider call: the op and what it is about (`create_org:<companyId>`). */
 export function outboxKey(op: IdentityOutboxOp, ...about: readonly string[]): string {
@@ -55,22 +64,6 @@ export async function enqueueOutbox(t: TenantDb, entry: OutboxEntry): Promise<Id
     .onConflictDoNothing({ target: identityOutbox.idempotencyKey })
     .returning();
   return row;
-}
-
-/** The wait before the next try after `attempts` failed ones: 30 s doubling up to 1 h, or a longer Retry-After. */
-export function retryDelayMs(attempts: number, retryAfterMs?: number): number {
-  const backoff = Math.min(OUTBOX_FIRST_DELAY_MS * 2 ** Math.max(0, attempts - 1), OUTBOX_MAX_DELAY_MS);
-  return Math.max(backoff, retryAfterMs ?? 0);
-}
-
-/** What `last_error` says about a failure: a provider error's code and message, never a stack. */
-export function describeFailure(error: unknown): string {
-  const text = isIdentityProviderError(error)
-    ? `${error.code}: ${error.message}`
-    : error instanceof Error
-      ? error.message
-      : String(error);
-  return text.slice(0, OUTBOX_ERROR_LENGTH);
 }
 
 /** Does one row's provider call; resolving means done (also "nothing left to do"), rejecting means try again. */

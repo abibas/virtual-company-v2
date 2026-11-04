@@ -1,0 +1,2 @@
+ALTER TABLE "identity_events" DROP CONSTRAINT "identity_events_type_check";--> statement-breakpoint
+ALTER TABLE "identity_events" ADD CONSTRAINT "identity_events_type_check" CHECK ("identity_events"."type" in ('user.upserted', 'user.deleted', 'org.upserted', 'org.deleted', 'membership.upserted', 'membership.deleted', 'invitation.accepted', 'invitation.revoked', 'ignored'));

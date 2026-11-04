@@ -1,13 +1,19 @@
 import { createRoute } from '@hono/zod-openapi';
+import type { Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { authn } from '../../platform/auth/authn.ts';
 import { companyRoute } from '../../platform/auth/membership.ts';
-import type { ServerDeps } from '../../platform/env.ts';
-import { BEARER_SCHEME } from '../../platform/http/docs.ts';
+import type { AppEnv, ServerDeps } from '../../platform/env.ts';
+import { BEARER_SCHEME, jsonResponse } from '../../platform/http/docs.ts';
 import { errorResponse as error, errorJson } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
-import { CompanySyncSchema, MeSchema, SyncParamsSchema } from './schemas.ts';
+import { CompanySyncSchema, MeSchema, SyncParamsSchema, WebhookReceiptSchema } from './schemas.ts';
 import { reconcileCompany } from './service/sync.ts';
+import { receiveWebhook } from './service/webhooks.ts';
 import { meService } from './service.ts';
+
+/** The largest webhook body read; Clerk's deliveries are a few KB. */
+export const WEBHOOK_MAX_BYTES = 512 * 1024;
 
 const meRoute = (deps: ServerDeps) =>
   createRoute({
@@ -58,7 +64,43 @@ const syncRoute = (deps: ServerDeps) => {
   });
 };
 
-/** `GET /api/me` (who is calling, with reconcile on sign-in) and `POST /api/companies/:companyId/sync`. */
+const tooLarge = (c: Context) =>
+  errorJson(c as Context<AppEnv>, 413, 'payload_too_large', 'The webhook body is larger than 512 KB');
+
+/** No bearer: the signature over the exact body is the authentication, so the body is read raw, and capped. */
+const clerkWebhookRoute = () =>
+  createRoute({
+    method: 'post',
+    path: '/api/webhooks/clerk',
+    tags: ['identity'],
+    summary: "Clerk's webhook endpoint: verified, recorded once, projected",
+    description:
+      'Clerk (svix) deliveries of `user.*`, `organization.*`, `organizationMembership.*` and ' +
+      '`organizationInvitation.*`. No bearer: the svix signature (`svix-id`, `svix-timestamp`, `svix-signature`) ' +
+      'over the exact body is the authentication. A verified delivery is recorded once by its svix id and projected ' +
+      'at once; a replay does nothing, and a processing failure is still a 200 (the event is retried here, not by ' +
+      'Clerk).',
+    middleware: bodyLimit({ maxSize: WEBHOOK_MAX_BYTES, onError: tooLarge }),
+    responses: {
+      200: jsonResponse(
+        'The delivery was verified (and recorded, unless it was a replay)',
+        WebhookReceiptSchema,
+      ),
+      400: error(
+        'A missing or bad signature, or a stale or future timestamp (`invalid_signature`); a signed body that is ' +
+          'not a valid event (`invalid_payload`). Nothing is recorded.',
+      ),
+      413: error('A body over 512 KB (`payload_too_large`)'),
+      503: error(
+        'Webhooks are not configured: no signing secret, or sign-in is off (`webhooks_not_configured`)',
+      ),
+    },
+  });
+
+/**
+ * `GET /api/me` (who is calling, with reconcile on sign-in), `POST /api/companies/:companyId/sync` and the webhook
+ * inbox, `POST /api/webhooks/clerk`.
+ */
 export function identityRoutes(deps: ServerDeps) {
   const me = meService(deps);
   return newRouter()
@@ -68,5 +110,11 @@ export function identityRoutes(deps: ServerDeps) {
       if (!result.ok) return errorJson(c, 403, result.code, result.message);
       return c.json(result.me, 200);
     })
-    .openapi(syncRoute(deps), async (c) => c.json(await reconcileCompany(deps, c.var.tenant.companyId), 200));
+    .openapi(syncRoute(deps), async (c) => c.json(await reconcileCompany(deps, c.var.tenant.companyId), 200))
+    .openapi(clerkWebhookRoute(), async (c) => {
+      const result = await receiveWebhook(deps, { headers: c.req.header(), rawBody: await c.req.text() });
+      if (result.ok) return c.json({ status: result.status }, 200);
+      if (result.status === 503) return errorJson(c, 503, result.code, result.message);
+      return errorJson(c, 400, result.code, result.message);
+    });
 }

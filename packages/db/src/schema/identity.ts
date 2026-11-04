@@ -1,10 +1,10 @@
 import {
   IdentityEventStatus,
-  IdentityEventType,
+  IdentityInboxType,
   IdentityOutboxOp,
   IdentityOutboxStatus,
 } from '@mwc/shared/enums';
-import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
+import type { IdentityInboxEvent, NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import {
@@ -29,7 +29,10 @@ import { companies } from './companies.ts';
  * parked events (`@mwc/identity-core`'s `IdentityStore`), and the outbox of provider calls.
  */
 
-/** The webhook and SCIM inbox: one row per delivery, deduplicated on `(provider, external_event_id)`. */
+/**
+ * The webhook and SCIM inbox: one row per verified delivery, deduplicated on `(provider, external_event_id)`. A
+ * delivery of a provider event type this product does not project is recorded as `ignored`, already processed.
+ */
 export const identityEvents = pgTable(
   'identity_events',
   {
@@ -37,14 +40,18 @@ export const identityEvents = pgTable(
     provider: text('provider').notNull(),
     /** The provider's delivery id (Clerk: the svix id). */
     externalEventId: text('external_event_id').notNull(),
-    type: text('type').$type<IdentityEventType>().notNull(),
+    type: text('type').$type<IdentityInboxType>().notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
-    /** The normalized event, as the projector takes it. */
-    payload: jsonb('payload').$type<NormalizedIdentityEvent>().notNull(),
+    /** The normalized event as the projector takes it, or the ignored delivery (its provider type). */
+    payload: jsonb('payload').$type<IdentityInboxEvent>().notNull(),
     status: text('status').$type<IdentityEventStatus>().notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     lastError: text('last_error'),
-    /** When a pending event that failed is tried again; null for one never tried. */
+    /**
+     * When the event is due for a try by the retry loop: the webhook inbox sets it a lease ahead when it records the
+     * event (so a delivery whose inline try never finished is picked up), then the backoff after a failed try; null
+     * once processed or given up.
+     */
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
     processedAt: timestamp('processed_at', { withTimezone: true }),
     createdAt: createdAt(),
@@ -52,7 +59,7 @@ export const identityEvents = pgTable(
   },
   (t) => [
     unique('identity_events_provider_external_event_id_unique').on(t.provider, t.externalEventId),
-    check('identity_events_type_check', oneOf(t.type, IdentityEventType.options)),
+    check('identity_events_type_check', oneOf(t.type, IdentityInboxType.options)),
     check('identity_events_status_check', oneOf(t.status, IdentityEventStatus.options)),
     check('identity_events_attempts_check', sql`${t.attempts} >= 0`),
     index('identity_events_status_idx').on(t.status, t.nextAttemptAt),

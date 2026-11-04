@@ -83,9 +83,15 @@ describe('parseClerkWebhook with the real @clerk/backend verifier', () => {
     expect(await code(parseClerkWebhook(verify, secret, delivery))).toBe('invalid');
   });
 
-  it('resolves null for an event type this product does not use', async () => {
-    const delivery = signedWebhook(envelope('session.created', { id: 'sess_1' }), secret);
-    expect(await parseClerkWebhook(verify, secret, delivery)).toBeNull();
+  it('resolves an event type this product does not use as ignored, with the svix id and Clerk type', async () => {
+    const delivery = signedWebhook(envelope('session.created', { id: 'sess_1' }), secret, { id: 'msg_sess' });
+    expect(await parseClerkWebhook(verify, secret, delivery)).toEqual({
+      provider: 'clerk',
+      externalEventId: 'msg_sess',
+      occurredAt: T0 + 5,
+      type: 'ignored',
+      data: { providerType: 'session.created' },
+    });
   });
 
   it('refuses a signed event whose payload does not fit as invalid', async () => {
@@ -96,6 +102,14 @@ describe('parseClerkWebhook with the real @clerk/backend verifier', () => {
   it('cannot verify anything without a signing secret: unavailable', async () => {
     const delivery = signedWebhook(envelope('user.updated', userJson()), secret);
     expect(await code(parseClerkWebhook(verify, undefined, delivery))).toBe('unavailable');
+  });
+});
+
+describe('parseClerkWebhook: an envelope without a type', () => {
+  it('resolves null: a verified delivery with nothing to record', async () => {
+    const untyped = (async () => ({ data: {} })) as unknown as VerifyWebhookFn;
+    const headers = { 'svix-id': 'msg_1', 'svix-timestamp': '1700000000' };
+    expect(await parseClerkWebhook(untyped, 'whsec_x', { headers, rawBody: '{}' })).toBeNull();
   });
 });
 
@@ -125,6 +139,8 @@ describe('parseClerkWebhook: what it hands the verifier', () => {
   it('refuses an event without a svix id as invalid, and a non-Error failure as unauthorized', async () => {
     const ok: VerifyWebhookFn = async () => ({ type: 'user.deleted', data: { id: 'user_1' } });
     expect(await code(parseClerkWebhook(ok, 'whsec_x', { headers: {}, rawBody: '{}' }))).toBe('invalid');
+    const unused: VerifyWebhookFn = async () => ({ type: 'session.created', data: {} });
+    expect(await code(parseClerkWebhook(unused, 'whsec_x', { headers: {}, rawBody: '{}' }))).toBe('invalid');
     const odd: VerifyWebhookFn = () => Promise.reject('odd');
     expect(await code(parseClerkWebhook(odd, 'whsec_x', { headers: {}, rawBody: '{}' }))).toBe(
       'unauthorized',

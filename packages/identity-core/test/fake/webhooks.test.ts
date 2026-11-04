@@ -73,9 +73,21 @@ describe('FakeIdentityProvider: webhooks', () => {
     expect(error.code).toBe(code);
   });
 
+  it('resolves an event type this product does not use as ignored, with its delivery id and type', async () => {
+    const fake = new FakeIdentityProvider();
+    const request = fake.webhookFor({ ...sampleEvent, type: 'session.created' });
+    expect(await fake.parseWebhook(request)).toEqual({
+      provider: sampleEvent.provider,
+      externalEventId: sampleEvent.externalEventId,
+      occurredAt: sampleEvent.occurredAt,
+      type: 'ignored',
+      data: { providerType: 'session.created' },
+    });
+  });
+
   it.each([
-    ['an event type this product does not use', JSON.stringify({ ...sampleEvent, type: 'session.created' })],
     ['a body without a type', JSON.stringify({ hello: 'world' })],
+    ['an unused type without a delivery id', JSON.stringify({ type: 'session.created', provider: 'fake' })],
     ['a JSON null', 'null'],
   ])('resolves null for %s', async (_label, rawBody) => {
     const fake = new FakeIdentityProvider();

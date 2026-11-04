@@ -21,6 +21,16 @@ describe('identityFromConfig', () => {
   it('wires the Clerk connector for MWC_IDENTITY=clerk, with the issuer its publishable key names', () => {
     const provider = identityFromConfig(clerkConfig);
     expect(provider).toMatchObject({ kind: 'clerk', issuer: `https://${HOST}` });
+    expect(provider?.capabilities.webhooks).toBe(false);
+  });
+
+  it('turns webhooks on with the signing secret, and refuses a malformed one by its name only', () => {
+    const secret = `whsec_${'d2lyaW5n'.repeat(3)}`;
+    const hooked = identityFromConfig({ ...clerkConfig, CLERK_WEBHOOK_SIGNING_SECRET: secret });
+    expect(hooked?.capabilities.webhooks).toBe(true);
+    const bad = { ...clerkConfig, CLERK_WEBHOOK_SIGNING_SECRET: 'not-a-secret' };
+    expect(() => identityFromConfig(bad)).toThrow(/CLERK_WEBHOOK_SIGNING_SECRET/);
+    expect(() => identityFromConfig(bad)).not.toThrow(/not-a-secret/);
   });
 
   it('fails at startup on a malformed key, naming the variable and never its value', () => {

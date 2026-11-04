@@ -39,9 +39,11 @@ a session with a pending task verifies with `pending: true`), `getUser` and the 
 `findOrganizationByMetadata('mwc_company_id', id)` before a retry), `deleteOrganization` and
 `removeMember` (idempotent), `listOrganizationMembers` (an `AsyncIterable` that pages internally),
 `updateMemberRole`, `createInvitation`, `revokeInvitation` (idempotent for a revoked one), `listInvitations`,
-`parseWebhook({ headers, rawBody })` (verifies the signature, then returns a normalized event, or null for
-a type we do not use), plus `kind`, `issuer`, `roles` (the provider's role map: `toProvider`, `isAdmin`) and
-`capabilities { organizations, invitations, webhooks, scim }`.
+`parseWebhook({ headers, rawBody })` (verifies the signature, then returns a normalized event, an `ignored`
+event with the delivery id and the provider's own type for a type we do not use, or null for a verified delivery
+with no type or id), plus `kind`, `issuer`, `roles` (the provider's role map: `toProvider`, `isAdmin`) and
+`capabilities { organizations, invitations, webhooks, scim }` (`webhooks`: it can verify deliveries now; Clerk only
+with its signing secret).
 
 Every failure rejects with `IdentityProviderError`, never an SDK or network error. Callers branch on its
 `code`: `not_found`, `conflict`, `rate_limited` (with `retryAfterMs`), `unauthorized`, `invalid`,
@@ -153,7 +155,11 @@ reconcile and user webhooks do.
   memberships with `granted_role`, `provider_role`, `external_membership_id`, `invitation_id` and a person
   principal each, invitations, `identity_marks`, `identity_parked_events`); `transaction(work)` projects an event
   in one transaction. Deduplicating on `identity_events (provider, external_event_id)` and writing each change's
-  `fields` as audit rows are the webhook inbox's (S1.8).
+  `fields` as audit rows are the webhook inbox's (S1.8, built: `POST /api/webhooks/clerk`, the audit rows in the
+  projection's transaction).
+- **S1.8 webhook inbox** (built): `apps/server/src/modules/identity/service/webhooks.ts` verifies with
+  `parseWebhook`, records the delivery once and projects it inline (`projectIdentityEvent`); a failure is retried by
+  `retryIdentityEvents` (`service/events.ts`), which the jobs loop of S1.10 schedules.
 - **Callers (S1.4–S1.10):** the webhook route (`parseWebhook` → dedupe → `project`), reconcile-on-sign-in
   (`reconcileUser`, built in S1.4: `GET /api/me` in `apps/server/src/modules/identity/service.ts`), the jobs loop and "Sync now" (`reconcileOrganization`), and the outbox, which after
   linking a company to its new organization reconciles it so the creator's parked events apply. S1.7 built the

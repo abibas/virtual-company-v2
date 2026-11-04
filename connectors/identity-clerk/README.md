@@ -27,7 +27,7 @@ port, never on this package.
 | `src/backend/mappers.ts` | Backend API objects → `External*`                                                       |
 | `src/roles.ts`        | the role map (`org:admin`, `org:member`)                                                   |
 | `src/token.ts`        | session token verification and its claims                                                  |
-| `src/webhook.ts`, `src/webhook/payloads.ts` | svix verification and Clerk payloads → normalized events             |
+| `src/webhook.ts`, `src/webhook/payloads.ts` | svix verification and Clerk payloads → normalized events (other types → `ignored`) |
 
 ## Rules
 

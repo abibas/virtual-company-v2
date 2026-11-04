@@ -151,9 +151,17 @@ export type TenantDb = ScopedDb;
  * Opens a company's tenant. Refuses, with `CompanyNotFoundError`, a company that does not exist, is
  * deleted (`status = 'deleted'` or `deleted_at` set), or is not an id at all.
  */
-export async function tenant(handle: DbHandle, companyId: string): Promise<TenantDb> {
+export function tenant(handle: DbHandle, companyId: string): Promise<TenantDb> {
+  return tenantOf(rawDb(handle), companyId);
+}
+
+/**
+ * `tenant()` on a raw database, or on a transaction already open on one: its statements run in that transaction.
+ * For system code that holds raw access (`@mwc/db/system` exports it), such as the identity store writing the audit
+ * rows of a projection in the projection's own transaction. The same refusals as `tenant()`.
+ */
+export async function tenantOf(db: RawDb, companyId: string): Promise<TenantDb> {
   if (!isUuid(companyId)) throw new CompanyNotFoundError(companyId);
-  const db = rawDb(handle);
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
   if (!company || isDeleted(company)) throw new CompanyNotFoundError(companyId);
   return new ScopedDb(db, company);

@@ -156,9 +156,10 @@ export async function reconcileCompany(deps: SyncDeps, companyId: string): Promi
 }
 
 /**
- * Projects one normalized event (a verified webhook delivery; S1.8 dedupes deliveries before calling this) in one
- * transaction and returns what changed. The revocation of a copy one of our resends replaced is ignored. A provider
- * membership that came from an invitation we no longer honour is then queued for removal at the provider.
+ * Projects one normalized event (a verified webhook delivery; the inbox dedupes deliveries before calling this) in one
+ * transaction, with the audit rows of what it changed in memberships and invitations (by the system, the event's id
+ * as the request id), and returns what changed. The revocation of a copy one of our resends replaced is ignored. A
+ * provider membership that came from an invitation we no longer honour is then queued for removal at the provider.
  */
 export async function projectIdentityEvent(
   deps: SyncDeps,
@@ -174,7 +175,11 @@ export async function projectIdentityEvent(
       return [{ entity: 'invitation', action: 'ignored', reason, ...on }];
     }
   }
-  const changes = await store.transaction((tx) => project(event, tx, projectionContext(provider)));
+  const changes = await store.transaction(async (tx) => {
+    const projected = await project(event, tx, projectionContext(provider));
+    await tx.audit(projected, event.externalEventId);
+    return projected;
+  });
   if (event.type === 'membership.upserted') {
     const company = await store.getCompanyByOrgExternalId(event.data.orgExternalId);
     if (company !== undefined) {

@@ -50,7 +50,18 @@ export const IdentityEventType = z.enum([
 ]);
 export type IdentityEventType = z.infer<typeof IdentityEventType>;
 
-/** `identity_events.status`: the webhook and SCIM inbox; `failed` is given up after its retries. */
+/**
+ * `identity_events.type`: a normalized event type, or `ignored` for a verified delivery of a provider event type
+ * this product does not project (recorded once so a replay stays a no-op, never projected).
+ */
+export const IdentityInboxType = z.enum([...IdentityEventType.options, 'ignored']);
+export type IdentityInboxType = z.infer<typeof IdentityInboxType>;
+
+/**
+ * `identity_events.status`: the webhook and SCIM inbox. `pending` until its first try ends, `processed` once
+ * projected (or ignored), `failed` after a try that failed: `next_attempt_at` says when the next try is due, and is
+ * null once the event is given up after its last try.
+ */
 export const IdentityEventStatus = z.enum(['pending', 'processed', 'failed']);
 export type IdentityEventStatus = z.infer<typeof IdentityEventStatus>;
 

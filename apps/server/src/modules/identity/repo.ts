@@ -5,12 +5,14 @@ import type {
   InvitationPatch,
   NewStoredMembership,
   NewStoredUser,
+  ProjectionChange,
   StoredCompany,
   StoredInvitation,
   StoredMembership,
   StoredUser,
 } from '@mwc/identity-core';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
+import { auditProjection } from './repo/audit.ts';
 import * as bookkeeping from './repo/bookkeeping.ts';
 import * as invitations from './repo/invitations.ts';
 import {
@@ -44,7 +46,8 @@ export interface DbIdentityStoreOptions {
  * The projector works across companies (a person's memberships everywhere, an invitation found by its id
  * alone), so this store reads the raw database (`@mwc/db/system`): the identity module's repo is the one place
  * in `modules/` allowed to (biome.json). A malformed id finds nothing instead of failing. `transaction(work)`
- * runs `work` on a store bound to one transaction: the webhook inbox projects each event in one (S1.8).
+ * runs `work` on a store bound to one transaction: the webhook inbox projects each event in one, with its audit rows
+ * (`audit`), S1.8.
  */
 export class DbIdentityStore implements IdentityStore {
   readonly #db: RawDb;
@@ -125,8 +128,22 @@ export class DbIdentityStore implements IdentityStore {
   takeDeferred(key: string): Promise<NormalizedIdentityEvent[]> {
     return bookkeeping.takeDeferred(this.#db, key);
   }
+
+  /**
+   * Writes the audit rows of a projection's changes (system actor, `requestId` = the provider event's id) on this
+   * store's database: inside `transaction()`, in the projection's own transaction (`repo/audit.ts`).
+   */
+  audit(changes: readonly ProjectionChange[], requestId: string): Promise<number> {
+    return auditProjection(this.#db, changes, requestId);
+  }
 }
 
+export {
+  claimDueInboxEvents,
+  type InboxOutcome,
+  recordInboxEvent,
+  recordInboxOutcome,
+} from './repo/events.ts';
 export type { UserCompany, UserProfile } from './repo/me.ts';
 
 /** The user's profile (`GET /api/me`), by id. */

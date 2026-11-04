@@ -2,7 +2,7 @@
 
 How the Clerk application behind v2 is configured, which variables the Clerk connector
 (`connectors/identity-clerk`, `@mwc/identity-clerk`) reads, how to run its contract test against the real
-development instance, and how to point Clerk's webhooks at a local server later. The identity model itself
+development instance, and how to point Clerk's webhooks at a local server (S1.8). The identity model itself
 is in `packages/identity-core/README.md` and `docs/architecture.md` ("Identity flow").
 
 ## The application
@@ -33,7 +33,7 @@ default of a new B2B application with these sign-in choices.
 | Sign-in with email                                               | email verification code       | no passwords                                                          | Frontend API environment: `first_factors` has `email_code` |
 | Google                                                           | on (Clerk's shared development credentials) | one-click sign-in                                       | Frontend API environment: `oauth_google.enabled` |
 | Organization invitations                                         | on (default)                  | Clerk sends the invitation email                                      | the contract: create, list, revoke, accept       |
-| Webhooks                                                         | none yet                      | reconcile is the default; webhooks come with S1.8 (below)             | no                                               |
+| Webhooks                                                         | none yet                      | reconcile is the default; the endpoint exists since S1.8 (below)      | no                                               |
 
 The Backend API does not expose the email and sign-in settings, so the contract run reads them from the
 Frontend API's public `/v1/environment` (what Clerk's sign-in components load). Nothing in the API says
@@ -85,7 +85,7 @@ a committed file. A bad value fails with the variable's name, never its value.
 | `CLERK_SECRET_KEY`             | yes      | Backend API key, `sk_test_...` for the development instance                                       |
 | `CLERK_PUBLISHABLE_KEY`        | yes      | `pk_test_...`; it encodes the Frontend API host, from which the connector derives the issuer      |
 | `CLERK_JWT_KEY`                | no       | the instance's JWT public key (PEM, escaped `\n` allowed): networkless token verification. Without it, tokens are verified with the JWKS that `@clerk/backend` fetches with the secret key and caches |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | no       | the webhook endpoint's `whsec_...` secret (S1.8). Without it, every delivery is refused as `unavailable` |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | no       | the webhook endpoint's `whsec_...` secret (S1.8). Without it the connector cannot verify deliveries (its `webhooks` capability is off) and `POST /api/webhooks/clerk` answers 503 `webhooks_not_configured`; the server stays up and reconcile keeps memberships current |
 
 The server reads two more (`@mwc/shared/config`, S1.4):
 
@@ -113,7 +113,9 @@ The server reads two more (`@mwc/shared/config`, S1.4):
 - **Webhooks:** `verifyWebhook` of `@clerk/backend/webhooks` (svix signatures; a timestamp more than 5 minutes
   off is refused), then `user.*`, `organization.*`, `organizationMembership.*` and
   `organizationInvitation.accepted|revoked` become normalized events. The svix id is the event id (S1.8
-  dedupes on it), each object's `updated_at` its ordering guard; other types resolve to null.
+  dedupes on it), each object's `updated_at` its ordering guard; any other type (such as
+  `organizationInvitation.created` or `session.created`) becomes an `ignored` event with its svix id and Clerk
+  type, which the server records once and acknowledges.
 - **Telemetry:** the SDK's telemetry is switched off.
 
 ## The contract test
@@ -157,18 +159,42 @@ What a run does (about a minute):
 
 Results of the runs: `docs/roadmap.md`, S1.2.
 
-## Webhooks (later, S1.8)
+## Webhooks (S1.8)
 
-Reconcile keeps memberships current without webhooks; webhooks make it immediate. For the real two-user
-test:
+Reconcile keeps memberships current without webhooks; webhooks make it immediate. The endpoint is built and tested
+with svix-signed test deliveries; pointing the real Clerk development instance at it is done once, with Ihor, for
+the two-user test (nothing below has been run against Clerk yet).
 
-1. `ngrok http 9950` (its inspect UI is on 9954; `docs/ports.md`). The free plan's URL changes on every start.
-2. Clerk dashboard → Configure → Webhooks → Add endpoint: `https://<ngrok host>/api/webhooks/clerk`.
-3. Subscribe to `user.created`, `user.updated`, `user.deleted`, `organization.created`, `organization.updated`,
-   `organization.deleted`, `organizationMembership.created`, `organizationMembership.updated`,
-   `organizationMembership.deleted`, `organizationInvitation.accepted`, `organizationInvitation.revoked`.
-4. Copy the endpoint's signing secret into `.env.local` as `CLERK_WEBHOOK_SIGNING_SECRET` and restart the API.
-5. The dashboard's "Testing" tab sends a sample event; the route (S1.8) answers 400 for a bad signature and
-   deduplicates on the svix id.
+**The endpoint:** `POST /api/webhooks/clerk` on the API (9950 locally). No bearer token: the svix signature over the
+exact body is the authentication.
+
+| Answer | When |
+| ------ | ---- |
+| 200 `{ "status": "processed" }` | verified, recorded and projected at once |
+| 200 `{ "status": "duplicate" }` | a delivery already received (same svix id): nothing is done again |
+| 200 `{ "status": "ignored" }` | an event type this product does not project: recorded, nothing else |
+| 200 `{ "status": "failed" }` | verified and recorded, but projecting it failed: the server retries it (backoff from 30 s to 1 h, given up after 12 tries), so Clerk need not |
+| 400 `invalid_signature` | a missing or bad signature, or a timestamp more than 5 minutes off: nothing is recorded |
+| 400 `invalid_payload` | a signed body that is not JSON or not a valid event: nothing is recorded |
+| 413 `payload_too_large` | a body over 512 KB |
+| 503 `webhooks_not_configured` | no `CLERK_WEBHOOK_SIGNING_SECRET` (or sign-in is off) |
+
+Each verified delivery is a row of `identity_events`, unique on `(provider, svix id)`. Its changes to memberships and
+invitations land in `audit_log` in the same transaction, by the `system`, with the svix id as the request id.
+
+**Hooking it up** (with Ihor, once, for the two-user test):
+
+1. Start the API (`pnpm dev`), then the tunnel: `ngrok http 9950` (its inspect UI is on 9954; `docs/ports.md`). The
+   free plan's URL changes on every start.
+2. Clerk dashboard → Configure → Webhooks → Add endpoint, with the URL
+   `https://<ngrok host>/api/webhooks/clerk`.
+3. Subscribe to `user.*`, `organization.*`, `organizationMembership.*` and `organizationInvitation.*`. The connector
+   projects `user.created|updated|deleted`, `organization.created|updated|deleted`,
+   `organizationMembership.created|updated|deleted` and `organizationInvitation.accepted|revoked`; the others
+   (`organizationInvitation.created`, ...) are recorded and ignored.
+4. Copy the endpoint's signing secret (`whsec_...`) into `.env.local` at the repository root as
+   `CLERK_WEBHOOK_SIGNING_SECRET` (never into a committed file), and restart the API.
+5. The dashboard's "Testing" tab sends a sample event: it should answer 200; a delivery replayed from the dashboard
+   answers 200 `duplicate`.
 
 Remove or disable the endpoint when the tunnel is down, or Clerk keeps retrying deliveries.

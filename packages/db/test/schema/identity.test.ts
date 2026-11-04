@@ -72,6 +72,19 @@ describe('identity_events', () => {
     await expect(event({ externalEventId, provider: 'oidc' })).resolves.toHaveLength(1);
   });
 
+  it('stores a delivery of a type nobody projects as ignored, already processed', async () => {
+    const externalEventId = unique('msg');
+    const ignored = {
+      provider: 'clerk',
+      externalEventId,
+      occurredAt: 1_762_171_200_123,
+      type: 'ignored' as const,
+      data: { providerType: 'session.created' },
+    };
+    const [row] = await event({ externalEventId, type: 'ignored', payload: ignored, status: 'processed' });
+    expect(row).toMatchObject({ type: 'ignored', status: 'processed', payload: ignored });
+  });
+
   it.each([
     [{ type: 'user.renamed' }, 'identity_events_type_check'],
     [{ status: 'done' }, 'identity_events_status_check'],

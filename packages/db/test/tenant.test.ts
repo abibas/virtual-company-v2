@@ -10,6 +10,7 @@ import {
   SlugTakenError,
   type TenantDb,
   tenant,
+  tenantOf,
   withNewCompany,
 } from '../src/tenant.ts';
 import { pgError, type TestDb } from '../src/testing.ts';
@@ -164,6 +165,23 @@ describe('TenantDb', () => {
     });
     await expect(failed).rejects.toThrow('boom');
     expect(await t.select(invitations, eq(invitations.emailNormalized, `${email}.rolled`))).toEqual([]);
+  });
+
+  it('opens inside a raw transaction with tenantOf: its rows commit and roll back with that transaction', async () => {
+    const email = `${unique('raw')}@x.test`;
+    const failed = rawDb(handle).transaction(async (tx) => {
+      const inside = await tenantOf(tx, acme.id);
+      expect(inside.company).toEqual(t.company);
+      await inside.insert(invitations, invitation(email));
+      throw new Error('the outer work fails');
+    });
+    await expect(failed).rejects.toThrow('the outer work fails');
+    expect(await t.select(invitations, eq(invitations.emailNormalized, email))).toEqual([]);
+    await rawDb(handle).transaction(async (tx) => {
+      await (await tenantOf(tx, acme.id)).insert(invitations, invitation(email));
+    });
+    expect(await t.select(invitations, eq(invitations.emailNormalized, email))).toHaveLength(1);
+    await expect(tenantOf(rawDb(handle), 'not-an-id')).rejects.toBeInstanceOf(CompanyNotFoundError);
   });
 
   it('keeps the company it was opened with', async () => {

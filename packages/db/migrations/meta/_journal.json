@@ -15,6 +15,13 @@
       "when": 1793800611267,
       "tag": "0001_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793813171263,
+      "tag": "0002_identity_inbox_ignored",
+      "breakpoints": true
     }
   ]
 }

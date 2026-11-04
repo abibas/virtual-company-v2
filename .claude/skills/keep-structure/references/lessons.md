@@ -27,6 +27,23 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: The fan-in warning decided where a route went
+
+- **What happened:** S1.8's webhook route first went into its own file, `modules/identity/routes/webhooks.ts`, as
+  the module template suggests for a route group. It imports `platform/http/router.ts` (`newRouter`), `docs.ts`
+  (`jsonResponse`) and `errors.ts`, so `router.ts` and `docs.ts` went from 7 importers to 8 and both became `fan-in`
+  warnings (the report went from 18 to 20), as the open lesson on the error helpers predicted.
+- **Where:** `apps/server/src/modules/identity/routes.ts` (72 to 115 lines); its tests in
+  `apps/server/test/modules/identity/routes/webhooks.test.ts`, split from `routes.test.ts` (318 lines) along the
+  route group, so the test path has no `src/.../routes/webhooks.ts` to mirror; S1.8.
+- **What was done:** the route went into the module's one `routes.ts` (three routes, each config a factory outside
+  the router function), which adds no importer; the report is back at 18. The tests stayed in their own file:
+  appended to `routes.test.ts` they would have reached about 490 of 500 lines (`near-limit`).
+- **Suggested change:** adopt the open lesson's change (count a module's files as one importer for `fan-in`), so a
+  module can split its routes by group without the report growing; and allow a test file split along a seam of one
+  source file (`test/x/<part>.test.ts` for `src/x.ts`) in the mirroring rule of the skill.
+- **Status:** `open`.
+
 ### 2026-11-04: Invitations and their acceptance live in two modules that call each other
 
 - **What happened:** the map puts invitations in `members/` and sync and webhooks in `identity/`. S1.7 followed it:

@@ -134,6 +134,15 @@ describe('loadConfig identity', () => {
       CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
     });
     expect(clerk.CLERK_JWT_KEY).toBeUndefined();
+    expect(clerk.CLERK_WEBHOOK_SIGNING_SECRET).toBeUndefined();
+  });
+
+  it('keeps the optional webhook signing secret (its shape is the connector’s to check)', () => {
+    const env = { ...valid, CLERK_SECRET_KEY: SECRET, CLERK_PUBLISHABLE_KEY: PUBLISHABLE };
+    const secret = `whsec_${'c2VjcmV0'.repeat(3)}`;
+    expect(loadConfig({ ...env, CLERK_WEBHOOK_SIGNING_SECRET: secret }).CLERK_WEBHOOK_SIGNING_SECRET).toBe(
+      secret,
+    );
   });
 
   it('lets MWC_IDENTITY=none switch sign-in off even with the keys set', () => {
@@ -172,9 +181,11 @@ describe('loadConfig identity', () => {
       CLERK_SECRET_KEY: '',
       CLERK_PUBLISHABLE_KEY: '',
       CLERK_JWT_KEY: '',
+      CLERK_WEBHOOK_SIGNING_SECRET: '',
     });
     expect(config.MWC_IDENTITY).toBe('none');
     expect(config.CLERK_SECRET_KEY).toBeUndefined();
+    expect(config.CLERK_WEBHOOK_SIGNING_SECRET).toBeUndefined();
   });
 });
 

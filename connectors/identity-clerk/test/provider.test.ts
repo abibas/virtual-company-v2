@@ -29,7 +29,7 @@ async function collect<T>(items: AsyncIterable<T>): Promise<T[]> {
 
 describe('ClerkIdentityProvider: identity', () => {
   it('is the clerk provider of one instance, with organizations, invitations and webhooks', () => {
-    const { provider } = clerkWorld();
+    const { provider } = clerkWorld({ webhookSigningSecret: 'whsec_x' });
     expect(provider.kind).toBe('clerk');
     expect(provider.issuer).toBe(ISSUER);
     expect(provider.roles.toProvider('owner')).toBe('org:admin');
@@ -39,6 +39,7 @@ describe('ClerkIdentityProvider: identity', () => {
       webhooks: true,
       scim: false,
     });
+    expect(clerkWorld().provider.capabilities.webhooks).toBe(false);
   });
 
   it('verifies tokens with its keys and the caller’s authorized parties', async () => {

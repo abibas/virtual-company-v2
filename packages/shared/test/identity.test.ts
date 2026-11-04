@@ -9,7 +9,9 @@ import {
   ExternalUser,
   IDENTITY_EVENT_TYPES,
   IDENTITY_METADATA,
+  IdentityInboxEvent,
   IdentityMetadata,
+  IgnoredIdentityEvent,
   INVITATION_DAYS,
   InvitationStatus,
   invitationStatusAt,
@@ -212,6 +214,29 @@ describe('NormalizedIdentityEvent per type', () => {
     const event = { ...base, type: 'user.deleted', data: { subject: 's' } };
     expect(NormalizedIdentityEvent.safeParse({ ...event, provider: '' }).success).toBe(false);
     expect(NormalizedIdentityEvent.safeParse({ ...event, externalEventId: undefined }).success).toBe(false);
+  });
+});
+
+describe('IgnoredIdentityEvent and IdentityInboxEvent', () => {
+  const ignored = {
+    provider: 'clerk',
+    externalEventId: 'msg_1',
+    occurredAt: T,
+    type: 'ignored',
+    data: { providerType: 'session.created' },
+  };
+
+  it('keeps the delivery id and the provider type of an event type nobody projects', () => {
+    expect(IgnoredIdentityEvent.parse(ignored)).toEqual(ignored);
+    expect(IgnoredIdentityEvent.safeParse({ ...ignored, data: { providerType: '' } }).success).toBe(false);
+    expect(IgnoredIdentityEvent.safeParse({ ...ignored, externalEventId: '' }).success).toBe(false);
+  });
+
+  it('takes a normalized event or an ignored one, and nothing else', () => {
+    const deleted = { ...ignored, type: 'user.deleted', data: { subject: 'user_1' } };
+    expect(IdentityInboxEvent.parse(ignored)).toEqual(ignored);
+    expect(IdentityInboxEvent.parse(deleted)).toEqual(deleted);
+    expect(IdentityInboxEvent.safeParse({ ...ignored, type: 'session.created' }).success).toBe(false);
   });
 });
 

@@ -4,9 +4,9 @@ import type {
   ExternalMembership,
   ExternalOrg,
   ExternalUser,
+  IdentityInboxEvent,
   IdentityMetadata,
   MembershipRole,
-  NormalizedIdentityEvent,
   VerifiedIdentity,
 } from '@mwc/shared/identity';
 
@@ -17,6 +17,7 @@ import type {
 export interface ProviderCapabilities {
   readonly organizations: boolean;
   readonly invitations: boolean;
+  /** It can verify webhook deliveries now (Clerk: only with its signing secret); the webhook route needs it. */
   readonly webhooks: boolean;
   readonly scim: boolean;
 }
@@ -147,8 +148,10 @@ export interface IdentityProvider {
 
   /**
    * Verifies a webhook delivery's signature and normalizes it. Rejects with `unauthorized` for a
-   * missing or bad signature and `invalid` for a body that does not parse; resolves null for an event
-   * type this product does not use (the caller acknowledges and drops it).
+   * missing or bad signature and `invalid` for a body that does not parse; resolves an `ignored` event
+   * (the delivery id and the provider's own type) for an event type this product does not use, which the
+   * caller records once and acknowledges, and null only for a verified delivery with nothing to record
+   * (no type or no delivery id).
    */
-  parseWebhook(request: WebhookRequest): Promise<NormalizedIdentityEvent | null>;
+  parseWebhook(request: WebhookRequest): Promise<IdentityInboxEvent | null>;
 }

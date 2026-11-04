@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { IdentityEventType, type InvitationStatus as InvitationStatusValue } from './enums.ts';
+import {
+  IdentityEventType,
+  IdentityInboxType,
+  type InvitationStatus as InvitationStatusValue,
+} from './enums.ts';
 
 /**
  * The provider-agnostic identity contracts (docs/architecture.md, "Identity flow"). An identity provider
@@ -79,9 +83,9 @@ export const ExternalInvitation = z.object({
 });
 export type ExternalInvitation = z.infer<typeof ExternalInvitation>;
 
-/** Every normalized event type; a provider resolves anything else to null (ignored). */
+/** Every normalized event type; a provider resolves any other verified delivery to an `ignored` event. */
 export const IDENTITY_EVENT_TYPES = IdentityEventType.options;
-export { IdentityEventType };
+export { IdentityEventType, IdentityInboxType };
 
 const eventBase = {
   /** The provider kind that produced the event (`clerk`, `fake`). */
@@ -115,6 +119,22 @@ export const NormalizedIdentityEvent = z.discriminatedUnion('type', [
   z.object({ ...eventBase, type: z.literal('invitation.revoked'), data: ExternalInvitation }),
 ]);
 export type NormalizedIdentityEvent = z.infer<typeof NormalizedIdentityEvent>;
+
+/**
+ * A verified webhook delivery of a provider event type this product does not project (Clerk's `session.created` or
+ * `organizationInvitation.created`): its delivery id and the provider's own type, so the inbox records it once and
+ * acknowledges it. It never reaches the projector.
+ */
+export const IgnoredIdentityEvent = z.object({
+  ...eventBase,
+  type: z.literal('ignored'),
+  data: z.object({ providerType: z.string().min(1) }),
+});
+export type IgnoredIdentityEvent = z.infer<typeof IgnoredIdentityEvent>;
+
+/** What a verified webhook delivery becomes: a normalized event, or one the inbox records and ignores. */
+export const IdentityInboxEvent = z.union([NormalizedIdentityEvent, IgnoredIdentityEvent]);
+export type IdentityInboxEvent = z.infer<typeof IdentityInboxEvent>;
 
 /** Metadata keys this product writes to the provider and reads back. */
 export const IDENTITY_METADATA = {

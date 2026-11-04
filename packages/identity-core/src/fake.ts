@@ -4,6 +4,7 @@ import type {
   ExternalMembership,
   ExternalOrg,
   ExternalUser,
+  IdentityInboxEvent,
   MembershipRole,
   NormalizedIdentityEvent,
   VerifiedIdentity,
@@ -90,8 +91,11 @@ export class FakeIdentityProvider implements IdentityProvider {
     return this.#world.drainEvents();
   }
 
-  /** The event as a signed webhook delivery that `parseWebhook` accepts. */
-  webhookFor(event: NormalizedIdentityEvent): WebhookRequest {
+  /**
+   * The event as a signed webhook delivery that `parseWebhook` accepts; any other JSON object is signed as it is (a
+   * delivery of a type this product does not use, such as `{ ...event, type: 'session.created' }`).
+   */
+  webhookFor(event: NormalizedIdentityEvent | Readonly<Record<string, unknown>>): WebhookRequest {
     return fakeWebhookFor(event, this.#secret);
   }
 
@@ -216,7 +220,7 @@ export class FakeIdentityProvider implements IdentityProvider {
     return listFakeInvitations(this.#world, orgExternalId, status);
   }
 
-  async parseWebhook(request: WebhookRequest): Promise<NormalizedIdentityEvent | null> {
+  async parseWebhook(request: WebhookRequest): Promise<IdentityInboxEvent | null> {
     this.#maybeFail('parseWebhook');
     return parseFakeWebhook(request, this.#secret);
   }

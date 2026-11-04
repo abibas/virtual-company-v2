@@ -36,6 +36,7 @@ describe('@mwc/db/system', () => {
     expect(typeof system.createDb).toBe('function');
     expect(typeof system.migrateToLatest).toBe('function');
     expect(system.MIGRATIONS_FOLDER).toMatch(/packages\/db\/migrations$/);
+    expect(typeof system.tenantOf).toBe('function');
   });
 });
 
