@@ -8,7 +8,7 @@ import type { InvitationView, MemberView } from '../../../src/modules/members/sc
 import { OUTBOX_FIRST_DELAY_MS } from '../../../src/platform/jobs/outbox.ts';
 import { type JobsDeps, type ModuleJobs, runJobsOnce } from '../../../src/platform/jobs/run.ts';
 import { newSubject } from '../../fixtures/auth.ts';
-import { addUser, call, companyRow, createCompany, outboxOf } from '../../fixtures/companies.ts';
+import { addUser, auditOf, call, companyRow, createCompany, outboxOf } from '../../fixtures/companies.ts';
 import { providerInvitationOf } from '../../fixtures/invitations.ts';
 import { type JobsWorld, jobsWorld } from '../../fixtures/jobs.ts';
 import { deliverEvents, failWrites, inboxRow } from '../../fixtures/webhooks.ts';
@@ -87,6 +87,24 @@ describe('runJobsOnce on the fake provider', () => {
       role: 'member',
       status: 'active',
     });
+    // The periodic reconcile's changes are audited by the system, with no request id, as the jobs' other rows: the
+    // owner's membership linked to its provider membership on the first reconcile, then the acceptance.
+    const accepted = (await auditOf(w.t.db, company.id)).filter((row) => row.actorKind === 'system');
+    expect(
+      new Set(accepted.map((row) => `${row.entityType} ${row.action} ${row.field} ${row.requestId}`)),
+    ).toEqual(
+      new Set([
+        'company provision identityOrgId null',
+        'company provision status null',
+        'membership update externalMembershipId null',
+        'membership update providerRole null',
+        ...['externalMembershipId', 'grantedRole', 'invitationId', 'providerRole', 'role', 'status'].map(
+          (field) => `membership activate ${field} null`,
+        ),
+        'invitation accept acceptedByUserId null',
+        'invitation accept status null',
+      ]),
+    );
   });
 
   it('runs every op of the outbox through the one registry', async () => {

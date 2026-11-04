@@ -27,6 +27,38 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: An opt-in test reuses another package's test fixtures by a relative path
+
+- **What happened:** the real-Clerk variant of the S1 acceptance needs a Clerk owner who signs in on the Frontend API, the
+  invitee's ticket sign-up and the cleanup, all of which the connector's contract fixtures already do
+  (`connectors/identity-clerk/test/fixtures/clerk-target.ts`, 250 lines, and `fapi.ts`, 161). The placement table says a
+  test helper several packages use goes to `packages/testkit` or is exported from its owner's `src/`; either would put about
+  400 lines of network code under the coverage floors, tested only by an opt-in run or by new fakes written for it.
+- **Where:** `apps/server/test/fixtures/acceptance/clerk.ts` (a dynamic
+  `import('../../../../../connectors/identity-clerk/test/fixtures/clerk-target.ts')`, loaded only when the run starts, so the
+  default lanes never load the Clerk SDK); the fixtures gained `signIn`, `signUpWithInvitation`, `Fapi.signInWithTicket` and
+  `Fapi.sessionToken`; S1.12.
+- **What was done:** the relative import, said in the file's header and in docs/testing.md ("S1 acceptance").
+- **Suggested change:** decide one of: export the Clerk test helpers as `@mwc/identity-clerk/testing` with fake-fetch tests
+  (then the import is a package import), or allow an opt-in test to import another package's `test/fixtures/` and say so in
+  the placement table.
+- **Status:** `open`.
+
+### 2026-11-04: Scenario tests have no place in the placement table or the mirroring rule
+
+- **What happened:** S1.12's acceptance is one story across the identity, companies, members and api-keys modules and the
+  jobs loop, over the whole HTTP API: there is no source file for it to mirror, and the placement table names only tests that
+  mirror `src/` and helpers in `test/fixtures/`. The story needed 6 helper files (target, world, steps, paths, checks, the
+  Clerk target; 45 to 236 lines), which would have taken `apps/server/test/fixtures/` from 9 entries to 15 (`big-folder`).
+- **Where:** `apps/server/test/scenarios/s1-acceptance.test.ts` (97 lines) and `s1-acceptance-clerk.test.ts` (92), helpers
+  in `apps/server/test/fixtures/acceptance/`; the map line and the server section of docs/structure.md; S1.12.
+- **What was done:** `test/scenarios/` for the stories, a folder under `test/fixtures/` per scenario for their helpers, and a
+  line on the map. The structure rules already allow both (tests anywhere in `test/`, helpers anywhere in `test/fixtures/`).
+- **Suggested change:** a placement-table row: "A scenario: a story across modules over the HTTP API (a stage's acceptance)
+  → `apps/server/test/scenarios/`, its helpers in `test/fixtures/<scenario>/`", and the mirroring rule of the skill naming
+  it as the exception.
+- **Status:** `open`.
+
 ### 2026-11-04: The first web pages: placements the table does not name, and nine fan-in warnings
 
 - **What happened:** S1.11 built the web's identity pages (47 files in `apps/web/src`, the largest 152 lines). The

@@ -23,12 +23,25 @@ export interface ClerkFindings {
   azp?: AzpFinding;
 }
 
+/** Someone signed in on the Frontend API, as in a browser at our origin. */
+export interface FapiSession {
+  readonly subject: string;
+  /** A fresh session token (they live about a minute); its `azp` is CONTRACT_WEB_ORIGIN. */
+  token(): Promise<string>;
+}
+
 export interface ClerkContractTarget extends ContractTarget {
   readonly clerk: ClerkClient;
   readonly config: ClerkConfig;
   readonly findings: ClerkFindings;
   /** A Frontend API client with a dev browser (for the instance settings check). */
   fapi(): Promise<Fapi>;
+  /**
+   * For the S1 acceptance scenario (apps/server): a user `createUser` made signs in with a Backend API sign-in
+   * token, and the invitee signs up with the invitation's ticket; both stay signed in. They throw what Clerk said.
+   */
+  signIn(subject: string): Promise<FapiSession>;
+  signUpWithInvitation(invitation: ExternalInvitation): Promise<FapiSession>;
 }
 
 function randomId(prefix: string): string {
@@ -121,14 +134,21 @@ async function createUser(run: ClerkRun, label: string, displayName: string) {
   return toExternalUser(user);
 }
 
-/** The invitee signs up through the invitation's ticket; the sign-up's session token is checked for `azp`. */
-async function acceptInvitation(run: ClerkRun, invitation: ExternalInvitation): Promise<AcceptResult> {
+/** The ticket in the invitation's URL (what the emailed link carries), or null. */
+async function ticketOf(run: ClerkRun, invitation: ExternalInvitation): Promise<string | null> {
   const { url } = await run.clerk.organizations.getOrganizationInvitation({
     organizationId: invitation.orgExternalId,
     invitationId: invitation.externalId,
   });
-  const ticket = url ? new URL(url).searchParams.get('__clerk_ticket') : null;
-  if (!ticket) return { unverified: 'the Backend API returned the invitation without a ticket URL' };
+  return url ? new URL(url).searchParams.get('__clerk_ticket') : null;
+}
+
+const NO_TICKET = 'the Backend API returned the invitation without a ticket URL';
+
+/** The invitee signs up through the invitation's ticket; the sign-up's session token is checked for `azp`. */
+async function acceptInvitation(run: ClerkRun, invitation: ExternalInvitation): Promise<AcceptResult> {
+  const ticket = await ticketOf(run, invitation);
+  if (!ticket) return { unverified: NO_TICKET };
   let client: Fapi;
   try {
     client = await openFapi(run);
@@ -143,6 +163,42 @@ async function acceptInvitation(run: ClerkRun, invitation: ExternalInvitation): 
     ? await checkAzp(run.provider, sessionToken, userId)
     : { unverified: 'the sign-up returned no session token' };
   return { subject: userId };
+}
+
+/** A session of `client` whose token is asked for afresh each time. */
+function fapiSession(client: Fapi, subject: string, sessionId: string): FapiSession {
+  return {
+    subject,
+    async token() {
+      const fresh = await client.sessionToken(sessionId);
+      if ('unverified' in fresh) throw new Error(`Frontend API ${fresh.unverified}`);
+      return fresh.ok;
+    },
+  };
+}
+
+/** The invitee signs up with the invitation's ticket (accepting it) and stays signed in. */
+async function signUpWithInvitation(run: ClerkRun, invitation: ExternalInvitation): Promise<FapiSession> {
+  const ticket = await ticketOf(run, invitation);
+  if (!ticket) throw new Error(NO_TICKET);
+  const client = await openFapi(run);
+  const signedUp = await client.signUpWithTicket(ticket);
+  if ('unverified' in signedUp) throw new Error(`Frontend API ${signedUp.unverified}`);
+  run.users.add(signedUp.ok.userId);
+  if (!signedUp.ok.sessionId) throw new Error('Frontend API: the sign-up returned no session');
+  return fapiSession(client, signedUp.ok.userId, signedUp.ok.sessionId);
+}
+
+/** A user of this run signs in on the Frontend API with a sign-in token (10 minutes), as the web's sign-in would. */
+async function signIn(run: ClerkRun, subject: string): Promise<FapiSession> {
+  const { token } = await run.clerk.signInTokens.createSignInToken({
+    userId: subject,
+    expiresInSeconds: 600,
+  });
+  const client = await openFapi(run);
+  const signedIn = await client.signInWithTicket(token);
+  if ('unverified' in signedIn) throw new Error(`Frontend API ${signedIn.unverified}`);
+  return fapiSession(client, subject, signedIn.ok.sessionId);
 }
 
 /** Deletes the run's organizations (with their memberships and invitations), then its users. */
@@ -180,6 +236,8 @@ export function clerkContractTarget(env: Readonly<Record<string, string | undefi
     },
     missing: { subject: randomId('user'), org: randomId('org'), invitation: randomId('orginv') },
     acceptInvitation: (invitation) => acceptInvitation(run, invitation),
+    signIn: (subject) => signIn(run, subject),
+    signUpWithInvitation: (invitation) => signUpWithInvitation(run, invitation),
     signedUserDeleted: (subject) =>
       signedWebhook(
         {

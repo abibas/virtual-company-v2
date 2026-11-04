@@ -4,10 +4,12 @@ import type { ProjectionChange } from '@mwc/identity-core';
 
 /**
  * The audit rows of a projection: one per changed field of each membership and invitation it changed, by the
- * system, with the provider event's id as the request id, written through the tenant layer's `auditChanges` on the
- * projection's own transaction (so they commit or roll back with it). Users are global rows (no company to log in)
- * and the notes (ignored, deferred, refused) change nothing, so neither is logged. A company deleted here keeps no
- * new audit rows: its tenant is gone.
+ * system, written through the tenant layer's `auditChanges`. A webhook event's rows carry the provider event's id as
+ * the request id and land in the projection's own transaction (so they commit or roll back with it); a reconcile's
+ * carry the id of the request that ran it (`GET /api/me`, `POST /api/me/reconcile`, Sync now), or none for the jobs'
+ * periodic reconcile, and are written after it. Users are global rows (no company to log in) and the notes (ignored,
+ * deferred, refused) change nothing, so neither is logged. A company deleted here keeps no new audit rows: its tenant
+ * is gone.
  */
 
 const LOGGED: ReadonlySet<ProjectionChange['entity']> = new Set(['membership', 'invitation']);
@@ -38,7 +40,7 @@ export function auditAction(change: ProjectionChange): string | undefined {
 export async function auditProjection(
   db: RawDb,
   changes: readonly ProjectionChange[],
-  requestId: string,
+  requestId: string | null,
 ): Promise<number> {
   const tenants = new Map<string, TenantDb | null>();
   let written = 0;

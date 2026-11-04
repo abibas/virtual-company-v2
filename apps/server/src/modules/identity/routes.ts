@@ -36,6 +36,30 @@ const meRoute = (deps: ServerDeps) =>
     },
   });
 
+const reconcileMeRoute = (deps: ServerDeps) =>
+  createRoute({
+    method: 'post',
+    path: '/api/me/reconcile',
+    tags: ['identity'],
+    summary: 'Reconcile me now: bring my memberships in line with the identity provider at once',
+    description:
+      'For a signed-in Clerk session (also one with a pending task): reconciles the person and their memberships ' +
+      'with the identity provider now, as the first call of a session does, so an invitation accepted while ' +
+      'signed in shows up at once (the `/accept-invitation` page calls it once). Answers what `GET /api/me` ' +
+      'answers. At most once per person every 10 seconds per server process; an API key is refused.',
+    security: [{ [BEARER_SCHEME]: [] }],
+    middleware: authn(deps, { allowPending: true }),
+    responses: {
+      200: { description: 'The caller, reconciled', content: { 'application/json': { schema: MeSchema } } },
+      401: error('No credential, or one that is not valid (`unauthenticated`)'),
+      403: error('An API key (`forbidden`) or a deactivated account (`user_deactivated`)'),
+      429: error('Asked again within 10 seconds (`rate_limited`); `Retry-After` says when to try again'),
+      503: error(
+        'Sign-in is off (`identity_not_configured`) or the provider is away (`identity_unavailable`)',
+      ),
+    },
+  });
+
 const syncRoute = (deps: ServerDeps) => {
   const { base, refusals } = companyRoute(deps, {
     role: 'admin',
@@ -98,19 +122,32 @@ const clerkWebhookRoute = () =>
   });
 
 /**
- * `GET /api/me` (who is calling, with reconcile on sign-in), `POST /api/companies/:companyId/sync` and the webhook
- * inbox, `POST /api/webhooks/clerk`.
+ * `GET /api/me` (who is calling, with reconcile on sign-in), `POST /api/me/reconcile` (the same reconcile at once, on
+ * the person's request), `POST /api/companies/:companyId/sync` and the webhook inbox, `POST /api/webhooks/clerk`.
  */
 export function identityRoutes(deps: ServerDeps) {
   const me = meService(deps);
   return newRouter()
     .openapi(meRoute(deps), async (c) => {
-      const result = await me.me(c.var.actor, c.var.clock);
+      const result = await me.me(c.var.actor, c.var.clock, c.var.requestId);
       if (!result.ok && result.status === 401) return errorJson(c, 401, result.code, result.message);
       if (!result.ok) return errorJson(c, 403, result.code, result.message);
       return c.json(result.me, 200);
     })
-    .openapi(syncRoute(deps), async (c) => c.json(await reconcileCompany(deps, c.var.tenant.companyId), 200))
+    .openapi(reconcileMeRoute(deps), async (c) => {
+      const result = await me.reconcile(c.var.actor, c.var.clock, c.var.requestId);
+      if (result.ok) return c.json(result.me, 200);
+      if (result.status === 429) {
+        const seconds = Math.ceil(result.retryAfterMs / 1000);
+        c.header('retry-after', String(seconds));
+        return errorJson(c, 429, result.code, `Reconciled a moment ago; try again in ${seconds} s`);
+      }
+      if (result.status === 401) return errorJson(c, 401, result.code, result.message);
+      return errorJson(c, 403, result.code, result.message);
+    })
+    .openapi(syncRoute(deps), async (c) =>
+      c.json(await reconcileCompany(deps, c.var.tenant.companyId, c.var.requestId), 200),
+    )
     .openapi(clerkWebhookRoute(), async (c) => {
       const result = await receiveWebhook(deps, { headers: c.req.header(), rawBody: await c.req.text() });
       if (result.ok) return c.json({ status: result.status }, 200);

@@ -9,7 +9,8 @@
     "./app": "./src/app.ts"
   },
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "acceptance:clerk": "CLERK_CONTRACT_TEST=1 node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ../../node_modules/vitest/vitest.mjs run test/scenarios/s1-acceptance-clerk.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.6",

@@ -32,7 +32,9 @@ webhooks (S1.8, `POST /api/webhooks/clerk`); personal API keys and `mwc login` /
 jobs loop (S1.10: the identity outbox, the webhook event retry and the periodic reconcile, one runner per database by
 an advisory lock; `MWC_JOBS`, `MWC_RECONCILE_MINUTES`); the web app for identity (S1.11: sign-in and sign-up with Clerk,
 onboarding, the company shell `/c/:slug` with its switcher, Members, API keys, Settings, `/accept-invitation`; the
-publishable key comes from `GET /api/config` at run time); next S1.12, the two-person end-to-end scenario.
+publishable key comes from `GET /api/config` at run time); the S1 acceptance as a server-side scenario (S1.12: the
+two-person story over the HTTP API on every acceptance path, `POST /api/me/reconcile` for a person signed in already,
+audit rows on the reconcile paths; a real-Clerk variant on request); next S1.13, the structure review.
 
 ## Start
 

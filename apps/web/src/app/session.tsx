@@ -13,6 +13,11 @@ export interface Session {
   readonly me: Me;
   /** Reads `GET /api/me` again (after a change to the person's companies) and returns it. */
   reload(): Promise<Me>;
+  /**
+   * Asks the server to reconcile the person with the sign-in service now (`POST /api/me/reconcile`, once per 10 s),
+   * for an invitation accepted while signed in, and returns the answer, which is what `GET /api/me` would say.
+   */
+  reconcile(): Promise<Me>;
 }
 
 const SessionContext = createContext<Session | null>(null);
@@ -85,6 +90,12 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
     return me;
   }, [api]);
 
+  const reconcile = useCallback(async () => {
+    const me = await call(api.api.me.reconcile.$post());
+    setState({ status: 'ready', me });
+    return me;
+  }, [api]);
+
   const load = useCallback(() => {
     setState({ status: 'loading' });
     reload().catch((error: unknown) => setState({ status: 'failed', error }));
@@ -93,8 +104,8 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
   useEffect(load, [load]);
 
   const session = useMemo(
-    () => (state.status === 'ready' ? { me: state.me, reload } : null),
-    [state, reload],
+    () => (state.status === 'ready' ? { me: state.me, reload, reconcile } : null),
+    [state, reload, reconcile],
   );
   if (state.status === 'loading') {
     return (

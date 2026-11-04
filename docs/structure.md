@@ -17,7 +17,7 @@ Most_Wanted_corp_v2/
 │   │   │   ├── main.ts             3-line entry only
 │   │   │   ├── app.ts              wires platform + modules
 │   │   │   ├── platform/           cross-cutting, no business rules
-│   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI
+│   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI, throttle
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S4
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
@@ -36,6 +36,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
+│   │       └── scenarios/          stories across modules over the HTTP API     S1.12
 │   ├── web/                        React UI, no tests for now (identity pages built) S1.11
 │   │   └── src/ app/ pages/ components/ api/ styles/
 │   └── runner/                     machine daemon                              S3
@@ -100,7 +101,8 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
 - `src/app.ts` builds the Hono app: the platform middleware and handlers around the modules' routers.
 - `src/platform/` holds cross-cutting code without business rules: `env.ts` (the app's dependencies and
   Hono environment), `logger.ts`, `shutdown.ts`, `version.ts`, `start.ts`, and `http/` (the router
-  factory, request log, errors, the OpenAPI document and Swagger UI, the static web UI), `identity.ts` (the
+  factory, request log, errors, the OpenAPI document and Swagger UI, the static web UI, `throttle.ts`: one turn per key
+  per interval in the process's memory, S1.12), `identity.ts` (the
   identity provider the configuration names: where the Clerk connector is wired), and `auth/` (S1.4): `authn()`
   turns `Authorization: Bearer` into `c.var.actor` (`session.ts` for session tokens, `api-keys.ts` for API keys and making them (`generateApiKey`, S1.9),
   `bearer.ts` sorting them by shape, the run token slot), and `requireMembership(role)` (`membership.ts`) guards
@@ -129,7 +131,10 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   `last_error`). The identity module's `service/sync.ts` (S1.7) holds two of the three acceptance paths:
   `projectIdentityEvent` (one normalized webhook event, projected with its audit rows in one transaction) and
   `reconcileCompany` (a company against its organization, S1.10's periodic reconcile and
-  `POST /api/companies/:companyId/sync`); the third is `GET /api/me`. The webhook inbox (S1.8) is the same module:
+  `POST /api/companies/:companyId/sync`); the third is `GET /api/me` (`service/me.ts`, split from `service.ts` in S1.12, which re-exports it), which
+  `POST /api/me/reconcile` (S1.12) runs again on the person's request, once per person every 10 s. Every path writes the audit
+  rows of what it changed, by the system: a webhook event with its delivery id, a reconcile with the id of the request that
+  ran it (none for the periodic one). The webhook inbox (S1.8) is the same module:
   `POST /api/webhooks/clerk` in its `routes.ts`, `service/webhooks.ts` (verify, record once, process inline),
   `service/events.ts` (`processInboxEvent`, and `retryIdentityEvents` for S1.10's loop), and its raw database access
   in `repo/events.ts` (the `identity_events` rows, claimed under `for update skip locked`) and `repo/audit.ts` (a
@@ -151,7 +156,9 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
 - `src/dev/memory-server.ts` is the API on an in-memory PGlite for local demos (`pnpm dev:memory`, whose
   entry is `scripts/memory-server.ts`).
 - `test/` mirrors `src/`. Module and platform behaviour is tested through `app.request()` on a test
-  database (`createTestApp()` from `@mwc/testkit`).
+  database (`createTestApp()` from `@mwc/testkit`). A scenario, a story across modules over the whole HTTP API with no
+  source file to mirror, lives in `test/scenarios/` (S1.12: `s1-acceptance.test.ts`, the S1 acceptance), its helpers in
+  `test/fixtures/<scenario>/` (`test/fixtures/acceptance/`).
 
 ## Connectors and ports
 

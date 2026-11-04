@@ -120,12 +120,17 @@ function observed(
 
 /**
  * Brings one company in line with its organization (`reconcileOrganization` of identity-core: parked events, every
- * member, accepted and revoked invitations, memberships the provider no longer has), then queues the removal of the
- * provider memberships it refused. `organization: 'pending'` while the company has no organization yet; a company
- * that is gone or deleted rejects with `CompanyNotFoundError`, as `tenant()` does. A provider failure rejects too
- * (what was projected before it stays: every step is idempotent).
+ * member, accepted and revoked invitations, memberships the provider no longer has), writes the audit rows of what it
+ * changed (by the system, with `requestId`: Sync now's request, none for the periodic reconcile), then queues the
+ * removal of the provider memberships it refused. `organization: 'pending'` while the company has no organization
+ * yet; a company that is gone or deleted rejects with `CompanyNotFoundError`, as `tenant()` does. A provider failure
+ * rejects too (what was projected before it stays, without audit rows: every step is idempotent).
  */
-export async function reconcileCompany(deps: SyncDeps, companyId: string): Promise<CompanySync> {
+export async function reconcileCompany(
+  deps: SyncDeps,
+  companyId: string,
+  requestId: string | null = null,
+): Promise<CompanySync> {
   const provider = providerOf(deps.identity);
   const store = dbIdentityStore(deps.db, { provider: provider.kind, now: deps.clock });
   const company = await store.getCompany(companyId);
@@ -144,6 +149,7 @@ export async function reconcileCompany(deps: SyncDeps, companyId: string): Promi
   const listed: ExternalMembership[] = [];
   const view = observed(provider, listed, await replacedInvitations(deps.db, companyId));
   const summary = await reconcileOrganization(orgExternalId, view, store, { now: deps.clock });
+  await store.audit(summary.changes, requestId);
   const removals = await refusedMembers(store, provider.issuer, companyId, listed);
   return {
     organization: 'linked',

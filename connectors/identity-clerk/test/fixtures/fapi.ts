@@ -1,8 +1,10 @@
 /**
  * Just enough of Clerk's Frontend API to play an invitee in the opt-in contract run: a dev-browser token
  * (development instances), then a sign-up with the invitation's ticket, which verifies the `+clerk_test`
- * email and accepts the organization invitation in one step. No real email is sent. Tokens stay in memory:
- * nothing here logs them, and failures are described by HTTP status and Clerk error code only.
+ * email and accepts the organization invitation in one step. No real email is sent. The opt-in S1 acceptance
+ * scenario (apps/server/test/scenarios/s1-acceptance-clerk.test.ts) also signs a person in with a Backend API
+ * sign-in token and asks for fresh session tokens, which carry our origin as `azp` as the web's do. Tokens stay in
+ * memory: nothing here logs them, and failures are described by HTTP status and Clerk error code only.
  */
 
 export interface FapiOptions {
@@ -76,10 +78,12 @@ export class Fapi {
   }
 
   /**
-   * Signs up through an invitation ticket. On `complete`, the new user's id and the session token Clerk
-   * minted for it (its `azp` is our origin).
+   * Signs up through an invitation ticket. On `complete`, the new user's id, its session and the session token
+   * Clerk minted for it (its `azp` is our origin).
    */
-  async signUpWithTicket(ticket: string): Promise<FapiResult<{ userId: string; sessionToken?: string }>> {
+  async signUpWithTicket(
+    ticket: string,
+  ): Promise<FapiResult<{ userId: string; sessionId?: string; sessionToken?: string }>> {
     const response = await this.#fetch(this.#url('/v1/client/sign_ups'), {
       method: 'POST',
       headers: { origin: this.#options.origin, 'content-type': 'application/x-www-form-urlencoded' },
@@ -93,9 +97,45 @@ export class Fapi {
       const missing = [...(signUp.missing_fields ?? []), ...(signUp.unverified_fields ?? [])].join(', ');
       return { unverified: `sign-up ended "${signUp.status}"${missing ? ` (needs ${missing})` : ''}` };
     }
-    const session = body.client?.sessions?.find((s) => s.id === signUp.created_session_id);
+    const sessionId = signUp.created_session_id ?? undefined;
+    const session = body.client?.sessions?.find((s) => s.id === sessionId);
     const sessionToken = session?.last_active_token?.jwt;
-    return { ok: { userId: signUp.created_user_id, ...(sessionToken ? { sessionToken } : {}) } };
+    return {
+      ok: {
+        userId: signUp.created_user_id,
+        ...(sessionId ? { sessionId } : {}),
+        ...(sessionToken ? { sessionToken } : {}),
+      },
+    };
+  }
+
+  /** Signs in with a ticket (a Backend API sign-in token); on `complete`, the new session's id. */
+  async signInWithTicket(ticket: string): Promise<FapiResult<{ sessionId: string }>> {
+    const response = await this.#fetch(this.#url('/v1/client/sign_ins'), {
+      method: 'POST',
+      headers: { origin: this.#options.origin, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ strategy: 'ticket', ticket }).toString(),
+    });
+    const body = (await json(response)) as {
+      response?: { status?: string; created_session_id?: string };
+    } | null;
+    if (!response.ok || !body?.response)
+      return { unverified: describeFailure('sign-in', response.status, body) };
+    const { status, created_session_id: sessionId } = body.response;
+    if (status !== 'complete' || !sessionId) return { unverified: `sign-in ended "${status}"` };
+    return { ok: { sessionId } };
+  }
+
+  /** A fresh session token of one of this client's sessions (Frontend API tokens live about a minute). */
+  async sessionToken(sessionId: string): Promise<FapiResult<string>> {
+    const response = await this.#fetch(this.#url(`/v1/client/sessions/${sessionId}/tokens`), {
+      method: 'POST',
+      headers: { origin: this.#options.origin },
+    });
+    const body = (await json(response)) as { jwt?: unknown } | null;
+    if (!response.ok || typeof body?.jwt !== 'string')
+      return { unverified: describeFailure('session token', response.status, body) };
+    return { ok: body.jwt };
   }
 
   #url(path: string): string {

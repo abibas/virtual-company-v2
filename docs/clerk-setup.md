@@ -108,7 +108,7 @@ configured on this server.
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | `/sign-in`            | Clerk's `<SignIn/>` (path routing: its own steps live under `/sign-in/...`, Google's callback too) |
 | `/sign-up`            | Clerk's `<SignUp/>` (path routing, `/sign-up/...`)                                           |
-| `/accept-invitation`  | the invitations' `redirectUrl`: Clerk's `<SignUp/>` takes `__clerk_ticket` (or `<SignIn/>` when `__clerk_status=sign_in`), with hash routing so the ticket stays in the query; `__clerk_status=complete` goes to `/sign-in` and comes back. Signed in, it calls `GET /api/me` (the sign-in reconcile links the membership) and opens the company of the person's newest Clerk membership |
+| `/accept-invitation`  | the invitations' `redirectUrl`: Clerk's `<SignUp/>` takes `__clerk_ticket` (or `<SignIn/>` when `__clerk_status=sign_in`), with hash routing so the ticket stays in the query; `__clerk_status=complete` goes to `/sign-in` and comes back. Signed in, it calls `GET /api/me` (the sign-in reconcile links the membership) and opens the company of the person's newest Clerk membership; when that session was reconciled already (the person was signed in before accepting), it calls `POST /api/me/reconcile` once (S1.12) |
 | `/`                   | after sign-in (Clerk's fallback redirect): the last company opened in this browser, else the first, else `/companies/new` |
 
 After sign-out Clerk returns to `/sign-in`. The company shell (`/c/:slug`) makes the company's organization Clerk's active
@@ -185,6 +185,16 @@ What a run does (about a minute):
   every `mwc-contract-` user and organization in the instance and expects none.
 
 Results of the runs: `docs/roadmap.md`, S1.2.
+
+The S1 acceptance has a real-Clerk variant too (S1.12, `apps/server/test/scenarios/s1-acceptance-clerk.test.ts`; not run
+yet): the API on a test database with this connector, an owner made through the Backend API who signs in on the Frontend
+API with a sign-in token, a company whose organization a jobs tick creates (named `mwc-contract-<random> Most Wanted`), an
+invitation a tick sends, the invitee's ticket sign-up and first `GET /api/me`, then the removal and the outbox
+`remove_member`. Same switches, same naming and cleanup as the contract test:
+
+```sh
+pnpm --filter @mwc/server acceptance:clerk
+```
 
 ## Webhooks (S1.8)
 

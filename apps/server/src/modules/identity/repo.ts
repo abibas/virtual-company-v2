@@ -130,10 +130,11 @@ export class DbIdentityStore implements IdentityStore {
   }
 
   /**
-   * Writes the audit rows of a projection's changes (system actor, `requestId` = the provider event's id) on this
-   * store's database: inside `transaction()`, in the projection's own transaction (`repo/audit.ts`).
+   * Writes the audit rows of a projection's changes (system actor) on this store's database (`repo/audit.ts`):
+   * inside `transaction()`, in the projection's own transaction, with the provider event's id as `requestId`; after a
+   * reconcile, with the id of the request that ran it, or none for the periodic reconcile.
    */
-  audit(changes: readonly ProjectionChange[], requestId: string): Promise<number> {
+  audit(changes: readonly ProjectionChange[], requestId: string | null): Promise<number> {
     return auditProjection(this.#db, changes, requestId);
   }
 }

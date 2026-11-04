@@ -4,7 +4,7 @@ import { createTestApp, FAKE_ISSUER, getJson, LEVEL, seedCompany } from '@mwc/te
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { type AuthWorld, addPerson, authWorld, bearer, seedApiKey } from '../../fixtures/auth.ts';
-import { call } from '../../fixtures/companies.ts';
+import { auditOf, call } from '../../fixtures/companies.ts';
 import {
   acceptAtProvider,
   DAY_MS,
@@ -27,6 +27,11 @@ const me = (token: string, app = w.t.app) => getJson(app, '/api/me', bearer(toke
 const db = () => rawDb(w.t.db);
 const identitiesOf = (subject: string) =>
   db().select().from(userIdentities).where(eq(userIdentities.subject, subject));
+/** The company's audit rows of memberships and invitations: who, what and with which request id. */
+const projectionAudit = async (companyId: string) =>
+  (await auditOf(w.t.db, companyId))
+    .filter((row) => row.entityType !== 'company')
+    .map((row) => [row.actorKind, row.actorPrincipalId, row.entityType, row.action, row.requestId]);
 
 describe('GET /api/me: reconcile on sign-in', () => {
   it('creates the person and links the membership from their accepted invitation', async () => {
@@ -252,7 +257,11 @@ describe('acceptance on sign-in (GET /api/me)', () => {
     const person = signUp(w, 'signs-in@x.test');
     await acceptAtProvider(w, sent.id, person.subject);
     expect(await memberWithEmail(w, acme, 'signs-in@x.test')).toBeUndefined();
-    expect(await me(`fake:${person.subject}`)).toMatchObject({
+    const signedIn = await getJson(w.t.app, '/api/me', {
+      ...bearer(`fake:${person.subject}`),
+      'x-request-id': 'req-sign-in',
+    });
+    expect(signedIn).toMatchObject({
       status: 200,
       body: { memberships: [{ companyId: acme.companyId, role: 'admin', status: 'active' }] },
     });
@@ -260,6 +269,11 @@ describe('acceptance on sign-in (GET /api/me)', () => {
       role: 'admin',
       status: 'active',
     });
+    // What the reconcile changed is audited, by the system, with the sign-in's request id.
+    const audited = (await projectionAudit(acme.companyId)).filter((row) => row[4] === 'req-sign-in');
+    expect(new Set(audited.map((row) => row.slice(0, 4).join(' ')))).toEqual(
+      new Set(['system  membership activate', 'system  invitation accept']),
+    );
   });
 
   it('activates nobody from an invitation accepted after its expiry', async () => {
@@ -283,7 +297,7 @@ describe('POST /api/companies/:companyId/sync', () => {
     await runOutbox(w, acme.companyId);
     const person = signUp(w, 'sync-now@x.test');
     await acceptAtProvider(w, sent.id, person.subject);
-    const res = await as(w, acme.owner)('POST', sync(acme.companyId));
+    const res = await as(w, acme.owner, 'req-sync-now')('POST', sync(acme.companyId));
     expect(res).toMatchObject({
       status: 200,
       body: { organization: 'linked', members: 2, invitations: 1, removed: 0, providerRemovals: 0 },
@@ -293,6 +307,15 @@ describe('POST /api/companies/:companyId/sync', () => {
       status: 'active',
     });
     expect(await outboxRows(w, acme.companyId, 'remove_member')).toEqual([]);
+    // The acceptance it projected is audited by the system, with Sync now's request id.
+    const audited = (await projectionAudit(acme.companyId)).filter((row) => row[3] !== 'create');
+    expect(audited.length).toBeGreaterThan(0);
+    expect(audited.every((row) => row[0] === 'system' && row[1] === null && row[4] === 'req-sync-now')).toBe(
+      true,
+    );
+    expect(audited.map((row) => `${row[2]} ${row[3]}`)).toEqual(
+      expect.arrayContaining(['membership activate', 'invitation accept']),
+    );
   });
 
   it('is a 401, a 403 below admin, a 404 for an outsider, and a 503 while the provider is away', async () => {

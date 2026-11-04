@@ -1,5 +1,5 @@
 import { SignIn, SignUp, useAuth, useUser } from '@clerk/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Membership } from '../../api/types.ts';
 import { PlainShell } from '../../app/PlainShell.tsx';
 import { Link, navigate, Redirect, useLocation } from '../../app/router.tsx';
@@ -23,19 +23,28 @@ function useNewestOrganization(): string | undefined {
   return newest?.organization.id;
 }
 
-/** Signed in after accepting: opens the invited company once the server lists it (`GET /api/me` reconciles). */
+/**
+ * Signed in after accepting: opens the invited company once the server lists it. The first `GET /api/me` of a new
+ * session reconciles; a person who was signed in already gets one `POST /api/me/reconcile`, so they need not wait.
+ */
 function JoinInvitedCompany() {
-  const { me, reload } = useSession();
+  const { me, reload, reconcile } = useSession();
   const organization = useNewestOrganization();
   const invited: Membership | undefined = me.memberships.find(
     (m) => m.status === 'active' && m.identityOrgId !== null && m.identityOrgId === organization,
   );
   const waiting = invited === undefined && organization !== undefined;
+  const reconciled = useRef(false);
 
   useEffect(() => {
     if (invited) navigate(`/c/${invited.slug}`, { replace: true });
     else if (organization === undefined) navigate('/', { replace: true });
   }, [invited, organization]);
+  useEffect(() => {
+    if (!waiting || reconciled.current) return;
+    reconciled.current = true;
+    void reconcile().catch(() => undefined);
+  }, [waiting, reconcile]);
   useEffect(() => {
     if (!waiting) return;
     const timer = setInterval(() => void reload().catch(() => undefined), RECHECK_MS);
