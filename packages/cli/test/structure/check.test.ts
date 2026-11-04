@@ -49,6 +49,6 @@ describe('formatViolations', () => {
 
   it('points at the rules and the skill', () => {
     expect(STRUCTURE_RULES.hint).toContain('docs/structure.md');
-    expect(STRUCTURE_RULES.hint).toContain('keep-structure');
+    expect(STRUCTURE_RULES.hint).toContain('see .claude/skills/keep-structure');
   });
 });

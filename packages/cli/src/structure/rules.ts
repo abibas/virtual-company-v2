@@ -75,5 +75,5 @@ export const STRUCTURE_RULES: StructureRules = {
     root: 'apps/server/src/modules/',
     files: ['routes.ts', 'service.ts', 'repo.ts', 'schemas.ts', 'rules.ts', 'index.ts'],
   },
-  hint: 'The rules are in docs/structure.md; load the keep-structure skill before adding, moving or splitting files.',
+  hint: 'The rules are in docs/structure.md; see .claude/skills/keep-structure (load it before adding, moving or splitting files).',
 };

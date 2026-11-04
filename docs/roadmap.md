@@ -43,7 +43,9 @@ Before S1.2 (2026-11-04, Ihor's approved layout): **S1.0a** the repository in th
 coverage floors, no frontend tests for now: the Playwright smoke and its port 9957 are gone). **S1.0b** the
 structure step of `mwc check` (layout, package contents, tests only in `test/`, 300/500-line limits, module
 files and imports; `packages/cli/src/structure/`), with the oversized files split (the identity projector and
-fake provider, the schema diagram, `mwc`'s dispatch, two identity test files).
+fake provider, the schema diagram, `mwc`'s dispatch, two identity test files). **S1.0c** the project skill
+`keep-structure` (`.claude/skills/keep-structure/`): where code goes, the module, package and connector
+checklists, the database routine, file size discipline; the structure step's failures point at it.
 
 Frontend tests are off for now (Ihor, 2026-11-04): the stage items below that name a Playwright smoke or an e2e
 scenario get one only when he turns them back on; until then those steps are checked by hand at the stage review.

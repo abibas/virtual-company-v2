@@ -2,7 +2,10 @@
 
 Where code goes in this repository: the layout Ihor approved on 2026-11-04 and the rules that keep it.
 The stage column (S0–S7) says when a part lands (`docs/roadmap.md`). Folders of later stages are not
-created ahead of time (no empty placeholders); this map is where they will go.
+created ahead of time (no empty placeholders); this map is where they will go. The project skill
+`keep-structure` (`.claude/skills/keep-structure/SKILL.md`, with a module template and a worked split in
+its `references/`) is the short, practical version: load it before adding, moving or splitting files, or
+changing the schema.
 
 ## The map
 
@@ -168,7 +171,8 @@ code reaches tenant data only through `tenant(db, companyId)` (`packages/db/READ
 The `structure` step runs in every lane (fast, default, `--full`), inside the `mwc check` process, on the
 files git tracks plus the untracked ones it does not ignore (the same listing as the banned-names step);
 `pnpm mwc structure` runs it alone. Each broken rule is one line, `path[:line]: [rule] reason`, followed by
-where the rules are. The limits and allow-lists are one object, `packages/cli/src/structure/rules.ts`.
+where the rules are and "see .claude/skills/keep-structure". The limits and allow-lists are one object,
+`packages/cli/src/structure/rules.ts`.
 
 | Rule      | Fails on                                                                                                  |
 | --------- | --------------------------------------------------------------------------------------------------------- |

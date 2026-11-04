@@ -65,7 +65,8 @@ Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock
 
 ## Layout
 
-The map and its rules are `docs/structure.md`. In short: `apps/` are what we deploy (`server`, `web`,
+Load the keep-structure skill (`.claude/skills/keep-structure`) before adding, moving or splitting files,
+or changing the schema. The map and its rules are `docs/structure.md`. In short: `apps/` are what we deploy (`server`, `web`,
 later `runner`), `packages/` the libraries (`shared`, `db`, `identity-core`, `testkit`, `cli`, later
 `harness-core`, `mcp`), `connectors/` the adapters to outside systems (`identity-clerk` first, S1.2),
 `deploy/` the compose files and Dockerfiles, `docs/`. Folders appear as their stage lands
