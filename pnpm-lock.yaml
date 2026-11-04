@@ -284,6 +284,12 @@ importers:
         specifier: 0.31.11
         version: 0.31.11
 
+  packages/identity-core:
+    dependencies:
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/shared:
     dependencies:
       uuid:
@@ -298,6 +304,9 @@ importers:
       '@mwc/db':
         specifier: workspace:*
         version: link:../db
+      '@mwc/identity-core':
+        specifier: workspace:*
+        version: link:../identity-core
       '@mwc/server':
         specifier: workspace:*
         version: link:../../apps/server

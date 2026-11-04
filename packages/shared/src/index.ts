@@ -1,4 +1,21 @@
 export { type Config, ConfigError, ConfigSchema, loadConfig } from './config.ts';
 export { ActorKind, CompanyStatus, UserStatus } from './enums.ts';
+export {
+  EpochMs,
+  ExternalInvitation,
+  ExternalInvitationStatus,
+  ExternalMembership,
+  ExternalOrg,
+  ExternalUser,
+  IDENTITY_EVENT_TYPES,
+  IDENTITY_METADATA,
+  type IdentityEventType,
+  IdentityMetadata,
+  InvitationStatus,
+  MembershipRole,
+  MembershipStatus,
+  NormalizedIdentityEvent,
+  VerifiedIdentity,
+} from './identity.ts';
 export { idTime, isId, newId } from './ids.ts';
 export { PORTS, SLOT_BASE, SLOT_COUNT, type SlotPorts, slotFromPath, slotPorts } from './ports.ts';

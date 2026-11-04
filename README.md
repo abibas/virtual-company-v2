@@ -17,7 +17,8 @@ Schema diagram: [docs/schema.md](docs/schema.md) (a Mermaid ER diagram generated
 `/readyz`, `/api/version`, OpenAPI and Swagger UI, request ids, pino), `@mwc/web` (the React/Vite/Tailwind
 shell and its Playwright smoke), the server image and compose stacks, `pnpm dev`, `@mwc/testkit`, and
 `mwc check` with its fast, default and full lanes (release notes in `docs/roadmap.md`).
-Next: **S1 — identity and companies**, starting with `@mwc/identity-core` (S1.1).
+**S1 — identity and companies: in progress.** identity-core done (S1.1: the provider-agnostic identity model,
+the order-safe projector and reconcile, the fake provider); next S1.2, the Clerk provider.
 
 ## Start
 
@@ -73,7 +74,7 @@ Full map and rules: `docs/ports.md`.
 
 ```
 apps/        server, web (now); runner      (S3)
-packages/    shared, cli, db, testkit (now); identity-core, identity-clerk, harness, mcp (later)
+packages/    shared, cli, db, testkit, identity-core (now); identity-clerk, harness, mcp (later)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server
 docs/        plan, architecture, roadmap, ports, testing, schema (generated)
 ```

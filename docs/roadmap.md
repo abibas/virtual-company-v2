@@ -38,7 +38,7 @@ Done when: fresh clone → `pnpm i && pnpm dev` serves the web on 9951 against t
 ### S1 — identity and companies
 
 Done when: Ihor signs in, creates a company, invites a second real person who accepts via the emailed link, who appears active as member, is promoted to admin, is removed and loses access immediately; all of it with webhooks off and again with ngrok on; the e2e scenario is green.
-1. identity-core: interfaces, normalized events, `FakeIdentityProvider`, projector — unit: duplicate and out-of-order events converge.
+1. identity-core: interfaces, normalized events, `FakeIdentityProvider`, projector — unit: duplicate and out-of-order events converge. **Done 2026-11-04** (`@mwc/identity-core`: the `IdentityProvider` and `IdentityStore` ports, `IdentityProviderError`, the zod contracts in `@mwc/shared/identity`, the order-safe projector, `reconcileOrganization`/`reconcileUser`, `FakeIdentityProvider` and `InMemoryIdentityStore`, re-exported by `@mwc/testkit`; rules in `packages/identity-core/README.md`).
 2. identity-clerk: `verifyAccessToken`, Backend API wrapper, `parseWebhook`, `roleMap` — unit with a fake client; svix signature tests; the opt-in real-Clerk contract test run once against the dev app (also verifies the instance settings in `docs/clerk-setup.md`).
 3. Migration `0001_identity` (users, user_identities, companies columns, principals, memberships, invitations, identity_events, identity_outbox, api_keys) + `tenant()` layer + lint rule — integration: composite-FK rejection; `tenant()` 404 on a deleted company.
 4. `authn()` + `requireMembership()` + `GET /api/me` with reconcile-on-sign-in — tests: pending `sts`, wrong issuer, wrong `azp`, expired, API key, revoked key.

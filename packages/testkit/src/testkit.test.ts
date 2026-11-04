@@ -3,8 +3,12 @@ import {
   brokenDb,
   captureLogger,
   createTestApp,
+  FAKE_ISSUER,
+  FAKE_SIGNATURE_HEADER,
+  FakeIdentityProvider,
   fixedClock,
   getJson,
+  InMemoryIdentityStore,
   LEVEL,
   postJson,
   requestJson,
@@ -23,6 +27,22 @@ describe('captureLogger', () => {
       [LEVEL.error, 'second'],
     ]);
     expect(lines[0]?.n).toBe(1);
+  });
+});
+
+describe('identity test doubles', () => {
+  it('re-exports the fake identity provider and the in-memory identity store', async () => {
+    const fake = new FakeIdentityProvider({ clock: fixedClock() });
+    fake.createUser({ subject: 'u1', email: 'a@x.test' });
+    expect(await fake.verifyAccessToken('fake:u1;pending', { authorizedParties: [] })).toMatchObject({
+      issuer: FAKE_ISSUER,
+      subject: 'u1',
+      pending: true,
+    });
+    const [event] = fake.drainEvents();
+    expect(event?.occurredAt).toBe(Date.parse(TEST_NOW));
+    if (event) expect(fake.webhookFor(event).headers[FAKE_SIGNATURE_HEADER]).toMatch(/^sha256=[0-9a-f]{64}$/);
+    expect(new InMemoryIdentityStore().snapshot().users).toEqual([]);
   });
 });
 

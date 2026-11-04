@@ -7,7 +7,7 @@ tests (house rule); the web is covered by a Playwright smoke.
 
 | Lane | Command | What runs | When |
 | --- | --- | --- | --- |
-| fast | `pnpm mwc check --fast` | Biome, banned names, `tsc --noEmit` per package (cli, db, shared, testkit, server, web), db drift (migrations and `docs/schema.md`), all Vitest tests on PGlite, no coverage | the git pre-push hook |
+| fast | `pnpm mwc check --fast` | Biome, banned names, `tsc --noEmit` per package (cli, db, identity-core, shared, testkit, server, web), db drift (migrations and `docs/schema.md`), all Vitest tests on PGlite, no coverage | the git pre-push hook |
 | default | `pnpm mwc check` | the fast lane with coverage (v8, thresholds 80% lines/statements/functions, 70% branches; report in `coverage/`) | before every commit |
 | full | `pnpm mwc check --full` | the default lane, then the tests again on the dev Postgres, the web build and the Playwright smoke | before a push that touches the database, the server or the web, and at the end of a stage |
 
@@ -49,10 +49,11 @@ from parts in that file, so the list never contains them. The `commit-msg` hook
 
 | Package | Tests | Database |
 | --- | --- | --- |
-| `packages/shared` | config, ports, ids, enums (unit) | none |
+| `packages/shared` | config, ports, ids, enums, the identity contracts (unit) | none |
+| `packages/identity-core` | the fake provider (tokens, CRUD and errors, events, `failNext`, webhooks), the projector rule by rule, convergence (200 seeded shuffles, double deliveries, every order of one person's history), reconcile against the webhook path, the in-memory store | none (`InMemoryIdentityStore`) |
 | `packages/cli` | argument parsing, `mwc check` and `mwc dev` plans with fake processes, the banned-names scanner and the commit-msg hook's command, two short real-process checks of the spawn wrapper | none |
 | `packages/db` | schema constraints, migrations, `migrationStatus`, `queryRows`, the schema diagram, test database names and the stale-database sweep | `createTestDb()`: PGlite, or Postgres with `TEST_DB=postgres` |
-| `packages/testkit` | its own helpers (capture logger, fixed clock, JSON requests, `createTestApp`), and a guard that the workspace's dependency graph has no cycle except the dev-only testkit ↔ server one | `createTestApp()` |
+| `packages/testkit` | its own helpers (capture logger, fixed clock, JSON requests, `createTestApp`, the identity re-exports), and a guard that the workspace's dependency graph has no cycle except the dev-only testkit ↔ server one | `createTestApp()` |
 | `apps/server` | the API through `app.request()` (health, readiness, errors, request ids, OpenAPI, docs, static UI), the logger, graceful shutdown, one real `serve()` on an ephemeral port | `createTestApp()` on `createTestDb()` |
 | `apps/web` | `e2e/shell.spec.ts` (the shell and "API v… · ready"), `e2e/bundle.spec.ts` (no server code in the bundle) | the in-memory API |
 
@@ -68,6 +69,7 @@ One import for what tests need; add `"@mwc/testkit": "workspace:*"` to the packa
 | `getJson(app, path, headers?)`, `postJson(app, path, body, headers?)`, `requestJson(app, method, path, { body, headers })` | one in-process request, returning `{ status, body, headers }` with the body parsed |
 | `captureLogger()`, `LEVEL` | a pino logger that keeps its lines in an array, and pino's numeric levels |
 | `brokenDb('reject' \| 'hang')` | a handle whose queries fail or never answer, as if Postgres were down |
+| `FakeIdentityProvider`, `InMemoryIdentityStore` | the in-memory identity provider (`fake:<subject>[;org=<id>][;pending]` tokens, `accept()`, `drainEvents()`, `failNext()`, `webhookFor()`) and identity store, from `@mwc/identity-core` (its README) |
 
 ```ts
 import { createTestApp, fixedClock, getJson, type TestApp } from '@mwc/testkit';
@@ -86,8 +88,8 @@ it('is ready', async () => {
 The testkit depends on `@mwc/server` and the server's tests use the testkit: a dev-only cycle, harmless
 without build steps. `pnpm-workspace.yaml` sets `ignoreWorkspaceCycles` so pnpm does not warn about it
 on every install, and `packages/testkit/src/workspace.test.ts` fails on any other cycle or if the testkit
-ever becomes a production dependency. S1 adds `FakeIdentityProvider` (S1.1), `signedWebhook` (S1.2) and
-`seedCompany` (S1.3) here.
+ever becomes a production dependency. S1.1 added `FakeIdentityProvider` and `InMemoryIdentityStore` here;
+`signedWebhook` (S1.2) and `seedCompany` (S1.3) follow.
 
 ## Running one piece
 
