@@ -1,8 +1,10 @@
 import { identityOutbox, readJournal } from '@mwc/db';
 import { migrateToLatest, queryRows, rawDb } from '@mwc/db/system';
+import { loadConfig } from '@mwc/shared/config';
 import {
   brokenDb,
   createTestApp,
+  FakeIdentityProvider,
   fixedClock,
   getJson,
   LEVEL,
@@ -176,5 +178,68 @@ describe('GET /api/version', () => {
     const res = await t.app.request('/api/version');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ version: TEST_VERSION, apiVersion: 1 });
+  });
+});
+
+describe('GET /api/config', () => {
+  const SECRETS = {
+    CLERK_SECRET_KEY: `sk_test_${'s'.repeat(40)}`,
+    CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----jwtkeyvalue-----END PUBLIC KEY-----',
+    CLERK_WEBHOOK_SIGNING_SECRET: 'whsec_webhooksecretvalue',
+    DATABASE_URL: 'postgres://mwc:hunter2@db.internal:5432/mwc',
+  };
+  const clerkConfig = (extra: Record<string, string> = {}) =>
+    loadConfig({
+      NODE_ENV: 'production',
+      ...SECRETS,
+      CLERK_PUBLISHABLE_KEY: 'pk_test_cm9idXN0LWtvYWxhLTcyODYuY2xlcmsuYWNjb3VudHMuZGV2JA',
+      MWC_PUBLIC_URL: 'https://corp.example.com/',
+      ...extra,
+    });
+
+  it('says sign-in is off, with the web origin and the API URL, to anyone and uncached', async () => {
+    const t = await createTestApp({ db: brokenDb() });
+    const res = await t.app.request('/api/config');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({
+      identity: 'none',
+      webOrigin: 'http://localhost:9951',
+      apiUrl: 'http://localhost:9950',
+    });
+  });
+
+  it("gives Clerk's publishable key when Clerk signs people in, and never a secret", async () => {
+    const config = clerkConfig();
+    const t = await createTestApp({ db: brokenDb(), config, identity: new FakeIdentityProvider() });
+    const res = await t.app.request('/api/config');
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({
+      identity: 'clerk',
+      clerkPublishableKey: config.CLERK_PUBLISHABLE_KEY,
+      webOrigin: 'https://corp.example.com',
+      apiUrl: 'https://corp.example.com',
+    });
+    for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);
+    expect(text).not.toContain('hunter2');
+  });
+
+  it('leaves the publishable key out when sign-in is switched off, and follows MWC_WEB_ORIGIN', async () => {
+    const config = clerkConfig({ MWC_IDENTITY: 'none', MWC_WEB_ORIGIN: 'https://app.example.com/path' });
+    const t = await createTestApp({ db: brokenDb(), config });
+    expect(await getJson(t.app, '/api/config')).toMatchObject({
+      status: 200,
+      body: { identity: 'none', webOrigin: 'https://app.example.com', apiUrl: 'https://corp.example.com' },
+    });
+    expect((await getJson(t.app, '/api/config')).body).not.toHaveProperty('clerkPublishableKey');
+  });
+
+  it('is in the API docs, without a bearer credential', async () => {
+    const t = await createTestApp({ db: brokenDb() });
+    const doc = (await getJson(t.app, '/api/openapi.json')).body as {
+      paths: Record<string, { get?: { tags?: string[]; security?: unknown } }>;
+    };
+    expect(doc.paths['/api/config']?.get).toMatchObject({ tags: ['meta'] });
+    expect(doc.paths['/api/config']?.get?.security).toBeUndefined();
   });
 });

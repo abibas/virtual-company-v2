@@ -1,3 +1,4 @@
+import { CLERK_SECRET_KEY_PATTERN } from '@mwc/shared/config';
 import { z } from 'zod';
 
 /**
@@ -8,9 +9,7 @@ const emptyAsUnset = (value: unknown) => (value === '' ? undefined : value);
 
 const ClerkEnv = z.object({
   /** Backend API key: `sk_test_...` (development) or `sk_live_...`. */
-  CLERK_SECRET_KEY: z
-    .string()
-    .regex(/^sk_(test|live)_[A-Za-z0-9]{20,}$/, 'must look like sk_test_... or sk_live_...'),
+  CLERK_SECRET_KEY: z.string().regex(CLERK_SECRET_KEY_PATTERN, 'must look like sk_test_... or sk_live_...'),
   /** Encodes the Frontend API host, which is the issuer of session tokens. */
   CLERK_PUBLISHABLE_KEY: z
     .string()

@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DEV_DATABASE_URL,
+  DEV_ENV_FILES,
   type DevChild,
   type DevDeps,
   devPlan,
@@ -29,9 +30,30 @@ describe('devPlan', () => {
       { label: 'migrate', command: process.execPath, args: ['packages/db/scripts/migrate.ts'] },
     ]);
     expect(plan.services).toEqual([
-      { name: 'server', command: process.execPath, args: ['--watch', 'apps/server/src/main.ts'] },
+      {
+        name: 'server',
+        command: process.execPath,
+        args: [
+          '--env-file-if-exists=.env',
+          '--env-file-if-exists=.env.local',
+          '--watch',
+          'apps/server/src/main.ts',
+        ],
+      },
       { name: 'web', command: process.execPath, args: ['node_modules/vite/bin/vite.js'], cwd: 'apps/web' },
     ]);
+  });
+
+  it('has the API load .env, then .env.local, so the later file wins and the shell wins over both', () => {
+    expect(DEV_ENV_FILES).toEqual(['.env', '.env.local']);
+    const [server, web] = devPlan({}).services;
+    const flags = server?.args.filter((arg) => arg.startsWith('--env-file'));
+    expect(flags).toEqual(['--env-file-if-exists=.env', '--env-file-if-exists=.env.local']);
+    // Node applies its flags before the script; the web dev server needs no secrets and gets none.
+    expect(server?.args.indexOf('apps/server/src/main.ts')).toBe((server?.args.length ?? 0) - 1);
+    expect(web?.args.some((arg) => arg.includes('env-file'))).toBe(false);
+    // The migrate step needs only DATABASE_URL, which the plan sets.
+    expect(devPlan({}).setup.every((step) => !step.args.some((arg) => arg.includes('env-file')))).toBe(true);
   });
 
   it('uses a DATABASE_URL that is already set and then leaves Docker alone', () => {
@@ -55,7 +77,7 @@ describe('linePrefixer', () => {
 });
 
 /** Fake processes: steps succeed unless listed, services run until killed or ended by the test. */
-function fakeDeps(options: { env?: Env; failing?: string[] } = {}) {
+function fakeDeps(options: { env?: Env; failing?: string[]; files?: string[] } = {}) {
   const steps: Array<{ step: Step; env: Env }> = [];
   const started: Array<{ service: Service; env: Env; output: (chunk: string) => void }> = [];
   const killed: Array<{ name: string; signal: string }> = [];
@@ -68,6 +90,7 @@ function fakeDeps(options: { env?: Env; failing?: string[] } = {}) {
       steps.push({ step, env });
       return !options.failing?.includes(step.label);
     },
+    exists: (path) => options.files?.includes(path) ?? false,
     start(service, env, output) {
       started.push({ service, env, output });
       const child: DevChild = {
@@ -128,6 +151,24 @@ describe('runDev', () => {
     ]);
     expect(fake.unsubscribed()).toBe(true);
     expect(c.out.join('')).toContain('Postgres keeps running');
+    expect(c.out.join('')).toContain('▶ server env: the shell only (no .env files)\n');
+  });
+
+  it('names the env files the API loads, never their contents', async () => {
+    for (const [files, line] of [
+      [['.env', '.env.local'], '▶ server env: .env, .env.local (the shell wins)\n'],
+      [['.env.local'], '▶ server env: .env.local (the shell wins)\n'],
+    ] as const) {
+      const fake = fakeDeps({ files: [...files], env: { CLERK_SECRET_KEY: 'sk_test_shellvalue' } });
+      const c = capture();
+      const done = runDev(new Set(), c.io, fake.deps);
+      fake.stop();
+      expect(await done).toBe(0);
+      expect(c.out.join('')).toContain(line);
+      expect(c.out.join('')).not.toContain('sk_test_shellvalue');
+      // The shell's variables reach the API as they are; Node's flags only fill in what is unset.
+      expect(fake.started[0]?.env.CLERK_SECRET_KEY).toBe('sk_test_shellvalue');
+    }
   });
 
   it('stops at the first failed setup step and starts nothing', async () => {
@@ -183,6 +224,12 @@ describe('systemDevDeps (real processes, kept to two short node runs)', () => {
     });
     expect(deps.runStep(step(0), { MWC_PROBE: 'yes' })).toBe(true);
     expect(deps.runStep({ label: 'missing', command: 'mwc-no-such-command', args: [] }, {})).toBe(false);
+  });
+
+  it('checks files relative to the repo root', () => {
+    const deps = systemDevDeps(repoRoot, {}, false);
+    expect(deps.exists('package.json')).toBe(true);
+    expect(deps.exists('mwc-no-such-file')).toBe(false);
   });
 
   it('starts a service, hands over its stdout and stderr, and reports its exit code once', async () => {

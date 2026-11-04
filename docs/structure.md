@@ -22,7 +22,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S4
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
-│   │   │   │   ├── health/         routes · service · repo · schemas           S0
+│   │   │   │   ├── health/         liveness, readiness, versions, /api/config  S0/S1.11
 │   │   │   │   ├── identity/       identity store, me, sync, webhook inbox (built) S1.4–S1.8
 │   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
@@ -36,7 +36,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
-│   ├── web/                        React UI, no tests for now
+│   ├── web/                        React UI, no tests for now (identity pages built) S1.11
 │   │   └── src/ app/ pages/ components/ api/ styles/
 │   └── runner/                     machine daemon                              S3
 ├── packages/                       libraries, pure where possible
@@ -191,10 +191,16 @@ Excluded are only the `src/index.ts` barrels, the executable entries (`apps/serv
 
 ## The web (`apps/web`)
 
-React 19, Vite and Tailwind 4: `src/main.tsx` (the entry), `src/app/` (the app shell), `src/pages/`
-(one file per page), `src/components/` (shared pieces, once there are any), `src/api/` (the typed
-client, `hc<AppType>`), `src/styles/` (the Tailwind theme and base styles). No frontend tests for now
-(no UI unit tests, no browser smoke): `mwc check` typechecks it in every lane and `--full` builds it.
+React 19, Vite and Tailwind 4: `src/main.tsx` (the entry), `src/app/` (the boot from `GET /api/config`, the Clerk
+root, the routes, the small router `router.tsx`, the session gate over `GET /api/me`, the shells and the company
+context), `src/pages/` (one file per page; `pages/auth/` for sign-in, sign-up, the invitation and the not-configured
+page, `pages/company/` for the pages under `/c/:slug`), `src/components/` (`ui/` the shared primitives: button, fields,
+panel, notice, loading states, inline confirmation, badges, copy button; `members/`, `api-keys/`, `settings/` one
+page's parts each), `src/api/` (the typed client `hc<AppType>`, `call()` and the error messages, the response types
+inferred from the routes, the `useLoad` hook and the API and configuration contexts), `src/styles/` (the Tailwind theme
+and base styles). A hook used by one component stays in its file. Source files keep the 300-line limit and components
+stay under about 60 lines (rows, panels and hooks of their own). No frontend tests for now (no UI unit tests, no
+browser smoke): `mwc check` typechecks it in every lane and `--full` builds it.
 
 ## Database changes
 

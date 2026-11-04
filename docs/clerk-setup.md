@@ -58,7 +58,7 @@ What the invitation flow relies on, and what is still unverified against the dev
 run of S1.2 is pending):
 
 - **The emailed link** lands on `<MWC_WEB_ORIGIN>/accept-invitation` (the `redirectUrl` of each invitation): the web
-  dev server in development, the public URL in production. The page itself comes with S1.11.
+  dev server in development, the public URL in production. The page is built (S1.11, "The web app" below).
 - **The private metadata reaches the membership.** An accepted membership is linked to our invitation by
   `mwc_invitation_id` in the membership's private metadata (Clerk's membership objects carry no invitation id). If
   Clerk does not copy it, `organizationInvitation.accepted` (and the reconcile's invitation list) still marks the
@@ -91,8 +91,35 @@ The server reads two more (`@mwc/shared/config`, S1.4):
 
 | Variable         | Default                                                                          | What |
 | ---------------- | -------------------------------------------------------------------------------- | ---- |
-| `MWC_IDENTITY`   | `clerk` when `CLERK_SECRET_KEY` is set, else `none`                              | `clerk` wires this connector (`apps/server/src/platform/identity.ts`) and needs both keys; `none` keeps health and the UI up and answers 503 `identity_not_configured` on every route behind `authn()` (the prod-like compose stack has no keys) |
+| `MWC_IDENTITY`   | `clerk` when `CLERK_SECRET_KEY` is a well-formed key (`sk_test_...`/`sk_live_...`, `CLERK_SECRET_KEY_PATTERN` of `@mwc/shared/config`), else `none`; a key that is set but malformed leaves sign-in off and the API logs a warning naming the variable (S1.11) | `clerk` wires this connector (`apps/server/src/platform/identity.ts`) and needs both keys; `none` keeps health and the UI up and answers 503 `identity_not_configured` on every route behind `authn()` (the prod-like compose stack has no keys) |
 | `MWC_WEB_ORIGIN` | `http://localhost:9951` (the slot's web port with `MWC_PORT_SLOT`); in production the origin of `MWC_PUBLIC_URL` | the web origin session tokens must be issued to: the server passes it as `authorizedParties` (Clerk's `azp`) on every `verifyAccessToken` |
+
+In development `pnpm dev` (and `pnpm dev:server`, `pnpm dev:memory`) start the API with `.env`, then `.env.local`,
+loaded by Node (`--env-file-if-exists`): `.env.local` wins over `.env`, and the shell wins over both (S1.11).
+
+## The web app (S1.11)
+
+The web (`apps/web`) signs people in with `@clerk/react` (6.18.4), telemetry off. It does not have the publishable key
+built in: it reads `GET /api/config` when it loads, which answers `{ identity, clerkPublishableKey?, webOrigin, apiUrl }`
+(the key only with `identity: clerk`; never a secret). With `identity: none` every page says that sign-in is not
+configured on this server.
+
+| Path                  | What                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `/sign-in`            | Clerk's `<SignIn/>` (path routing: its own steps live under `/sign-in/...`, Google's callback too) |
+| `/sign-up`            | Clerk's `<SignUp/>` (path routing, `/sign-up/...`)                                           |
+| `/accept-invitation`  | the invitations' `redirectUrl`: Clerk's `<SignUp/>` takes `__clerk_ticket` (or `<SignIn/>` when `__clerk_status=sign_in`), with hash routing so the ticket stays in the query; `__clerk_status=complete` goes to `/sign-in` and comes back. Signed in, it calls `GET /api/me` (the sign-in reconcile links the membership) and opens the company of the person's newest Clerk membership |
+| `/`                   | after sign-in (Clerk's fallback redirect): the last company opened in this browser, else the first, else `/companies/new` |
+
+After sign-out Clerk returns to `/sign-in`. The company shell (`/c/:slug`) makes the company's organization Clerk's active
+one (`setActive`), so Clerk's own components agree with the page; access never depends on it, and a refusal is ignored.
+
+**Origins and redirects.** Session tokens must be issued to `MWC_WEB_ORIGIN` (`azp`), `http://localhost:9951` in
+development: open the app at `http://localhost:9951`, not `127.0.0.1`. A development instance accepts `localhost`
+origins and redirects without dashboard settings, so nothing is set for 9951. If Clerk refuses a redirect (an "unsafe
+redirect" warning in the browser console), add the origin under the instance's allowed redirect origins. A production
+instance (S8) needs its public origin there, with the Paths (sign-in `/sign-in`, sign-up `/sign-up`) set to the app's.
+None of this has been clicked through against the real instance yet: Ihor's first sign-in is that check.
 
 ## How the connector uses Clerk
 

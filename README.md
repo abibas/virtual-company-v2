@@ -30,7 +30,9 @@ companies (S1.5: create with the outbox `create_org` call, list mine, read, rena
 typed again; `MWC_COMPANY_CREATION`, `MWC_COMPANY_CREATORS`); memberships (S1.6) and invitations (S1.7); Clerk
 webhooks (S1.8, `POST /api/webhooks/clerk`); personal API keys and `mwc login` / `whoami` / `logout` (S1.9); the
 jobs loop (S1.10: the identity outbox, the webhook event retry and the periodic reconcile, one runner per database by
-an advisory lock; `MWC_JOBS`, `MWC_RECONCILE_MINUTES`); next S1.11, the web's sign-in and Members page.
+an advisory lock; `MWC_JOBS`, `MWC_RECONCILE_MINUTES`); the web app for identity (S1.11: sign-in and sign-up with Clerk,
+onboarding, the company shell `/c/:slug` with its switcher, Members, API keys, Settings, `/accept-invitation`; the
+publishable key comes from `GET /api/config` at run time); next S1.12, the two-person end-to-end scenario.
 
 ## Start
 
@@ -44,8 +46,32 @@ pnpm dev                # Postgres (Docker, 9952), migrations, API on 9950, web 
 migrations, then runs the API (`node --watch`, Node's own TypeScript support) and the Vite dev server
 side by side with their output prefixed. Open http://localhost:9951. Ctrl-C stops both and leaves
 Postgres running; `pnpm mwc dev --down` stops it (the data volume stays). With `DATABASE_URL` already
-set it uses that database and leaves Docker alone. Nothing reads a `.env` file automatically: the server
-takes its configuration from the environment (`.env.example` lists the keys).
+set it uses that database and leaves Docker alone. The API starts with `.env`, then `.env.local`, from the
+repository root (Node's `--env-file-if-exists`): `.env.local` wins over `.env`, and variables set in the shell win
+over both; `mwc dev` prints which of the files exist, never their contents. `pnpm dev:server` and `pnpm dev:memory`
+load them the same way. Elsewhere (the server image, compose) the environment is the only source (`.env.example`
+lists the keys).
+
+### Signing in locally
+
+1. Put the Clerk development instance's keys in `.env.local` at the repository root (ignored by git):
+   `CLERK_SECRET_KEY=sk_test_...` and `CLERK_PUBLISHABLE_KEY=pk_test_...` (Clerk dashboard → Configure → API keys;
+   `docs/clerk-setup.md`). Sign-in turns on by itself once the secret key has the right shape; a placeholder leaves it
+   off, and the API log says so by the variable's name. Check without printing anything:
+
+   ```sh
+   node --env-file-if-exists=.env --env-file-if-exists=.env.local \
+     -e 'console.log(/^sk_(test|live)_[A-Za-z0-9]{20,}$/.test(process.env.CLERK_SECRET_KEY ?? "") ? "yes" : "no")'
+   ```
+
+2. `pnpm dev`, then open **http://localhost:9951** (`localhost`, not `127.0.0.1`: the API accepts session tokens
+   issued to `MWC_WEB_ORIGIN`, `http://localhost:9951` by default).
+3. Sign up or sign in with an email code or Google. The first time, the app asks you to create your company (or to
+   ask for an invitation); then it opens `/c/<slug>`: Overview, Members (invite, roles, remove, Sync now), API keys
+   (make one for `mwc login`) and Settings (rename, change the address, delete).
+
+Without the keys the app says "Sign-in is not configured on this server" on every page and shows the API status.
+The web reads its sign-in settings from `GET /api/config` when it loads, so nothing about Clerk is built into it.
 
 The prod-like stack, the server image as it would run in the cloud (API and UI on 9990, its own
 Postgres on 9992, a one-shot `migrate` before the server starts):
@@ -65,8 +91,8 @@ pnpm mwc structure --report  # early warnings: files near their limit, long func
 pnpm mwc ports          # the port map (9950–9999)
 ```
 
-Your own Claude Code (or a script) reaches the API with a personal API key. Make one signed in to the web app
-(`POST /api/companies/:companyId/api-keys {name, expiresInDays?}`; the key is shown once), then:
+Your own Claude Code (or a script) reaches the API with a personal API key. Make one on the web app's API keys page
+(`/c/<slug>/api-keys`; the key is shown once, with the `mwc login` command to paste), then:
 
 ```sh
 pbpaste | pnpm mwc login --server http://localhost:9950 --company <id|slug>   # or MWC_API_KEY=... ; never an argument

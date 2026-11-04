@@ -7,6 +7,12 @@ const emptyAsUnset = (value: unknown) => (value === '' ? undefined : value);
 /** Which identity provider signs people in; `none` serves health and the UI only (MWC_IDENTITY). */
 export const IdentityMode = z.enum(['clerk', 'none']);
 
+/**
+ * The shape of a Clerk secret key, `sk_test_...` or `sk_live_...` (the Clerk connector checks it the same way). Only a
+ * key of this shape turns sign-in on by default; a placeholder or a half-pasted key leaves it off.
+ */
+export const CLERK_SECRET_KEY_PATTERN = /^sk_(test|live)_[A-Za-z0-9]{20,}$/;
+
 /** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
 export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
@@ -48,7 +54,10 @@ const EnvSchema = z.object({
    * since the server serves the UI there.
    */
   MWC_WEB_ORIGIN: z.preprocess(emptyAsUnset, z.url({ protocol: /^https?$/ }).optional()),
-  /** `clerk` or `none` (sign-in off: identity routes answer 503). Defaults to clerk when CLERK_SECRET_KEY is set. */
+  /**
+   * `clerk` or `none` (sign-in off: identity routes answer 503). Defaults to clerk when CLERK_SECRET_KEY is a
+   * well-formed key (CLERK_SECRET_KEY_PATTERN), else none; MWC_IDENTITY=clerk with a bad key fails at startup.
+   */
   MWC_IDENTITY: z.preprocess(emptyAsUnset, IdentityMode.optional()),
   /** Clerk's keys (docs/clerk-setup.md); their shape is checked by the connector, never echoed. */
   CLERK_SECRET_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
@@ -76,10 +85,14 @@ const EnvSchema = z.object({
 export type IdentityMode = z.infer<typeof IdentityMode>;
 export type CompanyCreation = z.infer<typeof CompanyCreation>;
 
+/** MWC_IDENTITY when it is set, else clerk for a well-formed Clerk secret key, else none. */
+function identityMode(env: z.infer<typeof EnvSchema>): IdentityMode {
+  return env.MWC_IDENTITY ?? (CLERK_SECRET_KEY_PATTERN.test(env.CLERK_SECRET_KEY ?? '') ? 'clerk' : 'none');
+}
+
 /** MWC_IDENTITY=clerk (set, or implied by the secret key) needs both Clerk keys. */
 function requireClerkKeys(env: z.infer<typeof EnvSchema>, ctx: z.RefinementCtx): void {
-  const mode = env.MWC_IDENTITY ?? (env.CLERK_SECRET_KEY ? 'clerk' : 'none');
-  if (mode !== 'clerk') return;
+  if (identityMode(env) !== 'clerk') return;
   for (const key of ['CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY'] as const) {
     if (!env[key])
       ctx.addIssue({ code: 'custom', path: [key], message: 'required when MWC_IDENTITY is clerk' });
@@ -114,7 +127,7 @@ export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((e
   } = env;
   const port = MWC_PORT ?? (MWC_PORT_SLOT === undefined ? PORTS.api : slotPorts(MWC_PORT_SLOT).api);
   const publicUrl = MWC_PUBLIC_URL ?? `http://localhost:${port}`;
-  const identity: IdentityMode = MWC_IDENTITY ?? (env.CLERK_SECRET_KEY ? 'clerk' : 'none');
+  const identity = identityMode(env);
   return {
     ...rest,
     ...(MWC_PORT_SLOT === undefined ? {} : { MWC_PORT_SLOT }),

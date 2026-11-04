@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { IdentityMode } from '@mwc/shared/config';
 
 /** The API contract version; bumped only on a breaking change to `/api`. */
 export const API_VERSION = 1;
@@ -49,3 +50,29 @@ export const VersionSchema = z
     apiVersion: z.literal(API_VERSION),
   })
   .openapi('Version');
+
+/**
+ * What the web reads when it boots (`GET /api/config`): how people sign in here and where. Public by design, so one
+ * built image runs in any environment; it never carries a secret (the Clerk publishable key is meant for browsers).
+ */
+export const PublicConfigSchema = z
+  .object({
+    identity: z.enum(IdentityMode.options).openapi({
+      description: '`clerk`: people sign in with Clerk; `none`: sign-in is off on this server (MWC_IDENTITY)',
+    }),
+    clerkPublishableKey: z.string().optional().openapi({
+      example: 'pk_test_...',
+      description: "Clerk's publishable key for the browser, with `identity: clerk` only",
+    }),
+    webOrigin: z.url().openapi({
+      example: 'http://localhost:9951',
+      description: 'The web origin whose session tokens the API accepts (MWC_WEB_ORIGIN)',
+    }),
+    apiUrl: z.url().openapi({
+      example: 'http://localhost:9950',
+      description: 'The public URL of the API, for `mwc login --server` (MWC_PUBLIC_URL)',
+    }),
+  })
+  .openapi('PublicConfig');
+
+export type PublicConfig = z.infer<typeof PublicConfigSchema>;

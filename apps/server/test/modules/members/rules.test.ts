@@ -1,4 +1,5 @@
 import type { MembershipRole } from '@mwc/shared/enums';
+import { grantableRoles, mayRemove } from '@mwc/shared/roles';
 import { describe, expect, it } from 'vitest';
 import {
   auditedRole,
@@ -75,6 +76,28 @@ describe('removalRefusal', () => {
         );
       }
     }
+  });
+});
+
+describe("the web's role helpers (@mwc/shared/roles)", () => {
+  it('offer exactly the role changes and invitations these rules allow', () => {
+    for (const actor of ROLES) {
+      for (const target of ROLES) {
+        for (const next of ROLES) {
+          const allowed = roleChangeRefusal(actor, target, next) === undefined;
+          expect(grantableRoles(actor, target).includes(next), `${actor} ${target} → ${next}`).toBe(allowed);
+        }
+      }
+      for (const role of ROLES)
+        expect(grantableRoles(actor, 'viewer').includes(role)).toBe(inviteRefusal(actor, role) === undefined);
+    }
+  });
+
+  it('offer exactly the removals these rules allow', () => {
+    for (const actor of ROLES)
+      for (const target of ROLES)
+        for (const self of [true, false])
+          expect(mayRemove(actor, target, self)).toBe(removalRefusal(actor, target, self) === undefined);
   });
 });
 

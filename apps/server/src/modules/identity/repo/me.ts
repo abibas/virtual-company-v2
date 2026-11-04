@@ -40,6 +40,8 @@ export interface UserCompany {
   readonly slug: string;
   readonly name: string;
   readonly companyStatus: typeof companies.$inferSelect.status;
+  /** The identity provider's organization of the company; null while it is provisioning. */
+  readonly identityOrgId: string | null;
   readonly role: typeof memberships.$inferSelect.role;
   readonly status: typeof memberships.$inferSelect.status;
 }
@@ -66,6 +68,7 @@ export async function listUserCompanies(
       slug: companies.slug,
       name: companies.name,
       companyStatus: companies.status,
+      identityOrgId: companies.identityOrgId,
       role: memberships.role,
       status: memberships.status,
     })

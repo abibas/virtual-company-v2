@@ -27,6 +27,32 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: The first web pages: placements the table does not name, and nine fan-in warnings
+
+- **What happened:** S1.11 built the web's identity pages (47 files in `apps/web/src`, the largest 152 lines). The
+  placement table's UI row ("`apps/web/src/` `pages/`, `components/`, `app/`, `api/`, `styles/`") does not say where a
+  React hook, a React context, the router or a page's own components go. The first draft had 13 components over 60 lines
+  (`long-function`; JSX tables and pages, the longest `MembersPage` at 117 lines) and 7 web `fan-in` warnings, so the
+  report went from 20 to 40. Splitting the components into rows, panels and hooks (`MemberRow`, `KeyRow`,
+  `InvitationRow`, `PeoplePanel`, `InvitationsPanel`, `KeysPanel`, `useRoleChange`, `useCompanyMembership`, ...)
+  removed every web `long-function`, but added importers to the UI primitives: the report ends at 29 after
+  `pnpm mwc check` (28 after `--full`, whose Postgres run covers `outbox-drain.ts`), the baseline plus 9 web `fan-in` (`api/types.ts` 22 importers, `api/errors.ts` 18, `components/ui/Button.tsx` 16,
+  `app/router.tsx` 15, `api/context.ts` 14, `components/ui/Badge.tsx`, `Loading.tsx`, `PageHeader.tsx` and `Panel.tsx`
+  8 each). `api/types.ts` is imported for types only, by every file.
+- **Where:** `apps/web/src/app/` (shell, router, session gate, contexts), `api/` (client, errors, inferred types, the
+  `useLoad` hook, the config and API contexts), `components/ui/` (primitives), `components/{members,api-keys,settings}/`
+  (one page's parts each), `pages/` and `pages/{auth,company}/`; S1.11.
+- **What was done:** hooks that call the API (`useLoad`) and the contexts holding API state (`ApiContext`,
+  `PublicConfigContext`) went to `api/`; the session, the company context, the router and the shells to `app/`; a
+  hook used by one component stays in that component's file; a page's own pieces got a folder per area under
+  `components/`. The fan-in stayed: these files are the web's platform, as `platform/env.ts` is the server's, and a
+  barrel or a merged file would only move the count.
+- **Suggested change:** placement-table rows for the web: "A hook or context that calls the API → `apps/web/src/api/`;
+  the session, router and shells → `app/`; a page's own components → `components/<area>/`; shared primitives →
+  `components/ui/`." And leave `apps/web/src/components/ui/` and `apps/web/src/api/` out of `fan-in` (or count only
+  value imports, the S1.4 lesson), as the open lessons suggest for the server's platform files.
+- **Status:** `open`.
+
 ### 2026-11-04: The jobs loop made the outbox a fan-in warning
 
 - **What happened:** `platform/jobs/outbox.ts` had 7 importers (five members service files and two companies service

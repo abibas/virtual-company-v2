@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigError, loadConfig } from '../src/config.ts';
+import { CLERK_SECRET_KEY_PATTERN, ConfigError, loadConfig } from '../src/config.ts';
 
 const valid = { DATABASE_URL: 'postgres://mwc:mwc@localhost:9952/mwc' };
 
@@ -175,6 +175,29 @@ describe('loadConfig identity', () => {
     }
     expect(() => loadConfig({ ...valid, MWC_IDENTITY: 'clerk' })).toThrow(/CLERK_SECRET_KEY/);
     expect(() => loadConfig({ ...valid, MWC_IDENTITY: 'okta' })).toThrow(/MWC_IDENTITY/);
+  });
+
+  it('stays none for a secret key that is not one (a placeholder), unless MWC_IDENTITY asks for clerk', () => {
+    for (const bad of [
+      'sk_test_...',
+      'paste-the-key-here',
+      `sk_prod_${'A1'.repeat(20)}`,
+      `sk_test_${'A'.repeat(19)}`,
+    ]) {
+      expect(CLERK_SECRET_KEY_PATTERN.test(bad)).toBe(false);
+      const config = loadConfig({ ...valid, CLERK_SECRET_KEY: bad, CLERK_PUBLISHABLE_KEY: PUBLISHABLE });
+      expect(config.MWC_IDENTITY).toBe('none');
+      // Asked for explicitly, clerk keeps the key; the connector refuses its shape when the server starts.
+      const forced = loadConfig({
+        ...valid,
+        MWC_IDENTITY: 'clerk',
+        CLERK_SECRET_KEY: bad,
+        CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+      });
+      expect(forced.MWC_IDENTITY).toBe('clerk');
+    }
+    expect(CLERK_SECRET_KEY_PATTERN.test(SECRET)).toBe(true);
+    expect(CLERK_SECRET_KEY_PATTERN.test(`sk_live_${'Zz9'.repeat(7)}`)).toBe(true);
   });
 
   it('treats empty Clerk variables as unset', () => {

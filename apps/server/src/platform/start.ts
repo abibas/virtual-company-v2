@@ -89,6 +89,22 @@ function jobsRunner(server: ServerDeps, timers: Timers): JobsRunner | undefined 
 }
 
 /**
+ * Says why sign-in is off when a Clerk secret key is set but is not one (a placeholder, a half-pasted key) and
+ * MWC_IDENTITY did not ask for clerk: the variable's name only, never its value.
+ */
+function warnIgnoredSecretKey(
+  env: Readonly<Record<string, string | undefined>>,
+  config: Config,
+  logger: Logger,
+) {
+  if (!env.CLERK_SECRET_KEY || env.MWC_IDENTITY || config.MWC_IDENTITY !== 'none') return;
+  logger.warn(
+    { variable: 'CLERK_SECRET_KEY' },
+    'CLERK_SECRET_KEY is set but does not look like sk_test_... or sk_live_...; sign-in stays off',
+  );
+}
+
+/**
  * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError`
  * listing every problem when it is invalid, before anything is opened), the logger, the database, the
  * migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the listening server, the jobs loop
@@ -101,6 +117,7 @@ export async function start(
   const deps: StartDeps = { ...SYSTEM, ...overrides };
   const config = loadConfig({ ...env });
   const logger = await deps.createLogger(config);
+  warnIgnoredSecretKey(env, config, logger);
   const version = deps.readVersion();
   const db = await deps.openDb(config, logger);
 

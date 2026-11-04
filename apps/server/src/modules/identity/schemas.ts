@@ -10,7 +10,10 @@ export const MeUserSchema = z
   })
   .openapi('MeUser');
 
-/** One company the user belongs to: their role and membership status there, and the company's status. */
+/**
+ * One company the user belongs to: their role and membership status there, the company's status, and its organization
+ * at the identity provider (null while provisioning; the web makes it Clerk's active organization).
+ */
 export const MeMembershipSchema = z
   .object({
     companyId: z.string(),
@@ -19,6 +22,7 @@ export const MeMembershipSchema = z
     role: MembershipRole,
     status: MembershipStatus,
     companyStatus: CompanyStatus,
+    identityOrgId: z.string().nullable().openapi({ example: 'org_2abc...' }),
   })
   .openapi('MeMembership');
 

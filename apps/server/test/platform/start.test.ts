@@ -98,6 +98,24 @@ describe('start', () => {
     expect((await getJson(started.app, '/readyz')).status).toBe(503);
   });
 
+  it('keeps sign-in off and says why, by name only, when CLERK_SECRET_KEY is not a Clerk secret key', async () => {
+    const placeholder = 'paste-the-secret-key-here';
+    const t = testDeps();
+    const started = await start({ ...ENV, CLERK_SECRET_KEY: placeholder }, t.deps);
+    open.push(started.db);
+    expect(started.config.MWC_IDENTITY).toBe('none');
+    const warning = t.lines.find((line) => line.variable === 'CLERK_SECRET_KEY');
+    expect(warning).toMatchObject({ level: LEVEL.warn, msg: expect.stringContaining('sign-in stays off') });
+    expect(JSON.stringify(t.lines)).not.toContain(placeholder);
+    expect(t.lines.find((line) => line.msg === 'listening')).toMatchObject({ identity: 'none' });
+    // Sign-in switched off on purpose, or no key at all: nothing to say.
+    for (const env of [{ ...ENV, MWC_IDENTITY: 'none', CLERK_SECRET_KEY: placeholder }, ENV]) {
+      const quiet = testDeps();
+      open.push((await start(env, quiet.deps)).db);
+      expect(quiet.lines.some((line) => line.variable === 'CLERK_SECRET_KEY')).toBe(false);
+    }
+  });
+
   it('applies the migrations first with MWC_MIGRATE_ON_START, or when the caller asks', async () => {
     for (const [env, migrate] of [
       [{ ...ENV, MWC_MIGRATE_ON_START: 'true' }, false],

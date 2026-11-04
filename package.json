@@ -13,9 +13,9 @@
     "mwc": "node packages/cli/src/mwc.ts",
     "dev": "node packages/cli/src/mwc.ts dev",
     "check": "node packages/cli/src/mwc.ts check",
-    "dev:server": "node --watch apps/server/src/main.ts",
+    "dev:server": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --watch apps/server/src/main.ts",
     "dev:web": "pnpm --filter @mwc/web dev",
-    "dev:memory": "node apps/server/scripts/memory-server.ts",
+    "dev:memory": "node --env-file-if-exists=.env --env-file-if-exists=.env.local apps/server/scripts/memory-server.ts",
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome format --write ."

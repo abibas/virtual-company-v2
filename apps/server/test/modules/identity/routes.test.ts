@@ -44,6 +44,7 @@ describe('GET /api/me: reconcile on sign-in', () => {
             role: 'member',
             status: 'active',
             companyStatus: 'active',
+            identityOrgId: company.identityOrgId,
           },
         ],
         session: { via: 'clerk', pending: false },
@@ -211,11 +212,13 @@ describe('GET /api/me: what it lists', () => {
         .where(eq(companies.id, company?.id ?? ''));
     }
     const res = await me(`fake:${person.subject}`);
-    const listed = (res.body as { memberships: { name: string; companyStatus: string }[] }).memberships;
-    expect(listed.map((m) => [m.name, m.companyStatus])).toEqual([
-      ['Company active', 'active'],
-      ['Company provisioning', 'provisioning'],
-      ['Company suspended', 'suspended'],
+    const listed = (
+      res.body as { memberships: { name: string; companyStatus: string; identityOrgId: string | null }[] }
+    ).memberships;
+    expect(listed.map((m) => [m.name, m.companyStatus, m.identityOrgId])).toEqual([
+      ['Company active', 'active', null],
+      ['Company provisioning', 'provisioning', null],
+      ['Company suspended', 'suspended', null],
     ]);
   });
 

@@ -1,6 +1,8 @@
 import { type JournalEntry, type MigrationStatus, migrationStatus, pingDb, readJournal } from '@mwc/db';
+import type { Config } from '@mwc/shared/config';
 import type { AppDeps } from '../../platform/env.ts';
 import { JOBS_OFF, type JobsStatus, type OutboxBacklog, outboxBacklog } from '../../platform/jobs/status.ts';
+import type { PublicConfig } from './schemas.ts';
 
 /** /readyz answers 503 when the database has not answered within this many milliseconds. */
 export const READY_TIMEOUT_MS = 2000;
@@ -69,5 +71,20 @@ export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal' | 
         return { ready: false, reason: timedOut ? 'database timed out' : 'database unreachable' };
       }
     },
+  };
+}
+
+/**
+ * The public part of the configuration, for the web (`GET /api/config`): the sign-in mode, Clerk's publishable key
+ * when Clerk signs people in, the web origin and the API's public URL. Picked field by field, so no secret (the Clerk
+ * secret key, the JWT key, the webhook secret, the database URL) can reach it.
+ */
+export function publicConfig(config: Config): PublicConfig {
+  const clerk = config.MWC_IDENTITY === 'clerk' && config.CLERK_PUBLISHABLE_KEY !== undefined;
+  return {
+    identity: clerk ? 'clerk' : 'none',
+    ...(clerk ? { clerkPublishableKey: config.CLERK_PUBLISHABLE_KEY } : {}),
+    webOrigin: config.MWC_WEB_ORIGIN,
+    apiUrl: config.MWC_PUBLIC_URL.replace(/\/+$/, ''),
   };
 }

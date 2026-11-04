@@ -3,10 +3,12 @@
  * 9952) and waits for it to be healthy, applies the migrations, then runs the API (9950,
  * `node --watch`) and the web dev server (9951, Vite) side by side with their output prefixed.
  * Ctrl-C stops both and leaves Postgres running; `mwc dev --down` stops it (the volume stays).
- * Everything that touches the system goes through `DevDeps`, so the plan and the supervision are
- * unit-tested with fakes.
+ * The API loads `.env`, then `.env.local` (Node's --env-file-if-exists): the later file wins, the shell
+ * wins over both, and only the file names are printed. Everything that touches the system goes through
+ * `DevDeps`, so the plan and the supervision are unit-tested with fakes.
  */
 import { spawn, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { PORTS } from '@mwc/shared/ports';
 
@@ -15,6 +17,8 @@ export type Env = Readonly<Record<string, string | undefined>>;
 /** The dev compose file (relative to the repo root) and the database URL it serves. */
 export const DEV_COMPOSE_FILE = 'deploy/compose.yml';
 export const DEV_DATABASE_URL = `postgres://mwc:mwc@localhost:${PORTS.postgres}/mwc`;
+/** The env files the API loads, in order (the later wins; variables already set win over both). */
+export const DEV_ENV_FILES = ['.env', '.env.local'] as const;
 
 /** A process that runs to completion with inherited output, from the repo root or `cwd` under it. */
 export interface Step {
@@ -59,6 +63,7 @@ export const postgresDown: Step = {
  */
 export function devPlan(env: Env): DevPlan {
   const external = Boolean(env.DATABASE_URL);
+  const envFlags = DEV_ENV_FILES.map((file) => `--env-file-if-exists=${file}`);
   return {
     env: { DATABASE_URL: env.DATABASE_URL || DEV_DATABASE_URL, NODE_ENV: env.NODE_ENV || 'development' },
     setup: [
@@ -66,7 +71,11 @@ export function devPlan(env: Env): DevPlan {
       { label: 'migrate', command: process.execPath, args: ['packages/db/scripts/migrate.ts'] },
     ],
     services: [
-      { name: 'server', command: process.execPath, args: ['--watch', 'apps/server/src/main.ts'] },
+      {
+        name: 'server',
+        command: process.execPath,
+        args: [...envFlags, '--watch', 'apps/server/src/main.ts'],
+      },
       { name: 'web', command: process.execPath, args: ['node_modules/vite/bin/vite.js'], cwd: 'apps/web' },
     ],
   };
@@ -105,6 +114,8 @@ export interface DevDeps {
   runStep(step: Step, env: Env): boolean;
   /** Starts a service; its stdout and stderr chunks go to `output`. */
   start(service: Service, env: Env, output: (chunk: string) => void): DevChild;
+  /** Whether a file exists, relative to the repo root (only to name the env files the API loads). */
+  exists(path: string): boolean;
   /** Calls `handler` on Ctrl-C (SIGINT) or SIGTERM; returns the unsubscribe function. */
   onStop(handler: () => void): () => void;
 }
@@ -124,8 +135,10 @@ export async function runDev(flags: ReadonlySet<string>, io: DevIo, deps: DevDep
       return 1;
     }
   }
+  const files = DEV_ENV_FILES.filter((file) => deps.exists(file)).join(', ');
   io.stdout(
-    `▶ server on http://localhost:${PORTS.api}, web on http://localhost:${PORTS.web}\n` +
+    `▶ server env: ${files ? `${files} (the shell wins)` : 'the shell only (no .env files)'}\n` +
+      `▶ server on http://localhost:${PORTS.api}, web on http://localhost:${PORTS.web}\n` +
       '  Ctrl-C stops both; Postgres keeps running (mwc dev --down stops it)\n',
   );
 
@@ -183,6 +196,7 @@ export function systemDevDeps(
       });
       return result.status === 0;
     },
+    exists: (path) => existsSync(join(repoRoot, path)),
     start(service, serviceEnv, output) {
       const child = spawn(service.command, service.args, {
         cwd: join(repoRoot, service.cwd ?? ''),
