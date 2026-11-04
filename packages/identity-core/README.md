@@ -2,8 +2,8 @@
 
 Provider-agnostic identity for Most Wanted Corp v2 (S1.1): the `IdentityProvider` port, the normalized
 identity events, the `IdentityStore` port, the order-safe projector, reconcile, and the test doubles. Pure
-TypeScript: no identity provider SDK and no database. The Clerk provider (S1.2) and the database store
-(S1.3) plug into the two ports. Background: `docs/architecture.md`, "Identity flow".
+TypeScript: no identity provider SDK and no database. The Clerk provider (S1.2, `connectors/identity-clerk`)
+and the database store (S1.3) plug into the two ports. Background: `docs/architecture.md`, "Identity flow".
 
 ```ts
 import { project, projectionContext, reconcileOrganization, reconcileUser } from '@mwc/identity-core';
@@ -127,7 +127,7 @@ reconcile and user webhooks do.
 
 ## How the next steps plug in
 
-- **S1.2 `@mwc/identity-clerk`** implements `IdentityProvider` over `@clerk/backend`: `verifyToken` with
+- **S1.2 `@mwc/identity-clerk`** (`connectors/identity-clerk`) implements `IdentityProvider` over `@clerk/backend`: `verifyToken` with
   issuer, authorized parties and `sts`; the Backend API mapped to the `External*` shapes; Clerk errors
   mapped to `IdentityProviderError` (HTTP 429 → `rate_limited` with `Retry-After`); members paged inside
   `listOrganizationMembers`; `parseWebhook` verifying svix and mapping `user.*`, `organization.*`,

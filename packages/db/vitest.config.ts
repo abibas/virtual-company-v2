@@ -4,6 +4,6 @@ export default defineProject({
   test: {
     name: 'db',
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['test/**/*.test.ts'],
   },
 });

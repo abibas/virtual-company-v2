@@ -3,9 +3,9 @@
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    // node: vite.config.ts, playwright.config.ts and the server sources the typed client reaches
-    // through `import type { AppType } from '@mwc/server'`. vite/client: CSS imports, import.meta.env.
+    // node: vite.config.ts and the server sources the typed client reaches through
+    // `import type { AppType } from '@mwc/server'`. vite/client: CSS imports, import.meta.env.
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }

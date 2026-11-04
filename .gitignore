@@ -1,7 +1,8 @@
 # dependencies and builds
 node_modules/
 dist/
-coverage/
+# test coverage and other tool caches
+.cache/
 *.tsbuildinfo
 
 # local data, never committed
@@ -20,4 +21,6 @@ worktrees/
 # editors and OS
 .DS_Store
 .idea/
-.vscode/
+# shared editor settings are committed; personal ones are not
+.vscode/*
+!.vscode/settings.json

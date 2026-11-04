@@ -1,0 +1,55 @@
+import { type JournalEntry, type MigrationStatus, migrationStatus, pingDb, readJournal } from '@mwc/db';
+import type { AppDeps } from '../../platform/env.ts';
+
+/** /readyz answers 503 when the database has not answered within this many milliseconds. */
+export const READY_TIMEOUT_MS = 2000;
+
+export type Readiness = { ready: true; migrations: MigrationStatus } | { ready: false; reason: string };
+
+export interface HealthService {
+  /** The database answers within READY_TIMEOUT_MS and every migration in the journal is applied. */
+  readiness(): Promise<Readiness>;
+}
+
+class Timeout extends Error {}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Timeout(`no answer within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * The health checks of one app. The migration journal is read once here, when the app is built (it only
+ * changes with a new deploy), never per request.
+ */
+export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal'>): HealthService {
+  const journal: readonly JournalEntry[] = deps.journal ?? readJournal();
+  return {
+    async readiness() {
+      try {
+        const migrations = await withTimeout(
+          pingDb(deps.db).then(() => migrationStatus(deps.db, { journal })),
+          READY_TIMEOUT_MS,
+        );
+        if (!migrations.current) {
+          return {
+            ready: false,
+            reason: `migrations behind: ${migrations.applied} of ${migrations.expected} applied`,
+          };
+        }
+        return { ready: true, migrations };
+      } catch (error) {
+        // The driver's message can name hosts and users; it goes to the log, the client gets a summary.
+        const timedOut = error instanceof Timeout;
+        deps.logger.warn(
+          { err: error },
+          timedOut ? 'readyz: database timed out' : 'readyz: database unreachable',
+        );
+        return { ready: false, reason: timedOut ? 'database timed out' : 'database unreachable' };
+      }
+    },
+  };
+}

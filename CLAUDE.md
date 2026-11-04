@@ -3,7 +3,7 @@
 A from-scratch rebuild of the Most Wanted corporation product: humans and AI agents in one
 organization, tasks, runs of Claude Code harnesses on remote machines, and an inbox for what
 needs a human. Approved by Ihor Herasko on 2026-11-03. The plan is `docs/plan-2026-11-03.md`;
-the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.md`.
+the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.md`, `docs/structure.md`.
 
 ## Rules
 
@@ -21,7 +21,7 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
   `(company_id, parent_id)`, and route code reaches tenant data only through `tenant(db, companyId)`.
 - **Tests with every ticket.** A ticket is done when its unit/integration tests are green in
   `pnpm mwc check`. Unit tests for domain code, integration tests for the API on PGlite, runner
-  and harness tests against fakes, a few Playwright smoke scenarios per release. No UI unit tests.
+  and harness tests against fakes. No frontend tests for now (no UI unit tests, no browser smoke).
 - **One step at a time.** Work is delivered step by step; after each step Ihor reviews and
   approves before the next one starts. Commit small, with a message that says what was built and
   how it was verified.
@@ -41,8 +41,9 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
 Node 24 (`.nvmrc`), pnpm (pinned in `package.json`), TypeScript 7, Biome, Vitest.
 Relative imports use the `.ts` extension; packages export TypeScript sources directly
 (bundling happens only for the deployable images). `index.ts` is for barrel re-exports only;
-executable entry points are named `main.ts`/`mwc.ts` (coverage excludes only barrels and the
-CLI entry). Biome does not format Markdown.
+executable entry points are `apps/server/src/main.ts`, `packages/cli/src/mwc.ts` and files in a
+package's `scripts/` (coverage excludes only those, the `src/index.ts` barrels and `apps/web`).
+Coverage reports go to `.cache/coverage` (ignored). Biome does not format Markdown.
 `docs/schema.md` is generated; after a schema change run `pnpm --filter @mwc/db generate` and
 `pnpm --filter @mwc/db diagram`.
 
@@ -51,7 +52,7 @@ pnpm install            # also installs the git hooks (pre-push, commit-msg)
 pnpm dev                # dev Postgres (Docker, 9952) + migrations + API 9950 + web 9951; mwc dev --down stops PG
 pnpm mwc check          # biome, banned names, typecheck per package, db drift, tests with coverage
 pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
-pnpm mwc check --full   # + tests on the dev Postgres, web build, Playwright smoke (docs/testing.md)
+pnpm mwc check --full   # + tests on the dev Postgres and the web build (docs/testing.md)
 pnpm mwc ports          # the port map
 ```
 
@@ -64,22 +65,33 @@ Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock
 
 ## Layout
 
-`apps/server` (Hono API), `apps/web` (React), `apps/runner` (the machine daemon),
-`packages/shared` (zod schemas, contracts, ports, config), `packages/db` (Drizzle schema,
-migrations, tenant layer), `packages/identity-core` and `packages/identity-clerk`,
-`packages/harness` (Claude Code driver), `packages/testkit`, `packages/cli` (`mwc`),
-`packages/mcp` (MCP server for humans' Claude Code), `deploy/` (compose and Dockerfiles),
-`docs/`. Packages appear as their stage lands (see `docs/roadmap.md`).
+The map and its rules are `docs/structure.md`. In short: `apps/` are what we deploy (`server`, `web`,
+later `runner`), `packages/` the libraries (`shared`, `db`, `identity-core`, `testkit`, `cli`, later
+`harness-core`, `mcp`), `connectors/` the adapters to outside systems (`identity-clerk` first, S1.2),
+`deploy/` the compose files and Dockerfiles, `docs/`. Folders appear as their stage lands
+(`docs/roadmap.md`), never as empty placeholders.
 
-`apps/server`: `createApp(deps)` in `src/app.ts` builds the Hono app from injected deps (db handle, config,
-logger, version, clock) so tests drive it with `app.request()` on PGlite; `src/main.ts` is the process
-entry (config, Postgres, listen, graceful shutdown) and runs on Node's own TypeScript support, no tsx.
-Each module is a router from `newRouter()` mounted in `createApp`, with zod-openapi routes so
-`/api/openapi.json` and the web's typed client (`AppType`) follow the code. Errors are always
+- Every package: `package.json`, `tsconfig.json`, `src/` (code only), `test/` (tests only, mirroring
+  `src/`: `src/a/b.ts` → `test/a/b.test.ts`, helpers in `test/fixtures/`), `vitest.config.ts` (not in
+  `apps/web`), optional `README.md` and `scripts/` (dev tooling), `migrations/` (db only).
+- Size limits: source files ≤ 300 lines, test files ≤ 500; Markdown and generated files are exempt.
+- Coverage: ≥ 90% lines/statements/functions and ≥ 85% branches overall, ≥ 85% lines and ≥ 75%
+  branches per file.
+- Outside systems only through a connector implementing a `packages/*-core` port, wired in `app.ts`.
+
+`apps/server`: `src/main.ts` is a 3-line entry calling `start(process.env)` from `src/platform/start.ts`
+(config, logger, Postgres, migrate-on-start, listen, graceful shutdown; all injectable and tested).
+`createApp(deps)` in `src/app.ts` builds the Hono app from injected deps (db handle, config, logger,
+version, clock) so tests drive it with `app.request()` on PGlite. `src/platform/` is cross-cutting
+code without business rules (`http/`: router, request log, errors, API docs, static UI). Each business
+area is a module `src/modules/<area>/` (`routes.ts` HTTP only, `service.ts` logic, `repo.ts` data
+through the tenant layer, `schemas.ts` zod, `rules.ts` pure rules, `index.ts` the router factory),
+mounted in `createApp`, with zod-openapi routes so `/api/openapi.json` and the web's typed client
+(`AppType`) follow the code; modules never import another module's `repo.ts`. Errors are always
 `{ error: { code, message, requestId } }`; never put driver errors or stacks in a response.
+`src/dev/memory-server.ts` (`pnpm dev:memory`) is the API on an in-memory PGlite for local demos.
 
-`apps/web`: React 19, Vite, Tailwind 4 (tokens in `src/styles.css`, copied from the shared UI library's
-`theme.css`; light and dark). It calls the API only through `src/api.ts` (`hc<AppType>`, a type-only import
-of `@mwc/server`, so no server code is bundled; `e2e/bundle.spec.ts` checks that). No UI unit tests: the
-Playwright smoke in `apps/web/e2e` runs in `pnpm mwc check --full` and `pnpm e2e` with the installed Google
-Chrome (`channel: 'chrome'`), never a downloaded browser.
+`apps/web`: React 19, Vite, Tailwind 4 (`src/app/` shell, `src/pages/`, `src/api/` the typed client,
+`src/styles/theme.css` the tokens copied from the shared UI library's `theme.css`; light and dark). It
+calls the API only through `src/api/client.ts` (`hc<AppType>`, a type-only import of `@mwc/server`, so no
+server code is bundled). No frontend tests for now: `mwc check` typechecks it and `--full` builds it.

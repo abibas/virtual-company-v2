@@ -11,15 +11,14 @@ Everything v2 listens on lives in 9950–9999 so it never collides with v1 (3200
 | 9952      | Postgres (dev compose, `deploy/compose.yml`; `mwc dev` and the `mwc check --full` Postgres lane)                                             |
 | 9953      | Local runner health (`/healthz`)                                                                                                             |
 | 9954      | ngrok inspect UI (webhook tunnel forwards to 9950; dev only)                                                                                 |
-| 9955      | Web preview for e2e (`vite preview` of the production build)                                                                                 |
+| 9955      | Web preview (`vite preview` of the production build)                                                                                         |
 | 9956      | Drizzle Studio                                                                                                                               |
-| 9957      | API for e2e (in-memory PGlite, `apps/server/src/dev-memory.ts`)                                                                              |
-| 9958–9959 | spare                                                                                                                                        |
+| 9957–9959 | spare                                                                                                                                        |
 | 9960–9989 | Worktree triplets, slot k = 0..9: API `9960+3k`, web `9961+3k`, PG `9962+3k` (`MWC_PORT_SLOT`, or derived from the worktree path and probed) |
 | 9990–9992 | Compose "prod-like" stack (`deploy/compose.prod.yml`): 9990 server (API and the built UI), 9991 reserved (the server serves the UI), 9992 PG |
-| 9993–9999 | spare / Playwright reports                                                                                                                   |
+| 9993–9999 | spare                                                                                                                                        |
 
 
 ## Worktree slots
 
-An ephemeral instance (a task worktree, an e2e run) takes slot k in 0..9: API `9960+3k`, web `9961+3k`, Postgres `9962+3k`. Pick a slot with `MWC_PORT_SLOT=k`, or let `pnpm mwc ports --path <worktree>` derive a stable one from the path (FNV-1a hash mod 10); if that slot is busy, take the next free one.
+An ephemeral instance (a task worktree) takes slot k in 0..9: API `9960+3k`, web `9961+3k`, Postgres `9962+3k`. Pick a slot with `MWC_PORT_SLOT=k`, or let `pnpm mwc ports --path <worktree>` derive a stable one from the path (FNV-1a hash mod 10); if that slot is busy, take the next free one.

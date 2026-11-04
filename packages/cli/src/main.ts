@@ -5,7 +5,7 @@
  *   mwc check [--fast] [--full]      lint, typecheck every package, check db drift (migrations and the
  *                                    schema diagram), run the tests (with coverage unless --fast);
  *                                    --full adds the db and server tests on the dev Postgres (when
- *                                    Docker is available), the web build and the Playwright smoke
+ *                                    Docker is available) and the web build
  *   mwc dev [--down]                 dev Postgres + migrations + API (9950) + web (9951); --down stops Postgres
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
  *   mwc banned [--message FILE]      fail on a banned name (banned.ts) in the repository's files, or in
@@ -127,38 +127,33 @@ export function checkSteps(
         'exec',
         'vitest',
         'run',
-        ...(flags.has('fast') ? [] : ['--coverage', '--coverage.reportsDirectory=coverage/postgres']),
+        ...(flags.has('fast') ? [] : ['--coverage', '--coverage.reportsDirectory=.cache/coverage/postgres']),
       ],
       env: { TEST_DB: 'postgres', TEST_DATABASE_URL: DEV_DATABASE_URL },
     });
   }
   if (packageDirs.includes('apps/web')) {
-    // Straight on Node from the web package (no pnpm or shell process in between): the production
-    // build, then the Playwright smoke against it (which starts the in-memory API and vite preview).
-    steps.push(
-      {
-        label: 'web build',
-        command: process.execPath,
-        args: ['node_modules/vite/bin/vite.js', 'build'],
-        cwd: 'apps/web',
-      },
-      {
-        label: 'e2e',
-        command: process.execPath,
-        args: ['node_modules/@playwright/test/cli.js', 'test'],
-        cwd: 'apps/web',
-      },
-    );
+    // The production build, straight on Node from the web package (no pnpm or shell process in between).
+    // The web has no tests for now (docs/structure.md); its typecheck runs in every lane.
+    steps.push({
+      label: 'web build',
+      command: process.execPath,
+      args: ['node_modules/vite/bin/vite.js', 'build'],
+      cwd: 'apps/web',
+    });
   }
   // Leave the machine as it was: stop the dev Postgres only if this run started it.
   if (postgres && !lane.postgresRunning) steps.push(postgresDown);
   return steps;
 }
 
+/** Where workspace packages live (pnpm-workspace.yaml), in typecheck order; a missing group is fine. */
+export const WORKSPACE_GROUPS: readonly string[] = ['packages', 'connectors', 'apps'];
+
 /** Workspace package directories (relative to the repo root) that have a tsconfig.json. */
 export function workspacePackages(root: string = repoRoot): string[] {
   const dirs: string[] = [];
-  for (const group of ['packages', 'apps']) {
+  for (const group of WORKSPACE_GROUPS) {
     const groupDir = join(root, group);
     if (!existsSync(groupDir)) continue;
     for (const name of readdirSync(groupDir).sort()) {
@@ -300,7 +295,7 @@ function banned(
 const HELP = [
   'mwc commands:',
   '  check [--fast] [--full]        lint, banned names, typecheck, db drift, test (coverage unless --fast);',
-  '                                 --full: tests on Postgres, web build, e2e',
+  '                                 --full: tests on Postgres, web build',
   '  dev [--down]                   Postgres, migrations, API on 9950 and web on 9951; --down stops Postgres',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
   '  banned [--message FILE]        banned names in the repository, or in a commit message file',

@@ -9,10 +9,9 @@ export const PORTS = {
   postgres: 9952,
   runnerHealth: 9953,
   ngrokInspect: 9954,
+  /** `vite preview` of the production web build. */
   webPreview: 9955,
   drizzleStudio: 9956,
-  /** The API on an in-memory PGlite that the web e2e smoke runs against (apps/server/src/dev-memory.ts). */
-  e2eApi: 9957,
   prodLike: { api: 9990, web: 9991, postgres: 9992 },
 } as const;
 
@@ -27,7 +26,7 @@ export interface SlotPorts {
   readonly postgres: number;
 }
 
-/** Ports of an ephemeral instance (a task worktree, an e2e run) in slot 0..SLOT_COUNT-1. */
+/** Ports of an ephemeral instance (a task worktree) in slot 0..SLOT_COUNT-1. */
 export function slotPorts(slot: number): SlotPorts {
   if (!Number.isInteger(slot) || slot < 0 || slot >= SLOT_COUNT) {
     throw new RangeError(`slot must be an integer in 0..${SLOT_COUNT - 1}, got ${String(slot)}`);

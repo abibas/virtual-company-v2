@@ -10,7 +10,7 @@
       "**",
       "!**/node_modules",
       "!**/dist",
-      "!**/coverage",
+      "!**/.cache",
       "!**/.data",
       "!packages/db/migrations",
       "!docs/schema.md"

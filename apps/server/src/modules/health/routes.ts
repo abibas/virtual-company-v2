@@ -1,0 +1,60 @@
+import { createRoute } from '@hono/zod-openapi';
+import type { AppDeps } from '../../platform/env.ts';
+import { newRouter } from '../../platform/http/router.ts';
+import { API_VERSION, HealthSchema, NotReadySchema, ReadySchema, VersionSchema } from './schemas.ts';
+import { healthService } from './service.ts';
+
+const healthzRoute = createRoute({
+  method: 'get',
+  path: '/healthz',
+  tags: ['health'],
+  summary: 'Liveness: the process is up (never touches the database)',
+  responses: {
+    200: { description: 'Alive', content: { 'application/json': { schema: HealthSchema } } },
+  },
+});
+
+const readyzRoute = createRoute({
+  method: 'get',
+  path: '/readyz',
+  tags: ['health'],
+  summary: 'Readiness: the database answers and every migration is applied',
+  responses: {
+    200: { description: 'Ready', content: { 'application/json': { schema: ReadySchema } } },
+    503: { description: 'Not ready', content: { 'application/json': { schema: NotReadySchema } } },
+  },
+});
+
+const versionRoute = createRoute({
+  method: 'get',
+  path: '/api/version',
+  tags: ['meta'],
+  summary: 'The server version and the API contract version',
+  responses: {
+    200: { description: 'Versions', content: { 'application/json': { schema: VersionSchema } } },
+  },
+});
+
+/** Liveness (`/healthz`), readiness (`/readyz`) and the versions (`/api/version`). */
+export function healthRoutes(deps: AppDeps) {
+  const health = healthService(deps);
+  return newRouter()
+    .openapi(healthzRoute, (c) => c.json({ status: 'ok' as const, version: deps.version }, 200))
+    .openapi(readyzRoute, async (c) => {
+      const check = await health.readiness();
+      if (!check.ready) {
+        return c.json({ status: 'not_ready' as const, reason: check.reason }, 503);
+      }
+      const { applied, expected, last } = check.migrations;
+      return c.json(
+        {
+          status: 'ready' as const,
+          version: deps.version,
+          db: 'ok' as const,
+          migrations: { applied, expected, last },
+        },
+        200,
+      );
+    })
+    .openapi(versionRoute, (c) => c.json({ version: deps.version, apiVersion: API_VERSION }, 200));
+}

@@ -91,9 +91,22 @@ export async function dropStaleTestDbs(admin: Sql, options: DropStaleOptions = {
   return dropped;
 }
 
+/** How `createTestDb` reaches a Postgres server: postgres.js and `createDb`, unless a test fakes them. */
+export interface TestDbServer {
+  /** A one-connection client that creates, sweeps and drops the test databases. */
+  admin(url: string): Sql;
+  /** A handle on one test database. */
+  open(url: string): DbHandle;
+}
+
+const POSTGRES: TestDbServer = {
+  admin: (url) => postgres(url, { max: 1, onnotice: () => {} }),
+  open: (url) => createDb(url, { poolSize: 2, onnotice: () => {} }),
+};
+
 /** Runs `work` on a one-connection admin client for the server in TEST_DATABASE_URL. */
-async function onServer<T>(url: string, work: (admin: Sql) => Promise<T>): Promise<T> {
-  const admin = postgres(url, { max: 1, onnotice: () => {} });
+async function onServer<T>(url: string, server: TestDbServer, work: (admin: Sql) => Promise<T>): Promise<T> {
+  const admin = server.admin(url);
   try {
     return await work(admin);
   } finally {
@@ -104,7 +117,7 @@ async function onServer<T>(url: string, work: (admin: Sql) => Promise<T>): Promi
 /** Servers this process has already swept, so the sweep runs once per test process and server. */
 const swept = new Set<string>();
 
-export async function createTestDb(env: Env = process.env): Promise<TestDb> {
+export async function createTestDb(env: Env = process.env, server: TestDbServer = POSTGRES): Promise<TestDb> {
   if (testDbKind(env) === 'pglite') {
     const handle = await createPgliteDb();
     // A test may close the handle itself (to see a dead database); closing twice must not throw.
@@ -114,7 +127,7 @@ export async function createTestDb(env: Env = process.env): Promise<TestDb> {
   if (!serverUrl)
     throw new Error('TEST_DB=postgres needs TEST_DATABASE_URL (e.g. postgres://mwc:mwc@localhost:9952/mwc)');
   const name = testDbName();
-  await onServer(serverUrl, async (admin) => {
+  await onServer(serverUrl, server, async (admin) => {
     if (!swept.has(serverUrl)) {
       swept.add(serverUrl);
       await dropStaleTestDbs(admin);
@@ -123,7 +136,7 @@ export async function createTestDb(env: Env = process.env): Promise<TestDb> {
   });
   const url = new URL(serverUrl);
   url.pathname = `/${name}`;
-  const handle = createDb(url.toString(), { poolSize: 2, onnotice: () => {} });
+  const handle = server.open(url.toString());
   let closed = false;
   return {
     kind: 'postgres',
@@ -132,7 +145,9 @@ export async function createTestDb(env: Env = process.env): Promise<TestDb> {
       if (closed) return;
       closed = true;
       await handle.close();
-      await onServer(serverUrl, (admin) => admin.unsafe(`drop database if exists "${name}" with (force)`));
+      await onServer(serverUrl, server, (admin) =>
+        admin.unsafe(`drop database if exists "${name}" with (force)`),
+      );
     },
   };
 }

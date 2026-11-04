@@ -21,7 +21,7 @@ Done when: fresh clone → `pnpm i && pnpm dev` serves the web on 9951 against t
 1. Workspace scaffold (pnpm, tsconfig base, Biome, `.nvmrc`, `.env.example`, zod `loadConfig()`) — test: config rejects a missing `DATABASE_URL`. **Done 2026-11-03.**
 2. `@mwc/db`: drizzle config, `0000_init.sql` (`companies`, `users`, `audit_log`), `migrateToLatest()` — test: migrates on PGlite; a second run is a no-op. **Done 2026-11-03.** S0.2b: the generated schema diagram `docs/schema.md` (Mermaid ER diagram + a section per table), drift-checked by `mwc check`. **Done 2026-11-03.**
 3. `@mwc/server`: `createApp(deps)`, `/healthz`, `/readyz` (DB ping + migrations current), `/api/openapi.json`, `/api/docs`, request id + pino — tests: readyz 503 before migrate, 200 after. **Done 2026-11-03.**
-4. `@mwc/web`: Vite/React/Tailwind shell with the design tokens from the shared UI library's `theme.css` — Playwright: page loads, shows the API version. **Done 2026-11-03.**
+4. `@mwc/web`: Vite/React/Tailwind shell with the design tokens from the shared UI library's `theme.css` — Playwright: page loads, shows the API version. **Done 2026-11-03** (the Playwright smoke was removed in S1.0a: no frontend tests for now).
 5. Compose (postgres, migrate, server, runner placeholder) + `mwc dev` orchestrator + `docs/ports.md`. **Done 2026-11-03** (`deploy/compose.yml` = dev Postgres, `deploy/compose.prod.yml` = the prod-like stack, `deploy/Dockerfile.server`, `mwc dev`, the `--full` lane on Postgres, `docs/testing.md`).
 6. `@mwc/testkit` v0 + `mwc check` + pre-push hook + coverage thresholds. **Done 2026-11-03** (`mwc check`, the pre-push hook and the coverage thresholds landed with S0.1–S0.5; S0.6 adds `@mwc/testkit`, the stale test database sweep of the Postgres lane, `mwc` on plain Node without tsx, and the journal read once for `/readyz`).
 7. `CLAUDE.md` (v1 is read-only reference, ports, no secrets, no pushes, tenant id everywhere, tests per ticket), `README.md`, `docs/architecture.md` (this plan's sections 4–13), `docs/roadmap.md`. **Done 2026-11-03** (written with S0.1 and kept current by every step since; no separate commit).
@@ -37,9 +37,17 @@ Done when: fresh clone → `pnpm i && pnpm dev` serves the web on 9951 against t
 
 ### S1 — identity and companies
 
+Before S1.2 (2026-11-04, Ihor's approved layout): **S1.0a** the repository in the layout of `docs/structure.md`
+(tests in each package's `test/`, the server's `platform/` and `modules/`, `main.ts` a 3-line entry over the tested
+`platform/start.ts`, the in-memory demo server in `dev/`, a `connectors/` group, coverage in `.cache/`, raised
+coverage floors, no frontend tests for now: the Playwright smoke and its port 9957 are gone).
+
+Frontend tests are off for now (Ihor, 2026-11-04): the stage items below that name a Playwright smoke or an e2e
+scenario get one only when he turns them back on; until then those steps are checked by hand at the stage review.
+
 Done when: Ihor signs in, creates a company, invites a second real person who accepts via the emailed link, who appears active as member, is promoted to admin, is removed and loses access immediately; all of it with webhooks off and again with ngrok on; the e2e scenario is green.
 1. identity-core: interfaces, normalized events, `FakeIdentityProvider`, projector — unit: duplicate and out-of-order events converge. **Done 2026-11-04** (`@mwc/identity-core`: the `IdentityProvider` and `IdentityStore` ports, `IdentityProviderError`, the zod contracts in `@mwc/shared/identity`, the order-safe projector, `reconcileOrganization`/`reconcileUser`, `FakeIdentityProvider` and `InMemoryIdentityStore`, re-exported by `@mwc/testkit`; rules in `packages/identity-core/README.md`).
-2. identity-clerk: `verifyAccessToken`, Backend API wrapper, `parseWebhook`, `roleMap` — unit with a fake client; svix signature tests; the opt-in real-Clerk contract test run once against the dev app (also verifies the instance settings in `docs/clerk-setup.md`).
+2. `connectors/identity-clerk` (`@mwc/identity-clerk`): `verifyAccessToken`, Backend API wrapper, `parseWebhook`, `roleMap` — unit with a fake client; svix signature tests; the opt-in real-Clerk contract test run once against the dev app (also verifies the instance settings in `docs/clerk-setup.md`).
 3. Migration `0001_identity` (users, user_identities, companies columns, principals, memberships, invitations, identity_events, identity_outbox, api_keys) + `tenant()` layer + lint rule — integration: composite-FK rejection; `tenant()` 404 on a deleted company.
 4. `authn()` + `requireMembership()` + `GET /api/me` with reconcile-on-sign-in — tests: pending `sts`, wrong issuer, wrong `azp`, expired, API key, revoked key.
 5. Companies: create (outbox `create_org`), list mine, get, patch, soft delete with name confirmation — test: a retry after a provider failure creates no second org.
@@ -55,7 +63,7 @@ Done when: Ihor signs in, creates a company, invites a second real person who ac
 
 Done when: a chart with people and agents can be built, moved and read as a tree; invalid moves are refused with reasons; a removed person's reports are re-parented; SLOP BOX exists as an agent definition (coder role, Opus, effort xhigh, instructions) reporting to Ihor.
 1. Migration `0002_org`: agents, org_positions (+ reserved `credentials`, `machines` DDL, no API yet); zod contracts for S3–S5 tables in `@mwc/shared`.
-2. Domain `org-chart.ts`: `validateMove`, `nearestPersonUp`, `directReports`, `descendants` — unit: cycles, agent root, agent managing a person, chain not reaching a person.
+2. Org rules (`apps/server/src/modules/org/rules.ts`): `validateMove`, `nearestPersonUp`, `directReports`, `descendants` — unit: cycles, agent root, agent managing a person, chain not reaching a person.
 3. API: agents CRUD (name, slug, role_title, harness, model, effort, instructions, max_concurrent_runs), `PUT /org/positions/:principalId`, `GET /org/chart` — integration incl. cross-tenant and viewer-forbidden.
 4. Lifecycle hooks: membership activate → position under the inviter; remove → re-parent; agent archive → re-parent.
 5. Web: org chart page, agent form, person title edit.
@@ -73,7 +81,7 @@ Done when: a runner installed on Ihor's Mac as a launchd service and the compose
 ### S4 — tasks, threads, runs
 
 Done when: a message to a task assigned to an agent starts a run on its machine, events stream to the thread, the reply is posted; a second message resumes the same session id; Stop works; `kill -9` of the runner and a server restart mid-turn both recover; the chaos scripts pass with the fake `claude`.
-1. `HarnessDriver` + `claude-code` `buildSpawn`/`parseLine` + fake `claude` binary and fixtures (also records the real permission-tool round trip once with the installed CLI).
+1. `HarnessDriver` (`packages/harness-core`) + `connectors/harness-claude-code` `buildSpawn`/`parseLine` + fake `claude` binary and fixtures (also records the real permission-tool round trip once with the installed CLI).
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

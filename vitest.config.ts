@@ -2,29 +2,27 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // apps/web has no unit tests (house rule: no UI unit tests); its Playwright smoke runs in --full.
-    projects: ['packages/*', 'apps/*', '!apps/web'],
+    // Every workspace package with tests; apps/web has none for now (docs/structure.md). A group without
+    // packages yet (connectors/) simply matches nothing.
+    projects: ['packages/*', 'connectors/*', 'apps/*', '!apps/web'],
     coverage: {
       provider: 'v8',
-      include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
-      // Excluded: barrels (re-exports), the executable entries (the CLI's mwc.ts; the server's main.ts
-      // and dev-memory.ts: config, database, listen, signals, whose parts are tested one by one) and
-      // the web UI, which the Playwright smoke covers instead of unit tests.
-      exclude: [
-        '**/*.test.ts',
-        '**/src/index.ts',
-        'packages/cli/src/mwc.ts',
-        'apps/server/src/main.ts',
-        'apps/server/src/dev-memory.ts',
-        'apps/web/**',
-      ],
+      // Tests live in test/, so only code is measured.
+      include: ['packages/*/src/**/*.ts', 'connectors/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
+      // Excluded: barrels (re-exports) and the executable entries (the CLI's mwc.ts, the server's main.ts;
+      // scripts/ are outside src/), whose parts are tested one by one, and the web UI (no frontend tests
+      // for now).
+      exclude: ['**/src/index.ts', 'packages/cli/src/mwc.ts', 'apps/server/src/main.ts', 'apps/web/**'],
       thresholds: {
-        lines: 80,
-        statements: 80,
-        functions: 80,
-        branches: 70,
+        lines: 90,
+        statements: 90,
+        functions: 90,
+        branches: 85,
+        // And every file on its own (docs/structure.md, "Coverage").
+        perFile: { lines: 85, branches: 75 },
       },
-      reporter: ['text', 'lcov'],
+      reportsDirectory: '.cache/coverage',
+      reporter: ['text', 'lcov', 'json-summary'],
     },
   },
 });

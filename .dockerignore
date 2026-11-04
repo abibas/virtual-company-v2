@@ -1,7 +1,7 @@
 # Build context for deploy/Dockerfile.server: sources and manifests only.
 **/node_modules
 **/dist
-**/coverage
+**/.cache
 **/test-results
 **/*.log
 **/.DS_Store

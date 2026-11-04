@@ -6,7 +6,7 @@ The living architecture of Most Wanted Corp v2. Extracted from the approved plan
 
 | Topic             | Decision                                                                                                                                                                                                                                                                            | Why                                                                                                                                                                                                                                                                                      |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stack             | TypeScript monorepo (pnpm), Node 24 LTS, Hono + `@hono/zod-openapi`, Drizzle + Postgres 17 (PGlite in tests), React 19 / Vite / Tailwind 4, Vitest, Playwright smoke, Biome                                                                                                         | One language for server, runner, CLI, UI; typed contracts shared; the team knows Drizzle/React from v1                                                                                                                                                                                   |
+| Stack             | TypeScript monorepo (pnpm), Node 24 LTS, Hono + `@hono/zod-openapi`, Drizzle + Postgres 17 (PGlite in tests), React 19 / Vite / Tailwind 4, Vitest, Biome                                                                                                                         | One language for server, runner, CLI, UI; typed contracts shared; the team knows Drizzle/React from v1                                                                                                                                                                                   |
 | Tenancy           | `company_id` on every tenant table from day one; composite FKs `(company_id, id)`; a `tenant(db, companyId)` repository layer is the only path to tenant data; RLS later                                                                                                            | Ihor's requirement; cheap now, impossible later                                                                                                                                                                                                                                          |
 | Identity          | Clerk (his account; dev app `app_3IAf75l43AyCqPOIv08S99aiptE`) with **Clerk Organizations** = companies; Clerk sends invitations; local `users`/`memberships` are the authority; webhooks + reconcile; `IdentityProvider` interface so OIDC + SCIM ("user sync") plugs in later     | He asked for Clerk; Clerk already brings SSO/SAML and Directory Sync (SCIM, GA 2026-04); the interface keeps other IdPs possible                                                                                                                                                         |
 | Remote harnesses  | **Runner daemon (model B)**: a small outbound-connecting `mw-runner` on each machine (Mac laptop, devbox VM, or a container next to the server). SSH only for the one-time install.                                                                                                 | Every reference system (GitHub runner, Buildkite, GitLab, Nomad, Temporal, Anthropic's self-hosted Claude Code runner)                             dials out and holds a lease; the server needs no SSH keys, tunnels or Docker socket; identical in the cloud; survives server restarts |
@@ -14,7 +14,7 @@ The living architecture of Most Wanted Corp v2. Extracted from the approved plan
 | Human-in-the-loop | `attention_items` (question, permission, blocked, review, failed, done) created through MCP tools the runner serves to Claude and through `--permission-prompt-tool`; answered from the inbox, CLI or MCP; the answer reaches the waiting process or starts the next turn           | Headless Claude has no interactive AskUserQuestion; v1's `ask_user_question` + signals proved the pattern                                                                                                                                                                                |
 | CEO chat          | `mwc` CLI + `@mwc/mcp` MCP server with a personal API key: list agents, message a task/agent, read threads, list/answer inbox, watch inbox                                                                                                                                          | His own Claude Code session talks to SLOP BOX without the web UI                                                                                                                                                                                                                         |
 | Deployment        | docker-compose from S0 (postgres, migrate, server, runner-local); 12-factor env; `/healthz` `/readyz`; k8s later with the same images                                                                                                                                               | "Cloud ready" from the first commit                                                                                                                                                                                                                                                      |
-| Tests             | Unit (domain), integration (API on PGlite via `app.request()`), runner/harness tests with fakes, e2e smoke (Playwright); every stage ships with tests; `mwc check` + pre-push hook. No UI unit tests (his rule).                                                                    | Ihor's requirement for v2; v1's no-tests rule does not carry over                                                                                                                                                                                                                        |
+| Tests             | Unit (domain), integration (API on PGlite via `app.request()`), runner/harness tests with fakes; every stage ships with tests; `mwc check` + pre-push hook. No frontend tests for now (his rule, 2026-11-04: no UI unit tests, no browser smoke).                                     | Ihor's requirement for v2; v1's no-tests rule does not carry over                                                                                                                                                                                                                        |
 
 ## 4. Target architecture
 
@@ -44,21 +44,25 @@ The living architecture of Most Wanted Corp v2. Extracted from the approved plan
 
 ## 5. Repo layout (`/Users/abibas/PERSONAL/Most_Wanted_corp_v2`)
 
+The approved layout (2026-11-04), with what goes where, the size limits and the coverage floors, is
+`docs/structure.md`. The packages as planned:
+
 ```
-.nvmrc (24)  pnpm-workspace.yaml  tsconfig.base.json  biome.json  vitest.workspace.ts
-deploy/compose.yml  deploy/Dockerfile.server  deploy/Dockerfile.runner  .env.example  .githooks/pre-push
-CLAUDE.md  README.md  docs/{architecture,ports,clerk-setup,runner-protocol,harness,testing,roadmap}.md
-apps/server      @mwc/server    Hono + zod-openapi; modules (identity, org, machines, tasks, runs, attention, credentials); jobs; SSE; runner hub
-apps/web         @mwc/web       React 19 + Vite + Tailwind 4 + @clerk/react; typed client inferred from the server app type
-apps/runner      @mwc/runner    the machine daemon: enroll, WS link, lease, run folders, detached spawn, journal, MCP shim, self-update
-packages/shared  @mwc/shared    zod schemas, ids, enums, role matrix, runner-protocol.ts, harness-tools.ts, run-event contracts
-packages/db      @mwc/db        drizzle schema, migrations/*.sql, tenant() repositories, migrateToLatest(), audit diff helper
-packages/identity-core   @mwc/identity-core   IdentityProvider interface, normalized events, projector, reconcile, FakeIdentityProvider
-packages/identity-clerk  @mwc/identity-clerk  Clerk implementation (verifyToken, Backend API, verifyWebhook, role map)
-packages/harness @mwc/harness   HarnessDriver interface; claude-code driver (spawn args, stream-json parser, tool schemas); codex later
-packages/testkit @mwc/testkit   createTestApp() on PGlite, fixtures, token minting, svix-signed webhooks, provider contract suite, fake server/runner, fake `claude`
-packages/cli     @mwc/cli       mwc: check|dev|db|ports|login|whoami|org|agents|task|inbox|machine|runner
-packages/mcp     @mwc/mcp       MCP server for humans' Claude Code: me, org_chart, agents_list, send_message, read_thread, task_status, inbox_list, inbox_answer
+apps/server                 @mwc/server          Hono + zod-openapi: platform/ (http, auth, jobs, realtime) and modules/ (health, identity, companies, members, api-keys, org, machines, tasks, runs, inbox, credentials, integrations)
+apps/web                    @mwc/web             React 19 + Vite + Tailwind 4 + @clerk/react; typed client inferred from the server app type
+apps/runner                 @mwc/runner          the machine daemon: enroll, WS link, lease, run folders, detached spawn, journal, MCP shim, self-update
+packages/shared             @mwc/shared          zod schemas, ids, enums, role matrix, runner-protocol.ts, harness-tools.ts, run-event contracts
+packages/db                 @mwc/db              drizzle schema, migrations/*.sql, tenant() repositories, migrateToLatest(), audit diff helper
+packages/identity-core      @mwc/identity-core   IdentityProvider port, normalized events, projector, reconcile, FakeIdentityProvider
+packages/harness-core       @mwc/harness-core    the HarnessDriver port (spawn args, event parsing, input encoding)
+packages/testkit            @mwc/testkit         createTestApp() on PGlite, fixtures, token minting, signed webhooks, provider contract suite, fake server/runner, fake `claude`
+packages/cli                @mwc/cli             mwc: check|dev|db|ports|login|whoami|org|agents|task|inbox|machine|runner
+packages/mcp                @mwc/mcp             MCP server for humans' Claude Code: me, org_chart, agents_list, send_message, read_thread, task_status, inbox_list, inbox_answer
+connectors/identity-clerk   @mwc/identity-clerk  Clerk implementation of IdentityProvider (verifyToken, Backend API, verifyWebhook, role map)
+connectors/identity-oidc    @mwc/identity-oidc   other identity providers (OIDC) and user sync (SCIM), later
+connectors/harness-claude-code, harness-codex, jira, github, gateway   the HarnessDriver for each CLI, and the outside systems of S6–S7
+deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, later Dockerfile.runner and Kubernetes
+docs/                       architecture, roadmap, ports, structure, testing, schema (generated); later clerk-setup, runner-protocol, harness
 ```
 
 ## 6. Data model v0 (Postgres; uuid v7 ids; `created_at`/`updated_at`)
@@ -103,7 +107,7 @@ Tenant-scoping rule in code: `tenant(db, companyId): TenantDb` is the only way r
 - **Health :9953** (`{connected, live_runs, backlog, version}`). **Server down:** runs continue, journal grows, inputs queue server-side in `run_inputs`; reconnect backoff 1→60 s with jitter, never gives up. **Mac sleep:** awake time via monotonic deltas; a heartbeat gap > 2× interval triggers an immediate resync. **Self-update:** `server.hello.update` → download to `releases/<v>/`, verify sha256 + Ed25519 signature (baked-in public key), flip `current`, exit 75 when idle (the service manager restarts it); `runner.drain` stops accepting offers first. **Stop ladder:** SIGINT (ends the turn with a `result`), 20 s, SIGTERM (exit 143), 10 s, SIGKILL the pgid; the `exit` file is the proof; the server marks `stopped` only after the exit event or a `gone` resync.
 - Mac note: Kandji bills every process start, so the runner spawns one Claude process and one MCP shim per run, never a process per tool call, and keeps PATH short.
 
-## 10. Harness driver `claude_code` (`packages/harness`)
+## 10. Harness driver `claude_code` (`packages/harness-core`, `connectors/harness-claude-code`)
 
 `HarnessDriver` (harness-agnostic): `buildSpawn(spec, runDir)`, `parseLine(line, state) → RunEvent[]`, `encodeInput(text, input_id)`, `sessionIdFrom(initEvent)`, `interruptSignal`. A `codex` driver later maps `codex exec --json` / `codex app-server` JSON-RPC (thread/start|resume, turn/start|steer|interrupt, approval and `tool/requestUserInput` requests) onto the same events.
 
@@ -152,7 +156,7 @@ In-runner MCP server: `mcp.json` = `{"mcpServers":{"mwc":{"command":"<current>/b
 
 Routing: `to_principal_id = nearestPersonUp(agent)` via `org_positions`, fallback the company owner. Resolve is a compare-and-set `open→answered` (409 otherwise). A thread reply by that person while a question is open closes it (v1 rule). The inbox shows only open items addressed to me; the org chart shows "Waiting for you" over "Working". Delivery to the CEO chat: `mwc inbox list|answer|watch`, MCP tools `inbox_list`/`inbox_answer`; optional Claude Code status-line/hook recipe using `mwc inbox count`.
 
-## 12. Server-side run model (`apps/server/src/modules/{machines,tasks,runs,attention}`)
+## 12. Server-side run model (`apps/server/src/modules/{machines,tasks,runs,inbox}`)
 
 - **State machine:** `queued → offered → starting → running ⇄ lost → completed | failed | stopped`; `waiting_on ∈ {null, permission, question}` is a sub-state of `running`; a partial unique index enforces one live run per task.
 - **Wake:** `POST /api/tasks/:id/messages` by anyone but the assignee agent → a live `running` run gets `run_inputs(message)` + `run.input`; `queued/offered` → nothing (start delivers all undelivered inputs in order); none → insert `queued`.
@@ -172,11 +176,11 @@ Services: `postgres` (17, :9952, volume) · `migrate` (one-shot `pnpm --filter @
 | v1 piece                                                                                                        | Reuse as                        | v2 home                               |
 | --------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------- |
 | AES-256-GCM credential store bound to owner and provider (AAD), its key in a separate file                      | code, add company + key version | `apps/server/src/modules/credentials` |
-| Members: owner reserve-then-create, invitation metadata link, local-first deactivation                          | design                          | identity-core / identity-clerk        |
+| Members: owner reserve-then-create, invitation metadata link, local-first deactivation                          | design                          | `@mwc/identity-core`, `connectors/identity-clerk` |
 | In-memory Clerk fake for tests                                                                                  | design                          | `@mwc/testkit`                        |
-| Permission approvals (allow / deny / deny and stop, 10-min auto-decline), stream-event reading, secret masking  | design + shapes                 | `@mwc/harness`, attention module      |
+| Permission approvals (allow / deny / deny and stop, 10-min auto-decline), stream-event reading, secret masking  | design + shapes                 | `connectors/harness-claude-code`, `modules/inbox` |
 | Hardened agent container image and `docker run` arguments                                                       | base for `mwc/runner` image     | `deploy/Dockerfile.runner`            |
-| Org chart rules, validating and flattening the org model, its change log                                        | design                          | `domain/org-chart.ts`, `audit_log`    |
+| Org chart rules, validating and flattening the org model, its change log                                        | design                          | `modules/org/rules.ts`, `audit_log`   |
 | Detached harness run: `setsid`, a stdin fifo feeder, an exit file, offset-based tailing, an awake-time budget   | design, now local to the runner | `apps/runner/src/run-process.ts`      |
 | Question card whose answer arrives as the next message                                                          | design                          | `ask_user` tool                       |
 | Inbox "awaiting you" rules, reporting-chain rules, org positions                                                | rules                           | attention routing, org domain         |

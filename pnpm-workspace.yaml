@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - connectors/*
 
 # pnpm refuses unapproved dependency build scripts. esbuild (via drizzle-kit and vite) only
 # verifies its platform binary in postinstall. @scarf/scarf (a dependency of swagger-ui-dist,
@@ -11,5 +12,5 @@ allowBuilds:
 
 # @mwc/testkit depends on @mwc/server (it builds test apps) and the server's tests use the testkit as a
 # devDependency: a dev-only cycle, harmless without build steps, that pnpm warns about on every
-# install. packages/testkit/src/workspace.test.ts fails on any other cycle, so this hides nothing else.
+# install. packages/testkit/test/workspace.test.ts fails on any other cycle, so this hides nothing else.
 ignoreWorkspaceCycles: true

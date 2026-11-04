@@ -15,10 +15,12 @@ Schema diagram: [docs/schema.md](docs/schema.md) (a Mermaid ER diagram generated
 **S0 — skeleton and one-command start: done (v0.1.0).** The pnpm workspace, the config loader and port map,
 `@mwc/db` (Drizzle schema v0, `0000_init`, the generated schema diagram), `@mwc/server` (Hono with `/healthz`,
 `/readyz`, `/api/version`, OpenAPI and Swagger UI, request ids, pino), `@mwc/web` (the React/Vite/Tailwind
-shell and its Playwright smoke), the server image and compose stacks, `pnpm dev`, `@mwc/testkit`, and
-`mwc check` with its fast, default and full lanes (release notes in `docs/roadmap.md`).
+shell), the server image and compose stacks, `pnpm dev`, `@mwc/testkit`, and `mwc check` with its fast,
+default and full lanes (release notes in `docs/roadmap.md`).
 **S1 — identity and companies: in progress.** identity-core done (S1.1: the provider-agnostic identity model,
-the order-safe projector and reconcile, the fake provider); next S1.2, the Clerk provider.
+the order-safe projector and reconcile, the fake provider); the repository moved to the approved layout
+(S1.0a, `docs/structure.md`: tests in `test/`, the server's platform and modules, a `connectors/` slot, no
+frontend tests for now); next S1.2, the Clerk provider.
 
 ## Start
 
@@ -48,13 +50,13 @@ Checks (lanes in `docs/testing.md`):
 
 ```sh
 pnpm mwc check          # lint, banned names, typecheck, db drift, tests with coverage
-pnpm mwc check --full   # + the tests on the dev Postgres, the web build and the Playwright smoke
+pnpm mwc check --full   # + the tests on the dev Postgres and the web build
 pnpm mwc ports          # the port map (9950–9999)
 ```
 
 Pieces on their own: `pnpm dev:server` (the API against `DATABASE_URL`; `MWC_MIGRATE_ON_START=true`
 migrates first), `pnpm dev:web` (Vite on 9951, proxying `/api`, `/healthz` and `/readyz` to 9950),
-`pnpm e2e` (web build and Playwright smoke with the installed Google Chrome).
+`pnpm dev:memory` (the API on 9950 on an in-memory PGlite, migrated on start: no Docker, nothing kept).
 
 ## Ports
 
@@ -64,7 +66,7 @@ migrates first), `pnpm dev:web` (Vite on 9951, proxying `/api`, `/healthz` and `
 | 9951      | Web dev server                                   |
 | 9952      | Postgres (dev compose)                           |
 | 9953      | Local runner health                              |
-| 9955/9957 | e2e smoke: web preview / in-memory API           |
+| 9955      | Web preview (`vite preview` of the build)        |
 | 9960–9989 | Per-worktree slots (API, web, Postgres triplets) |
 | 9990/9992 | Prod-like compose stack: server (API + UI) / PG  |
 
@@ -73,8 +75,11 @@ Full map and rules: `docs/ports.md`.
 ## Layout
 
 ```
-apps/        server, web (now); runner      (S3)
-packages/    shared, cli, db, testkit, identity-core (now); identity-clerk, harness, mcp (later)
+apps/        server, web (now); runner (S3)
+packages/    shared, db, identity-core, testkit, cli (now); harness-core (S4), mcp (S5)
+connectors/  identity-clerk (S1.2), harness-claude-code (S4), jira, github, gateway, harness-codex (S6–S7)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server
-docs/        plan, architecture, roadmap, ports, testing, schema (generated)
+docs/        plan, architecture, roadmap, ports, testing, structure, schema (generated)
 ```
+
+Where each kind of code goes, the size limits and the coverage floors: `docs/structure.md`.

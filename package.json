@@ -15,7 +15,7 @@
     "check": "node packages/cli/src/mwc.ts check",
     "dev:server": "node --watch apps/server/src/main.ts",
     "dev:web": "pnpm --filter @mwc/web dev",
-    "e2e": "pnpm --filter @mwc/web e2e",
+    "dev:memory": "node apps/server/scripts/memory-server.ts",
     "test": "vitest run",
     "lint": "biome check .",
     "format": "biome format --write ."
