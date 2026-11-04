@@ -12,11 +12,20 @@
  *                                    a commit message file (the commit-msg hook)
  *   mwc structure [--report]         fail on a broken layout rule (structure/rules.ts); --report lists the
  *                                    early warnings (hot spots) instead and never fails
+ *   mwc login --server URL --company ID|SLUG
+ *                                    check a personal API key (MWC_API_KEY or standard input, never an
+ *                                    argument) with GET /api/me and save it (credentials.ts)
+ *   mwc whoami [--server URL]        the user, company, role and key prefix of the saved login or of
+ *                                    MWC_SERVER + MWC_API_KEY
+ *   mwc logout [--server URL]        remove a server's saved login
  *   mwc help
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PORTS, SLOT_COUNT, slotFromPath, slotPorts } from '@mwc/shared/ports';
+import { type AccountDeps, login } from './account/login.ts';
+import { logout } from './account/logout.ts';
+import { whoami } from './account/whoami.ts';
 import { parseArgs } from './args.ts';
 import { commitMessageText, formatHits, type ScanDeps, scanText } from './banned.ts';
 import { bannedNames, runCheck, structureCheck } from './check.ts';
@@ -90,6 +99,11 @@ const HELP = [
   '  banned [--message FILE]        banned names in the repository, or in a commit message file',
   '  structure [--report]           the layout rules of docs/structure.md on the repository; --report:',
   '                                 the early warnings (near the limits, long functions, ...), never fails',
+  '  login --server URL --company ID|SLUG',
+  '                                 save a personal API key for the server (from MWC_API_KEY or standard',
+  '                                 input, never an argument) after checking it with GET /api/me',
+  '  whoami [--server URL]          who the saved key (or MWC_SERVER + MWC_API_KEY) acts as',
+  '  logout [--server URL]          remove the saved key of a server',
   '  help',
   '',
 ].join('\n');
@@ -101,7 +115,12 @@ export interface MainDeps {
   scan?: ScanDeps;
   /** The coverage summary `mwc structure --report` reads; the last run's in .cache/coverage by default. */
   coverage?(): string | undefined;
+  /** What `mwc login` and `mwc whoami` reach: fetch and standard input; the process's own by default. */
+  account?: AccountDeps;
 }
+
+/** The account commands' outside world: the global fetch and the process's standard input. */
+const systemAccount = (): AccountDeps => ({ fetch: globalThis.fetch, stdin: process.stdin });
 
 const systemDev = (flags: ReadonlySet<string>, io: MainIo) =>
   runDev(flags, io, systemDevDeps(REPO_ROOT, io.env ?? process.env));
@@ -124,6 +143,12 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
     case 'structure':
       if (args.flags.has('report')) return structureReport(io, deps.scan, deps.coverage);
       return structureCheck(io, deps.scan) ? 0 : 1;
+    case 'login':
+      return login(args, io, deps.account ?? systemAccount());
+    case 'whoami':
+      return whoami(args, io, deps.account ?? systemAccount());
+    case 'logout':
+      return logout(args, io);
     case undefined:
     case 'help':
       io.stdout(HELP);

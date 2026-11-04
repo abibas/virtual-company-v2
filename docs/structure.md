@@ -26,7 +26,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── identity/       identity store, me, sync, webhook inbox (built) S1.4–S1.8
 │   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
-│   │   │   │   ├── api-keys/                                                   S1
+│   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
 │   │   │   │   ├── org/            agents, reporting chain, org chart          S2
 │   │   │   │   ├── machines/       enrollment, placements                      S3
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S4
@@ -45,7 +45,7 @@ Most_Wanted_corp_v2/
 │   ├── identity-core/              identity model and projector                S1
 │   ├── harness-core/               harness driver interface                    S4
 │   ├── testkit/                    test helpers, provider contract
-│   ├── cli/                        mwc
+│   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
 │   └── mcp/                        tools for your own Claude Code              S5
 ├── connectors/                     adapters to outside systems
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
@@ -87,7 +87,9 @@ stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/ident
 `/memory-store` (the identity test doubles) and `/scenario` (the identity scenario and seeded shuffles), and
 `@mwc/testkit` as a whole (also `@mwc/testkit/provider-contract`, the `IdentityProvider` contract every provider
 runs, `@mwc/testkit/store-contract`, the `IdentityStore` contract every store runs, and `@mwc/testkit/webhooks`,
-svix-signed deliveries, which load without the server). Helpers only a package's own
+svix-signed deliveries, which load without the server). Runtime code another package reuses is exported from its
+owner's `src/` the same way: `@mwc/cli/credentials` (S1.9), the saved logins of `mwc login`, which `@mwc/mcp` (S2.6)
+will read; the API key format both sides check is a contract, in `@mwc/shared/api-keys`. Helpers only a package's own
 tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtures/world.ts`).
 
 ## The server (`apps/server`)
@@ -100,7 +102,7 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   Hono environment), `logger.ts`, `shutdown.ts`, `version.ts`, `start.ts`, and `http/` (the router
   factory, request log, errors, the OpenAPI document and Swagger UI, the static web UI), `identity.ts` (the
   identity provider the configuration names: where the Clerk connector is wired), and `auth/` (S1.4): `authn()`
-  turns `Authorization: Bearer` into `c.var.actor` (`session.ts` for session tokens, `api-keys.ts` for API keys,
+  turns `Authorization: Bearer` into `c.var.actor` (`session.ts` for session tokens, `api-keys.ts` for API keys and making them (`generateApiKey`, S1.9),
   `bearer.ts` sorting them by shape, the run token slot), and `requireMembership(role)` (`membership.ts`) guards
   `/api/companies/:companyId/...` with our memberships and puts `c.var.tenant` and `c.var.membership` on the
   context; `actor.ts` holds the types. A module puts them on its routes with zod-openapi's `middleware`

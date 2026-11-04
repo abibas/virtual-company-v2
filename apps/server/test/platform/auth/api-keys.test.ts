@@ -8,8 +8,10 @@ import {
   API_KEY_PATTERN,
   apiKeyKind,
   checkApiKey,
+  generateApiKey,
   hashApiKey,
   LAST_USED_INTERVAL_MS,
+  randomBase62,
 } from '../../../src/platform/auth/api-keys.ts';
 import {
   type AuthWorld,
@@ -56,6 +58,40 @@ describe('API key format', () => {
     const key = newApiKey();
     expect(hashApiKey(key)).toBe(createHash('sha256').update(key).digest('hex'));
     expect(hashApiKey(key)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('generates well-formed keys of each kind with their prefix and hash, all different', () => {
+    const seen = new Set<string>();
+    for (const [kind, letters] of [
+      ['personal', 'pk'],
+      ['runner', 'rk'],
+      ['scim', 'sc'],
+    ] as const) {
+      for (let i = 0; i < 50; i++) {
+        const { key, prefix, secretHash } = generateApiKey(kind);
+        expect(apiKeyKind(key)).toBe(kind);
+        expect(key.startsWith(`mwc_${letters}_`)).toBe(true);
+        expect(prefix).toBe(key.slice(0, 11));
+        expect(secretHash).toBe(hashApiKey(key));
+        seen.add(key);
+      }
+    }
+    expect(seen.size).toBe(150);
+  });
+
+  it('draws base62 without modulo bias: bytes of 248 and above are drawn again', () => {
+    const draws = [
+      [0, 61, 62, 247, 248, 255],
+      [255, 124, 1],
+    ];
+    const random = (size: number) => {
+      expect(size).toBe(5);
+      return Uint8Array.from(draws.shift() ?? []);
+    };
+    // 0 → '0', 61 → 'z', 62 → '0' (62 % 62), 247 → 'z' (247 % 62 = 61); 248 and 255 thrown away; then 124 → '0'.
+    expect(randomBase62(5, random)).toBe('0z0z0');
+    expect(draws).toEqual([]);
+    expect(randomBase62(32)).toMatch(/^[0-9A-Za-z]{32}$/);
   });
 });
 

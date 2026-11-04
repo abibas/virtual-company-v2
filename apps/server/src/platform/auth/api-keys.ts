@@ -1,28 +1,60 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { apiKeys, type DbHandle, memberships, users } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
+import {
+  API_KEY_ALPHABET,
+  API_KEY_PREFIXES,
+  API_KEY_SECRET_LENGTH,
+  apiKeyKind,
+  apiKeyPrefix,
+} from '@mwc/shared/api-keys';
 import type { ApiKeyKind } from '@mwc/shared/enums';
 import { and, eq, isNull, lte, or } from 'drizzle-orm';
 import type { Logger } from 'pino';
 import { type AuthResult, unauthenticated } from './actor.ts';
 
-/** An API key: `mwc_<pk|rk|sc>_` and 32 base62 characters, shown once when it is made (S1.9). */
-export const API_KEY_PATTERN = /^mwc_(pk|rk|sc)_[0-9A-Za-z]{32}$/;
-
-const KIND_OF_PREFIX: Readonly<Record<string, ApiKeyKind>> = { pk: 'personal', rk: 'runner', sc: 'scim' };
+/** The key format is shared with the CLI (`@mwc/shared/api-keys`): `mwc_<pk|rk|sc>_` and 32 base62 characters. */
+export { API_KEY_PATTERN, apiKeyKind } from '@mwc/shared/api-keys';
 
 /** `last_used_at` is written at most this often per key. */
 export const LAST_USED_INTERVAL_MS = 60_000;
 
-/** The kind a well-formed key's prefix names, or null for anything that is not an API key. */
-export function apiKeyKind(key: string): ApiKeyKind | null {
-  const match = API_KEY_PATTERN.exec(key);
-  return match ? (KIND_OF_PREFIX[match[1] ?? ''] ?? null) : null;
-}
-
 /** What `api_keys.secret_hash` stores: the SHA-256 of the whole key, as 64 lower-case hex digits. */
 export function hashApiKey(key: string): string {
   return createHash('sha256').update(key, 'utf8').digest('hex');
+}
+
+/** A random byte below this maps to a base62 character without bias (248 = 4 × 62); larger ones are drawn again. */
+const UNBIASED_BELOW = 248;
+
+/**
+ * `length` base62 characters from the system's CSPRNG (`randomBytes`), drawn without modulo bias: bytes of 248 and
+ * above are thrown away. `random` is injectable for the test of that rejection only.
+ */
+export function randomBase62(length: number, random: (size: number) => Uint8Array = randomBytes): string {
+  let out = '';
+  while (out.length < length) {
+    for (const byte of random(length)) {
+      if (byte < UNBIASED_BELOW && out.length < length) out += API_KEY_ALPHABET[byte % 62];
+    }
+  }
+  return out;
+}
+
+/** A new key as it is stored (`prefix`, `secretHash`) and, once, shown (`key`). */
+export interface GeneratedApiKey {
+  readonly key: string;
+  readonly prefix: string;
+  readonly secretHash: string;
+}
+
+/**
+ * A new API key of this kind: `mwc_<pk|rk|sc>_` and 32 base62 characters from the CSPRNG, its display prefix and its
+ * SHA-256. The key itself is returned to be shown once and is never stored or logged.
+ */
+export function generateApiKey(kind: ApiKeyKind): GeneratedApiKey {
+  const key = `mwc_${API_KEY_PREFIXES[kind]}_${randomBase62(API_KEY_SECRET_LENGTH)}`;
+  return { key, prefix: apiKeyPrefix(key), secretHash: hashApiKey(key) };
 }
 
 /** Records the use, unless the key was used less than a minute ago (also checked in SQL, for races). */

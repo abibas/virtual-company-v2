@@ -27,6 +27,41 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: A new module made the route helpers fan-in warnings
+
+- **What happened:** S1.9's `modules/api-keys/routes.ts` is the eighth file of the server that imports
+  `platform/http/router.ts` (`newRouter`) and `platform/http/docs.ts` (`jsonBody`, `jsonResponse`), so both became
+  `fan-in` warnings (fan-in 6 to 8), as the S1.6 and S1.8 lessons predicted. A module of its own needs a router and
+  its OpenAPI shapes; no placement avoids the imports without copying the helpers. In the same step
+  `packages/cli/src/main.ts` left `low-coverage` (95.65% lines and 88.88% branches before, 96% and 90.38% after) with
+  the account commands' dispatch tests, so the report went from 18 to 19 warnings.
+- **Where:** `apps/server/src/modules/api-keys/routes.ts` (125 lines); S1.9. The importers of `router.ts`: the identity
+  and health routes, the three companies route files, the two members route files, api-keys; of `docs.ts`: `app.ts`,
+  `platform/auth/membership.ts`, the identity routes, two companies and two members route files, api-keys.
+- **What was done:** kept the imports. Mounting the companies groups without `newRouter()` (as `members/routes.ts`
+  does) would have brought `router.ts` back to 7 importers, but only to move the count: S2's `org/` would add it again.
+- **Suggested change:** adopt the open suggestion of counting a module's files as one importer for `fan-in`, or list
+  the platform files meant as every module's API in `rules.ts` and leave them out. Until then these two warnings stay,
+  and later modules add no more of them.
+- **Status:** `open`.
+
+### 2026-11-04: Code two packages run that is not a contract
+
+- **What happened:** `mwc login` (S1.9) writes the saved logins, `~/.config/mwc/credentials.json`, that S2.6's
+  `@mwc/mcp` will read. The file helpers do I/O (the file system, the home folder, an atomic rename), so they are no
+  contract for `packages/shared` ("zod schemas, ids, enums, protocols"), and the placement table says "exported from the
+  owner's `src/`" only in its test helper row. The API key format, which the server and the CLI both check, is a
+  contract.
+- **Where:** `packages/cli/src/credentials.ts` (184 lines), exported as `@mwc/cli/credentials`;
+  `packages/shared/src/api-keys.ts` (the format, moved from `apps/server/src/platform/auth/api-keys.ts`); S1.9.
+- **What was done:** the helpers stay with their owner, the CLI, as a subpath export (as `@mwc/identity-core/fake` is
+  for the identity test doubles); the format went to `@mwc/shared/api-keys`, and the server's `platform/auth/api-keys.ts`
+  re-exports `API_KEY_PATTERN` and `apiKeyKind`, so no import moved.
+- **Suggested change:** a placement-table row: "Runtime code another package reuses, not a contract → its owner's
+  `src/`, as a subpath export (`@mwc/cli/credentials`); a contract both sides check → `packages/shared`." If `@mwc/mcp`
+  needs more of the CLI (an API client), a small `packages/client` both depend on may fit better.
+- **Status:** `open`.
+
 ### 2026-11-04: The fan-in warning decided where a route went
 
 - **What happened:** S1.8's webhook route first went into its own file, `modules/identity/routes/webhooks.ts`, as

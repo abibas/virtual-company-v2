@@ -58,6 +58,8 @@ pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs
 pnpm mwc check --full   # + tests on the dev Postgres and the web build (docs/testing.md)
 pnpm mwc structure --report  # early warnings: hot spots before a structure rule fails; never fails
 pnpm mwc ports          # the port map
+pnpm mwc login --server URL --company ID|SLUG  # save a personal API key (MWC_API_KEY or stdin, never an argument)
+pnpm mwc whoami         # who the saved key (or MWC_SERVER + MWC_API_KEY) acts as; mwc logout removes it
 ```
 
 `deploy/`: `compose.yml` is the dev Postgres only; `compose.prod.yml` is the prod-like stack (9990/9992)

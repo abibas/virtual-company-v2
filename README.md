@@ -27,7 +27,9 @@ only through `@mwc/db/system` (forbidden in server modules by Biome), and the da
 the same store contract as the in-memory one; sign-in (S1.4: `authn()` for Clerk session tokens and personal API
 keys, `requireMembership(role)`, `GET /api/me` with reconcile on sign-in; `MWC_IDENTITY`, `MWC_WEB_ORIGIN`);
 companies (S1.5: create with the outbox `create_org` call, list mine, read, rename, soft delete with the name
-typed again; `MWC_COMPANY_CREATION`, `MWC_COMPANY_CREATORS`); next S1.6, memberships.
+typed again; `MWC_COMPANY_CREATION`, `MWC_COMPANY_CREATORS`); memberships (S1.6) and invitations (S1.7); Clerk
+webhooks (S1.8, `POST /api/webhooks/clerk`); personal API keys and `mwc login` / `whoami` / `logout` (S1.9); next
+S1.10, the jobs loop.
 
 ## Start
 
@@ -61,6 +63,17 @@ pnpm mwc check --full   # + the tests on the dev Postgres and the web build
 pnpm mwc structure --report  # early warnings: files near their limit, long functions, ... (never fails)
 pnpm mwc ports          # the port map (9950–9999)
 ```
+
+Your own Claude Code (or a script) reaches the API with a personal API key. Make one signed in to the web app
+(`POST /api/companies/:companyId/api-keys {name, expiresInDays?}`; the key is shown once), then:
+
+```sh
+pbpaste | pnpm mwc login --server http://localhost:9950 --company <id|slug>   # or MWC_API_KEY=... ; never an argument
+pnpm mwc whoami         # user, company, role and key prefix (MWC_SERVER + MWC_API_KEY take precedence)
+pnpm mwc logout         # removes the saved key; revoke it with DELETE .../api-keys/:keyId if it may have leaked
+```
+
+The key is saved per server in `~/.config/mwc/credentials.json` (0600, `MWC_CONFIG_DIR` moves it).
 
 Pieces on their own: `pnpm dev:server` (the API against `DATABASE_URL`; `MWC_MIGRATE_ON_START=true`
 migrates first), `pnpm dev:web` (Vite on 9951, proxying `/api`, `/healthz` and `/readyz` to 9950),

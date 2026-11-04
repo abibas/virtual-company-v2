@@ -1,6 +1,8 @@
 import { slotFromPath } from '@mwc/shared/ports';
 import { describe, expect, it } from 'vitest';
+import { readCredentials } from '../src/credentials.ts';
 import { main } from '../src/main.ts';
+import { ACME, fakeApi, KEY, piped, SERVER, tempConfig } from './fixtures/account.ts';
 import { capture } from './fixtures/io.ts';
 import { CLEAN, scanOf } from './fixtures/tree.ts';
 
@@ -106,5 +108,41 @@ describe('main', () => {
     const c = capture();
     main(['help'], c.io);
     expect(c.out()).toContain('  structure [--report] ');
+  });
+
+  it('logs in, tells who it is and logs out through the account commands', async () => {
+    const config = tempConfig();
+    const api = fakeApi();
+    const account = { fetch: api.fetch, stdin: piped(KEY) };
+    const login = capture({ env: config.env });
+    expect(await main(['login', '--server', SERVER, '--company', ACME.slug], login.io, { account })).toBe(0);
+    expect(readCredentials(config.path).current).toBe(SERVER);
+    const who = capture({ env: config.env });
+    expect(await main(['whoami'], who.io, { account })).toBe(0);
+    expect(who.out()).toContain('role     admin\n');
+    expect(main(['logout'], capture({ env: config.env }).io)).toBe(0);
+    expect(readCredentials(config.path).servers).toEqual({});
+    expect(api.calls).toHaveLength(2);
+  });
+
+  it('uses the real fetch and standard input by default (nothing to call when not logged in)', async () => {
+    const config = tempConfig();
+    const who = capture({ env: config.env });
+    expect(await main(['whoami'], who.io)).toBe(1);
+    expect(who.err()).toMatch(/^mwc whoami: not logged in/);
+    const login = capture({ env: config.env });
+    expect(await main(['login'], login.io)).toBe(2);
+  });
+
+  it('lists the account commands in the help', () => {
+    const c = capture();
+    main(['help'], c.io);
+    for (const command of [
+      '  login --server URL --company ID|SLUG',
+      '  whoami [--server URL]',
+      '  logout [--server URL]',
+    ]) {
+      expect(c.out()).toContain(command);
+    }
   });
 });
