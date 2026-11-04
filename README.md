@@ -51,6 +51,7 @@ Checks (lanes in `docs/testing.md`):
 ```sh
 pnpm mwc check          # lint, banned names, structure, typecheck, db drift, tests with coverage
 pnpm mwc check --full   # + the tests on the dev Postgres and the web build
+pnpm mwc structure --report  # early warnings: files near their limit, long functions, ... (never fails)
 pnpm mwc ports          # the port map (9950–9999)
 ```
 

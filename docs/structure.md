@@ -3,9 +3,9 @@
 Where code goes in this repository: the layout Ihor approved on 2026-11-04 and the rules that keep it.
 The stage column (S0–S7) says when a part lands (`docs/roadmap.md`). Folders of later stages are not
 created ahead of time (no empty placeholders); this map is where they will go. The project skill
-`keep-structure` (`.claude/skills/keep-structure/SKILL.md`, with a module template and a worked split in
-its `references/`) is the short, practical version: load it before adding, moving or splitting files, or
-changing the schema.
+`keep-structure` (`.claude/skills/keep-structure/SKILL.md`, with a module template, a worked split, the
+lessons log and the structure review in its `references/`) is the short, practical version: load it before
+adding, moving or splitting files, or changing the schema, and for the review at the end of each stage.
 
 ## The map
 
@@ -132,9 +132,11 @@ modules depend on the port, never on a connector, so tests use the core package'
 - A file over the limit is split by responsibility into cohesive files, without changing behaviour; a
   public import path stays stable by keeping the original file as the entry, or a folder `index.ts`
   that only re-exports.
-- A function longer than about 60 lines is a smell: split it (guidance, not enforced).
+- A function longer than about 60 lines is a smell: split it (guidance, not enforced; the report below
+  lists it as `long-function`).
 
-The structure step of `mwc check` enforces the limits (below).
+The structure step of `mwc check` enforces the limits (below); its early warnings show a file before it
+reaches them.
 
 ## Coverage
 
@@ -171,8 +173,8 @@ code reaches tenant data only through `tenant(db, companyId)` (`packages/db/READ
 The `structure` step runs in every lane (fast, default, `--full`), inside the `mwc check` process, on the
 files git tracks plus the untracked ones it does not ignore (the same listing as the banned-names step);
 `pnpm mwc structure` runs it alone. Each broken rule is one line, `path[:line]: [rule] reason`, followed by
-where the rules are and "see .claude/skills/keep-structure". The limits and allow-lists are one object,
-`packages/cli/src/structure/rules.ts`.
+where the rules are and "see .claude/skills/keep-structure". The limits, allow-lists and warning thresholds
+are one object, `packages/cli/src/structure/rules.ts`.
 
 | Rule      | Fails on                                                                                                  |
 | --------- | --------------------------------------------------------------------------------------------------------- |
@@ -181,6 +183,51 @@ where the rules are and "see .claude/skills/keep-structure". The limits and allo
 | `tests`   | a `*.test.ts`/`*.spec.ts` under `src/` (it names the mirrored path) or anywhere else outside a package's `test/`; a file in `test/` that is not a test, outside `test/fixtures/` |
 | `size`    | a source file over 300 lines or a file in `test/` over 500 (it names the first line over), except the generated files and Markdown |
 | `modules` | a file directly in `modules/`; a file in `modules/<area>/` that is not one of the role files or inside a role folder; an import of another module's `repo.ts` or `repo/`; an import of a connector package in a module |
+| `docs`    | this document or the keep-structure skill behind `rules.ts`: a top-level entry, a workspace group (as `apps/*`) or a module file this document does not mention, or a module file row that `rules.ts` does not have; no warnings row per kind with its thresholds; a module file the skill does not mention, or one it places code in that `rules.ts` does not have; either of them not stating the line limits |
 
 The coverage floors are Vitest's thresholds (the root `vitest.config.ts`), checked by the tests step, and
 the "db drift" step checks the migrations and `docs/schema.md` against the schema.
+
+## Early warnings (`mwc structure --report`)
+
+Before a rule fails, `pnpm mwc structure --report` lists the hot spots, grouped by kind and worst first. It
+never fails (exit 0), and every lane of `pnpm mwc check` ends with a short summary of it (the count of each
+kind and the worst of each) that never changes its exit code; `--fast` leaves coverage out, since it has no
+coverage run. Like the structure step it runs inside the `mwc` process, in one pass over the same file
+listing. The thresholds are the `warn` section of `rules.ts`:
+
+| Warning         | Listed when                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `near-limit`    | a limited file is above 80% of its line limit (240 lines of source, 400 in `test/`)               |
+| `long-function` | a named function is over 60 lines, from its first line to its last                               |
+| `big-folder`    | a folder has more than 12 direct entries, files and folders (generated folders are skipped)      |
+| `fan-in`        | 8 or more files of the same package import a file by a relative path (importers outside `test/`) |
+| `low-coverage`  | a file is under 95% lines or 90% branches in the last coverage run (`.cache/coverage/coverage-summary.json`, the json-summary report of the root `vitest.config.ts`); left out when there is none |
+
+`long-function` is a heuristic (`packages/cli/src/structure/functions.ts`), not a parser. Biome 2.6.4 has
+`noExcessiveLinesPerFunction`, but only in its own process, and it counts every callback, each `describe`
+block of a test included. The heuristic measures function declarations, functions and arrow functions
+assigned to a name or a property, and methods; it ends a body at the first later line that starts with `}`
+at the header's indentation (Biome's formatting). It does not measure anonymous callbacks or arrows with an
+expression body, and a multi-line template literal or return type can end a measure early (an undercount,
+never a warning too many).
+
+A warning is not a failure to fix at once. When the file you are changing is listed, split it as part of
+the change; the rest waits for the structure review.
+
+## Lessons and the structure review
+
+The lessons log, `.claude/skills/keep-structure/references/lessons.md`, records where the structure did not
+fit: a case the placement table did not cover, a rule that forced an awkward placement, a split that went
+badly, a warning that kept coming back. Each entry is dated and says what happened, where, what was done, a
+suggested change to a rule or to the placement table, and its status (`open`, `adopted` or `declined`).
+Agents read the open lessons before deciding where code goes.
+
+The structure review (`.claude/skills/keep-structure/references/review.md`) runs at the end of each stage,
+before its tag and the review with Ihor (the last item of every stage in `docs/roadmap.md`), when the
+report's warning count clearly grows, and when Ihor asks. It reads `pnpm mwc structure --report` and the
+open lessons, and suggests at most 5 concrete improvements to Ihor, each with its evidence (split a file
+before it reaches its limit, move one, add a row to the placement table, loosen or tighten a rule). Each
+change he approves lands as its own commit, and the lessons it settles are marked `adopted` or `declined`. A
+rule changes only with his approval, and then `rules.ts`, its tests, this document and the skill change
+together; the `docs` rule fails when they disagree.

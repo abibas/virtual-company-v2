@@ -24,8 +24,10 @@ from parts in that file, so the list never contains them. The `commit-msg` hook
 **Structure** (in every lane, in-process, on the same file listing as the banned names): the layout rules
 of `docs/structure.md`, from `packages/cli/src/structure/rules.ts`: known top-level entries, packages only
 in `apps/`, `packages/` and `connectors/` with their required files, tests only in `test/`, the size limits
-(300 lines of source, 500 of tests) and the server's module files and imports. A failure is
-`path[:line]: [rule] reason`. `pnpm mwc structure` runs it alone.
+(300 lines of source, 500 of tests), the server's module files and imports, and that `docs/structure.md`
+and the keep-structure skill still say what `rules.ts` holds. A failure is `path[:line]: [rule] reason`.
+`pnpm mwc structure` runs it alone. Every lane ends with a short summary of the early warnings
+(`pnpm mwc structure --report`, `docs/structure.md`), which never changes the exit code.
 
 `--full` in order:
 
@@ -56,7 +58,7 @@ in `apps/`, `packages/` and `connectors/` with their required files, tests only 
 | --- | --- | --- |
 | `packages/shared` | config, ports, ids, enums, the identity contracts (unit) | none |
 | `packages/identity-core` | the fake provider (tokens, CRUD and errors, events, `failNext`, webhooks), the projector rule by rule, convergence (200 seeded shuffles, double deliveries, every order of one person's history), reconcile against the webhook path, the in-memory store | none (`InMemoryIdentityStore`) |
-| `packages/cli` | argument parsing, `mwc check` and `mwc dev` plans with fake processes, package discovery, the banned-names scanner and the commit-msg hook's command, each structure rule on an in-memory tree (violations, a clean tree, the exemptions) and on this repository, two short real-process checks of the spawn wrapper | none |
+| `packages/cli` | argument parsing, `mwc check` and `mwc dev` plans with fake processes, package discovery, the banned-names scanner and the commit-msg hook's command, each structure rule on an in-memory tree (violations, a clean tree, the exemptions) and on this repository, the early warnings and the function-length heuristic on in-memory trees and texts, two short real-process checks of the spawn wrapper | none |
 | `packages/db` | schema constraints, migrations, `migrationStatus`, `queryRows`, the schema diagram, test database names, the Postgres paths of `createTestDb` against a fake server, and the stale-database sweep | `createTestDb()`: PGlite, or Postgres with `TEST_DB=postgres` |
 | `packages/testkit` | its own helpers (capture logger, fixed clock, JSON requests, `createTestApp`, the identity re-exports), and a guard that the workspace's dependency graph has no cycle except the dev-only testkit ↔ server one | `createTestApp()` |
 | `apps/server` | mirrors `src/`: the app's wiring (request ids, clock), `platform/http` through `app.request()` (request log, errors, OpenAPI and docs, static UI), `platform/` (logger, graceful shutdown, version, `start` with injected database, server and signals, plus one real `serve()` on a free port), `modules/health` (`/healthz`, `/readyz`, `/api/version`), `dev/memory-server` | `createTestApp()` on `createTestDb()`; `start` on PGlite |

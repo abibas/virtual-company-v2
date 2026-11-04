@@ -1,5 +1,6 @@
 import type { ScanDeps } from '../../src/banned.ts';
 import { type RepoTree, repoTree } from '../../src/structure/tree.ts';
+import { skillDoc, structureDoc } from './docs.ts';
 
 /** File contents by path: a string, raw bytes, or undefined for a file listed but gone. */
 export type Files = Readonly<Record<string, string | Uint8Array | undefined>>;
@@ -29,8 +30,9 @@ export function treeOf(files: Files): RepoTree {
 /** `n` lines of code. */
 export const lines = (n: number) => 'const x = 1;\n'.repeat(n);
 
-/** A small repository that keeps every structure rule. */
+/** A small repository that keeps every structure rule (its docs state the rules, at any length). */
 export const CLEAN: Files = {
+  '.claude/skills/keep-structure/SKILL.md': skillDoc(),
   '.githooks/pre-push': 'exec pnpm mwc check --fast\n',
   '.vscode/settings.json': '{}\n',
   'CLAUDE.md': '# Rules\n',
@@ -39,7 +41,7 @@ export const CLEAN: Files = {
   'pnpm-lock.yaml': lines(2000),
   'pnpm-workspace.yaml': 'packages:\n  - apps/*\n  - packages/*\n  - connectors/*\n',
   'docs/schema.md': lines(900),
-  'docs/structure.md': lines(800),
+  'docs/structure.md': structureDoc() + lines(800),
   'deploy/compose.yml': 'services: {}\n',
   'packages/db/package.json': '{ "name": "@mwc/db" }\n',
   'packages/db/tsconfig.json': '{}\n',

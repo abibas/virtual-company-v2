@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STRUCTURE_RULES } from '../../src/structure/rules.ts';
-import { checkSize, sizeExempt } from '../../src/structure/size.ts';
+import { checkSize, measure, sizeExempt } from '../../src/structure/size.ts';
 import { CLEAN, cleanWith, lines, treeOf } from '../fixtures/tree.ts';
 
 describe('checkSize', () => {
@@ -57,5 +57,25 @@ describe('checkSize', () => {
     }
     expect(sizeExempt('packages/db/src/migrations.ts', STRUCTURE_RULES)).toBe(false);
     expect(sizeExempt('docs/schema.md.ts', STRUCTURE_RULES)).toBe(false);
+  });
+
+  it('measures a limited file against its limit, and nothing for exempt, binary or missing files', () => {
+    const tree = cleanWith({
+      'packages/db/src/gone.ts': undefined,
+      'packages/db/src/logo.png': new Uint8Array([0]),
+    });
+    expect(measure(tree, 'connectors/identity-clerk/src/provider.ts', STRUCTURE_RULES)).toEqual({
+      kind: 'source',
+      lines: 300,
+      limit: 300,
+    });
+    expect(measure(tree, 'packages/db/test/fixtures/rows.ts', STRUCTURE_RULES)).toEqual({
+      kind: 'test',
+      lines: 10,
+      limit: 500,
+    });
+    for (const path of ['docs/schema.md', 'packages/db/src/logo.png', 'packages/db/src/gone.ts']) {
+      expect(measure(tree, path, STRUCTURE_RULES)).toBeUndefined();
+    }
   });
 });

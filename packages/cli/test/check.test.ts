@@ -12,6 +12,7 @@ import {
   WORKSPACE_GROUPS,
   workspacePackages,
 } from '../src/check.ts';
+import { REPO_ROOT } from '../src/io.ts';
 import { STRUCTURE_RULES } from '../src/structure/rules.ts';
 import { capture } from './fixtures/io.ts';
 import { CLEAN, scanOf } from './fixtures/tree.ts';
@@ -127,11 +128,15 @@ describe('checkSteps', () => {
   });
 });
 
+/** What runCheck reads besides its steps: an in-memory tree and no coverage summary. */
+const quiet = () => ({ scan: scanOf(CLEAN).deps, coverage: () => undefined });
+
 describe('runCheck', () => {
   it('runs every step even after a failure and lists the failed ones', () => {
     const c = capture();
     const ran: string[] = [];
     const code = runCheck(new Set(), c.io, {
+      ...quiet(),
       packageDirs: ['packages/a', 'packages/b'],
       runStep: (step: CheckStep) => {
         ran.push(step.label);
@@ -153,7 +158,7 @@ describe('runCheck', () => {
 
   it('passes when every step passes, and says when --full skips the Postgres lane', () => {
     const c = capture();
-    expect(runCheck(new Set(['full']), c.io, { packageDirs: [], runStep: () => true })).toBe(0);
+    expect(runCheck(new Set(['full']), c.io, { ...quiet(), packageDirs: [], runStep: () => true })).toBe(0);
     expect(c.out()).toContain('Docker is not available, so the Postgres lane is skipped');
     expect(c.out()).toContain('✓ mwc check passed');
   });
@@ -162,6 +167,7 @@ describe('runCheck', () => {
     let asked = 0;
     const ran: string[] = [];
     const deps = {
+      ...quiet(),
       packageDirs: ['packages/db'],
       runStep: (step: CheckStep) => ran.push(step.label) > 0,
       lane: () => {
@@ -177,6 +183,51 @@ describe('runCheck', () => {
     expect(asked).toBe(1);
     expect(ran.slice(-3)).toEqual(['postgres', 'tests on postgres', 'postgres down']);
     expect(c.out()).not.toContain('skipped');
+  });
+});
+
+describe('the closing structure warnings', () => {
+  const coverage = JSON.stringify({
+    [`${REPO_ROOT}/packages/db/src/schema/users.ts`]: {
+      lines: { total: 10, covered: 8, skipped: 0, pct: 80 },
+      branches: { total: 2, covered: 2, skipped: 0, pct: 100 },
+    },
+  });
+
+  it('end the run before the verdict, from the shared listing, with the coverage of the last run', () => {
+    const scan = scanOf(CLEAN);
+    const c = capture();
+    const steps: string[] = [];
+    const code = runCheck(new Set(), c.io, {
+      scan: cachedScanDeps(scan.deps),
+      coverage: () => coverage,
+      packageDirs: [],
+      runStep: (step, io) => steps.push(step.label) > 0 && (step.run?.(io) ?? true),
+    });
+    expect(code).toBe(0);
+    const out = c.out();
+    expect(out).toContain('Structure warnings (never a failure): 2 near-limit, 1 low-coverage.');
+    expect(out).toContain('  low-coverage  packages/db/src/schema/users.ts: 80% lines, 100% branches');
+    expect(out.indexOf('Structure warnings')).toBeLessThan(out.indexOf('✓ mwc check passed'));
+    expect(out.indexOf('▶ tests')).toBeLessThan(out.indexOf('Structure warnings'));
+    expect(scan.listings()).toBe(1);
+  });
+
+  it('never change the exit code, and --fast leaves coverage out (it has no coverage run)', () => {
+    const c = capture();
+    const deps = {
+      scan: scanOf(CLEAN).deps,
+      coverage: () => coverage,
+      packageDirs: [],
+      runStep: () => false,
+    };
+    expect(runCheck(new Set(['fast']), c.io, deps)).toBe(1);
+    expect(c.out()).toContain('Structure warnings (never a failure): 2 near-limit. The worst of each:');
+    expect(c.out()).not.toContain('low-coverage');
+    const clean = capture();
+    const none = { ...deps, scan: scanOf({ 'README.md': '# Readme\n' }).deps, runStep: () => true };
+    expect(runCheck(new Set(['fast']), clean.io, none)).toBe(0);
+    expect(clean.out()).toContain('Structure warnings: none');
   });
 });
 

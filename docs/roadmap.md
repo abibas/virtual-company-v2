@@ -45,7 +45,11 @@ structure step of `mwc check` (layout, package contents, tests only in `test/`, 
 files and imports; `packages/cli/src/structure/`), with the oversized files split (the identity projector and
 fake provider, the schema diagram, `mwc`'s dispatch, two identity test files). **S1.0c** the project skill
 `keep-structure` (`.claude/skills/keep-structure/`): where code goes, the module, package and connector
-checklists, the database routine, file size discipline; the structure step's failures point at it.
+checklists, the database routine, file size discipline; the structure step's failures point at it. **S1.0d**
+the structure keeps improving: `pnpm mwc structure --report` lists early warnings (files near their limit,
+long functions, big folders, high fan-in, the weakest coverage) and `mwc check` ends with their summary; the
+lessons log (`references/lessons.md`); a structure review at the end of every stage (its last item below);
+and the `docs` rule, which fails when `docs/structure.md` or the skill falls behind `rules.ts`.
 
 Frontend tests are off for now (Ihor, 2026-11-04): the stage items below that name a Playwright smoke or an e2e
 scenario get one only when he turns them back on; until then those steps are checked by hand at the stage review.
@@ -63,6 +67,7 @@ Done when: Ihor signs in, creates a company, invites a second real person who ac
 10. Jobs loop (outbox, reconcile, event retry; single runner via advisory lock; `MWC_JOBS=on`).
 11. Web: sign-in, onboarding, `/c/:slug` switcher, Members page, `/accept-invitation`.
 12. E2E: owner → invite a `+clerk_test` user → second browser context accepts → member visible → promote → remove → 403.
+13. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S2 — org structure
 
@@ -73,6 +78,7 @@ Done when: a chart with people and agents can be built, moved and read as a tree
 4. Lifecycle hooks: membership activate → position under the inviter; remove → re-parent; agent archive → re-parent.
 5. Web: org chart page, agent form, person title edit.
 6. CLI/MCP thin: `mwc org tree`, `mwc agents list`; `@mwc/mcp` exposing `me`, `org_chart`, `agents_list`.
+7. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S3 — machines and runner
 
@@ -82,6 +88,7 @@ Done when: a runner installed on Ihor's Mac as a launchd service and the compose
 3. `apps/runner` core (config, state dir, unix socket, health :9953, reconnect/backoff, awake time) — runner vs fake server: survives a server restart.
 4. `mwc runner install` (launchd / systemd / container) + `mwc machine enroll-token` + Machines page — unit: plist/unit rendering; Playwright: machines page.
 5. Self-update + drain + `runner_releases` — test with a signed tarball.
+6. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S4 — tasks, threads, runs
 
@@ -90,6 +97,7 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.
+5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S5 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
@@ -98,6 +106,7 @@ Done when the demo below passes on the Mac and then on the devbox:
 2. `attention_items` service: routing, CAS resolve, expiry, both wait modes, answer → tool result or next turn — integration per kind.
 3. Inbox UI + `mwc inbox list|answer|watch|count` + `@mwc/mcp` tools (`send_message`, `read_thread`, `task_status`, `inbox_list`, `inbox_answer`); a Claude Code status-line recipe for `mwc inbox count`.
 4. **Demo:** SLOP BOX placed on the Mac first (home folder with its CLAUDE.md and skills, its own `CLAUDE_CONFIG_DIR`, policy `bypass`, worktree root), then on the devbox (`mwc runner install` once over the existing IAP SSH, `systemd --user` + linger). Ihor's Claude Code sends a message through `@mwc/mcp`; SLOP BOX works, calls `ask_user`; the item appears in the inbox and in `mwc inbox watch`; he answers with `mwc inbox answer`; the run continues (live if within 90 s, otherwise as a resumed turn) and reports done; a `report_blocked` variant lands in the inbox as blocked. Recorded against the real CLI; replayed in Playwright with the fake `claude`.
+5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S6 — credentials and sign-ins
 
@@ -105,14 +114,19 @@ Done when: the compose runner runs a task with a server-held Claude setup-token 
 1. `credentials` store (v1's AES-256-GCM credential store bound to owner and provider, ported, plus key versioning and the company in the AAD) + API — unit: tamper detection, wrong tenant.
 2. Claude setup-token flow in a throwaway container (PTY capture, as in v1), stored encrypted — integration with a fake container runner.
 3. GitHub `gh auth login --device`, Jira `acli` sign-in (v1 flows), per-agent grants, delivery in `run.start.secrets`, `credential_deliveries` audit.
+4. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox, Codex driver. Each item names the v1 behaviour it replaces and ships with integration tests.
 
+Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
+
 ### S8 — cloud deployment
 
 Hardened compose for a VM (TLS via a reverse proxy, backups with `pg_dump` and restore drill, log rotation), then k8s manifests (migrate Job, server Deployment + Ingress, runner pool), secrets through the platform's secret store, a staging instance, runbooks. Done when a staging stack on a cloud VM runs the S5 demo with a container runner and a laptop runner at the same time.
+
+Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ## 19. Verification
 

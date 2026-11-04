@@ -10,7 +10,8 @@
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
  *   mwc banned [--message FILE]      fail on a banned name (banned.ts) in the repository's files, or in
  *                                    a commit message file (the commit-msg hook)
- *   mwc structure                    fail on a broken layout rule (structure/rules.ts)
+ *   mwc structure [--report]         fail on a broken layout rule (structure/rules.ts); --report lists the
+ *                                    early warnings (hot spots) instead and never fails
  *   mwc help
  */
 import { readFileSync } from 'node:fs';
@@ -21,6 +22,7 @@ import { commitMessageText, formatHits, type ScanDeps, scanText } from './banned
 import { bannedNames, runCheck, structureCheck } from './check.ts';
 import { runDev, systemDevDeps } from './dev.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
+import { structureReport } from './structure/report.ts';
 
 /** A `--slot` value: a whole number in 0..SLOT_COUNT-1, or undefined when it is not one. */
 function parseSlot(value: string): number | undefined {
@@ -86,7 +88,8 @@ const HELP = [
   '  dev [--down]                   Postgres, migrations, API on 9950 and web on 9951; --down stops Postgres',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
   '  banned [--message FILE]        banned names in the repository, or in a commit message file',
-  '  structure                      the layout rules of docs/structure.md on the repository',
+  '  structure [--report]           the layout rules of docs/structure.md on the repository; --report:',
+  '                                 the early warnings (near the limits, long functions, ...), never fails',
   '  help',
   '',
 ].join('\n');
@@ -96,6 +99,8 @@ export interface MainDeps {
   dev?(flags: ReadonlySet<string>, io: MainIo): Promise<number>;
   /** The files `mwc banned` and `mwc structure` scan; git's by default. */
   scan?: ScanDeps;
+  /** The coverage summary `mwc structure --report` reads; the last run's in .cache/coverage by default. */
+  coverage?(): string | undefined;
 }
 
 const systemDev = (flags: ReadonlySet<string>, io: MainIo) =>
@@ -117,6 +122,7 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
     case 'banned':
       return banned(args.flags, args.options, io, deps.scan);
     case 'structure':
+      if (args.flags.has('report')) return structureReport(io, deps.scan, deps.coverage);
       return structureCheck(io, deps.scan) ? 0 : 1;
     case undefined:
     case 'help':

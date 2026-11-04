@@ -1,7 +1,9 @@
 /**
  * The rules of docs/structure.md as data: every limit and allow-list the structure step of `mwc check`
- * uses is here, so changing a rule means changing this object (and the doc). Folders end in `/`.
- * Coverage floors are not here: Vitest enforces them (the root vitest.config.ts, `thresholds.perFile`).
+ * uses is here, and the thresholds of its early warnings (`warn`), so changing a rule means changing this
+ * object, its tests, docs/structure.md and the keep-structure skill together (the `docs` rule checks that
+ * they agree). Folders end in `/`. Coverage floors are not here: Vitest enforces them (the root
+ * vitest.config.ts, `thresholds.perFile`).
  */
 export interface StructureRules {
   /** Line limits: every limited file outside a package's test/, and everything inside it. */
@@ -30,6 +32,23 @@ export interface StructureRules {
   readonly testFile: RegExp;
   /** The server's modules, and the files a module may have (each may grow into a same-named folder). */
   readonly modules: { readonly root: string; readonly files: readonly string[] };
+  /** Early warnings (`mwc structure --report`, summed up at the end of `mwc check`); they never fail. */
+  readonly warn: {
+    /** A limited file above this share of its line limit (`near-limit`). */
+    readonly nearLimit: number;
+    /** A named function longer than this many lines, first to last (`long-function`, structure/functions.ts). */
+    readonly functionLines: number;
+    /** A folder with more direct entries, files and folders, than this (`big-folder`). */
+    readonly folderEntries: number;
+    /** A file that at least this many other files of its package import, outside test/ (`fan-in`). */
+    readonly fanIn: number;
+    /** A file under either percentage in the last coverage run (`low-coverage`). */
+    readonly coverage: { readonly lines: number; readonly branches: number };
+    /** Where that run writes its summary: the json-summary reporter of the root vitest.config.ts. */
+    readonly coverageSummary: string;
+  };
+  /** The documents that describe these rules; the `docs` rule fails when they fall behind. */
+  readonly docs: { readonly map: string; readonly skill: string };
   /** Said after every failure. */
   readonly hint: string;
 }
@@ -75,5 +94,14 @@ export const STRUCTURE_RULES: StructureRules = {
     root: 'apps/server/src/modules/',
     files: ['routes.ts', 'service.ts', 'repo.ts', 'schemas.ts', 'rules.ts', 'index.ts'],
   },
+  warn: {
+    nearLimit: 0.8,
+    functionLines: 60,
+    folderEntries: 12,
+    fanIn: 8,
+    coverage: { lines: 95, branches: 90 },
+    coverageSummary: '.cache/coverage/coverage-summary.json',
+  },
+  docs: { map: 'docs/structure.md', skill: '.claude/skills/keep-structure/SKILL.md' },
   hint: 'The rules are in docs/structure.md; see .claude/skills/keep-structure (load it before adding, moving or splitting files).',
 };

@@ -16,7 +16,7 @@ describe('checkStructure', () => {
     expect(checkStructure(tree)).toEqual([]);
   });
 
-  it('runs every rule: layout, packages, placement, size and modules', () => {
+  it('runs every rule: layout, packages, placement, size, modules and docs', () => {
     const found = checkStructure(
       cleanWith({
         'tools/x.ts': '',
@@ -24,9 +24,10 @@ describe('checkStructure', () => {
         'packages/db/src/a.test.ts': '',
         'packages/db/src/big.ts': lines(301),
         'apps/server/src/modules/members/helpers.ts': '',
+        '.claude/skills/keep-structure/SKILL.md': undefined,
       }),
     );
-    expect(found.map((v) => v.rule)).toEqual(['layout', 'package', 'tests', 'size', 'modules']);
+    expect(found.map((v) => v.rule)).toEqual(['layout', 'package', 'tests', 'size', 'modules', 'docs']);
   });
 
   it('takes other rules', () => {

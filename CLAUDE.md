@@ -53,6 +53,7 @@ pnpm dev                # dev Postgres (Docker, 9952) + migrations + API 9950 + 
 pnpm mwc check          # biome, banned names, structure, typecheck per package, db drift, tests with coverage
 pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
 pnpm mwc check --full   # + tests on the dev Postgres and the web build (docs/testing.md)
+pnpm mwc structure --report  # early warnings: hot spots before a structure rule fails; never fails
 pnpm mwc ports          # the port map
 ```
 

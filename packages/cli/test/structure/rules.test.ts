@@ -11,6 +11,25 @@ describe('STRUCTURE_RULES', () => {
     expect(STRUCTURE_RULES.maxLines).toEqual({ source: 300, test: 500 });
   });
 
+  it('has the approved early-warning thresholds, and reads coverage where the root vitest.config.ts writes it', () => {
+    expect(STRUCTURE_RULES.warn).toEqual({
+      nearLimit: 0.8,
+      functionLines: 60,
+      folderEntries: 12,
+      fanIn: 8,
+      coverage: { lines: 95, branches: 90 },
+      coverageSummary: '.cache/coverage/coverage-summary.json',
+    });
+    const vitest = readFileSync(resolve(root, 'vitest.config.ts'), 'utf8');
+    expect(vitest).toContain("reportsDirectory: '.cache/coverage'");
+    expect(vitest).toContain("'json-summary'");
+  });
+
+  it('keeps the documents the docs rule checks', () => {
+    for (const doc of Object.values(STRUCTURE_RULES.docs))
+      expect(existsSync(resolve(root, doc)), doc).toBe(true);
+  });
+
   it('knows the same workspace groups as pnpm-workspace.yaml and mwc check', () => {
     const workspace = readFileSync(resolve(root, 'pnpm-workspace.yaml'), 'utf8');
     const globs = [...workspace.matchAll(/^ {2}- (\S+)\/\*$/gm)].map((m) => m[1]);

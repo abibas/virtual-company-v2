@@ -1,7 +1,7 @@
 /**
  * `mwc check`: the steps of each lane (fast, default, --full) and how they run. Steps run from the repo
  * root as processes with inherited output, except the banned-names and structure scans, which run in
- * this process on one shared file listing.
+ * this process on one shared file listing; the same listing gives the structure warnings it ends with.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
@@ -10,6 +10,7 @@ import { cachedScanDeps, formatHits, type ScanDeps, scanFiles, systemScanDeps } 
 import { DEV_COMPOSE_FILE, DEV_DATABASE_URL, postgresDown, postgresUp, type Step } from './dev.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
 import { checkStructure, formatViolations } from './structure/check.ts';
+import { coverageReader, formatSummary, warningsOf } from './structure/report.ts';
 import { repoTree } from './structure/tree.ts';
 
 /**
@@ -190,18 +191,29 @@ export interface CheckDeps {
   runStep(step: CheckStep, io: MainIo): boolean;
   /** Looks at Docker for the --full Postgres lane; not called without --full. */
   lane?(): FullLane;
+  /** The files the in-process steps and the closing warnings read: listed once, each read once. */
+  readonly scan: ScanDeps;
+  /** The last coverage run's summary (json-summary), or undefined when there is none. */
+  coverage(): string | undefined;
 }
 
-/** `mwc check`: every step runs even after a failure, so one run shows every problem. */
+/**
+ * `mwc check`: every step runs even after a failure, so one run shows every problem; then the structure
+ * warnings in a few lines, which never change the exit code.
+ */
 export function runCheck(flags: ReadonlySet<string>, io: MainIo, deps?: CheckDeps): number {
   const {
     packageDirs,
     runStep,
     lane: detect,
+    scan,
+    coverage,
   } = deps ?? {
     packageDirs: workspacePackages(),
     runStep: spawnStep,
     lane: detectLane,
+    scan: cachedScanDeps(systemScanDeps(REPO_ROOT)),
+    coverage: coverageReader(),
   };
   let lane = NO_DOCKER;
   if (flags.has('full')) {
@@ -209,10 +221,12 @@ export function runCheck(flags: ReadonlySet<string>, io: MainIo, deps?: CheckDep
     if (!lane.docker) io.stdout('\n(--full: Docker is not available, so the Postgres lane is skipped)\n');
   }
   const failed: string[] = [];
-  for (const step of checkSteps(flags, packageDirs, lane)) {
+  for (const step of checkSteps(flags, packageDirs, lane, scan)) {
     io.stdout(`\n▶ ${step.label}\n`);
     if (!runStep(step, io)) failed.push(step.label);
   }
+  // --fast runs the tests without coverage, so its summary leaves coverage out instead of showing an older run.
+  io.stdout(`\n${formatSummary(warningsOf(scan, flags.has('fast') ? undefined : coverage()).warnings)}`);
   if (failed.length > 0) {
     io.stderr(`\n✗ mwc check failed: ${failed.join(', ')}\n`);
     return 1;

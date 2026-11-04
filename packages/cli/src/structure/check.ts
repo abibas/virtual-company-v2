@@ -1,3 +1,4 @@
+import { checkDocs } from './docs.ts';
 import { checkLayout, checkPackages } from './layout.ts';
 import { checkModules } from './modules.ts';
 import { checkPlacement } from './placement.ts';
@@ -6,7 +7,7 @@ import { checkSize } from './size.ts';
 import type { RepoTree, Violation } from './tree.ts';
 
 /** The structure step's rules in order, each a pure function of the tree (docs/structure.md). */
-const CHECKS = [checkLayout, checkPackages, checkPlacement, checkSize, checkModules] as const;
+const CHECKS = [checkLayout, checkPackages, checkPlacement, checkSize, checkModules, checkDocs] as const;
 
 /** Every broken structure rule in the tree. */
 export function checkStructure(tree: RepoTree, rules: StructureRules = STRUCTURE_RULES): Violation[] {

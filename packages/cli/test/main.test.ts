@@ -91,9 +91,20 @@ describe('main', () => {
     expect(main(['help'], capture().io)).toBe(0);
   });
 
-  it('lists structure in the help', () => {
+  it('lists the early warnings with structure --report, and exits 0 even with warnings', () => {
+    const c = capture();
+    const coverage = () => undefined;
+    expect(main(['structure', '--report'], c.io, { scan: scanOf(CLEAN).deps, coverage })).toBe(0);
+    expect(c.out()).toMatch(/^Structure report: 2 warnings in \d+ files\./);
+    const broken = capture();
+    const scan = scanOf({ ...CLEAN, 'tools/x.ts': '' }).deps;
+    expect(main(['structure', '--report'], broken.io, { scan, coverage })).toBe(0);
+    expect(broken.err()).toBe('');
+  });
+
+  it('lists structure and its --report in the help', () => {
     const c = capture();
     main(['help'], c.io);
-    expect(c.out()).toContain('  structure ');
+    expect(c.out()).toContain('  structure [--report] ');
   });
 });

@@ -1,6 +1,6 @@
 ---
 name: keep-structure
-description: Where code goes in Most Wanted Corp v2 and how to keep the layout clean. Use whenever you add, move, rename or split files in this repository; create a server module, a workspace package or a connector; change the database schema or write a migration; add or move tests or test helpers; when a file grows long (near 300 lines of source or 500 of tests); or when the structure step of mwc check fails.
+description: Where code goes in Most Wanted Corp v2 and how to keep the layout clean. Use whenever you add, move, rename or split files in this repository; create a server module, a workspace package or a connector; change the database schema or write a migration; add or move tests or test helpers; when a file grows long (near 300 lines of source or 500 of tests); when the structure step of mwc check fails; when mwc structure --report warnings (or the structure warnings at the end of mwc check) show up or keep growing; and for a structure review at each end of stage (before the stage's tag) or whenever Ihor asks for one.
 ---
 
 # Keep the structure
@@ -9,6 +9,9 @@ The map and every rule are in `docs/structure.md`; read it when this page is not
 step of `pnpm mwc check` enforces them from one object, `packages/cli/src/structure/rules.ts`.
 
 ## Before writing code: decide the place
+
+Read the `open` lessons in [references/lessons.md](references/lessons.md) first. They record where this table
+fell short.
 
 | You are writing                                                        | It goes in                                                        |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -79,6 +82,10 @@ importing a connector (depend on the port, wire the connector in `app.ts`); logi
 - Split the tests along the same seams (`test/x/<part>.test.ts`), move shared helpers to `test/fixtures/`,
   and keep every test body as it was: the test count is the same before and after.
 - A function over about 60 lines is a smell: split it into named steps when you change it.
+- `pnpm mwc structure --report` lists the hot spots before anything fails: files above 80% of their limit,
+  functions over 60 lines, folders with more than 12 entries, files that 8 or more files of their package
+  import, and the weakest-covered files. `mwc check` ends with a summary of it. When the file you are changing
+  is listed, split it as part of your change. The other hot spots wait for the review.
 - Worked example: [references/splitting.md](references/splitting.md).
 
 ## Tests
@@ -92,9 +99,37 @@ importing a connector (depend on the port, wire the connector in `app.ts`); logi
 - No frontend tests for now: the web is typechecked and built, not tested.
 - Keep process starts few (the Mac bills each one): drive code in-process with injected fakes.
 
+## Lessons
+
+Add a dated entry to [references/lessons.md](references/lessons.md) (format at its top), with the status
+`open`, when:
+
+- the placement table above did not cover your case;
+- a rule forced an awkward placement;
+- a split went badly;
+- a warning of `pnpm mwc structure --report` kept coming back.
+
+Record what happened, where, what you did and the change you suggest. Do not change a rule or the table
+yourself: the review brings the suggestion to Ihor.
+
+## Review
+
+A structure review runs at the end of each stage, before its tag and the stage review with Ihor (it is the
+last item of every stage in `docs/roadmap.md`). It also runs when the report's warning count clearly grows,
+and whenever Ihor asks.
+
+1. Run `pnpm mwc structure --report` and read the open lessons.
+2. Suggest at most 5 concrete improvements to Ihor, each with its evidence: split X before it hits the
+   limit, move Y, add a placement-table row, loosen or tighten a rule.
+3. Land each change he approves as its own commit. Mark the lessons `adopted` or `declined` and record the
+   report's counts.
+
+Details: [references/review.md](references/review.md).
+
 ## Finish line
 
 Run `pnpm mwc check` (and `pnpm mwc check --full` when the database, the server or the web changed). A
 structure failure reads `path[:line]: [rule] reason`; the rule names (`layout`, `package`, `tests`, `size`,
-`modules`) are explained in `docs/structure.md`, "What mwc check enforces". Change a rule only with Ihor's
-approval, and then `rules.ts`, its tests and `docs/structure.md` together.
+`modules`, `docs`) are explained in `docs/structure.md`, "What mwc check enforces". Change a rule only with
+Ihor's approval, and then `rules.ts`, its tests, `docs/structure.md` and this skill together. The `docs` rule
+fails when they disagree.
