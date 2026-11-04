@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
-import type { ComponentPropsWithRef } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
+import { Link } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
 
 /**
@@ -27,6 +28,9 @@ const SIZES: Readonly<Record<ButtonSize, string>> = {
 };
 
 const ICON: Readonly<Record<ButtonSize, number>> = { sm: 15, md: 16, lg: 18 };
+
+const BASE =
+  'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full font-semibold whitespace-nowrap transition-[background-color,color,box-shadow,transform,filter] duration-150 select-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100';
 
 export interface ButtonProps extends ComponentPropsWithRef<'button'> {
   readonly tone?: ButtonTone;
@@ -57,12 +61,7 @@ export function Button({
       type={type}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      className={cx(
-        'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full font-semibold whitespace-nowrap transition-[background-color,color,box-shadow,transform,filter] duration-150 select-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
-        SIZES[size],
-        TONES[tone],
-        className,
-      )}
+      className={cx(BASE, SIZES[size], TONES[tone], className)}
       {...rest}
     >
       {busy ? (
@@ -73,6 +72,49 @@ export function Button({
       {children}
       {Trailing && !busy && <Trailing size={iconSize} strokeWidth={2.25} aria-hidden="true" />}
     </button>
+  );
+}
+
+/** A link that looks like a button: in-app through the router, or a plain anchor with `external` (the API docs). */
+export function ButtonLink({
+  href,
+  external = false,
+  tone = 'secondary',
+  size = 'md',
+  icon: Icon,
+  trailingIcon: Trailing,
+  className,
+  children,
+}: {
+  readonly href: string;
+  readonly external?: boolean;
+  readonly tone?: ButtonTone;
+  readonly size?: ButtonSize;
+  readonly icon?: LucideIcon;
+  readonly trailingIcon?: LucideIcon;
+  readonly className?: string;
+  readonly children: ReactNode;
+}) {
+  const classes = cx(BASE, SIZES[size], TONES[tone], className);
+  const iconSize = ICON[size];
+  const body = (
+    <>
+      {Icon && <Icon size={iconSize} strokeWidth={2.25} aria-hidden="true" />}
+      {children}
+      {Trailing && <Trailing size={iconSize} strokeWidth={2.25} aria-hidden="true" />}
+    </>
+  );
+  if (external) {
+    return (
+      <a href={href} className={classes}>
+        {body}
+      </a>
+    );
+  }
+  return (
+    <Link to={href} className={classes}>
+      {body}
+    </Link>
   );
 }
 

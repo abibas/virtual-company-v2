@@ -47,8 +47,8 @@ function SessionProblem({ error, onRetry }: { readonly error: unknown; readonly 
   return (
     <CenteredState>
       <Brand />
-      <h1 className="mt-8 font-display text-[26px] font-[450] text-ink">{title}</h1>
-      <p className="mt-3 text-ink-2">
+      <h1 className="mt-8 text-2xl font-extrabold tracking-[-0.025em] text-ink">{title}</h1>
+      <p className="mt-3 text-sm text-ink-2">
         {pending
           ? 'Finish the step Clerk asks for, then come back here.'
           : deactivated

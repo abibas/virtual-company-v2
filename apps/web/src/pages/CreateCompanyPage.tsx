@@ -26,14 +26,14 @@ export function CreateCompanyPage() {
         }}
         cancel={
           !first && (
-            <Link to="/" className="text-[13.5px] text-dim hover:text-ink">
+            <Link to="/" className="text-sm font-semibold text-dim hover:text-ink">
               Cancel
             </Link>
           )
         }
       />
       {first && (
-        <p className="mt-10 border-t border-line pt-6 text-[13.5px] text-dim">
+        <p className="mt-8 border-t border-line pt-5 text-sm text-dim">
           Joining a company that already exists? Ask one of its admins for an invitation. It arrives by email,
           and its link signs you in and adds you to the company.
         </p>

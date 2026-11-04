@@ -2,13 +2,14 @@ import { SignIn, SignUp, useAuth, useUser } from '@clerk/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Membership } from '../../api/types.ts';
 import { PlainShell } from '../../app/PlainShell.tsx';
-import { Link, navigate, Redirect, useLocation } from '../../app/router.tsx';
+import { navigate, Redirect, useLocation } from '../../app/router.tsx';
 import { SessionGate, useSession } from '../../app/session.tsx';
-import { AuthLayout } from '../../components/AuthLayout.tsx';
+import { AuthSplit } from '../../components/auth/AuthSplit.tsx';
 import { LoadingBlock } from '../../components/data/LoadState.tsx';
 import { CenteredState } from '../../components/layout/CenteredState.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
-import { Button } from '../../components/ui/Button.tsx';
+import { Button, ButtonLink } from '../../components/ui/Button.tsx';
+import { Card } from '../../components/ui/Card.tsx';
 
 /** Where Clerk sends the person once the invitation's sign-up or sign-in is done: this page, signed in. */
 const HERE = '/accept-invitation';
@@ -72,14 +73,25 @@ function JoinInvitedCompany() {
         <Button tone="primary" onClick={() => void reload().catch(() => undefined)}>
           Check again
         </Button>
-        <Link
-          to="/"
-          className="inline-flex min-h-9 items-center rounded-sm border border-line-2 px-3.5 text-[13.5px] text-ink-2 hover:bg-panel-2"
-        >
-          Go to my companies
-        </Link>
+        <ButtonLink href="/">Go to my companies</ButtonLink>
       </div>
     </PlainShell>
+  );
+}
+
+/** The link arrived without its ticket. */
+function IncompleteLink() {
+  return (
+    <AuthSplit>
+      <Card padding="lg" className="w-full">
+        <PageHeader title="This invitation link is incomplete">
+          <p>Open the link in the invitation email again, or ask the person who invited you to resend it.</p>
+        </PageHeader>
+        <ButtonLink href="/sign-in" tone="primary">
+          Sign in instead
+        </ButtonLink>
+      </Card>
+    </AuthSplit>
   );
 }
 
@@ -112,24 +124,9 @@ export function AcceptInvitationPage() {
   }
   if (invitation.status === 'complete')
     return <Redirect to={`/sign-in?redirect_url=${encodeURIComponent(HERE)}`} />;
-  if (!invitation.ticket) {
-    return (
-      <AuthLayout>
-        <div className="w-full max-w-md">
-          <PageHeader title="This invitation link is incomplete">
-            <p>
-              Open the link in the invitation email again, or ask the person who invited you to resend it.
-            </p>
-          </PageHeader>
-          <Link to="/sign-in" className="text-amber underline underline-offset-4">
-            Sign in instead
-          </Link>
-        </div>
-      </AuthLayout>
-    );
-  }
+  if (!invitation.ticket) return <IncompleteLink />;
   return (
-    <AuthLayout footer="You were invited to a company. Finish here and you land in it.">
+    <AuthSplit footer="You were invited to a company. Finish here and you land in it.">
       {invitation.status === 'sign_in' ? (
         <SignIn routing="hash" forceRedirectUrl={HERE} signUpUrl="/sign-up" />
       ) : (
@@ -139,6 +136,6 @@ export function AcceptInvitationPage() {
           signInUrl={`/sign-in?redirect_url=${encodeURIComponent(HERE)}`}
         />
       )}
-    </AuthLayout>
+    </AuthSplit>
   );
 }

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchApiStatus, type ApiStatus as Status } from '../../api/client.ts';
-import { Button } from '../ui/Button.tsx';
+import { Button, ButtonLink } from '../ui/Button.tsx';
 
 type Shown = Status | { readonly kind: 'checking' };
 
 const TONE: Readonly<Record<Shown['kind'], string>> = {
   checking: 'bg-faint',
-  ready: 'bg-pulse',
-  not_ready: 'bg-amber',
-  unreachable: 'bg-alarm',
+  ready: 'bg-done',
+  not_ready: 'bg-input',
+  unreachable: 'bg-failed',
 };
 
 function statusText(status: Shown): string {
@@ -37,7 +37,7 @@ export function ApiStatus() {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p role="status" aria-live="polite" className="flex items-center gap-2.5 text-ink">
+      <p role="status" aria-live="polite" className="flex items-center gap-2.5 text-sm font-medium text-ink">
         <span
           aria-hidden="true"
           className={`inline-block size-2 shrink-0 rounded-full ${TONE[status.kind]}`}
@@ -45,12 +45,9 @@ export function ApiStatus() {
         {statusText(status)}
       </p>
       <div className="flex items-center gap-2">
-        <a
-          href="/api/docs"
-          className="rounded-sm border border-line-2 px-2.5 py-1 text-[12.5px] text-ink-2 hover:bg-panel-2 hover:text-ink"
-        >
+        <ButtonLink href="/api/docs" external size="sm" tone="quiet">
           API docs
-        </a>
+        </ButtonLink>
         <Button size="sm" onClick={() => void check()} disabled={status.kind === 'checking'}>
           Check again
         </Button>

@@ -1,6 +1,6 @@
 import { PlainShell } from '../app/PlainShell.tsx';
-import { Link } from '../app/router.tsx';
 import { PageHeader } from '../components/layout/PageHeader.tsx';
+import { ButtonLink } from '../components/ui/Button.tsx';
 
 /** Any address this app does not have. */
 export function NotFoundPage() {
@@ -9,9 +9,9 @@ export function NotFoundPage() {
       <PageHeader title="Page not found">
         <p>There is nothing at this address.</p>
       </PageHeader>
-      <Link to="/" className="text-amber underline underline-offset-4">
+      <ButtonLink href="/" tone="primary">
         Open your companies
-      </Link>
+      </ButtonLink>
     </PlainShell>
   );
 }
