@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
 import type { Member } from '../../api/types.ts';
+import { Select } from '../forms/Input.tsx';
 import { roleName } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
 
@@ -15,9 +16,6 @@ interface RoleControlProps {
   readonly self: boolean;
   readonly onChanged: (member: Member) => void;
 }
-
-const SELECT =
-  'cursor-pointer rounded-sm border border-line-2 bg-ground py-1 pr-7 pl-2 text-[13px] text-ink disabled:opacity-60';
 
 /** `PATCH .../members/:id {role}`, with its progress and refusal. */
 function useRoleChange({
@@ -60,8 +58,8 @@ function SelfDemotion({
   readonly onConfirm: () => void;
 }) {
   return (
-    <div className="flex max-w-56 flex-col gap-1.5">
-      <p className="text-[12.5px] text-ink-2">
+    <div className="flex max-w-56 flex-col gap-2 rounded-lg bg-failed-soft p-3">
+      <p className="text-xs font-medium text-ink">
         Make yourself {roleName(role).toLowerCase()}? You may lose controls on this page.
       </p>
       <div className="flex gap-1.5">
@@ -87,7 +85,7 @@ export function RoleControl(props: RoleControlProps) {
   const [asking, setAsking] = useState<MembershipRole | undefined>();
   const roles = grantableRoles(myRole, member.role);
   if (roles.length === 0 || member.status !== 'active') {
-    return <span className="text-[13px] text-ink-2">{roleName(member.role)}</span>;
+    return <span className="text-sm text-ink-2">{roleName(member.role)}</span>;
   }
   const pick = (role: MembershipRole) => {
     if (role === member.role) return;
@@ -99,19 +97,15 @@ export function RoleControl(props: RoleControlProps) {
       <label htmlFor={id} className="sr-only">
         Role of {member.displayName || member.email}
       </label>
-      <select
+      <Select
         id={id}
+        size="sm"
         value={asking ?? member.role}
         disabled={busy}
         onChange={(event) => pick(event.target.value as MembershipRole)}
-        className={SELECT}
-      >
-        {roles.map((role) => (
-          <option key={role} value={role}>
-            {roleName(role)}
-          </option>
-        ))}
-      </select>
+        options={roles.map((role) => ({ value: role, label: roleName(role) }))}
+        className="w-32 min-w-28"
+      />
       {asking && (
         <SelfDemotion
           role={asking}
@@ -123,7 +117,7 @@ export function RoleControl(props: RoleControlProps) {
         />
       )}
       {error && (
-        <p role="alert" className="max-w-56 text-[12.5px] text-alarm">
+        <p role="alert" className="max-w-56 text-xs font-medium text-failed">
           {error}
         </p>
       )}

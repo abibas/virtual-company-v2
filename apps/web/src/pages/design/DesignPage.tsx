@@ -11,11 +11,15 @@ import { ButtonsSection } from './gallery/Buttons.tsx';
 import { CardsSection } from './gallery/Cards.tsx';
 import { FormsSection } from './gallery/Forms.tsx';
 import { ListsSection } from './gallery/Lists.tsx';
+import { PagesMock } from './PagesMock.tsx';
 import { SignInMock } from './SignInMock.tsx';
 
 const VIEWS = [
   { href: '/design', label: 'Components' },
   { href: '/design/dashboard', label: 'Dashboard' },
+  { href: '/design/members', label: 'Members' },
+  { href: '/design/api-keys', label: 'API keys' },
+  { href: '/design/settings', label: 'Settings' },
   { href: '/design/sign-in', label: 'Sign-in' },
 ] as const;
 
@@ -27,6 +31,17 @@ const SECTIONS = [
   ['lists', 'Lists and feed'],
 ] as const;
 
+function ViewTabs({ pathname, size }: { readonly pathname: string; readonly size: 'sm' | 'md' }) {
+  return (
+    <Tabs
+      label="Design views"
+      size={size}
+      items={VIEWS.map((view) => ({ ...view, current: view.href === pathname }))}
+      className="max-w-full overflow-x-auto"
+    />
+  );
+}
+
 /** The components view: the toolbar, a short index, then every component in its states. */
 function Components({ pathname }: { readonly pathname: string }) {
   return (
@@ -36,13 +51,10 @@ function Components({ pathname }: { readonly pathname: string }) {
         <Badge tone="input" variant="solid">
           Sample data
         </Badge>
-        <Tabs
-          label="Design views"
-          size="sm"
-          items={VIEWS.map((view) => ({ ...view, current: view.href === pathname }))}
-          className="ml-auto"
-        />
-        <ThemeToggle tone="solid" />
+        <div className="ml-auto flex items-center gap-2">
+          <ViewTabs pathname={pathname} size="sm" />
+          <ThemeToggle tone="solid" />
+        </div>
       </header>
       <div className="mt-4 mb-6">
         <h1 className="text-2xl font-extrabold tracking-[-0.025em] text-ink">Design gallery</h1>
@@ -73,43 +85,50 @@ function Components({ pathname }: { readonly pathname: string }) {
   );
 }
 
-/** A floating way back from the full-page mocks. */
+/** A floating way between the full-page mocks. */
 function MockBar({ pathname }: { readonly pathname: string }) {
   return (
-    <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-ink p-1.5 pl-3 text-canvas shadow-float max-md:bottom-24">
-      <span className="text-xs font-semibold">Sample data</span>
-      <Tabs
-        label="Design views"
-        size="sm"
-        items={VIEWS.map((view) => ({ ...view, current: view.href === pathname }))}
-      />
+    <div className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-full bg-ink p-1.5 pl-3 text-canvas shadow-float max-md:bottom-24">
+      <span className="shrink-0 text-xs font-semibold">Sample data</span>
+      <ViewTabs pathname={pathname} size="sm" />
     </div>
   );
 }
 
+/** The full-page mock at this path, if any. */
+function mockAt(pathname: string) {
+  switch (pathname) {
+    case '/design/dashboard':
+      return <DashboardMock />;
+    case '/design/members':
+      return <PagesMock page="members" />;
+    case '/design/api-keys':
+      return <PagesMock page="api-keys" />;
+    case '/design/settings':
+      return <PagesMock page="settings" />;
+    case '/design/sign-in':
+      return <SignInMock />;
+    default:
+      return null;
+  }
+}
+
 /**
- * `/design` (development only, no API and no sign-in): the component gallery, the dashboard with sample data at
- * `/design/dashboard`, and the sign-in layout with a stand-in for Clerk at `/design/sign-in`.
+ * `/design` (development only, no API and no sign-in): the component gallery; the dashboard, Members, API keys and
+ * Settings pages in the shell with sample data; and the sign-in layout with a stand-in for Clerk.
+ * `?theme=dark` (or light) picks the scheme, so a screenshot run can ask for either.
  */
 export function DesignPage() {
   const { pathname, search } = useLocation();
   const theme = search.get('theme');
-  // `?theme=dark` (or light) picks the scheme, so a screenshot run can ask for either.
   useEffect(() => {
     if (theme === 'light' || theme === 'dark') setThemeChoice(theme);
   }, [theme]);
-  if (pathname === '/design/dashboard') {
+  const mock = mockAt(pathname);
+  if (mock) {
     return (
       <>
-        <DashboardMock />
-        <MockBar pathname={pathname} />
-      </>
-    );
-  }
-  if (pathname === '/design/sign-in') {
-    return (
-      <>
-        <SignInMock />
+        {mock}
         <MockBar pathname={pathname} />
       </>
     );

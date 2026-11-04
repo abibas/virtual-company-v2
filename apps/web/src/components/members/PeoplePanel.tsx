@@ -5,11 +5,20 @@ import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../data/LoadState.tsx';
 import type { NoticeTone } from '../ui/Notice.tsx';
 import { Panel } from '../ui/Panel.tsx';
+import { SkeletonRow } from '../ui/Skeleton.tsx';
 import { MemberTable } from './MemberTable.tsx';
 import { SyncButton, syncSummary } from './SyncButton.tsx';
 
-/** A wide table scrolls on its own at phone width, never the page. */
-export const SCROLL_X = '-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0';
+/** Three rows loading, the shape of the table. */
+export function TableSkeleton() {
+  return (
+    <>
+      <SkeletonRow />
+      <SkeletonRow />
+      <SkeletonRow />
+    </>
+  );
+}
 
 interface PeoplePanelProps {
   readonly companyId: string;
@@ -40,13 +49,9 @@ export function PeoplePanel({ members, admin, onNotice, onSynced, ...table }: Pe
     />
   );
   return (
-    <Panel title="People" actions={sync}>
-      <LoadState loaded={members} label="Loading members…">
-        {(data) => (
-          <div className={SCROLL_X}>
-            <MemberTable members={data.members} {...table} />
-          </div>
-        )}
+    <Panel title="People" description="Everyone in the company and what they may do." actions={sync}>
+      <LoadState loaded={members} label="Loading members…" skeleton={<TableSkeleton />}>
+        {(data) => <MemberTable members={data.members} {...table} />}
       </LoadState>
     </Panel>
   );

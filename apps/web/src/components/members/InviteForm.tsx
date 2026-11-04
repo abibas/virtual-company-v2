@@ -1,5 +1,6 @@
 import type { MembershipRole } from '@mwc/shared/enums';
 import { grantableRoles } from '@mwc/shared/roles';
+import { Send } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
@@ -66,11 +67,11 @@ export function InviteForm({ companyId, myRole, onInvited }: InviteFormProps) {
           onChange={(event) => setRole(event.target.value as MembershipRole)}
           options={roles.map((value) => ({ value, label: roleName(value) }))}
         />
-        <Button type="submit" tone="primary" busy={busy} disabled={email.trim() === ''}>
+        <Button type="submit" tone="primary" icon={Send} busy={busy} disabled={email.trim() === ''}>
           Send invitation
         </Button>
       </div>
-      <p className="text-[12.5px] text-dim">
+      <p className="text-xs text-dim">
         Owners manage everything, admins manage people, members work in the company, viewers only look.
       </p>
     </form>

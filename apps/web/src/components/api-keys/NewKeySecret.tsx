@@ -1,7 +1,10 @@
+import { KeyRound } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { CreatedApiKey } from '../../api/types.ts';
 import { CopyButton } from '../forms/CopyButton.tsx';
+import { Badge } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
+import { Card } from '../ui/Card.tsx';
 
 /**
  * The new key, shown this once: the server keeps only its hash and first characters. It lives in the page's memory
@@ -21,17 +24,19 @@ export function NewKeySecret({
   }, []);
 
   return (
-    <section
-      aria-labelledby="new-key-title"
-      className="rounded-md border border-dashed border-amber bg-amber-soft p-4 md:p-5"
-    >
-      <h2 id="new-key-title" className="text-[15px] font-semibold text-ink">
-        Your new key “{apiKey.name}”
-      </h2>
-      <p className="mt-1 text-[13.5px] text-ink-2">
+    <Card as="section" aria-labelledby="new-key-title" className="ring-2 ring-input/50">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="new-key-title" className="text-md font-bold tracking-[-0.01em] text-ink">
+          Your new key “{apiKey.name}”
+        </h2>
+        <Badge tone="input" icon={KeyRound}>
+          Shown once
+        </Badge>
+      </div>
+      <p className="mt-1 text-sm text-dim">
         Copy it now. You won’t see this key again: the server keeps only its first characters.
       </p>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <label htmlFor="new-key-secret" className="sr-only">
           The new API key
         </label>
@@ -43,13 +48,13 @@ export function NewKeySecret({
           spellCheck={false}
           autoComplete="off"
           onFocus={(event) => event.currentTarget.select()}
-          className="w-full min-w-0 rounded-sm border border-line-2 bg-ground px-3 py-2 font-mono text-[13px] text-ink"
+          className="h-10 w-full min-w-0 rounded-md bg-surface-2 px-3.5 font-mono text-sm text-ink ring-1 ring-line-2 ring-inset focus:ring-blue focus:outline-none"
         />
-        <CopyButton text={apiKey.secret} label="Copy key" />
+        <CopyButton text={apiKey.secret} label="Copy key" tone="primary" size="md" />
       </div>
       <div className="mt-4">
         <Button onClick={onDone}>I have copied it</Button>
       </div>
-    </section>
+    </Card>
   );
 }

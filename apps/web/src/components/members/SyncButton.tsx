@@ -1,3 +1,4 @@
+import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
@@ -40,7 +41,7 @@ export function SyncButton({
     }
   };
   return (
-    <Button size="sm" busy={busy} onClick={() => void sync()}>
+    <Button size="sm" icon={RefreshCw} busy={busy} onClick={() => void sync()}>
       Sync now
     </Button>
   );

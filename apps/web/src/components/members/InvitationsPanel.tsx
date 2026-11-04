@@ -4,7 +4,7 @@ import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../data/LoadState.tsx';
 import { Panel } from '../ui/Panel.tsx';
 import { InvitationTable } from './InvitationTable.tsx';
-import { SCROLL_X } from './PeoplePanel.tsx';
+import { TableSkeleton } from './PeoplePanel.tsx';
 
 /** The pending invitations (admins and owners), with resend and revoke. */
 export function InvitationsPanel({
@@ -21,19 +21,17 @@ export function InvitationsPanel({
 }) {
   return (
     <Panel title="Pending invitations" description="Invitations expire 14 days after they are sent.">
-      <LoadState loaded={invitations} label="Loading invitations…">
+      <LoadState loaded={invitations} label="Loading invitations…" skeleton={<TableSkeleton />}>
         {(data) => (
-          <div className={SCROLL_X}>
-            <InvitationTable
-              companyId={companyId}
-              invitations={data.invitations}
-              myRole={myRole}
-              onChanged={(text) => {
-                onChanged(text);
-                invitations.reload();
-              }}
-            />
-          </div>
+          <InvitationTable
+            companyId={companyId}
+            invitations={data.invitations}
+            myRole={myRole}
+            onChanged={(text) => {
+              onChanged(text);
+              invitations.reload();
+            }}
+          />
         )}
       </LoadState>
     </Panel>

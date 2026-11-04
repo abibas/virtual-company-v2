@@ -53,8 +53,12 @@ export function MembersPage() {
       <PageHeader title="Members">
         <p>{admin ? LEDE.admin : LEDE.other}</p>
       </PageHeader>
-      <div className="flex flex-col gap-6">
-        {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+      <div className="grid gap-4 md:gap-5">
+        {notice && (
+          <Notice tone={notice.tone} onDismiss={() => setNotice(undefined)}>
+            {notice.text}
+          </Notice>
+        )}
         {admin && (
           <InvitePanel
             companyId={companyId}

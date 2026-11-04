@@ -27,6 +27,29 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: The component library, a shared class helper and a development-only gallery
+
+- **What happened:** the redesign gave the web a reusable component library (about 60 components) and a gallery to
+  look at them. The placement table's UI row names only `pages/`, `components/`, `app/`, `api/` and `styles/`: it
+  says nothing about how `components/` is grouped, where a helper every component imports goes, or where a page
+  that is development tooling rather than a route of the product belongs. Three warnings followed: `big-folder` on
+  `components/` (14 entries once the role folders existed beside the loose files), `fan-in` on
+  `components/cx.ts` (33 importers: the class-joining helper, like `api/types.ts` imported everywhere) and
+  `long-function` on nine new components over 60 lines (gallery sections and the feed pieces).
+- **Where:** `apps/web/src/components/{ui,forms,data,feed,layout,auth,overview,company,members,api-keys,settings}/`
+  with a barrel `index.ts` per library group; `components/cx.ts`; `pages/design/` (the gallery, loaded only with
+  `import.meta.env.DEV`, with its sections in `pages/design/gallery/`); `api/attention.ts` (the feed's data hook,
+  empty until S5); the three design commits.
+- **What was done:** the library is grouped by role (`ui/` primitives, `forms/`, `data/`, `feed/`, `layout/`,
+  `auth/`), a page's own parts stay in `components/<area>/`, and the two loose files moved into role folders
+  (`company/CreateCompanyForm.tsx`, `auth/ApiStatus.tsx`), so `components/` holds folders and `cx.ts` only. The
+  nine long components were split into named pieces. The `cx.ts` fan-in stays: every component joins classes.
+- **Suggested change:** placement-table rows for the web: "A shared primitive → `components/ui/` (or `forms/`,
+  `data/`, `feed/`, `layout/`, `auth/` by role), with a barrel; a page's own parts → `components/<area>/`; a
+  development-only page (the gallery) → `pages/design/`, behind `import.meta.env.DEV`". And leave `components/cx.ts`
+  out of `fan-in` with `api/types.ts`, or count only value imports, as the S1.11 lesson suggests.
+- **Status:** `open`.
+
 ### 2026-11-04: The fake provider's near-limit warning came back with one more option
 
 - **What happened:** the S1.2 slug fix gave `FakeIdentityProvider` an option (`organizationSlugs`) and computed

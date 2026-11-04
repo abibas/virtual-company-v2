@@ -90,14 +90,14 @@ export function Primary({
   readonly phone?: ReactNode;
 }) {
   return (
-    <>
+    <div className="min-w-0">
       <p className="font-semibold break-words text-ink">{title}</p>
-      {subtitle && <p className="text-xs break-all text-dim">{subtitle}</p>}
+      {subtitle && <p className="text-xs wrap-anywhere text-dim">{subtitle}</p>}
       {phone && (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-dim md:hidden">
           {phone}
         </div>
       )}
-    </>
+    </div>
   );
 }

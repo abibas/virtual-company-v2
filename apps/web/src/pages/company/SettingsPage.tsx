@@ -22,8 +22,11 @@ export function SettingsPage() {
             : `The company’s name and address. As ${roleName(role).toLowerCase()} you can see them; admins and owners change them.`}
         </p>
       </PageHeader>
-      <div className="flex flex-col gap-6">
-        <Panel title="Name and address">
+      <div className="grid gap-4 md:gap-5">
+        <Panel
+          title="Name and address"
+          description="The address is the company's place in every link: /c/<address>."
+        >
           {admin ? (
             <CompanyDetailsForm
               companyId={companyId}
@@ -36,11 +39,11 @@ export function SettingsPage() {
               }}
             />
           ) : (
-            <dl className="grid gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-[auto_1fr]">
+            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
               <dt className="text-dim">Name</dt>
-              <dd className="text-ink">{membership.name}</dd>
+              <dd className="font-medium text-ink">{membership.name}</dd>
               <dt className="text-dim">Address</dt>
-              <dd className="font-mono text-[13px] text-ink-2">/c/{membership.slug}</dd>
+              <dd className="font-mono text-xs text-ink-2">/c/{membership.slug}</dd>
             </dl>
           )}
         </Panel>

@@ -39,30 +39,32 @@ export function ApiKeysPage() {
     <>
       <PageHeader title="API keys">
         <p>
-          A personal key lets the <code className="font-mono text-[13px]">mwc</code> CLI, or your own Claude
-          Code, act as you in {membership.name}, and nowhere else.
+          A personal key lets the <code className="font-mono text-xs">mwc</code> CLI, or your own Claude Code,
+          act as you in {membership.name}, and nowhere else.
         </p>
       </PageHeader>
-      <div className="flex flex-col gap-6">
-        {created ? (
-          <NewKeySecret apiKey={created} onDone={() => setCreated(undefined)} />
-        ) : (
-          <Panel
-            title="Create a key"
-            description="Give it a name you will recognise, such as the machine it is for."
-          >
-            <CreateKeyForm
-              companyId={companyId}
-              onCreated={(key) => {
-                setCreated(key);
-                keys.reload();
-              }}
-            />
+      <div className="grid gap-4 md:gap-5">
+        <div className="grid gap-4 md:gap-5 lg:grid-cols-2">
+          {created ? (
+            <NewKeySecret apiKey={created} onDone={() => setCreated(undefined)} />
+          ) : (
+            <Panel
+              title="Create a key"
+              description="Give it a name you will recognise, such as the machine it is for."
+            >
+              <CreateKeyForm
+                companyId={companyId}
+                onCreated={(key) => {
+                  setCreated(key);
+                  keys.reload();
+                }}
+              />
+            </Panel>
+          )}
+          <Panel title="Sign in the CLI" description="Save a key on your machine with this command.">
+            <LoginCommand apiUrl={config.apiUrl} companyId={companyId} />
           </Panel>
-        )}
-        <Panel title="Sign in the CLI" description="Save a key on your machine with this command.">
-          <LoginCommand apiUrl={config.apiUrl} companyId={companyId} />
-        </Panel>
+        </div>
         <KeysPanel
           companyId={companyId}
           keys={keys}
