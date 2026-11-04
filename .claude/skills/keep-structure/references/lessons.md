@@ -27,6 +27,27 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: The jobs loop made the outbox a fan-in warning
+
+- **What happened:** `platform/jobs/outbox.ts` had 7 importers (five members service files and two companies service
+  files: the ones that enqueue and the ones that own handlers). S1.10's loop is its consumer: `outbox-drain.ts` runs
+  `processOutboxRow` and needs `OutboxGiveUpError` and the handler types, and `run.ts` types the modules' registry with
+  `OutboxHandlers`. They made 9 importers and a `fan-in` warning (the report went from 19 to 20). Any placement of the
+  loop adds at least one importer: the drain inside `outbox.ts` would still be imported by `run.ts` or `app.ts`.
+  The same step first had two more warnings that were fixed: `createJobsRunner` as one closure of 99 lines
+  (`long-function`; now a small class, `JobsLoop`, whose longest method is about 20 lines) and `reserveSession` in a
+  file of its own, which made `packages/db/src/` and `test/` 13 entries each (`big-folder`; it now sits in `handle.ts`
+  with `queryRows`, the other driver difference, and its tests in `handle.test.ts`).
+- **Where:** `apps/server/src/platform/jobs/outbox-drain.ts` (94 lines), `run.ts` (78), `runner.ts` (146);
+  `packages/db/src/handle.ts` (117); S1.10.
+- **What was done:** kept both imports. Moving `OutboxGiveUpError` and the handler types into a lower file that
+  `outbox.ts` re-exports would have kept the count at 7, but only by hiding the loop's dependency behind a facade, which
+  the earlier lessons decline.
+- **Suggested change:** the open suggestion of counting a module's files as one importer would make `outbox.ts` 3
+  importers (members, companies, `platform/jobs`); counting only value imports (the S1.4 lesson) would make it 8.
+  Either keeps the warning for real surprises.
+- **Status:** `open`.
+
 ### 2026-11-04: A new module made the route helpers fan-in warnings
 
 - **What happened:** S1.9's `modules/api-keys/routes.ts` is the eighth file of the server that imports

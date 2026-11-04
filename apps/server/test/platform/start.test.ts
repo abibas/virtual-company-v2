@@ -12,6 +12,7 @@ import { captureLogger, getJson, LEVEL } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';
 import { readServerVersion } from '../../src/platform/version.ts';
+import { manualTimers } from '../fixtures/jobs.ts';
 
 const ENV = { NODE_ENV: 'test', DATABASE_URL: 'postgres://mwc:mwc@127.0.0.1:9999/mwc' };
 
@@ -84,7 +85,10 @@ describe('start', () => {
       version: '1.2.3-test',
       db: 'postgres',
       identity: 'none',
+      jobs: false,
     });
+    // NODE_ENV=test: the jobs loop is off unless MWC_JOBS turns it on.
+    expect(started.jobs).toBeUndefined();
     expect(started.config.MWC_PORT).toBe(9961);
     expect(await getJson(started.app, '/healthz')).toMatchObject({
       status: 200,
@@ -140,11 +144,42 @@ describe('start', () => {
     await expect(migrationStatus(started.db)).rejects.toThrow();
   });
 
+  it('runs the jobs loop with MWC_JOBS=on once it listens, shows it in /readyz and stops it before the database', async () => {
+    const manual = manualTimers();
+    const t = testDeps({ migrate: true, timers: manual.timers });
+    const started = await start({ ...ENV, MWC_JOBS: 'on', MWC_RECONCILE_MINUTES: '3' }, t.deps);
+    expect(t.lines.find((line) => line.msg === 'listening')).toMatchObject({ jobs: true });
+    expect(t.lines.find((line) => line.msg === 'jobs: starting')).toMatchObject({
+      reconcileIntervalMs: 180_000,
+    });
+    expect(t.lines.some((line) => line.msg.startsWith('jobs: no identity provider'))).toBe(true);
+    const jobsOf = async () =>
+      ((await getJson(started.app, '/readyz')).body as { jobs: Record<string, unknown> }).jobs;
+    expect(await jobsOf()).toEqual({
+      enabled: true,
+      holdsLock: false,
+      lastTickAt: null,
+      outbox: { due: 0, failed: 0 },
+    });
+    expect(manual.pending()).toEqual([0]);
+    await manual.fire();
+    expect(await jobsOf()).toMatchObject({ enabled: true, holdsLock: true, lastTickAt: expect.any(String) });
+
+    await t.signals.get('SIGTERM')?.('SIGTERM');
+    expect(started.jobs?.status().holdsLock).toBe(false);
+    expect(manual.pending()).toEqual([]);
+    const said = t.lines.map((line) => line.msg);
+    // The lock was given up while the database was still open.
+    expect(said).not.toContain('jobs: could not give the jobs lock up; it ends with its session');
+    expect(said.indexOf('jobs: stopped')).toBeLessThan(said.indexOf('shut down'));
+    expect(t.exit).toHaveBeenCalledWith(0);
+  });
+
   it('uses the system defaults: createDb, the configured logger, the package version, serve() and process signals', async () => {
     const port = await freePort();
     const exit = vi.fn();
     const started = await start(
-      { ...ENV, NODE_ENV: 'production', MWC_LOG_LEVEL: 'fatal', MWC_PORT: String(port) },
+      { ...ENV, NODE_ENV: 'production', MWC_LOG_LEVEL: 'fatal', MWC_PORT: String(port), MWC_JOBS: 'off' },
       { exit },
     );
     try {

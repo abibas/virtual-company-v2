@@ -2,16 +2,18 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { newId } from '@mwc/shared/ids';
 import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
-import { companiesRoutes } from './modules/companies/index.ts';
+import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
-import { identityRoutes } from './modules/identity/index.ts';
-import { membersRoutes } from './modules/members/index.ts';
+import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
+import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
 import { requestLog } from './platform/http/request-log.ts';
 import { mountWeb } from './platform/http/web.ts';
 import { identityFromConfig } from './platform/identity.ts';
+import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
+import type { ModuleJobs } from './platform/jobs/run.ts';
 
 export type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 
@@ -54,3 +56,21 @@ export function createApp(deps: AppDeps) {
 
 /** The app's type, for the web's typed client: `hc<AppType>(baseUrl)` (a type-only import). */
 export type AppType = ReturnType<typeof createApp>;
+
+/**
+ * What the jobs loop (`platform/jobs/`, started by `platform/start.ts`) runs from the modules: their outbox handlers
+ * in one registry (companies: create_org, delete_org; members: update_role, remove_member; invitations: invite,
+ * revoke_invite), the retry of webhook events and the company reconcile (identity). The modules export them and only
+ * this file composes them, so no module imports the loop and the loop imports no module.
+ */
+export function moduleJobs(deps: ServerDeps): ModuleJobs {
+  return {
+    outboxHandlers: outboxRegistry(
+      companyOutboxHandlers(deps),
+      memberOutboxHandlers(deps),
+      invitationOutboxHandlers(deps),
+    ),
+    retryEvents: () => retryIdentityEvents(deps),
+    reconcileCompany: (companyId) => reconcileCompany(deps, companyId),
+  };
+}

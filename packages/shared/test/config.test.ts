@@ -18,6 +18,8 @@ describe('loadConfig', () => {
       MWC_IDENTITY: 'none',
       MWC_COMPANY_CREATION: 'any',
       MWC_COMPANY_CREATORS: [],
+      MWC_JOBS: true,
+      MWC_RECONCILE_MINUTES: 10,
     });
   });
 
@@ -236,5 +238,26 @@ describe('loadConfig company creation', () => {
     expect(() => loadConfig({ ...valid, MWC_COMPANY_CREATORS: 'a@x.test,not-an-email' })).toThrow(
       /MWC_COMPANY_CREATORS/,
     );
+  });
+});
+
+describe('loadConfig jobs', () => {
+  it('runs the jobs loop by default, also in production, and not with NODE_ENV=test unless asked', () => {
+    expect(loadConfig(valid).MWC_JOBS).toBe(true);
+    expect(loadConfig({ ...valid, NODE_ENV: 'production' }).MWC_JOBS).toBe(true);
+    expect(loadConfig({ ...valid, NODE_ENV: 'test' }).MWC_JOBS).toBe(false);
+    expect(loadConfig({ ...valid, NODE_ENV: 'test', MWC_JOBS: 'on' }).MWC_JOBS).toBe(true);
+    expect(loadConfig({ ...valid, MWC_JOBS: '' }).MWC_JOBS).toBe(true);
+    for (const off of ['off', 'false', '0', 'no'])
+      expect(loadConfig({ ...valid, MWC_JOBS: off }).MWC_JOBS).toBe(false);
+    expect(() => loadConfig({ ...valid, MWC_JOBS: 'sometimes' })).toThrow(/MWC_JOBS/);
+  });
+
+  it('reconciles each company every 10 minutes unless MWC_RECONCILE_MINUTES says otherwise (1 to 1440)', () => {
+    expect(loadConfig({ ...valid, MWC_RECONCILE_MINUTES: '' }).MWC_RECONCILE_MINUTES).toBe(10);
+    expect(loadConfig({ ...valid, MWC_RECONCILE_MINUTES: '3' }).MWC_RECONCILE_MINUTES).toBe(3);
+    for (const minutes of ['0', '1441', '2.5', 'ten']) {
+      expect(() => loadConfig({ ...valid, MWC_RECONCILE_MINUTES: minutes })).toThrow(/MWC_RECONCILE_MINUTES/);
+    }
   });
 });

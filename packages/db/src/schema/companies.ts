@@ -20,6 +20,11 @@ export const companies = pgTable(
     identityProvider: text('identity_provider').notNull().default('clerk'),
     /** The provider's organization id (a Clerk Organization); set once the provider has it. */
     identityOrgId: text('identity_org_id').unique(),
+    /**
+     * When the jobs loop's periodic reconcile last ran for the company (S1.10), a failed try included: the company
+     * comes round again in its next slot (`apps/server/src/platform/jobs/reconcile.ts`). Null until the first.
+     */
+    reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     createdByUserId: uuid('created_by_user_id').references(() => users.id),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),

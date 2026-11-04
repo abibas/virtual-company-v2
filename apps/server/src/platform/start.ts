@@ -4,7 +4,12 @@ import { serve as nodeServe } from '@hono/node-server';
 import { createDb, type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
-import { createApp } from '../app.ts';
+import { createApp, moduleJobs } from '../app.ts';
+import type { ServerDeps } from './env.ts';
+import { identityFromConfig } from './identity.ts';
+import { advisoryJobsLock } from './jobs/lock.ts';
+import { createJobsRunner, type JobsRunner, SYSTEM_TIMERS, type Timers } from './jobs/runner.ts';
+import { JOBS_OFF } from './jobs/status.ts';
 import { createLogger } from './logger.ts';
 import { gracefulShutdown } from './shutdown.ts';
 import { readServerVersion } from './version.ts';
@@ -34,6 +39,8 @@ export interface StartDeps {
   onSignal(signal: 'SIGTERM' | 'SIGINT', handler: (signal: string) => void): void;
   /** `process.exit`. */
   exit(code: number): void;
+  /** The jobs loop's timers (MWC_JOBS=on); tests fire them by hand. */
+  readonly timers: Timers;
 }
 
 const SYSTEM: StartDeps = {
@@ -50,6 +57,7 @@ const SYSTEM: StartDeps = {
     process.on(signal, handler);
   },
   exit: (code) => process.exit(code),
+  timers: SYSTEM_TIMERS,
 };
 
 export interface Started {
@@ -59,15 +67,32 @@ export interface Started {
   readonly db: DbHandle;
   readonly app: ReturnType<typeof createApp>;
   readonly server: Server;
-  /** The SIGTERM/SIGINT handler: stop listening, let requests finish, close the database, exit. */
+  /** The jobs loop, running from the moment the server listens; undefined with MWC_JOBS=off. */
+  readonly jobs: JobsRunner | undefined;
+  /** The SIGTERM/SIGINT handler: stop listening and the jobs, let requests finish, close the database, exit. */
   readonly shutdown: (signal: string) => Promise<void>;
+}
+
+/** The jobs loop on the app's database, provider and clock, with the advisory lock; undefined when MWC_JOBS=off. */
+function jobsRunner(server: ServerDeps, timers: Timers): JobsRunner | undefined {
+  if (!server.config.MWC_JOBS) return undefined;
+  return createJobsRunner({
+    db: server.db,
+    clock: server.clock,
+    logger: server.logger,
+    identity: server.identity,
+    work: moduleJobs(server),
+    reconcileIntervalMs: server.config.MWC_RECONCILE_MINUTES * 60_000,
+    lock: advisoryJobsLock(server.db),
+    timers,
+  });
 }
 
 /**
  * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError`
  * listing every problem when it is invalid, before anything is opened), the logger, the database, the
- * migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the listening server, and the
- * graceful shutdown on SIGTERM and SIGINT. A server error (the port is taken) exits 1.
+ * migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the listening server, the jobs loop
+ * (MWC_JOBS), and the graceful shutdown on SIGTERM and SIGINT. A server error (the port is taken) exits 1.
  */
 export async function start(
   env: Readonly<Record<string, string | undefined>>,
@@ -84,18 +109,25 @@ export async function start(
     await migrateToLatest(db);
   }
 
-  const app = createApp({
+  // One provider for the routes and the jobs (the Clerk connector keeps its invitation rate window in memory).
+  const identity = identityFromConfig(config);
+  const webDist = config.MWC_WEB_DIST ? { webDist: config.MWC_WEB_DIST } : {};
+  const serverDeps: ServerDeps = {
     db,
     config,
     logger,
     version,
-    ...(config.MWC_WEB_DIST ? { webDist: config.MWC_WEB_DIST } : {}),
-  });
+    clock: () => new Date(),
+    identity,
+    ...webDist,
+  };
+  const jobs = jobsRunner(serverDeps, deps.timers);
+  const app = createApp({ ...serverDeps, jobs: jobs ?? JOBS_OFF });
   const server = deps.serve(
     { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST },
     (info) => {
       const line = { host: config.MWC_HOST, port: info.port, version, db: deps.dbLabel };
-      logger.info({ ...line, identity: config.MWC_IDENTITY }, 'listening');
+      logger.info({ ...line, identity: config.MWC_IDENTITY, jobs: jobs !== undefined }, 'listening');
     },
   );
   server.on('error', (error) => {
@@ -103,8 +135,17 @@ export async function start(
     deps.exit(1);
   });
 
-  const shutdown = gracefulShutdown({ server, closeDb: () => db.close(), logger, exit: deps.exit });
+  jobs?.start();
+
+  const stopJobs = jobs ? { stopJobs: () => jobs.stop() } : {};
+  const shutdown = gracefulShutdown({
+    server,
+    closeDb: () => db.close(),
+    logger,
+    exit: deps.exit,
+    ...stopJobs,
+  });
   deps.onSignal('SIGTERM', shutdown);
   deps.onSignal('SIGINT', shutdown);
-  return { config, logger, version, db, app, server, shutdown };
+  return { config, logger, version, db, app, server, jobs, shutdown };
 }

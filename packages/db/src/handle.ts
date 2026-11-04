@@ -72,3 +72,46 @@ export function isUniqueViolation(error: unknown, constraint?: string): boolean 
   }
   return false;
 }
+
+/** A statement's parameters (`$1`, `$2`, ...), sent as text for the server to type. */
+export type SessionParams = readonly (string | number | boolean | null)[];
+
+/**
+ * One database session of its own, for state that lasts as long as a session does: an advisory lock (the jobs loop's
+ * single runner, S1.10), later LISTEN. On Postgres it is a connection reserved from the handle's pool (postgres.js
+ * `reserve()`): nothing else runs on it, and what it holds ends when the connection does, so a process that dies
+ * leaves nothing held. A reserved connection that broke is not reconnected: its queries reject. On PGlite it is the
+ * database's only session, shared with every other query: what it takes is held by that one session, so two holders
+ * in one process never exclude each other.
+ */
+export interface DbSession {
+  /** Runs one statement on this session and resolves to its rows. */
+  query<Row extends Record<string, unknown>>(text: string, params?: SessionParams): Promise<Row[]>;
+  /**
+   * Gives the connection back to the pool (Postgres; PGlite keeps its one session). Whatever the session still holds
+   * stays with that connection, so release it first.
+   */
+  release(): void;
+}
+
+/** Reserves a session on the handle's database (it waits while every pooled connection is busy). */
+export async function reserveSession(handle: DbHandle): Promise<DbSession> {
+  const raw = rawHandle(handle);
+  if (raw.driver === 'pglite') {
+    const { client } = raw;
+    return {
+      async query<Row extends Record<string, unknown>>(text: string, params: SessionParams = []) {
+        return (await client.query<Row>(text, [...params])).rows;
+      },
+      release: () => {},
+    };
+  }
+  const reserved = await raw.db.$client.reserve();
+  return {
+    async query<Row extends Record<string, unknown>>(text: string, params: SessionParams = []) {
+      const rows: Iterable<unknown> = await reserved.unsafe(text, [...params]);
+      return [...rows] as Row[];
+    },
+    release: () => reserved.release(),
+  };
+}

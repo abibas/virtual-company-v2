@@ -1,8 +1,19 @@
-import { readJournal } from '@mwc/db';
-import { migrateToLatest } from '@mwc/db/system';
-import { brokenDb, createTestApp, getJson, LEVEL, TEST_VERSION, type TestApp } from '@mwc/testkit';
+import { identityOutbox, readJournal } from '@mwc/db';
+import { migrateToLatest, queryRows, rawDb } from '@mwc/db/system';
+import {
+  brokenDb,
+  createTestApp,
+  fixedClock,
+  getJson,
+  LEVEL,
+  seedCompany,
+  TEST_VERSION,
+  type TestApp,
+} from '@mwc/testkit';
+import { eq, sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { READY_TIMEOUT_MS } from '../../../src/modules/health/service.ts';
+import { enqueueOutbox } from '../../../src/platform/jobs/outbox.ts';
 
 // readJournal as a pass-through spy, to see how often the server reads the journal file.
 vi.mock('@mwc/db', async (importOriginal) => {
@@ -61,7 +72,54 @@ describe('GET /readyz', () => {
       version: TEST_VERSION,
       db: 'ok',
       migrations: { applied: journal.length, expected: journal.length, last: journal.at(-1)?.tag },
+      jobs: { enabled: false, holdsLock: false, lastTickAt: null, outbox: { due: 0, failed: 0 } },
     });
+  });
+
+  it("shows this process's jobs loop and the outbox backlog, and is ready whatever they say", async () => {
+    const clock = fixedClock(Date.now() + 60_000);
+    const status = { enabled: true, holdsLock: true, lastTickAt: new Date('2026-11-04T10:00:05Z') };
+    t = await createTestApp({ clock, jobs: { status: () => status } });
+    const scoped = (await seedCompany(t.db)).tenant;
+    const row = (key: string) => enqueueOutbox(scoped, { op: 'invite', idempotencyKey: key });
+    const [due, later, failed] = [await row('due'), await row('later'), await row('failed')];
+    await rawDb(t.db)
+      .update(identityOutbox)
+      .set({ nextAttemptAt: new Date(clock().getTime() + 1000) })
+      .where(eq(identityOutbox.id, later?.id ?? ''));
+    await rawDb(t.db)
+      .update(identityOutbox)
+      .set({ status: 'failed' })
+      .where(eq(identityOutbox.id, failed?.id ?? ''));
+    expect(due).toBeDefined();
+    const jobs = { enabled: true, holdsLock: true, lastTickAt: '2026-11-04T10:00:05.000Z' };
+    expect(await getJson(t.app, '/readyz')).toMatchObject({
+      status: 200,
+      body: { status: 'ready', jobs: { ...jobs, outbox: { due: 1, failed: 1 } } },
+    });
+    // Another process runs the jobs, or none has ticked yet: still ready.
+    Object.assign(status, { holdsLock: false, lastTickAt: null });
+    expect(await getJson(t.app, '/readyz')).toMatchObject({
+      status: 200,
+      body: { jobs: { enabled: true, holdsLock: false, lastTickAt: null, outbox: { due: 1, failed: 1 } } },
+    });
+    clock.advance(1000);
+    expect((await getJson(t.app, '/readyz')).body).toMatchObject({ jobs: { outbox: { due: 2, failed: 1 } } });
+  });
+
+  it('is ready with the outbox backlog unknown when it cannot be counted', async () => {
+    t = await createTestApp();
+    await queryRows(t.db, sql`alter table identity_outbox rename to identity_outbox_away`);
+    try {
+      expect(await getJson(t.app, '/readyz')).toMatchObject({
+        status: 200,
+        body: { status: 'ready', jobs: { enabled: false, outbox: null } },
+      });
+      const warn = t.logs.find((line) => line.msg === 'readyz: could not count the outbox backlog');
+      expect(warn?.level).toBe(LEVEL.warn);
+    } finally {
+      await queryRows(t.db, sql`alter table identity_outbox_away rename to identity_outbox`);
+    }
   });
 
   it('reads the migration journal once, when the app is built, never per request', async () => {

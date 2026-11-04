@@ -9,6 +9,8 @@ export interface ShutdownDeps {
   readonly server: Pick<Server, 'close' | 'closeIdleConnections'>;
   /** Closes the database pool. */
   closeDb(): Promise<void>;
+  /** Stops the jobs loop (waits for its tick in flight, gives its lock up); absent with MWC_JOBS=off. */
+  stopJobs?(): Promise<void>;
   readonly logger: Logger;
   /** `process.exit`, injectable for tests. */
   exit(code: number): void;
@@ -16,9 +18,9 @@ export interface ShutdownDeps {
 }
 
 /**
- * Returns the signal handler for SIGTERM/SIGINT: stop accepting connections, let running requests
- * finish, close the database, exit 0. If that takes longer than the timeout (10 s), exit 1. A second
- * signal while shutting down is ignored, so Ctrl-C twice does not cut the cleanup short.
+ * Returns the signal handler for SIGTERM/SIGINT: stop accepting connections and the jobs loop, let running
+ * requests and the jobs' tick finish, close the database, exit 0. If that takes longer than the timeout (10 s),
+ * exit 1. A second signal while shutting down is ignored, so Ctrl-C twice does not cut the cleanup short.
  */
 export function gracefulShutdown(deps: ShutdownDeps): (signal: string) => Promise<void> {
   let started = false;
@@ -33,11 +35,12 @@ export function gracefulShutdown(deps: ShutdownDeps): (signal: string) => Promis
     }, timeoutMs);
     timer.unref();
     try {
-      await new Promise<void>((resolve, reject) => {
+      const closed = new Promise<void>((resolve, reject) => {
         deps.server.close((error) => (error ? reject(error) : resolve()));
         // Keep-alive connections with no request in flight would hold close() open; drop them now.
         deps.server.closeIdleConnections();
       });
+      await Promise.all([closed, deps.stopJobs?.()]);
       await deps.closeDb();
       clearTimeout(timer);
       deps.logger.info('shut down');

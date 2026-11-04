@@ -63,6 +63,14 @@ const EnvSchema = z.object({
   MWC_COMPANY_CREATION: z.preprocess(emptyAsUnset, CompanyCreation.optional()),
   /** The emails MWC_COMPANY_CREATION=allowlist lets create companies, comma-separated, compared lower-cased. */
   MWC_COMPANY_CREATORS: z.preprocess(emailList, z.array(z.email()).default([])),
+  /**
+   * Run the jobs loop in this process (on/off, true/false, 1/0, yes/no): the identity outbox, the retry of webhook
+   * events and the periodic reconcile; one process per database runs them (an advisory lock). Defaults to on, and to
+   * off with NODE_ENV=test, so tests start it only when they ask.
+   */
+  MWC_JOBS: z.preprocess(emptyAsUnset, z.stringbool().optional()),
+  /** Minutes between two reconciles of one company with its organization (1 to 1440). Default 10. */
+  MWC_RECONCILE_MINUTES: z.preprocess(emptyAsUnset, z.coerce.number().int().min(1).max(1440).default(10)),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
@@ -89,7 +97,8 @@ function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): st
  * Process configuration, 12-factor style: everything comes from the environment,
  * is validated once at startup, and a missing or malformed value fails fast.
  * Precedence for the API port: MWC_PORT, then MWC_PORT_SLOT's API port, then 9950. Company creation is open
- * to anyone signed in, except in production, where only MWC_COMPANY_CREATORS may create. The Clerk keys are
+ * to anyone signed in, except in production, where only MWC_COMPANY_CREATORS may create. The jobs loop runs unless
+ * MWC_JOBS turns it off or NODE_ENV is test. The Clerk keys are
  * secrets: nothing logs the configuration, and a problem names the variable, never its value.
  */
 export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((env) => {
@@ -100,6 +109,7 @@ export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((e
     MWC_WEB_ORIGIN,
     MWC_IDENTITY,
     MWC_COMPANY_CREATION,
+    MWC_JOBS,
     ...rest
   } = env;
   const port = MWC_PORT ?? (MWC_PORT_SLOT === undefined ? PORTS.api : slotPorts(MWC_PORT_SLOT).api);
@@ -114,6 +124,7 @@ export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((e
       MWC_WEB_ORIGIN === undefined ? defaultWebOrigin(env, publicUrl) : new URL(MWC_WEB_ORIGIN).origin,
     MWC_IDENTITY: identity,
     MWC_COMPANY_CREATION: MWC_COMPANY_CREATION ?? (env.NODE_ENV === 'production' ? 'allowlist' : 'any'),
+    MWC_JOBS: MWC_JOBS ?? env.NODE_ENV !== 'test',
   };
 });
 

@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 12. Migrations: 3, the last is `0002_identity_inbox_ignored`.
+Tables: 12. Migrations: 4, the last is `0003_company_reconciled_at`.
 
 ```mermaid
 erDiagram
@@ -44,6 +44,7 @@ erDiagram
     text status "not null, default 'provisioning', provisioning|active|suspended|deleted"
     text identity_provider "not null, default 'clerk'"
     text identity_org_id UK "nullable"
+    timestamptz reconciled_at "nullable"
     jsonb settings "not null, default '{}'"
     uuid created_by_user_id FK "nullable"
     timestamptz deleted_at "nullable"
@@ -239,6 +240,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `status` | `text` | no | `'provisioning'` |  | `provisioning`, `active`, `suspended`, `deleted` |
 | `identity_provider` | `text` | no | `'clerk'` |  |  |
 | `identity_org_id` | `text` | yes |  | UK |  |
+| `reconciled_at` | `timestamp with time zone` | yes |  |  |  |
 | `settings` | `jsonb` | no | `'{}'` |  |  |
 | `created_by_user_id` | `uuid` | yes |  | FK |  |
 | `deleted_at` | `timestamp with time zone` | yes |  |  |  |

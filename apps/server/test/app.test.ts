@@ -1,7 +1,17 @@
+import { isCompanyNotFound } from '@mwc/db';
+import { IdentityOutboxOp } from '@mwc/shared/enums';
 import { isId } from '@mwc/shared/ids';
-import { brokenDb, createTestApp, fixedClock, TEST_NOW, type TestApp } from '@mwc/testkit';
+import {
+  brokenDb,
+  createTestApp,
+  FakeIdentityProvider,
+  fixedClock,
+  TEST_NOW,
+  type TestApp,
+  testConfig,
+} from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { REQUEST_ID_MAX_LENGTH } from '../src/app.ts';
+import { moduleJobs, REQUEST_ID_MAX_LENGTH } from '../src/app.ts';
 
 let t: TestApp;
 
@@ -62,5 +72,16 @@ describe('clock', () => {
     const { now } = (await (await plain.app.request('/test/clock')).json()) as { now: number };
     expect(now).toBeGreaterThanOrEqual(before);
     expect(now).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+describe('moduleJobs', () => {
+  it("gives the jobs loop one handler for every outbox op, the identity module's event retry and reconcile", async () => {
+    const deps = { db: t.db, config: testConfig, logger: t.logger, version: 'test', clock: fixedClock() };
+    const jobs = moduleJobs({ ...deps, identity: new FakeIdentityProvider() });
+    expect(Object.keys(jobs.outboxHandlers).sort()).toEqual([...IdentityOutboxOp.options].sort());
+    expect(await jobs.retryEvents()).toEqual({ claimed: 0, processed: 0, failed: 0, givenUp: 0 });
+    const missing = jobs.reconcileCompany('019a4f0c-a1b2-7c3d-8e4f-5a6b7c8d9e0f');
+    await expect(missing).rejects.toSatisfy(isCompanyNotFound);
   });
 });

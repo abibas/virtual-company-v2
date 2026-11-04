@@ -53,6 +53,8 @@ services:
       MWC_PORT: "9950"
       MWC_PUBLIC_URL: http://localhost:9990
       MWC_LOG_LEVEL: info
+      # The jobs loop (also the default); with no Clerk keys it idles and the outbox waits.
+      MWC_JOBS: "on"
       DATABASE_URL: postgres://mwc:mwc@postgres:5432/mwc
     ports:
       - "127.0.0.1:9990:9950"

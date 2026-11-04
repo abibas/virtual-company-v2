@@ -32,6 +32,35 @@ describe('gracefulShutdown', () => {
     expect(server.closeIdleConnections).toHaveBeenCalledOnce();
   });
 
+  it('stops the jobs loop with the server, before the database closes', async () => {
+    const order: string[] = [];
+    let jobsDone = () => {};
+    const shutdown = gracefulShutdown({
+      server: fakeServer((callback) => {
+        order.push('server closed');
+        callback();
+      }),
+      stopJobs: () =>
+        new Promise<void>((resolve) => {
+          order.push('jobs stopping');
+          jobsDone = () => {
+            order.push('jobs stopped');
+            resolve();
+          };
+        }),
+      closeDb: async () => {
+        order.push('db closed');
+      },
+      logger: captureLogger().logger,
+      exit: (code) => order.push(`exit ${code}`),
+    });
+    const done = shutdown('SIGTERM');
+    await vi.waitFor(() => expect(order).toEqual(['server closed', 'jobs stopping']));
+    jobsDone();
+    await done;
+    expect(order).toEqual(['server closed', 'jobs stopping', 'jobs stopped', 'db closed', 'exit 0']);
+  });
+
   it('exits 1 when closing fails', async () => {
     const exit = vi.fn();
     const { logger, lines } = captureLogger();

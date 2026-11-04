@@ -19,7 +19,7 @@ Most_Wanted_corp_v2/
 │   │   │   ├── platform/           cross-cutting, no business rules
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
-│   │   │   │   ├── jobs/           outbox, retry policy (built); loops         S1/S4
+│   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S4
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         routes · service · repo · schemas           S0
@@ -115,7 +115,16 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   its last try, or at once for an `OutboxGiveUpError`: a refusal no retry fixes), and what a handler starts with
   (`outboxProvider`, `outboxTenant`: the configured provider, the row's company or none once deleted; `isLastAttempt`);
   the modules own the handlers (`companies`: `create_org`, `delete_org`; `members`: `update_role`, `remove_member`,
-  `invite`, `revoke_invite`) and the loop that calls them comes in S1.10. `jobs/retry.ts` (S1.8) is the retry policy
+  `invite`, `revoke_invite`). The jobs loop (S1.10) is the rest of `jobs/`: `runner.ts` (`createJobsRunner`, which
+  `start.ts` starts with MWC_JOBS=on: one timer at a time, so ticks never overlap, with injectable timers; `stop()`, in
+  the graceful shutdown, waits for the tick in flight and gives the lock up), `lock.ts` (one runner per database: a
+  Postgres advisory lock on a session of its own, `reserveSession` of `@mwc/db/system`), `run.ts` (`runJobsOnce`: the
+  outbox, the webhook event retry and the periodic reconcile, each caught and logged; idle without a provider),
+  `outbox-drain.ts` (the due rows claimed in small batches with a lease under `for update skip locked`, each run with
+  its op's handler from one registry, `outboxRegistry`), `reconcile.ts` (every active company linked to an organization
+  about once per MWC_RECONCILE_MINUTES, each in its own slot, from `companies.reconciled_at`) and `status.ts` (what
+  `/readyz` shows of it). The modules' work reaches the loop through `moduleJobs(deps)` in `app.ts`, the one place that
+  composes it, so no module imports the loop and the loop imports no module. `jobs/retry.ts` (S1.8) is the retry policy
   the outbox and the webhook inbox share (30 s doubling to 1 h, given up after 12 tries; `describeFailure` for
   `last_error`). The identity module's `service/sync.ts` (S1.7) holds two of the three acceptance paths:
   `projectIdentityEvent` (one normalized webhook event, projected with its audit rows in one transaction) and

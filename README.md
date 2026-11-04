@@ -28,8 +28,9 @@ the same store contract as the in-memory one; sign-in (S1.4: `authn()` for Clerk
 keys, `requireMembership(role)`, `GET /api/me` with reconcile on sign-in; `MWC_IDENTITY`, `MWC_WEB_ORIGIN`);
 companies (S1.5: create with the outbox `create_org` call, list mine, read, rename, soft delete with the name
 typed again; `MWC_COMPANY_CREATION`, `MWC_COMPANY_CREATORS`); memberships (S1.6) and invitations (S1.7); Clerk
-webhooks (S1.8, `POST /api/webhooks/clerk`); personal API keys and `mwc login` / `whoami` / `logout` (S1.9); next
-S1.10, the jobs loop.
+webhooks (S1.8, `POST /api/webhooks/clerk`); personal API keys and `mwc login` / `whoami` / `logout` (S1.9); the
+jobs loop (S1.10: the identity outbox, the webhook event retry and the periodic reconcile, one runner per database by
+an advisory lock; `MWC_JOBS`, `MWC_RECONCILE_MINUTES`); next S1.11, the web's sign-in and Members page.
 
 ## Start
 

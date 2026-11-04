@@ -2,6 +2,7 @@ import type { DbHandle, JournalEntry } from '@mwc/db';
 import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
+import type { JobsView } from './jobs/status.ts';
 
 /** What `createApp` needs from the outside world; tests pass PGlite, a capture logger and a fixed clock. */
 export interface AppDeps {
@@ -23,7 +24,9 @@ export interface AppDeps {
    * The identity provider that signs people in (tests pass `FakeIdentityProvider`). Omitted, it comes from
    * the configuration (`platform/identity.ts`): the Clerk connector for MWC_IDENTITY=clerk, none for `none`.
    */
-  readonly identity?: IdentityProvider;
+  readonly identity?: IdentityProvider | undefined;
+  /** The process's jobs loop, for `/readyz` (`platform/start.ts` passes it). Omitted, the jobs are off (`JOBS_OFF`). */
+  readonly jobs?: JobsView;
 }
 
 /** What the modules and the auth middleware get from `createApp`: the deps with their defaults applied. */

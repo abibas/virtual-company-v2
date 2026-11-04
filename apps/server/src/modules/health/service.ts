@@ -1,14 +1,22 @@
 import { type JournalEntry, type MigrationStatus, migrationStatus, pingDb, readJournal } from '@mwc/db';
 import type { AppDeps } from '../../platform/env.ts';
+import { JOBS_OFF, type JobsStatus, type OutboxBacklog, outboxBacklog } from '../../platform/jobs/status.ts';
 
 /** /readyz answers 503 when the database has not answered within this many milliseconds. */
 export const READY_TIMEOUT_MS = 2000;
 
 export type Readiness = { ready: true; migrations: MigrationStatus } | { ready: false; reason: string };
 
+/** The jobs block of a ready answer: this process's loop and the outbox backlog (null when it cannot be read). */
+export interface JobsReadiness extends JobsStatus {
+  readonly outbox: OutboxBacklog | null;
+}
+
 export interface HealthService {
   /** The database answers within READY_TIMEOUT_MS and every migration in the journal is applied. */
   readiness(): Promise<Readiness>;
+  /** The jobs loop's status and the outbox backlog at `now`; never rejects (jobs off or idle are fine). */
+  jobs(now: Date): Promise<JobsReadiness>;
 }
 
 class Timeout extends Error {}
@@ -25,9 +33,19 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * The health checks of one app. The migration journal is read once here, when the app is built (it only
  * changes with a new deploy), never per request.
  */
-export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal'>): HealthService {
+export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal' | 'jobs'>): HealthService {
   const journal: readonly JournalEntry[] = deps.journal ?? readJournal();
+  const jobs = deps.jobs ?? JOBS_OFF;
   return {
+    async jobs(now) {
+      let outbox: OutboxBacklog | null = null;
+      try {
+        outbox = await withTimeout(outboxBacklog(deps.db, now), READY_TIMEOUT_MS);
+      } catch (error) {
+        deps.logger.warn({ err: error }, 'readyz: could not count the outbox backlog');
+      }
+      return { ...jobs.status(), outbox };
+    },
     async readiness() {
       try {
         const migrations = await withTimeout(

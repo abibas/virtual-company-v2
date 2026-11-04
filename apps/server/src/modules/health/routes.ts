@@ -18,7 +18,8 @@ const readyzRoute = createRoute({
   method: 'get',
   path: '/readyz',
   tags: ['health'],
-  summary: 'Readiness: the database answers and every migration is applied',
+  summary:
+    'Readiness: the database answers and every migration is applied (with the jobs loop, for information)',
   responses: {
     200: { description: 'Ready', content: { 'application/json': { schema: ReadySchema } } },
     503: { description: 'Not ready', content: { 'application/json': { schema: NotReadySchema } } },
@@ -46,12 +47,14 @@ export function healthRoutes(deps: AppDeps) {
         return c.json({ status: 'not_ready' as const, reason: check.reason }, 503);
       }
       const { applied, expected, last } = check.migrations;
+      const { lastTickAt, ...jobs } = await health.jobs(c.var.clock());
       return c.json(
         {
           status: 'ready' as const,
           version: deps.version,
           db: 'ok' as const,
           migrations: { applied, expected, last },
+          jobs: { ...jobs, lastTickAt: lastTickAt?.toISOString() ?? null },
         },
         200,
       );
