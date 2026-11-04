@@ -29,7 +29,6 @@ export async function populated() {
   fake.createUser({ subject: 'u2', email: 'two@x.test' });
   const org = await fake.createOrganization({
     name: 'Acme',
-    slug: 'acme',
     metadata: { mwc_company_id: 'c1' },
     createdBySubject: 'u1',
   });

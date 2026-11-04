@@ -28,7 +28,7 @@ async function collect<T>(items: AsyncIterable<T>): Promise<T[]> {
 }
 
 describe('ClerkIdentityProvider: identity', () => {
-  it('is the clerk provider of one instance, with organizations, invitations and webhooks', () => {
+  it('is the clerk provider of one instance, with organizations, invitations and webhooks, without slugs', () => {
     const { provider } = clerkWorld({ webhookSigningSecret: 'whsec_x' });
     expect(provider.kind).toBe('clerk');
     expect(provider.issuer).toBe(ISSUER);
@@ -38,6 +38,7 @@ describe('ClerkIdentityProvider: identity', () => {
       invitations: true,
       webhooks: true,
       scim: false,
+      organizationSlugs: false,
     });
     expect(clerkWorld().provider.capabilities.webhooks).toBe(false);
   });
@@ -110,19 +111,24 @@ describe('ClerkIdentityProvider: users', () => {
 });
 
 describe('ClerkIdentityProvider: organizations', () => {
-  it('creates one with the company id in private metadata and the creator as admin', async () => {
+  it('creates one with the company id in private metadata and the creator as admin, never with a slug', async () => {
     const { provider, api } = clerkWorld();
-    api.organizations.createOrganization.mockResolvedValue(clerkOrg());
+    api.organizations.createOrganization.mockResolvedValue(clerkOrg({ slug: null }));
     const org = await provider.createOrganization({
       name: 'Acme',
       slug: 'acme',
       metadata: { mwc_company_id: 'c1' },
       createdBySubject: 'user_1',
     });
-    expect(org).toMatchObject({ externalId: 'org_1', metadata: { mwc_company_id: 'c1' } });
+    expect(org).toEqual({
+      externalId: 'org_1',
+      name: 'Acme',
+      metadata: { mwc_company_id: 'c1' },
+      updatedAt: expect.any(Number),
+    });
+    // Clerk refuses any slug while its organization slugs are off (403 organization_slugs_disabled).
     expect(api.organizations.createOrganization).toHaveBeenCalledWith({
       name: 'Acme',
-      slug: 'acme',
       createdBy: 'user_1',
       privateMetadata: { mwc_company_id: 'c1' },
     });
@@ -132,9 +138,9 @@ describe('ClerkIdentityProvider: organizations', () => {
       privateMetadata: {},
     });
     api.organizations.createOrganization.mockRejectedValueOnce(apiError(422, 'form_identifier_exists'));
-    expect(await code(provider.createOrganization({ name: 'Acme', slug: 'acme', metadata: {} }))).toBe(
-      'conflict',
-    );
+    expect(await code(provider.createOrganization({ name: 'Acme', metadata: {} }))).toBe('conflict');
+    api.organizations.createOrganization.mockRejectedValueOnce(apiError(403, 'organization_slugs_disabled'));
+    expect(await code(provider.createOrganization({ name: 'Acme', metadata: {} }))).toBe('invalid');
   });
 
   it('finds one by private metadata, newest first across pages, or null', async () => {

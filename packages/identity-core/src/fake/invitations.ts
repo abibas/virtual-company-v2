@@ -8,8 +8,8 @@ import type { FakeWorld } from './world.ts';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * A pending invitation with the given provider role, valid for `expiresInDays` (30 by default). Refuses a
- * second pending invitation for the same email, and an email that is already a member.
+ * A pending invitation with the given provider role, valid for `expiresInDays` (30 by default). Refuses an email that
+ * is already a member. A pending invitation for the same email is revoked (emitted) first, as Clerk replaces it.
  */
 export function createFakeInvitation(
   world: FakeWorld,
@@ -18,14 +18,14 @@ export function createFakeInvitation(
 ): ExternalInvitation {
   world.org(input.orgExternalId);
   const email = input.email.toLowerCase();
-  const invitations = [...world.invitations.values()].filter((i) => i.orgExternalId === input.orgExternalId);
-  if (invitations.some((i) => i.email === email && i.status === 'pending')) {
-    throw new IdentityProviderError('conflict', `fake: ${email} already has a pending invitation`);
-  }
   for (const subject of world.members.get(input.orgExternalId)?.keys() ?? []) {
     if (world.users.get(subject)?.primaryEmail === email)
       throw new IdentityProviderError('conflict', `fake: ${email} is a member`);
   }
+  const replaced = [...world.invitations.values()].filter(
+    (i) => i.orgExternalId === input.orgExternalId && i.email === email && i.status === 'pending',
+  );
+  for (const earlier of replaced) revokeFakeInvitation(world, input.orgExternalId, earlier.externalId);
   const now = world.tick();
   const invitation: ExternalInvitation = {
     externalId: world.id('orginv'),

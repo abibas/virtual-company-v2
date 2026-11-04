@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FakeIdentityProvider } from '../../src/fake.ts';
 import { collect, populated, providerError } from '../fixtures/provider.ts';
 
 // FakeIdentityProvider's organizations (src/fake/organizations.ts), through the provider.
@@ -8,7 +9,6 @@ describe('FakeIdentityProvider: organizations', () => {
     expect(org).toEqual({
       externalId: expect.stringMatching(/^org_\d+$/),
       name: 'Acme',
-      slug: 'acme',
       metadata: { mwc_company_id: 'c1' },
       updatedAt: expect.any(Number),
     });
@@ -19,14 +19,28 @@ describe('FakeIdentityProvider: organizations', () => {
     expect(await fake.listUserOrganizations('u1')).toEqual([{ org, membership: members[0] }]);
     expect(await fake.listUserOrganizations('u2')).toEqual([]);
     const bare = await fake.createOrganization({ name: 'Bare', metadata: {} });
-    expect(bare.slug).toBeUndefined();
     expect(await collect(fake.listOrganizationMembers(bare.externalId))).toEqual([]);
   });
 
-  it('refuses a taken slug and an unknown creator', async () => {
+  it('ignores a slug by default, as the Clerk connector does, and keeps it with organizationSlugs', async () => {
     const { fake } = await populated();
+    expect(fake.capabilities.organizationSlugs).toBe(false);
+    const twice = [1, 2].map(() => fake.createOrganization({ name: 'S', slug: 'same', metadata: {} }));
+    expect((await Promise.all(twice)).map((org) => org.slug)).toEqual([undefined, undefined]);
+    const slugs = new FakeIdentityProvider({ organizationSlugs: true });
+    expect(slugs.capabilities.organizationSlugs).toBe(true);
+    expect(await slugs.createOrganization({ name: 'A', slug: 'acme', metadata: {} })).toMatchObject({
+      slug: 'acme',
+    });
+    expect((await slugs.createOrganization({ name: 'Bare', metadata: {} })).slug).toBeUndefined();
+  });
+
+  it('refuses a taken slug (with organizationSlugs) and an unknown creator', async () => {
+    const { fake } = await populated();
+    const slugs = new FakeIdentityProvider({ organizationSlugs: true });
+    await slugs.createOrganization({ name: 'A', slug: 'acme', metadata: {} });
     expect(
-      (await providerError(() => fake.createOrganization({ name: 'B', slug: 'acme', metadata: {} }))).code,
+      (await providerError(() => slugs.createOrganization({ name: 'B', slug: 'acme', metadata: {} }))).code,
     ).toBe('conflict');
     const unknownCreator = () =>
       fake.createOrganization({ name: 'B', metadata: {}, createdBySubject: 'u404' });

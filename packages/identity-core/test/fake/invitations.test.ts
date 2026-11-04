@@ -29,11 +29,25 @@ describe('FakeIdentityProvider: invitations', () => {
     expect(fake.drainEvents()).toEqual([]);
   });
 
-  it('refuses a second pending invitation, an invitation for a member and an unknown organization', async () => {
+  it('replaces a pending invitation for the same email (revoked, emitted), as Clerk does', async () => {
+    const { fake, org, invitation } = await populated();
+    const second = await fake.createInvitation({
+      orgExternalId: org.externalId,
+      email: 'TWO@x.test',
+      role: 'member',
+      metadata: { mwc_invitation_id: 'inv-2' },
+    });
+    expect(second).toMatchObject({ status: 'pending', email: 'two@x.test' });
+    expect(second.externalId).not.toBe(invitation.externalId);
+    const revoked = { ...invitation, status: 'revoked', updatedAt: expect.any(Number) };
+    expect(await fake.listInvitations(org.externalId)).toEqual([revoked, second]);
+    expect(fake.drainEvents()).toMatchObject([{ type: 'invitation.revoked', data: revoked }]);
+  });
+
+  it('refuses an invitation for a member and an unknown organization', async () => {
     const { fake, org } = await populated();
     const again = (email: string, orgExternalId = org.externalId) =>
       providerError(() => fake.createInvitation({ orgExternalId, email, role: 'member', metadata: {} }));
-    expect((await again('TWO@x.test')).code).toBe('conflict');
     expect((await again('one@x.test')).code).toBe('conflict');
     expect((await again('new@x.test', 'org_404')).code).toBe('not_found');
   });

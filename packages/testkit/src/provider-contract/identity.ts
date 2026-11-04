@@ -6,11 +6,13 @@ export const describesItself: ContractCase = {
   async run({ provider }) {
     expect(provider.kind).toMatch(/^[a-z]+$/);
     expect(provider.issuer).toMatch(/^https:\/\/\S+$/);
+    // Organization slugs are optional (Clerk: never sent); the cases that need them check the capability.
     expect(provider.capabilities).toEqual({
       organizations: true,
       invitations: true,
       webhooks: true,
       scim: false,
+      organizationSlugs: expect.any(Boolean),
     });
     const adminLike = (['owner', 'admin', 'member', 'viewer'] as const).map((role) =>
       provider.roles.isAdmin(provider.roles.toProvider(role)),

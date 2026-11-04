@@ -20,7 +20,8 @@ comes with the cloud deployment (S8) and gets the same checklist.
 ## Settings checklist
 
 Set on 2026-11-04. Membership was changed from "required" to "optional"; everything else is the
-default of a new B2B application with these sign-in choices.
+default of a new B2B application with these sign-in choices. The first contract run (2026-11-04) read them back: all as
+below.
 
 | Setting (dashboard)                                              | Value                         | Why                                                                  | Checked by the contract run                      |
 | ---------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ |
@@ -28,9 +29,11 @@ default of a new B2B application with these sign-in choices.
 | Membership                                                       | **optional** (personal accounts allowed), changed from required on 2026-11-04 | a new person must not be stuck with `sts=pending` before their first company exists | indirectly: a fresh user's session token is not pending |
 | Members per organization                                         | 5 (the Hobby limit)           | plan limit; enough for the S1 tests                                   | Backend API: `maxAllowedMemberships` 5; Frontend API: `max_allowed_memberships` 5 |
 | Organization creator role                                        | `org:admin` (default)         | the creator is the first admin; owner is a local decision             | Backend API: `creatorRole`                       |
+| Organization slugs ("Enable organization slugs")                 | off (default); may stay off   | we do not use Clerk slugs: a company's slug is ours (`/c/:slug`), and the connector never sends one (Clerk refuses any slug with 403 `organization_slugs_disabled` while they are off) | Backend API: `slugDisabled` (recorded, not required; `true` on 2026-11-04) |
 | Organization roles                                               | `org:admin`, `org:member` (defaults, no custom roles) | the connector's role map (below)                    | the contract: invitations and role updates use exactly these |
 | Email address                                                    | required, verified at sign-up | identity is `(issuer, subject)`, but every person needs a working email | Frontend API environment: `email_address` `required`, `verify_at_sign_up` |
-| Sign-in with email                                               | email verification code       | no passwords                                                          | Frontend API environment: `first_factors` has `email_code` |
+| Sign-in with email                                               | email verification code       | a code sent to the email signs in                                     | Frontend API environment: `first_factors` has `email_code` |
+| Password                                                         | on, **required at sign-up** (default) | not chosen for v2: found by the first contract run; Clerk's `<SignUp/>` asks for one, and the contract's ticket sign-up sends a random one when asked. Turning it off is Ihor's call in the dashboard | Frontend API environment: `password` (recorded, not required; enabled and required on 2026-11-04) |
 | Google                                                           | on (Clerk's shared development credentials) | one-click sign-in                                       | Frontend API environment: `oauth_google.enabled` |
 | Organization invitations                                         | on (default)                  | Clerk sends the invitation email                                      | the contract: create, list, revoke, accept       |
 | Webhooks                                                         | none yet                      | reconcile is the default; the endpoint exists since S1.8 (below)      | no                                               |
@@ -54,21 +57,29 @@ Clerk has no owner and no viewer: those are local decisions, and the projector k
 
 ## Invitations (S1.7)
 
-What the invitation flow relies on, and what is still unverified against the development instance (the contract
-run of S1.2 is pending):
+What the invitation flow relies on, as the first contract run found it on the development instance (2026-11-04):
 
 - **The emailed link** lands on `<MWC_WEB_ORIGIN>/accept-invitation` (the `redirectUrl` of each invitation): the web
-  dev server in development, the public URL in production. The page is built (S1.11, "The web app" below).
-- **The private metadata reaches the membership.** An accepted membership is linked to our invitation by
-  `mwc_invitation_id` in the membership's private metadata (Clerk's membership objects carry no invitation id). If
-  Clerk does not copy it, `organizationInvitation.accepted` (and the reconcile's invitation list) still marks the
-  invitation accepted, but the membership is refused as unlinked and the person is not activated. The contract run
-  checks this; until then it is the flow's main open risk (`docs/plan-2026-11-03.md`, section 18).
+  dev server in development, the public URL in production. The page is built (S1.11, "The web app" below). Verified:
+  the Backend API's invitation `url` is `https://<frontend api>/v1/tickets/accept?ticket=...`, which Clerk answers with
+  a 303 to `/accept-invitation?__clerk_status=sign_up&__clerk_ticket=<the same ticket>` for someone without an account.
+- **The private metadata reaches the membership: yes.** An accepted membership is linked to our invitation by
+  `mwc_invitation_id` in the membership's private metadata (Clerk's membership objects carry no invitation id). The
+  first contract run saw Clerk copy the invitation's private metadata (`mwc_invitation_id` and `mwc_company_id`) onto
+  the new membership, in the organization's member list and in the user's own; the S1.12 run then brought the invitee
+  in as an active member by their first `GET /api/me`. The plan's main open risk (`docs/plan-2026-11-03.md`, section
+  18) is closed. Clerk's invitation objects carry no user id after acceptance either.
+- **A second invitation to the same email replaces the first**: Clerk does not refuse it; it creates a new one and turns
+  the pending one `revoked`. The `invite` handler never relies on a refusal: it adopts a pending copy of ours (found by
+  `mwc_invitation_id`) instead of sending again, and a resend revokes the copy it replaces first. Inviting someone who is
+  already a member is refused (`conflict`), and revoking an accepted invitation answers 404
+  `organization_invitation_not_pending` (`conflict` too).
 - **The member limit** (5 per organization on the Hobby plan) is Clerk's, not ours: nothing counts members here.
   When Clerk refuses an invitation for it (its error code is `organization_membership_quota_exceeded`), the `invite`
   outbox row records Clerk's message as `last_error`. Answered with a 4xx that maps to `invalid`, the row fails at
   once and the invitation turns `failed` (its email is free again); answered with 403 (`unauthorized`), it is tried
-  again until its last try, which fails both. Which status Clerk uses is one of the things the contract run will show.
+  again until its last try, which fails both. Which status Clerk uses is still unverified: the contract run stays well
+  under the limit (two members and two pending invitations at most).
 - **Expiry.** Invitations are sent with the days our invitation has left (14 for a new one or a resend); our
   `expires_at` decides: an acceptance after it activates nobody, and the membership is removed at Clerk.
 - **Resend** revokes Clerk's invitation and sends a new one with the same metadata (the Backend API has no resend for
@@ -119,7 +130,9 @@ development: open the app at `http://localhost:9951`, not `127.0.0.1`. A develop
 origins and redirects without dashboard settings, so nothing is set for 9951. If Clerk refuses a redirect (an "unsafe
 redirect" warning in the browser console), add the origin under the instance's allowed redirect origins. A production
 instance (S8) needs its public origin there, with the Paths (sign-in `/sign-in`, sign-up `/sign-up`) set to the app's.
-None of this has been clicked through against the real instance yet: Ihor's first sign-in is that check.
+None of this has been clicked through against the real instance yet: Ihor's first sign-in is that check. Clerk's
+`<SignUp/>` will ask for a password as well as the email, since the instance requires one at sign-up (the settings
+checklist above).
 
 ## How the connector uses Clerk
 
@@ -127,13 +140,16 @@ None of this has been clicked through against the real instance yet: Ihor's firs
   `https://<frontend api>`; the caller's authorized parties (Clerk refuses a token without `azp` when parties
   are given); 5 seconds of clock skew. It reads `iss` and `sub` (the identity), `sid`, `sts` (`pending`), and
   the organization claims (`o.id`, or `org_id`) only as a hint.
-- **Backend API:** users, organizations (created with `privateMetadata.mwc_company_id`; found again by paging
-  the organization list, newest first, since the API cannot search metadata), members (paged), invitations
+- **Backend API:** users, organizations (created with `privateMetadata.mwc_company_id` and no slug, so Clerk's slug
+  setting does not matter; with slugs off Clerk still gives each organization a generated one, `<name>-<number>`,
+  which we ignore; found again by paging the organization list, newest first, since the API cannot search metadata),
+  members (paged), invitations
   (created with `privateMetadata { mwc_invitation_id, mwc_company_id }`, the `redirectUrl` and 14 days of
   validity). Lookups answer null and removals succeed on a 404.
-- **Errors:** every failure becomes an `IdentityProviderError`: 404 `not_found`, 401/403 `unauthorized`, 409
-  and Clerk's duplicate-like codes `conflict`, other 4xx `invalid`, 5xx and network errors `unavailable`,
-  429 `rate_limited` with Clerk's `Retry-After`.
+- **Errors:** every failure becomes an `IdentityProviderError`: 404 `not_found` (but 404 `..._not_pending`, as for
+  revoking an accepted invitation, `conflict`), 401/403 `unauthorized` (but a 403 for a feature the instance has off,
+  `..._disabled` or `..._not_enabled`, `invalid`), 409 and Clerk's duplicate-like codes `conflict`, other 4xx
+  `invalid`, 5xx and network errors `unavailable`, 429 `rate_limited` with Clerk's `Retry-After`.
 - **Rate limits:** after a 429 the connector refuses that kind of call itself until the `Retry-After` has
   passed (10 seconds when Clerk sends none), and it keeps Clerk's 250-invitations-an-hour budget in a
   sliding window, so the 251st invitation of the hour is refused before it reaches Clerk.
@@ -164,17 +180,18 @@ The script sets `CLERK_CONTRACT_TEST=1` and loads `.env`, then `.env.local`, fro
 (`node --env-file-if-exists`); variables already exported in the shell win over both. Without
 `CLERK_CONTRACT_TEST=1` (as in `mwc check`) the file reports one skipped test and makes no call.
 
-What a run does (about a minute):
+What a run does (about 15 seconds):
 
 - Every object it creates is named `mwc-contract-<random>`: users with Clerk test emails
   `mwc-contract-<random>-<label>+clerk_test@example.com` (no email is sent for `+clerk_test` addresses), an
-  organization with that name and slug, invitations to those emails.
+  organization with that name (the slug case is skipped: the connector sends no slug), invitations to those emails.
 - Users are created through the Backend API without a password; session tokens come from the Backend API
   (`sessions.createSession` and `getToken`, which carry no `azp`).
-- The invitee accepts like a person would: the run takes the ticket from the invitation's URL, creates a
-  Frontend API dev browser and signs up with the ticket (with a Backend API testing token for bot
-  protection). That verifies the test email and accepts the invitation in one step, so the run can check
-  that the invitation's private metadata (`mwc_invitation_id`, `mwc_company_id`) is on the new membership.
+- The invitee accepts like a person would: the run opens the invitation's link (Clerk answers 303 to
+  `/accept-invitation` with `__clerk_ticket` and `__clerk_status`, which the run checks), creates a Frontend API dev
+  browser and signs up with the ticket (with a Backend API testing token for bot protection), giving a random password
+  when the instance asks for one. That verifies the test email and accepts the invitation in one step, so the run can
+  check that the invitation's private metadata (`mwc_invitation_id`, `mwc_company_id`) is on the new membership.
   The session token of that sign-up carries our origin as `azp`, so the run also checks that it verifies for
   `http://localhost:9951` and is refused for another origin.
 - Webhook deliveries are signed with `CLERK_WEBHOOK_SIGNING_SECRET` when set, else with a test secret (the
@@ -186,8 +203,8 @@ What a run does (about a minute):
 
 Results of the runs: `docs/roadmap.md`, S1.2.
 
-The S1 acceptance has a real-Clerk variant too (S1.12, `apps/server/test/scenarios/s1-acceptance-clerk.test.ts`; not run
-yet): the API on a test database with this connector, an owner made through the Backend API who signs in on the Frontend
+The S1 acceptance has a real-Clerk variant too (S1.12, `apps/server/test/scenarios/s1-acceptance-clerk.test.ts`; passed
+on 2026-11-04): the API on a test database with this connector, an owner made through the Backend API who signs in on the Frontend
 API with a sign-in token, a company whose organization a jobs tick creates (named `mwc-contract-<random> Most Wanted`), an
 invitation a tick sends, the invitee's ticket sign-up and first `GET /api/me`, then the removal and the outbox
 `remove_member`. Same switches, same naming and cleanup as the contract test:

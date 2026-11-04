@@ -7,8 +7,11 @@ import { apiError } from '../fixtures/backend.ts';
 describe('toIdentityError: Backend API errors', () => {
   it.each([
     [404, 'resource_not_found', 'not_found'],
+    [404, 'organization_invitation_not_pending', 'conflict'],
     [401, 'authentication_invalid', 'unauthorized'],
     [403, 'authorization_invalid', 'unauthorized'],
+    [403, 'organization_slugs_disabled', 'invalid'],
+    [403, 'feature_not_enabled', 'invalid'],
     [409, 'conflict', 'conflict'],
     [422, 'form_identifier_exists', 'conflict'],
     [400, 'duplicate_record', 'conflict'],

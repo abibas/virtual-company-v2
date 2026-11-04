@@ -78,18 +78,22 @@ export class Fapi {
   }
 
   /**
-   * Signs up through an invitation ticket. On `complete`, the new user's id, its session and the session token
+   * Signs up through an invitation ticket, which verifies the email. When the instance requires a password at sign-up
+   * (the development instance does), the sign-up ends `missing_requirements` and is completed with `password`, as
+   * Clerk's `<SignUp/>` asks the person for one. On `complete`, the new user's id, its session and the session token
    * Clerk minted for it (its `azp` is our origin).
    */
   async signUpWithTicket(
     ticket: string,
+    password: string,
   ): Promise<FapiResult<{ userId: string; sessionId?: string; sessionToken?: string }>> {
-    const response = await this.#fetch(this.#url('/v1/client/sign_ups'), {
-      method: 'POST',
-      headers: { origin: this.#options.origin, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ strategy: 'ticket', ticket }).toString(),
-    });
-    const body = (await json(response)) as SignUpBody | null;
+    let response = await this.#form('POST', '/v1/client/sign_ups', { strategy: 'ticket', ticket });
+    let body = (await json(response)) as SignUpBody | null;
+    const started = body?.response;
+    if (response.ok && started?.id && started.missing_fields?.includes('password')) {
+      response = await this.#form('PATCH', `/v1/client/sign_ups/${started.id}`, { password });
+      body = (await json(response)) as SignUpBody | null;
+    }
     if (!response.ok || !body?.response)
       return { unverified: describeFailure('sign-up', response.status, body) };
     const signUp = body.response;
@@ -111,11 +115,7 @@ export class Fapi {
 
   /** Signs in with a ticket (a Backend API sign-in token); on `complete`, the new session's id. */
   async signInWithTicket(ticket: string): Promise<FapiResult<{ sessionId: string }>> {
-    const response = await this.#fetch(this.#url('/v1/client/sign_ins'), {
-      method: 'POST',
-      headers: { origin: this.#options.origin, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ strategy: 'ticket', ticket }).toString(),
-    });
+    const response = await this.#form('POST', '/v1/client/sign_ins', { strategy: 'ticket', ticket });
     const body = (await json(response)) as {
       response?: { status?: string; created_session_id?: string };
     } | null;
@@ -138,6 +138,15 @@ export class Fapi {
     return { ok: body.jwt };
   }
 
+  /** A form request of this client (its dev browser, the testing token, our origin). */
+  #form(method: 'POST' | 'PATCH', path: string, fields: Record<string, string>): Promise<Response> {
+    return this.#fetch(this.#url(path), {
+      method,
+      headers: { origin: this.#options.origin, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields).toString(),
+    });
+  }
+
   #url(path: string): string {
     const url = new URL(`https://${this.#options.frontendApi}${path}`);
     if (this.#devBrowser) url.searchParams.set('__clerk_db_jwt', this.#devBrowser);
@@ -148,6 +157,7 @@ export class Fapi {
 
 interface SignUpBody {
   readonly response?: {
+    readonly id?: string;
     readonly status?: string;
     readonly created_user_id?: string | null;
     readonly created_session_id?: string | null;

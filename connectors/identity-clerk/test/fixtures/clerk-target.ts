@@ -18,9 +18,19 @@ export type AzpFinding =
   | { verifiedForOrigin: boolean; refusedForOtherParty: boolean }
   | { unverified: string };
 
+/** Where the invitation's emailed link lands: the page a browser that opens it is sent to (one hop). */
+export interface InvitationLink {
+  /** The landing page without its query: our `/accept-invitation`. */
+  readonly landing: string;
+  /** `__clerk_status`: `sign_up` for someone without an account, `sign_in` for someone with one. */
+  readonly status: string | null;
+}
+
 export interface ClerkFindings {
   /** The Frontend API session token of the invitee: verified for our origin, refused for another. */
   azp?: AzpFinding;
+  /** Where the link of the invitation the invitee accepted landed. */
+  link?: InvitationLink;
 }
 
 /** Someone signed in on the Frontend API, as in a browser at our origin. */
@@ -49,6 +59,11 @@ function randomId(prefix: string): string {
   return `${prefix}_${Array.from(randomBytes(27), (byte) => alphabet[byte % alphabet.length]).join('')}`;
 }
 
+/** A password Clerk accepts (the development instance requires one at sign-up); never printed. */
+function randomPassword(): string {
+  return `${randomBytes(18).toString('base64url')}-Aa1!`;
+}
+
 async function ignoreNotFound(call: () => Promise<unknown>): Promise<void> {
   try {
     await call();
@@ -66,7 +81,8 @@ export async function contractLeftovers(clerk: ClerkClient): Promise<{ users: st
       .filter((u) => u.emailAddresses.some((e) => e.emailAddress.startsWith(CONTRACT_PREFIX)))
       .map((u) => u.id),
     orgs: orgs.data
-      .filter((o) => o.name.startsWith(CONTRACT_PREFIX) || o.slug.startsWith(CONTRACT_PREFIX))
+      // The slug is Clerk's own (generated even with organization slugs off) and may be null: the name decides.
+      .filter((o) => o.name.startsWith(CONTRACT_PREFIX) || (o.slug ?? '').startsWith(CONTRACT_PREFIX))
       .map((o) => o.id),
   };
 }
@@ -134,28 +150,43 @@ async function createUser(run: ClerkRun, label: string, displayName: string) {
   return toExternalUser(user);
 }
 
-/** The ticket in the invitation's URL (what the emailed link carries), or null. */
-async function ticketOf(run: ClerkRun, invitation: ExternalInvitation): Promise<string | null> {
+/**
+ * Opens the invitation's link as a browser would. The Backend API's `url` is
+ * `https://<frontend api>/v1/tickets/accept?ticket=...`, which Clerk answers with a 303 to the invitation's
+ * `redirectUrl` carrying `__clerk_ticket` (the same ticket) and `__clerk_status`. The ticket and where it landed, or
+ * null without a link or a ticket.
+ */
+async function followLink(
+  run: ClerkRun,
+  invitation: ExternalInvitation,
+): Promise<{ ticket: string; link: InvitationLink } | null> {
   const { url } = await run.clerk.organizations.getOrganizationInvitation({
     organizationId: invitation.orgExternalId,
     invitationId: invitation.externalId,
   });
-  return url ? new URL(url).searchParams.get('__clerk_ticket') : null;
+  if (!url) return null;
+  const location = (await fetch(url, { redirect: 'manual' })).headers.get('location');
+  const landed = location ? new URL(location, url) : null;
+  const ticket = landed?.searchParams.get('__clerk_ticket');
+  if (!landed || !ticket) return null;
+  const status = landed.searchParams.get('__clerk_status');
+  return { ticket, link: { landing: `${landed.origin}${landed.pathname}`, status } };
 }
 
-const NO_TICKET = 'the Backend API returned the invitation without a ticket URL';
+const NO_TICKET = "the invitation's link led to no ticket (no URL, or no __clerk_ticket where it redirects)";
 
 /** The invitee signs up through the invitation's ticket; the sign-up's session token is checked for `azp`. */
 async function acceptInvitation(run: ClerkRun, invitation: ExternalInvitation): Promise<AcceptResult> {
-  const ticket = await ticketOf(run, invitation);
-  if (!ticket) return { unverified: NO_TICKET };
+  const followed = await followLink(run, invitation);
+  if (!followed) return { unverified: NO_TICKET };
+  run.findings.link = followed.link;
   let client: Fapi;
   try {
     client = await openFapi(run);
   } catch (error) {
     return { unverified: `Frontend API: ${(error as Error).message}` };
   }
-  const signedUp = await client.signUpWithTicket(ticket);
+  const signedUp = await client.signUpWithTicket(followed.ticket, randomPassword());
   if ('unverified' in signedUp) return { unverified: `Frontend API ${signedUp.unverified}` };
   const { userId, sessionToken } = signedUp.ok;
   run.users.add(userId);
@@ -179,10 +210,10 @@ function fapiSession(client: Fapi, subject: string, sessionId: string): FapiSess
 
 /** The invitee signs up with the invitation's ticket (accepting it) and stays signed in. */
 async function signUpWithInvitation(run: ClerkRun, invitation: ExternalInvitation): Promise<FapiSession> {
-  const ticket = await ticketOf(run, invitation);
-  if (!ticket) throw new Error(NO_TICKET);
+  const followed = await followLink(run, invitation);
+  if (!followed) throw new Error(NO_TICKET);
   const client = await openFapi(run);
-  const signedUp = await client.signUpWithTicket(ticket);
+  const signedUp = await client.signUpWithTicket(followed.ticket, randomPassword());
   if ('unverified' in signedUp) throw new Error(`Frontend API ${signedUp.unverified}`);
   run.users.add(signedUp.ok.userId);
   if (!signedUp.ok.sessionId) throw new Error('Frontend API: the sign-up returned no session');

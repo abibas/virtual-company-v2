@@ -31,6 +31,8 @@ export type { AcceptOptions, FakeUserInput } from './fake/world.ts';
 
 export const FAKE_ISSUER = 'https://identity.fake.mwc.test';
 const DEFAULT_SECRET = 'fake-webhook-secret';
+/** What the fake can do; organization slugs are an option (`organizationSlugs`). */
+const FAKE_CAPABILITIES = { organizations: true, invitations: true, webhooks: true, scim: false } as const;
 
 /** Clerk's two default roles: owners and admins are `org:admin`, members and viewers `org:member`. */
 export const FAKE_ROLES: ProviderRoleMap = {
@@ -49,6 +51,8 @@ export interface FakeIdentityProviderOptions {
   readonly clock?: () => Date;
   /** The key `webhookFor` signs with and `parseWebhook` checks. */
   readonly webhookSecret?: string;
+  /** Keep organization slugs, refusing a taken one; off by default (the slug is ignored), like the Clerk connector. */
+  readonly organizationSlugs?: boolean;
 }
 
 /**
@@ -64,7 +68,7 @@ export class FakeIdentityProvider implements IdentityProvider {
   readonly kind = 'fake';
   readonly issuer: string;
   readonly roles = FAKE_ROLES;
-  readonly capabilities = { organizations: true, invitations: true, webhooks: true, scim: false } as const;
+  readonly capabilities: IdentityProvider['capabilities'];
 
   readonly #world: FakeWorld;
   readonly #secret: string;
@@ -72,6 +76,7 @@ export class FakeIdentityProvider implements IdentityProvider {
 
   constructor(options: FakeIdentityProviderOptions = {}) {
     this.issuer = options.issuer ?? FAKE_ISSUER;
+    this.capabilities = { ...FAKE_CAPABILITIES, organizationSlugs: options.organizationSlugs ?? false };
     this.#world = new FakeWorld(this.kind, options.clock ?? (() => new Date()));
     this.#secret = options.webhookSecret ?? DEFAULT_SECRET;
   }
@@ -160,7 +165,7 @@ export class FakeIdentityProvider implements IdentityProvider {
 
   async createOrganization(input: CreateOrganizationInput): Promise<ExternalOrg> {
     this.#maybeFail('createOrganization');
-    return createFakeOrganization(this.#world, input, FAKE_ROLES.toProvider('admin'));
+    return createFakeOrganization(this.#world, input, FAKE_ROLES.toProvider('admin'), this.capabilities);
   }
 
   async findOrganizationByMetadata(key: string, value: string): Promise<ExternalOrg | null> {

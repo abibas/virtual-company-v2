@@ -20,6 +20,12 @@ export interface ProviderCapabilities {
   /** It can verify webhook deliveries now (Clerk: only with its signing secret); the webhook route needs it. */
   readonly webhooks: boolean;
   readonly scim: boolean;
+  /**
+   * It keeps `CreateOrganizationInput.slug` on the organization and refuses a taken one as `conflict`. Without it
+   * the slug is ignored. Clerk: false, the connector never sends one (company slugs are ours, and Clerk's
+   * organization slugs may be off).
+   */
+  readonly organizationSlugs: boolean;
 }
 
 /**
@@ -40,6 +46,7 @@ export interface VerifyTokenContext {
 
 export interface CreateOrganizationInput {
   readonly name: string;
+  /** Kept only by a provider with `capabilities.organizationSlugs`; any other ignores it. */
   readonly slug?: string;
   /** Private metadata; carries `mwc_company_id` so a retry can find the organization again. */
   readonly metadata: IdentityMetadata;
@@ -104,8 +111,8 @@ export interface IdentityProvider {
 
   /**
    * Creates an organization. Not idempotent by itself: before retrying after an unknown outcome, look
-   * for it with `findOrganizationByMetadata('mwc_company_id', companyId)`. Rejects with `conflict`
-   * for a slug that is taken.
+   * for it with `findOrganizationByMetadata('mwc_company_id', companyId)`. With
+   * `capabilities.organizationSlugs`, rejects with `conflict` for a slug that is taken.
    */
   createOrganization(input: CreateOrganizationInput): Promise<ExternalOrg>;
 
@@ -131,9 +138,10 @@ export interface IdentityProvider {
   removeMember(orgExternalId: string, subject: string): Promise<void>;
 
   /**
-   * Sends an invitation. Rejects with `conflict` when a pending invitation for that email exists or the
-   * email is already a member, `not_found` for an unknown organization, `rate_limited` (Clerk: 250 an
-   * hour) with `retryAfterMs`.
+   * Sends an invitation. A pending invitation for the same email in that organization is replaced: it turns
+   * `revoked` and the new one is pending (Clerk does this; a caller that must not lose one looks for its copies
+   * first). Rejects with `conflict` when the email is already a member, `not_found` for an unknown organization,
+   * `rate_limited` (Clerk: 250 an hour) with `retryAfterMs`.
    */
   createInvitation(input: CreateInvitationInput): Promise<ExternalInvitation>;
 

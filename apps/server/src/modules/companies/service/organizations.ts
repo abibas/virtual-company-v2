@@ -26,27 +26,17 @@ const findOrganization = (provider: IdentityProvider, companyId: string) =>
   provider.findOrganizationByMetadata(IDENTITY_METADATA.companyId, companyId);
 
 /**
- * Creates the organization with the company's name, slug and id (private metadata), its creator as the first
- * member. The provider's slugs are its own (Clerk: one namespace per instance), so a slug taken there is no reason
- * to fail: the organization is then created without one.
+ * Creates the organization with the company's name and id (private metadata), its creator as the first member. No
+ * slug: the company's slug is ours (`/c/:slug`), and the provider's would be a second one in its own namespace that
+ * nothing keeps up to date (Clerk refuses any slug while its organization slugs are off, their default).
  */
-async function createOrganization(
-  provider: IdentityProvider,
-  company: Company,
-  payload: Record<string, unknown>,
-) {
+function createOrganization(provider: IdentityProvider, company: Company, payload: Record<string, unknown>) {
   const creator = payload.createdBySubject;
-  const input = {
+  return provider.createOrganization({
     name: company.name,
     metadata: { [IDENTITY_METADATA.companyId]: company.id },
     ...(typeof creator === 'string' ? { createdBySubject: creator } : {}),
-  };
-  try {
-    return await provider.createOrganization({ ...input, slug: company.slug });
-  } catch (error) {
-    if (!isIdentityProviderError(error, 'conflict')) throw error;
-    return provider.createOrganization(input);
-  }
+  });
 }
 
 /**

@@ -54,7 +54,7 @@ describe('create_org', () => {
     const company = await createCompany(w, owner.token, { name: 'Provisioned Co' });
     expect(await runCreate(company.id)).toBe('done');
     const [org] = await orgsOf(company.id);
-    expect(org).toMatchObject({ name: 'Provisioned Co', slug: 'provisioned-co' });
+    expect(org).toMatchObject({ name: 'Provisioned Co', metadata: { mwc_company_id: company.id } });
     const members = [];
     for await (const member of w.fake.listOrganizationMembers(org?.externalId ?? '')) members.push(member);
     expect(members).toMatchObject([{ subject: owner.subject, providerRole: 'org:admin' }]);
@@ -152,11 +152,14 @@ describe('create_org', () => {
     expect((await companyRow(w.t.db, company.id))?.identityOrgId).toBe(existing.externalId);
   });
 
-  it("creates the organization without a slug when the provider's slug is taken, and without a creator if none", async () => {
-    const company = await createCompany(w, owner.token, { name: 'Slug Clash Co' });
-    await w.fake.createOrganization({ name: 'Someone else', slug: 'slug-clash-co', metadata: {} });
+  it('never sends the company slug (it is ours), and creates the organization without a creator if none', async () => {
+    const company = await createCompany(w, owner.token, { name: 'No Slug Co' });
+    expect(company.slug).toBe('no-slug-co');
     const row = { ...(await rowOf(company.id, 'create_org')), payload: {} };
+    const create = vi.spyOn(w.fake, 'createOrganization');
     expect(await processOutboxRow(jobs(), row, createOrgHandler(deps()))).toBe('done');
+    expect(create).toHaveBeenCalledWith({ name: 'No Slug Co', metadata: { mwc_company_id: company.id } });
+    create.mockRestore();
     const [org] = await orgsOf(company.id);
     expect(org?.slug).toBeUndefined();
     const members = [];

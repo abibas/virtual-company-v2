@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { describeProviderContract, fakeContractTarget, PROVIDER_CONTRACT } from '../src/provider-contract.ts';
 
 // The contract against the fake, always: the same cases the real Clerk dev instance runs on request
-// (connectors/identity-clerk/test/contract.test.ts).
+// (connectors/identity-clerk/test/contract.test.ts). By default the fake keeps no organization slugs, as the Clerk
+// connector, so the slug case is skipped; with them, it runs.
 describeProviderContract('FakeIdentityProvider', () => fakeContractTarget());
+describeProviderContract('FakeIdentityProvider with organization slugs', () =>
+  fakeContractTarget(new FakeIdentityProvider({ organizationSlugs: true })),
+);
 
 // A target that cannot accept invitations (as Clerk, when the sign-up through the ticket is not possible):
 // the acceptance case and the cases that need a member are skipped with the reason, the rest still pass.

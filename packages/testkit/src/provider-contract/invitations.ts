@@ -34,19 +34,29 @@ export const createsInvitations: ContractCase = {
   },
 };
 
-export const refusesDuplicateInvitations: ContractCase = {
-  name: 'createInvitation refuses a second pending invitation for the same email as conflict',
-  async run({ target, provider, invitation }) {
-    const { orgExternalId } = need(invitation, 'invitation');
-    const error = await providerError(() =>
-      provider.createInvitation({
-        orgExternalId,
-        email: target.email('invitee'),
-        role: 'member',
-        metadata: {},
-      }),
-    );
-    expect(error.code).toBe('conflict');
+export const replacesPendingInvitations: ContractCase = {
+  name: 'createInvitation for an email with a pending invitation replaces it: the earlier one turns revoked',
+  async run(state) {
+    const { target, provider } = state;
+    const first = need(state.invitation, 'invitation');
+    const second = await provider.createInvitation({
+      orgExternalId: first.orgExternalId,
+      email: target.email('invitee'),
+      role: 'member',
+      metadata: first.metadata,
+      redirectUrl: `${CONTRACT_WEB_ORIGIN}/accept-invitation`,
+      expiresInDays: 14,
+    });
+    expect(second).toMatchObject({ email: first.email, status: 'pending', metadata: first.metadata });
+    expect(second.externalId).not.toBe(first.externalId);
+    const pending = await provider.listInvitations(first.orgExternalId, 'pending');
+    expect(pending.filter((i) => i.email === first.email).map((i) => i.externalId)).toEqual([
+      second.externalId,
+    ]);
+    const revoked = await provider.listInvitations(first.orgExternalId, 'revoked');
+    expect(revoked.map((i) => i.externalId)).toContain(first.externalId);
+    // The later cases list, accept and check the one that is pending now.
+    state.invitation = second;
   },
 };
 
@@ -83,7 +93,7 @@ export const revokesInvitations: ContractCase = {
 };
 
 export const acceptsInvitations: ContractCase = {
-  name: "an accepted invitation's private metadata (mwc_invitation_id) reaches the membership",
+  name: "an accepted invitation's private metadata (mwc_invitation_id) reaches the membership; members are not invited",
   async run(state, skip) {
     const { target, provider } = state;
     const invitation = need(state.invitation, 'invitation');
@@ -100,5 +110,8 @@ export const acceptsInvitations: ContractCase = {
       provider.revokeInvitation(invitation.orgExternalId, invitation.externalId),
     );
     expect(error.code).toBe('conflict');
+    const { orgExternalId, email } = invitation;
+    const again = { orgExternalId, email, role: 'member' as const, metadata: {} };
+    expect((await providerError(() => provider.createInvitation(again))).code).toBe('conflict');
   },
 };

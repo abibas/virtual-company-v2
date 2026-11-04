@@ -4,7 +4,7 @@ import {
   acceptsInvitations,
   createsInvitations,
   listsInvitations,
-  refusesDuplicateInvitations,
+  replacesPendingInvitations,
   revokesInvitations,
 } from './provider-contract/invitations.ts';
 import {
@@ -35,9 +35,9 @@ export {
 /**
  * The `IdentityProvider` contract (docs/testing.md, "Provider contract"): one scenario that every provider
  * passes in the same way. A person signs up, a token verifies, a company's organization is created and
- * found again by its metadata, an invitation goes out, is listed, revoked or accepted (its metadata must
- * reach the membership), the member is promoted and removed, a webhook verifies, and the organization is
- * deleted. Each case builds on the ones before it, in this order.
+ * found again by its metadata, an invitation goes out, is replaced by a second one to the same email, is listed,
+ * revoked or accepted (its metadata must reach the membership), the member is promoted and removed, a webhook
+ * verifies, and the organization is deleted. Each case builds on the ones before it, in this order.
  */
 export const PROVIDER_CONTRACT: readonly ContractCase[] = [
   describesItself,
@@ -48,7 +48,7 @@ export const PROVIDER_CONTRACT: readonly ContractCase[] = [
   listsMembers,
   refusesUnknownOrganizations,
   createsInvitations,
-  refusesDuplicateInvitations,
+  replacesPendingInvitations,
   listsInvitations,
   revokesInvitations,
   acceptsInvitations,

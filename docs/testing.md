@@ -107,16 +107,19 @@ S1.2 the provider contract and `signedWebhook`, S1.3 the store contract and `see
 
 `PROVIDER_CONTRACT` (`packages/testkit/src/provider-contract.ts`) is one scenario of 16 cases that every
 `IdentityProvider` passes in the same way: describe itself, get a user, verify a token, create an organization
-and find it by metadata, refuse a taken slug, list the creator as an admin-like member, refuse an unknown
-organization, create an invitation (metadata, role, 14-day expiry), refuse a duplicate, list by status, revoke
-(idempotently), accept (the invitation's private metadata must reach the membership), promote, remove,
-verify a webhook, delete the organization. Each case builds on the earlier ones. A target
+and find it by metadata, refuse a taken slug (only a provider with `capabilities.organizationSlugs`; skipped on Clerk,
+whose connector sends no slug), list the creator as an admin-like member, refuse an unknown organization, create an
+invitation (metadata, role, 14-day expiry), replace it with a second one to the same email (the first turns revoked, as
+Clerk does), list by status, revoke (idempotently), accept (the invitation's private metadata must reach the membership,
+and the member's email is refused for another invitation), promote, remove, verify a webhook, delete the organization.
+Each case builds on the earlier ones. A target
 (`ContractTarget`) adds what the port does not have: people signing up, session tokens, the invitee's
 acceptance (which may answer `unverified` with a reason: the case is then skipped with that note), signed
 webhooks and the cleanup, which runs even after a failure.
 
-It runs against `FakeIdentityProvider` in every lane, and against the real Clerk development instance only on
-request: `pnpm --filter @mwc/identity-clerk contract` (`docs/clerk-setup.md`, which also says what a run
+It runs against `FakeIdentityProvider` in every lane (three times: as it is, without organization slugs like the Clerk
+connector; with `organizationSlugs: true`, so the slug case runs; and with a target that cannot accept), and against the
+real Clerk development instance only on request: `pnpm --filter @mwc/identity-clerk contract` (`docs/clerk-setup.md`, which also says what a run
 creates and how it cleans up).
 
 ## Store contract

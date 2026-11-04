@@ -1,27 +1,30 @@
 import type { ExternalOrg } from '@mwc/shared/identity';
 import { IdentityProviderError } from '../errors.ts';
-import type { CreateOrganizationInput } from '../provider.ts';
+import type { CreateOrganizationInput, ProviderCapabilities } from '../provider.ts';
 import type { FakeWorld } from './world.ts';
 
 /** The fake provider's organizations, as Clerk handles them; `FakeIdentityProvider` delegates here. */
 
 /**
  * A new organization (emitted), with its creator as its first member in `creatorRole` when the input names
- * one, as Clerk's `createdBy` does. Refuses a slug that is taken and a creator who does not exist.
+ * one, as Clerk's `createdBy` does. A provider with `organizationSlugs` keeps the input's slug and refuses a taken
+ * one; any other ignores it. Refuses a creator who does not exist.
  */
 export function createFakeOrganization(
   world: FakeWorld,
   input: CreateOrganizationInput,
   creatorRole: string,
+  { organizationSlugs }: Pick<ProviderCapabilities, 'organizationSlugs'>,
 ): ExternalOrg {
-  if (input.slug !== undefined && [...world.orgs.values()].some((org) => org.slug === input.slug)) {
-    throw new IdentityProviderError('conflict', `fake: slug ${input.slug} is taken`);
+  const slug = organizationSlugs ? input.slug : undefined;
+  if (slug !== undefined && [...world.orgs.values()].some((org) => org.slug === slug)) {
+    throw new IdentityProviderError('conflict', `fake: slug ${slug} is taken`);
   }
   if (input.createdBySubject !== undefined) world.user(input.createdBySubject);
   const org: ExternalOrg = {
     externalId: world.id('org'),
     name: input.name,
-    ...(input.slug === undefined ? {} : { slug: input.slug }),
+    ...(slug === undefined ? {} : { slug }),
     metadata: { ...input.metadata },
     updatedAt: world.tick(),
   };

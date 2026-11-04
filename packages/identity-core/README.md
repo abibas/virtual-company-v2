@@ -38,19 +38,23 @@ a session with a pending task verifies with `pending: true`), `getUser` and the 
 "does not exist", `listUserOrganizations`, `createOrganization` (not idempotent: find it again with
 `findOrganizationByMetadata('mwc_company_id', id)` before a retry), `deleteOrganization` and
 `removeMember` (idempotent), `listOrganizationMembers` (an `AsyncIterable` that pages internally),
-`updateMemberRole`, `createInvitation`, `revokeInvitation` (idempotent for a revoked one), `listInvitations`,
+`updateMemberRole`, `createInvitation` (a pending invitation to the same email is replaced: it turns revoked, as
+Clerk does; a member's email is refused as `conflict`), `revokeInvitation` (idempotent for a revoked one), `listInvitations`,
 `parseWebhook({ headers, rawBody })` (verifies the signature, then returns a normalized event, an `ignored`
 event with the delivery id and the provider's own type for a type we do not use, or null for a verified delivery
 with no type or id), plus `kind`, `issuer`, `roles` (the provider's role map: `toProvider`, `isAdmin`) and
-`capabilities { organizations, invitations, webhooks, scim }` (`webhooks`: it can verify deliveries now; Clerk only
-with its signing secret).
+`capabilities { organizations, invitations, webhooks, scim, organizationSlugs }` (`webhooks`: it can verify deliveries
+now; Clerk only with its signing secret. `organizationSlugs`: it keeps the slug given to `createOrganization` and
+refuses a taken one; without it the slug is ignored. Clerk: false, since company slugs are ours and the connector sends
+none).
 
 Every failure rejects with `IdentityProviderError`, never an SDK or network error. Callers branch on its
 `code`: `not_found`, `conflict`, `rate_limited` (with `retryAfterMs`), `unauthorized`, `invalid`,
 `unavailable`; `retryable` is true for `rate_limited` and `unavailable` (the outbox retries those).
 
 `FakeIdentityProvider` (`./fake`, also exported by `@mwc/testkit`) is the in-memory provider for tests:
-users, organizations, memberships and invitations that behave like Clerk where S1 depends on it; tokens
+users, organizations, memberships and invitations that behave like Clerk where S1 depends on it (organizations keep no
+slug unless it is made with `{ organizationSlugs: true }`, like the Clerk connector); tokens
 `fake:<subject>` with optional `;org=<externalId>` and `;pending`, and `;sid=<id>`, `;iss=<issuer>`, `;azp=<origin>`,
 `;exp=<ms>` and `;nbf=<ms>`, which `verifyAccessToken` checks as Clerk checks its claims (another issuer, an origin outside
 the caller's `authorizedParties`, expired or not yet valid with 5 seconds of skew on the fake's clock: `unauthorized`);

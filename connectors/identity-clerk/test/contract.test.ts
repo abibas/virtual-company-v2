@@ -1,4 +1,4 @@
-import { describeProviderContract } from '@mwc/testkit/provider-contract';
+import { CONTRACT_WEB_ORIGIN, describeProviderContract } from '@mwc/testkit/provider-contract';
 import { describe, expect, it } from 'vitest';
 import { type ClerkContractTarget, clerkContractTarget, contractLeftovers } from './fixtures/clerk-target.ts';
 
@@ -35,7 +35,7 @@ if (!enabled) {
 
     it(
       'has the settings of docs/clerk-setup.md (Backend API)',
-      async () => {
+      async (context) => {
         const { clerk } = settled();
         expect((await clerk.instance.get()).environmentType).toBe('development');
         const organizations = await clerk.instance.getOrganizationSettings();
@@ -44,6 +44,8 @@ if (!enabled) {
           maxAllowedMemberships: 5,
           creatorRole: 'org:admin',
         });
+        // Recorded, not required: the connector sends no slug, so either value works.
+        context.annotate(`organization slugs disabled: ${organizations.slugDisabled}`);
       },
       TIMEOUT,
     );
@@ -65,6 +67,9 @@ if (!enabled) {
         expect(user?.attributes?.email_address?.first_factors).toContain('email_code');
         expect(user?.social?.oauth_google).toMatchObject({ enabled: true });
         expect(orgs).toMatchObject({ enabled: true, max_allowed_memberships: 5 });
+        // Recorded, not required: the ticket sign-up completes either way (it sends a password when asked for one).
+        const password = user?.attributes?.password;
+        context.annotate(`password: enabled ${password?.enabled}, required at sign-up ${password?.required}`);
         context.annotate(
           `organization settings keys: ${Object.keys(orgs ?? {})
             .sort()
@@ -73,6 +78,13 @@ if (!enabled) {
       },
       TIMEOUT,
     );
+
+    it('sends the invitation link to /accept-invitation with the ticket and __clerk_status=sign_up', (context) => {
+      const { link } = settled().findings;
+      if (link === undefined)
+        return context.skip('no invitation link was followed (see the acceptance case)');
+      expect(link).toEqual({ landing: `${CONTRACT_WEB_ORIGIN}/accept-invitation`, status: 'sign_up' });
+    });
 
     it("checks a Frontend API session token's azp: accepted for our origin, refused for another", (context) => {
       const { azp } = settled().findings;

@@ -71,7 +71,13 @@ export class ClerkIdentityProvider implements IdentityProvider {
   constructor(options: ClerkIdentityProviderOptions) {
     this.issuer = options.issuer;
     const webhooks = Boolean(options.webhookSigningSecret);
-    this.capabilities = { organizations: true, invitations: true, webhooks, scim: false };
+    this.capabilities = {
+      organizations: true,
+      invitations: true,
+      webhooks,
+      scim: false,
+      organizationSlugs: false,
+    };
     this.#backend = options.backend;
     this.#options = options;
     this.#gate = new RateGate(options.now ?? Date.now, options.invitationLimit ?? INVITATION_LIMIT);
@@ -107,11 +113,15 @@ export class ClerkIdentityProvider implements IdentityProvider {
     return found;
   }
 
+  /**
+   * Never sends a slug (`capabilities.organizationSlugs` is false): company slugs are ours (`/c/:slug`), Clerk refuses
+   * any slug with 403 `organization_slugs_disabled` while its organization slugs are off (the default of a B2B
+   * application), and one sent once would go stale when the company's slug changes, since nothing updates it.
+   */
   async createOrganization(input: CreateOrganizationInput): Promise<ExternalOrg> {
     const org = await this.#api.call('createOrganization', (api) =>
       api.organizations.createOrganization({
         name: input.name,
-        ...(input.slug === undefined ? {} : { slug: input.slug }),
         ...(input.createdBySubject === undefined ? {} : { createdBy: input.createdBySubject }),
         privateMetadata: { ...input.metadata },
       }),

@@ -2,19 +2,26 @@ import { IDENTITY_METADATA } from '@mwc/shared/identity';
 import { expect } from 'vitest';
 import { type ContractCase, collect, need, providerError } from './state.ts';
 
+/** Why the slug case does not apply to a provider that keeps no organization slugs. */
+const NO_ORGANIZATION_SLUGS =
+  'this provider keeps no organization slugs (capabilities.organizationSlugs is false): company slugs are ours';
+
 export const createsOrganizations: ContractCase = {
   name: 'createOrganization keeps the company id in private metadata; findOrganizationByMetadata finds it',
   async run(state) {
     const { target, provider } = state;
     const owner = need(state.owner, 'owner');
     state.companyId = `${target.runId}-company`;
+    // Always given a slug: a provider without organization slugs must ignore it (Clerk refuses any slug sent while
+    // its organization slugs are off), and one with them must keep it.
     state.org = await provider.createOrganization({
       name: target.runId,
       slug: target.runId,
       metadata: { [IDENTITY_METADATA.companyId]: state.companyId },
       createdBySubject: owner.subject,
     });
-    expect(state.org).toMatchObject({ name: target.runId, slug: target.runId });
+    expect(state.org.name).toBe(target.runId);
+    if (provider.capabilities.organizationSlugs) expect(state.org.slug).toBe(target.runId);
     expect(state.org.metadata[IDENTITY_METADATA.companyId]).toBe(state.companyId);
     const found = await provider.findOrganizationByMetadata(IDENTITY_METADATA.companyId, state.companyId);
     expect(found?.externalId).toBe(state.org.externalId);
@@ -25,8 +32,9 @@ export const createsOrganizations: ContractCase = {
 };
 
 export const refusesTakenSlugs: ContractCase = {
-  name: 'createOrganization refuses a slug that is taken as conflict',
-  async run({ target, provider, owner }) {
+  name: 'createOrganization refuses a slug that is taken as conflict (providers with organization slugs)',
+  async run({ target, provider, owner }, skip) {
+    if (!provider.capabilities.organizationSlugs) return skip(NO_ORGANIZATION_SLUGS);
     const error = await providerError(() =>
       provider.createOrganization({
         name: `${target.runId}-again`,

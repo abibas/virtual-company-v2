@@ -27,6 +27,19 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: The fake provider's near-limit warning came back with one more option
+
+- **What happened:** the S1.2 slug fix gave `FakeIdentityProvider` an option (`organizationSlugs`) and computed
+  capabilities; `fake.ts` went from 234 to 250 lines (83%) and the report showed `near-limit` again (29 warnings instead of
+  28), two stages after S1.4 split it from 290 to 230.
+- **Where:** `packages/identity-core/src/fake.ts`, `src/fake/organizations.ts`; the S1.2 fix commit.
+- **What was done:** the slug decision moved into `createFakeOrganization` (it takes the provider's capabilities), and the
+  fixed capabilities became one constant; `fake.ts` is at 239 lines, back to 28 warnings.
+- **Suggested change:** none to the rules. At the next review, consider moving the test controls (`createUser`,
+  `updateUser`, `deleteUser`, `accept`, `addMember`, `failNext`) out of `fake.ts`, so each new port method or option
+  does not push the entry file back over 80%.
+- **Status:** `open`.
+
 ### 2026-11-04: An opt-in test reuses another package's test fixtures by a relative path
 
 - **What happened:** the real-Clerk variant of the S1 acceptance needs a Clerk owner who signs in on the Frontend API, the

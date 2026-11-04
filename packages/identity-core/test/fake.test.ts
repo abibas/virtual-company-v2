@@ -17,6 +17,7 @@ describe('FakeIdentityProvider: identity', () => {
       invitations: true,
       webhooks: true,
       scim: false,
+      organizationSlugs: false,
     });
     expect(new FakeIdentityProvider({ issuer: 'https://other' }).issuer).toBe('https://other');
   });

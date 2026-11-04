@@ -8,6 +8,12 @@ export const DEFAULT_RETRY_AFTER_MS = 10_000;
 const CONFLICT_CODE = /exists|duplicate|already|taken|not_pending|minimum_permissions/;
 
 /**
+ * Clerk error codes of a 403 that refuse a feature the instance has switched off (such as
+ * `organization_slugs_disabled`), not our credentials: input this instance does not take, so `invalid`.
+ */
+const DISABLED_CODE = /_disabled$|_not_enabled$/;
+
+/**
  * Token verification failures that are an outage or our configuration (the JWKS did not load, no key to
  * verify with, a refused secret key), not a bad token: the caller answers 503, not 401.
  */
@@ -40,8 +46,10 @@ function codeForStatus(status: number | undefined, clerkCode: string): IdentityP
   // `unexpected_error` without a status.
   if (status === undefined) return 'unavailable';
   if (status === 429) return 'rate_limited';
+  if (status === 403 && DISABLED_CODE.test(clerkCode)) return 'invalid';
   if (status === 401 || status === 403) return 'unauthorized';
-  if (status === 404) return 'not_found';
+  // Clerk answers 404 `organization_invitation_not_pending` for revoking an invitation that was accepted.
+  if (status === 404) return clerkCode.endsWith('_not_pending') ? 'conflict' : 'not_found';
   if (status === 409) return 'conflict';
   if (status >= 500) return 'unavailable';
   return CONFLICT_CODE.test(clerkCode) ? 'conflict' : 'invalid';
