@@ -21,6 +21,11 @@ export const ErrorBodySchema = z
 
 export type ErrorBody = z.infer<typeof ErrorBodySchema>;
 
+/** A route's error response in the OpenAPI document: the common error body, with what causes it. */
+export function errorResponse(description: string) {
+  return { description, content: { 'application/json': { schema: ErrorBodySchema } } };
+}
+
 const CODES: Readonly<Record<number, string>> = {
   400: 'bad_request',
   401: 'unauthorized',

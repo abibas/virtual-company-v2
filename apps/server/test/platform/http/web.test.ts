@@ -52,7 +52,7 @@ describe('the built web UI (webDist)', () => {
 
   it('keeps the API first: routes answer as before and unknown /api paths stay JSON 404s', async () => {
     expect((await t.app.request('/healthz')).headers.get('content-type')).toContain('application/json');
-    for (const path of ['/api', '/api/nope', '/api/companies/x']) {
+    for (const path of ['/api', '/api/nope', '/api/companies/x/nope']) {
       const res = await t.app.request(path);
       expect(res.status).toBe(404);
       expect(res.headers.get('content-type')).toContain('application/json');

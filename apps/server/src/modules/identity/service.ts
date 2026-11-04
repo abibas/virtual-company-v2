@@ -1,3 +1,4 @@
+import { type DbHandle, isUniqueViolation } from '@mwc/db';
 import { type IdentityProvider, reconcileUser } from '@mwc/identity-core';
 import type { VerifiedIdentity } from '@mwc/shared/identity';
 import type { Actor } from '../../platform/auth/actor.ts';
@@ -10,15 +11,8 @@ export const REMEMBERED_SESSIONS = 10_000;
 /** Tries of a sign-in reconcile that ran into another one (a unique violation): the first and two retries. */
 export const RECONCILE_TRIES = 3;
 
-/** True for Postgres' unique violation (SQLSTATE 23505), as the driver's error or the cause of Drizzle's. */
-export function isUniqueViolation(error: unknown): boolean {
-  let current = error;
-  for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth++) {
-    if ((current as { code?: unknown }).code === '23505') return true;
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
+/** Postgres' unique violation (SQLSTATE 23505), as the driver's error or the cause of Drizzle's (`@mwc/db`). */
+export { isUniqueViolation };
 
 /** Runs `work` again when it lost a race to an identical insert; every step of a reconcile is idempotent. */
 export async function retryOnUniqueViolation<T>(work: () => Promise<T>, tries = RECONCILE_TRIES): Promise<T> {
@@ -85,6 +79,20 @@ async function signIn(deps: SignInDeps, actor: Actor, identity: VerifiedIdentity
   return (await store.getUser(identity.issuer, identity.subject))?.id;
 }
 
+/**
+ * The companies an actor sees, exactly as `GET /api/me` lists them: their memberships that are not removed, in
+ * companies that are not deleted, by name; an API key's own company only; none for a person not linked yet.
+ */
+export function companiesOf(db: DbHandle, actor: Actor): Promise<UserCompany[]> {
+  if (actor.userId === undefined) return Promise.resolve([]);
+  return userCompanies(db, actor.userId, actor.companyId);
+}
+
+/** A person's profile (their primary email, lower-cased, and status), or undefined for an unknown id. */
+export function profileOf(db: DbHandle, userId: string): Promise<UserProfile | undefined> {
+  return userProfile(db, userId);
+}
+
 function meView(profile: UserProfile, memberships: UserCompany[], actor: Actor): Me {
   return {
     user: {
@@ -132,7 +140,7 @@ export function meService(
       }
       return {
         ok: true,
-        me: meView(profile, await userCompanies(deps.db, profile.id, actor.companyId), actor),
+        me: meView(profile, await companiesOf(deps.db, { ...actor, userId: profile.id }), actor),
       };
     },
   };

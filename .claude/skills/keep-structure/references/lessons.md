@@ -27,6 +27,41 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: A module that reads across the caller's companies
+
+- **What happened:** S1.5's `GET /api/companies` lists the caller's companies, and the creation policy reads the
+  creator's primary email. Both read across companies or global tables (`memberships` of one user everywhere,
+  `users`), which a company's `TenantDb` cannot do, and the companies module may not import `@mwc/db/system`. The
+  placement table only knows "SQL through `tenant(db, companyId)`".
+- **Where:** `apps/server/src/modules/companies/service.ts` (`listCompanies`, `policyRefusal`) calling
+  `apps/server/src/modules/identity/service.ts` (`companiesOf`, `profileOf`; 139 to 147 lines), whose repo has the raw
+  access exemption; S1.5.
+- **What was done:** the companies module calls the identity module's service, which reads through its exempted
+  repo, so `GET /api/companies` lists exactly what `GET /api/me` lists, from one query. No new Biome exemption.
+- **Suggested change:** a placement-table row: "A read across the caller's companies, or of a person's own profile
+  → the identity module's service (`companiesOf`, `profileOf`), never a new raw-access exemption."
+- **Status:** `open`.
+
+### 2026-11-04: The module template's routes grew into a long function and an untyped context
+
+- **What happened:** S1.5 followed the template's `routes.ts`: every `createRoute` inside the router factory and
+  `middleware: [authn(deps), requireMembership(deps, role)]`. With five routes the factory was 116 lines (the
+  report's `long-function`), and the array literal did not type `c.var.tenant` or `c.var.membership` (zod-openapi
+  reads the middleware's environment from a tuple only), so the handlers did not typecheck. The route tests in one
+  file reached 430 lines (`near-limit`). A shared route base with `path` typed as `string` also collapsed the web's
+  typed client (`apps/web/src/api/client.ts` failed to typecheck).
+- **Where:** `apps/server/src/modules/companies/routes.ts` (14 lines now), `routes/collection.ts` (60),
+  `routes/company.ts` (104), tests mirrored in `test/modules/companies/routes/` (243 and 210 lines);
+  `platform/auth/membership.ts` (`companyMember`); `platform/http/docs.ts` (`jsonBody`, `jsonResponse`) and
+  `platform/http/errors.ts` (`errorResponse`); S1.5. The service factory had the same `long-function` (137 lines)
+  and became named functions (`createCompany`, `updateCompany`, `removeCompany`, ...) bound by a short factory.
+- **What was done:** route configs are factories outside the router function, the routes are grouped by path in
+  `routes/` and mounted by `routes.ts` with `.route('/', ...)`, `companyMember(deps, role)` returns the tuple, the
+  shared path is `as const`; the module template now shows this pattern. The report stayed at 17 warnings.
+- **Suggested change:** confirm the template's new `routes.ts` example; consider a placement-table note that a
+  module's routes become `routes/<path group>.ts` once they pass about three routes.
+- **Status:** `open`.
+
 ### 2026-11-04: Splitting the near-limit fake moved its warning to fan-in
 
 - **What happened:** S1.4 needed the fake identity provider to check token claims (`iss`, `azp`, `exp`, `nbf`, and a

@@ -25,8 +25,9 @@ the provider contract that runs against the fake always and against the real Cle
 request; the identity tables (S1.3, `0001_identity`) with the tenant layer `tenant(db, companyId)`, raw access
 only through `@mwc/db/system` (forbidden in server modules by Biome), and the database identity store, which passes
 the same store contract as the in-memory one; sign-in (S1.4: `authn()` for Clerk session tokens and personal API
-keys, `requireMembership(role)`, `GET /api/me` with reconcile on sign-in; `MWC_IDENTITY`, `MWC_WEB_ORIGIN`); next
-S1.5, companies.
+keys, `requireMembership(role)`, `GET /api/me` with reconcile on sign-in; `MWC_IDENTITY`, `MWC_WEB_ORIGIN`);
+companies (S1.5: create with the outbox `create_org` call, list mine, read, rename, soft delete with the name
+typed again; `MWC_COMPANY_CREATION`, `MWC_COMPANY_CREATORS`); next S1.6, memberships.
 
 ## Start
 

@@ -19,12 +19,12 @@ Most_Wanted_corp_v2/
 │   │   │   ├── platform/           cross-cutting, no business rules
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
-│   │   │   │   ├── jobs/           background loops: outbox, reconcile, reaper S1/S4
+│   │   │   │   ├── jobs/           the outbox (built); loops: reconcile, reaper S1/S4
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         routes · service · repo · schemas           S0
 │   │   │   │   ├── identity/       identity store (repo), me, webhooks, sync   S1
-│   │   │   │   ├── companies/                                                  S1
+│   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
 │   │   │   │   ├── members/        memberships, invitations                    S1
 │   │   │   │   ├── api-keys/                                                   S1
 │   │   │   │   ├── org/            agents, reporting chain, org chart          S2
@@ -103,8 +103,13 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   turns `Authorization: Bearer` into `c.var.actor` (`session.ts` for session tokens, `api-keys.ts` for API keys,
   `bearer.ts` sorting them by shape, the run token slot), and `requireMembership(role)` (`membership.ts`) guards
   `/api/companies/:companyId/...` with our memberships and puts `c.var.tenant` and `c.var.membership` on the
-  context; `actor.ts` holds the types. A module puts them on its routes with zod-openapi's `middleware`, and
-  gets the provider and the clock as `ServerDeps` (`env.ts`). Later `jobs/` and `realtime/`.
+  context; `actor.ts` holds the types. A module puts them on its routes with zod-openapi's `middleware`
+  (`companyMember(deps, role)` gives both as the tuple zod-openapi needs to type the handler's `c.var`), and gets
+  the provider and the clock as `ServerDeps` (`env.ts`). `jobs/outbox.ts` (S1.5) is the identity outbox:
+  `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
+  handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after
+  its last try); the modules own the handlers (`companies`: `create_org`, `delete_org`) and the loop that calls them
+  comes in S1.10. Later `realtime/`.
 - `src/modules/<area>/` is one business area. A module has up to these files:
 
   | File         | Role                                                                            |
@@ -186,6 +191,17 @@ code reaches tenant data only through `tenant(db, companyId)` (`packages/db/READ
 `migrationStatus`). `tenant()` refuses a company that is missing, deleted or not an id with `CompanyNotFoundError`
 (a 404), and its `TenantDb` scopes every statement to the company: reads, updates and deletes get
 `company_id = …` added, inserts get `company_id` stamped. A `DbHandle` does not expose its Drizzle object.
+
+The company row itself is a global row, reached through the tenant layer too (S1.5): `t.updateCompany(set, where?)`
+updates only the tenant's company (never its id), and `t.lockCompany()` reads it `for update` inside
+`t.transaction()` and refuses it once deleted. A new company is `withNewCompany(db, { name, slugs, ... }, work)`:
+one transaction inserts the company (`provisioning`) with the first free slug of the list (`on conflict do
+nothing`, so a slug taken by a concurrent create moves on instead of aborting) and runs `work` on a `TenantDb`
+bound to it, so the company and its first tenant rows (the owner's principal and membership, the outbox call, the
+audit rows) commit together or not at all; no slug free rejects with `SlugTakenError`. This is how a module writes
+a global row and tenant rows in one transaction without `@mwc/db/system`. `auditChanges(t, entry)` writes the
+per-field audit rows of `diffFields` in the tenant's company, and `isUniqueViolation(error, constraint?)` tells a
+taken value (a 409) from a failure on both drivers.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`) is `@mwc/db/system`, for the
 code that must see every company: the platform (startup, auth, jobs), migrations and scripts, the webhook inbox

@@ -1,3 +1,7 @@
+import type { ActorKind } from '@mwc/shared/enums';
+import { type AuditLogRow, auditLog } from './schema/audit-log.ts';
+import type { TenantDb } from './tenant.ts';
+
 /** One audit row's worth of change: a field and its value before and after (null when absent). */
 export interface FieldChange {
   readonly field: string;
@@ -50,4 +54,39 @@ export function sameValue(a: unknown, b: unknown): boolean {
     return keysA.length === keysB.length && keysA.every((key) => key in b && sameValue(a[key], b[key]));
   }
   return false;
+}
+
+/** Who changed which entity, how, and what: the rows `auditChanges` writes, one per field change. */
+export interface AuditEntry {
+  readonly actorKind: ActorKind;
+  /** The acting principal, of the tenant's company; none for the system or the identity provider. */
+  readonly actorPrincipalId?: string | null;
+  /** The request that made the change (`x-request-id`); none for a background job. */
+  readonly requestId?: string | null;
+  readonly entityType: string;
+  readonly entityId: string;
+  /** `create`, `update`, `delete`, ... */
+  readonly action: string;
+  /** Usually `diffFields(before, after)`. */
+  readonly changes: readonly FieldChange[];
+}
+
+/**
+ * Writes one `audit_log` row per change into the tenant's company (in the tenant's transaction when it is one)
+ * and returns them; no changes write nothing. Values are stored as jsonb (a date as its ISO string).
+ */
+export async function auditChanges(t: TenantDb, entry: AuditEntry): Promise<AuditLogRow[]> {
+  if (entry.changes.length === 0) return [];
+  const rows = entry.changes.map((change) => ({
+    actorKind: entry.actorKind,
+    actorPrincipalId: entry.actorPrincipalId ?? null,
+    requestId: entry.requestId ?? null,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    action: entry.action,
+    field: change.field,
+    oldValue: change.old,
+    newValue: change.new,
+  }));
+  return t.insert(auditLog, rows).returning();
 }

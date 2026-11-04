@@ -5,7 +5,7 @@ The schema drawn as a diagram, with a section per table: [docs/schema.md](../../
 
 | Import            | What                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------- |
-| `@mwc/db`         | the tables and row types, `tenant(db, companyId)` with `TenantDb` and `CompanyNotFoundError`, `isUuid`, `pingDb(handle)`, `migrationStatus(handle)`, `readJournal()`, `diffFields`, and the `DbHandle` type (a handle without its Drizzle object) |
+| `@mwc/db`         | the tables and row types, `tenant(db, companyId)` with `TenantDb` and `CompanyNotFoundError`, `withNewCompany(db, input, work)` with `SlugTakenError`, `isUuid`, `pingDb(handle)`, `migrationStatus(handle)`, `readJournal()`, `diffFields`, `auditChanges(t, entry)`, `isUniqueViolation(error, constraint?)`, and the `DbHandle` type (a handle without its Drizzle object) |
 | `@mwc/db/system`  | raw, unscoped access: `createDb(url, { poolSize, onnotice })` (postgres.js, lazy connect), `migrateToLatest(handle)`, `queryRows(handle, sql)`, `rawDb(handle)` (the Drizzle database), `rawHandle(handle)`. Server modules may not import it (below) |
 | `@mwc/db/schema`  | the Drizzle tables and row types only                                                  |
 | `@mwc/db/pglite`  | `createPgliteDb()`: an in-memory PGlite handle for tests (PGlite is a dev dependency)   |
@@ -38,7 +38,25 @@ await t.update(invitations, { status: 'revoked' }, eq(invitations.id, id)).retur
 await t.delete(apiKeys, eq(apiKeys.id, id));
 await t.transaction(async (tx) => { /* the same, in one transaction */ });
 t.scoped(memberships); // the scope as SQL, for a join's condition
+await t.updateCompany({ name: 'Acme Corp' }).returning();                                   // the company row itself
+await t.transaction(async (tx) => tx.lockCompany());                                        // for update; 404 once deleted
+await auditChanges(t, { actorKind: 'user', entityType: 'company', entityId: t.companyId, action: 'update', changes });
 ```
+
+A new company and its first tenant rows go in one transaction with `withNewCompany` (S1.5): it inserts the company
+(`provisioning`) with the first free slug of `slugs` (`on conflict do nothing`, so a slug a concurrent create took
+moves on to the next instead of aborting the transaction) and runs `work` on a `TenantDb` bound to it; `work`
+throwing rolls the company back too, and no free slug rejects with `SlugTakenError`.
+
+```ts
+const company = await withNewCompany(db, { name: 'Acme', slugs: ['acme', 'acme-2'], createdByUserId }, async (t) => {
+  await t.insert(principals, { kind: 'person' });
+  return t.company;
+});
+```
+
+`isUniqueViolation(error, constraint?)` recognizes SQLSTATE 23505 through Drizzle's wrapper on both drivers
+(postgres.js names the constraint `constraint_name`, PGlite `constraint`), so a taken value becomes a 409, not a 500.
 
 A `companyId` passed to `insert` or `update` is replaced or dropped: a row never lands in or moves to another
 company. The composite foreign keys refuse a cross-company reference even when a raw query tries it.

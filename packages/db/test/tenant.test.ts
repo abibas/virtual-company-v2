@@ -1,9 +1,17 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RawDbHandle } from '../src/handle.ts';
 import { rawDb } from '../src/handle.ts';
 import { type Company, companies, invitations, memberships, principals } from '../src/schema/index.ts';
-import { CompanyNotFoundError, isCompanyNotFound, isUuid, type TenantDb, tenant } from '../src/tenant.ts';
+import {
+  CompanyNotFoundError,
+  isCompanyNotFound,
+  isUuid,
+  SlugTakenError,
+  type TenantDb,
+  tenant,
+  withNewCompany,
+} from '../src/tenant.ts';
 import { pgError, type TestDb } from '../src/testing.ts';
 import {
   insertCompany,
@@ -162,5 +170,93 @@ describe('TenantDb', () => {
     await rawDb(handle).update(companies).set({ name: 'Renamed' }).where(eq(companies.id, acme.id));
     expect(t.company.name).toBe(acme.name);
     expect((await tenant(handle, acme.id)).company.name).toBe('Renamed');
+  });
+});
+
+describe('TenantDb: the company row', () => {
+  it('updates the company itself, never its id, and only when the extra condition holds', async () => {
+    const company = await insertCompany(handle, { status: 'provisioning' });
+    const own = await tenant(handle, company.id);
+    const set = { name: 'Provisioned', status: 'active', id: globex.id } as {
+      name: string;
+      status: 'active';
+    };
+    const [updated] = await own.updateCompany(set).returning();
+    expect(updated).toMatchObject({ id: company.id, name: 'Provisioned', status: 'active' });
+    expect((await tenant(handle, globex.id)).company.name).toBe(globex.name);
+    expect(
+      await own.updateCompany({ name: 'Never' }, eq(companies.status, 'provisioning')).returning(),
+    ).toEqual([]);
+    expect(await own.updateCompany({ name: 'Again' }, isNull(companies.deletedAt)).returning()).toHaveLength(
+      1,
+    );
+  });
+
+  it('locks the current row in a transaction and refuses a company deleted since it was opened', async () => {
+    const company = await insertCompany(handle);
+    const own = await tenant(handle, company.id);
+    await own.updateCompany({ name: 'Current' });
+    const locked = await own.transaction((tx) => tx.lockCompany());
+    expect(locked).toMatchObject({ id: company.id, name: 'Current' });
+    await own.updateCompany({ status: 'deleted' });
+    await expect(own.transaction((tx) => tx.lockCompany())).rejects.toBeInstanceOf(CompanyNotFoundError);
+    const soft = await tenant(handle, (await insertCompany(handle)).id);
+    await soft.updateCompany({ deletedAt: new Date() });
+    await expect(soft.lockCompany()).rejects.toMatchObject({ code: 'not_found', companyId: soft.companyId });
+  });
+});
+
+describe('withNewCompany', () => {
+  it('creates a provisioning company and hands its tenant to work in the same transaction', async () => {
+    const user = await insertUser(handle);
+    const slug = unique('new');
+    const result = await withNewCompany(
+      handle,
+      { name: 'New Co', slugs: [slug], createdByUserId: user.id, identityProvider: 'fake' },
+      async (tx) => {
+        const [principal] = await tx.insert(principals, { kind: 'person' }).returning();
+        return { company: tx.company, principal };
+      },
+    );
+    expect(result.company).toMatchObject({
+      slug,
+      name: 'New Co',
+      status: 'provisioning',
+      identityProvider: 'fake',
+      createdByUserId: user.id,
+      identityOrgId: null,
+    });
+    expect(result.principal?.companyId).toBe(result.company.id);
+    expect((await tenant(handle, result.company.id)).company).toEqual(result.company);
+    const plain = await withNewCompany(
+      handle,
+      { name: 'Plain', slugs: [unique('plain')] },
+      async (tx) => tx.company,
+    );
+    expect(plain).toMatchObject({ identityProvider: 'clerk', createdByUserId: null });
+  });
+
+  it('takes the first free slug and refuses when none is free', async () => {
+    const taken = await insertCompany(handle);
+    const free = unique('free');
+    const company = await withNewCompany(
+      handle,
+      { name: 'Next', slugs: [taken.slug, free] },
+      async (tx) => tx.company,
+    );
+    expect(company.slug).toBe(free);
+    const none = withNewCompany(handle, { name: 'None', slugs: [taken.slug, free] }, async () => 'never');
+    await expect(none).rejects.toBeInstanceOf(SlugTakenError);
+    await expect(none).rejects.toMatchObject({ code: 'slug_taken', slugs: [taken.slug, free] });
+  });
+
+  it('rolls the company back when work fails', async () => {
+    const slug = unique('rolled');
+    const failed = withNewCompany(handle, { name: 'Rolled', slugs: [slug] }, async (tx) => {
+      await tx.insert(principals, { kind: 'person' });
+      throw new Error('work fails');
+    });
+    await expect(failed).rejects.toThrow('work fails');
+    expect(await rawDb(handle).select().from(companies).where(eq(companies.slug, slug))).toEqual([]);
   });
 });

@@ -7,6 +7,18 @@ const emptyAsUnset = (value: unknown) => (value === '' ? undefined : value);
 /** Which identity provider signs people in; `none` serves health and the UI only (MWC_IDENTITY). */
 export const IdentityMode = z.enum(['clerk', 'none']);
 
+/** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
+export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
+
+/** A comma-separated list (`a@x.com, b@y.com`) as trimmed, lower-cased entries; empty or unset is none. */
+const emailList = (value: unknown) =>
+  typeof value === 'string'
+    ? value
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter((entry) => entry !== '')
+    : value;
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
@@ -42,9 +54,14 @@ const EnvSchema = z.object({
   CLERK_SECRET_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
   CLERK_PUBLISHABLE_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
   CLERK_JWT_KEY: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
+  /** `any`, `allowlist` or `none`. Defaults to `any`, and to `allowlist` in production. */
+  MWC_COMPANY_CREATION: z.preprocess(emptyAsUnset, CompanyCreation.optional()),
+  /** The emails MWC_COMPANY_CREATION=allowlist lets create companies, comma-separated, compared lower-cased. */
+  MWC_COMPANY_CREATORS: z.preprocess(emailList, z.array(z.email()).default([])),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
+export type CompanyCreation = z.infer<typeof CompanyCreation>;
 
 /** MWC_IDENTITY=clerk (set, or implied by the secret key) needs both Clerk keys. */
 function requireClerkKeys(env: z.infer<typeof EnvSchema>, ctx: z.RefinementCtx): void {
@@ -66,11 +83,20 @@ function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): st
 /**
  * Process configuration, 12-factor style: everything comes from the environment,
  * is validated once at startup, and a missing or malformed value fails fast.
- * Precedence for the API port: MWC_PORT, then MWC_PORT_SLOT's API port, then 9950. The Clerk keys are
+ * Precedence for the API port: MWC_PORT, then MWC_PORT_SLOT's API port, then 9950. Company creation is open
+ * to anyone signed in, except in production, where only MWC_COMPANY_CREATORS may create. The Clerk keys are
  * secrets: nothing logs the configuration, and a problem names the variable, never its value.
  */
 export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((env) => {
-  const { MWC_PORT_SLOT, MWC_PORT, MWC_PUBLIC_URL, MWC_WEB_ORIGIN, MWC_IDENTITY, ...rest } = env;
+  const {
+    MWC_PORT_SLOT,
+    MWC_PORT,
+    MWC_PUBLIC_URL,
+    MWC_WEB_ORIGIN,
+    MWC_IDENTITY,
+    MWC_COMPANY_CREATION,
+    ...rest
+  } = env;
   const port = MWC_PORT ?? (MWC_PORT_SLOT === undefined ? PORTS.api : slotPorts(MWC_PORT_SLOT).api);
   const publicUrl = MWC_PUBLIC_URL ?? `http://localhost:${port}`;
   const identity: IdentityMode = MWC_IDENTITY ?? (env.CLERK_SECRET_KEY ? 'clerk' : 'none');
@@ -82,6 +108,7 @@ export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((e
     MWC_WEB_ORIGIN:
       MWC_WEB_ORIGIN === undefined ? defaultWebOrigin(env, publicUrl) : new URL(MWC_WEB_ORIGIN).origin,
     MWC_IDENTITY: identity,
+    MWC_COMPANY_CREATION: MWC_COMPANY_CREATION ?? (env.NODE_ENV === 'production' ? 'allowlist' : 'any'),
   };
 });
 

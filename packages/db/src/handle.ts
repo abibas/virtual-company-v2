@@ -52,3 +52,23 @@ export async function queryRows<Row extends Record<string, unknown>>(
 export async function pingDb(handle: DbHandle): Promise<void> {
   await queryRows(handle, sql`select 1 as ok`);
 }
+
+/** How deep `isUniqueViolation` follows `cause`: the driver's error, Drizzle's wrapper, and two more. */
+const CAUSE_DEPTH = 4;
+
+/**
+ * True for Postgres' unique violation (SQLSTATE 23505), as the driver's error or the `cause` of Drizzle's, and of
+ * `constraint` when given (postgres.js names it `constraint_name`, PGlite `constraint`). Callers turn a lost race
+ * or a taken value into a retry or a 409 with it, never into a 500.
+ */
+export function isUniqueViolation(error: unknown, constraint?: string): boolean {
+  let current = error;
+  for (let depth = 0; depth < CAUSE_DEPTH && typeof current === 'object' && current !== null; depth++) {
+    const found = current as { code?: unknown; constraint?: unknown; constraint_name?: unknown };
+    if (found.code === '23505') {
+      return constraint === undefined || (found.constraint ?? found.constraint_name) === constraint;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}

@@ -20,7 +20,14 @@ describe('OpenAPI and docs', () => {
     expect(doc.openapi).toBe('3.1.0');
     expect(doc.info.version).toBe(TEST_VERSION);
     expect(Object.keys(doc.paths)).toEqual(
-      expect.arrayContaining(['/healthz', '/readyz', '/api/version', '/api/me']),
+      expect.arrayContaining([
+        '/healthz',
+        '/readyz',
+        '/api/version',
+        '/api/me',
+        '/api/companies',
+        '/api/companies/{companyId}',
+      ]),
     );
     expect(Object.keys(doc.paths['/readyz']?.get?.responses ?? {})).toEqual(['200', '503']);
   });
@@ -34,6 +41,12 @@ describe('OpenAPI and docs', () => {
     expect(doc.paths['/api/me']?.get?.security).toEqual([{ bearer: [] }]);
     expect(Object.keys(doc.paths['/api/me']?.get?.responses ?? {})).toEqual(['200', '401', '403', '503']);
     expect(doc.paths['/healthz']?.get?.security).toBeUndefined();
+    const company = doc.paths['/api/companies/{companyId}'] as Record<
+      string,
+      { responses: Record<string, unknown> }
+    >;
+    expect(Object.keys(company).sort()).toEqual(['delete', 'get', 'patch']);
+    expect(Object.keys(company.delete?.responses ?? {})).toEqual(['204', '400', '401', '403', '404', '422']);
   });
 
   it('serves the Swagger UI page with its assets from this server, not a CDN', async () => {

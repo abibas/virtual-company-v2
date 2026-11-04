@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { diffFields, sameValue } from '../src/audit.ts';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { auditChanges, diffFields, sameValue } from '../src/audit.ts';
+import { tenant } from '../src/tenant.ts';
+import type { TestDb } from '../src/testing.ts';
+import { insertCompany, insertPrincipal, migratedTestDb } from './fixtures/rows.ts';
 
 describe('diffFields', () => {
   it('reports changed, added and removed fields, sorted, and skips unchanged ones', () => {
@@ -70,5 +73,64 @@ describe('sameValue', () => {
     expect(sameValue(new Date(0), 0)).toBe(false);
     expect(sameValue(Object.create(null), {})).toBe(true);
     expect(sameValue(new Map(), new Map([[1, 2]]))).toBe(false);
+  });
+});
+
+describe('auditChanges', () => {
+  let testDb: TestDb;
+  beforeAll(async () => {
+    testDb = await migratedTestDb();
+  });
+  afterAll(() => testDb.close());
+
+  it("writes one row per change in the tenant's company, with the actor and request, and nothing for no change", async () => {
+    const company = await insertCompany(testDb.handle);
+    const principal = await insertPrincipal(testDb.handle, company.id);
+    const t = await tenant(testDb.handle, company.id);
+    const at = new Date('2026-11-04T10:00:00.000Z');
+    const rows = await auditChanges(t, {
+      actorKind: 'user',
+      actorPrincipalId: principal.id,
+      requestId: 'req-1',
+      entityType: 'company',
+      entityId: company.id,
+      action: 'delete',
+      changes: diffFields({ status: 'active', deletedAt: null }, { status: 'deleted', deletedAt: at }),
+    });
+    expect(rows.map(({ id: _id, createdAt: _at, ...row }) => row)).toEqual([
+      {
+        companyId: company.id,
+        actorKind: 'user',
+        actorPrincipalId: principal.id,
+        entityType: 'company',
+        entityId: company.id,
+        action: 'delete',
+        field: 'deletedAt',
+        oldValue: null,
+        newValue: at.toISOString(),
+        requestId: 'req-1',
+      },
+      {
+        companyId: company.id,
+        actorKind: 'user',
+        actorPrincipalId: principal.id,
+        entityType: 'company',
+        entityId: company.id,
+        action: 'delete',
+        field: 'status',
+        oldValue: 'active',
+        newValue: 'deleted',
+        requestId: 'req-1',
+      },
+    ]);
+    const system = {
+      actorKind: 'system',
+      entityType: 'company',
+      entityId: company.id,
+      action: 'provision',
+    } as const;
+    const [row] = await auditChanges(t, { ...system, changes: [{ field: 'status', old: 'a', new: 'b' }] });
+    expect(row).toMatchObject({ actorKind: 'system', actorPrincipalId: null, requestId: null });
+    expect(await auditChanges(t, { ...system, changes: [] })).toEqual([]);
   });
 });

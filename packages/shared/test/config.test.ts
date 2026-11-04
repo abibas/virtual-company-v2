@@ -16,6 +16,8 @@ describe('loadConfig', () => {
       MWC_MIGRATE_ON_START: false,
       MWC_WEB_ORIGIN: 'http://localhost:9951',
       MWC_IDENTITY: 'none',
+      MWC_COMPANY_CREATION: 'any',
+      MWC_COMPANY_CREATORS: [],
     });
   });
 
@@ -198,5 +200,30 @@ describe('loadConfig MWC_WEB_ORIGIN', () => {
     for (const origin of ['localhost:9951', 'ftp://x.test']) {
       expect(() => loadConfig({ ...valid, MWC_WEB_ORIGIN: origin })).toThrow(/MWC_WEB_ORIGIN/);
     }
+  });
+});
+
+describe('loadConfig company creation', () => {
+  it('lets anyone create companies by default, and only the listed creators in production', () => {
+    expect(loadConfig(valid).MWC_COMPANY_CREATION).toBe('any');
+    expect(loadConfig({ ...valid, NODE_ENV: 'test' }).MWC_COMPANY_CREATION).toBe('any');
+    expect(loadConfig({ ...valid, NODE_ENV: 'production' }).MWC_COMPANY_CREATION).toBe('allowlist');
+    expect(loadConfig({ ...valid, MWC_COMPANY_CREATION: '' }).MWC_COMPANY_CREATION).toBe('any');
+    for (const mode of ['any', 'allowlist', 'none'] as const) {
+      expect(
+        loadConfig({ ...valid, NODE_ENV: 'production', MWC_COMPANY_CREATION: mode }).MWC_COMPANY_CREATION,
+      ).toBe(mode);
+    }
+    expect(() => loadConfig({ ...valid, MWC_COMPANY_CREATION: 'some' })).toThrow(/MWC_COMPANY_CREATION/);
+  });
+
+  it('reads MWC_COMPANY_CREATORS as trimmed, lower-cased emails and refuses one that is not an email', () => {
+    expect(
+      loadConfig({ ...valid, MWC_COMPANY_CREATORS: ' Ihor@Example.com, ,b@x.test ' }).MWC_COMPANY_CREATORS,
+    ).toEqual(['ihor@example.com', 'b@x.test']);
+    expect(loadConfig({ ...valid, MWC_COMPANY_CREATORS: '' }).MWC_COMPANY_CREATORS).toEqual([]);
+    expect(() => loadConfig({ ...valid, MWC_COMPANY_CREATORS: 'a@x.test,not-an-email' })).toThrow(
+      /MWC_COMPANY_CREATORS/,
+    );
   });
 });

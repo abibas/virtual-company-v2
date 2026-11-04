@@ -4,8 +4,10 @@ A server module is one business area in `apps/server/src/modules/<area>/`. The l
 `modules/health/` (`routes.ts`, `service.ts`, `schemas.ts`, `index.ts`). Below, an area `notes` with every
 role file; create only the files the area needs. A company route sits behind `authn()` and `requireMembership(role)`
 (`platform/auth/`, S1.4), which put the company's `TenantDb` on `c.var.tenant`; a repo reaches tenant tables only
-through it (or through `tenant(db, companyId)` of `@mwc/db`). The live example of an authenticated route is
-`modules/identity/routes.ts` (`GET /api/me`).
+through it (or through `tenant(db, companyId)` of `@mwc/db`). The live examples of authenticated routes are
+`modules/identity/routes.ts` (`GET /api/me`) and `modules/companies/` (S1.5: company routes, a service split into
+named functions, outbox handlers in `service/`). A new company and its first tenant rows go through
+`withNewCompany` of `@mwc/db`, never `@mwc/db/system`.
 
 ## schemas.ts: the shapes, nothing else
 
@@ -67,34 +69,45 @@ module's service, never its `repo.ts`.
 
 ```ts
 import { createRoute } from '@hono/zod-openapi';
-import { authn } from '../../platform/auth/authn.ts';
-import { requireMembership } from '../../platform/auth/membership.ts';
+import { companyMember } from '../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../platform/env.ts';
-import { BEARER_SCHEME } from '../../platform/http/docs.ts';
-import { errorJson } from '../../platform/http/errors.ts';
+import { BEARER_SCHEME, jsonBody, jsonResponse } from '../../platform/http/docs.ts';
+import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import { CreateNoteSchema, NoteSchema } from './schemas.ts';
 import { notesService } from './service.ts';
 
-export function notesRoutes(deps: ServerDeps) {
-  const notes = notesService();
-  // Inside the factory: the middleware needs the deps. It types c.var.actor, c.var.tenant, c.var.membership.
-  const createNoteRoute = createRoute({
+// One factory per route, outside the router function, so that function stays short as routes are added.
+// companyMember(deps, role) is authn() then requireMembership(role) as a tuple: zod-openapi types the handler's
+// c.var.actor, c.var.tenant and c.var.membership only from a tuple (a plain array literal loses them).
+const createNoteRoute = (deps: ServerDeps) =>
+  createRoute({
     method: 'post',
     path: '/api/companies/{companyId}/notes',
     tags: ['notes'],
     security: [{ [BEARER_SCHEME]: [] }],
-    middleware: [authn(deps), requireMembership(deps, 'member')],
-    request: { body: { content: { 'application/json': { schema: CreateNoteSchema } } } },
-    responses: { 201: { description: 'Created', content: { 'application/json': { schema: NoteSchema } } } },
+    middleware: companyMember(deps, 'member'),
+    request: { body: jsonBody(CreateNoteSchema) },
+    responses: {
+      201: jsonResponse('Created', NoteSchema),
+      400: errorResponse('The title is empty (`empty_title`)'),
+    },
   });
-  return newRouter().openapi(createNoteRoute, async (c) => {
+
+export function notesRoutes(deps: ServerDeps) {
+  const notes = notesService();
+  return newRouter().openapi(createNoteRoute(deps), async (c) => {
     const result = await notes.create(c.var.tenant, c.req.valid('json').title);
     if (!result.ok) return errorJson(c, 400, result.reason, 'The title is empty');
     return c.json(result.note, 201);
   });
 }
 ```
+
+A path in a shared route base needs `as const` (`path: '/api/companies/{companyId}' as const`): typed as a plain
+`string` it collapses the web's typed client (`AppType`). When the routes outgrow one file, group them by path in
+`routes/<group>.ts`, each returning its own `newRouter()`, and let `routes.ts` mount them with `.route('/', ...)`
+(the live example: `modules/companies/routes.ts`, `routes/collection.ts` and `routes/company.ts`).
 
 ## index.ts: the router factory, re-exported
 

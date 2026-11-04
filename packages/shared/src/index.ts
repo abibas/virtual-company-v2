@@ -1,4 +1,11 @@
-export { type Config, ConfigError, ConfigSchema, IdentityMode, loadConfig } from './config.ts';
+export {
+  CompanyCreation,
+  type Config,
+  ConfigError,
+  ConfigSchema,
+  IdentityMode,
+  loadConfig,
+} from './config.ts';
 export {
   ActorKind,
   ApiKeyKind,

@@ -11,6 +11,16 @@ export const DOCS_PATH = '/api/docs';
 export const BEARER_SCHEME = 'bearer';
 const ASSETS_BASE = `${DOCS_PATH}/assets`;
 
+/** A route's JSON response in the OpenAPI document. */
+export function jsonResponse<T>(description: string, schema: T) {
+  return { description, content: { 'application/json': { schema } } };
+}
+
+/** A route's JSON request body, required (a request without it is a 400). */
+export function jsonBody<T>(schema: T) {
+  return { content: { 'application/json': { schema } }, required: true };
+}
+
 /** The Swagger UI files /api/docs loads, served from the installed swagger-ui-dist (no CDN). */
 const ASSETS: Readonly<Record<string, string>> = {
   'swagger-ui.css': 'text/css; charset=utf-8',

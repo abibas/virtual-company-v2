@@ -2,15 +2,10 @@ import { createRoute } from '@hono/zod-openapi';
 import { authn } from '../../platform/auth/authn.ts';
 import type { ServerDeps } from '../../platform/env.ts';
 import { BEARER_SCHEME } from '../../platform/http/docs.ts';
-import { ErrorBodySchema, errorJson } from '../../platform/http/errors.ts';
+import { errorResponse as error, errorJson } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import { MeSchema } from './schemas.ts';
 import { meService } from './service.ts';
-
-const error = (description: string) => ({
-  description,
-  content: { 'application/json': { schema: ErrorBodySchema } },
-});
 
 /** `GET /api/me`: who is calling, their companies and session, with reconcile on sign-in. */
 export function identityRoutes(deps: ServerDeps) {

@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { newId } from '@mwc/shared/ids';
 import { requestId } from 'hono/request-id';
+import { companiesRoutes } from './modules/companies/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes } from './modules/identity/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
@@ -37,7 +38,10 @@ export function createApp(deps: AppDeps) {
   app.onError(errorHandler(deps.logger));
   app.notFound(notFoundHandler);
 
-  const routes = app.route('/', healthRoutes(deps)).route('/', identityRoutes(server));
+  const routes = app
+    .route('/', healthRoutes(deps))
+    .route('/', identityRoutes(server))
+    .route('/', companiesRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

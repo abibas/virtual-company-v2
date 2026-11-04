@@ -4,7 +4,8 @@ import { roleAtLeast } from '@mwc/shared/roles';
 import { eq } from 'drizzle-orm';
 import type { MiddlewareHandler } from 'hono';
 import { COMPANY_NOT_FOUND, errorJson } from '../http/errors.ts';
-import type { MemberEnv } from './actor.ts';
+import type { AuthEnv, MemberEnv } from './actor.ts';
+import { type AuthDeps, authn } from './authn.ts';
 
 /**
  * Guards a route under `/api/companies/:companyId/...` (after `authn()`): the caller must have an active
@@ -43,4 +44,15 @@ export function requireMembership(
     });
     await next();
   };
+}
+
+/**
+ * `authn()` then `requireMembership(role)`, as a zod-openapi route's `middleware`. It is a tuple, so the route's
+ * handler is typed with `c.var.actor`, `c.var.tenant` and `c.var.membership` (an array literal would lose them).
+ */
+export function companyMember(
+  deps: AuthDeps,
+  role: MembershipRole,
+): [MiddlewareHandler<AuthEnv>, MiddlewareHandler<MemberEnv>] {
+  return [authn(deps), requireMembership(deps, role)];
 }
