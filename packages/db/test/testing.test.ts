@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
 import postgres, { type Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
-import type { DbHandle } from '../src/migrate.ts';
-import { queryRows } from '../src/query.ts';
+import type { RawDbHandle } from '../src/handle.ts';
+import { queryRows } from '../src/handle.ts';
 import {
   createTestDb,
   dropStaleTestDbs,
@@ -103,7 +103,7 @@ function fakeServer(databases: string[] = [], failDrop?: (name: string) => Error
       },
     },
   ) as unknown as Sql;
-  const handle = { driver: 'postgres-js', db: {}, close: async () => {} } as unknown as DbHandle;
+  const handle = { driver: 'postgres-js', db: {}, close: async () => {} } as unknown as RawDbHandle;
   const server: TestDbServer = {
     admin: () => admin,
     open: (url) => {

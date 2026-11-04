@@ -27,6 +27,24 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: A cross-tenant store has no row in the placement table
+
+- **What happened:** S1.3 needed a database `IdentityStore`. The placement table sends SQL to
+  `modules/<area>/repo.ts` "through `tenant(db, companyId)`", but the projector reads across companies (a
+  person's memberships everywhere, an invitation found by its id alone, companies by organization id) and
+  writes global tables (`users`, `user_identities`, `identity_marks`, `identity_parked_events`), so no single
+  company's tenant fits. The table has no row for a store that must see every company.
+- **Where:** `apps/server/src/modules/identity/repo.ts` (117 lines) and `repo/` (users 68, memberships 95,
+  invitations 53, bookkeeping 37 lines); the exemption in `biome.json`; S1.3.
+- **What was done:** the store sits where the map puts the identity area, as its `repo.ts` with a `repo/` folder,
+  and reads the raw database (`@mwc/db/system`). `biome.json` forbids that entry in `apps/server/src/modules/**`
+  and turns the rule off for exactly `modules/identity/repo.ts` and `modules/identity/repo/**`;
+  `packages/db/test/system.test.ts` proves both. `docs/structure.md` ("The tenant layer") says so.
+- **Suggested change:** a placement-table row: "A store that must see every company (the identity store, later
+  the runner hub) → `modules/<area>/repo.ts` with raw access, listed in the `biome.json` exemption", or move such
+  stores to `platform/` if Ihor prefers modules to hold tenant code only.
+- **Status:** `open`.
+
 ### 2026-11-04: The testkit barrel loads the whole server
 
 - **What happened:** `@mwc/testkit`'s `src/index.ts` re-exports `createTestApp`, so importing the barrel loads

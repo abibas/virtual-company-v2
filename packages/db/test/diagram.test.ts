@@ -76,7 +76,8 @@ describe('renderSchemaDiagram on the real schema', () => {
   it('draws every table as an entity, sorted by name', () => {
     const entities = lines.filter((line) => line.endsWith(' {')).map((line) => line.trim().slice(0, -2));
     expect(entities).toEqual(tables.map((table) => table.name).sort());
-    expect(entities).toEqual(['audit_log', 'companies', 'users']);
+    expect(entities).toHaveLength(12);
+    expect(entities.slice(0, 3)).toEqual(['api_keys', 'audit_log', 'companies']);
   });
 
   it('lists every column of a table in declaration order', () => {
@@ -93,17 +94,16 @@ describe('renderSchemaDiagram on the real schema', () => {
   it('draws every foreign key as a relationship from the child, labelled with its column', () => {
     const relationships = lines.filter((line) => RELATIONSHIP.test(line));
     expect(relationships).toHaveLength(tables.reduce((n, table) => n + table.foreignKeys.length, 0));
-    // Both foreign keys are nullable: many-to-one where the parent is optional.
-    expect(relationships).toEqual([
-      '  audit_log }o--o| companies : "company_id"',
-      '  companies }o--o| users : "created_by_user_id"',
-    ]);
+    // Nullable: optional parent (o|); required: one parent (||); unique: one child (|o); tenant keys: two columns.
+    expect(relationships).toContain('  companies }o--o| users : "created_by_user_id"');
+    expect(relationships).toContain('  api_keys }o--|| principals : "company_id, principal_id"');
+    expect(relationships).toContain('  memberships |o--|| principals : "company_id, principal_id"');
   });
 
   it('marks primary, foreign and unique keys and says null / default', () => {
     expect(lines).toContain('    uuid id PK "not null, default newId() (app-side)"');
     expect(lines).toContain('    bigserial id PK "not null, default auto-increment"');
-    expect(lines).toContain('    text primary_email UK "not null"');
+    expect(lines).toContain('    text primary_email "not null"');
     expect(lines).toContain('    text identity_org_id UK "nullable"');
     expect(lines).toContain('    uuid company_id FK "nullable"');
     expect(lines).toContain('    jsonb settings "not null, default \'{}\'"');
@@ -136,25 +136,25 @@ describe('renderSchemaDiagram on the real schema', () => {
     expect(doc).toContain('Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`');
     expect(doc).toContain('Do not edit by\n> hand');
     expect(doc).toContain(
-      `Tables: 3. Migrations: ${journal.entries.length}, the last is \`${journal.entries.at(-1)?.tag}\`.`,
+      `Tables: 12. Migrations: ${journal.entries.length}, the last is \`${journal.entries.at(-1)?.tag}\`.`,
     );
   });
 
   it('writes a readable section per table', () => {
     expect(doc).toContain('\n### `users`\n\n| Column | Type | Nullable | Default | Key | Allowed values |\n');
-    expect(doc).toContain('| `primary_email` | `text` | no |  | UK |  |');
+    expect(doc).toContain('| `primary_email` | `text` | no |  |  |  |');
     expect(doc).toContain("| `status` | `text` | no | `'active'` |  | `active`, `deactivated` |");
     expect(doc).toContain('| `created_at` | `timestamp with time zone` | no | `now()` |  |  |');
     expect(doc).toContain('  - `users_status_check`: `status` is one of `active`, `deactivated`');
     expect(doc).toContain(
       '  - `users_primary_email_lower_check`: `"primary_email" = lower("primary_email")`',
     );
-    expect(doc).toContain('  - `users_primary_email_unique` (`primary_email`)');
+    expect(doc).toContain('  - `user_identities_issuer_subject_unique` (`issuer`, `subject`)');
     expect(doc).toContain('  - `audit_log_entity_idx` on (`company_id`, `entity_type`, `entity_id`, `id`)\n');
     expect(doc).toContain(
       '  - `company_id` → `companies` (`id`), on delete no action (`audit_log_company_id_companies_id_fk`)',
     );
-    expect(doc.match(/^### /gm)).toHaveLength(3);
+    expect(doc.match(/^### /gm)).toHaveLength(12);
   });
 });
 

@@ -1,5 +1,14 @@
 export { type Config, ConfigError, ConfigSchema, loadConfig } from './config.ts';
-export { ActorKind, CompanyStatus, UserStatus } from './enums.ts';
+export {
+  ActorKind,
+  ApiKeyKind,
+  CompanyStatus,
+  IdentityEventStatus,
+  IdentityOutboxOp,
+  IdentityOutboxStatus,
+  PrincipalKind,
+  UserStatus,
+} from './enums.ts';
 export {
   EpochMs,
   ExternalInvitation,
@@ -9,7 +18,7 @@ export {
   ExternalUser,
   IDENTITY_EVENT_TYPES,
   IDENTITY_METADATA,
-  type IdentityEventType,
+  IdentityEventType,
   IdentityMetadata,
   InvitationStatus,
   MembershipRole,

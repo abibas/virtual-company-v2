@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { type DbHandle, MIGRATIONS_FOLDER, migrateToLatest } from '../src/migrate.ts';
-import { queryRows } from '../src/query.ts';
+import { queryRows } from '../src/handle.ts';
+import { type DbHandle, MIGRATIONS_FOLDER, migrateToLatest, migrationStatus } from '../src/migrate.ts';
 import { createTestDb, type TestDb, testDbKind } from '../src/testing.ts';
 
 const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, 'meta/_journal.json'), 'utf8')) as {
@@ -33,14 +34,27 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
     expect(journal.entries[0]?.tag).toBe('0000_init');
   });
 
-  it('creates the S0 tables on a fresh database and records every migration', async () => {
+  it('creates the tables on a fresh database and records every migration', async () => {
     const handle = await fresh();
     await migrateToLatest(handle);
     const tables = await queryRows<{ table_name: string }>(
       handle,
       sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
     );
-    expect(tables.map((row) => row.table_name)).toEqual(['audit_log', 'companies', 'users']);
+    expect(tables.map((row) => row.table_name)).toEqual([
+      'api_keys',
+      'audit_log',
+      'companies',
+      'identity_events',
+      'identity_marks',
+      'identity_outbox',
+      'identity_parked_events',
+      'invitations',
+      'memberships',
+      'principals',
+      'user_identities',
+      'users',
+    ]);
     expect(await appliedCount(handle)).toBe(journal.entries.length);
   });
 
@@ -57,5 +71,53 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
     await expect(migrateToLatest(handle, { migrationsFolder: '/nonexistent/migrations' })).rejects.toThrow(
       /journal/i,
     );
+  });
+
+  it('takes a database at 0000_init with data to 0001_identity, keeping the rows', async () => {
+    const handle = await fresh();
+    // A migrations folder holding only 0000_init, as the repository was before S1.3.
+    const first = mkdtempSync(join(tmpdir(), 'mwc-0000-'));
+    try {
+      mkdirSync(join(first, 'meta'));
+      copyFileSync(join(MIGRATIONS_FOLDER, '0000_init.sql'), join(first, '0000_init.sql'));
+      writeFileSync(
+        join(first, 'meta/_journal.json'),
+        JSON.stringify({ ...journal, entries: journal.entries.slice(0, 1) }),
+      );
+      await migrateToLatest(handle, { migrationsFolder: first });
+    } finally {
+      rmSync(first, { recursive: true, force: true });
+    }
+    expect(await migrationStatus(handle)).toMatchObject({ applied: 1, last: '0000_init', current: false });
+    await queryRows(
+      handle,
+      sql`insert into users (id, primary_email, display_name)
+      values ('0190f5f0-0000-7000-8000-000000000001', 'ihor@x.test', 'Ihor')`,
+    );
+    await queryRows(
+      handle,
+      sql`insert into companies (id, slug, name, created_by_user_id)
+      values ('0190f5f0-0000-7000-8000-0000000000c1', 'acme', 'Acme', '0190f5f0-0000-7000-8000-000000000001')`,
+    );
+
+    await migrateToLatest(handle);
+    expect(await migrationStatus(handle)).toMatchObject({ applied: 2, last: '0001_identity', current: true });
+    const [kept] = await queryRows<{ slug: string; email: string }>(
+      handle,
+      sql`select c.slug, u.primary_email as email from companies c join users u on u.id = c.created_by_user_id`,
+    );
+    expect(kept).toEqual({ slug: 'acme', email: 'ihor@x.test' });
+    // 0001 drops the unique email: a second person with the same email is another user now.
+    await queryRows(
+      handle,
+      sql`insert into users (id, primary_email, display_name)
+      values ('0190f5f0-0000-7000-8000-000000000002', 'ihor@x.test', 'Ihor again')`,
+    );
+    const [principal] = await queryRows<{ id: string }>(
+      handle,
+      sql`insert into principals (id, company_id, kind)
+        values ('0190f5f0-0000-7000-8000-0000000000a1', '0190f5f0-0000-7000-8000-0000000000c1', 'person') returning id`,
+    );
+    expect(principal?.id).toBe('0190f5f0-0000-7000-8000-0000000000a1');
   });
 });

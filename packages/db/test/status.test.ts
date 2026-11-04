@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { pingDb, queryRows } from '../src/handle.ts';
 import {
   type DbHandle,
   MIGRATIONS_FOLDER,
@@ -10,7 +11,6 @@ import {
   migrationStatus,
   readJournal,
 } from '../src/migrate.ts';
-import { pingDb, queryRows } from '../src/query.ts';
 import { createTestDb, type TestDb, testDbKind } from '../src/testing.ts';
 
 const journal = readJournal();

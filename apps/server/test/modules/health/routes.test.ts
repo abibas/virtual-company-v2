@@ -1,4 +1,5 @@
-import { migrateToLatest, readJournal } from '@mwc/db';
+import { readJournal } from '@mwc/db';
+import { migrateToLatest } from '@mwc/db/system';
 import { brokenDb, createTestApp, getJson, LEVEL, TEST_VERSION, type TestApp } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { READY_TIMEOUT_MS } from '../../../src/modules/health/service.ts';

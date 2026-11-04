@@ -44,5 +44,37 @@
       "semicolons": "always",
       "trailingCommas": "all"
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/server/src/modules/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@mwc/db/system": "Server modules reach tenant tables only through tenant(db, companyId) of @mwc/db. Raw database access is for the platform, jobs, migrations, scripts and the identity store (docs/structure.md, \"The tenant layer\").",
+                  "@mwc/db/pglite": "Server modules reach tenant tables only through tenant(db, companyId) of @mwc/db. Raw database access is for the platform, jobs, migrations, scripts and the identity store (docs/structure.md, \"The tenant layer\").",
+                  "@mwc/db/migrate": "Server modules reach tenant tables only through tenant(db, companyId) of @mwc/db. Raw database access is for the platform, jobs, migrations, scripts and the identity store (docs/structure.md, \"The tenant layer\").",
+                  "@mwc/db/testing": "Server modules reach tenant tables only through tenant(db, companyId) of @mwc/db. Raw database access is for the platform, jobs, migrations, scripts and the identity store (docs/structure.md, \"The tenant layer\")."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/server/src/modules/identity/repo.ts", "apps/server/src/modules/identity/repo/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

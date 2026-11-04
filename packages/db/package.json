@@ -2,11 +2,12 @@
   "name": "@mwc/db",
   "version": "0.0.0",
   "private": true,
-  "description": "Drizzle schema, SQL migrations and database handles (postgres.js, PGlite) for Most Wanted Corp v2.",
+  "description": "Drizzle schema, SQL migrations, the tenant layer and database handles (postgres.js, PGlite) for Most Wanted Corp v2.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
+    "./system": "./src/system.ts",
     "./pglite": "./src/pglite.ts",
     "./migrate": "./src/migrate.ts",
     "./testing": "./src/testing.ts"

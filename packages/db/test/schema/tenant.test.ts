@@ -1,0 +1,102 @@
+import { is } from 'drizzle-orm';
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { RawDbHandle } from '../../src/handle.ts';
+import * as schema from '../../src/schema/index.ts';
+import { apiKeys, auditLog, type Company, principals } from '../../src/schema/index.ts';
+import { pgError, type TestDb } from '../../src/testing.ts';
+import { insertCompany, insertPrincipal, MISSING_ID, migratedTestDb } from '../fixtures/rows.ts';
+
+/** Global tables that name a company without being tenant rows (no composite keys point at them). */
+const GLOBAL_WITH_COMPANY = ['audit_log', 'identity_outbox'];
+
+const tables = (Object.values(schema) as unknown[])
+  .filter((value): value is PgTable => is(value, PgTable))
+  .map((table) => getTableConfig(table));
+const tenantTables = tables.filter(
+  (t) => t.columns.some((c) => c.name === 'company_id') && !GLOBAL_WITH_COMPANY.includes(t.name),
+);
+
+describe('the tenant conventions, on every tenant table', () => {
+  it('finds the S1 tenant tables', () => {
+    expect(tenantTables.map((t) => t.name).sort()).toEqual([
+      'api_keys',
+      'invitations',
+      'memberships',
+      'principals',
+    ]);
+  });
+
+  it.each(tenantTables.map((t) => [t.name, t] as const))(
+    '%s: company_id not null, UNIQUE(company_id, id)',
+    (_, t) => {
+      expect(t.columns.find((c) => c.name === 'company_id')?.notNull).toBe(true);
+      const keys = t.uniqueConstraints.map((u) => u.columns.map((c) => c.name).join(','));
+      expect(keys).toContain('company_id,id');
+      const companyFk = t.foreignKeys.map((fk) => fk.reference()).find((r) => r.columns.length === 1);
+      expect(getTableConfig(companyFk?.foreignTable as PgTable).name).toBe('companies');
+    },
+  );
+
+  it('points every foreign key into a tenant table with (company_id, parent_id) → (company_id, id)', () => {
+    const names = new Set(tenantTables.map((t) => t.name));
+    let composite = 0;
+    for (const table of tables) {
+      for (const fk of table.foreignKeys) {
+        const ref = fk.reference();
+        if (!names.has(getTableConfig(ref.foreignTable).name)) continue;
+        composite++;
+        expect(ref.columns.map((c) => c.name)[0], `${table.name} ${fk.getName()}`).toBe('company_id');
+        expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
+      }
+    }
+    expect(composite).toBe(5);
+  });
+});
+
+describe('principals and the composite keys that point at them', () => {
+  let testDb: TestDb;
+  let handle: RawDbHandle;
+  let acme: Company;
+  let globex: Company;
+  beforeAll(async () => {
+    testDb = await migratedTestDb();
+    handle = testDb.handle;
+    acme = await insertCompany(handle);
+    globex = await insertCompany(handle);
+  });
+  afterAll(() => testDb.close());
+
+  it('stores a person and an agent, and refuses another kind or an unknown company', async () => {
+    expect((await insertPrincipal(handle, acme.id, 'agent')).kind).toBe('agent');
+    // @ts-expect-error kind is typed as PrincipalKind; the database refuses it as well
+    expect(await pgError(insertPrincipal(handle, acme.id, 'robot'))).toMatchObject({
+      code: '23514',
+      constraint: 'principals_kind_check',
+    });
+    expect(await pgError(insertPrincipal(handle, MISSING_ID))).toMatchObject({
+      code: '23503',
+      constraint: 'principals_company_id_companies_id_fk',
+    });
+  });
+
+  it("refuses an audit row whose actor is another company's principal, and keeps global rows free", async () => {
+    const theirs = await insertPrincipal(handle, globex.id);
+    const row = { actorKind: 'user' as const, entityType: 'company', entityId: acme.id, action: 'update' };
+    const cross = handle.db
+      .insert(auditLog)
+      .values({ ...row, companyId: acme.id, actorPrincipalId: theirs.id });
+    expect(await pgError(cross)).toMatchObject({ code: '23503', constraint: 'audit_log_actor_principal_fk' });
+    const ours = await insertPrincipal(handle, acme.id);
+    await handle.db.insert(auditLog).values({ ...row, companyId: acme.id, actorPrincipalId: ours.id });
+    // A global event has no company, so its actor is not checked against one (MATCH SIMPLE).
+    await handle.db.insert(auditLog).values({ ...row, companyId: null, actorPrincipalId: theirs.id });
+  });
+
+  it('refuses a duplicate (company_id, id) pair only as the primary key would', async () => {
+    const p = await insertPrincipal(handle, acme.id);
+    const again = handle.db.insert(principals).values({ id: p.id, companyId: globex.id, kind: 'person' });
+    expect((await pgError(again)).code).toBe('23505');
+    expect(apiKeys.companyId.name).toBe('company_id');
+  });
+});

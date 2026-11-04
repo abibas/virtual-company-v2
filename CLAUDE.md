@@ -19,7 +19,9 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
   keys; `.env` is ignored and never read aloud). Credentials are encrypted at rest with a key
   that lives outside the repo.
 - **Tenant id everywhere.** Every tenant table has `company_id`, child foreign keys are composite
-  `(company_id, parent_id)`, and route code reaches tenant data only through `tenant(db, companyId)`.
+  `(company_id, parent_id)`, and route code reaches tenant data only through `tenant(db, companyId)`. Raw
+  access is `@mwc/db/system`, which Biome forbids in server modules except the identity repo (`docs/structure.md`,
+  "The tenant layer").
 - **Tests with every ticket.** A ticket is done when its unit/integration tests are green in
   `pnpm mwc check`. Unit tests for domain code, integration tests for the API on PGlite, runner
   and harness tests against fakes. No frontend tests for now (no UI unit tests, no browser smoke).
@@ -63,7 +65,7 @@ built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Nod
 itself runs on Node's own type stripping too (no tsx). Test helpers come from `@mwc/testkit` (a
 devDependency): `createTestApp()`, `createTestDb()` (PGlite by default, a fresh database on the dev
 Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock()`, `getJson`/`postJson`,
-`captureLogger()` (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
+`captureLogger()`, `seedCompany()` (a company with its owner), and the identity provider and store contracts (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
 
 ## Layout
 

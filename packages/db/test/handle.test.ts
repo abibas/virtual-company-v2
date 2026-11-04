@@ -1,7 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import type { DbHandle } from '../src/migrate.ts';
-import { pingDb, queryRows } from '../src/query.ts';
+import { type DbHandle, pingDb, queryRows } from '../src/handle.ts';
 
 describe('queryRows on postgres.js', () => {
   it('returns the rows postgres.js gives as a plain array (PGlite is covered in status.test.ts)', async () => {

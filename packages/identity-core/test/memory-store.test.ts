@@ -15,6 +15,9 @@ function parked(id: string): NormalizedIdentityEvent {
   };
 }
 
+// The port's behaviour (upserts keep ids, lookups, marks, parking) is the IdentityStore contract's
+// (@mwc/testkit/store-contract), which runs against this store and the database store; these tests cover
+// what only the in-memory store has: its seeding helpers and its snapshot.
 describe('InMemoryIdentityStore', () => {
   it('seeds companies, users, memberships and invitations with defaults', async () => {
     const store = new InMemoryIdentityStore();
@@ -58,29 +61,6 @@ describe('InMemoryIdentityStore', () => {
     await expect(store.updateInvitation('inv404', { status: 'revoked' })).rejects.toThrow(
       'no invitation inv404',
     );
-  });
-
-  it('upserts a user by (issuer, subject), keeping its id', async () => {
-    const store = new InMemoryIdentityStore();
-    const created = await store.upsertUser({
-      issuer: ISSUER,
-      subject: 's1',
-      primaryEmail: 'a@x.test',
-      displayName: 'A',
-      imageUrl: null,
-      status: 'active',
-    });
-    const again = await store.upsertUser({ ...created, displayName: 'B' });
-    expect(again).toEqual({ ...created, displayName: 'B' });
-  });
-
-  it('parks each event once per key and hands them back oldest first, once', async () => {
-    const store = new InMemoryIdentityStore();
-    await store.defer('k', parked('e1'));
-    await store.defer('k', parked('e2'));
-    await store.defer('k', parked('e1'));
-    expect((await store.takeDeferred('k')).map((e) => e.externalEventId)).toEqual(['e1', 'e2']);
-    expect(await store.takeDeferred('k')).toEqual([]);
   });
 
   it('snapshots with natural keys, so stores built in different orders compare equal', async () => {

@@ -57,12 +57,12 @@ and the keep-structure skill still say what `rules.ts` holds. A failure is `path
 | Package | Tests | Database |
 | --- | --- | --- |
 | `packages/shared` | config, ports, ids, enums, the identity contracts (unit) | none |
-| `packages/identity-core` | the fake provider (tokens, CRUD and errors, events, `failNext`, webhooks), the projector rule by rule, convergence (200 seeded shuffles, double deliveries, every order of one person's history), reconcile against the webhook path, the in-memory store | none (`InMemoryIdentityStore`) |
+| `packages/identity-core` | the fake provider (tokens, CRUD and errors, events, `failNext`, webhooks), the projector rule by rule, reconcile, the scenario (`src/scenario.ts`) and the in-memory store's seeding and snapshot; convergence and the reconcile paths are cases of the store contract (testkit) | none (`InMemoryIdentityStore`) |
 | `packages/cli` | argument parsing, `mwc check` and `mwc dev` plans with fake processes, package discovery, the banned-names scanner and the commit-msg hook's command, each structure rule on an in-memory tree (violations, a clean tree, the exemptions) and on this repository, the early warnings and the function-length heuristic on in-memory trees and texts, two short real-process checks of the spawn wrapper | none |
-| `packages/db` | schema constraints, migrations, `migrationStatus`, `queryRows`, the schema diagram, test database names, the Postgres paths of `createTestDb` against a fake server, and the stale-database sweep | `createTestDb()`: PGlite, or Postgres with `TEST_DB=postgres` |
-| `packages/testkit` | its own helpers (capture logger, fixed clock, JSON requests, `createTestApp`, the identity re-exports, svix signing), the provider contract against `FakeIdentityProvider` (and once more with a target that cannot accept invitations, so the skip path is exercised), and a guard that the workspace's dependency graph has no cycle except the dev-only testkit ↔ server one | `createTestApp()` |
+| `packages/db` | schema constraints (`test/schema/`: every CHECK enum, unique and partial unique index, the composite tenant keys refusing another company's rows, the tenant conventions on every tenant table), migrations (a database at `0000_init` with rows taken to `0001_identity`), `migrationStatus`, `queryRows`, `tenant()` (scoping, stamping, transactions, a missing, deleted or malformed company refused), the system entry and the Biome rule that keeps it out of server modules (one Biome run on a scratch tree), the schema diagram, test database names, the Postgres paths of `createTestDb` against a fake server, and the stale-database sweep | `createTestDb()`: PGlite, or Postgres with `TEST_DB=postgres` |
+| `packages/testkit` | its own helpers (capture logger, fixed clock, JSON requests, `createTestApp`, `seedCompany`, the identity re-exports, svix signing), the provider contract against `FakeIdentityProvider` (and once more with a target that cannot accept invitations, so the skip path is exercised), the store contract against `InMemoryIdentityStore` with the full counts, and a guard that the workspace's dependency graph has no cycle except the dev-only testkit ↔ server one | `createTestApp()`, `createTestDb()` |
 | `connectors/identity-clerk` | mirrors `src/` against a fake Clerk backend (no network): every port method, the error and rate-limit mapping, paging; the real `verifyToken` of `@clerk/backend` on tokens signed with a local RSA key (issuer, `azp`, expiry, 5 s skew, foreign keys); the real `verifyWebhook` on svix-signed deliveries (good, replayed, bad, stale and future signatures, a signed non-JSON body) and every Clerk payload mapping. `test/contract.test.ts`: the provider contract against the real development instance, only with `CLERK_CONTRACT_TEST=1` (below) | none |
-| `apps/server` | mirrors `src/`: the app's wiring (request ids, clock), `platform/http` through `app.request()` (request log, errors, OpenAPI and docs, static UI), `platform/` (logger, graceful shutdown, version, `start` with injected database, server and signals, plus one real `serve()` on a free port), `modules/health` (`/healthz`, `/readyz`, `/api/version`), `dev/memory-server` | `createTestApp()` on `createTestDb()`; `start` on PGlite |
+| `apps/server` | mirrors `src/`: the app's wiring (request ids, clock), `platform/http` through `app.request()` (request log, errors, OpenAPI and docs, static UI), `platform/` (logger, graceful shutdown, version, `start` with injected database, server and signals, plus one real `serve()` on a free port), `modules/health` (`/healthz`, `/readyz`, `/api/version`), `modules/identity` (the database `IdentityStore` under the store contract, fewer convergence runs, plus its principals, provider identities and one-transaction projection; target in `test/fixtures/identity-store.ts`), `dev/memory-server` | `createTestApp()` on `createTestDb()`; `start` on PGlite |
 | `apps/web` | none for now | — |
 
 ## The test kit (`@mwc/testkit`)
@@ -80,6 +80,8 @@ One import for what tests need; add `"@mwc/testkit": "workspace:*"` to the packa
 | `FakeIdentityProvider`, `InMemoryIdentityStore` | the in-memory identity provider (`fake:<subject>[;org=<id>][;pending]` tokens, `accept()`, `drainEvents()`, `failNext()`, `webhookFor()`) and identity store, from `@mwc/identity-core` (its README) |
 | `describeProviderContract(name, makeTarget, { timeoutMs })`, `fakeContractTarget()`, `PROVIDER_CONTRACT` | the `IdentityProvider` contract as a Vitest suite for one target (below); also `@mwc/testkit/provider-contract`, which loads without the server |
 | `signedWebhook(payload, secret, { id, timestamp })`, `testWebhookSecret()`, `svixSignature(...)` | a svix-signed delivery (`svix-id`, `svix-timestamp`, `svix-signature`) as Clerk sends it, signed independently of Clerk's SDK; also `@mwc/testkit/webhooks` |
+| `describeStoreContract(name, makeTarget, { shuffles, doubles, orders, timeoutMs })`, `memoryStoreTarget()`, `STORE_CONTRACT` | the `IdentityStore` contract as a Vitest suite for one store (below); also `@mwc/testkit/store-contract`, which loads without the server |
+| `seedCompany(db, { slug, name, status, identityOrgId, owner })` | an active company with its owner (user, identity at the fake's issuer, person principal, owner membership), the tenant rows through `tenant()`; returns `{ company, owner, tenant }` |
 
 ```ts
 import { createTestApp, fixedClock, getJson, type TestApp } from '@mwc/testkit';
@@ -99,7 +101,7 @@ The testkit depends on `@mwc/server` and the server's tests use the testkit: a d
 without build steps. `pnpm-workspace.yaml` sets `ignoreWorkspaceCycles` so pnpm does not warn about it
 on every install, and `packages/testkit/test/workspace.test.ts` fails on any other cycle or if the testkit
 ever becomes a production dependency. S1.1 added `FakeIdentityProvider` and `InMemoryIdentityStore` here,
-S1.2 the provider contract and `signedWebhook`; `seedCompany` (S1.3) follows.
+S1.2 the provider contract and `signedWebhook`, S1.3 the store contract and `seedCompany`.
 
 ## Provider contract
 
@@ -116,6 +118,26 @@ webhooks and the cleanup, which runs even after a failure.
 It runs against `FakeIdentityProvider` in every lane, and against the real Clerk development instance only on
 request: `pnpm --filter @mwc/identity-clerk contract` (`docs/clerk-setup.md`, which also says what a run
 creates and how it cleans up).
+
+## Store contract
+
+`STORE_CONTRACT` (`packages/testkit/src/store-contract.ts`) is what every `IdentityStore` passes in the same way,
+15 independent cases, each on `target.fresh()`:
+
+- the port, method by method: users by `(issuer, subject)` (another issuer is another person, even with the same
+  email), companies and their organization link, memberships by `(company, user)` and their lists, invitations
+  and their patches (an unknown id rejects), marks, parked events (once per key, whole, oldest first); a
+  malformed id finds nothing;
+- convergence of the identity scenario (`@mwc/identity-core/scenario`, 41 events, a person per projector rule):
+  in order it ends with each rule applied and exactly where the in-memory store ends, marks included; seeded
+  shuffles, double deliveries and a second application change nothing; orders of one person's six events all end
+  the same;
+- reconcile: the provider history replayed with reconciles instead of webhooks ends where the webhooks end.
+
+A target (`StoreContractTarget`) adds what the port does not have: seeding companies, users, memberships and
+invitations, and a snapshot in the in-memory store's shape. The in-memory store runs it with the full counts
+(200 shuffles, 25 double deliveries, all 720 orders); the database store (`apps/server`) with 8, 3 and 24, on
+PGlite and in `--full` on Postgres, emptying its tables for each run.
 
 ## Running one piece
 

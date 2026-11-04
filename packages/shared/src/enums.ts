@@ -16,3 +16,55 @@ export type UserStatus = z.infer<typeof UserStatus>;
 /** `audit_log.actor_kind`: who made a change (a person, an agent, the system, the identity provider). */
 export const ActorKind = z.enum(['user', 'agent', 'system', 'identity']);
 export type ActorKind = z.infer<typeof ActorKind>;
+
+/** `principals.kind`: the one id space every actor and assignee points to, a person or an agent. */
+export const PrincipalKind = z.enum(['person', 'agent']);
+export type PrincipalKind = z.infer<typeof PrincipalKind>;
+
+/** `memberships.role` and `granted_role`: what a person may do in one company. Only a local decision makes an owner. */
+export const MembershipRole = z.enum(['owner', 'admin', 'member', 'viewer']);
+export type MembershipRole = z.infer<typeof MembershipRole>;
+
+/** `memberships.status`: `removed` ends access at once and is never undone by the provider alone. */
+export const MembershipStatus = z.enum(['invited', 'active', 'suspended', 'removed']);
+export type MembershipStatus = z.infer<typeof MembershipStatus>;
+
+/** `invitations.status`; `failed` is local only (the provider never accepted the invitation). */
+export const InvitationStatus = z.enum(['pending', 'accepted', 'revoked', 'expired', 'failed']);
+export type InvitationStatus = z.infer<typeof InvitationStatus>;
+
+/** `api_keys.kind`: a person's own key, a runner's key (bound to a machine), a company's SCIM bearer. */
+export const ApiKeyKind = z.enum(['personal', 'runner', 'scim']);
+export type ApiKeyKind = z.infer<typeof ApiKeyKind>;
+
+/** `identity_events.type`: every normalized identity event type (`@mwc/shared/identity`). */
+export const IdentityEventType = z.enum([
+  'user.upserted',
+  'user.deleted',
+  'org.upserted',
+  'org.deleted',
+  'membership.upserted',
+  'membership.deleted',
+  'invitation.accepted',
+  'invitation.revoked',
+]);
+export type IdentityEventType = z.infer<typeof IdentityEventType>;
+
+/** `identity_events.status`: the webhook and SCIM inbox; `failed` is given up after its retries. */
+export const IdentityEventStatus = z.enum(['pending', 'processed', 'failed']);
+export type IdentityEventStatus = z.infer<typeof IdentityEventStatus>;
+
+/** `identity_outbox.op`: the provider calls made after a local change (local first, then the provider). */
+export const IdentityOutboxOp = z.enum([
+  'create_org',
+  'invite',
+  'revoke_invite',
+  'update_role',
+  'remove_member',
+  'delete_org',
+]);
+export type IdentityOutboxOp = z.infer<typeof IdentityOutboxOp>;
+
+/** `identity_outbox.status`: pending (also while waiting for a retry), done, or failed for good. */
+export const IdentityOutboxStatus = z.enum(['pending', 'done', 'failed']);
+export type IdentityOutboxStatus = z.infer<typeof IdentityOutboxStatus>;

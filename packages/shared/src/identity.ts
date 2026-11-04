@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { IdentityEventType } from './enums.ts';
 
 /**
  * The provider-agnostic identity contracts (docs/architecture.md, "Identity flow"). An identity provider
@@ -7,17 +8,9 @@ import { z } from 'zod';
  * milliseconds since the epoch: JSON-safe, exact, and what Clerk sends as `updated_at`.
  */
 
-/** `memberships.role`: what a person may do in one company. Only a local decision makes an owner. */
-export const MembershipRole = z.enum(['owner', 'admin', 'member', 'viewer']);
-export type MembershipRole = z.infer<typeof MembershipRole>;
-
-/** `memberships.status`: `removed` ends access at once and is never undone by the provider alone. */
-export const MembershipStatus = z.enum(['invited', 'active', 'suspended', 'removed']);
-export type MembershipStatus = z.infer<typeof MembershipStatus>;
-
-/** `invitations.status`; `failed` is local only (the provider never accepted the invitation). */
-export const InvitationStatus = z.enum(['pending', 'accepted', 'revoked', 'expired', 'failed']);
-export type InvitationStatus = z.infer<typeof InvitationStatus>;
+// The membership and invitation enums are database enums, so they live in ./enums.ts with the others;
+// this module keeps exporting them, since they are part of the identity contract.
+export { InvitationStatus, MembershipRole, MembershipStatus } from './enums.ts';
 
 /** Milliseconds since the epoch. */
 export const EpochMs = z.number().int().nonnegative();
@@ -87,16 +80,8 @@ export const ExternalInvitation = z.object({
 export type ExternalInvitation = z.infer<typeof ExternalInvitation>;
 
 /** Every normalized event type; a provider resolves anything else to null (ignored). */
-export const IDENTITY_EVENT_TYPES = [
-  'user.upserted',
-  'user.deleted',
-  'org.upserted',
-  'org.deleted',
-  'membership.upserted',
-  'membership.deleted',
-  'invitation.accepted',
-  'invitation.revoked',
-] as const;
+export const IDENTITY_EVENT_TYPES = IdentityEventType.options;
+export { IdentityEventType };
 
 const eventBase = {
   /** The provider kind that produced the event (`clerk`, `fake`). */
@@ -130,7 +115,6 @@ export const NormalizedIdentityEvent = z.discriminatedUnion('type', [
   z.object({ ...eventBase, type: z.literal('invitation.revoked'), data: ExternalInvitation }),
 ]);
 export type NormalizedIdentityEvent = z.infer<typeof NormalizedIdentityEvent>;
-export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
 
 /** Metadata keys this product writes to the provider and reads back. */
 export const IDENTITY_METADATA = {

@@ -1,7 +1,7 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { serve as nodeServe } from '@hono/node-server';
-import { createDb, type DbHandle, migrateToLatest } from '@mwc/db';
+import { createDb, type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import { createApp } from '../app.ts';

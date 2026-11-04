@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import postgres, { type Sql } from 'postgres';
 import { createDb } from './client.ts';
-import type { DbHandle } from './migrate.ts';
+import type { RawDbHandle } from './handle.ts';
 import { createPgliteDb } from './pglite.ts';
 
 /**
@@ -18,7 +18,8 @@ export type TestDbKind = 'pglite' | 'postgres';
 
 export interface TestDb {
   readonly kind: TestDbKind;
-  readonly handle: DbHandle;
+  /** With its Drizzle object: tests reach every table directly. */
+  readonly handle: RawDbHandle;
   /** Closes the handle (again is fine); on Postgres also drops the database. */
   close(): Promise<void>;
 }
@@ -96,7 +97,7 @@ export interface TestDbServer {
   /** A one-connection client that creates, sweeps and drops the test databases. */
   admin(url: string): Sql;
   /** A handle on one test database. */
-  open(url: string): DbHandle;
+  open(url: string): RawDbHandle;
 }
 
 const POSTGRES: TestDbServer = {

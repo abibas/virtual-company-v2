@@ -2,13 +2,14 @@ import { isId } from '@mwc/shared/ids';
 import { eq, sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type DbHandle, migrateToLatest } from '../src/migrate.ts';
-import { queryRows } from '../src/query.ts';
+import type { RawDbHandle } from '../src/handle.ts';
+import { queryRows } from '../src/handle.ts';
+import { migrateToLatest } from '../src/migrate.ts';
 import { auditLog, companies, users } from '../src/schema/index.ts';
 import { createTestDb, pgError, type TestDb } from '../src/testing.ts';
 
 let testDb: TestDb;
-let handle: DbHandle;
+let handle: RawDbHandle;
 let seq = 0;
 const unique = (prefix: string) => `${prefix}-${++seq}`;
 
@@ -48,11 +49,10 @@ describe('users', () => {
     expect(error).toMatchObject({ code: '23514', constraint: 'users_primary_email_lower_check' });
   });
 
-  it('refuses a duplicate email and an unknown status', async () => {
-    await insertUser('twice@example.com');
-    expect(
-      await pgError(handle.db.insert(users).values({ primaryEmail: 'twice@example.com', displayName: 'x' })),
-    ).toMatchObject({ code: '23505', constraint: 'users_primary_email_unique' });
+  it('keeps two people with one email apart (identity is issuer and subject), and refuses an unknown status', async () => {
+    const first = await insertUser('twice@example.com');
+    const second = await insertUser('twice@example.com');
+    expect(second.id).not.toBe(first.id);
     const badStatus = handle.db
       .insert(users)
       // @ts-expect-error status is typed as UserStatus; the database refuses it as well
@@ -215,7 +215,10 @@ describe('schema shape', () => {
         return `${ref.columns.map((c) => c.name).join(',')} -> ${getTableConfig(ref.foreignTable).name}(${ref.foreignColumns.map((c) => c.name).join(',')})`;
       });
     expect(targets(companies)).toEqual(['created_by_user_id -> users(id)']);
-    expect(targets(auditLog)).toEqual(['company_id -> companies(id)']);
+    expect(targets(auditLog)).toEqual([
+      'company_id -> companies(id)',
+      'company_id,actor_principal_id -> principals(company_id,id)',
+    ]);
     expect(targets(users)).toEqual([]);
   });
 

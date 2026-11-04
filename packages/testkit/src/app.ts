@@ -1,5 +1,4 @@
-import type { DbHandle } from '@mwc/db';
-import { migrateToLatest } from '@mwc/db';
+import { type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type AppDeps, createApp } from '@mwc/server';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';

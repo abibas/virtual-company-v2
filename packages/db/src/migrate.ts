@@ -3,11 +3,9 @@ import { join, resolve } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
 import { migrate as migratePostgres } from 'drizzle-orm/postgres-js/migrator';
-import type { PostgresDbHandle } from './client.ts';
-import type { PgliteDbHandle } from './pglite.ts';
-import { queryRows } from './query.ts';
+import { type DbHandle, queryRows, rawHandle } from './handle.ts';
 
-export type DbHandle = PostgresDbHandle | PgliteDbHandle;
+export type { DbHandle, RawDbHandle } from './handle.ts';
 
 /** `packages/db/migrations`, the SQL files `drizzle-kit generate` writes. */
 export const MIGRATIONS_FOLDER = resolve(import.meta.dirname, '../migrations');
@@ -34,10 +32,11 @@ export async function migrateToLatest(handle: DbHandle, options: MigrateOptions 
     migrationsSchema: MIGRATIONS_SCHEMA,
     migrationsTable: MIGRATIONS_TABLE,
   };
-  if (handle.driver === 'pglite') {
-    await migratePglite(handle.db, config);
+  const raw = rawHandle(handle);
+  if (raw.driver === 'pglite') {
+    await migratePglite(raw.db, config);
   } else {
-    await migratePostgres(handle.db, config);
+    await migratePostgres(raw.db, config);
   }
 }
 

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { migrationStatus } from '@mwc/db';
 import { createPgliteDb } from '@mwc/db/pglite';
+import { type PostgresDbHandle, rawHandle } from '@mwc/db/system';
 import { ConfigError } from '@mwc/shared/config';
 import { captureLogger, getJson, LEVEL } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -152,7 +153,7 @@ describe('start', () => {
       expect(started.logger.level).toBe('fatal');
       expect(started.version).toBe(readServerVersion());
       // Postgres notices go to the logger at debug (below fatal here, so nothing is printed).
-      const db = started.db as Extract<typeof started.db, { driver: 'postgres-js' }>;
+      const db = rawHandle(started.db) as PostgresDbHandle;
       const { onnotice } = db.db.$client.options as { onnotice?: (notice: object) => void };
       expect(() => onnotice?.({ message: 'schema exists, skipping', code: '42P06' })).not.toThrow();
 

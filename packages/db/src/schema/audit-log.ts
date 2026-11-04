@@ -2,11 +2,13 @@ import { ActorKind } from '@mwc/shared/enums';
 import { bigserial, check, index, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, oneOf } from './columns.ts';
 import { companies } from './companies.ts';
+import { principals } from './principals.ts';
+import { tenantForeignKey } from './tenant.ts';
 
 /**
  * Append-only change log: one row per changed field (see `diffFields`). `company_id` is null for
- * global events such as a user's own changes. `actor_principal_id` gets its foreign key in S1,
- * when principals exist.
+ * global events such as a user's own changes. `actor_principal_id` points at a principal of the same
+ * company (composite key; a global event has none).
  */
 export const auditLog = pgTable(
   'audit_log',
@@ -27,6 +29,7 @@ export const auditLog = pgTable(
   (t) => [
     check('audit_log_actor_kind_check', oneOf(t.actorKind, ActorKind.options)),
     index('audit_log_entity_idx').on(t.companyId, t.entityType, t.entityId, t.id),
+    tenantForeignKey('audit_log_actor_principal_fk', t.companyId, t.actorPrincipalId, principals),
   ],
 );
 

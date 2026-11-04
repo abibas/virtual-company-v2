@@ -1,11 +1,13 @@
-import { IDENTITY_METADATA } from '@mwc/shared/identity';
 import { describe, expect, it } from 'vitest';
 import { IdentityProviderError, isIdentityProviderError } from '../src/errors.ts';
-import type { FakeIdentityProvider, FakeMethod } from '../src/fake.ts';
+import type { FakeMethod } from '../src/fake.ts';
 import { InMemoryIdentityStore } from '../src/memory-store.ts';
 import type { ProjectionChange } from '../src/projector.ts';
 import { reconcileOrganization, reconcileUser } from '../src/reconcile.ts';
-import { acmeWorld, applyAll, buildScenario, entities, type Scenario, world } from './fixtures/world.ts';
+import { acmeWorld, applyAll, world } from './fixtures/world.ts';
+
+// The scenario's reconcile paths (both reconciles, each alone, against the webhooks) are cases of the
+// IdentityStore contract (@mwc/testkit/store-contract), so every store runs them.
 
 const NOW = Date.UTC(2026, 10, 4, 9);
 const now = () => new Date(NOW);
@@ -13,50 +15,6 @@ const now = () => new Date(NOW);
 function actions(changes: readonly ProjectionChange[]): string[] {
   return changes.map((c) => `${c.entity}:${c.action}${c.reason ? `:${c.reason}` : ''}`);
 }
-
-/** Reconciles every company whose organization exists by now, and/or every person, into `store`. */
-function reconciler(base: Scenario, store: InMemoryIdentityStore, what: { orgs: boolean; users: boolean }) {
-  return async (fake: FakeIdentityProvider) => {
-    if (what.orgs) {
-      for (const companyId of base.orgs.keys()) {
-        const org = await fake.findOrganizationByMetadata(IDENTITY_METADATA.companyId, companyId);
-        if (org) await reconcileOrganization(org.externalId, fake, store, { now });
-      }
-    }
-    if (what.users) for (const subject of base.subjects) await reconcileUser(subject, fake, store, { now });
-  };
-}
-
-describe('reconcile gives the state the webhooks give', () => {
-  async function paths(what: { orgs: boolean; users: boolean }) {
-    const base = await buildScenario();
-    const webhooks = base.seed();
-    await applyAll(base.events, webhooks, base.ctx);
-    const reconciled = base.seed();
-    // The same provider history again, reconciled after every step instead of delivering any webhook.
-    await buildScenario(reconciler(base, reconciled, what));
-    return { webhooks: entities(webhooks), reconciled: entities(reconciled) };
-  }
-
-  it('with both reconciles after every step: the same companies, users, memberships and invitations', async () => {
-    const { webhooks, reconciled } = await paths({ orgs: true, users: true });
-    expect(reconciled).toEqual(webhooks);
-  });
-
-  it('with the organization reconcile alone: the same memberships and invitations', async () => {
-    const { webhooks, reconciled } = await paths({ orgs: true, users: false });
-    expect(reconciled.memberships).toEqual(webhooks.memberships);
-    expect(reconciled.invitations).toEqual(webhooks.invitations);
-    // Profile changes and account deletions of known people are the sign-in reconcile's (or the webhooks').
-    expect(reconciled.users).not.toEqual(webhooks.users);
-  });
-
-  it('with the sign-in reconcile alone: the same people and memberships', async () => {
-    const { webhooks, reconciled } = await paths({ orgs: false, users: true });
-    expect(reconciled.users).toEqual(webhooks.users);
-    expect(reconciled.memberships).toEqual(webhooks.memberships);
-  });
-});
 
 describe('reconcileOrganization', () => {
   it('projects members, invitations and lost removals, and summarizes them', async () => {

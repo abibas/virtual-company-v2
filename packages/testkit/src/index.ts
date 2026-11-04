@@ -48,6 +48,25 @@ export {
   PROVIDER_CONTRACT,
   type ProviderContractOptions,
 } from './provider-contract.ts';
+// A company with its owner (user, identity, principal, owner membership) in one line (S1.3), the tenant
+// rows through the tenant layer.
+export { type SeedCompanyOptions, type SeededCompany, seedCompany } from './seed.ts';
+// The IdentityStore contract (S1.3): the port, the projector's convergence and reconcile on a store, run
+// against the in-memory store here and against the database store in @mwc/server. Also importable alone,
+// without the server: @mwc/testkit/store-contract.
+export {
+  describeStoreContract,
+  FULL_SETTINGS,
+  type IdentitySnapshot,
+  memorySeedableStore,
+  memoryStoreTarget,
+  type SeedableStore,
+  STORE_CONTRACT,
+  type StoreContractCase,
+  type StoreContractOptions,
+  type StoreContractSettings,
+  type StoreContractTarget,
+} from './store-contract.ts';
 // svix-signed webhook deliveries (S1.2), as Clerk sends them; also @mwc/testkit/webhooks.
 export {
   type SignedWebhook,
@@ -59,7 +78,3 @@ export {
   svixSignature,
   testWebhookSecret,
 } from './webhooks.ts';
-
-// Extension points, one per S1 step (each arrives with the code it tests):
-// - S1.3 seedCompany(db, ...): a company with its owner user, principal and membership, through the
-//   tenant layer, so route tests start from a real tenant in one line.

@@ -23,7 +23,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         routes · service · repo · schemas           S0
-│   │   │   │   ├── identity/       me, Clerk webhooks, sync                    S1
+│   │   │   │   ├── identity/       identity store (repo), me, webhooks, sync   S1
 │   │   │   │   ├── companies/                                                  S1
 │   │   │   │   ├── members/        memberships, invitations                    S1
 │   │   │   │   ├── api-keys/                                                   S1
@@ -83,10 +83,11 @@ these three groups, and a group without packages yet is fine. Every package has:
 
 Tool configuration a package needs sits next to these (`apps/web`: `index.html`, `vite.config.ts`;
 `packages/db`: `drizzle.config.ts`). Test helpers that other packages' tests use are code, so they
-stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/identity-core/fake` and
-`/memory-store` (the identity test doubles), and `@mwc/testkit` as a whole (also `@mwc/testkit/provider-contract`,
-the `IdentityProvider` contract every provider runs, and `@mwc/testkit/webhooks`, svix-signed deliveries, which
-load without the server). Helpers only a package's own
+stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/identity-core/fake`,
+`/memory-store` (the identity test doubles) and `/scenario` (the identity scenario and seeded shuffles), and
+`@mwc/testkit` as a whole (also `@mwc/testkit/provider-contract`, the `IdentityProvider` contract every provider
+runs, `@mwc/testkit/store-contract`, the `IdentityStore` contract every store runs, and `@mwc/testkit/webhooks`,
+svix-signed deliveries, which load without the server). Helpers only a package's own
 tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtures/world.ts`).
 
 ## The server (`apps/server`)
@@ -173,6 +174,21 @@ client, `hc<AppType>`), `src/styles/` (the Tailwind theme and base styles). No f
 
 Tenant tables carry `company_id`, child foreign keys are composite `(company_id, parent_id)`, and route
 code reaches tenant data only through `tenant(db, companyId)` (`packages/db/README.md`).
+
+## The tenant layer
+
+`@mwc/db` gives code anywhere the schema, `tenant(db, companyId)` and the database checks (`pingDb`,
+`migrationStatus`). `tenant()` refuses a company that is missing, deleted or not an id with `CompanyNotFoundError`
+(a 404), and its `TenantDb` scopes every statement to the company: reads, updates and deletes get
+`company_id = …` added, inserts get `company_id` stamped. A `DbHandle` does not expose its Drizzle object.
+
+Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`) is `@mwc/db/system`, for the
+code that must see every company: the platform (startup, auth, jobs), migrations and scripts, the webhook inbox
+and the identity store. Biome forbids it, and the other raw entries (`@mwc/db/pglite`, `/migrate`, `/testing`), in
+`apps/server/src/modules/**` (`noRestrictedImports` in a `biome.json` override), with one exception: the identity
+module's `repo.ts` and `repo/`, the database `IdentityStore` that the projector and the webhook inbox use across
+companies. `packages/db/test/system.test.ts` runs Biome on a scratch tree with the repository's overrides to prove
+the rule fires in a module and nowhere else. Tests are not restricted.
 
 ## What `mwc check` enforces
 

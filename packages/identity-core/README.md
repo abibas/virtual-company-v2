@@ -9,6 +9,7 @@ and the database store (S1.3) plug into the two ports. Background: `docs/archite
 import { project, projectionContext, reconcileOrganization, reconcileUser } from '@mwc/identity-core';
 import { FakeIdentityProvider } from '@mwc/identity-core/fake';          // or from @mwc/testkit
 import { InMemoryIdentityStore } from '@mwc/identity-core/memory-store'; // or from @mwc/testkit
+import { buildScenario, seededRandom, shuffled } from '@mwc/identity-core/scenario'; // test support
 ```
 
 ## The model
@@ -62,7 +63,14 @@ organization id, memberships by `(companyId, userId)`, invitations by id and by 
 marks (`getMark`/`setMark`: the newest provider `updatedAt` applied and a sticky `deleted` flag, keyed by
 `identityKeys`), and parked events (`defer`/`takeDeferred`). `InMemoryIdentityStore` (`./memory-store`)
 implements it for tests and adds seeding helpers and `snapshot()`, which replaces ids by natural keys so
-stores built in different orders compare equal.
+stores built in different orders compare equal. The database store (S1.3, `apps/server/src/modules/identity/repo.ts`)
+implements it on the identity tables. Both pass the IdentityStore contract (`@mwc/testkit/store-contract`): the
+port method by method, the convergence below and reconcile against the webhooks.
+
+`./scenario` is test support for that contract and for this package's tests: `buildScenario()` (the provider
+history below, with company and invitation ids that are UUIDs made from names, `scenarioId('c-acme')`, the same
+on every build), `buildPersonHistory()` (one person's six events), `applyAll`, `fakeWorld()` and seeded
+shuffles and permutations.
 
 ## The projector
 
@@ -73,9 +81,9 @@ shape of `@mwc/db`'s `diffFields` (audit rows), and the actions `created | updat
 removed | reactivated | accepted | revoked` change something, while `ignored | deferred | refused` are
 notes with a reason and no fields.
 
-The same set of events, in any order and any number of times, leaves the same store (the convergence
-tests run 200 seeded shuffles of a 41-event scenario, double deliveries and all 720 orders of one
-person's history). The rules:
+The same set of events, in any order and any number of times, leaves the same store (the store contract's
+convergence cases run 200 seeded shuffles of a 41-event scenario, double deliveries and all 720 orders of one
+person's history on the in-memory store, and fewer on the database store). The rules:
 
 1. **Newest provider state wins.** Each user and membership row keeps the `updatedAt` of the newest
    provider state applied; an upsert with an equal or older one is `ignored: not_newer`.
@@ -137,11 +145,12 @@ reconcile and user webhooks do.
   it, or on the invitation id); the same contract (`@mwc/testkit/provider-contract`) runs against
   `FakeIdentityProvider` in every check. Clerk's membership objects carry no invitation id, so for Clerk the
   link is the metadata (or the `invitation.accepted` event).
-- **S1.3 migration and store** implements `IdentityStore` on the identity tables (users and
-  `user_identities`, `companies.identity_org_id`, memberships with `granted_role`, `provider_role`,
-  `external_membership_id`, `invitation_id`, invitations, the marks and the parked events), projecting one
-  event per transaction, deduplicating on `identity_events (provider, external_event_id)`, and writing each
-  change's `fields` as audit rows. The in-memory store is the reference behaviour its tests can share.
+- **S1.3 migration and store** (built): `DbIdentityStore` (`apps/server/src/modules/identity/repo.ts`)
+  implements `IdentityStore` on the identity tables (users and `user_identities`, `companies.identity_org_id`,
+  memberships with `granted_role`, `provider_role`, `external_membership_id`, `invitation_id` and a person
+  principal each, invitations, `identity_marks`, `identity_parked_events`); `transaction(work)` projects an event
+  in one transaction. Deduplicating on `identity_events (provider, external_event_id)` and writing each change's
+  `fields` as audit rows are the webhook inbox's (S1.8).
 - **Callers (S1.4–S1.10):** the webhook route (`parseWebhook` → dedupe → `project`), reconcile-on-sign-in
   (`reconcileUser`), the jobs loop and "Sync now" (`reconcileOrganization`), and the outbox, which after
   linking a company to its new organization reconciles it so the creator's parked events apply.
