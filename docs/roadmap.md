@@ -40,7 +40,10 @@ Done when: fresh clone → `pnpm i && pnpm dev` serves the web on 9951 against t
 Before S1.2 (2026-11-04, Ihor's approved layout): **S1.0a** the repository in the layout of `docs/structure.md`
 (tests in each package's `test/`, the server's `platform/` and `modules/`, `main.ts` a 3-line entry over the tested
 `platform/start.ts`, the in-memory demo server in `dev/`, a `connectors/` group, coverage in `.cache/`, raised
-coverage floors, no frontend tests for now: the Playwright smoke and its port 9957 are gone).
+coverage floors, no frontend tests for now: the Playwright smoke and its port 9957 are gone). **S1.0b** the
+structure step of `mwc check` (layout, package contents, tests only in `test/`, 300/500-line limits, module
+files and imports; `packages/cli/src/structure/`), with the oversized files split (the identity projector and
+fake provider, the schema diagram, `mwc`'s dispatch, two identity test files).
 
 Frontend tests are off for now (Ihor, 2026-11-04): the stage items below that name a Playwright smoke or an e2e
 scenario get one only when he turns them back on; until then those steps are checked by hand at the stage review.

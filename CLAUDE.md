@@ -50,7 +50,7 @@ Coverage reports go to `.cache/coverage` (ignored). Biome does not format Markdo
 ```sh
 pnpm install            # also installs the git hooks (pre-push, commit-msg)
 pnpm dev                # dev Postgres (Docker, 9952) + migrations + API 9950 + web 9951; mwc dev --down stops PG
-pnpm mwc check          # biome, banned names, typecheck per package, db drift, tests with coverage
+pnpm mwc check          # biome, banned names, structure, typecheck per package, db drift, tests with coverage
 pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
 pnpm mwc check --full   # + tests on the dev Postgres and the web build (docs/testing.md)
 pnpm mwc ports          # the port map
@@ -75,6 +75,7 @@ later `runner`), `packages/` the libraries (`shared`, `db`, `identity-core`, `te
   `src/`: `src/a/b.ts` → `test/a/b.test.ts`, helpers in `test/fixtures/`), `vitest.config.ts` (not in
   `apps/web`), optional `README.md` and `scripts/` (dev tooling), `migrations/` (db only).
 - Size limits: source files ≤ 300 lines, test files ≤ 500; Markdown and generated files are exempt.
+  The structure step of `mwc check` enforces the layout and the limits (`packages/cli/src/structure/rules.ts`).
 - Coverage: ≥ 90% lines/statements/functions and ≥ 85% branches overall, ≥ 85% lines and ≥ 75%
   branches per file.
 - Outside systems only through a connector implementing a `packages/*-core` port, wired in `app.ts`.

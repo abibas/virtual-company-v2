@@ -131,6 +131,8 @@ modules depend on the port, never on a connector, so tests use the core package'
   that only re-exports.
 - A function longer than about 60 lines is a smell: split it (guidance, not enforced).
 
+The structure step of `mwc check` enforces the limits (below).
+
 ## Coverage
 
 `pnpm mwc check` runs the tests with v8 coverage (reports in `.cache/coverage/`) and fails below:
@@ -160,3 +162,21 @@ client, `hc<AppType>`), `src/styles/` (the Tailwind theme and base styles). No f
 
 Tenant tables carry `company_id`, child foreign keys are composite `(company_id, parent_id)`, and route
 code reaches tenant data only through `tenant(db, companyId)` (`packages/db/README.md`).
+
+## What `mwc check` enforces
+
+The `structure` step runs in every lane (fast, default, `--full`), inside the `mwc check` process, on the
+files git tracks plus the untracked ones it does not ignore (the same listing as the banned-names step);
+`pnpm mwc structure` runs it alone. Each broken rule is one line, `path[:line]: [rule] reason`, followed by
+where the rules are. The limits and allow-lists are one object, `packages/cli/src/structure/rules.ts`.
+
+| Rule      | Fails on                                                                                                  |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| `layout`  | a top-level entry not listed above; a file loose in `apps/`, `packages/` or `connectors/`; a `package.json` anywhere but the root and `<group>/<name>/` |
+| `package` | a package without `package.json`, `tsconfig.json` or `src/`; a tested one without `vitest.config.ts` or a test in `test/`; tests in `apps/web`; any other entry at a package root than those in the table above |
+| `tests`   | a `*.test.ts`/`*.spec.ts` under `src/` (it names the mirrored path) or anywhere else outside a package's `test/`; a file in `test/` that is not a test, outside `test/fixtures/` |
+| `size`    | a source file over 300 lines or a file in `test/` over 500 (it names the first line over), except the generated files and Markdown |
+| `modules` | a file directly in `modules/`; a file in `modules/<area>/` that is not one of the role files or inside a role folder; an import of another module's `repo.ts` or `repo/`; an import of a connector package in a module |
+
+The coverage floors are Vitest's thresholds (the root `vitest.config.ts`), checked by the tests step, and
+the "db drift" step checks the migrations and `docs/schema.md` against the schema.

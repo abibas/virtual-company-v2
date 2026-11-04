@@ -49,7 +49,7 @@ docker compose -f deploy/compose.prod.yml down            # keeps the data volum
 Checks (lanes in `docs/testing.md`):
 
 ```sh
-pnpm mwc check          # lint, banned names, typecheck, db drift, tests with coverage
+pnpm mwc check          # lint, banned names, structure, typecheck, db drift, tests with coverage
 pnpm mwc check --full   # + the tests on the dev Postgres and the web build
 pnpm mwc ports          # the port map (9950–9999)
 ```

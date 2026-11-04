@@ -24,17 +24,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { afterAll, describe, expect, it } from 'vitest';
 import { checkDiagram, type DiagramIo, renderSchemaDoc, runDiagram } from '../scripts/schema-diagram.ts';
-import {
-  collectTables,
-  describeTable,
-  mermaidType,
-  migrationSummary,
-  parseOneOf,
-  renderMermaid,
-  renderSchemaDiagram,
-  sqlText,
-  valueText,
-} from '../src/diagram.ts';
+import { collectTables, describeTable, parseOneOf, sqlText, valueText } from '../src/diagram/describe.ts';
+import { mermaidType, renderMermaid } from '../src/diagram/mermaid.ts';
+import { migrationSummary, renderSchemaDiagram } from '../src/diagram.ts';
 import { MIGRATIONS_FOLDER } from '../src/migrate.ts';
 import { oneOf } from '../src/schema/columns.ts';
 import * as schema from '../src/schema/index.ts';

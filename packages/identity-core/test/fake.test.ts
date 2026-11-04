@@ -1,56 +1,10 @@
-import { createHmac } from 'node:crypto';
-import { NormalizedIdentityEvent, VerifiedIdentity } from '@mwc/shared/identity';
+import { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { describe, expect, it } from 'vitest';
 import { IdentityProviderError } from '../src/errors.ts';
-import {
-  FAKE_ISSUER,
-  FAKE_ROLES,
-  FAKE_SIGNATURE_HEADER,
-  FakeIdentityProvider,
-  type FakeMethod,
-} from '../src/fake.ts';
+import { FAKE_ISSUER, FAKE_ROLES, FakeIdentityProvider, type FakeMethod } from '../src/fake.ts';
 import type { IdentityProvider } from '../src/provider.ts';
+import { collect, ctx, populated, providerError, sampleEvent } from './fixtures/provider.ts';
 import { buildScenario, T0, world } from './fixtures/world.ts';
-
-const ctx = { authorizedParties: ['http://localhost:9951'] };
-
-/** Resolves to the provider error a call rejected with (and fails when it resolved or threw something else). */
-async function providerError(call: () => Promise<unknown> | unknown): Promise<IdentityProviderError> {
-  try {
-    await call();
-  } catch (error) {
-    if (error instanceof IdentityProviderError) return error;
-    throw error;
-  }
-  throw new Error('expected an IdentityProviderError');
-}
-
-async function collect<T>(items: AsyncIterable<T>): Promise<T[]> {
-  const all: T[] = [];
-  for await (const item of items) all.push(item);
-  return all;
-}
-
-/** A provider with one user (u1) in one organization, and one pending invitation. */
-async function populated() {
-  const { fake } = world();
-  fake.createUser({ subject: 'u1', email: 'one@x.test' });
-  fake.createUser({ subject: 'u2', email: 'two@x.test' });
-  const org = await fake.createOrganization({
-    name: 'Acme',
-    slug: 'acme',
-    metadata: { mwc_company_id: 'c1' },
-    createdBySubject: 'u1',
-  });
-  const invitation = await fake.createInvitation({
-    orgExternalId: org.externalId,
-    email: 'two@x.test',
-    role: 'member',
-    metadata: { mwc_invitation_id: 'inv-1' },
-  });
-  fake.drainEvents();
-  return { fake, org, invitation };
-}
 
 describe('FakeIdentityProvider: identity', () => {
   it('describes itself like a provider with organizations, invitations and webhooks', () => {
@@ -79,38 +33,6 @@ describe('FakeIdentityProvider: identity', () => {
       FAKE_ROLES.isAdmin('org:member'),
       FAKE_ROLES.isAdmin('admin'),
     ]).toEqual([true, false, false]);
-  });
-});
-
-describe('FakeIdentityProvider: tokens', () => {
-  it.each([
-    ['fake:u1', { pending: false }],
-    ['fake:u1;org=org_9', { pending: false, activeOrgExternalId: 'org_9' }],
-    ['fake:u1;pending', { pending: true }],
-    ['fake:u1;org=org_9;pending', { pending: true, activeOrgExternalId: 'org_9' }],
-    ['fake:u1;pending;org=org_9', { pending: true, activeOrgExternalId: 'org_9' }],
-  ])('verifies %s', async (token, expected) => {
-    const { fake } = world();
-    fake.createUser({ subject: 'u1', email: 'one@x.test' });
-    const identity = await fake.verifyAccessToken(token, ctx);
-    expect(identity).toEqual({ issuer: FAKE_ISSUER, subject: 'u1', sessionId: 'sess_u1', ...expected });
-    expect(VerifiedIdentity.parse(identity)).toEqual(identity);
-  });
-
-  it.each([
-    ['an empty token', ''],
-    ['a bearer token of another kind', 'eyJhbGciOiJSUzI1NiJ9.e30.sig'],
-    ['the prefix alone', 'fake:'],
-    ['an unknown subject', 'fake:u404'],
-    ['an empty organization', 'fake:u1;org='],
-    ['an unknown part', 'fake:u1;admin'],
-    ['a deleted user', 'fake:gone'],
-  ])('refuses %s as unauthorized', async (_label, token) => {
-    const { fake } = world();
-    fake.createUser({ subject: 'u1', email: 'one@x.test' });
-    fake.createUser({ subject: 'gone', email: 'gone@x.test' });
-    fake.deleteUser('gone');
-    expect((await providerError(() => fake.verifyAccessToken(token, ctx))).code).toBe('unauthorized');
   });
 });
 
@@ -461,94 +383,5 @@ describe('FakeIdentityProvider: failNext', () => {
     expect((await providerError(() => fake.getUser('x'))).code).toBe('unavailable');
     expect(await fake.getUser('x')).toBeNull();
     expect(await fake.listUserOrganizations('x')).toEqual([]);
-  });
-});
-
-const sampleEvent: NormalizedIdentityEvent = {
-  provider: 'fake',
-  externalEventId: 'evt_sample',
-  occurredAt: T0,
-  type: 'user.deleted',
-  data: { subject: 'u1' },
-};
-
-describe('FakeIdentityProvider: webhooks', () => {
-  const sign = (body: string, secret = 'fake-webhook-secret') =>
-    `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
-
-  it('round-trips every event of the scenario through webhookFor and parseWebhook', async () => {
-    const { fake, events } = await buildScenario();
-    for (const event of events) {
-      const request = fake.webhookFor(event);
-      expect(request.headers['content-type']).toBe('application/json');
-      expect(request.headers[FAKE_SIGNATURE_HEADER]).toBe(sign(request.rawBody));
-      expect(await fake.parseWebhook(request)).toEqual(event);
-    }
-  });
-
-  it('reads the signature header whatever its case', async () => {
-    const fake = new FakeIdentityProvider();
-    const rawBody = JSON.stringify(sampleEvent);
-    expect(await fake.parseWebhook({ headers: { 'X-Fake-Signature': sign(rawBody) }, rawBody })).toEqual(
-      sampleEvent,
-    );
-  });
-
-  it.each([
-    ['a missing signature', (body: string) => ({ headers: {}, rawBody: body })],
-    [
-      'a wrong signature',
-      (body: string) => ({ headers: { [FAKE_SIGNATURE_HEADER]: sign(`${body} `) }, rawBody: body }),
-    ],
-    [
-      'a signature of another length',
-      (body: string) => ({ headers: { [FAKE_SIGNATURE_HEADER]: 'sha256=00' }, rawBody: body }),
-    ],
-    [
-      'another secret',
-      (body: string) => ({ headers: { [FAKE_SIGNATURE_HEADER]: sign(body, 'other') }, rawBody: body }),
-    ],
-    [
-      'a tampered body',
-      (body: string) => ({
-        headers: { [FAKE_SIGNATURE_HEADER]: sign(body) },
-        rawBody: body.replace('u1', 'u2'),
-      }),
-    ],
-  ])('rejects %s as unauthorized', async (_label, request) => {
-    const fake = new FakeIdentityProvider();
-    const error = await providerError(() => fake.parseWebhook(request(JSON.stringify(sampleEvent))));
-    expect(error.code).toBe('unauthorized');
-  });
-
-  it('checks with its own secret', async () => {
-    const fake = new FakeIdentityProvider({ webhookSecret: 's3' });
-    const request = fake.webhookFor(sampleEvent);
-    expect(request.headers[FAKE_SIGNATURE_HEADER]).toBe(sign(request.rawBody, 's3'));
-    expect((await providerError(() => new FakeIdentityProvider().parseWebhook(request))).code).toBe(
-      'unauthorized',
-    );
-  });
-
-  it.each([
-    ['a body that is not JSON', 'not json', 'invalid'],
-    ['a known type with the wrong data', JSON.stringify({ ...sampleEvent, data: {} }), 'invalid'],
-  ])('rejects %s as invalid', async (_label, rawBody, code) => {
-    const fake = new FakeIdentityProvider();
-    const error = await providerError(() =>
-      fake.parseWebhook({ headers: { [FAKE_SIGNATURE_HEADER]: sign(rawBody) }, rawBody }),
-    );
-    expect(error.code).toBe(code);
-  });
-
-  it.each([
-    ['an event type this product does not use', JSON.stringify({ ...sampleEvent, type: 'session.created' })],
-    ['a body without a type', JSON.stringify({ hello: 'world' })],
-    ['a JSON null', 'null'],
-  ])('resolves null for %s', async (_label, rawBody) => {
-    const fake = new FakeIdentityProvider();
-    expect(
-      await fake.parseWebhook({ headers: { [FAKE_SIGNATURE_HEADER]: sign(rawBody) }, rawBody }),
-    ).toBeNull();
   });
 });

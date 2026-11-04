@@ -97,3 +97,22 @@ export function systemScanDeps(root: string): ScanDeps {
     },
   };
 }
+
+/**
+ * `deps` listing the files once and reading each file at most once, however often it is asked: the
+ * banned-names and structure steps of one `mwc check` run share it (one `git ls-files` in all).
+ */
+export function cachedScanDeps(deps: ScanDeps): ScanDeps {
+  let files: string[] | undefined;
+  const contents = new Map<string, Uint8Array | undefined>();
+  return {
+    listFiles() {
+      files ??= deps.listFiles();
+      return [...files];
+    },
+    readFile(path) {
+      if (!contents.has(path)) contents.set(path, deps.readFile(path));
+      return contents.get(path);
+    },
+  };
+}

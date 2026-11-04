@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   BANNED_TERMS,
+  cachedScanDeps,
   commitMessageText,
   isBinary,
   type ScanDeps,
@@ -12,7 +13,9 @@ import {
   scanText,
   systemScanDeps,
 } from '../src/banned.ts';
-import { bannedNames, type MainIo, main } from '../src/main.ts';
+import { bannedNames } from '../src/check.ts';
+import type { MainIo } from '../src/io.ts';
+import { main } from '../src/main.ts';
 
 // Built from parts, like the list itself, so this file never holds a banned name.
 const WORD = 'paper' + 'clip';
@@ -156,5 +159,31 @@ describe('mwc banned', () => {
     const hook = resolve(import.meta.dirname, '../../../.githooks/commit-msg');
     expect(readFileSync(hook, 'utf8')).toContain('node packages/cli/src/mwc.ts banned --message "$1"');
     expect(statSync(hook).mode & 0o111).not.toBe(0);
+  });
+});
+
+describe('cachedScanDeps', () => {
+  it('lists once and reads each file once, however often it is asked, and hands out copies of the list', () => {
+    let listings = 0;
+    const reads: string[] = [];
+    const cached = cachedScanDeps({
+      listFiles: () => {
+        listings++;
+        return ['a.ts', 'gone.ts'];
+      },
+      readFile: (path) => {
+        reads.push(path);
+        return path === 'a.ts' ? Buffer.from('a') : undefined;
+      },
+    });
+    const first = cached.listFiles();
+    first.push('mutated.ts');
+    expect(cached.listFiles()).toEqual(['a.ts', 'gone.ts']);
+    expect(listings).toBe(1);
+    for (let i = 0; i < 3; i++) {
+      expect(Buffer.from(cached.readFile('a.ts') ?? '').toString()).toBe('a');
+      expect(cached.readFile('gone.ts')).toBeUndefined();
+    }
+    expect(reads).toEqual(['a.ts', 'gone.ts']);
   });
 });
