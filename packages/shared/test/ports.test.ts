@@ -14,12 +14,19 @@ describe('port map', () => {
       PORTS.prodLike.api,
       PORTS.prodLike.web,
       PORTS.prodLike.postgres,
+      PORTS.testBrowserDebug,
     ];
     for (const port of fixed) {
       expect(port).toBeGreaterThanOrEqual(9950);
       expect(port).toBeLessThanOrEqual(9999);
     }
     expect(new Set(fixed).size).toBe(fixed.length);
+  });
+
+  it('keeps 9993 for the visible test browser, after the prod-like stack and outside the slots', () => {
+    expect(PORTS.testBrowserDebug).toBe(9993);
+    expect(PORTS.testBrowserDebug).toBeGreaterThan(PORTS.prodLike.postgres);
+    expect(PORTS.testBrowserDebug).toBeGreaterThan(slotPorts(SLOT_COUNT - 1).postgres);
   });
 
   it('gives slot 0 the ports 9960/9961/9962 and slot 9 the ports 9987/9988/9989', () => {

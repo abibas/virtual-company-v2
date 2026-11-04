@@ -27,6 +27,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-04: The testkit barrel loads the whole server
+
+- **What happened:** `@mwc/testkit`'s `src/index.ts` re-exports `createTestApp`, so importing the barrel loads
+  `@mwc/server` and `@mwc/db`. The Clerk connector's tests (S1.2) need only the provider contract and the svix
+  signer, which import neither. The connector's first draft also put 13 entries in `src/` and 14 in `test/`
+  (the `big-folder` warning), and a 93-line function in its contract target.
+- **Where:** `packages/testkit/package.json` (exports), `connectors/identity-clerk/` (S1.2).
+- **What was done:** the two testkit helpers that do not need the server got their own subpath exports,
+  `@mwc/testkit/provider-contract` and `@mwc/testkit/webhooks` (also re-exported by the barrel), and the
+  connector imports those. The connector's Backend API pieces moved to `src/backend/` (client, calls, errors,
+  rate limit, mappers; tests mirrored), and the contract target was split into named steps, so the report is
+  back at its S1.0d count.
+- **Suggested change:** a line in the placement table's testkit row: a shared test helper that does not need
+  the server or a database gets its own `@mwc/testkit/<name>` subpath export.
+- **Status:** `open`.
+
 ### 2026-11-04: Four source files grew past 300 lines before there was a limit
 
 - **What happened:** No size limit existed until S1.0b, so four source files grew past 300 lines and two test

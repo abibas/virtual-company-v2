@@ -20,7 +20,9 @@ default and full lanes (release notes in `docs/roadmap.md`).
 **S1 — identity and companies: in progress.** identity-core done (S1.1: the provider-agnostic identity model,
 the order-safe projector and reconcile, the fake provider); the repository moved to the approved layout
 (S1.0a, `docs/structure.md`: tests in `test/`, the server's platform and modules, a `connectors/` slot, no
-frontend tests for now); next S1.2, the Clerk provider.
+frontend tests for now); the Clerk connector (S1.2, `connectors/identity-clerk`, `docs/clerk-setup.md`) with
+the provider contract that runs against the fake always and against the real Clerk development instance on
+request; next S1.3, the identity tables.
 
 ## Start
 
@@ -78,9 +80,9 @@ Full map and rules: `docs/ports.md`.
 ```
 apps/        server, web (now); runner (S3)
 packages/    shared, db, identity-core, testkit, cli (now); harness-core (S4), mcp (S5)
-connectors/  identity-clerk (S1.2), harness-claude-code (S4), jira, github, gateway, harness-codex (S6–S7)
+connectors/  identity-clerk (now); harness-claude-code (S4), jira, github, gateway, harness-codex (S6–S7)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server
-docs/        plan, architecture, roadmap, ports, testing, structure, schema (generated)
+docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, schema (generated)
 ```
 
 Where each kind of code goes, the size limits and the coverage floors: `docs/structure.md`.

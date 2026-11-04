@@ -44,11 +44,11 @@ Most_Wanted_corp_v2/
 │   ├── db/                         schema, migrations, tenant layer
 │   ├── identity-core/              identity model and projector                S1
 │   ├── harness-core/               harness driver interface                    S4
-│   ├── testkit/                    test helpers
+│   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc
 │   └── mcp/                        tools for your own Claude Code              S5
 ├── connectors/                     adapters to outside systems
-│   ├── identity-clerk/                                                         S1.2
+│   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
 │   ├── identity-oidc/              other identity providers, user sync         later
 │   ├── harness-claude-code/                                                    S4
 │   ├── harness-codex/                                                          S7
@@ -84,7 +84,9 @@ these three groups, and a group without packages yet is fine. Every package has:
 Tool configuration a package needs sits next to these (`apps/web`: `index.html`, `vite.config.ts`;
 `packages/db`: `drizzle.config.ts`). Test helpers that other packages' tests use are code, so they
 stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/identity-core/fake` and
-`/memory-store` (the identity test doubles), and `@mwc/testkit` as a whole. Helpers only a package's own
+`/memory-store` (the identity test doubles), and `@mwc/testkit` as a whole (also `@mwc/testkit/provider-contract`,
+the `IdentityProvider` contract every provider runs, and `@mwc/testkit/webhooks`, svix-signed deliveries, which
+load without the server). Helpers only a package's own
 tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtures/world.ts`).
 
 ## The server (`apps/server`)
@@ -123,6 +125,10 @@ is reached only through a connector in `connectors/<name>/`, which implements a 
 `packages/*-core` package (`IdentityProvider` in `@mwc/identity-core`, later `HarnessDriver` in
 `@mwc/harness-core`). Connectors are wired in `apps/server/src/app.ts` (or the runner's equivalent);
 modules depend on the port, never on a connector, so tests use the core package's fake.
+
+A connector takes the outside system's client as an injected port, so its unit tests run against a fake with
+no network; its contract test against the real system is opt-in and its helpers live in its `test/fixtures/`.
+The first one is `connectors/identity-clerk` (S1.2; `docs/clerk-setup.md`).
 
 ## Size limits
 

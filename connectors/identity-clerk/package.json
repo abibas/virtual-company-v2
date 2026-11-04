@@ -1,0 +1,23 @@
+{
+  "name": "@mwc/identity-clerk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Clerk identity connector: implements @mwc/identity-core's IdentityProvider with @clerk/backend.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "contract": "CLERK_CONTRACT_TEST=1 node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ../../node_modules/vitest/vitest.mjs run test/contract.test.ts"
+  },
+  "dependencies": {
+    "@clerk/backend": "3.26.5",
+    "@mwc/identity-core": "workspace:*",
+    "@mwc/shared": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@mwc/testkit": "workspace:*"
+  }
+}

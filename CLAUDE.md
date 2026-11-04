@@ -13,7 +13,8 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
 - **No legacy naming.** Names, paths and identifiers from earlier versions never appear in code,
   schema, docs or commit messages; `mwc check` enforces the banned list (`packages/cli/src/banned.ts`).
 - **Ports 9950–9999 only.** API 9950, web 9951, Postgres 9952, runner health 9953, worktree
-  slots 9960–9989 (`pnpm mwc ports --slot N`), prod-like compose 9990–9992. See `docs/ports.md`.
+  slots 9960–9989 (`pnpm mwc ports --slot N`), prod-like compose 9990–9992, the visible test browser's
+  debugging port 9993 (a browser started outside the repo; no repo code starts it). See `docs/ports.md`.
 - **No secrets in the repo.** Configuration comes from the environment (`.env.example` lists the
   keys; `.env` is ignored and never read aloud). Credentials are encrypted at rest with a key
   that lives outside the repo.

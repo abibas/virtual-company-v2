@@ -34,8 +34,32 @@ export {
   requestJson,
 } from './http.ts';
 export { captureLogger, LEVEL, type LogLine } from './logger.ts';
+// The IdentityProvider contract (S1.2): one scenario every provider passes, run against the fake always
+// and against the real Clerk dev instance on request (connectors/identity-clerk, docs/clerk-setup.md).
+// Also importable alone, without the server: @mwc/testkit/provider-contract.
+export {
+  type AcceptResult,
+  CONTRACT_WEB_ORIGIN,
+  type ContractCase,
+  type ContractState,
+  type ContractTarget,
+  describeProviderContract,
+  fakeContractTarget,
+  PROVIDER_CONTRACT,
+  type ProviderContractOptions,
+} from './provider-contract.ts';
+// svix-signed webhook deliveries (S1.2), as Clerk sends them; also @mwc/testkit/webhooks.
+export {
+  type SignedWebhook,
+  type SignedWebhookOptions,
+  SVIX_ID_HEADER,
+  SVIX_SIGNATURE_HEADER,
+  SVIX_TIMESTAMP_HEADER,
+  signedWebhook,
+  svixSignature,
+  testWebhookSecret,
+} from './webhooks.ts';
 
 // Extension points, one per S1 step (each arrives with the code it tests):
-// - S1.2 signedWebhook(event, secret): a svix-signed Clerk webhook request for POST /api/webhooks/clerk.
 // - S1.3 seedCompany(db, ...): a company with its owner user, principal and membership, through the
 //   tenant layer, so route tests start from a real tenant in one line.

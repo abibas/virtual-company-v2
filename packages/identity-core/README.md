@@ -127,14 +127,16 @@ reconcile and user webhooks do.
 
 ## How the next steps plug in
 
-- **S1.2 `@mwc/identity-clerk`** (`connectors/identity-clerk`) implements `IdentityProvider` over `@clerk/backend`: `verifyToken` with
+- **S1.2 `@mwc/identity-clerk`** (`connectors/identity-clerk`, built; `docs/clerk-setup.md`) implements `IdentityProvider` over `@clerk/backend`: `verifyToken` with
   issuer, authorized parties and `sts`; the Backend API mapped to the `External*` shapes; Clerk errors
   mapped to `IdentityProviderError` (HTTP 429 → `rate_limited` with `Retry-After`); members paged inside
   `listOrganizationMembers`; `parseWebhook` verifying svix and mapping `user.*`, `organization.*`,
   `organizationMembership.*` and `organizationInvitation.accepted|revoked` to normalized events with the
   svix id as `externalEventId`; its role map (`org:admin` admin-like). Its contract test against the dev
-  instance has to confirm that an accepted invitation's private metadata reaches the membership (rule 3
-  depends on it, or on the invitation id).
+  instance checks that an accepted invitation's private metadata reaches the membership (rule 3 depends on
+  it, or on the invitation id); the same contract (`@mwc/testkit/provider-contract`) runs against
+  `FakeIdentityProvider` in every check. Clerk's membership objects carry no invitation id, so for Clerk the
+  link is the metadata (or the `invitation.accepted` event).
 - **S1.3 migration and store** implements `IdentityStore` on the identity tables (users and
   `user_identities`, `companies.identity_org_id`, memberships with `granted_role`, `provider_role`,
   `external_membership_id`, `invitation_id`, invitations, the marks and the parked events), projecting one

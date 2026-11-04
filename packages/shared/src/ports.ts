@@ -13,6 +13,12 @@ export const PORTS = {
   webPreview: 9955,
   drizzleStudio: 9956,
   prodLike: { api: 9990, web: 9991, postgres: 9992 },
+  /**
+   * The remote-debugging port (Chrome DevTools Protocol) of the visible test browser on the developer's
+   * machine, for checks by hand in a real browser (e.g. the Clerk sign-in and invitation flows). Nothing
+   * in the repository starts or drives it.
+   */
+  testBrowserDebug: 9993,
 } as const;
 
 /** First port of the per-worktree slots: slot k uses 9960+3k (API), +1 (web), +2 (Postgres). */
