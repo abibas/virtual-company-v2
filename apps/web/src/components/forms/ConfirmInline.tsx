@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
-import { Button, type ButtonTone } from './Button.tsx';
+import { Button, type ButtonTone } from '../ui/Button.tsx';
 
 interface ConfirmInlineProps {
   /** The action as the first button says it ("Remove", "Revoke", "Leave company"). */
@@ -35,12 +35,12 @@ function ConfirmPrompt({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Escape anywhere in the confirmation cancels it.
     <div
-      className="flex flex-col items-end gap-2 text-right"
+      className="flex flex-col items-end gap-2 rounded-lg bg-failed-soft p-3 text-right"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !busy) onCancel();
       }}
     >
-      <p className="max-w-xs text-[12.5px] text-ink-2">{question}</p>
+      <p className="max-w-xs text-sm font-medium text-ink">{question}</p>
       <div className="flex flex-wrap justify-end gap-2">
         <Button ref={cancelRef} size="sm" disabled={busy} onClick={onCancel}>
           Cancel
@@ -50,7 +50,7 @@ function ConfirmPrompt({
         </Button>
       </div>
       {error && (
-        <p role="alert" className="max-w-xs text-[12.5px] text-alarm">
+        <p role="alert" className="max-w-xs text-xs font-medium text-failed">
           {error}
         </p>
       )}

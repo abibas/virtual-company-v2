@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchApiStatus, type ApiStatus as Status } from '../api/client.ts';
-import { Button } from './ui/Button.tsx';
+import { fetchApiStatus, type ApiStatus as Status } from '../../api/client.ts';
+import { Button } from '../ui/Button.tsx';
 
 type Shown = Status | { readonly kind: 'checking' };
 

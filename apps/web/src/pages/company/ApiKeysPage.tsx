@@ -10,7 +10,7 @@ import { CreateKeyForm } from '../../components/api-keys/CreateKeyForm.tsx';
 import { KeysPanel } from '../../components/api-keys/KeysPanel.tsx';
 import { LoginCommand } from '../../components/api-keys/LoginCommand.tsx';
 import { NewKeySecret } from '../../components/api-keys/NewKeySecret.tsx';
-import { PageHeader } from '../../components/ui/PageHeader.tsx';
+import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 
 /**

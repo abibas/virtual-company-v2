@@ -1,8 +1,8 @@
 import { PlainShell } from '../app/PlainShell.tsx';
 import { Link, navigate } from '../app/router.tsx';
 import { useSession } from '../app/session.tsx';
-import { CreateCompanyForm } from '../components/CreateCompanyForm.tsx';
-import { PageHeader } from '../components/ui/PageHeader.tsx';
+import { CreateCompanyForm } from '../components/company/CreateCompanyForm.tsx';
+import { PageHeader } from '../components/layout/PageHeader.tsx';
 
 /**
  * `/companies/new`: create a company; the person becomes its owner and lands in it. For someone with no company yet

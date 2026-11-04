@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>Most Wanted Corp</title>
+    <script>
+      // The saved colour scheme, before the first paint (src/app/theme.ts keeps it afterwards).
+      (() => {
+        try {
+          const theme = localStorage.getItem('mwc.theme');
+          if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+        } catch {
+          // Storage blocked: the system's scheme it is.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

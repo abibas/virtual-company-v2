@@ -1,10 +1,10 @@
 import { type FormEvent, type ReactNode, useState } from 'react';
-import { useApi } from '../api/context.ts';
-import { call, friendlyMessage } from '../api/errors.ts';
-import type { Company } from '../api/types.ts';
-import { Button } from './ui/Button.tsx';
-import { TextField } from './ui/Field.tsx';
-import { Notice } from './ui/Notice.tsx';
+import { useApi } from '../../api/context.ts';
+import { call, friendlyMessage } from '../../api/errors.ts';
+import type { Company } from '../../api/types.ts';
+import { TextField } from '../forms/Field.tsx';
+import { Button } from '../ui/Button.tsx';
+import { Notice } from '../ui/Notice.tsx';
 
 /** A slug as the server accepts it (`companies/rules.ts`), for the browser's own check. */
 export const SLUG_INPUT_PATTERN = '[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?';

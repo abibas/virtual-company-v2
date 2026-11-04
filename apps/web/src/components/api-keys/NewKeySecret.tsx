@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { CreatedApiKey } from '../../api/types.ts';
+import { CopyButton } from '../forms/CopyButton.tsx';
 import { Button } from '../ui/Button.tsx';
-import { CopyButton } from '../ui/CopyButton.tsx';
 
 /**
  * The new key, shown this once: the server keeps only its hash and first characters. It lives in the page's memory

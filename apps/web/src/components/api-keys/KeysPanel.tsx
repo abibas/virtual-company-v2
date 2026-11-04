@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ApiKey } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
-import { LoadState } from '../ui/Loading.tsx';
+import { LoadState } from '../data/LoadState.tsx';
 import { Notice } from '../ui/Notice.tsx';
 import { Panel } from '../ui/Panel.tsx';
 import { KeyTable } from './KeyTable.tsx';

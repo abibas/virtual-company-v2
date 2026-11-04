@@ -1,55 +1,90 @@
+import type { LucideIcon } from 'lucide-react';
 import type { ComponentPropsWithRef } from 'react';
+import { cx } from '../cx.ts';
 
-export type ButtonTone = 'primary' | 'secondary' | 'danger' | 'quiet';
+/**
+ * `primary` is the one blue action of a view, `secondary` a white pill, `soft` a tinted one, `quiet` text only,
+ * `danger` destructive; `inverse` and `inverse-soft` sit on the gradient cards (white, and translucent white).
+ */
+export type ButtonTone = 'primary' | 'secondary' | 'soft' | 'quiet' | 'danger' | 'inverse' | 'inverse-soft';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const TONES: Readonly<Record<ButtonTone, string>> = {
-  primary: 'border-amber bg-amber text-ground hover:brightness-110',
-  secondary: 'border-line-2 bg-transparent text-ink-2 hover:bg-panel-2 hover:text-ink',
-  danger: 'border-alarm bg-alarm text-ground hover:brightness-110',
-  quiet: 'border-transparent bg-transparent text-dim hover:bg-panel-2 hover:text-ink',
+  primary: 'bg-blue text-on-blue shadow-primary hover:bg-blue-strong',
+  secondary: 'bg-surface text-ink ring-1 ring-line-2 ring-inset hover:bg-surface-2',
+  soft: 'bg-blue-soft text-blue hover:bg-blue/20',
+  quiet: 'bg-transparent text-dim hover:bg-surface-3 hover:text-ink',
+  danger: 'bg-failed text-white hover:brightness-95',
+  inverse:
+    'bg-white text-[var(--card-accent,var(--blue-strong))] shadow-[0_10px_24px_-10px_rgba(0,0,0,0.4)] hover:bg-white/92',
+  'inverse-soft': 'bg-white/15 text-white ring-1 ring-white/25 ring-inset backdrop-blur-sm hover:bg-white/25',
 };
 
-const SIZES = { md: 'min-h-9 px-3.5 py-1.5 text-[13.5px]', sm: 'min-h-7 px-2.5 py-1 text-[12.5px]' } as const;
+const SIZES: Readonly<Record<ButtonSize, string>> = {
+  sm: 'h-8 px-3.5 text-sm gap-1.5',
+  md: 'h-10 px-4.5 text-sm gap-2',
+  lg: 'h-11 px-5 text-base gap-2',
+};
+
+const ICON: Readonly<Record<ButtonSize, number>> = { sm: 15, md: 16, lg: 18 };
 
 export interface ButtonProps extends ComponentPropsWithRef<'button'> {
   readonly tone?: ButtonTone;
-  readonly size?: keyof typeof SIZES;
+  readonly size?: ButtonSize;
+  /** A leading icon; `trailingIcon` an icon after the words. */
+  readonly icon?: LucideIcon;
+  readonly trailingIcon?: LucideIcon;
   /** Shows a spinner and disables the button while an action runs. */
   readonly busy?: boolean;
 }
 
-/** The one button: a primary action, a secondary one, a destructive one or a quiet one. */
+/** The one button: a pill, in a tone and a size, with an optional icon and a busy state. */
 export function Button({
   tone = 'secondary',
   size = 'md',
+  icon: Icon,
+  trailingIcon: Trailing,
   busy = false,
   disabled,
-  className = '',
+  className,
   type = 'button',
   children,
   ...rest
 }: ButtonProps) {
+  const iconSize = ICON[size];
   return (
     <button
       type={type}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm border font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${SIZES[size]} ${TONES[tone]} ${className}`}
+      className={cx(
+        'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full font-semibold whitespace-nowrap transition-[background-color,color,box-shadow,transform,filter] duration-150 select-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
+        SIZES[size],
+        TONES[tone],
+        className,
+      )}
       {...rest}
     >
-      {busy && <Spinner />}
+      {busy ? (
+        <Spinner size={iconSize} />
+      ) : (
+        Icon && <Icon size={iconSize} strokeWidth={2.25} aria-hidden="true" />
+      )}
       {children}
+      {Trailing && !busy && <Trailing size={iconSize} strokeWidth={2.25} aria-hidden="true" />}
     </button>
   );
 }
 
 /** A small spinner in the current text colour (it stands still when reduced motion is asked for). */
-export function Spinner({ className = 'size-3.5' }: { readonly className?: string }) {
+export function Spinner({ size = 16, className }: { readonly size?: number; readonly className?: string }) {
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 16 16"
-      className={`${className} motion-safe:animate-spin`}
+      width={size}
+      height={size}
+      className={cx('shrink-0 motion-safe:animate-spin', className)}
       fill="none"
     >
       <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2" />

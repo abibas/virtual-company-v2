@@ -1,92 +1,191 @@
 @import "tailwindcss";
+@import "@fontsource-variable/manrope";
+@import "./tokens.css";
 
 /*
- * Design tokens copied (values only) from the shared Control Center UI library:
- * /Users/abibas/LAST_DANCE/ihors_memory/control_plane/assets/ui/styles/theme.css (colours, fonts)
- * and its shell.css / controls.css (radii 2/3/4/9px, the 222px rail, 2px amber focus ring).
- * That theme is dark only ("a nocturnal chart room"), so its values are the dark scheme here; the
- * light scheme below is derived from the same hues with text colours darkened to keep 4.5:1 contrast.
- * Fonts are not downloaded (no CDN): IBM Plex and Fraunces are used when installed, else the fallbacks.
+ * Tailwind's theme from the tokens of tokens.css: `inline` keeps the utilities pointing at the live variables, so
+ * `bg-surface` or `text-ink` follow the light and dark values without a second set of classes.
  */
-@theme static {
-  --color-ground: #0c100e;
-  --color-panel: #11161380;
-  --color-panel-solid: #111613;
-  --color-panel-2: #161c18;
-  --color-ink: #e7ece4;
-  --color-ink-2: #c4cdc2;
-  --color-dim: #97a398;
-  --color-faint: #66716a;
-  --color-line: rgba(151, 163, 152, 0.16);
-  --color-line-2: rgba(151, 163, 152, 0.26);
-  --color-amber: #e5a83b;
-  --color-amber-soft: rgba(229, 168, 59, 0.14);
-  --color-pulse: #7fba8e;
-  --color-pulse-soft: rgba(127, 186, 142, 0.13);
-  --color-info: #86aec2;
-  --color-alarm: #d96a5f;
-  --color-alarm-soft: rgba(217, 106, 95, 0.14);
-  /* The chart-paper grid drawn on the ground. */
-  --color-grid: rgba(150, 170, 155, 0.045);
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-glass: var(--surface-glass);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-dim: var(--dim);
+  --color-faint: var(--faint);
+  --color-blue: var(--blue);
+  --color-blue-strong: var(--blue-strong);
+  --color-blue-soft: var(--blue-soft);
+  --color-on-blue: var(--on-blue);
+  --color-teal: var(--teal);
+  --color-teal-soft: var(--teal-soft);
+  --color-on-teal: var(--on-teal);
+  --color-input: var(--input);
+  --color-input-soft: var(--input-soft);
+  --color-blocked: var(--blocked);
+  --color-blocked-soft: var(--blocked-soft);
+  --color-review: var(--review);
+  --color-review-soft: var(--review-soft);
+  --color-failed: var(--failed);
+  --color-failed-soft: var(--failed-soft);
+  --color-done: var(--done);
+  --color-done-soft: var(--done-soft);
+  --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
 
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-display: "Fraunces", Georgia, serif;
-
-  --radius-xs: 2px;
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 9px;
-
-  /* Tailwind's 4px step; the source's paddings (2, 6, 10, 14, 24px) are its halves and multiples. */
-  --spacing: 0.25rem;
-  --spacing-rail: 222px;
-
-  --text-label: 10.5px;
-  --tracking-label: 0.14em;
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-float: var(--shadow-float);
+  --shadow-hero: var(--shadow-hero);
+  --shadow-teal: var(--shadow-teal);
+  --shadow-primary: var(--shadow-primary);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --color-ground: #f3f5f0;
-    --color-panel: #ffffffcc;
-    --color-panel-solid: #ffffff;
-    --color-panel-2: #e8ece5;
-    --color-ink: #121814;
-    --color-ink-2: #2b352e;
-    --color-dim: #56625a;
-    --color-faint: #848e87;
-    --color-line: rgba(40, 56, 44, 0.14);
-    --color-line-2: rgba(40, 56, 44, 0.24);
-    --color-amber: #8a5a0c;
-    --color-amber-soft: rgba(138, 90, 12, 0.12);
-    --color-pulse: #2c7442;
-    --color-pulse-soft: rgba(44, 116, 66, 0.12);
-    --color-info: #2f6a88;
-    --color-alarm: #ab3d35;
-    --color-alarm-soft: rgba(171, 61, 53, 0.1);
-    --color-grid: rgba(40, 60, 45, 0.05);
-  }
+@theme static {
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Radii: tiles and inputs at md/lg, cards at 2xl, the hero at 3xl; buttons are pills. */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-3xl: 30px;
+
+  /* Type scale (Manrope): the UI reads at 14px, labels at 12–13px, display numbers at 30–38px. */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 1.3;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.4;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.45;
+  --text-base: 14px;
+  --text-base--line-height: 1.5;
+  --text-md: 15px;
+  --text-md--line-height: 1.5;
+  --text-lg: 17px;
+  --text-lg--line-height: 1.4;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 1.15;
+  --text-4xl: 38px;
+  --text-4xl--line-height: 1.05;
+
+  --spacing: 0.25rem;
+  --spacing-rail: 76px;
+  --spacing-aside: 356px;
+  --spacing-content: 1180px;
 }
 
 @layer base {
-  :root {
-    color-scheme: dark light;
+  html {
+    background: var(--canvas);
   }
 
   body {
     margin: 0;
-    background:
-      repeating-linear-gradient(0deg, transparent 0 27px, var(--color-grid) 27px 28px),
-      repeating-linear-gradient(90deg, transparent 0 27px, var(--color-grid) 27px 28px), var(--color-ground);
-    color: var(--color-ink);
+    background: var(--canvas);
+    color: var(--ink);
     font-family: var(--font-sans);
     font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-amber);
-    outline-offset: 1px;
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
+
+  ::selection {
+    background: var(--blue-soft);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The gradient surfaces: the soft concentric rings over the blue or teal gradient (one `background-image`, so
+ * nothing overrides it), and the plain dark one.
+ */
+@utility gradient-hero {
+  background-image:
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(255, 255, 255, 0.16) 0,
+      rgba(255, 255, 255, 0.16) 80px,
+      transparent 81px
+    ),
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(255, 255, 255, 0.09) 0,
+      rgba(255, 255, 255, 0.09) 140px,
+      transparent 141px
+    ),
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(255, 255, 255, 0.05) 0,
+      rgba(255, 255, 255, 0.05) 210px,
+      transparent 211px
+    ),
+    var(--gradient-hero);
+}
+
+@utility gradient-teal {
+  background-image:
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(255, 255, 255, 0.16) 0,
+      rgba(255, 255, 255, 0.16) 80px,
+      transparent 81px
+    ),
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(255, 255, 255, 0.09) 0,
+      rgba(255, 255, 255, 0.09) 140px,
+      transparent 141px
+    ),
+    radial-gradient(
+      circle at 88% 18%,
+      rgba(255, 255, 255, 0.05) 0,
+      rgba(255, 255, 255, 0.05) 210px,
+      transparent 211px
+    ),
+    var(--gradient-teal);
+}
+
+@utility gradient-ink {
+  background-image: var(--gradient-ink);
+}
+
+/* The brand mark and small badges: the blue gradient without rings. */
+@utility gradient-mark {
+  background-image: var(--gradient-hero);
+}
+
+/* Thin, quiet scrollbars inside panels. */
+@utility scroll-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
 }

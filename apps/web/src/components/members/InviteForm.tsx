@@ -4,9 +4,9 @@ import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
 import type { Invitation } from '../../api/types.ts';
+import { SelectField, TextField } from '../forms/Field.tsx';
 import { roleName } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
-import { SelectField, TextField } from '../ui/Field.tsx';
 import { Panel } from '../ui/Panel.tsx';
 
 interface InviteFormProps {

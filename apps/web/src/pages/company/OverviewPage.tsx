@@ -1,9 +1,9 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { useCompany } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
-import { roleName, StatusBadge } from '../../components/ui/Badge.tsx';
-import { CopyButton } from '../../components/ui/CopyButton.tsx';
-import { PageHeader } from '../../components/ui/PageHeader.tsx';
+import { CopyButton } from '../../components/forms/CopyButton.tsx';
+import { PageHeader } from '../../components/layout/PageHeader.tsx';
+import { roleName, StatusPill } from '../../components/ui/Badge.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 
 const ROLE_SUMMARY = {
@@ -21,7 +21,7 @@ function CompanyFacts() {
       <dl className="grid gap-x-6 gap-y-3 text-[13.5px] sm:grid-cols-[auto_1fr]">
         <dt className="text-dim">Status</dt>
         <dd>
-          <StatusBadge status={membership.companyStatus} />
+          <StatusPill status={membership.companyStatus} />
         </dd>
         <dt className="text-dim">Your role</dt>
         <dd className="text-ink">{roleName(membership.role)}</dd>

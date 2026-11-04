@@ -1,10 +1,10 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { useCompany } from '../../app/company.ts';
 import { navigate } from '../../app/router.tsx';
+import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { CompanyDetailsForm } from '../../components/settings/CompanyDetailsForm.tsx';
 import { DeleteCompany } from '../../components/settings/DeleteCompany.tsx';
 import { roleName } from '../../components/ui/Badge.tsx';
-import { PageHeader } from '../../components/ui/PageHeader.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 
 /** `/c/:slug/settings`: the name and address (admins and owners change them) and deleting the company (owners). */

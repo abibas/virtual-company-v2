@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { Membership } from '../api/types.ts';
-import { roleName, StatusBadge } from '../components/ui/Badge.tsx';
+import { roleName, StatusPill } from '../components/ui/Badge.tsx';
 import { Link } from './router.tsx';
 import { useSession } from './session.tsx';
 
@@ -119,7 +119,7 @@ export function CompanySwitcher({
       </button>
       {current.companyStatus !== 'active' && (
         <span className="ml-2 max-sm:hidden">
-          <StatusBadge status={current.companyStatus} />
+          <StatusPill status={current.companyStatus} />
         </span>
       )}
       <CompanyMenu id={menuId} open={open} current={current} section={section} onPick={close} />

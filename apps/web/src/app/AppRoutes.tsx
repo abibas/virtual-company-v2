@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/react';
 import type { ReactNode } from 'react';
-import { CenteredState, LoadingBlock } from '../components/ui/Loading.tsx';
+import { LoadingBlock } from '../components/data/LoadState.tsx';
+import { CenteredState } from '../components/layout/CenteredState.tsx';
 import { AcceptInvitationPage } from '../pages/auth/AcceptInvitationPage.tsx';
 import { SignInPage, SignUpPage } from '../pages/auth/SignInPage.tsx';
 import { CreateCompanyPage } from '../pages/CreateCompanyPage.tsx';

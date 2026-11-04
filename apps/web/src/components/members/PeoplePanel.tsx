@@ -2,7 +2,7 @@ import type { MembershipRole } from '@mwc/shared/enums';
 import { friendlyMessage } from '../../api/errors.ts';
 import type { Member } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
-import { LoadState } from '../ui/Loading.tsx';
+import { LoadState } from '../data/LoadState.tsx';
 import type { NoticeTone } from '../ui/Notice.tsx';
 import { Panel } from '../ui/Panel.tsx';
 import { MemberTable } from './MemberTable.tsx';

@@ -3,8 +3,8 @@ import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
 import type { CreatedApiKey } from '../../api/types.ts';
+import { TextField } from '../forms/Field.tsx';
 import { Button } from '../ui/Button.tsx';
-import { TextField } from '../ui/Field.tsx';
 
 interface CreateKeyFormProps {
   readonly companyId: string;

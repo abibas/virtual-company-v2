@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
 import type { Invitation } from '../../api/types.ts';
-import { roleName, StatusBadge } from '../ui/Badge.tsx';
+import { formatDateTime, fromNow } from '../data/format.ts';
+import { ConfirmInline } from '../forms/ConfirmInline.tsx';
+import { roleName, StatusPill } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
-import { ConfirmInline } from '../ui/ConfirmInline.tsx';
-import { formatDateTime, fromNow } from '../ui/format.ts';
 
 interface InvitationTableProps {
   readonly companyId: string;
@@ -75,7 +75,7 @@ function InvitationRow({
       <td className="py-3 pr-3">
         <p className="break-all text-ink">{invitation.email}</p>
         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-dim">
-          <StatusBadge status={invitation.sent ? 'sent' : 'sending'} />
+          <StatusPill status={invitation.sent ? 'sent' : 'sending'} />
           <span className="sm:hidden">{roleName(invitation.role)}</span>
         </p>
       </td>

@@ -3,9 +3,10 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { useApi } from '../api/context.ts';
 import { ApiError, call, friendlyMessage, isApiError } from '../api/errors.ts';
 import type { Me, Membership } from '../api/types.ts';
-import { Brand } from '../components/Brand.tsx';
+import { LoadingBlock } from '../components/data/LoadState.tsx';
+import { Brand } from '../components/layout/Brand.tsx';
+import { CenteredState } from '../components/layout/CenteredState.tsx';
 import { Button } from '../components/ui/Button.tsx';
-import { CenteredState, LoadingBlock } from '../components/ui/Loading.tsx';
 import { navigate } from './router.tsx';
 
 export interface Session {

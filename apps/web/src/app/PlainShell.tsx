@@ -1,6 +1,6 @@
 import { UserButton } from '@clerk/react';
 import type { ReactNode } from 'react';
-import { Brand } from '../components/Brand.tsx';
+import { Brand } from '../components/layout/Brand.tsx';
 
 /** The frame of the signed-in pages outside a company: the brand, the user menu, one centred column. */
 export function PlainShell({ children }: { readonly children: ReactNode }) {

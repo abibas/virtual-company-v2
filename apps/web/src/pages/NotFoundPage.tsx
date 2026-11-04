@@ -1,6 +1,6 @@
 import { PlainShell } from '../app/PlainShell.tsx';
 import { Link } from '../app/router.tsx';
-import { PageHeader } from '../components/ui/PageHeader.tsx';
+import { PageHeader } from '../components/layout/PageHeader.tsx';
 
 /** Any address this app does not have. */
 export function NotFoundPage() {

@@ -1,0 +1,140 @@
+/*
+ * The design tokens of Most Wanted Corp: a light, airy console (a lavender-grey canvas, white cards with large
+ * radii and soft shadows, one vivid blue, one teal) and a coherent dark variant. Light is the default; dark comes
+ * from the system (`prefers-color-scheme`) or the explicit choice `app/theme.ts` writes to `data-theme`.
+ * `theme.css` maps these into Tailwind's theme (`bg-canvas`, `text-ink`, `shadow-card`, ...).
+ */
+:root {
+  /* Surfaces */
+  --canvas: #e9ecf6;
+  --surface: #ffffff;
+  --surface-2: #f4f5fa;
+  --surface-3: #e8eaf4;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --line: rgba(27, 33, 78, 0.08);
+  --line-2: rgba(27, 33, 78, 0.15);
+
+  /* Text */
+  --ink: #141a33;
+  --ink-2: #3a4164;
+  --dim: #6b7290;
+  --faint: #9da3bf;
+
+  /* Brand */
+  --blue: #2d5cff;
+  --blue-strong: #2347e3;
+  --blue-soft: rgba(45, 92, 255, 0.12);
+  --on-blue: #ffffff;
+  --teal: #11a897;
+  --teal-soft: rgba(17, 168, 151, 0.14);
+  --on-teal: #ffffff;
+
+  /* Status: what an item in the attention feed is */
+  --input: #c97d0b;
+  --input-soft: rgba(217, 138, 18, 0.14);
+  --blocked: #d9533a;
+  --blocked-soft: rgba(226, 88, 62, 0.14);
+  --review: #6f52ee;
+  --review-soft: rgba(122, 92, 245, 0.14);
+  --failed: #d23446;
+  --failed-soft: rgba(216, 58, 74, 0.13);
+  --done: #1b8f52;
+  --done-soft: rgba(30, 158, 90, 0.14);
+  --pending: #6b7290;
+  --pending-soft: rgba(107, 114, 144, 0.14);
+
+  /* Gradients */
+  --gradient-hero: linear-gradient(135deg, #4f8dff 0%, #2f5fff 50%, #2443de 100%);
+  --gradient-teal: linear-gradient(135deg, #2bd1b9 0%, #12ae9d 55%, #0b8c7e 100%);
+  --gradient-ink: linear-gradient(135deg, #2a3150 0%, #141a33 100%);
+
+  /* Elevation */
+  --shadow-card: 0 1px 1px rgba(20, 24, 60, 0.03), 0 12px 32px -16px rgba(20, 24, 60, 0.18);
+  --shadow-raised: 0 2px 4px rgba(20, 24, 60, 0.04), 0 24px 48px -20px rgba(20, 24, 60, 0.24);
+  --shadow-float: 0 4px 8px rgba(20, 24, 60, 0.05), 0 28px 64px -20px rgba(20, 24, 60, 0.3);
+  --shadow-hero: 0 24px 48px -18px rgba(45, 92, 255, 0.5);
+  --shadow-teal: 0 24px 48px -18px rgba(17, 168, 151, 0.45);
+  --shadow-primary: 0 8px 20px -8px rgba(45, 92, 255, 0.55);
+
+  --ring: var(--blue);
+  color-scheme: light;
+}
+
+/* Dark: the same hues on a deep navy, with surfaces flat and the status colours lifted for contrast. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0d1020;
+    --surface: #161a2d;
+    --surface-2: #1c2136;
+    --surface-3: #252b45;
+    --surface-glass: rgba(22, 26, 45, 0.78);
+    --line: rgba(255, 255, 255, 0.08);
+    --line-2: rgba(255, 255, 255, 0.15);
+    --ink: #eef0fb;
+    --ink-2: #c4c9e1;
+    --dim: #8f95b5;
+    --faint: #5e6487;
+    --blue: #5d87ff;
+    --blue-strong: #4b76ff;
+    --blue-soft: rgba(93, 135, 255, 0.18);
+    --teal: #2ccbb7;
+    --teal-soft: rgba(44, 203, 183, 0.16);
+    --input: #f0a63a;
+    --input-soft: rgba(240, 166, 58, 0.16);
+    --blocked: #ff7a60;
+    --blocked-soft: rgba(255, 122, 96, 0.16);
+    --review: #a08cff;
+    --review-soft: rgba(160, 140, 255, 0.16);
+    --failed: #ff6b78;
+    --failed-soft: rgba(255, 107, 120, 0.15);
+    --done: #3fc27a;
+    --done-soft: rgba(63, 194, 122, 0.16);
+    --pending: #8f95b5;
+    --pending-soft: rgba(143, 149, 181, 0.16);
+    --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.2), 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+    --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.25), 0 24px 48px -20px rgba(0, 0, 0, 0.6);
+    --shadow-float: 0 4px 8px rgba(0, 0, 0, 0.3), 0 28px 64px -20px rgba(0, 0, 0, 0.7);
+    --shadow-hero: 0 24px 48px -18px rgba(45, 92, 255, 0.4);
+    --shadow-teal: 0 24px 48px -18px rgba(17, 168, 151, 0.35);
+    --shadow-primary: 0 8px 20px -8px rgba(93, 135, 255, 0.5);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0d1020;
+  --surface: #161a2d;
+  --surface-2: #1c2136;
+  --surface-3: #252b45;
+  --surface-glass: rgba(22, 26, 45, 0.78);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.15);
+  --ink: #eef0fb;
+  --ink-2: #c4c9e1;
+  --dim: #8f95b5;
+  --faint: #5e6487;
+  --blue: #5d87ff;
+  --blue-strong: #4b76ff;
+  --blue-soft: rgba(93, 135, 255, 0.18);
+  --teal: #2ccbb7;
+  --teal-soft: rgba(44, 203, 183, 0.16);
+  --input: #f0a63a;
+  --input-soft: rgba(240, 166, 58, 0.16);
+  --blocked: #ff7a60;
+  --blocked-soft: rgba(255, 122, 96, 0.16);
+  --review: #a08cff;
+  --review-soft: rgba(160, 140, 255, 0.16);
+  --failed: #ff6b78;
+  --failed-soft: rgba(255, 107, 120, 0.15);
+  --done: #3fc27a;
+  --done-soft: rgba(63, 194, 122, 0.16);
+  --pending: #8f95b5;
+  --pending-soft: rgba(143, 149, 181, 0.16);
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.2), 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+  --shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.25), 0 24px 48px -20px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 4px 8px rgba(0, 0, 0, 0.3), 0 28px 64px -20px rgba(0, 0, 0, 0.7);
+  --shadow-hero: 0 24px 48px -18px rgba(45, 92, 255, 0.4);
+  --shadow-teal: 0 24px 48px -18px rgba(17, 168, 151, 0.35);
+  --shadow-primary: 0 8px 20px -8px rgba(93, 135, 255, 0.5);
+  color-scheme: dark;
+}

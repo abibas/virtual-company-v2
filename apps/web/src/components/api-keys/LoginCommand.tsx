@@ -1,4 +1,4 @@
-import { CopyButton } from '../ui/CopyButton.tsx';
+import { CopyButton } from '../forms/CopyButton.tsx';
 
 /**
  * The `mwc login` command for this server and company, to paste into a terminal. The key is not in it: `mwc` reads

@@ -1,9 +1,9 @@
 import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
 import type { ApiKey } from '../../api/types.ts';
-import { StatusBadge } from '../ui/Badge.tsx';
-import { ConfirmInline } from '../ui/ConfirmInline.tsx';
-import { formatDate, formatDateTime, fromNow } from '../ui/format.ts';
+import { formatDate, formatDateTime, fromNow } from '../data/format.ts';
+import { ConfirmInline } from '../forms/ConfirmInline.tsx';
+import { StatusPill } from '../ui/Badge.tsx';
 
 interface KeyTableProps {
   readonly companyId: string;
@@ -59,7 +59,7 @@ function KeyRow({
         <When iso={key.lastUsedAt} empty="Never" />
       </td>
       <td className="py-3 pr-3">
-        <StatusBadge status={key.status} />
+        <StatusPill status={key.status} />
       </td>
       <td className="py-3 text-right">
         {key.status === 'active' && (

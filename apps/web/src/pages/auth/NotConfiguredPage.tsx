@@ -1,6 +1,6 @@
 import type { PublicConfig } from '../../api/types.ts';
-import { ApiStatus } from '../../components/ApiStatus.tsx';
 import { AuthLayout } from '../../components/AuthLayout.tsx';
+import { ApiStatus } from '../../components/auth/ApiStatus.tsx';
 
 /** Every page when the server has no identity provider (`identity: none`): what is missing and who can fix it. */
 export function NotConfiguredPage({ config }: { readonly config: PublicConfig }) {

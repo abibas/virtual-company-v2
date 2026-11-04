@@ -2,9 +2,9 @@ import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
 import type { Company } from '../../api/types.ts';
-import { SLUG_INPUT_PATTERN } from '../CreateCompanyForm.tsx';
+import { SLUG_INPUT_PATTERN } from '../company/CreateCompanyForm.tsx';
+import { TextField } from '../forms/Field.tsx';
 import { Button } from '../ui/Button.tsx';
-import { TextField } from '../ui/Field.tsx';
 import { Notice } from '../ui/Notice.tsx';
 
 interface CompanyDetailsFormProps {

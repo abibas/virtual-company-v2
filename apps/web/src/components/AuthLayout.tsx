@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Brand } from './Brand.tsx';
+import { Brand } from './layout/Brand.tsx';
 
 /** The frame of the sign-in, sign-up and invitation pages: the brand above, the card in the middle, help below. */
 export function AuthLayout({

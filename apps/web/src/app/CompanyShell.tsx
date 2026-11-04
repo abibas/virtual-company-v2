@@ -1,8 +1,9 @@
 import { useClerk } from '@clerk/react';
 import { type ComponentType, useEffect, useMemo, useState } from 'react';
-import { CenteredState, LoadingBlock } from '../components/ui/Loading.tsx';
+import { LoadingBlock } from '../components/data/LoadState.tsx';
+import { CenteredState } from '../components/layout/CenteredState.tsx';
+import { PageHeader } from '../components/layout/PageHeader.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
-import { PageHeader } from '../components/ui/PageHeader.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { MembersPage } from '../pages/company/MembersPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';

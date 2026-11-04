@@ -5,9 +5,10 @@ import { PlainShell } from '../../app/PlainShell.tsx';
 import { Link, navigate, Redirect, useLocation } from '../../app/router.tsx';
 import { SessionGate, useSession } from '../../app/session.tsx';
 import { AuthLayout } from '../../components/AuthLayout.tsx';
+import { LoadingBlock } from '../../components/data/LoadState.tsx';
+import { CenteredState } from '../../components/layout/CenteredState.tsx';
+import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { Button } from '../../components/ui/Button.tsx';
-import { CenteredState, LoadingBlock } from '../../components/ui/Loading.tsx';
-import { PageHeader } from '../../components/ui/PageHeader.tsx';
 
 /** Where Clerk sends the person once the invitation's sign-up or sign-in is done: this page, signed in. */
 const HERE = '/accept-invitation';

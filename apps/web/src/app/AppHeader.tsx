@@ -1,6 +1,6 @@
 import { UserButton } from '@clerk/react';
 import type { Membership } from '../api/types.ts';
-import { Brand } from '../components/Brand.tsx';
+import { Brand } from '../components/layout/Brand.tsx';
 import { CompanySwitcher } from './CompanySwitcher.tsx';
 import { Link } from './router.tsx';
 
@@ -22,7 +22,7 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-ground/92 backdrop-blur-sm">
       <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 pt-3 md:gap-3 md:px-8">
-        <Brand compact />
+        <Brand />
         <span aria-hidden="true" className="h-6 w-px shrink-0 bg-line-2" />
         <CompanySwitcher current={membership} section={section} />
         <div className="ml-auto flex shrink-0 items-center">

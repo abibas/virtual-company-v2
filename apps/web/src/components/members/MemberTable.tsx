@@ -3,9 +3,9 @@ import { mayRemove } from '@mwc/shared/roles';
 import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
 import type { Member } from '../../api/types.ts';
-import { StatusBadge } from '../ui/Badge.tsx';
-import { ConfirmInline } from '../ui/ConfirmInline.tsx';
-import { formatDate, formatDateTime } from '../ui/format.ts';
+import { formatDate, formatDateTime } from '../data/format.ts';
+import { ConfirmInline } from '../forms/ConfirmInline.tsx';
+import { StatusPill } from '../ui/Badge.tsx';
 import { RoleControl } from './RoleControl.tsx';
 
 interface MemberTableProps {
@@ -79,7 +79,7 @@ function MemberRow(props: MemberRowProps) {
             </p>
             <p className="text-[12.5px] break-all text-dim">{member.email}</p>
             <p className="mt-1 sm:hidden">
-              <StatusBadge status={member.status} />
+              <StatusPill status={member.status} />
             </p>
           </div>
         </div>
@@ -94,7 +94,7 @@ function MemberRow(props: MemberRowProps) {
         />
       </td>
       <td className="py-3 pr-3 max-sm:hidden">
-        <StatusBadge status={member.status} />
+        <StatusPill status={member.status} />
       </td>
       <td className="py-3 pr-3 text-[13px] whitespace-nowrap text-ink-2 max-md:hidden">
         <time dateTime={member.joinedAt} title={formatDateTime(member.joinedAt)}>
