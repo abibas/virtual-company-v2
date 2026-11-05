@@ -1,74 +1,39 @@
 import { TriangleAlert } from 'lucide-react';
 import type { SubscriptionLimits } from '../../api/types.ts';
-import { cx } from '../cx.ts';
-import { Meter } from '../data/Meter.tsx';
+import { MeterRow, type MeterRowSize } from '../data/MeterRow.tsx';
 import {
+  detailText,
   mainWindows,
   meterTone,
   modelWindows,
   type NamedWindow,
-  percentText,
+  readingText,
   resetPassed,
-  UPDATING,
-  windowLine,
 } from './limits.ts';
 
 interface RowProps extends NamedWindow {
   readonly stale: boolean;
   readonly now: number;
+  readonly size: MeterRowSize;
 }
 
 /**
- * A 5-hour or weekly window: its name and reading on a line ("18% · resets in 1h 56m"), the bar under it; once its
- * reset has passed, "updating…" over a dimmed bar until the next check.
+ * A window as one aligned row: its name, the bar, its share in the percentage column, and under the bar when it
+ * resets ("Limit reached · resets …" in red, "updating…" over a dimmed bar once its reset has passed). The 5-hour
+ * and weekly windows are full rows; the per-model ones the same, a little smaller.
  */
-function WindowRow({ name, window, stale, now }: RowProps) {
-  const line = windowLine(window, now);
-  const updating = resetPassed(window, now);
-  const old = stale || updating;
+function WindowRow({ name, window, stale, now, size }: RowProps) {
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className={cx('shrink-0 font-semibold', old ? 'text-dim' : 'text-ink')}>{name}</span>
-        <span
-          className={cx(
-            'min-w-0 truncate text-right tabular',
-            old ? 'text-faint' : window.reached ? 'font-semibold text-failed' : 'text-ink-2',
-          )}
-        >
-          {line}
-        </span>
-      </div>
-      <Meter
-        value={window.usedPercent}
-        tone={meterTone(window, stale, now)}
-        label={`${name} limit`}
-        valueText={line}
-        className={cx('mt-1.5', updating && 'opacity-50')}
-      />
-    </div>
-  );
-}
-
-/** A per-model window, compact: its name, a thin bar and its share ("updating…" over a dimmed bar after its reset). */
-function ModelRow({ name, window, stale, now }: RowProps) {
-  const updating = resetPassed(window, now);
-  const share = updating ? UPDATING : percentText(window.usedPercent);
-  return (
-    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(2.5rem,auto)] items-center gap-3 text-xs">
-      <span className="truncate font-medium text-dim">{name}</span>
-      <Meter
-        size="sm"
-        value={window.usedPercent}
-        tone={meterTone(window, stale, now)}
-        label={`${name} limit`}
-        valueText={share}
-        className={cx(updating && 'opacity-50')}
-      />
-      <span className={cx('text-right tabular', stale || updating ? 'text-faint' : 'text-ink-2')}>
-        {share}
-      </span>
-    </div>
+    <MeterRow
+      label={name}
+      size={size}
+      value={window.usedPercent}
+      tone={meterTone(window, stale, now)}
+      reading={readingText(window, now)}
+      detail={detailText(window, now)}
+      muted={stale || resetPassed(window, now)}
+      meterLabel={`${name} limit`}
+    />
   );
 }
 
@@ -100,12 +65,12 @@ export function LimitMeters({ limits, now }: { readonly limits: SubscriptionLimi
     <div className="flex flex-col gap-3">
       <CheckProblem limits={limits} />
       {main.map((row) => (
-        <WindowRow key={row.window.id} {...row} stale={stale} now={now} />
+        <WindowRow key={row.window.id} {...row} stale={stale} now={now} size="md" />
       ))}
       {models.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-t border-line pt-3">
+        <div className="flex flex-col gap-2 border-t border-line pt-3">
           {models.map((row) => (
-            <ModelRow key={row.window.id} {...row} stale={stale} now={now} />
+            <WindowRow key={row.window.id} {...row} stale={stale} now={now} size="sm" />
           ))}
         </div>
       )}

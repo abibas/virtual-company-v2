@@ -5,7 +5,7 @@ import type { MeterTone } from '../data/Meter.tsx';
 
 /**
  * How a subscription's limits read (`GET /api/me/subscriptions/limits`): which windows are the main ones, the colour
- * of a bar, the line beside it, and where the numbers came from.
+ * of a bar, the reading and the line under it, and where the numbers came from.
  */
 
 /** The share of a window from which its bar turns amber. */
@@ -83,11 +83,20 @@ export function resetText(resetsAt: string | null, now: number): string | undefi
 /** What a window whose reset has passed says until the next check: never its old share. */
 export const UPDATING = 'updating…';
 
-/** The line beside a bar: "18% · resets in 1h 56m", "Limit reached · resets …", "updating…" after its reset. */
-export function windowLine(window: LimitWindow, now: number): string {
+/** The percentage column: the share used ("18%"), or "—" while the window is being checked again after its reset. */
+export function readingText(window: LimitWindow, now: number): string {
+  return resetPassed(window, now) ? '—' : percentText(window.usedPercent);
+}
+
+/**
+ * The line under a bar: "resets in 1h 56m", "Limit reached · resets …", "updating…" after its reset; none when the
+ * reset is unknown.
+ */
+export function detailText(window: LimitWindow, now: number): string | undefined {
   if (resetPassed(window, now)) return UPDATING;
-  const share = window.reached ? 'Limit reached' : percentText(window.usedPercent);
-  return [share, resetText(window.resetsAt, now)].filter(Boolean).join(' · ');
+  const reset = resetText(window.resetsAt, now);
+  if (!window.reached) return reset;
+  return reset ? `Limit reached · ${reset}` : 'Limit reached';
 }
 
 /** Where the numbers come from, said plainly. */
