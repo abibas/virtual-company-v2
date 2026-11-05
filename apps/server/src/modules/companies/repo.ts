@@ -8,6 +8,7 @@ import {
   type Membership,
   memberships,
   type NewCompanyInput,
+  orgPositions,
   type Principal,
   principals,
   type TenantDb,
@@ -26,7 +27,7 @@ export function companiesRepo() {
       return withNewCompany(db, input, work);
     },
 
-    /** The creator's person principal and their active owner membership. */
+    /** The creator's person principal, their active owner membership and their place at the root of the org chart. */
     async addOwner(t: TenantDb, userId: string): Promise<{ principal: Principal; membership: Membership }> {
       const [principal] = (await t.insert(principals, { kind: 'person' }).returning()) as [Principal];
       const [membership] = (await t
@@ -38,6 +39,7 @@ export function companiesRepo() {
           status: 'active',
         })
         .returning()) as [Membership];
+      await t.insert(orgPositions, { principalId: principal.id, reportsToPrincipalId: null });
       return { principal, membership };
     },
 

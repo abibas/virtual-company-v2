@@ -7,12 +7,15 @@ import { randomBytes } from 'node:crypto';
 import type { RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
 import {
+  type Agent,
+  agents,
   type Company,
   companies,
   type Invitation,
   invitations,
   type Membership,
   memberships,
+  type NewAgent,
   type NewCompany,
   type NewInvitation,
   type Principal,
@@ -108,4 +111,28 @@ export async function insertMember(
       .returning(),
   );
   return { user: user ?? ({ id: membership.userId } as User), principal, membership };
+}
+
+/** An agent in a company, on a new agent principal there unless one is given; its name and slug are unique. */
+export async function insertAgent(
+  handle: RawDbHandle,
+  companyId: string,
+  values: Partial<NewAgent> = {},
+): Promise<Agent> {
+  const principalId = values.principalId ?? (await insertPrincipal(handle, companyId, 'agent')).id;
+  const slug = unique('agent');
+  return one(
+    await handle.db
+      .insert(agents)
+      .values({
+        companyId,
+        principalId,
+        name: slug,
+        slug,
+        roleTitle: 'Coder',
+        model: 'claude-opus-5-5',
+        ...values,
+      })
+      .returning(),
+  );
 }

@@ -1,4 +1,4 @@
-import { memberships, principals } from '@mwc/db';
+import { memberships, orgPositions, principals } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { createTestApp, getJson, seedCompany, testConfig } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
@@ -63,6 +63,10 @@ describe('POST /api/companies', () => {
       .from(principals)
       .where(and(eq(principals.companyId, company.id), eq(principals.id, membership?.principalId ?? '')));
     expect(principal?.kind).toBe('person');
+    // The owner is the root of the org chart, with no title yet.
+    expect(
+      await rawDb(w.t.db).select().from(orgPositions).where(eq(orgPositions.companyId, company.id)),
+    ).toMatchObject([{ principalId: principal?.id, reportsToPrincipalId: null, title: null }]);
     expect(await outboxOf(w.t.db, company.id)).toMatchObject([
       {
         op: 'create_org',

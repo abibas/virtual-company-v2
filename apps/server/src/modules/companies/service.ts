@@ -88,8 +88,8 @@ async function policyRefusal(deps: Deps, userId: string): Promise<Refusal | unde
 
 /**
  * Creates a company in one transaction: the company (provisioning) with the first free slug, the creator's person
- * principal and active owner membership, the outbox `create_org` call (idempotency key `create_org:<companyId>`)
- * and its audit rows. The identity provider is called later, by the outbox handler.
+ * principal, active owner membership and root position on the org chart, the outbox `create_org` call (idempotency
+ * key `create_org:<companyId>`) and its audit rows. The identity provider is called later, by the outbox handler.
  */
 async function createCompany(
   deps: Deps,

@@ -110,6 +110,15 @@ not what `diagram` would write. `pnpm mwc check` runs both in its "db drift" ste
   `LogoContentType` (PNG, JPEG, WebP), `sha256` 64 lower-case hex digits, `updated_by_principal_id` a principal of
   the same company (null for the system); deleting the company row deletes it (`on delete cascade`). Read it with
   `selectFields` when the bytes are not needed.
+- The org tables (S2.1, `src/schema/org.ts`): `agents` (a tenant table with `UNIQUE(company_id, id)`, one per
+  principal, its slug unique per company; `status`, `harness` and `effort` are `AgentStatus`, `Harness` and `Effort`)
+  and `org_positions`, one per principal, so `(company_id, principal_id)` is its primary key and it has no `id`
+  (`test/schema/tenant.test.ts` lists it apart); `reports_to_principal_id` points at a principal of the same company
+  other than itself. That an agent's principal is of kind `agent`, and the chart's rules across rows (no cycles,
+  agents never root, an agent's chain reaches a person, agents never manage people), are the server's org module's,
+  not SQL's. `0005_org` ends with a data step (`-- custom:`) that placed the active memberships already there;
+  `test/schema/org-backfill.test.ts` seeds a database at `0004` with `migrateUpTo` (`test/fixtures/migrations.ts`)
+  to test it.
 - The global identity tables: `user_identities` (a person is `(issuer, subject)`, unique; two users may share an
   email), `identity_events` (the inbox, unique on `(provider, external_event_id)`), `identity_outbox` (provider
   calls, unique `idempotency_key`), and the projector's `identity_marks` and `identity_parked_events`.

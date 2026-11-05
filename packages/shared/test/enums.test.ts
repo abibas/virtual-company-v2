@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   ActorKind,
+  AgentStatus,
   ApiKeyKind,
   CompanyStatus,
+  Effort,
+  Harness,
   IdentityEventStatus,
   IdentityEventType,
   IdentityInboxType,
@@ -36,6 +39,9 @@ describe('enums', () => {
     ]);
     expect(IdentityOutboxStatus.options).toEqual(['pending', 'done', 'failed']);
     expect(LogoContentType.options).toEqual(['image/png', 'image/jpeg', 'image/webp']);
+    expect(AgentStatus.options).toEqual(['active', 'paused', 'archived']);
+    expect(Harness.options).toEqual(['claude_code', 'codex']);
+    expect(Effort.options).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
   });
 
   it('accepts known values and rejects others', () => {
@@ -43,6 +49,9 @@ describe('enums', () => {
     expect(UserStatus.safeParse('banned').success).toBe(false);
     expect(ActorKind.safeParse('User').success).toBe(false);
     expect(PrincipalKind.safeParse('robot').success).toBe(false);
+    expect(AgentStatus.parse('paused')).toBe('paused');
+    expect(Harness.safeParse('cursor').success).toBe(false);
+    expect(Effort.safeParse('XHIGH').success).toBe(false);
   });
 
   it('are the same objects the identity contracts export', () => {

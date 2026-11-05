@@ -27,6 +27,31 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: The org tables: a table keyed by its principal, and a migration's data step with no source to mirror
+
+- **What happened:** S2.1 added `agents` and `org_positions`. `org_positions` is one row per principal, so its primary
+  key is `(company_id, principal_id)` and it has no `id`: like `company_logos` (the entry below), the skill's tenant
+  rule ("`company_id` and `UNIQUE(company_id, id)`") and `packages/db/test/schema/tenant.test.ts` had no case for it.
+  The migration's data step (every active membership placed on the chart) is a test with no source file to mirror;
+  a `packages/db/test/migrations/` folder for it took `packages/db/test/` from 12 to 13 entries (`big-folder`). Two
+  more assertions in `packages/db/test/diagram.test.ts` took it from 399 to 404 lines (`near-limit`). The new schema
+  file took `packages/db/src/schema/columns.ts` from 8 to 9 importers (its `fan-in` warning was there already).
+- **Where:** `packages/db/src/schema/org.ts`, `migrations/0005_org.sql` (its `-- custom:` part),
+  `test/schema/tenant.test.ts` (`ONE_PER_PRINCIPAL`), `test/schema/org-backfill.test.ts`,
+  `test/fixtures/migrations.ts`; the S2.1 commit.
+- **What was done:** the tenant test lists `org_positions` apart and checks its own shape (the composite primary key,
+  the principal a composite foreign key, no `id`). The backfill test went beside the table's own test,
+  `test/schema/org-backfill.test.ts`, and `test/migrations/` was dropped, so `packages/db/test/` stays at 12. Its
+  helper `migrateUpTo(handle, tag)` (a database left at an older migration) went to `test/fixtures/migrations.ts`, and
+  `migrate.test.ts` uses it too instead of its own copy. The diagram test only had its counts updated (399 lines).
+  The report is back to 39 warnings (1 near-limit, 5 long-function, 1 big-folder, 28 fan-in, 4 low-coverage).
+- **Suggested change:** the skill's tenant rule, with the entry below: "...or, with one row per company or per
+  parent, `company_id` or `(company_id, parent_id)` as its primary key and no `id`". A placement-table row: "A test of
+  a migration's data step (`-- custom:`) → `packages/db/test/schema/<table>-backfill.test.ts`, seeded at the
+  migration before with `migrateUpTo`". At the next review, split `packages/db/test/diagram.test.ts` (the renderer's
+  own cases apart from the real schema's), which any new table brings closer to 400 lines.
+- **Status:** `open`.
+
 ### 2026-11-05: A table with one row per company does not fit "UNIQUE(company_id, id)"
 
 - **What happened:** company logos (Ihor's request, 2026-11-05) are one row per company, so `company_logos` has

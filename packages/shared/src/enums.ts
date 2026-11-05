@@ -83,3 +83,15 @@ export type IdentityOutboxStatus = z.infer<typeof IdentityOutboxStatus>;
 /** `company_logos.content_type`: the image types a company logo may be, told from the file's own first bytes. */
 export const LogoContentType = z.enum(['image/png', 'image/jpeg', 'image/webp']);
 export type LogoContentType = z.infer<typeof LogoContentType>;
+
+/** `agents.status`: a paused agent starts no runs; an archived one has left the org chart. */
+export const AgentStatus = z.enum(['active', 'paused', 'archived']);
+export type AgentStatus = z.infer<typeof AgentStatus>;
+
+/** `agents.harness`: the coding harness an agent's runs use. */
+export const Harness = z.enum(['claude_code', 'codex']);
+export type Harness = z.infer<typeof Harness>;
+
+/** `agents.effort`: the reasoning effort the harness runs the agent's model with. */
+export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
+export type Effort = z.infer<typeof Effort>;

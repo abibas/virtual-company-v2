@@ -1,15 +1,9 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { queryRows } from '../src/handle.ts';
-import { type DbHandle, MIGRATIONS_FOLDER, migrateToLatest, migrationStatus } from '../src/migrate.ts';
+import { type DbHandle, migrateToLatest, migrationStatus } from '../src/migrate.ts';
 import { createTestDb, type TestDb, testDbKind } from '../src/testing.ts';
-
-const journal = JSON.parse(readFileSync(join(MIGRATIONS_FOLDER, 'meta/_journal.json'), 'utf8')) as {
-  entries: Array<{ tag: string }>;
-};
+import { journal, migrateUpTo } from './fixtures/migrations.ts';
 
 async function appliedCount(handle: DbHandle): Promise<number> {
   const [row] = await queryRows<{ n: number }>(
@@ -42,6 +36,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
     );
     expect(tables.map((row) => row.table_name)).toEqual([
+      'agents',
       'api_keys',
       'audit_log',
       'companies',
@@ -52,6 +47,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'identity_parked_events',
       'invitations',
       'memberships',
+      'org_positions',
       'principals',
       'user_identities',
       'users',
@@ -76,19 +72,8 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
 
   it('takes a database at 0000_init with data to the latest migration, keeping the rows', async () => {
     const handle = await fresh();
-    // A migrations folder holding only 0000_init, as the repository was before S1.3.
-    const first = mkdtempSync(join(tmpdir(), 'mwc-0000-'));
-    try {
-      mkdirSync(join(first, 'meta'));
-      copyFileSync(join(MIGRATIONS_FOLDER, '0000_init.sql'), join(first, '0000_init.sql'));
-      writeFileSync(
-        join(first, 'meta/_journal.json'),
-        JSON.stringify({ ...journal, entries: journal.entries.slice(0, 1) }),
-      );
-      await migrateToLatest(handle, { migrationsFolder: first });
-    } finally {
-      rmSync(first, { recursive: true, force: true });
-    }
+    // Only 0000_init, as the repository was before S1.3.
+    await migrateUpTo(handle, '0000_init');
     expect(await migrationStatus(handle)).toMatchObject({ applied: 1, last: '0000_init', current: false });
     await queryRows(
       handle,

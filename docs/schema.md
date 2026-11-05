@@ -3,10 +3,29 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 13. Migrations: 5, the last is `0004_company_logos`.
+Tables: 15. Migrations: 6, the last is `0005_org`.
 
 ```mermaid
 erDiagram
+  agents {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid principal_id FK "not null"
+    text name "not null"
+    text slug "not null"
+    text role_title "not null"
+    text status "not null, default 'active', active|paused|archived"
+    text harness "not null, default 'claude_code', claude_code|codex"
+    text model "not null"
+    text effort "not null, default 'high', low|medium|high|xhigh|max"
+    text instructions "not null, default ''"
+    integer instructions_rev "not null, default 1"
+    integer max_concurrent_runs "not null, default 1"
+    smallint face "not null, default 0"
+    jsonb settings "not null, default '{}'"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   api_keys {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
@@ -131,6 +150,14 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  org_positions {
+    uuid company_id PK, FK "not null"
+    uuid principal_id PK, FK "not null"
+    uuid reports_to_principal_id FK "nullable"
+    text title "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   principals {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
@@ -156,6 +183,8 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  agents }o--|| companies : "company_id"
+  agents |o--|| principals : "company_id, principal_id"
   api_keys }o--|| companies : "company_id"
   api_keys }o--|| principals : "company_id, principal_id"
   audit_log }o--o| companies : "company_id"
@@ -171,6 +200,9 @@ erDiagram
   memberships }o--|| users : "user_id"
   memberships |o--|| principals : "company_id, principal_id"
   memberships }o--o| invitations : "company_id, invitation_id"
+  org_positions }o--|| companies : "company_id"
+  org_positions |o--|| principals : "company_id, principal_id"
+  org_positions }o--o| principals : "company_id, reports_to_principal_id"
   principals }o--|| companies : "company_id"
   user_identities }o--|| users : "user_id"
 ```
@@ -181,6 +213,48 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 `}o--o|` many-to-one where the foreign key may be null, `|o--` one-to-one (the columns are unique).
 
 ## Tables
+
+### `agents`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `principal_id` | `uuid` | no |  | FK |  |
+| `name` | `text` | no |  |  |  |
+| `slug` | `text` | no |  |  |  |
+| `role_title` | `text` | no |  |  |  |
+| `status` | `text` | no | `'active'` |  | `active`, `paused`, `archived` |
+| `harness` | `text` | no | `'claude_code'` |  | `claude_code`, `codex` |
+| `model` | `text` | no |  |  |  |
+| `effort` | `text` | no | `'high'` |  | `low`, `medium`, `high`, `xhigh`, `max` |
+| `instructions` | `text` | no | `''` |  |  |
+| `instructions_rev` | `integer` | no | `1` |  |  |
+| `max_concurrent_runs` | `integer` | no | `1` |  |  |
+| `face` | `smallint` | no | `0` |  |  |
+| `settings` | `jsonb` | no | `'{}'` |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`agents_company_id_companies_id_fk`)
+  - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`agents_principal_fk`)
+- **Unique:**
+  - `agents_company_id_id_unique` (`company_id`, `id`)
+  - `agents_company_id_principal_id_unique` (`company_id`, `principal_id`)
+  - `agents_company_id_slug_unique` (`company_id`, `slug`)
+- **Checks:**
+  - `agents_name_check`: `char_length("name") between 1 and 80`
+  - `agents_slug_check`: `"slug" ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'`
+  - `agents_role_title_check`: `char_length("role_title") between 1 and 80`
+  - `agents_status_check`: `status` is one of `active`, `paused`, `archived`
+  - `agents_harness_check`: `harness` is one of `claude_code`, `codex`
+  - `agents_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`
+  - `agents_instructions_rev_check`: `"instructions_rev" >= 1`
+  - `agents_max_concurrent_runs_check`: `"max_concurrent_runs" between 1 and 8`
+  - `agents_face_check`: `"face" between 0 and 41`
+- **Indexes:** none
 
 ### `api_keys`
 
@@ -449,6 +523,29 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `memberships_status_check`: `status` is one of `invited`, `active`, `suspended`, `removed`
 - **Indexes:**
   - `memberships_user_id_idx` on (`user_id`)
+
+### `org_positions`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `principal_id` | `uuid` | no |  | PK, FK |  |
+| `reports_to_principal_id` | `uuid` | yes |  | FK |  |
+| `title` | `text` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`, `principal_id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`org_positions_company_id_companies_id_fk`)
+  - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`org_positions_principal_fk`)
+  - (`company_id`, `reports_to_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`org_positions_reports_to_fk`)
+- **Unique:** none
+- **Checks:**
+  - `org_positions_not_self_check`: `"principal_id" <> "reports_to_principal_id"`
+  - `org_positions_title_check`: `char_length("title") <= 80`
+- **Indexes:**
+  - `org_positions_reports_to_idx` on (`company_id`, `reports_to_principal_id`)
 
 ### `principals`
 

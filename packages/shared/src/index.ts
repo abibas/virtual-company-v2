@@ -18,8 +18,11 @@ export {
 } from './config.ts';
 export {
   ActorKind,
+  AgentStatus,
   ApiKeyKind,
   CompanyStatus,
+  Effort,
+  Harness,
   IdentityEventStatus,
   IdentityOutboxOp,
   IdentityOutboxStatus,
