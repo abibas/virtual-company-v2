@@ -19,8 +19,8 @@ Most_Wanted_corp_v2/
 │   │   │   ├── platform/           cross-cutting, no business rules
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI, throttle
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
-│   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S4
-│   │   │   │   └── realtime/       live updates to UI, runner connections      S3/S4
+│   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S5
+│   │   │   │   └── realtime/       live updates to UI, runner connections      S4/S5
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         liveness, readiness, versions, /api/config  S0/S1.11
 │   │   │   │   ├── identity/       identity store, me, sync, webhook inbox (built) S1.4–S1.8
@@ -28,23 +28,23 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
 │   │   │   │   ├── org/            agents, reporting chain, org chart (built)  S2
-│   │   │   │   ├── machines/       enrollment, placements                      S3
-│   │   │   │   ├── tasks/          tasks, messages, kept conversations         S4
-│   │   │   │   ├── runs/           runs, events, scheduler                     S4
-│   │   │   │   ├── inbox/          questions, permissions, blocked, review     S5
-│   │   │   │   ├── credentials/    encrypted store, sign-ins                   S6
+│   │   │   │   ├── machines/       enrollment, placements                      S4
+│   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
+│   │   │   │   ├── runs/           runs, events, scheduler                     S5
+│   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
+│   │   │   │   ├── credentials/    subscriptions, access profiles, limits      S3
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
 │   │       └── scenarios/          stories across modules over the HTTP API     S1.12
 │   ├── web/                        React UI, no tests for now (identity pages built) S1.11
 │   │   └── src/ app/ pages/ components/ api/ styles/
-│   └── runner/                     machine daemon                              S3
+│   └── runner/                     machine daemon                              S4
 ├── packages/                       libraries, pure where possible
 │   ├── shared/                     contracts: config, ports, ids, enums, protocols
 │   ├── db/                         schema, migrations, tenant layer
 │   ├── identity-core/              identity model and projector                S1
-│   ├── harness-core/               harness driver interface                    S4
+│   ├── harness-core/               harness driver interface                    S5
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
 │   │                               api/ (client, org, session), org/ (commands.ts, render.ts) S2.6
@@ -52,11 +52,11 @@ Most_Wanted_corp_v2/
 ├── connectors/                     adapters to outside systems
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
 │   ├── identity-oidc/              other identity providers, user sync         later
-│   ├── harness-claude-code/                                                    S4
+│   ├── harness-claude-code/                                                    S5
 │   ├── harness-codex/                                                          S7
-│   └── jira/ github/ gateway/                                                  S6–S7
+│   └── jira/ github/ gateway/                                                  S7
 ├── deploy/                         Dockerfiles, compose, later Kubernetes
-└── docs/                           architecture, roadmap, ports, schema, testing, structure
+└── docs/                           architecture, roadmap, ports, schema, testing, structure, subscriptions
 ```
 
 At the top level there is nothing else but the root configuration files (`package.json`,

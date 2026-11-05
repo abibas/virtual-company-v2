@@ -91,7 +91,24 @@ Done when: a chart with people and agents can be built, moved and read as a tree
 
 - **User profiles** (2026-11-05, Ihor's request: "the ability to ADD a photo, and while creating an account set some main properties, first and second names, so it's shown NOT AS AN EMAIL"). **Done 2026-11-05** (migration `0006_user_profiles`: `users.display_name` may be null (`image_url` was there since `0000`), and the stand-ins stored for a person without a name, the email's part before the @ or a blank, are cleared under `-- custom:`. The Clerk connector's `displayName` is the first and last name, trimmed, or null, and `imageUrl` is set only when Clerk's `has_image` says so; `ExternalUser`, `StoredUser`, the fake (`displayName: null`, `updateUser` taking a name or photo away) and the provider and store contracts follow. The webhook, the reconcile on sign-in (of a person seen before too, at their next session) and `POST /api/me/reconcile` refresh both; `GET /api/me`, the member list, the API keys' owners and the org chart's person nodes (now with `imageUrl`) answer `displayName: null` for a person without a name. Web: `/onboarding` ("Tell us who you are", first and last name required, an optional photo cropped round; asked before any other page while the name is missing, so right after Clerk's sign-up), `/profile` (change both later, remove the photo), the top bar's user pill with the person's photo or initials, name and role and a menu (Your profile, Manage account, Sign out), and the photo on the `Avatar` (initials when it fails to load), on the org chart's person cards (from the chart itself), the members table, the "Signed in as" lines and the greeting's first name. Tests: the mapping with and without names and `has_image` true and false, the refresh on each path (Clerk payloads through the webhook route), the new response fields, the migration's data step, the CLI and MCP naming a person without a name by their email.)
 
-### S3 — machines and runner
+### S3 — subscriptions, access profiles and the limits widget
+
+Reordered on 2026-11-05 with Ihor (design: `docs/subscriptions.md`): the credential store moves here from the old S6,
+machines and runner become S4, runs S5, the inbox and the SLOP BOX milestone S6; GitHub and Jira sign-ins join S7.
+Notes written before that day that say S3, S4 or S5 mean S4, S5 or S6.
+
+Done when: Ihor signs in with Claude (and with OpenAI) once, from the app, and the login's token and config are stored
+encrypted under him; a pasted setup-token, API keys and a gateway can be added too; secrets are never shown back and
+need his Clerk session to manage; he bundles them into access profiles and gives a profile to an agent; the home page
+shows each subscription's live 5-hour and weekly limits.
+1. The credential store: `MWC_MASTER_KEY` (a generated `.data/master.key` in development), AES-256-GCM with AAD and key versions, personal `credentials`, the write-only API for the pasted kinds (setup-token, Anthropic and OpenAI keys, gateway), session-only management, audit — tests: tamper, wrong owner, key version, API keys refused.
+2. The sign-in helper and **Sign in with Claude** / **Sign in with OpenAI**: the official CLIs' logins in a throwaway sandbox, the code pasted back for Claude, the resulting token and config stored encrypted — tests with a fake helper; Ihor's first real sign-in is the check.
+3. Limits: the usage checks per kind (the usage API, the one-token headers probe, `wham/usage`), token refresh, a cache and the 5-minute floor — tests with a fake provider.
+4. Access profiles: personal bundles, `agents.profile_id`, a default per person and company, assignment only by the owner in companies they administer — integration tests.
+5. Web: the Subscriptions page (cards, Add a subscription with each flow, rename, remove), access profiles, the agent form's profile, and the home page's **Subscription limits** widget.
+6. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
+
+### S4 — machines, runner and placements
 
 Done when: a runner installed on Ihor's Mac as a launchd service and the compose `runner-local` both show online on the Machines page, survive a server restart, go offline on disconnect and come back; a signed runner update installs itself when idle.
 1. `runner-protocol.ts` + testkit fake server / fake runner — unit: zod round-trips, protocol fixtures.
@@ -99,9 +116,12 @@ Done when: a runner installed on Ihor's Mac as a launchd service and the compose
 3. `apps/runner` core (config, state dir, unix socket, health :9953, reconnect/backoff, awake time) — runner vs fake server: survives a server restart.
 4. `mwc runner install` (launchd / systemd / container) + `mwc machine enroll-token` + Machines page — unit: plist/unit rendering; Playwright: machines page.
 5. Self-update + drain + `runner_releases` — test with a signed tarball.
-6. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
+6. Placements (`docs/subscriptions.md`): an agent's machine and mode, `host` (a folder on the machine) or `container` (a fresh locked-down container per run); no machine signs in to an AI provider.
+7. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
-### S4 — tasks, threads, runs
+### S5 — tasks, threads, runs
+
+First: how a run receives its credential (`docs/subscriptions.md`): a short test of the relay (a run token, the server swapping in the real credential), with handing it to the run's environment as the fallback.
 
 Done when: a message to a task assigned to an agent starts a run on its machine, events stream to the thread, the reply is posted; a second message resumes the same session id; Stop works; `kill -9` of the runner and a server restart mid-turn both recover; the chaos scripts pass with the fake `claude`.
 1. `HarnessDriver` (`packages/harness-core`) + `connectors/harness-claude-code` `buildSpawn`/`parseLine` + fake `claude` binary and fixtures (also records the real permission-tool round trip once with the installed CLI).
@@ -110,7 +130,7 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.
 5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
-### S5 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
+### S6 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
 Done when the demo below passes on the Mac and then on the devbox:
 1. MCP shim + runner tool server (`ask_user`, `permission`, `report_blocked`, `submit_for_review`, `post_message`, `read_task`), per-run `mcp.json` — tests: shim ↔ socket, schemas, fake `claude` calling tools.
@@ -119,17 +139,9 @@ Done when the demo below passes on the Mac and then on the devbox:
 4. **Demo:** SLOP BOX placed on the Mac first (home folder with its CLAUDE.md and skills, its own `CLAUDE_CONFIG_DIR`, policy `bypass`, worktree root), then on the devbox (`mwc runner install` once over the existing IAP SSH, `systemd --user` + linger). Ihor's Claude Code sends a message through `@mwc/mcp`; SLOP BOX works, calls `ask_user`; the item appears in the inbox and in `mwc inbox watch`; he answers with `mwc inbox answer`; the run continues (live if within 90 s, otherwise as a resumed turn) and reports done; a `report_blocked` variant lands in the inbox as blocked. Recorded against the real CLI; replayed in Playwright with the fake `claude`.
 5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
-### S6 — credentials and sign-ins
-
-Done when: the compose runner runs a task with a server-held Claude setup-token and no credentials on disk; GitHub and Jira sign-ins are stored encrypted per person and granted per agent; deliveries are audited.
-1. `credentials` store (v1's AES-256-GCM credential store bound to owner and provider, ported, plus key versioning and the company in the AAD) + API — unit: tamper detection, wrong tenant.
-2. Claude setup-token flow in a throwaway container (PTY capture, as in v1), stored encrypted — integration with a fake container runner.
-3. GitHub `gh auth login --device`, Jira `acli` sign-in (v1 flows), per-agent grants, delivery in `run.start.secrets`, `credential_deliveries` audit.
-4. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
-
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
-Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox, Codex driver. Each item names the v1 behaviour it replaces and ships with integration tests.
+GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox, Codex driver. Each item names the v1 behaviour it replaces and ships with integration tests.
 
 Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
