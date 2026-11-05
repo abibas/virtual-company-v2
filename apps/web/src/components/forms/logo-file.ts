@@ -101,8 +101,3 @@ export async function prepareLogo(file: File): Promise<PreparedLogo> {
 export function releaseLogo(logo: PreparedLogo | null | undefined): void {
   if (logo) URL.revokeObjectURL(logo.url);
 }
-
-/** The file name of a prepared logo as it is uploaded, from what it was encoded as. */
-export function logoFileName(logo: PreparedLogo): string {
-  return logo.blob.type === 'image/webp' ? 'logo.webp' : 'logo.png';
-}

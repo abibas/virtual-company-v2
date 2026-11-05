@@ -19,7 +19,6 @@ export {
   LOGO_SOURCE_MAX_BYTES,
   LogoError,
   type LogoRefusal,
-  logoFileName,
   type PreparedLogo,
   prepareLogo,
   releaseLogo,

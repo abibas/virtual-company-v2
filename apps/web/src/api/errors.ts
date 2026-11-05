@@ -60,6 +60,10 @@ const FRIENDLY: Readonly<Record<string, string>> = {
   api_key_not_found: 'This key no longer exists. Refresh the list.',
   confirmation_mismatch: 'The name you typed does not match the company name.',
   slug_taken: 'That address is taken. Choose another one.',
+  logo_too_large: 'The logo is over 1 MB. Choose a smaller image.',
+  logo_type_unsupported: 'The logo must be a PNG, JPEG or WebP image.',
+  logo_empty: 'The logo file is empty. Choose an image.',
+  logo_not_found: 'This company has no logo.',
   company_creation_disabled: 'Creating companies is switched off on this server.',
   company_creation_not_allowed:
     'Your account may not create companies on this server. Ask a company admin to invite you instead.',

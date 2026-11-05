@@ -1,6 +1,8 @@
 import { Bot, Inbox, KeyRound, LayoutGrid, ListChecks, Settings, Users } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { primeCompanyLogo } from '../../api/company-logo.ts';
 import { CompanySwitcher } from '../../app/CompanySwitcher.tsx';
+import { useLocation } from '../../app/router.tsx';
 import { type Session, SessionContext } from '../../app/session.tsx';
 import { AppShell } from '../../components/layout/AppShell.tsx';
 import type { NavItem } from '../../components/layout/Rail.tsx';
@@ -8,8 +10,11 @@ import type { ShellUser } from '../../components/layout/TopBar.tsx';
 import { Avatar } from '../../components/ui/Avatar.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
-import { SAMPLE_MEMBERSHIP, SAMPLE_SESSION } from './records.ts';
-import { SAMPLE_AGENTS, SAMPLE_ATTENTION, SAMPLE_NOW } from './sample.ts';
+import { SAMPLE_COMPANY, SAMPLE_MEMBERSHIP, SAMPLE_SESSION } from './records.ts';
+import { SAMPLE_AGENTS, SAMPLE_ATTENTION, SAMPLE_LOGO_SRC, SAMPLE_NOW } from './sample.ts';
+
+/** The version the sample company's logo is primed under with `?logo=1` (the hook asks for it; the gallery has no API). */
+export const SAMPLE_LOGO_VERSION = 'sample';
 
 export type MockPage = 'dashboard' | 'members' | 'api-keys' | 'settings';
 
@@ -59,23 +64,45 @@ const USER: ShellUser = {
   ),
 };
 
-/** The sample person's session: two companies, nothing to reload. */
-const SESSION: Session = {
-  me: SAMPLE_SESSION,
-  reload: () => Promise.resolve(SAMPLE_SESSION),
-  reconcile: () => Promise.resolve(SAMPLE_SESSION),
-};
+/**
+ * The sample person's session: two companies, nothing to reload. With `?logo=1` the sample company carries a logo
+ * version and the sample logo is primed under it, so the rail, the switcher and the hero show it.
+ */
+function useSampleSession(withLogo: boolean): {
+  readonly session: Session;
+  readonly current: typeof SAMPLE_MEMBERSHIP;
+} {
+  useEffect(() => {
+    if (!withLogo) return;
+    fetch(SAMPLE_LOGO_SRC)
+      .then((response) => response.blob())
+      .then((blob) => primeCompanyLogo(SAMPLE_COMPANY.id, SAMPLE_LOGO_VERSION, blob))
+      .catch(() => undefined);
+  }, [withLogo]);
+  return useMemo(() => {
+    const current = withLogo
+      ? { ...SAMPLE_MEMBERSHIP, logo: { version: SAMPLE_LOGO_VERSION } }
+      : SAMPLE_MEMBERSHIP;
+    const me = { ...SAMPLE_SESSION, memberships: [current, ...SAMPLE_SESSION.memberships.slice(1)] };
+    return {
+      session: { me, reload: () => Promise.resolve(me), reconcile: () => Promise.resolve(me) },
+      current,
+    };
+  }, [withLogo]);
+}
 
 const ATTENTION = SAMPLE_ATTENTION.map((item) => ({ ...item, href: '/design/dashboard' }));
 
 /** The app shell with sample data around a mocked page: the real switcher on the sample session, the feed full. */
 export function MockShell({ active, children }: { readonly active: MockPage; readonly children: ReactNode }) {
   const [created, setCreated] = useState<string>();
+  const { search } = useLocation();
+  const { session, current } = useSampleSession(search.get('logo') === '1');
   return (
-    <SessionContext value={SESSION}>
+    <SessionContext value={session}>
       <AppShell
         nav={nav(active)}
-        badge={<CompanySwitcher current={SAMPLE_MEMBERSHIP} section={SECTIONS[active]} />}
+        badge={<CompanySwitcher current={current} section={SECTIONS[active]} />}
         firstName="Ihor"
         now={SAMPLE_NOW}
         user={USER}

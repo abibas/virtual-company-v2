@@ -26,6 +26,7 @@ export const SAMPLE_MEMBERSHIP: Membership = {
   status: 'active',
   companyStatus: 'active',
   identityOrgId: 'org_sample',
+  logo: null,
 };
 
 /** `GET /api/me` for the gallery: the person with two companies, the sample one first. */
@@ -41,6 +42,7 @@ export const SAMPLE_SESSION: Me = {
       status: 'active',
       companyStatus: 'active',
       identityOrgId: 'org_sample_2',
+      logo: null,
     },
   ],
   session: { via: 'clerk', pending: false },

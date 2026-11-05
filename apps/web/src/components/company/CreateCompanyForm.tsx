@@ -1,7 +1,9 @@
 import { ArrowRight } from 'lucide-react';
 import { type FormEvent, type ReactNode, useState } from 'react';
+import { uploadCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
+import { rememberPendingLogo } from '../../api/pending-logo.ts';
 import type { Company } from '../../api/types.ts';
 import { cx } from '../cx.ts';
 import { TextField } from '../forms/Field.tsx';
@@ -20,26 +22,39 @@ interface CreateCompanyFormProps {
   readonly className?: string;
 }
 
-/** `POST /api/companies` with the draft's name and address, its progress and its refusal. */
+type Stage = 'idle' | 'creating' | 'logo';
+
+/**
+ * `POST /api/companies` with the draft's name and address, then the logo's upload when one was picked. The company
+ * exists once created: a logo refused or lost on the way is kept for the company's page to offer again, never a
+ * reason to stop here.
+ */
 function useCreateCompany(draft: CompanyDraft, onCreated: CreateCompanyFormProps['onCreated']) {
   const api = useApi();
-  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<unknown>();
   const create = async () => {
-    setBusy(true);
+    setStage('creating');
     setError(undefined);
     try {
       const chosen = draft.slug.trim();
       const company = await call(
         api.api.companies.$post({ json: { name: draft.name.trim(), ...(chosen ? { slug: chosen } : {}) } }),
       );
+      const logo = draft.logo;
+      if (logo) {
+        setStage('logo');
+        await uploadCompanyLogo(api, company.id, logo.blob).catch((failure: unknown) =>
+          rememberPendingLogo(company.id, logo.blob, failure),
+        );
+      }
       await onCreated(company);
     } catch (failure) {
       setError(failure);
-      setBusy(false);
+      setStage('idle');
     }
   };
-  return { busy, error, create };
+  return { stage, error, create };
 }
 
 /** The live address under the field: `/c/<address>` as the server will make it, and where it comes from. */
@@ -62,7 +77,8 @@ function AddressHint({ address, chosen }: { readonly address: string; readonly c
 
 /** The logo, the name and the address of a new company, and the button that creates it. */
 export function CreateCompanyForm({ draft, onCreated, cancel, className }: CreateCompanyFormProps) {
-  const { busy, error, create } = useCreateCompany(draft, onCreated);
+  const { stage, error, create } = useCreateCompany(draft, onCreated);
+  const busy = stage !== 'idle';
   const submit = (event: FormEvent) => {
     event.preventDefault();
     void create();
@@ -107,7 +123,11 @@ export function CreateCompanyForm({ draft, onCreated, cancel, className }: Creat
           trailingIcon={ArrowRight}
           className="w-full"
         >
-          {busy ? 'Creating the company…' : 'Create company'}
+          {stage === 'logo'
+            ? 'Adding the logo…'
+            : stage === 'creating'
+              ? 'Creating the company…'
+              : 'Create company'}
         </Button>
         {cancel}
       </div>

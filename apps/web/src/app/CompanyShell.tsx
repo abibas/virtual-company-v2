@@ -1,6 +1,8 @@
 import { UserButton, useClerk } from '@clerk/react';
 import { type ComponentType, useEffect, useMemo, useState } from 'react';
 import { useAttention } from '../api/attention.ts';
+import { usePendingLogo } from '../api/pending-logo.ts';
+import { LogoRetryNotice } from '../components/company/LogoRetryNotice.tsx';
 import { LoadingBlock } from '../components/data/LoadState.tsx';
 import { AppShell } from '../components/layout/AppShell.tsx';
 import { CenteredState } from '../components/layout/CenteredState.tsx';
@@ -93,6 +95,7 @@ function useCompanyMembership(slug: string) {
 export function CompanyShell({ slug, section }: { readonly slug: string; readonly section: string }) {
   const { view, provisioning, checked } = useCompanyMembership(slug);
   const attention = useAttention();
+  const pendingLogo = usePendingLogo(view?.membership.companyId ?? '');
   if (view === null && !checked) {
     return (
       <CenteredState>
@@ -118,11 +121,16 @@ export function CompanyShell({ slug, section }: { readonly slug: string; readonl
         attentionLoading={attention.loading}
         agents={[]}
         banner={
-          provisioning && (
-            <Notice tone="warning">
-              This company is being set up with the sign-in service. Invitations go out as soon as it is
-              ready, usually within a minute.
-            </Notice>
+          (provisioning || pendingLogo) && (
+            <div className="flex flex-col gap-3">
+              {provisioning && (
+                <Notice tone="warning">
+                  This company is being set up with the sign-in service. Invitations go out as soon as it is
+                  ready, usually within a minute.
+                </Notice>
+              )}
+              {pendingLogo && <LogoRetryNotice pending={pendingLogo} onUploaded={view.reload} />}
+            </div>
           )
         }
       >

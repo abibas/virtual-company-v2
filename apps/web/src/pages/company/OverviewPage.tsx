@@ -1,5 +1,6 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { KeyRound, Mail, Plus, Users } from 'lucide-react';
+import { useCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
 import { type Loaded, useLoad } from '../../api/use-load.ts';
@@ -106,11 +107,13 @@ export function OverviewPage() {
   const admin = roleAtLeast(membership.role, 'admin');
   const base = `/c/${membership.slug}`;
   const data = useOverviewData(membership.companyId, admin);
+  const logoSrc = useCompanyLogo(membership.companyId, membership.logo?.version);
   return (
     <div className="grid gap-4 md:gap-5">
       <CompanyHero
         name={membership.name}
         status={membership.companyStatus}
+        logoSrc={logoSrc}
         summary={ROLE_SUMMARY[membership.role]}
         actions={
           <>

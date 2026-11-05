@@ -1,22 +1,28 @@
 import { KeyRound, Mail, Plus, Users } from 'lucide-react';
+import { useCompanyLogo } from '../../api/company-logo.ts';
+import { useLocation } from '../../app/router.tsx';
 import { StatTile } from '../../components/data/StatTile.tsx';
 import { AgentsCard, RunsCard } from '../../components/overview/ComingCards.tsx';
 import { CompanyFacts } from '../../components/overview/CompanyFacts.tsx';
 import { CompanyHero } from '../../components/overview/CompanyHero.tsx';
 import { Button } from '../../components/ui/Button.tsx';
-import { MockShell } from './MockShell.tsx';
+import { MockShell, SAMPLE_LOGO_VERSION } from './MockShell.tsx';
 import { SAMPLE_COMPANY, SAMPLE_ME } from './records.ts';
 
 const HERE = '/design/dashboard';
 
-/** What the real Overview shows, with made-up numbers, in the shell with sample data. */
+/** What the real Overview shows, with made-up numbers, in the shell with sample data (`?logo=1` for the logo). */
 export function DashboardMock() {
+  const { search } = useLocation();
+  const withLogo = search.get('logo') === '1';
+  const logoSrc = useCompanyLogo(SAMPLE_COMPANY.id, withLogo ? SAMPLE_LOGO_VERSION : null);
   return (
     <MockShell active="dashboard">
       <div className="grid gap-4 md:gap-5">
         <CompanyHero
           name={SAMPLE_COMPANY.name}
           status="active"
+          logoSrc={logoSrc}
           summary="You own this company: you manage its people, its settings, and soon its agents."
           actions={
             <>

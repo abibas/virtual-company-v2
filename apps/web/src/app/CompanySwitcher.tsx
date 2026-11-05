@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import { useCompanyLogo } from '../api/company-logo.ts';
 import type { Membership } from '../api/types.ts';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../components/forms/Menu.tsx';
 import { CompanyBadge } from '../components/layout/Rail.tsx';
@@ -16,11 +17,12 @@ function CompanyItem({
   readonly current: boolean;
   readonly section: string;
 }) {
+  const src = useCompanyLogo(company.companyId, company.logo?.version);
   return (
     <MenuItem
       href={`/c/${company.slug}${section ? `/${section}` : ''}`}
       current={current}
-      leading={<CompanyLogo name={company.name} size="sm" />}
+      leading={<CompanyLogo name={company.name} src={src} size="sm" />}
       trailing={roleName(company.role)}
       {...(company.companyStatus !== 'active' ? { description: 'Being set up' } : {})}
     >
@@ -30,8 +32,8 @@ function CompanyItem({
 }
 
 /**
- * The company on screen as the rail's badge, and a menu of the person's other companies to switch to (on the same
- * page of the other company) or to create one.
+ * The company on screen as the rail's badge (its logo, or its initials), and a menu of the person's other companies
+ * to switch to (on the same page of the other company) or to create one.
  */
 export function CompanySwitcher({
   current,
@@ -41,9 +43,10 @@ export function CompanySwitcher({
   readonly section: string;
 }) {
   const { me } = useSession();
+  const src = useCompanyLogo(current.companyId, current.logo?.version);
   const companies = me.memberships.filter((membership) => membership.status === 'active');
   return (
-    <Menu trigger={(props) => <CompanyBadge name={current.name} {...props} />} width="w-72">
+    <Menu trigger={(props) => <CompanyBadge name={current.name} src={src} {...props} />} width="w-72">
       <MenuLabel>Your companies</MenuLabel>
       {companies.map((company) => (
         <CompanyItem
