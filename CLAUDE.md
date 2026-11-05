@@ -44,8 +44,8 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
 Node 24 (`.nvmrc`), pnpm (pinned in `package.json`), TypeScript 7, Biome, Vitest.
 Relative imports use the `.ts` extension; packages export TypeScript sources directly
 (bundling happens only for the deployable images). `index.ts` is for barrel re-exports only;
-executable entry points are `apps/server/src/main.ts`, `packages/cli/src/mwc.ts` and files in a
-package's `scripts/` (coverage excludes only those, the `src/index.ts` barrels and `apps/web`).
+executable entry points are `apps/server/src/main.ts`, `packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts` and
+files in a package's `scripts/` (coverage excludes only those, the `src/index.ts` barrels and `apps/web`).
 Coverage reports go to `.cache/coverage` (ignored). Biome does not format Markdown.
 `docs/schema.md` is generated; after a schema change run `pnpm --filter @mwc/db generate` and
 `pnpm --filter @mwc/db diagram`.
@@ -60,21 +60,26 @@ pnpm mwc structure --report  # early warnings: hot spots before a structure rule
 pnpm mwc ports          # the port map
 pnpm mwc login --server URL --company ID|SLUG  # save a personal API key (MWC_API_KEY or stdin, never an argument)
 pnpm mwc whoami         # who the saved key (or MWC_SERVER + MWC_API_KEY) acts as; mwc logout removes it
+pnpm mwc org tree       # the org chart as an indented tree; mwc agents list: the agents as a table (--json for both)
 ```
+
+`@mwc/mcp` (`packages/mcp`) is the MCP server for a person's own Claude Code (`me`, `org_chart`, `agents_list`), with
+the same login; adding it (`claude mcp add mwc -- node <repo>/packages/mcp/src/main.ts`) is the person's own step,
+never done from here (`docs/mcp.md`).
 
 `deploy/`: `compose.yml` is the dev Postgres only; `compose.prod.yml` is the prod-like stack (9990/9992)
 built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Node 24 directly. `mwc`
 itself runs on Node's own type stripping too (no tsx). Test helpers come from `@mwc/testkit` (a
 devDependency): `createTestApp()`, `createTestDb()` (PGlite by default, a fresh database on the dev
 Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock()`, `getJson`/`postJson`,
-`captureLogger()`, `seedCompany()` (a company with its owner and the owner's root position on the org chart), `seedAgent()` (an agent with its place), and the identity provider and store contracts (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
+`captureLogger()`, `seedCompany()` (a company with its owner and the owner's root position on the org chart), `seedAgent()` (an agent with its place), `seedMember()` and `seedApiKey()` (a person on the chart and a personal key the API accepts), and the identity provider and store contracts (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
 
 ## Layout
 
 Load the keep-structure skill (`.claude/skills/keep-structure`) before adding, moving or splitting files,
 or changing the schema. The map and its rules are `docs/structure.md`. In short: `apps/` are what we deploy (`server`, `web`,
-later `runner`), `packages/` the libraries (`shared`, `db`, `identity-core`, `testkit`, `cli`, later
-`harness-core`, `mcp`), `connectors/` the adapters to outside systems (`identity-clerk` first, S1.2),
+later `runner`), `packages/` the libraries (`shared`, `db`, `identity-core`, `testkit`, `cli`, `mcp`, later
+`harness-core`), `connectors/` the adapters to outside systems (`identity-clerk` first, S1.2),
 `deploy/` the compose files and Dockerfiles, `docs/`. Folders appear as their stage lands
 (`docs/roadmap.md`), never as empty placeholders.
 

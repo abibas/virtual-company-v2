@@ -95,7 +95,7 @@ importing a connector (depend on the port, wire the connector in `app.ts`); logi
   through their fakes; write database tests that pass on PGlite and on Postgres.
 - Coverage floors: 90% lines, statements and functions and 85% branches overall; 85% lines and 75%
   branches per file. Exclusions are only the `src/index.ts` barrels, the entries (`apps/server/src/main.ts`,
-  `packages/cli/src/mwc.ts`, `scripts/`) and `apps/web`: add tests, never exclusions.
+  `packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`, `scripts/`) and `apps/web`: add tests, never exclusions.
 - No frontend tests for now: the web is typechecked and built, not tested.
 - Keep process starts few (the Mac bills each one): drive code in-process with injected fakes.
 

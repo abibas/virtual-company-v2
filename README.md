@@ -100,9 +100,13 @@ Your own Claude Code (or a script) reaches the API with a personal API key. Make
 pbpaste | pnpm mwc login --server http://localhost:9950 --company <id|slug>   # or MWC_API_KEY=... ; never an argument
 pnpm mwc whoami         # user, company, role and key prefix (MWC_SERVER + MWC_API_KEY take precedence)
 pnpm mwc logout         # removes the saved key; revoke it with DELETE .../api-keys/:keyId if it may have leaked
+pnpm mwc org tree       # the org chart as an indented tree (--json, --company <slug>)
+pnpm mwc agents list    # the agents as a table (--status active|paused|archived|all, --json, --company <slug>)
 ```
 
-The key is saved per server in `~/.config/mwc/credentials.json` (0600, `MWC_CONFIG_DIR` moves it).
+The key is saved per server in `~/.config/mwc/credentials.json` (0600, `MWC_CONFIG_DIR` moves it). The same login
+serves the MCP server for your own Claude Code (`me`, `org_chart`, `agents_list`), which you add once with
+`claude mcp add mwc -- node <repo>/packages/mcp/src/main.ts`: `docs/mcp.md`.
 
 Pieces on their own: `pnpm dev:server` (the API against `DATABASE_URL`; `MWC_MIGRATE_ON_START=true`
 migrates first), `pnpm dev:web` (Vite on 9951, proxying `/api`, `/healthz` and `/readyz` to 9950),
@@ -126,10 +130,10 @@ Full map and rules: `docs/ports.md`.
 
 ```
 apps/        server, web (now); runner (S3)
-packages/    shared, db, identity-core, testkit, cli (now); harness-core (S4), mcp (S5)
+packages/    shared, db, identity-core, testkit, cli, mcp (now); harness-core (S4)
 connectors/  identity-clerk (now); harness-claude-code (S4), jira, github, gateway, harness-codex (S6–S7)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server
-docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, schema (generated)
+docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, mcp, schema (generated)
 ```
 
 Where each kind of code goes, the size limits and the coverage floors: `docs/structure.md`.

@@ -56,13 +56,13 @@ packages/db                 @mwc/db              drizzle schema, migrations/*.sq
 packages/identity-core      @mwc/identity-core   IdentityProvider port, normalized events, projector, reconcile, FakeIdentityProvider
 packages/harness-core       @mwc/harness-core    the HarnessDriver port (spawn args, event parsing, input encoding)
 packages/testkit            @mwc/testkit         createTestApp() on PGlite, fixtures, token minting, signed webhooks, provider contract suite, fake server/runner, fake `claude`
-packages/cli                @mwc/cli             mwc: check|dev|db|ports|login|whoami|logout|org|agents|task|inbox|machine|runner; @mwc/cli/credentials (the saved logins, also read by @mwc/mcp)
-packages/mcp                @mwc/mcp             MCP server for humans' Claude Code: me, org_chart, agents_list, send_message, read_thread, task_status, inbox_list, inbox_answer
+packages/cli                @mwc/cli             mwc: check|dev|db|ports|login|whoami|logout|org|agents|task|inbox|machine|runner; @mwc/cli/credentials (the saved logins, also read by @mwc/mcp), and the API calls, company choice and text rendering `mwc org tree`, `mwc agents list` and @mwc/mcp share (`@mwc/cli/api/*`, `/org/render`, S2.6)
+packages/mcp                @mwc/mcp             MCP server for humans' Claude Code: me, org_chart, agents_list (built in S2.6, stdio, docs/mcp.md), send_message, read_thread, task_status, inbox_list, inbox_answer
 connectors/identity-clerk   @mwc/identity-clerk  Clerk implementation of IdentityProvider (verifyToken, Backend API, verifyWebhook, role map)
 connectors/identity-oidc    @mwc/identity-oidc   other identity providers (OIDC) and user sync (SCIM), later
 connectors/harness-claude-code, harness-codex, jira, github, gateway   the HarnessDriver for each CLI, and the outside systems of S6–S7
 deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, later Dockerfile.runner and Kubernetes
-docs/                       architecture, roadmap, ports, structure, testing, clerk-setup, schema (generated); later runner-protocol, harness
+docs/                       architecture, roadmap, ports, structure, testing, clerk-setup, mcp (adding @mwc/mcp to your own Claude Code), schema (generated); later runner-protocol, harness
 ```
 
 ## 6. Data model v0 (Postgres; uuid v7 ids; `created_at`/`updated_at`)

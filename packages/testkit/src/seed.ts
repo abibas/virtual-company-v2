@@ -1,7 +1,8 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   type Agent,
   agents,
+  apiKeys,
   type Company,
   companies,
   type DbHandle,
@@ -19,7 +20,13 @@ import {
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { FAKE_ISSUER } from '@mwc/identity-core/fake';
-import type { CompanyStatus } from '@mwc/shared/enums';
+import {
+  API_KEY_ALPHABET,
+  API_KEY_PREFIXES,
+  API_KEY_SECRET_LENGTH,
+  apiKeyPrefix,
+} from '@mwc/shared/api-keys';
+import type { CompanyStatus, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
 import { AGENT_DEFAULTS } from '@mwc/shared/org';
 
 export interface SeedCompanyOptions {
@@ -125,4 +132,96 @@ export async function seedAgent(
     await t.insert(orgPositions, { principalId: principal.id, reportsToPrincipalId: reportsTo, title });
   }
   return { principal, agent };
+}
+
+export interface SeedMemberOptions {
+  readonly role?: MembershipRole;
+  readonly status?: MembershipStatus;
+  readonly displayName?: string;
+  readonly email?: string;
+  /** Whom they report to on the chart (a principal of the company), or null for no position at all. */
+  readonly reportsTo: string | null;
+  readonly title?: string | null;
+}
+
+export interface SeededMember {
+  readonly user: User;
+  readonly principal: Principal;
+  readonly membership: Membership;
+}
+
+/**
+ * A person in a company for tests that reach it with an API key (S2.6): their user (a global row; no identity at a
+ * provider, so no session sign-in), their person principal and membership (a member, active, unless said) and, unless
+ * `reportsTo` is null, their position on the chart. The chart's rules are not checked. Names are unique per call.
+ */
+export async function seedMember(
+  db: DbHandle,
+  companyId: string,
+  options: SeedMemberOptions,
+): Promise<SeededMember> {
+  const tag = randomBytes(4).toString('hex');
+  const [user] = (await rawDb(db)
+    .insert(users)
+    .values({
+      primaryEmail: (options.email ?? `member-${tag}@seed.test`).toLowerCase(),
+      displayName: options.displayName ?? `Member ${tag}`,
+    })
+    .returning()) as [User];
+  const t = await tenant(db, companyId);
+  const [principal] = (await t.insert(principals, { kind: 'person' }).returning()) as [Principal];
+  const role = options.role ?? 'member';
+  const [membership] = (await t
+    .insert(memberships, {
+      principalId: principal.id,
+      userId: user.id,
+      role,
+      grantedRole: role,
+      status: options.status ?? 'active',
+    })
+    .returning()) as [Membership];
+  if (options.reportsTo !== null) {
+    await t.insert(orgPositions, {
+      principalId: principal.id,
+      reportsToPrincipalId: options.reportsTo,
+      title: options.title ?? null,
+    });
+  }
+  return { user, principal, membership };
+}
+
+export interface SeedApiKeyOptions {
+  readonly name?: string;
+  readonly expiresAt?: Date | null;
+  readonly revokedAt?: Date | null;
+}
+
+/**
+ * A personal API key of a principal in a company, stored as `POST .../api-keys` stores one: only its SHA-256 (the
+ * server's `hashApiKey`) and its display prefix. Returns the key itself, for `Authorization: Bearer <key>`, and the
+ * row's id. It never expires unless `expiresAt` says.
+ */
+export async function seedApiKey(
+  db: DbHandle,
+  companyId: string,
+  principalId: string,
+  options: SeedApiKeyOptions = {},
+): Promise<{ readonly key: string; readonly id: string }> {
+  const secret = [...randomBytes(API_KEY_SECRET_LENGTH)]
+    .map((byte) => API_KEY_ALPHABET[byte % API_KEY_ALPHABET.length])
+    .join('');
+  const key = `mwc_${API_KEY_PREFIXES.personal}_${secret}`;
+  const t = await tenant(db, companyId);
+  const [row] = (await t
+    .insert(apiKeys, {
+      principalId,
+      kind: 'personal',
+      name: options.name ?? 'test key',
+      prefix: apiKeyPrefix(key),
+      secretHash: createHash('sha256').update(key, 'utf8').digest('hex'),
+      expiresAt: options.expiresAt ?? null,
+      revokedAt: options.revokedAt ?? null,
+    })
+    .returning({ id: apiKeys.id })) as [{ id: string }];
+  return { key, id: row.id };
 }

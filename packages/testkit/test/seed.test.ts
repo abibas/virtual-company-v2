@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import {
   agents,
+  apiKeys,
   CompanyNotFoundError,
   memberships,
   orgPositions,
@@ -8,15 +10,21 @@ import {
   userIdentities,
 } from '@mwc/db';
 import { migrateToLatest, rawDb } from '@mwc/db/system';
-import { FAKE_ISSUER } from '@mwc/identity-core/fake';
+import { FAKE_ISSUER, FakeIdentityProvider } from '@mwc/identity-core/fake';
+import { API_KEY_PATTERN, apiKeyKind } from '@mwc/shared/api-keys';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestApp, type TestApp } from '../src/app.ts';
 import { createTestDb, type TestDb } from '../src/db.ts';
-import { seedAgent, seedCompany } from '../src/seed.ts';
+import { getJson } from '../src/http.ts';
+import { seedAgent, seedApiKey, seedCompany, seedMember } from '../src/seed.ts';
 
 let testDb: TestDb;
+/** The API on the same database, for the keys `seedApiKey` makes. */
+let api: TestApp;
 beforeAll(async () => {
   testDb = await createTestDb();
   await migrateToLatest(testDb.handle);
+  api = await createTestApp({ db: testDb.handle, identity: new FakeIdentityProvider() });
 });
 afterAll(() => testDb.close());
 
@@ -121,5 +129,85 @@ describe('seedCompany', () => {
     const error = await seedCompany(testDb.handle, { status: 'deleted' }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(CompanyNotFoundError);
     await expect(tenant(testDb.handle, 'nope')).rejects.toBeInstanceOf(CompanyNotFoundError);
+  });
+});
+
+describe('seedMember', () => {
+  it('adds an active member with a user, a person principal and a place under the manager', async () => {
+    const { company, owner, tenant: scoped } = await seedCompany(testDb.handle);
+    const bob = await seedMember(testDb.handle, company.id, {
+      role: 'admin',
+      displayName: 'Bob',
+      email: 'Bob@Acme.test',
+      reportsTo: owner.principal.id,
+      title: 'CTO',
+    });
+    expect(bob.user).toMatchObject({ primaryEmail: 'bob@acme.test', displayName: 'Bob' });
+    expect(bob.principal).toMatchObject({ companyId: company.id, kind: 'person' });
+    expect(bob.membership).toMatchObject({
+      principalId: bob.principal.id,
+      userId: bob.user.id,
+      role: 'admin',
+      grantedRole: 'admin',
+      status: 'active',
+    });
+    expect(await scoped.select(orgPositions)).toContainEqual(
+      expect.objectContaining({
+        principalId: bob.principal.id,
+        reportsToPrincipalId: owner.principal.id,
+        title: 'CTO',
+      }),
+    );
+  });
+
+  it('defaults to a member with unique names, and places nobody for reportsTo null', async () => {
+    const { company, tenant: scoped } = await seedCompany(testDb.handle);
+    const one = await seedMember(testDb.handle, company.id, { reportsTo: null, status: 'suspended' });
+    const two = await seedMember(testDb.handle, company.id, { reportsTo: null });
+    expect(one.membership).toMatchObject({ role: 'member', status: 'suspended' });
+    expect(one.user.primaryEmail).not.toBe(two.user.primaryEmail);
+    expect(one.user.displayName).toMatch(/^Member [0-9a-f]{8}$/);
+    expect(await scoped.select(memberships)).toHaveLength(3);
+    expect(await scoped.select(orgPositions)).toHaveLength(1);
+  });
+});
+
+describe('seedApiKey', () => {
+  it('stores only the SHA-256 and the prefix of a personal key the server accepts', async () => {
+    const { company, owner, tenant: scoped } = await seedCompany(testDb.handle, { slug: 'keyed' });
+    const { key, id } = await seedApiKey(testDb.handle, company.id, owner.principal.id);
+    expect(key).toMatch(API_KEY_PATTERN);
+    expect(apiKeyKind(key)).toBe('personal');
+    const [row] = await scoped.select(apiKeys);
+    expect(row).toMatchObject({
+      id,
+      principalId: owner.principal.id,
+      kind: 'personal',
+      name: 'test key',
+      prefix: key.slice(0, 11),
+      secretHash: createHash('sha256').update(key).digest('hex'),
+      expiresAt: null,
+      revokedAt: null,
+    });
+    const me = await getJson(api.app, '/api/me', { authorization: `Bearer ${key}` });
+    expect(me).toMatchObject({
+      status: 200,
+      body: { memberships: [{ companyId: company.id, slug: 'keyed' }] },
+    });
+  });
+
+  it('takes a name, an expiry and a revocation, and the server refuses a revoked key', async () => {
+    const { company, owner } = await seedCompany(testDb.handle);
+    const revokedAt = new Date('2026-01-01T00:00:00Z');
+    const expiresAt = new Date('2030-01-01T00:00:00Z');
+    const seeded = await seedApiKey(testDb.handle, company.id, owner.principal.id, {
+      name: 'ci',
+      expiresAt,
+      revokedAt,
+    });
+    const other = await seedApiKey(testDb.handle, company.id, owner.principal.id);
+    expect(seeded.key).not.toBe(other.key);
+    const me = await getJson(api.app, '/api/me', { authorization: `Bearer ${seeded.key}` });
+    expect(me.status).toBe(401);
   });
 });

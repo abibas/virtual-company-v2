@@ -27,6 +27,28 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: The MCP server reuses the CLI's API client, company choice and rendering
+
+- **What happened:** S2.6's `@mwc/mcp` needed more of the CLI than the saved logins: the GET with a personal key and
+  the server's refusals, the chart and agents calls with their shapes, the key checked with `GET /api/me` and the
+  company chosen, and the tree and table text, so its tools answer exactly what `mwc org tree` and `mwc agents list`
+  print. The S1.9 lesson ("Code two packages run that is not a contract") foresaw this and suggested a small
+  `packages/client`, which is not on the approved map.
+- **Where:** `packages/cli/src/api/` (`client.ts` 71 lines, `org.ts` 127, `session.ts` 91) and `src/org/render.ts`
+  (112), exported as `@mwc/cli/api/client`, `/api/org`, `/api/session` and `/org/render`; `account/api.ts`'s `getMe`
+  now calls `apiGet`; `packages/mcp/src/tools/` imports them; S2.6.
+- **What was done:** the code stays with its owner, the CLI, as subpath exports (the placement the S1.9 lesson
+  suggests for runtime code another package reuses), so `@mwc/mcp` depends on `@mwc/cli` (which pulls in nothing but
+  `@mwc/shared`). The clients' tests needed people on the chart and a key the real API accepts: `seedMember` and
+  `seedApiKey` went to `@mwc/testkit`'s `src/seed.ts` (227 lines; a file of their own would have been the 13th entry
+  of `src/`, a `big-folder` warning), since the server's own `seedApiKey` lives in its `test/fixtures/` and hashes with
+  a server module the testkit cannot import (the testkit hashes the same way, and its test proves the server accepts
+  the key).
+- **Suggested change:** decide between keeping API clients as CLI subpath exports (a placement-table row: "an API
+  client the CLI and the MCP server share → `packages/cli/src/api/`, exported") and a `packages/client` on the map
+  before S4 adds the task and inbox calls to both.
+- **Status:** `open`.
+
 ### 2026-11-05: The org API: one routes file kept for fan-in, tests split by route group, rules parts that build on the entry
 
 - **What happened:** S2.3 added six routes to `modules/org/`. Two route group files (`routes/agents.ts`,

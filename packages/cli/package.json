@@ -5,14 +5,21 @@
   "description": "mwc: the developer and operator command line for Most Wanted Corp v2.",
   "type": "module",
   "exports": {
+    "./api/client": "./src/api/client.ts",
+    "./api/org": "./src/api/org.ts",
+    "./api/session": "./src/api/session.ts",
     "./args": "./src/args.ts",
     "./credentials": "./src/credentials.ts",
-    "./main": "./src/main.ts"
+    "./main": "./src/main.ts",
+    "./org/render": "./src/org/render.ts"
   },
   "scripts": {
     "test": "vitest run"
   },
   "dependencies": {
     "@mwc/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@mwc/testkit": "workspace:*"
   }
 }

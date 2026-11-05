@@ -49,13 +49,20 @@ export {
   type ProviderContractOptions,
 } from './provider-contract.ts';
 // A company with its owner (user, identity, principal, owner membership, root position) in one line (S1.3,
-// the position S2.3), and an agent with its place on the chart (S2.3); the tenant rows through the tenant layer.
+// the position S2.3), and an agent with its place on the chart (S2.3); more people on the chart and their personal
+// API keys (S2.6), for clients that call the API with a key (the mwc CLI, @mwc/mcp); the tenant rows through the
+// tenant layer.
 export {
   type SeedAgentOptions,
+  type SeedApiKeyOptions,
   type SeedCompanyOptions,
   type SeededCompany,
+  type SeededMember,
+  type SeedMemberOptions,
   seedAgent,
+  seedApiKey,
   seedCompany,
+  seedMember,
 } from './seed.ts';
 // The IdentityStore contract (S1.3): the port, the projector's convergence and reconcile on a store, run
 // against the in-memory store here and against the database store in @mwc/server. Also importable alone,

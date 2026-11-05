@@ -134,13 +134,34 @@ describe('main', () => {
     expect(await main(['login'], login.io)).toBe(2);
   });
 
-  it('lists the account commands in the help', () => {
+  it('runs org tree and agents list through the account fetch (here: not logged in, then usage errors)', async () => {
+    const config = tempConfig();
+    const account = { fetch: fakeApi().fetch, stdin: piped() };
+    for (const argv of [
+      ['org', 'tree'],
+      ['agents', 'list'],
+    ]) {
+      const c = capture({ env: config.env });
+      expect(await main(argv, c.io, { account })).toBe(1);
+      expect(c.err()).toMatch(new RegExp(`^mwc ${argv.join(' ')}: not logged in`));
+    }
+    const org = capture({ env: config.env });
+    expect(await main(['org'], org.io)).toBe(2);
+    expect(org.err()).toMatch(/^mwc org: expected "tree"/);
+    const agents = capture({ env: config.env });
+    expect(await main(['agents', 'show'], agents.io)).toBe(2);
+    expect(agents.err()).toMatch(/^mwc agents: expected "list", got "show"/);
+  });
+
+  it('lists the account and org commands in the help', () => {
     const c = capture();
     main(['help'], c.io);
     for (const command of [
       '  login --server URL --company ID|SLUG',
       '  whoami [--server URL]',
       '  logout [--server URL]',
+      '  org tree [--company SLUG] [--json]',
+      '  agents list [--company SLUG] [--status active|paused|archived|all] [--json]',
     ]) {
       expect(c.out()).toContain(command);
     }

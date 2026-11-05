@@ -1,0 +1,22 @@
+{
+  "name": "@mwc/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An MCP server for a person's own Claude Code: who am I, the org chart and the agents of their company, with their personal API key.",
+  "type": "module",
+  "exports": {
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@mwc/cli": "workspace:*",
+    "@mwc/shared": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@mwc/testkit": "workspace:*"
+  }
+}

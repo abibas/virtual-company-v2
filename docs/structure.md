@@ -47,7 +47,8 @@ Most_Wanted_corp_v2/
 │   ├── harness-core/               harness driver interface                    S4
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
-│   └── mcp/                        tools for your own Claude Code              S5
+│   │                               api/ (client, org, session), org/ (commands.ts, render.ts) S2.6
+│   └── mcp/                        tools for your own Claude Code (built: me, org_chart, agents_list) S2.6
 ├── connectors/                     adapters to outside systems
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
 │   ├── identity-oidc/              other identity providers, user sync         later
@@ -90,7 +91,11 @@ stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/ident
 runs, `@mwc/testkit/store-contract`, the `IdentityStore` contract every store runs, and `@mwc/testkit/webhooks`,
 svix-signed deliveries, which load without the server). Runtime code another package reuses is exported from its
 owner's `src/` the same way: `@mwc/cli/credentials` (S1.9), the saved logins of `mwc login`, which `@mwc/mcp` (S2.6)
-will read; the API key format both sides check is a contract, in `@mwc/shared/api-keys`. Helpers only a package's own
+reads, and what `mwc org tree`, `mwc agents list` and `@mwc/mcp` share (S2.6): `@mwc/cli/api/client` (a GET with a
+personal key and the server's refusals), `/api/org` (the chart and agents calls and their shapes), `/api/session` (the key
+checked with `GET /api/me`, the company chosen) and `/org/render` (the tree and the table as text); the API key format
+both sides check is a contract, in `@mwc/shared/api-keys`. `@mwc/testkit`'s `seedMember` and `seedApiKey` (S2.6) give
+those clients' tests people on the chart and a key the real API accepts. Helpers only a package's own
 tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtures/world.ts`).
 
 ## The server (`apps/server`)
@@ -194,7 +199,7 @@ reaches them.
 - every file on its own: 85% lines, 75% branches (Vitest's `thresholds.perFile`).
 
 Excluded are only the `src/index.ts` barrels, the executable entries (`apps/server/src/main.ts`,
-`packages/cli/src/mwc.ts`; `scripts/` are outside `src/`) and `apps/web/**`.
+`packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`; `scripts/` are outside `src/`) and `apps/web/**`.
 
 ## The web (`apps/web`)
 
