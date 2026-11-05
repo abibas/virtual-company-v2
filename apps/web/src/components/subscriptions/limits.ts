@@ -14,38 +14,53 @@ export const WARN_AT = 80;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The 5-hour and the weekly windows, shown as full rows. */
-const MAIN: Readonly<Partial<Record<LimitWindow['id'], string>>> = {
+const MAIN: Readonly<Record<string, string>> = {
   five_hour: '5-hour',
   seven_day: 'Weekly',
   weekly: 'Weekly',
 };
 
-/** Claude's per-model weekly windows, shown as compact rows when the provider gives them. */
-const MODELS: Readonly<Partial<Record<LimitWindow['id'], string>>> = {
-  seven_day_opus: 'Opus',
-  seven_day_sonnet: 'Sonnet',
-};
+/** A per-model window's id (`seven_day_fable`, `five_hour_opus`): its length and its model. */
+const MODEL_WINDOW = /^(five_hour|seven_day)_([a-z0-9]+)$/;
 
 export interface NamedWindow {
   readonly name: string;
   readonly window: LimitWindow;
 }
 
-const named = (table: typeof MAIN, limits: SubscriptionLimits): readonly NamedWindow[] =>
+/** A per-model window's short name: "Fable" for a weekly one, "Fable 5h" for a 5-hour one. */
+function modelName(id: string): string | undefined {
+  const [, length, model] = MODEL_WINDOW.exec(id) ?? [];
+  if (!model) return undefined;
+  const name = `${model.charAt(0).toUpperCase()}${model.slice(1)}`;
+  return length === 'five_hour' ? `${name} 5h` : name;
+}
+
+const named = (
+  limits: SubscriptionLimits,
+  nameOf: (id: string) => string | undefined,
+): readonly NamedWindow[] =>
   limits.windows.flatMap((window) => {
-    const name = table[window.id];
+    const name = nameOf(window.id);
     return name ? [{ name, window }] : [];
   });
 
 /** The 5-hour and weekly windows, in the provider's order. */
-export const mainWindows = (limits: SubscriptionLimits) => named(MAIN, limits);
+export const mainWindows = (limits: SubscriptionLimits) => named(limits, (id) => MAIN[id]);
 
-/** The per-model weekly windows (Opus, Sonnet). */
-export const modelWindows = (limits: SubscriptionLimits) => named(MODELS, limits);
+/** The per-model windows (Opus, Sonnet, Fable, … whatever the provider reports). */
+export const modelWindows = (limits: SubscriptionLimits) => named(limits, modelName);
 
-/** A bar's colour: grey for an old reading, red when the limit is reached, amber from 80%, else the brand blue. */
-export function meterTone(window: LimitWindow, stale: boolean): MeterTone {
-  if (stale) return 'pending';
+/** Whether a window's reset time has passed: its reading is from before the reset, so it is being checked again. */
+export const resetPassed = (window: LimitWindow, now: number) =>
+  window.resetsAt !== null && new Date(window.resetsAt).getTime() <= now;
+
+/**
+ * A bar's colour: grey for an old reading (stale, or its reset has passed), red when the limit is reached, amber
+ * from 80%, else the brand blue.
+ */
+export function meterTone(window: LimitWindow, stale: boolean, now: number): MeterTone {
+  if (stale || resetPassed(window, now)) return 'pending';
   if (window.reached) return 'failed';
   return window.usedPercent >= WARN_AT ? 'input' : 'blue';
 }
@@ -60,13 +75,17 @@ export function percentText(usedPercent: number): string {
 export function resetText(resetsAt: string | null, now: number): string | undefined {
   if (!resetsAt) return undefined;
   const left = new Date(resetsAt).getTime() - now;
-  if (left <= 0) return 'resets now';
+  if (left <= 0) return undefined;
   if (left < DAY_MS) return `resets in ${formatDuration(left)}`;
   return `resets ${formatWeekdayTime(resetsAt)}`;
 }
 
-/** The line beside a bar: "18% · resets in 1h 56m", "Limit reached · resets …". */
+/** What a window whose reset has passed says until the next check: never its old share. */
+export const UPDATING = 'updating…';
+
+/** The line beside a bar: "18% · resets in 1h 56m", "Limit reached · resets …", "updating…" after its reset. */
 export function windowLine(window: LimitWindow, now: number): string {
+  if (resetPassed(window, now)) return UPDATING;
   const share = window.reached ? 'Limit reached' : percentText(window.usedPercent);
   return [share, resetText(window.resetsAt, now)].filter(Boolean).join(' · ');
 }
@@ -87,8 +106,8 @@ export function sourceText(limits: SubscriptionLimits, now: number): string {
   return `${source}, checked ${today ? `at ${formatTime(limits.checkedAt)}` : formatDateTime(limits.checkedAt)}`;
 }
 
-/** The time now, again every `everyMs` (a minute by default), so "resets in" lines stay true on an open page. */
-export function useNow(everyMs = 60_000): number {
+/** The time now, again every `everyMs` (30 seconds by default), so "resets in" lines stay true on an open page. */
+export function useNow(everyMs = 30_000): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), everyMs);

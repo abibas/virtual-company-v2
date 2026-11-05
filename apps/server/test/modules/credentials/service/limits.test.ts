@@ -3,6 +3,7 @@ import { rawDb } from '@mwc/db/system';
 import { getJson, seedCompany, TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { LIMIT_WINDOW_ID, LimitWindowSchema } from '../../../../src/modules/credentials/schemas/limits.ts';
 import { addPerson, seedApiKey } from '../../../fixtures/auth.ts';
 import { addUser, call, type LinkedUser } from '../../../fixtures/companies.ts';
 import {
@@ -22,6 +23,8 @@ const SETUP_TOKEN = 'sk-ant-oat01-LIMITSsetupNEVERlogged_0123456789';
 const PROVIDER_SECRET = 'provider-answer-NEVERlogged';
 const MINUTE = 60_000;
 const IN_A_DAY = Date.parse(TEST_NOW) + 24 * 60 * MINUTE;
+/** The ISO time `ms` after TEST_NOW. */
+const at = (ms: number) => new Date(Date.parse(TEST_NOW) + ms).toISOString();
 
 const USAGE = {
   five_hour: { utilization: 12, resets_at: '2026-11-03T15:00:00Z' },
@@ -139,22 +142,31 @@ describe('GET /api/me/subscriptions/limits', () => {
     expect(w.provider.calls).toEqual([]);
   });
 
-  it('checks a subscription the first time, then answers from the cache; refresh=1 checks again past 5 minutes', async () => {
+  it('checks a subscription the first time, answers from the cache, and a plain GET checks again after 3 minutes', async () => {
     const { user, id } = await personWithLogin();
     w.provider.always(URLS.claudeUsage, json(200, USAGE));
     await limitsOf(w, user);
     expect((await limitsOf(w, user)).get(id)?.checkedAt).toBe(TEST_NOW);
-    w.clock.advance(5 * MINUTE - 1);
-    expect((await limitsOf(w, user, '?refresh=1')).get(id)?.checkedAt).toBe(TEST_NOW);
-    w.clock.advance(1);
+    w.clock.advance(3 * MINUTE - 1);
     expect((await limitsOf(w, user)).get(id)?.checkedAt).toBe(TEST_NOW);
-    const checked = (await limitsOf(w, user, '?refresh=true')).get(id);
-    expect(checked?.checkedAt).toBe(new Date(Date.parse(TEST_NOW) + 5 * MINUTE).toISOString());
+    w.clock.advance(1);
+    expect((await limitsOf(w, user)).get(id)?.checkedAt).toBe(at(3 * MINUTE));
     expect(w.provider.callsTo(URLS.claudeUsage)).toHaveLength(2);
     expect((await usesOf(w.t.db, id)).map((u) => u.purpose)).toEqual(['usage_check', 'usage_check']);
   });
 
-  it('waits 15 minutes between two probes of a setup-token', async () => {
+  it('forces a check with refresh=1 (or true), at most once a minute', async () => {
+    const { user, id } = await personWithLogin();
+    w.provider.always(URLS.claudeUsage, json(200, USAGE));
+    await limitsOf(w, user);
+    w.clock.advance(MINUTE - 1);
+    expect((await limitsOf(w, user, '?refresh=1')).get(id)?.checkedAt).toBe(TEST_NOW);
+    w.clock.advance(1);
+    expect((await limitsOf(w, user, '?refresh=true')).get(id)?.checkedAt).toBe(at(MINUTE));
+    expect(w.provider.callsTo(URLS.claudeUsage)).toHaveLength(2);
+  });
+
+  it('waits 15 minutes between two plain probes of a setup-token; refresh=1 forces one after a minute', async () => {
     const user = await addUser(w.t.db, w.fake);
     const token = await add(user, { kind: 'claude_setup_token', label: 'Setup', token: SETUP_TOKEN });
     w.provider.always(
@@ -163,10 +175,105 @@ describe('GET /api/me/subscriptions/limits', () => {
         new Response('{}', { status: 200, headers: { 'anthropic-ratelimit-unified-5h-utilization': '0.1' } }),
     );
     expect((await limitsOf(w, user)).get(token.id)?.source).toBe('message_headers');
-    w.clock.advance(14 * MINUTE);
-    await limitsOf(w, user, '?refresh=1');
+    w.clock.advance(15 * MINUTE - 1);
+    await limitsOf(w, user);
     expect(w.provider.callsTo(URLS.messages)).toHaveLength(1);
+    w.clock.advance(1);
+    await limitsOf(w, user);
+    expect(w.provider.callsTo(URLS.messages)).toHaveLength(2);
     w.clock.advance(MINUTE);
+    await limitsOf(w, user, '?refresh=1');
+    expect(w.provider.callsTo(URLS.messages)).toHaveLength(3);
+  });
+
+  it('checks again once a window has reset, whatever the floor, but at most once a minute', async () => {
+    const user = await addUser(w.t.db, w.fake);
+    const token = await add(user, { kind: 'claude_setup_token', label: 'Setup', token: SETUP_TOKEN });
+    const resetAt = String((Date.parse(TEST_NOW) + 30_000) / 1000);
+    w.provider.always(
+      URLS.messages,
+      () =>
+        new Response('{}', {
+          status: 200,
+          headers: {
+            'anthropic-ratelimit-unified-5h-utilization': '0.74',
+            'anthropic-ratelimit-unified-5h-reset': resetAt,
+          },
+        }),
+    );
+    await limitsOf(w, user);
+    w.clock.advance(30_000);
+    await limitsOf(w, user);
+    w.clock.advance(30_000 - 1);
+    await limitsOf(w, user);
+    expect(w.provider.callsTo(URLS.messages)).toHaveLength(1);
+    w.clock.advance(1);
+    expect((await limitsOf(w, user)).get(token.id)?.checkedAt).toBe(at(MINUTE));
+    expect(w.provider.callsTo(URLS.messages)).toHaveLength(2);
+    w.clock.advance(5 * MINUTE);
+    await limitsOf(w, user);
+    expect(w.provider.callsTo(URLS.messages)).toHaveLength(2);
+  });
+
+  it("honours a 429's Retry-After, keeping the last good windows stale, even against refresh=1", async () => {
+    const { user, id } = await personWithLogin();
+    w.provider.once(URLS.claudeUsage, json(200, USAGE));
+    const good = (await limitsOf(w, user)).get(id);
+    w.provider.once(URLS.claudeUsage, json(429, {}, { 'retry-after': '600' }));
+    w.provider.always(URLS.claudeUsage, json(200, USAGE));
+    w.clock.advance(3 * MINUTE);
+    expect((await limitsOf(w, user)).get(id)).toMatchObject({
+      windows: good?.windows,
+      error: { code: 'rate_limited' },
+      stale: true,
+    });
+    w.clock.advance(10 * MINUTE - 1);
+    expect((await limitsOf(w, user, '?refresh=1')).get(id)?.stale).toBe(true);
+    expect(w.provider.callsTo(URLS.claudeUsage)).toHaveLength(2);
+    w.clock.advance(1);
+    expect((await limitsOf(w, user)).get(id)).toMatchObject({
+      error: null,
+      stale: false,
+      checkedAt: at(13 * MINUTE),
+    });
+  });
+
+  it('backs off after 429s without Retry-After: 3, 6, 12, then 15 minutes, and back to the floor after a good one', async () => {
+    const { user, id } = await personWithLogin();
+    for (let i = 0; i < 4; i += 1) w.provider.once(URLS.claudeUsage, json(429, {}));
+    w.provider.always(URLS.claudeUsage, json(200, USAGE));
+    await limitsOf(w, user);
+    let calls = 1;
+    for (const wait of [3, 6, 12, 15]) {
+      w.clock.advance(wait * MINUTE - 1);
+      await limitsOf(w, user, '?refresh=1');
+      expect(w.provider.callsTo(URLS.claudeUsage)).toHaveLength(calls);
+      w.clock.advance(1);
+      await limitsOf(w, user);
+      calls += 1;
+      expect(w.provider.callsTo(URLS.claudeUsage)).toHaveLength(calls);
+    }
+    expect((await limitsOf(w, user)).get(id)).toMatchObject({ error: null, stale: false });
+    w.clock.advance(3 * MINUTE);
+    await limitsOf(w, user);
+    expect(w.provider.callsTo(URLS.claudeUsage)).toHaveLength(calls + 1);
+  });
+
+  it('keeps the 429 wait of a refused token refresh and of a setup-token probe too', async () => {
+    const { user, id } = await personWithLogin();
+    const setup = await add(user, { kind: 'claude_setup_token', label: 'Setup', token: SETUP_TOKEN });
+    w.provider
+      .once(URLS.claudeUsage, json(401, {}))
+      .once(URLS.claudeToken, json(429, {}, { 'retry-after': '120' }))
+      .once(URLS.messages, json(429, {}, { 'retry-after': '240' }));
+    await limitsOf(w, user);
+    w.provider.always(URLS.claudeUsage, json(200, USAGE)).always(URLS.messages, json(429, {}));
+    w.clock.advance(2 * MINUTE);
+    const limits = await limitsOf(w, user, '?refresh=1');
+    expect(limits.get(id)?.error).toBeNull();
+    expect(limits.get(setup.id)?.error?.code).toBe('rate_limited');
+    expect(w.provider.callsTo(URLS.messages)).toHaveLength(1);
+    w.clock.advance(2 * MINUTE);
     await limitsOf(w, user, '?refresh=1');
     expect(w.provider.callsTo(URLS.messages)).toHaveLength(2);
   });
@@ -285,5 +392,24 @@ describe('GET /api/me/subscriptions/limits', () => {
     expect(doc.paths['/api/me/subscriptions/limits']?.get?.responses).toHaveProperty('200');
     expect(doc.components.schemas).toHaveProperty('SubscriptionLimits');
     expect(doc.components.schemas).toHaveProperty('LimitWindow');
+    const window = doc.components.schemas.LimitWindow as { properties: { id: Record<string, unknown> } };
+    expect(window.properties.id).toMatchObject({ type: 'string', pattern: LIMIT_WINDOW_ID.source });
+  });
+
+  it("takes any model's window id in the response schema, and nothing else", () => {
+    const window = (id: string) => ({ id, label: id, usedPercent: 1, resetsAt: null, reached: false });
+    for (const id of [
+      'five_hour',
+      'seven_day',
+      'weekly',
+      'seven_day_fable',
+      'seven_day_opus',
+      'five_hour_x1',
+    ]) {
+      expect(LimitWindowSchema.safeParse(window(id)).success).toBe(true);
+    }
+    for (const id of ['seven_day_oauth_apps', 'monthly', 'seven_day_', 'Seven_day', 'seven_day_Fable', '']) {
+      expect(LimitWindowSchema.safeParse(window(id)).success).toBe(false);
+    }
   });
 });

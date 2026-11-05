@@ -57,6 +57,7 @@ const SAMPLE_LIMITS: readonly SubscriptionLimits[] = [
       limitWindow('seven_day', 29, 6 * 24 * 60 + 450),
       limitWindow('seven_day_opus', 12, 6 * 24 * 60 + 450),
       limitWindow('seven_day_sonnet', 4, 6 * 24 * 60 + 450),
+      limitWindow('seven_day_fable', 31, 6 * 24 * 60 + 450),
     ],
   }),
   entry(2, {

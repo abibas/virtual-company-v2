@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
@@ -27,14 +27,79 @@ export function useSubscriptions(): Loaded<{ readonly subscriptions: readonly Su
 export interface LiveLimits extends Loaded<LimitsList> {
   /** A refresh the person asked for is on its way. */
   readonly refreshing: boolean;
-  /** Asks the providers again (`?refresh=1`, past the server's 5-minute floor): on the person's click only. */
+  /** Asks the providers again now (`?refresh=1`; the server checks each subscription at most once a minute). */
   refresh(): void;
 }
 
-/** The limits of the person's subscriptions: the server's cached answer on load, a fresh check on request. */
+/** How often an open, visible page asks again; the server's floor for the logins' usage APIs is the same. */
+export const LIMITS_EVERY_MS = 3 * 60_000;
+/** How long after a window's reset the page asks again, so the provider has the new window by then. */
+const AFTER_RESET_MS = 30_000;
+/** The server checks a subscription at most once a minute, so asking sooner after the last answer brings nothing new. */
+const SERVER_CAP_MS = 61_000;
+
+/**
+ * How long until the next automatic refresh: 3 minutes after the last answer, or sooner, about 30 seconds after the
+ * first window that resets after that answer (never within the server's minute).
+ */
+export function nextRefreshIn(data: LimitsList | undefined, lastAnswerAt: number, now: number): number {
+  let at = lastAnswerAt + LIMITS_EVERY_MS;
+  for (const window of (data?.limits ?? []).flatMap((item) => item.windows)) {
+    const resetsAt = window.resetsAt === null ? Number.NaN : new Date(window.resetsAt).getTime();
+    if (resetsAt > lastAnswerAt)
+      at = Math.min(at, Math.max(resetsAt + AFTER_RESET_MS, lastAnswerAt + SERVER_CAP_MS));
+  }
+  return Math.max(0, at - now);
+}
+
+/**
+ * Keeps the limits fresh while the page is visible: the next refresh from `nextRefreshIn`, paused while the tab is
+ * hidden, and at once when it shows again after more than 3 minutes away.
+ */
+function useAutoRefresh(
+  data: LimitsList | undefined,
+  loading: boolean,
+  lastAnswerAt: { readonly current: number },
+  ask: () => void,
+) {
+  useEffect(() => {
+    if (loading) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let hiddenAt = document.hidden ? Date.now() : null;
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!document.hidden) timer = setTimeout(ask, nextRefreshIn(data, lastAnswerAt.current, Date.now()));
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        clearTimeout(timer);
+        return;
+      }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (away > LIMITS_EVERY_MS) ask();
+      else schedule();
+    };
+    schedule();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [data, loading, lastAnswerAt, ask]);
+}
+
+/**
+ * The limits of the person's subscriptions: the server's answer on load, again on their own while the page is visible
+ * (`useAutoRefresh`), and on request (the button). Both go through the same loader and request; the automatic one
+ * leaves out `?refresh=1`, since a plain request already checks what is past its floor or reset, and a forced one
+ * would probe a setup-token every 3 minutes, spending its usage. Only the button shows it spinning.
+ */
 export function useSubscriptionLimits(): LiveLimits {
   const api = useApi();
   const wanted = useRef(false);
+  const lastAnswerAt = useRef(Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const loaded = useLoad('subscription-limits', async () => {
     const refresh = wanted.current;
@@ -42,6 +107,7 @@ export function useSubscriptionLimits(): LiveLimits {
     try {
       return await call(api.api.me.subscriptions.limits.$get({ query: refresh ? { refresh: '1' } : {} }));
     } finally {
+      lastAnswerAt.current = Date.now();
       if (refresh) setRefreshing(false);
     }
   });
@@ -51,6 +117,7 @@ export function useSubscriptionLimits(): LiveLimits {
     setRefreshing(true);
     reload();
   }, [reload]);
+  useAutoRefresh(loaded.data, loaded.loading, lastAnswerAt, reload);
   return { ...loaded, refreshing, refresh };
 }
 

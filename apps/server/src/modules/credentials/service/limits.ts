@@ -1,7 +1,14 @@
 import { type Credential, owned } from '@mwc/db';
 import type { Logger } from 'pino';
 import { credentialsRepo } from '../repo.ts';
-import { pastFloor, type UsageErrorCode, usageError, usageSourceOf } from '../rules/limits.ts';
+import {
+  backoffMs,
+  checkDue,
+  retryAfterMs,
+  type UsageErrorCode,
+  usageError,
+  usageSourceOf,
+} from '../rules/limits.ts';
 import type { SubscriptionLimits, UsageSource } from '../schemas/limits.ts';
 import type { Caller } from '../service.ts';
 import type { AnySecret } from './secret-updates.ts';
@@ -19,9 +26,11 @@ import { checkSetupToken } from './usage/setup-token.ts';
 
 /**
  * The limits widget's logic (S3.3, docs/subscriptions.md "The limits widget"): each of the caller's subscriptions
- * with its last check from the cache. A subscription never checked in this process is checked now; with `refresh`,
- * so is one whose last check is past its floor (5 minutes, 15 for the setup-token probe). One check runs per
- * subscription at a time and concurrent callers share it. Each check opens the secret through `useCredentialSecret`
+ * with its last check from the cache. Each request checks a subscription never checked in this process, one past its
+ * floor (3 minutes, 15 for the setup-token probe) and one whose window reset since its last check; `refresh` forces a
+ * check. Nothing is checked within a minute of its last check, nor before a provider's 429 wait is over (its
+ * `Retry-After`, else 3, 6, 12 then 15 minutes). One check runs per subscription at a time and concurrent callers
+ * share it. Each check opens the secret through `useCredentialSecret`
  * (`usage_check`, recorded in `credential_uses`), stores a refreshed token set with `replaceCredentialSecret`, and
  * marks a login that no longer works as `needs_sign_in` (and `active` again once it works). A failed check keeps the
  * last good windows, marked stale. Logs name the credential, its kind and the refusal's code only: never a token or a
@@ -108,6 +117,14 @@ async function outcomeFor(l: Limits, row: Credential, caller: Caller): Promise<U
   }
 }
 
+/** After a 429: the provider's `Retry-After`, else the backoff of this many 429s in a row; else no wait. */
+function rateLimitWait(outcome: UsageOutcome, previous: UsageEntry | undefined, checkedAt: Date) {
+  if (outcome.ok || outcome.code !== 'rate_limited') return { retryAt: null, rateLimits: 0 };
+  const rateLimits = (previous?.rateLimits ?? 0) + 1;
+  const wait = retryAfterMs(outcome.retryAfter, checkedAt) ?? backoffMs(rateLimits);
+  return { retryAt: new Date(checkedAt.getTime() + wait), rateLimits };
+}
+
 /** One check: its outcome in the cache (keeping the last good windows), and the login's status kept in step. */
 async function check(l: Limits, row: Credential, caller: Caller): Promise<UsageEntry> {
   const checkedAt = l.deps.clock();
@@ -123,18 +140,18 @@ async function check(l: Limits, row: Credential, caller: Caller): Promise<UsageE
     checkedAt,
     error: code === null ? null : usageError(code),
     lastGood: outcome.ok ? { windows: outcome.windows, checkedAt } : (previous?.lastGood ?? null),
+    ...rateLimitWait(outcome, previous, checkedAt),
   };
   await l.deps.usageCache.set(row.id, entry);
   return entry;
 }
 
-/** The subscription's entry: the check in flight, the cached one, or a new check when it is due. */
+/** The subscription's entry: the check in flight, the cached one, or a new check when it is due (`checkDue`). */
 async function entryFor(l: Limits, row: Credential, source: Checked, caller: Caller, refresh: boolean) {
   const running = l.inFlight.get(row.id);
   if (running) return running;
   const cached = await l.deps.usageCache.get(row.id);
-  const due = cached === undefined || (refresh && pastFloor(source, cached.checkedAt, l.deps.clock()));
-  if (!due) return cached;
+  if (!checkDue(source, cached, l.deps.clock(), refresh)) return cached;
   const raced = l.inFlight.get(row.id);
   if (raced) return raced;
   const started = check(l, row, caller).finally(() => l.inFlight.delete(row.id));

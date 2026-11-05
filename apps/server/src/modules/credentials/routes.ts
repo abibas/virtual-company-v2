@@ -103,9 +103,11 @@ const limitsRoute = (deps: ServerDeps) => {
       'api.anthropic.com/api/oauth/usage`, an OpenAI login from `GET chatgpt.com/backend-api/wham/usage` (both ' +
       'refreshing an expired token and storing it sealed again), a setup-token from the ' +
       '`anthropic-ratelimit-unified-*` headers of a one-token Messages request; API keys and gateways have none ' +
-      "(`source: 'none'`). Answers come from the server's cache: a subscription never checked yet is checked now, " +
-      'and `refresh=1` also checks one whose last check is at least 5 minutes old (15 for the setup-token probe, ' +
-      'which spends a little of the subscription). A failed check keeps the last good windows, marked `stale`, ' +
+      "(`source: 'none'`). Answers come from the server's cache, and each request checks a subscription never " +
+      'checked yet, one whose last check is at least 3 minutes old (15 for the setup-token probe, which spends a ' +
+      'little of the subscription) and one whose window reset since; `refresh=1` forces a check. None is checked ' +
+      "within a minute of its last check or before a provider's 429 wait is over (its `Retry-After`, else 3, 6, 12, " +
+      'then 15 minutes). A failed check keeps the last good windows, marked `stale`, ' +
       'with the refusal in plain words. A login that no longer signs in is marked `needs_sign_in`.',
     request: { query: LimitsQuerySchema },
     responses: {

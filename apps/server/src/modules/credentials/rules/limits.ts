@@ -1,5 +1,11 @@
 import type { CredentialKind } from '@mwc/shared/enums';
-import type { LimitWindow, LimitWindowId, UsageError, UsageSource } from '../schemas/limits.ts';
+import {
+  LIMIT_WINDOW_ID,
+  type LimitWindow,
+  type LimitWindowId,
+  type UsageError,
+  type UsageSource,
+} from '../schemas/limits.ts';
 
 /**
  * The limits' pure rules (S3.3, docs/subscriptions.md "The limits widget"): where each kind's limits come from, how
@@ -22,28 +28,93 @@ export function usageSourceOf(kind: CredentialKind): UsageSource {
 const MINUTE = 60_000;
 
 /**
- * The least time between two checks of one subscription: 5 minutes for a usage API (they rate-limit), 15 for the
- * one-token Messages probe, which spends a little of the subscription.
+ * The least time between two checks of one subscription: 3 minutes for a usage API (a Claude or OpenAI login), 15 for
+ * the one-token Messages probe, which spends a little of the subscription.
  */
 export const USAGE_FLOOR_MS: Readonly<Record<Exclude<UsageSource, 'none'>, number>> = {
-  usage_api: 5 * MINUTE,
+  usage_api: 3 * MINUTE,
   message_headers: 15 * MINUTE,
 };
 
-/** `refresh=1` (or `true`) asks for a check of every subscription past its floor. */
+/** The least time between two checks whatever asks for them: a forced refresh, or a window whose reset has passed. */
+export const RECHECK_CAP_MS = MINUTE;
+
+/** After a 429 without `Retry-After`: 3, 6, 12 minutes, then 15 each time until a check gets through. */
+export const BACKOFF_MS = { first: 3 * MINUTE, max: 15 * MINUTE } as const;
+
+/** The longest `Retry-After` honoured, so an odd answer cannot silence a subscription for days. */
+export const MAX_RETRY_AFTER_MS = 60 * MINUTE;
+
+/** `refresh=1` (or `true`) forces a check of every subscription, still at most once a minute each. */
 export const wantsRefresh = (refresh: string | undefined) => refresh === '1' || refresh === 'true';
 
 /** Whether a subscription checked at `checkedAt` may be checked again at `now`. */
 export const pastFloor = (source: Exclude<UsageSource, 'none'>, checkedAt: Date, now: Date) =>
   now.getTime() - checkedAt.getTime() >= USAGE_FLOOR_MS[source];
 
-export const WINDOW_LABELS: Readonly<Record<LimitWindowId, string>> = {
-  five_hour: '5-hour limit',
-  seven_day: 'Weekly limit',
-  seven_day_opus: 'Opus weekly limit',
-  seven_day_sonnet: 'Sonnet weekly limit',
-  weekly: 'Weekly limit',
+/** What decides whether a subscription is due: its last check, its rate-limit wait and its last good windows. */
+export interface LastCheck {
+  readonly checkedAt: Date;
+  readonly retryAt?: Date | null;
+  readonly lastGood: { readonly windows: readonly Pick<LimitWindow, 'resetsAt'>[] } | null;
+}
+
+/** Whether one of the last good windows reset after the last check, so its numbers are surely old. */
+export function resetPassed(last: LastCheck, now: Date): boolean {
+  return (last.lastGood?.windows ?? []).some((window) => {
+    if (window.resetsAt === null) return false;
+    const at = Date.parse(window.resetsAt);
+    return at > last.checkedAt.getTime() && at <= now.getTime();
+  });
+}
+
+/**
+ * Whether a subscription is checked on this request: one never checked, always; else never within a provider's
+ * rate-limit wait nor within a minute of the last check, and then when forced, when a window reset since the last
+ * check, or past its floor.
+ */
+export function checkDue(
+  source: Exclude<UsageSource, 'none'>,
+  last: LastCheck | undefined,
+  now: Date,
+  force: boolean,
+): boolean {
+  if (last === undefined) return true;
+  if (last.retryAt && now.getTime() < last.retryAt.getTime()) return false;
+  if (now.getTime() - last.checkedAt.getTime() < RECHECK_CAP_MS) return false;
+  return force || resetPassed(last, now) || pastFloor(source, last.checkedAt, now);
+}
+
+/** The wait after the n-th 429 in a row (n ≥ 1) without `Retry-After`: doubling from 3 minutes, at most 15. */
+export const backoffMs = (n: number) => Math.min(BACKOFF_MS.max, BACKOFF_MS.first * 2 ** Math.max(0, n - 1));
+
+/** A `Retry-After` header as a wait in ms: seconds, or an HTTP date from `now`; at most an hour; else null. */
+export function retryAfterMs(value: string | null | undefined, now: Date): number | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  const ms = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - now.getTime();
+  if (Number.isNaN(ms)) return null;
+  return Math.min(MAX_RETRY_AFTER_MS, Math.max(0, ms));
+}
+
+const BASE_LABELS: Readonly<Record<string, readonly [whole: string, short: string]>> = {
+  five_hour: ['5-hour limit', '5-hour'],
+  seven_day: ['Weekly limit', 'Weekly'],
+  weekly: ['Weekly limit', 'Weekly'],
 };
+
+/** A window's label: "5-hour limit", "Weekly limit", or per model "Weekly · Fable", "5-hour · Opus". */
+export function windowLabel(id: LimitWindowId): string {
+  const [, base = '', model] = LIMIT_WINDOW_ID.exec(id) ?? [];
+  const [whole, short] = BASE_LABELS[base] ?? [id, id];
+  return model ? `${short} · ${model.charAt(0).toUpperCase()}${model.slice(1)}` : whole;
+}
+
+/** The card's order: the 5-hour window, the weekly one, then the per-model ones in the provider's order. */
+export function windowOrder(windows: readonly LimitWindow[]): LimitWindow[] {
+  const rank = (id: string) => (id === 'five_hour' ? 0 : id === 'seven_day' || id === 'weekly' ? 1 : 2);
+  return [...windows].sort((a, b) => rank(a.id) - rank(b.id));
+}
 
 /**
  * A window as the API shows it: the percentage used kept within 0–100 and rounded to two decimals, and reached when
@@ -56,7 +127,7 @@ export function limitWindow(
   reached?: boolean,
 ): LimitWindow {
   const used = Math.round(Math.min(100, Math.max(0, usedPercent)) * 100) / 100;
-  return { id, label: WINDOW_LABELS[id], usedPercent: used, resetsAt, reached: reached ?? used >= 100 };
+  return { id, label: windowLabel(id), usedPercent: used, resetsAt, reached: reached ?? used >= 100 };
 }
 
 /** A provider's time as ISO: epoch seconds (a number, or digits in a header), or a date string; else null. */

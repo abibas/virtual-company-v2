@@ -77,7 +77,7 @@ async function refresh(login: CodexLogin, ctx: LoginContext<'codex_oauth'>): Pro
   });
   if (!response.ok) {
     await discard(response);
-    throw refreshFailure(response.status);
+    throw refreshFailure(response.status, response.headers.get('retry-after'));
   }
   const fresh = await readObject(response);
   const accessToken = text(fresh.access_token);

@@ -60,7 +60,7 @@ const stored = async (user: LinkedUser, id: string) => {
 };
 
 describe('claudeWindows', () => {
-  it('reads the four windows as percentages, leaving out the missing ones and the rest of the answer', () => {
+  it('reads the windows as percentages, leaving out the missing ones and the rest of the answer', () => {
     expect(
       claudeWindows({
         five_hour: { utilization: 12.345, resets_at: '2026-11-03T15:00:00Z' },
@@ -78,9 +78,26 @@ describe('claudeWindows', () => {
         resetsAt: '2026-11-03T15:00:00.000Z',
         reached: false,
       },
-      { id: 'seven_day_opus', label: 'Opus weekly limit', usedPercent: 100, resetsAt: null, reached: true },
+      { id: 'seven_day_opus', label: 'Weekly · Opus', usedPercent: 100, resetsAt: null, reached: true },
     ]);
     expect(claudeWindows({})).toEqual([]);
+  });
+
+  it('reads any per-model window (seven_day_fable), 5-hour and weekly first, and ignores keys it does not know', () => {
+    const windows = claudeWindows({
+      seven_day_fable: { utilization: 31, resets_at: '2026-11-11T04:00:00Z' },
+      seven_day: { utilization: 51, resets_at: '2026-11-11T04:00:00Z' },
+      five_hour: { utilization: 22, resets_at: '2026-11-05T23:40:00Z' },
+      seven_day_Fable: { utilization: 9 },
+      fourteen_day: { utilization: 9 },
+      seven_days: { utilization: 9 },
+      five_hour_: { utilization: 9 },
+    });
+    expect(windows.map((x) => [x.id, x.label, x.usedPercent])).toEqual([
+      ['five_hour', '5-hour limit', 22],
+      ['seven_day', 'Weekly limit', 51],
+      ['seven_day_fable', 'Weekly · Fable', 31],
+    ]);
   });
 });
 

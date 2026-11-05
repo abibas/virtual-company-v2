@@ -74,10 +74,10 @@ describe('headerWindows', () => {
         resetsAt: new Date(RESET_7D * 1000).toISOString(),
         reached: true,
       },
-      { id: 'seven_day_opus', label: 'Opus weekly limit', usedPercent: 25, resetsAt: null, reached: false },
+      { id: 'seven_day_opus', label: 'Weekly · Opus', usedPercent: 25, resetsAt: null, reached: false },
       {
         id: 'seven_day_sonnet',
-        label: 'Sonnet weekly limit',
+        label: 'Weekly · Sonnet',
         usedPercent: 5,
         resetsAt: new Date(RESET_7D * 1000).toISOString(),
         reached: false,
@@ -96,13 +96,33 @@ describe('headerWindows', () => {
     expect(headerWindows(headers)).toEqual([
       {
         id: 'seven_day_sonnet',
-        label: 'Sonnet weekly limit',
+        label: 'Weekly · Sonnet',
         usedPercent: 100,
         resetsAt: null,
         reached: true,
       },
     ]);
     expect(headerWindows(new Headers())).toEqual([]);
+  });
+
+  it('reads any per-model claim (7d_fable) as seven_day_<model>, and ignores claims it does not know', () => {
+    const headers = new Headers({
+      [`${P}7d_fable-utilization`]: '0.31',
+      [`${P}7d_fable-reset`]: String(RESET_7D),
+      [`${P}7d_fable-status`]: 'allowed',
+      [`${P}5h_fable-utilization`]: '0.02',
+      [`${P}7d-utilization`]: '0.51',
+      [`${P}5h-utilization`]: '0.22',
+      [`${P}7d_oauth_apps-utilization`]: '0.4',
+      [`${P}30d-utilization`]: '0.4',
+      [`${P}7d_fable-surpassed-threshold`]: '0.3',
+    });
+    expect(headerWindows(headers).map((x) => [x.id, x.label, x.usedPercent, x.resetsAt])).toEqual([
+      ['five_hour', '5-hour limit', 22, null],
+      ['seven_day', 'Weekly limit', 51, null],
+      ['five_hour_fable', '5-hour · Fable', 2, null],
+      ['seven_day_fable', 'Weekly · Fable', 31, new Date(RESET_7D * 1000).toISOString()],
+    ]);
   });
 });
 

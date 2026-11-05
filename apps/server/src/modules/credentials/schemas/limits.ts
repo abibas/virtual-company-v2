@@ -7,14 +7,17 @@ import { CredentialKind } from '@mwc/shared/enums';
  * words. Never a token or a provider's answer.
  */
 
-/** A limit window: the 5-hour one, Claude's weekly ones (all models, Opus, Sonnet), or OpenAI's weekly one. */
-export const LimitWindowId = z.enum([
-  'five_hour',
-  'seven_day',
-  'seven_day_opus',
-  'seven_day_sonnet',
-  'weekly',
-]);
+/** A window id: the 5-hour or weekly window, optionally of one model (`seven_day_fable`); the model is group 2. */
+export const LIMIT_WINDOW_ID = /^(five_hour|seven_day|weekly)(?:_([a-z0-9]+))?$/;
+
+/**
+ * A limit window: `five_hour`, Claude's `seven_day` and its per-model weekly ones (`seven_day_opus`,
+ * `seven_day_fable`, … whatever models the provider reports), or OpenAI's `weekly`.
+ */
+export const LimitWindowId = z.string().regex(LIMIT_WINDOW_ID).openapi({
+  example: 'seven_day_fable',
+  description: 'five_hour, seven_day or weekly, optionally _<model>',
+});
 export type LimitWindowId = z.infer<typeof LimitWindowId>;
 
 /**

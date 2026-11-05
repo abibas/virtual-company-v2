@@ -1,9 +1,8 @@
-import { amount, isoTime, limitWindow, members, text } from '../../rules/limits.ts';
+import { amount, isoTime, limitWindow, members, text, windowOrder } from '../../rules/limits.ts';
 import {
   type ClaudeLogin,
   discard,
   type LimitWindow,
-  type LimitWindowId,
   type LoginContext,
   loginCheck,
   providerCall,
@@ -28,20 +27,27 @@ export const CLAUDE_TOKEN_URL = 'https://platform.claude.com/v1/oauth/token';
 export const CLAUDE_CODE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
 export const OAUTH_BETA = 'oauth-2025-04-20';
 
-/** The windows the usage API reports, in the order the card shows them; its utilization is a percentage. */
-const WINDOWS: readonly LimitWindowId[] = ['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet'];
+/**
+ * The keys of the usage API's windows: `five_hour`, `seven_day` and any per-model one (`seven_day_opus`,
+ * `seven_day_fable`, …), so a model the API starts reporting shows without a change here.
+ */
+const WINDOW_KEY = /^(five_hour|seven_day)(_[a-z0-9]+)?$/;
 
 type TokenSet = NonNullable<ClaudeLogin['credentials']['claudeAiOauth']>;
 
-/** The windows of a usage answer; a window the answer leaves out (or without a utilization) is not shown. */
+/**
+ * The windows of a usage answer, 5-hour and weekly first; its utilization is a percentage. A window without a
+ * utilization, and any other key (`extra_usage`, `seven_day_oauth_apps`), is not shown.
+ */
 export function claudeWindows(body: Record<string, unknown>): LimitWindow[] {
   const windows: LimitWindow[] = [];
-  for (const id of WINDOWS) {
-    const window = members(body[id]);
+  for (const [id, value] of Object.entries(body)) {
+    if (!WINDOW_KEY.test(id)) continue;
+    const window = members(value);
     const used = amount(window.utilization);
     if (used !== null) windows.push(limitWindow(id, used, isoTime(window.resets_at)));
   }
-  return windows;
+  return windowOrder(windows);
 }
 
 /** Claude Code's refresh: a new token set for the login, sealed again; the login's account config is kept. */
@@ -60,7 +66,7 @@ async function refresh(login: ClaudeLogin, ctx: LoginContext<'claude_oauth'>): P
   });
   if (!response.ok) {
     await discard(response);
-    throw refreshFailure(response.status);
+    throw refreshFailure(response.status, response.headers.get('retry-after'));
   }
   const fresh = await readObject(response);
   const accessToken = text(fresh.access_token);

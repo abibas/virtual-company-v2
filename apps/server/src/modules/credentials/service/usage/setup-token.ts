@@ -1,13 +1,13 @@
-import { amount, codeOfStatus, isoTime, limitWindow } from '../../rules/limits.ts';
+import { amount, isoTime, limitWindow, windowOrder } from '../../rules/limits.ts';
 import { OAUTH_BETA } from './claude.ts';
 import {
   type CheckContext,
   discard,
   type LimitWindow,
-  type LimitWindowId,
   outcomeOf,
   providerCall,
   type SetupTokenSecret,
+  statusFailure,
   UsageFailure,
   type UsageOutcome,
 } from './http.ts';
@@ -17,7 +17,7 @@ import {
  * once asked often: v1's lesson), so the limits come from a one-token Messages request: every answer, and the 429 of a
  * reached limit too, carries the account's `anthropic-ratelimit-unified-<claim>-utilization` (a fraction),
  * `-reset` (epoch seconds) and `-status` (`rejected` when the window is reached) headers, per window: `5h`, `7d` and
- * the per-model `7d_opus`, `7d_sonnet`. Only the headers are read; the reply is discarded. Each probe spends a little
+ * the per-model `7d_<model>` ones. Only the headers are read; the reply is discarded. Each probe spends a little
  * of the 5-hour window, so its floor is 15 minutes (`USAGE_FLOOR_MS`).
  */
 
@@ -27,26 +27,27 @@ export const PROBE_MODEL = 'claude-haiku-5-5';
 
 const PREFIX = 'anthropic-ratelimit-unified-';
 
-/** The header claims shown, by window. */
-const CLAIMS: ReadonlyArray<readonly [string, LimitWindowId]> = [
-  ['5h', 'five_hour'],
-  ['7d', 'seven_day'],
-  ['7d_opus', 'seven_day_opus'],
-  ['7d_sonnet', 'seven_day_sonnet'],
-];
+/** A window's utilization header: the claim (`5h`, `7d`, `7d_<model>`) is group 1, its length group 2. */
+const UTILIZATION = /^anthropic-ratelimit-unified-((5h|7d)(_[a-z0-9]+)?)-utilization$/;
 
-/** The windows of a Messages answer's headers; a claim it does not carry (or with no utilization) is not shown. */
+/**
+ * The windows of a Messages answer's headers, 5-hour and weekly first: every claim it carries, per-model ones
+ * (`7d_opus`, `7d_fable`, …) as `seven_day_<model>`; a claim with no utilization is not shown.
+ */
 export function headerWindows(headers: Headers): LimitWindow[] {
   const windows: LimitWindow[] = [];
-  for (const [claim, id] of CLAIMS) {
-    const raw = headers.get(`${PREFIX}${claim}-utilization`)?.trim();
+  for (const [name, value] of headers) {
+    const [, claim, length, model = ''] = UTILIZATION.exec(name) ?? [];
+    if (claim === undefined) continue;
+    const raw = value.trim();
     const fraction = raw ? amount(Number(raw)) : null;
     if (fraction === null) continue;
+    const id = `${length === '5h' ? 'five_hour' : 'seven_day'}${model}`;
     const reached = headers.get(`${PREFIX}${claim}-status`) === 'rejected';
     const resetsAt = isoTime(headers.get(`${PREFIX}${claim}-reset`)?.trim());
     windows.push(limitWindow(id, fraction * 100, resetsAt, reached || undefined));
   }
-  return windows;
+  return windowOrder(windows);
 }
 
 /** A setup-token's windows from a one-token Messages request (see above). */
@@ -67,9 +68,10 @@ export function checkSetupToken(secret: SetupTokenSecret, ctx: CheckContext): Pr
       }),
     });
     await discard(response);
-    if (!response.ok && response.status !== 429) throw new UsageFailure(codeOfStatus(response.status));
+    if (!response.ok && response.status !== 429) throw statusFailure(response);
     const windows = headerWindows(response.headers);
-    if (windows.length === 0) throw new UsageFailure(response.ok ? 'invalid_response' : 'rate_limited');
+    if (windows.length === 0)
+      throw response.ok ? new UsageFailure('invalid_response') : statusFailure(response);
     return windows;
   });
 }

@@ -28,18 +28,27 @@ export type SetupTokenSecret = SecretOf<'claude_setup_token'>;
 /** What a check found: the windows, or why there are none. */
 export type UsageOutcome =
   | { readonly ok: true; readonly windows: LimitWindow[] }
-  | { readonly ok: false; readonly code: UsageErrorCode };
+  | { readonly ok: false; readonly code: UsageErrorCode; readonly retryAfter?: string };
 
-/** Why a check stopped, thrown inside a check and turned into its outcome at its end. */
+/** Why a check stopped, thrown inside a check and turned into its outcome at its end; a 429 keeps its `Retry-After`. */
 export class UsageFailure extends Error {
   readonly code: UsageErrorCode;
+  readonly retryAfter: string | undefined;
 
-  constructor(code: UsageErrorCode) {
+  constructor(code: UsageErrorCode, retryAfter?: string | null) {
     super(code);
     this.name = 'UsageFailure';
     this.code = code;
+    this.retryAfter = retryAfter ?? undefined;
   }
 }
+
+/** A refused answer's failure: its status's code, with the `Retry-After` of a 429. */
+export const statusFailure = (response: Response): UsageFailure =>
+  new UsageFailure(
+    codeOfStatus(response.status),
+    response.status === 429 ? response.headers.get('retry-after') : undefined,
+  );
 
 /** What a login's check needs: the provider, the clock, and a way to store a refreshed token set. */
 export interface CheckContext {
@@ -98,7 +107,10 @@ export async function outcomeOf(steps: () => Promise<LimitWindow[]>): Promise<Us
   try {
     return { ok: true, windows: await steps() };
   } catch (error) {
-    if (error instanceof UsageFailure) return { ok: false, code: error.code };
+    if (error instanceof UsageFailure) {
+      const { code, retryAfter } = error;
+      return retryAfter === undefined ? { ok: false, code } : { ok: false, code, retryAfter };
+    }
     throw error;
   }
 }
@@ -107,9 +119,9 @@ export async function outcomeOf(steps: () => Promise<LimitWindow[]>): Promise<Us
 export const expiresSoon = (expiresAt: number | undefined, now: Date, marginMs = 5 * 60_000) =>
   expiresAt !== undefined && expiresAt - marginMs <= now.getTime();
 
-/** A refused refresh means signing in again; a rate limit or an outage is only a failed check. */
-export function refreshFailure(status: number): UsageFailure {
-  if (status === 429) return new UsageFailure('rate_limited');
+/** A refused refresh means signing in again; a rate limit (with its `Retry-After`) or an outage is a failed check. */
+export function refreshFailure(status: number, retryAfter?: string | null): UsageFailure {
+  if (status === 429) return new UsageFailure('rate_limited', retryAfter);
   if (status >= 500) return new UsageFailure('provider_unavailable');
   return new UsageFailure('needs_sign_in');
 }
@@ -145,7 +157,7 @@ export function loginCheck<S>(login: S, now: Date, steps: LoginSteps<S>): Promis
     }
     if (!response.ok) {
       await discard(response);
-      throw new UsageFailure(codeOfStatus(response.status));
+      throw statusFailure(response);
     }
     return steps.windows(await readObject(response));
   });
