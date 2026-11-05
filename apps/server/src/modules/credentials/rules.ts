@@ -1,7 +1,8 @@
+import type { Credential } from '@mwc/db';
 import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
 import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import type { KindSecret } from './schemas/secrets.ts';
-import type { AccountMeta, AddSubscription } from './schemas.ts';
+import type { AccountMeta, AddSubscription, SubscriptionView } from './schemas.ts';
 
 /**
  * The additional data a credential's secret is sealed with, `credential|<id>|<ownerUserId>|<kind>`: a sealed value
@@ -60,6 +61,21 @@ export function audited(row: {
     accountEmail: row.accountEmail,
     accountMeta: row.accountMeta,
     status: row.status,
+  };
+}
+
+/** A credential as the API shows it: metadata only, never its secret or sealed columns. */
+export function credentialView(row: Credential): SubscriptionView {
+  return {
+    id: row.id,
+    kind: row.kind,
+    label: row.label,
+    accountEmail: row.accountEmail,
+    accountMeta: row.accountMeta,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
   };
 }
 

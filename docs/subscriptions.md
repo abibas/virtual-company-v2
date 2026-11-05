@@ -82,6 +82,47 @@ provider's refusals in plain words ("The provider rate limited the usage check. 
 good values. Limits are checked when the page opens, at most every 5 minutes per subscription (15 for the one-token
 probe, which spends a little of the subscription).
 
+### The limits API (S3.3)
+
+`GET /api/me/subscriptions/limits` is a personal route (a signed-in session only; an API key is 403
+`session_required`). It answers `{ limits: [...] }`, one entry per subscription of the caller, oldest first:
+
+```
+{ credentialId, kind, label, accountEmail, source: 'usage_api' | 'message_headers' | 'none', checkedAt,
+  windows: [{ id: 'five_hour' | 'seven_day' | 'seven_day_opus' | 'seven_day_sonnet' | 'weekly',
+              label, usedPercent (0–100, two decimals), resetsAt (ISO, or null when the provider gives none), reached }],
+  error: { code, message } | null, stale }
+```
+
+| Kind                 | Check                                                                                         | Token refresh |
+| -------------------- | --------------------------------------------------------------------------------------------- | ------------- |
+| `claude_oauth`       | `GET https://api.anthropic.com/api/oauth/usage`, `Authorization: Bearer <access token>`, `anthropic-beta: oauth-2025-04-20`; `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet` (utilization in percent, `resets_at`) | Claude Code's own refresh: `POST https://platform.claude.com/v1/oauth/token`, JSON `grant_type=refresh_token`, the refresh token, Claude Code's client id and the login's scopes; `expires_in` becomes `expiresAt` |
+| `claude_setup_token` | `POST https://api.anthropic.com/v1/messages`, `max_tokens: 1` of `claude-haiku-5-5`, the same bearer and beta header, `anthropic-version: 2023-06-01`; only the headers are read: `anthropic-ratelimit-unified-<5h\|7d\|7d_opus\|7d_sonnet>-utilization` (a fraction), `-reset` (epoch seconds), `-status` (`rejected` is reached), on a 429 too | none (one year) |
+| `codex_oauth`        | `GET https://chatgpt.com/backend-api/wham/usage`, the bearer and `ChatGPT-Account-Id`; `rate_limit.primary_window` and `secondary_window` mapped by `limit_window_seconds` (a day or less is `five_hour`, longer `weekly`) | v1's: `POST https://auth.openai.com/oauth/token`, JSON with Codex's client id and `scope: openid profile email`; `last_refresh` now, `account_id` kept |
+| keys and gateways    | none: `source: 'none'`, no secret opened                                                       | — |
+
+- **When:** a login's access token is refreshed when it expires within 5 minutes (Claude's `expiresAt`, the `exp` of
+  OpenAI's JWT), and once after a 401. The new token set is sealed again in place of the old one
+  (`replaceCredentialSecret`, an audit row `replace_secret` that names the key version and the purpose, never the
+  secret). A second 401, a refresh the provider refuses (4xx) or a login without tokens sets the subscription to
+  `needs_sign_in` (audited, the system acting); a later good check sets it back to `active`. A refresh that is rate
+  limited or down is only a failed check.
+- **Cache and floors:** each subscription's last check (its time, its refusal, the last good windows) is kept in the
+  server's memory behind the `UsageCache` port. A plain request answers from it and checks only a subscription not
+  checked since the server started; `?refresh=1` also checks one whose last check is at least 5 minutes old (15 for
+  the probe). One check runs per subscription at a time; concurrent requests share it.
+- **Refusals:** `rate_limited` ("The provider rate limited the usage check. Try again later."), `usage_refused`
+  (403), `needs_sign_in`, `provider_unavailable` (network, timeout, 5xx), `invalid_response`, `credential_revoked`,
+  `check_failed` (a bug, logged by name only). A failed check keeps the last good windows, with `stale: true`.
+- **Records and logs:** every check opens the secret through `useCredentialSecret(…, 'usage_check')`, one
+  `credential_uses` row each; cached answers and keys open nothing. A log line names the credential, its kind and the
+  refusal's code; never a token or a provider's answer. Every provider call goes through an injected `fetch`
+  (`AppDeps.providerFetch`), with redirects refused and a 10-second deadline; under `NODE_ENV=test` the default refuses
+  every call, so no test reaches a provider.
+- **Not verified against the real providers yet:** the probe's model id (v1 used `claude-haiku-4-5`), the Claude token
+  URL and body (read from Claude Code 2.1.318's own configuration; v1 let `claude auth status` refresh), and a
+  refresh racing another process that holds the same refresh token (one server process today).
+
 ## Out of scope for S3
 
 Runs and the relay (S5); GitHub and Jira sign-ins (S7); company-owned subscriptions; sharing a personal subscription

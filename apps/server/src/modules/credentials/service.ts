@@ -1,8 +1,8 @@
 import { diffFields, owned } from '@mwc/db';
 import { credentialsRepo } from './repo.ts';
-import { audited, CREDENTIAL_NOT_FOUND, pastedCredential, type Refusal } from './rules.ts';
+import { audited, CREDENTIAL_NOT_FOUND, credentialView, pastedCredential, type Refusal } from './rules.ts';
 import type { AddSubscription, SubscriptionView } from './schemas.ts';
-import { credentialSecrets, credentialView, type SecretDeps } from './service/secrets.ts';
+import { credentialSecrets, type SecretDeps } from './service/secrets.ts';
 
 /** Who acts: the signed-in person (`c.var.userId`) and the request. */
 export interface Caller {

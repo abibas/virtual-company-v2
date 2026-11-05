@@ -33,7 +33,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
-│   │   │   │   ├── credentials/    subscriptions (store built), profiles, limits S3
+│   │   │   │   ├── credentials/    subscriptions, limits (built), profiles     S3
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one

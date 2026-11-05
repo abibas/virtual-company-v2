@@ -5,6 +5,8 @@ import { jsonBody, jsonResponse } from '../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import type { Keyring } from '../../platform/secrets/keyring.ts';
+import { wantsRefresh } from './rules/limits.ts';
+import { LimitsQuerySchema, SubscriptionLimitsListSchema } from './schemas/limits.ts';
 import {
   AddSubscriptionSchema,
   RenameSubscriptionSchema,
@@ -12,6 +14,9 @@ import {
   SubscriptionParamsSchema,
   SubscriptionSchema,
 } from './schemas.ts';
+import { limitsService } from './service/limits.ts';
+import { memoryUsageCache, type UsageCache } from './service/usage/cache.ts';
+import { providerFetchFor } from './service/usage/http.ts';
 import { credentialsService } from './service.ts';
 
 /**
@@ -86,15 +91,54 @@ const removeRoute = (deps: ServerDeps) => {
   });
 };
 
+const limitsRoute = (deps: ServerDeps) => {
+  const { base, refusals } = subscriptionsRoute(deps, `${SUBSCRIPTIONS}/limits`);
+  return createRoute({
+    ...base,
+    method: 'get',
+    summary: "Your subscriptions' live 5-hour and weekly limits",
+    description:
+      'For each of your subscriptions, its windows from the provider: a Claude login from `GET ' +
+      'api.anthropic.com/api/oauth/usage`, an OpenAI login from `GET chatgpt.com/backend-api/wham/usage` (both ' +
+      'refreshing an expired token and storing it sealed again), a setup-token from the ' +
+      '`anthropic-ratelimit-unified-*` headers of a one-token Messages request; API keys and gateways have none ' +
+      "(`source: 'none'`). Answers come from the server's cache: a subscription never checked yet is checked now, " +
+      'and `refresh=1` also checks one whose last check is at least 5 minutes old (15 for the setup-token probe, ' +
+      'which spends a little of the subscription). A failed check keeps the last good windows, marked `stale`, ' +
+      'with the refusal in plain words. A login that no longer signs in is marked `needs_sign_in`.',
+    request: { query: LimitsQuerySchema },
+    responses: {
+      200: jsonResponse('Your subscriptions with their limits, oldest first', SubscriptionLimitsListSchema),
+      400: INVALID,
+      ...refusals,
+    },
+  });
+};
+
 /** The caller of a personal route: the signed-in person and the request. */
 const callerOf = (v: { userId: string; requestId: string }) => ({ userId: v.userId, requestId: v.requestId });
 
-export function credentialsRoutes(deps: ServerDeps & { readonly keyring: Keyring }) {
+/**
+ * The router: the store's deps, plus the provider client of the usage checks (`AppDeps.providerFetch`, else the
+ * platform's `fetch`, refused under NODE_ENV=test) and their cache (this process's memory unless one is passed).
+ */
+export function credentialsRoutes(
+  deps: ServerDeps & { readonly keyring: Keyring; readonly usageCache?: UsageCache },
+) {
   const subscriptions = credentialsService(deps);
+  const limits = limitsService({
+    ...deps,
+    providerFetch: deps.providerFetch ?? providerFetchFor(deps.config),
+    usageCache: deps.usageCache ?? memoryUsageCache(),
+  });
   return newRouter()
     .openapi(listRoute(deps), async (c) =>
       c.json({ subscriptions: await subscriptions.list(callerOf(c.var)) }, 200),
     )
+    .openapi(limitsRoute(deps), async (c) => {
+      const refresh = wantsRefresh(c.req.valid('query').refresh);
+      return c.json({ limits: await limits.list(callerOf(c.var), refresh) }, 200);
+    })
     .openapi(addRoute(deps), async (c) =>
       c.json(await subscriptions.add(callerOf(c.var), c.req.valid('json')), 201),
     )

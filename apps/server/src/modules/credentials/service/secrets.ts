@@ -1,10 +1,12 @@
 import { type Credential, type DbHandle, diffFields, owned } from '@mwc/db';
+import type { CredentialStatus } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import type { Keyring, Sealed } from '../../../platform/secrets/keyring.ts';
 import { type CredentialsRepo, credentialsRepo } from '../repo.ts';
 import {
   audited,
   credentialAad,
+  credentialView,
   labelFits,
   purposeFits,
   USE_NOT_FOUND,
@@ -13,12 +15,15 @@ import {
 } from '../rules.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
+import { type AnySecret, replaceCredentialSecret, setCredentialStatus } from './secret-updates.ts';
 
 /**
  * The credential store's internal service (S3.1), for the steps after it and never over HTTP: `storeCredential`
- * seals and saves a new credential (S3.2 saves sign-in results with it; the pasted kinds come through it too), and
- * `useCredentialSecret` opens one on the server for a purpose (S3.3's usage checks, S5's runs), recording each use.
- * Both act as the credential's owner through the personal layer, so another person's credential is never reached.
+ * seals and saves a new credential (S3.2 saves sign-in results with it; the pasted kinds come through it too),
+ * `useCredentialSecret` opens one on the server for a purpose (S3.3's usage checks, S5's runs), recording each use,
+ * `replaceCredentialSecret` seals a new secret into an existing one (S3.3: a login's refreshed token set), and
+ * `setCredentialStatus` marks one as needing a sign-in (or usable again). All act as the credential's owner through
+ * the personal layer, so another person's credential is never reached.
  */
 
 /** What the store needs: the database, the master keyring and the clock. */
@@ -26,21 +31,6 @@ export interface SecretDeps {
   readonly db: DbHandle;
   readonly keyring: Keyring;
   readonly clock: () => Date;
-}
-
-/** A credential as the API shows it: metadata only, never its secret or sealed columns. */
-export function credentialView(row: Credential): SubscriptionView {
-  return {
-    id: row.id,
-    kind: row.kind,
-    label: row.label,
-    accountEmail: row.accountEmail,
-    accountMeta: row.accountMeta,
-    status: row.status,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-  };
 }
 
 const sealedOf = (row: Credential): Sealed => ({
@@ -144,6 +134,19 @@ export function credentialSecrets(deps: SecretDeps) {
       ownerUserId: string,
       purpose: string,
     ): Promise<UsedCredential> => useCredentialSecret(deps, repo, credentialId, ownerUserId, purpose),
+    replaceCredentialSecret: (
+      credentialId: string,
+      ownerUserId: string,
+      secret: AnySecret,
+      purpose: string,
+      requestId?: string | null,
+    ) => replaceCredentialSecret(deps, repo, credentialId, ownerUserId, secret, purpose, requestId),
+    setCredentialStatus: (
+      credentialId: string,
+      ownerUserId: string,
+      status: Exclude<CredentialStatus, 'revoked'>,
+      requestId?: string | null,
+    ): Promise<boolean> => setCredentialStatus(deps, repo, credentialId, ownerUserId, status, requestId),
   };
 }
 

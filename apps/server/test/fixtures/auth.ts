@@ -45,9 +45,12 @@ export function mountProbe(app: App | Hono<AppEnv>, deps: AuthDeps): void {
 
 /**
  * A test app with the fake provider and the probe routes, both on one fixed clock; with `keyring`, the app seals
- * subscriptions under it (else under a key of its own in memory).
+ * subscriptions under it (else under a key of its own in memory), and with `providerFetch` its usage checks call that
+ * fake AI provider (else every provider call is refused).
  */
-export async function authWorld(options: { readonly keyring?: Keyring } = {}): Promise<AuthWorld> {
+export async function authWorld(
+  options: { readonly keyring?: Keyring; readonly providerFetch?: typeof fetch } = {},
+): Promise<AuthWorld> {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
   const t = await createTestApp({ clock, identity: fake, ...options });

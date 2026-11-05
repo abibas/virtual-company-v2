@@ -33,6 +33,11 @@ export interface AppDeps {
    * a key in memory (tests and demos: what it sealed opens only in this process).
    */
   readonly keyring?: Keyring;
+  /**
+   * How the server calls AI providers (the subscriptions' usage checks, S3.3); tests pass a fake provider. Omitted,
+   * the platform's `fetch`, except under NODE_ENV=test, where every call is refused so no test reaches a provider.
+   */
+  readonly providerFetch?: typeof fetch;
 }
 
 /** What the modules and the auth middleware get from `createApp`: the deps with their defaults applied. */

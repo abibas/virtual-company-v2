@@ -27,6 +27,33 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: Provider usage checks in a module, not a connector
+
+- **What happened:** S3.3's limits call three outside systems (Anthropic's usage API and Messages endpoint, OpenAI's
+  `wham/usage`, and both providers' token endpoints). The placement table sends anything that talks to an outside
+  system to a connector implementing a `packages/*-core` port. The step asked for all HTTP through an injectable
+  `fetch` and no new packages, and the calls are small, read-only and owned by the credentials module's rules
+  (which kinds have limits, the floors, re-sealing a refreshed token set). `service/secrets.ts` reached 244 lines with
+  the store's two new changes (`near-limit`), the first `limitsService` was one 73-line factory of closures
+  (`long-function`), the three checks' type imports took `schemas/limits.ts` and `schemas/secrets.ts` to 8 importers
+  each (`fan-in`), and the fake provider needed a fixture beside the 12 in `apps/server/test/fixtures/`.
+- **Where:** `apps/server/src/modules/credentials/service/usage/{http,claude,setup-token,codex,cache}.ts`,
+  `service/limits.ts`, `service/secret-updates.ts`, `rules/limits.ts`, `schemas/limits.ts`;
+  `apps/server/test/fixtures/credentials/providers.ts`; the S3.3 commit.
+- **What was done:** the calls live in the module behind `ProviderFetch` (`AppDeps.providerFetch`, refused under
+  NODE_ENV=test so no test reaches a provider), one file per provider, each tested against the fake. `secrets.ts` was
+  split: the replacement and the status change went to `service/secret-updates.ts`, and the pure `credentialView`
+  moved to `rules.ts` so the new file imports no value back from `secrets.ts` (secrets.ts 153 lines). The service's
+  steps became module functions over one shared state object, and the checks take their vocabulary (the windows, the
+  secrets they read) from `usage/http.ts`, which re-exports it (5 importers each). The fake provider
+  went to a new folder, `test/fixtures/credentials/`, where S3.2's fake sign-in helper can go too (the fixtures folder
+  is at 13 entries).
+- **Suggested change:** a placement-table row: "A small read-only call to an outside system that one module owns, with
+  no client package (a usage check) → that module's `service/<provider>.ts` behind an injected `fetch`; a connector
+  when a second module or the runner needs it". When S5 relays runs to the providers, move these calls into a
+  `connectors/ai-providers` package with a port in a core package.
+- **Status:** `open`.
+
 ### 2026-11-05: Personal data: a third access layer, a third kind of route guard, and three folders at 13 entries
 
 - **What happened:** S3.1's `credentials` and `credential_uses` belong to a person and to no company. The placement
