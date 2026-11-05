@@ -17,13 +17,23 @@ This skill is for the main chat. Subagents do not load it; they get its brief te
 3. **Plan the merge**: who else touches the same files, which docs it will edit, whether Ihor is in the middle of a
    live flow (then no server merge until he reports back), and whether it needs a migration on the dev database.
 
+## After every task (every time, before merging and before telling Ihor)
+
+Add one row to [references/observations.md](references/observations.md): the size as briefed and in hindsight, who
+and at which effort, the office's own grade of its brief (A, B, C), the minutes and tokens from the task
+notification, the result (ok, dev, fix, redo, stop), what merging cost, Ihor's reaction, and the one thing worth
+learning. Be honest about the office's own mistakes; that is what the log is for. A task done in the main chat gets a
+row too.
+
 ## Reflect (after a batch, a stage, a complaint or an incident)
 
-1. **Collect the facts** of the work since the last reflection, not impressions:
+1. **Collect the facts** of the work since the last reflection, from the observations log, not impressions:
    - per delegated task: what it was, its size, its effort and model, wall-clock minutes, tokens and tool uses
      (from the task notifications), and whether it needed a resume, a rebase or a fix afterwards;
    - per merge: conflicts and the time to resolve them, check runs, failed pushes;
    - Ihor's words: complaints, corrections, praise.
+   - patterns across phases: which sizes overrun their budget, which brief grades lead to fix or redo, which efforts
+     finish far under budget (lower them), where the conflicts come from.
 2. **Find the waste**, in this order:
    - rework: a fix needed after a merge, a resume, a redo;
    - over-scoping: anything delivered that nobody asked for (galleries, screenshot sets, refactors, long docs);
