@@ -32,8 +32,8 @@ export interface SignInControl {
   readonly phase: SignInPhase;
   /** The pasted code (Claude) on its way, and its refusal. */
   readonly code: { readonly sending: boolean; readonly error: string | undefined };
-  /** Starts a sign-in: only on the person's click. */
-  start(provider: SignInProvider): void;
+  /** Starts a sign-in: only on the person's click. With `credentialId` (Sign in again), it renews that subscription. */
+  start(provider: SignInProvider, credentialId?: string): void;
   sendCode(code: string): void;
   /** Cancels the sign-in in progress (`DELETE`) and forgets it; a late answer is dropped (and cancelled). */
   stop(): void;
@@ -148,12 +148,12 @@ export function useSignIn(onDone: () => void): SignInControl {
   }, [calls]);
   useEffect(() => cancelLive, [cancelLive]);
 
-  const start = (provider: SignInProvider) => {
+  const start = (provider: SignInProvider, credentialId?: string) => {
     cancelLive();
     const gen = generation.current;
     code.reset();
     setPhase({ kind: 'requesting', provider });
-    calls.startSignIn(provider).then(
+    calls.startSignIn(provider, credentialId).then(
       (started) =>
         gen === generation.current
           ? follow(started, gen)
@@ -174,7 +174,8 @@ export function useSignIn(onDone: () => void): SignInControl {
 /** Where the add sheet is: its choices, a sign-in, or a paste form. */
 export type AddStep =
   | { readonly kind: 'choose' }
-  | { readonly kind: 'sign-in'; readonly provider: SignInProvider }
+  /** `credentialId`: Sign in again on that subscription, renewed in place. */
+  | { readonly kind: 'sign-in'; readonly provider: SignInProvider; readonly credentialId?: string }
   | { readonly kind: 'paste'; readonly paste: PastedCredentialKind };
 
 export interface AddSubscription {
@@ -183,8 +184,11 @@ export interface AddSubscription {
   readonly signIn: SignInControl;
   /** Opens the sheet at its choices. */
   choose(): void;
-  /** Opens the sheet on a sign-in (or moves it there) and starts it: the person's click is the request. */
-  signInWith(provider: SignInProvider): void;
+  /**
+   * Opens the sheet on a sign-in (or moves it there) and starts it: the person's click is the request. With
+   * `credentialId` (a card's Sign in again), it renews that subscription instead of adding one.
+   */
+  signInWith(provider: SignInProvider, credentialId?: string): void;
   paste(kind: PastedCredentialKind): void;
   /** Back to the choices; a sign-in in progress is cancelled. */
   back(): void;
@@ -208,10 +212,14 @@ export function useAddSubscription(onSignedIn: () => void): AddSubscription {
       setStep({ kind: 'choose' });
       setOpen(true);
     },
-    signInWith: (provider) => {
-      setStep({ kind: 'sign-in', provider });
+    signInWith: (provider, credentialId) => {
+      setStep(
+        credentialId === undefined
+          ? { kind: 'sign-in', provider }
+          : { kind: 'sign-in', provider, credentialId },
+      );
       setOpen(true);
-      signIn.start(provider);
+      signIn.start(provider, credentialId);
     },
     paste: (kind) => setStep({ kind: 'paste', paste: kind }),
     back: () => {

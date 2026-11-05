@@ -4,7 +4,9 @@ import {
   type LoginSandbox,
   type SandboxExit,
 } from '../../../../platform/login-helper/port.ts';
+import type { LoginResult } from '../../rules/login-files.ts';
 import {
+  accountChanged,
   exitEnding,
   finishesOnExit,
   isActive,
@@ -16,6 +18,9 @@ import {
 import type { SignInView } from '../../schemas/sign-in.ts';
 import type { SessionContext, SessionOwner } from './context.ts';
 import type { SignInFlow } from './flows.ts';
+
+/** What a sign-in stores: a new subscription (with the name given), or a login renewing the caller's own one. */
+export type SignInTarget = { readonly label?: string | undefined } | { readonly renew: string };
 
 /** The most output kept to read the screen from: the address and the prompts come first. */
 const SCREEN_MAX = 64 * 1024;
@@ -33,11 +38,12 @@ export class SignInSession {
   readonly owner: SessionOwner;
   readonly #ctx: SessionContext;
   readonly #flow: SignInFlow;
-  readonly #label: string | undefined;
+  readonly #target: SignInTarget;
   #state: SignInState = 'starting';
   #url: string | null = null;
   #userCode: string | null = null;
   #credentialId: string | null = null;
+  #accountChanged = false;
   #message: string | null = null;
   #screen = '';
   #sandbox: LoginSandbox | undefined;
@@ -45,11 +51,11 @@ export class SignInSession {
   #wait: unknown;
   #storing = false;
 
-  constructor(ctx: SessionContext, owner: SessionOwner, flow: SignInFlow, label: string | undefined) {
+  constructor(ctx: SessionContext, owner: SessionOwner, flow: SignInFlow, target: SignInTarget) {
     this.#ctx = ctx;
     this.owner = owner;
     this.#flow = flow;
-    this.#label = label;
+    this.#target = target;
     this.createdAt = ctx.clock();
     this.expiresAt = new Date(this.createdAt.getTime() + ctx.limits.ttlMs);
   }
@@ -66,6 +72,7 @@ export class SignInSession {
       url: this.#url,
       userCode: this.#userCode,
       credentialId: this.#credentialId,
+      accountChanged: this.#accountChanged,
       message: this.#message,
       createdAt: this.createdAt.toISOString(),
       expiresAt: this.expiresAt.toISOString(),
@@ -148,7 +155,7 @@ export class SignInSession {
     this.#end('failed', ending, `exit ${exit.code ?? 'none'}`);
   }
 
-  /** Reads the login's files from the sandbox, stores them sealed under the owner, and ends done. */
+  /** Reads the login's files from the sandbox, stores them sealed under the owner (or renews theirs), and ends done. */
   async #complete(): Promise<void> {
     this.#state = 'completing';
     this.#clearWait();
@@ -156,10 +163,11 @@ export class SignInSession {
     try {
       const outcome = await this.#flow.result(this.#sandbox as LoginSandbox);
       if (!outcome.ok) return this.#end('failed', outcome.message, 'no_login');
+      if ('renew' in this.#target) return await this.#renew(this.#target.renew, outcome.result);
       const { label, ...login } = outcome.result;
       const stored = await this.#ctx.secrets.storeCredential({
         ...login,
-        label: this.#label ?? label,
+        label: this.#target.label ?? label,
         ownerUserId: this.owner.userId,
         requestId: this.owner.requestId,
       });
@@ -171,6 +179,16 @@ export class SignInSession {
     } finally {
       this.#storing = false;
     }
+  }
+
+  /** Sign in again: the login replaces the secret of the owner's subscription in place; gone or revoked, it failed. */
+  async #renew(credentialId: string, login: LoginResult): Promise<void> {
+    const { userId, requestId } = this.owner;
+    const renewed = await this.#ctx.secrets.renewCredentialLogin(credentialId, userId, login, requestId);
+    if (!renewed.ok) return this.#end('failed', SIGN_IN_ENDINGS.gone, renewed.code);
+    this.#credentialId = renewed.credential.id;
+    this.#accountChanged = accountChanged(renewed.previousEmail, renewed.credential.accountEmail);
+    this.#end('done', null, 'renewed');
   }
 
   #waitFor(ms: number, message: string): void {

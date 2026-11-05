@@ -15,15 +15,22 @@ import {
 } from '../rules.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
-import { type AnySecret, replaceCredentialSecret, setCredentialStatus } from './secret-updates.ts';
+import {
+  type AnySecret,
+  type RenewedLogin,
+  renewCredentialLogin,
+  replaceCredentialSecret,
+  setCredentialStatus,
+} from './secret-updates.ts';
 
 /**
  * The credential store's internal service (S3.1), for the steps after it and never over HTTP: `storeCredential`
  * seals and saves a new credential (S3.2 saves sign-in results with it; the pasted kinds come through it too),
  * `useCredentialSecret` opens one on the server for a purpose (S3.3's usage checks, S5's runs), recording each use,
- * `replaceCredentialSecret` seals a new secret into an existing one (S3.3: a login's refreshed token set), and
- * `setCredentialStatus` marks one as needing a sign-in (or usable again). All act as the credential's owner through
- * the personal layer, so another person's credential is never reached.
+ * `replaceCredentialSecret` seals a new secret into an existing one (S3.3: a login's refreshed token set),
+ * `setCredentialStatus` marks one as needing a sign-in (or usable again), and `renewCredentialLogin` puts a new login
+ * into one in place (Sign in again). All act as the credential's owner through the personal layer, so another
+ * person's credential is never reached.
  */
 
 /** What the store needs: the database, the master keyring and the clock. */
@@ -147,6 +154,12 @@ export function credentialSecrets(deps: SecretDeps) {
       status: Exclude<CredentialStatus, 'revoked'>,
       requestId?: string | null,
     ): Promise<boolean> => setCredentialStatus(deps, repo, credentialId, ownerUserId, status, requestId),
+    renewCredentialLogin: (
+      credentialId: string,
+      ownerUserId: string,
+      login: RenewedLogin,
+      requestId?: string | null,
+    ) => renewCredentialLogin(deps, repo, credentialId, ownerUserId, login, requestId),
   };
 }
 

@@ -2,6 +2,7 @@ import { auditLog, credentials } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { credentialSecrets } from '../../../../src/modules/credentials/index.ts';
 import { SIGN_IN_ENDINGS, SIGN_IN_LIMITS } from '../../../../src/modules/credentials/rules/sign-in.ts';
 import { signInService } from '../../../../src/modules/credentials/service/sign-in.ts';
 import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
@@ -189,6 +190,52 @@ describe('Sign in with OpenAI', () => {
     expect(read(started.id)).toMatchObject({
       state: 'failed',
       message: 'The OpenAI sign-in stopped before it finished. Start again.',
+    });
+  });
+});
+
+describe('Sign in again', () => {
+  const storedLogin = () =>
+    credentialSecrets({ db: s.w.t.db, keyring: ephemeralKeyring(), clock: s.w.clock }).storeCredential({
+      ownerUserId: s.ihor.userId,
+      kind: 'claude_oauth',
+      label: 'Old Max',
+      secret: { credentials: { claudeAiOauth: { accessToken: 'sk-ant-oat01-FAKEold' } }, account: null },
+    });
+
+  it('fails in plain words when the subscription is removed while signing in, storing nothing', async () => {
+    const old = await storedLogin();
+    const started = signInOf(await s.signIns.signInAgain(as(s.ihor), 'claude', old.id));
+    expect(s.w.t.logs.at(-1)).toMatchObject({ msg: 'sign-in started', renews: true });
+    await settle();
+    await rawDb(s.w.t.db).delete(credentials).where(eq(credentials.id, old.id));
+    const mine = () =>
+      rawDb(s.w.t.db).select().from(credentials).where(eq(credentials.ownerUserId, s.ihor.userId));
+    const before = (await mine()).length;
+    code(started.id);
+    await untilState(s, started.id, 'failed');
+    expect(read(started.id)).toMatchObject({ message: SIGN_IN_ENDINGS.gone, credentialId: null });
+    expect(s.w.t.logs.at(-1)).toMatchObject({ msg: 'sign-in ended', reason: 'credential_not_found' });
+    expect(await mine()).toHaveLength(before);
+  });
+
+  it('is off without a helper (503) before looking the subscription up, and one at a time (409)', async () => {
+    const off = signInService({
+      db: s.w.t.db,
+      keyring: ephemeralKeyring(),
+      clock: s.w.clock,
+      logger: s.w.t.logger,
+      loginHelper: undefined,
+    });
+    expect(await off.signInAgain(as(s.ihor), 'claude', 'not-an-id')).toMatchObject({
+      status: 503,
+      code: 'sign_in_unavailable',
+    });
+    const old = await storedLogin();
+    start('openai');
+    expect(await s.signIns.signInAgain(as(s.ihor), 'claude', old.id)).toMatchObject({
+      status: 409,
+      code: 'sign_in_active',
     });
   });
 });

@@ -71,7 +71,9 @@ export function subscriptionCalls(api: Api) {
     rename: (credentialId: string, label: string) =>
       call(one.$patch({ param: { credentialId }, json: { label } })),
     remove: (credentialId: string) => call(one.$delete({ param: { credentialId } })),
-    startSignIn: (provider: SignInProvider) => call(signIn.$post({ json: { provider } })),
+    /** Starts a sign-in; with `credentialId` (Sign in again), it renews that subscription in place. */
+    startSignIn: (provider: SignInProvider, credentialId?: string) =>
+      call(signIn.$post({ json: credentialId === undefined ? { provider } : { provider, credentialId } })),
     signIn: (signInId: string) => call(signIn[':signInId'].$get({ param: { signInId } })),
     sendCode: (signInId: string, code: string) =>
       call(signIn[':signInId'].code.$post({ param: { signInId }, json: { code } })),

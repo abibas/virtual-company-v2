@@ -1,3 +1,5 @@
+import { auditLog } from '@mwc/db';
+import { rawDb } from '@mwc/db/system';
 import {
   createTestApp,
   FakeIdentityProvider,
@@ -7,14 +9,21 @@ import {
   type TestApp,
   testConfig,
 } from '@mwc/testkit';
+import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { credentialSecrets } from '../../../../src/modules/credentials/index.ts';
+import type { AccessProfileView } from '../../../../src/modules/credentials/schemas/profiles.ts';
 import type { SignInView } from '../../../../src/modules/credentials/schemas/sign-in.ts';
 import type { SubscriptionView } from '../../../../src/modules/credentials/schemas.ts';
+import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
 import { type AuthWorld, addPerson, bearer, seedApiKey } from '../../../fixtures/auth.ts';
 import { addUser, call, type LinkedUser } from '../../../fixtures/companies.ts';
+import { addSubscription, PROFILES, revokeSubscription, seedProfile } from '../../../fixtures/org.ts';
 import {
   CLAUDE_AUTHORIZE_URL,
   CLAUDE_CODE,
+  CLAUDE_CREDENTIALS,
+  CODEX_AUTH,
   CODEX_DEVICE_URL,
   CODEX_USER_CODE,
   SECRETS,
@@ -29,13 +38,14 @@ import {
 
 const SIGN_IN = '/api/me/subscriptions/sign-in';
 const helper = new FakeLoginHelper();
+const keyring = ephemeralKeyring();
 let w: AuthWorld;
 let ihor: LinkedUser;
 let other: LinkedUser;
 beforeAll(async () => {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
-  const t = await createTestApp({ clock, identity: fake, loginHelper: helper });
+  const t = await createTestApp({ clock, identity: fake, loginHelper: helper, keyring });
   w = { t, fake, clock, deps: { db: t.db, config: testConfig, logger: t.logger, identity: fake } };
   ihor = await addUser(t.db, fake);
   other = await addUser(t.db, fake);
@@ -45,7 +55,7 @@ beforeEach(() => {
   helper.script = claudeScript();
 });
 
-const as = (user: LinkedUser) => call(w, user.token);
+const as = (user: LinkedUser, requestId?: string) => call(w, user.token, requestId);
 const noSecret = (value: unknown) => {
   const text = JSON.stringify(value);
   for (const secret of SECRETS) expect(text).not.toContain(secret);
@@ -125,6 +135,119 @@ describe('Sign in with OpenAI over HTTP', () => {
         accountMeta: { planType: 'pro' },
       }),
     );
+  });
+});
+
+describe('Sign in again over HTTP', () => {
+  const store = () => credentialSecrets({ db: w.t.db, keyring, clock: w.clock });
+  /** A login of the user's that needs signing in again, of `kind`, with its old account. */
+  async function stale(kind: 'claude_oauth' | 'codex_oauth', accountEmail: string) {
+    const secret =
+      kind === 'claude_oauth'
+        ? { credentials: { claudeAiOauth: { accessToken: 'sk-ant-oat01-FAKEold' } }, account: null }
+        : { auth: { tokens: { access_token: 'eyFAKEold' } } };
+    const view = await store().storeCredential({
+      ownerUserId: ihor.userId,
+      kind,
+      label: 'Mine',
+      secret,
+      accountEmail,
+    } as Parameters<ReturnType<typeof store>['storeCredential']>[0]);
+    await store().setCredentialStatus(view.id, ihor.userId, 'needs_sign_in');
+    return view;
+  }
+  const subscriptionsOf = async (user: LinkedUser) =>
+    ((await as(user)('GET', '/api/me/subscriptions')).body as { subscriptions: SubscriptionView[] })
+      .subscriptions;
+
+  it('renews the same subscription: no new one, its secret replaced, active, its name and profiles kept', async () => {
+    const old = await stale('claude_oauth', 'ihor@example.test');
+    const profile = await seedProfile(w.t.db, ihor.userId, { claudeCredentialId: old.id });
+    const before = (await subscriptionsOf(ihor)).length;
+    const res = await as(ihor, 'req-again')('POST', SIGN_IN, {
+      provider: 'claude',
+      credentialId: old.id,
+      label: 'X',
+    });
+    expect(res).toMatchObject({
+      status: 201,
+      body: { state: 'starting', credentialId: null, accountChanged: false },
+    });
+    const id = (res.body as SignInView).id;
+    await settle();
+    await as(ihor)('POST', `${SIGN_IN}/${id}/code`, { code: CLAUDE_CODE });
+    await until(async () => (await poll(ihor, id)).state === 'done', 'done');
+    expect(await poll(ihor, id)).toMatchObject({
+      credentialId: old.id,
+      accountChanged: false,
+      message: null,
+    });
+    const after = await subscriptionsOf(ihor);
+    expect(after).toHaveLength(before);
+    expect(after.find((s) => s.id === old.id)).toMatchObject({
+      label: 'Mine',
+      status: 'active',
+      accountEmail: 'ihor@example.test',
+      accountMeta: { organizationName: "Ihor's Organization", subscriptionType: 'max' },
+    });
+    expect(await store().useCredentialSecret(old.id, ihor.userId, 'test')).toMatchObject({
+      secret: { credentials: CLAUDE_CREDENTIALS },
+    });
+    const profiles = (await as(ihor)('GET', PROFILES)).body as { profiles: AccessProfileView[] };
+    expect(profiles.profiles.find((p) => p.id === profile.id)?.claude).toMatchObject({
+      id: old.id,
+      status: 'active',
+    });
+    const audit = await rawDb(w.t.db)
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.requestId, 'req-again'))
+      .orderBy(asc(auditLog.id));
+    expect(audit.map((r) => [r.entityId, r.actorKind, r.action, r.field])).toEqual([
+      [old.id, 'user', 'replace_secret', 'secret'],
+      [old.id, 'user', 'update', 'accountMeta'],
+      [old.id, 'user', 'update', 'status'],
+    ]);
+    noSecret([res.body, after, audit]);
+  });
+
+  it('says so when the login is of another account, and renews an OpenAI login too', async () => {
+    helper.script = codexScript();
+    const old = await stale('codex_oauth', 'someone@example.test');
+    const started = await begin(ihor, { provider: 'openai', credentialId: old.id });
+    helper.last.exit(0);
+    await until(async () => (await poll(ihor, started.id)).state === 'done', 'done');
+    expect(await poll(ihor, started.id)).toMatchObject({ credentialId: old.id, accountChanged: true });
+    expect((await subscriptionsOf(ihor)).find((s) => s.id === old.id)).toMatchObject({
+      label: 'Mine',
+      status: 'active',
+      accountEmail: 'ihor@example.test',
+      accountMeta: { planType: 'pro' },
+    });
+    expect(await store().useCredentialSecret(old.id, ihor.userId, 'test')).toMatchObject({
+      secret: { auth: CODEX_AUTH },
+    });
+  });
+
+  it("refuses another person's subscription and an unknown id (404), another kind and a revoked one (422)", async () => {
+    const theirs = await addSubscription(w, keyring, other.userId, 'claude_oauth');
+    const codex = await addSubscription(w, keyring, ihor.userId, 'codex_oauth');
+    const key = await addSubscription(w, keyring, ihor.userId, 'anthropic_api_key');
+    const revoked = await addSubscription(w, keyring, ihor.userId, 'claude_oauth');
+    await revokeSubscription(w.t.db, revoked.id);
+    const started = helper.commands.length;
+    for (const [credentialId, status, code] of [
+      [theirs.id, 404, 'credential_not_found'],
+      ['019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b', 404, 'credential_not_found'],
+      ['not-an-id', 404, 'credential_not_found'],
+      [codex.id, 422, 'sign_in_kind_mismatch'],
+      [key.id, 422, 'sign_in_kind_mismatch'],
+      [revoked.id, 422, 'credential_revoked'],
+    ] as const) {
+      const res = await as(ihor)('POST', SIGN_IN, { provider: 'claude', credentialId });
+      expect(res, credentialId).toMatchObject({ status, body: { error: { code } } });
+    }
+    expect(helper.commands.length).toBe(started);
   });
 });
 

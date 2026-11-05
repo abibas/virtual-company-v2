@@ -19,8 +19,8 @@ interface SubscriptionCardProps {
   readonly rename: (label: string) => Promise<unknown>;
   /** Removes it (`DELETE`), then the list is read again. */
   readonly remove: () => Promise<void>;
-  /** Sign in again, for a login that needs it: the same sign-in as adding one. */
-  readonly onSignIn: (provider: SignInProvider) => void;
+  /** Sign in again, for a login that needs it: the same sign-in as adding one, renewing this subscription in place. */
+  readonly onSignIn: (provider: SignInProvider, credentialId: string) => void;
 }
 
 /** Its limits: the bars of a plan, a line for keys and gateways, nothing for a revoked one. */
@@ -87,7 +87,7 @@ export function SubscriptionCard({
           {account && <p className="truncate text-sm text-dim">{account}</p>}
         </div>
         {provider && subscription.status === 'needs_sign_in' && (
-          <Button size="sm" tone="primary" icon={LogIn} onClick={() => onSignIn(provider)}>
+          <Button size="sm" tone="primary" icon={LogIn} onClick={() => onSignIn(provider, subscription.id)}>
             Sign in again
           </Button>
         )}

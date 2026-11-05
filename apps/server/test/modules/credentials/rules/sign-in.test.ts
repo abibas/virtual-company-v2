@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accountChanged,
   claudeScreen,
   codexScreen,
   exitEnding,
   finishesOnExit,
   isActive,
   plainText,
+  renewalRefusal,
   SIGN_IN_CODE,
   SIGN_IN_ENDINGS,
   SIGN_IN_STATES,
@@ -116,5 +118,32 @@ describe('codexScreen', () => {
   it('refuses another host, and finds a code on its own line without the usual wording', () => {
     expect(codexScreen(`Open https://auth.evil.example/codex/device\n  ABCD-EFGH\n`)).toBeUndefined();
     expect(codexScreen(`Open ${CODEX_DEVICE_URL}\n  WXYZ-12345\n`)).toMatchObject({ userCode: 'WXYZ-12345' });
+  });
+});
+
+describe('signing in again', () => {
+  it("renews only the caller's own subscription of the provider's kind that is not revoked", () => {
+    expect(renewalRefusal('claude', { kind: 'claude_oauth', status: 'needs_sign_in' })).toBeUndefined();
+    expect(renewalRefusal('openai', { kind: 'codex_oauth', status: 'active' })).toBeUndefined();
+    expect(renewalRefusal('claude', undefined)).toMatchObject({ status: 404, code: 'credential_not_found' });
+    expect(renewalRefusal('claude', { kind: 'codex_oauth', status: 'active' })).toMatchObject({
+      status: 422,
+      code: 'sign_in_kind_mismatch',
+      message: 'Sign in with Claude signs in again only to a subscription it added',
+    });
+    expect(renewalRefusal('openai', { kind: 'claude_setup_token', status: 'active' })).toMatchObject({
+      code: 'sign_in_kind_mismatch',
+    });
+    expect(renewalRefusal('openai', { kind: 'codex_oauth', status: 'revoked' })).toMatchObject({
+      status: 422,
+      code: 'credential_revoked',
+    });
+  });
+
+  it('sees another account only when both emails are known and differ, letter case aside', () => {
+    expect(accountChanged('ihor@example.test', 'other@example.test')).toBe(true);
+    expect(accountChanged('Ihor@Example.test', 'ihor@example.test')).toBe(false);
+    expect(accountChanged(null, 'ihor@example.test')).toBe(false);
+    expect(accountChanged('ihor@example.test', null)).toBe(false);
   });
 });

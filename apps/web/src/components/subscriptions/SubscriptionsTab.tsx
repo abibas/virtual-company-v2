@@ -68,7 +68,7 @@ interface ListProps {
   readonly calls: SubscriptionCalls;
   /** A card renamed or removed one: read the lists again. */
   readonly onChanged: () => void;
-  readonly onSignIn: (provider: SignInProvider) => void;
+  readonly onSignIn: (provider: SignInProvider, credentialId: string) => void;
   readonly onAdd: () => void;
 }
 

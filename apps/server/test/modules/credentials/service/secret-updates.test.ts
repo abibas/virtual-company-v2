@@ -139,3 +139,64 @@ describe('setCredentialStatus', () => {
     expect(await updatesOf(view.id)).toEqual([]);
   });
 });
+
+describe('renewCredentialLogin', () => {
+  const renewed = { accountEmail: 'new@example.test', accountMeta: { subscriptionType: 'max' } } as const;
+  const renew = (id: string, owner = ihor.userId) =>
+    store.renewCredentialLogin(id, owner, { kind: 'claude_oauth', secret: login(NEW), ...renewed }, 'req-r');
+
+  it('seals the new login in place, sets it active with its account, keeps the name, and audits no secret', async () => {
+    const view = await store.storeCredential({
+      ownerUserId: ihor.userId,
+      kind: 'claude_oauth',
+      label: 'Max',
+      secret: login(OLD),
+      accountEmail: 'old@example.test',
+    });
+    await store.setCredentialStatus(view.id, ihor.userId, 'needs_sign_in');
+    w.clock.advance(60_000);
+    expect(await renew(view.id)).toEqual({
+      ok: true,
+      previousEmail: 'old@example.test',
+      credential: expect.objectContaining({
+        id: view.id,
+        label: 'Max',
+        status: 'active',
+        ...renewed,
+        updatedAt: w.clock().toISOString(),
+      }),
+    });
+    expect(await store.useCredentialSecret(view.id, ihor.userId, 'check')).toMatchObject({
+      secret: login(NEW),
+    });
+    const audit = (await updatesOf(view.id)).filter((r) => r.requestId === 'req-r');
+    expect(audit.map((r) => [r.actorKind, r.action, r.field, r.oldValue, r.newValue])).toEqual([
+      ['user', 'replace_secret', 'secret', { keyVersion: 1 }, { keyVersion: 1, purpose: 'sign_in_again' }],
+      ['user', 'update', 'accountEmail', 'old@example.test', 'new@example.test'],
+      ['user', 'update', 'accountMeta', {}, { subscriptionType: 'max' }],
+      ['user', 'update', 'status', 'needs_sign_in', 'active'],
+    ]);
+    expect(JSON.stringify(audit)).not.toMatch(/REPLACE(old|new)/);
+  });
+
+  it('writes only the secret row when nothing else changed', async () => {
+    const view = await store.storeCredential({
+      ownerUserId: ihor.userId,
+      kind: 'claude_oauth',
+      label: 'Max',
+      secret: login(OLD),
+      ...renewed,
+    });
+    expect(await renew(view.id)).toMatchObject({ ok: true, previousEmail: 'new@example.test' });
+    expect((await updatesOf(view.id)).map((r) => r.action)).toEqual(['replace_secret']);
+  });
+
+  it("refuses another person's, an unknown and a revoked credential, changing nothing", async () => {
+    const view = await addLogin();
+    expect(await renew(view.id, other.userId)).toMatchObject({ ok: false, code: 'credential_not_found' });
+    expect(await renew(newId())).toMatchObject({ code: 'credential_not_found' });
+    await rawDb(w.t.db).update(credentials).set({ status: 'revoked' }).where(eq(credentials.id, view.id));
+    expect(await renew(view.id)).toMatchObject({ code: 'credential_revoked' });
+    expect(await updatesOf(view.id)).toEqual([]);
+  });
+});

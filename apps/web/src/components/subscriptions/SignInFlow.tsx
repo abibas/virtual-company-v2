@@ -131,8 +131,36 @@ function stepsFor(provider: SignInProvider, phase: SignInPhase, control: SignInC
   ];
 }
 
+/** "Signed in as …", or "Signed in again as …" for a renewed subscription, with a note when its account changed. */
+function DoneNotice({
+  live,
+  again,
+}: {
+  readonly live: Extract<SignInPhase, { kind: 'live' }>;
+  readonly again: boolean;
+}) {
+  if (!again) {
+    return (
+      <Notice tone="success" title="Signed in">
+        {live.email ? `Signed in as ${live.email}.` : 'Your subscription is stored.'} Rename it or put it in
+        an access profile on the Subscriptions page.
+      </Notice>
+    );
+  }
+  return (
+    <Notice tone="success" title="Signed in again">
+      {live.email ? `Signed in again as ${live.email}.` : 'Your subscription is renewed.'} It keeps its name
+      and its access profiles.
+      {live.signIn.accountChanged &&
+        ' This is a different account than before: the subscription and the agents using it now run on it.'}
+    </Notice>
+  );
+}
+
 interface SignInFlowProps {
   readonly provider: SignInProvider;
+  /** Sign in again on this subscription: the login renews it in place. */
+  readonly credentialId?: string | undefined;
   readonly control: SignInControl;
   /** Back to the choices (cancelling a sign-in in progress). */
   readonly onBack: () => void;
@@ -144,7 +172,7 @@ interface SignInFlowProps {
  * Sign in with Claude or OpenAI, as it happens: the steps filling in, the provider's page to open, the code, then
  * "Signed in as …", or why it ended with Try again. Cancel ends the sign-in on the server.
  */
-export function SignInFlow({ provider, control, onBack, onDone }: SignInFlowProps) {
+export function SignInFlow({ provider, credentialId, control, onBack, onDone }: SignInFlowProps) {
   const { phase } = control;
   const live = phase.kind === 'live' ? phase : undefined;
   const running = phase.kind === 'requesting' || (live !== undefined && isActive(live.signIn));
@@ -152,18 +180,13 @@ export function SignInFlow({ provider, control, onBack, onDone }: SignInFlowProp
   return (
     <div className="flex flex-col gap-5">
       <Steps label={`Sign in with ${PROVIDER_NAMES[provider]}`} steps={stepsFor(provider, phase, control)} />
-      {live?.signIn.state === 'done' && (
-        <Notice tone="success" title="Signed in">
-          {live.email ? `Signed in as ${live.email}.` : 'Your subscription is stored.'} Rename it or put it in
-          an access profile on the Subscriptions page.
-        </Notice>
-      )}
+      {live?.signIn.state === 'done' && <DoneNotice live={live} again={credentialId !== undefined} />}
       {why && <Notice tone="error">{why}</Notice>}
       <div className="flex flex-wrap justify-end gap-2">
         {running && <Button onClick={onBack}>Cancel</Button>}
         {why && <Button onClick={onBack}>Back</Button>}
         {why && (
-          <Button tone="primary" icon={RotateCcw} onClick={() => control.start(provider)}>
+          <Button tone="primary" icon={RotateCcw} onClick={() => control.start(provider, credentialId)}>
             Try again
           </Button>
         )}

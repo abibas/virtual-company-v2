@@ -34,13 +34,22 @@ const startRoute = (deps: AuthDeps) => {
     summary: 'Start Sign in with Claude or Sign in with OpenAI',
     description:
       "Starts the provider's official CLI login in a throwaway sandbox and answers at once, `starting`. Poll the " +
-      "sign-in for the address to open (and OpenAI's one-time code). It ends within 10 minutes.",
+      "sign-in for the address to open (and OpenAI's one-time code). It ends within 10 minutes. With " +
+      "`credentialId` it signs in again: the login replaces that subscription's secret in place, keeping its id, " +
+      'name and access profiles.',
     request: { body: jsonBody(StartSignInSchema) },
     responses: {
       201: jsonResponse('The sign-in, starting', SignInSchema),
       400: INVALID,
       ...refusals,
+      404: errorResponse(
+        "`credentialId` is no subscription of yours (`credential_not_found`); another person's is the same",
+      ),
       409: errorResponse('You are already signing in (`sign_in_active`): finish or cancel it first'),
+      422: errorResponse(
+        "`credentialId` is another provider's kind (`sign_in_kind_mismatch`: Claude signs in again to " +
+          '`claude_oauth`, OpenAI to `codex_oauth`) or revoked (`credential_revoked`)',
+      ),
       503: errorResponse(
         'Sign-in is off on this server (`identity_not_configured`), or signing in with a subscription is ' +
           '(`sign_in_unavailable`, MWC_LOGIN_HELPER=none)',
@@ -100,8 +109,13 @@ export function signInRoutes(
 ) {
   const signIns = signInService(deps);
   return newRouter()
-    .openapi(startRoute(deps), (c) => {
-      const result = signIns.start(callerOf(c.var), c.req.valid('json'));
+    .openapi(startRoute(deps), async (c) => {
+      const { credentialId, ...body } = c.req.valid('json');
+      const caller = callerOf(c.var);
+      const result =
+        credentialId === undefined
+          ? signIns.start(caller, body)
+          : await signIns.signInAgain(caller, body.provider, credentialId);
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.signIn, 201);
     })

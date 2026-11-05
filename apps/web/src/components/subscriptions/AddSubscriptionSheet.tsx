@@ -94,7 +94,7 @@ const titleOf = (step: AddStep): string =>
   step.kind === 'choose'
     ? 'Add a subscription'
     : step.kind === 'sign-in'
-      ? `Sign in with ${SIGN_IN_NAMES[step.provider]}`
+      ? `Sign in ${step.credentialId === undefined ? '' : 'again '}with ${SIGN_IN_NAMES[step.provider]}`
       : pasteTitle(step.paste);
 
 /**
@@ -123,6 +123,7 @@ export function AddSubscriptionSheet({
       {step.kind === 'sign-in' && (
         <SignInFlow
           provider={step.provider}
+          credentialId={step.credentialId}
           control={adding.signIn}
           onBack={adding.back}
           onDone={adding.close}

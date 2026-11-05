@@ -18,10 +18,22 @@ export const SignInParamsSchema = z.object({
   }),
 });
 
-/** Which subscription to sign in to, and optionally its name (by default "Claude · <email>" or "OpenAI · <email>"). */
+/**
+ * Which subscription to sign in to, and optionally its name (by default "Claude · <email>" or "OpenAI · <email>"); or,
+ * to sign in again, the id of the caller's own subscription the login renews in place (its name stays).
+ */
 export const StartSignInSchema = z
   .object({
     provider: SignInProviderSchema,
+    credentialId: z
+      .string()
+      .optional()
+      .openapi({
+        description:
+          'Sign in again: your own subscription of this provider (Claude `claude_oauth`, OpenAI `codex_oauth`), ' +
+          'renewed in place with the same id, name and access profiles; `label` is then ignored',
+        example: '019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b',
+      }),
     label: z
       .string()
       .trim()
@@ -57,7 +69,13 @@ export const SignInSchema = z
       description: "OpenAI's one-time code, typed in on its page",
       example: 'ABCD-EFGH2',
     }),
-    credentialId: z.string().nullable().openapi({ description: 'The stored subscription, once done' }),
+    credentialId: z
+      .string()
+      .nullable()
+      .openapi({ description: 'The stored subscription, once done (when signing in again, the same one)' }),
+    accountChanged: z.boolean().openapi({
+      description: 'Signed in again to another account than the subscription had (both emails known)',
+    }),
     message: z
       .string()
       .nullable()

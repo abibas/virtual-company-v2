@@ -1,3 +1,5 @@
+import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
+
 /**
  * Sign in with Claude and Sign in with OpenAI, as pure rules (S3.2, docs/subscriptions.md): the states of a sign-in,
  * its limits and refusals, and what the official CLIs' screens show the person: the provider's sign-in address, and
@@ -7,6 +9,12 @@
 
 export const SIGN_IN_PROVIDERS = ['claude', 'openai'] as const;
 export type SignInProvider = (typeof SIGN_IN_PROVIDERS)[number];
+
+/** The kind of subscription each sign-in stores, and the only kind it signs in to again. */
+export const SIGN_IN_KINDS = {
+  claude: 'claude_oauth',
+  openai: 'codex_oauth',
+} as const satisfies Record<SignInProvider, CredentialKind>;
 
 /**
  * `starting` (the sandbox and the CLI start), `waiting_for_user` (the address, with OpenAI's code, is shown: the
@@ -63,6 +71,7 @@ export const SIGN_IN_ENDINGS = {
     'Claude did not accept the code. Start again, and paste the whole code from the page you open from here.',
   codeTimeout: 'Claude did not finish signing in after the code. Start again.',
   notSaved: 'The login could not be saved. Start again.',
+  gone: 'The subscription was removed or revoked while you signed in. Nothing was stored.',
 } as const;
 
 /** Why a sign-in failed when its CLI stopped without a finished login, from where it was. */
@@ -74,7 +83,7 @@ export function exitEnding(provider: SignInProvider, state: SignInState): string
 }
 
 /** A sign-in request the routes refuse, in the common error shape. */
-export interface SignInRefusal<S extends 404 | 409 | 503 = 404 | 409 | 503> {
+export interface SignInRefusal<S extends 404 | 409 | 422 | 503 = 404 | 409 | 422 | 503> {
   readonly ok: false;
   readonly status: S;
   readonly code: string;
@@ -109,6 +118,35 @@ export const SIGN_IN_UNAVAILABLE: SignInRefusal<503> = {
   code: 'sign_in_unavailable',
   message: 'Signing in with a subscription is off on this server (MWC_LOGIN_HELPER=none)',
 };
+
+/**
+ * Why a sign-in may not renew a subscription (Sign in again), or undefined when it may. `credential` is the caller's
+ * own of that id, undefined when they have none (another person's is the same 404, so nobody learns which exist).
+ */
+export function renewalRefusal(
+  provider: SignInProvider,
+  credential: { readonly kind: CredentialKind; readonly status: CredentialStatus } | undefined,
+): SignInRefusal<404 | 422> | undefined {
+  if (credential === undefined)
+    return { ok: false, status: 404, code: 'credential_not_found', message: 'No such subscription of yours' };
+  const name = PROVIDER_NAMES[provider];
+  if (credential.kind !== SIGN_IN_KINDS[provider]) {
+    const message = `Sign in with ${name} signs in again only to a subscription it added`;
+    return { ok: false, status: 422, code: 'sign_in_kind_mismatch', message };
+  }
+  if (credential.status === 'revoked')
+    return {
+      ok: false,
+      status: 422,
+      code: 'credential_revoked',
+      message: 'This subscription was revoked; add it again',
+    };
+  return undefined;
+}
+
+/** A renewal signed in to another account: both emails known and different, letter case aside. */
+export const accountChanged = (before: string | null, after: string | null): boolean =>
+  before !== null && after !== null && before.toLowerCase() !== after.toLowerCase();
 
 /** What the CLI's screen shows the person. */
 export interface Shown {

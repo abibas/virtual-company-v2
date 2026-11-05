@@ -84,6 +84,7 @@ const FRIENDLY: Readonly<Record<string, string>> = {
   sign_in_unavailable: 'Sign-in isn’t available on this server (Docker isn’t running?).',
   sign_in_not_found: 'This sign-in has ended (the server may have restarted). Start again.',
   sign_in_not_waiting: 'The sign-in is not asking for a code yet. Wait a moment and send it again.',
+  sign_in_kind_mismatch: 'This subscription was not added with this sign-in. Sign in with its own provider.',
   credential_not_found: 'This subscription no longer exists. Refresh the page.',
   credential_kind_mismatch: 'That subscription does not fit this slot. Choose one of the kind it takes.',
   credential_revoked: 'That subscription is revoked. Choose another one.',

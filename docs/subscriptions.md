@@ -115,6 +115,11 @@ As built in S3.2:
   every 2 seconds); `POST /api/me/subscriptions/sign-in/:id/code` `{ code }` → 200 `completing`, 409
   `sign_in_not_waiting` when no code is awaited (always for OpenAI); `DELETE /api/me/subscriptions/sign-in/:id` →
   200 `cancelled`.
+- **Sign in again** (a card's button on a login that `needs_sign_in`) starts with `credentialId`, the caller's own
+  `claude_oauth` or `codex_oauth` of that provider (else 404 `credential_not_found`, 422 `sign_in_kind_mismatch` or
+  `credential_revoked`): the login replaces its secret in place (`renewCredentialLogin`, audited without the secret),
+  sets it `active` with the new account email and details and keeps its id, name and access profiles; the done sign-in
+  carries that `credentialId`, with `accountChanged: true` when another account signed in.
 - **Logs.** A sign-in logs its id, provider, helper and how it ended, never the CLI's output (the terminal echoes the
   pasted code), the code, an address, a token or a file; the logger also blanks the logins' token keys, `pastedCode`,
   `screen` and `output`.
