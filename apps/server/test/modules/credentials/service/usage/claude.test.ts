@@ -99,6 +99,34 @@ describe('claudeWindows', () => {
       ['seven_day_fable', 'Weekly · Fable', 31],
     ]);
   });
+
+  it('adds the per-model weekly rows of limits[] (Fable is only there), over a legacy key for the same model', () => {
+    const windows = claudeWindows({
+      five_hour: { utilization: 22, resets_at: '2026-11-05T23:40:00Z' },
+      seven_day: { utilization: 51, resets_at: '2026-11-11T04:00:00Z' },
+      seven_day_opus: { utilization: 5, resets_at: '2026-11-11T04:00:00Z' },
+      limits: [
+        { kind: 'session', group: 'session', percent: 22, resets_at: '2026-11-05T23:40:00Z' },
+        { kind: 'weekly_all', group: 'weekly', percent: 51, resets_at: '2026-11-11T04:00:00Z' },
+        { kind: 'weekly_scoped', percent: 31, resets_at: '2026-11-11T03:59:00Z', scope: { model: { display_name: 'Fable' } } },
+        { kind: 'weekly_scoped', percent: 12, resets_at: null, scope: { model: { display_name: 'Opus' } } },
+        { kind: 'weekly_scoped', percent: 9, scope: { model: {} } },
+        { kind: 'weekly_scoped', percent: 9, scope: { model: { display_name: '!!!' } } },
+        { kind: 'weekly_scoped', scope: { model: { display_name: 'Sonnet' } } },
+        'not a row',
+      ],
+    });
+    expect(windows.map((x) => [x.id, x.label, x.usedPercent, x.resetsAt])).toEqual([
+      ['five_hour', '5-hour limit', 22, '2026-11-05T23:40:00.000Z'],
+      ['seven_day', 'Weekly limit', 51, '2026-11-11T04:00:00.000Z'],
+      ['seven_day_opus', 'Weekly · Opus', 12, null],
+      ['seven_day_fable', 'Weekly · Fable', 31, '2026-11-11T03:59:00.000Z'],
+    ]);
+  });
+
+  it('ignores a limits value that is not a list', () => {
+    expect(claudeWindows({ limits: { kind: 'weekly_scoped' } })).toEqual([]);
+  });
 });
 
 describe('a Claude login', () => {

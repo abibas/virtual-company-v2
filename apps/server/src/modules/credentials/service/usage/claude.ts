@@ -37,17 +37,42 @@ type TokenSet = NonNullable<ClaudeLogin['credentials']['claudeAiOauth']>;
 
 /**
  * The windows of a usage answer, 5-hour and weekly first; its utilization is a percentage. A window without a
- * utilization, and any other key (`extra_usage`, `seven_day_oauth_apps`), is not shown.
+ * utilization, and any other key (`extra_usage`, `seven_day_oauth_apps`), is not shown. The per-model weekly rows
+ * of the answer's `limits[]` list are added, and win over a legacy key for the same model.
  */
 export function claudeWindows(body: Record<string, unknown>): LimitWindow[] {
-  const windows: LimitWindow[] = [];
+  const windows = new Map<string, LimitWindow>();
   for (const [id, value] of Object.entries(body)) {
     if (!WINDOW_KEY.test(id)) continue;
     const window = members(value);
     const used = amount(window.utilization);
-    if (used !== null) windows.push(limitWindow(id, used, isoTime(window.resets_at)));
+    if (used !== null) windows.set(id, limitWindow(id, used, isoTime(window.resets_at)));
   }
-  return windowOrder(windows);
+  for (const window of scopedWindows(body.limits)) windows.set(window.id, window);
+  return windowOrder([...windows.values()]);
+}
+
+/**
+ * The per-model weekly rows of the answer's `limits[]` list: `kind: 'weekly_scoped'` with
+ * `scope.model.display_name`, `percent` (0–100) and `resets_at`. Claude Code's `/usage` shows them as
+ * "Current week (Fable)"; the server reports Fable only there, not as a `seven_day_*` key (2026-11-05). The label
+ * keeps the server's own model name.
+ */
+function scopedWindows(limits: unknown): LimitWindow[] {
+  if (!Array.isArray(limits)) return [];
+  const windows: LimitWindow[] = [];
+  for (const entry of limits) {
+    const row = members(entry);
+    const name = text(members(members(row.scope).model).display_name);
+    const slug = name?.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const used = amount(row.percent);
+    if (row.kind !== 'weekly_scoped' || !name || !slug || used === null) continue;
+    windows.push({
+      ...limitWindow(`seven_day_${slug}`, used, isoTime(row.resets_at)),
+      label: `Weekly · ${name}`,
+    });
+  }
+  return windows;
 }
 
 /** Claude Code's refresh: a new token set for the login, sealed again; the login's account config is kept. */
