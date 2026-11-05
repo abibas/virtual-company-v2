@@ -6,6 +6,7 @@ import { call } from '../../api/errors.ts';
 import type { CreatedApiKey } from '../../api/types.ts';
 import { useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
+import { CompanyFacts } from '../../components/api-keys/CompanyFacts.tsx';
 import { CreateKeyForm } from '../../components/api-keys/CreateKeyForm.tsx';
 import { KeysPanel } from '../../components/api-keys/KeysPanel.tsx';
 import { LoginCommand } from '../../components/api-keys/LoginCommand.tsx';
@@ -15,7 +16,8 @@ import { Panel } from '../../components/ui/Panel.tsx';
 
 /**
  * `/c/:slug/api-keys`: personal API keys for the `mwc` CLI and your own Claude Code. Make one (its secret shown once,
- * kept only in this page's memory), see and revoke yours; admins and owners can see and revoke everyone's.
+ * kept only in this page's memory), see and revoke yours; admins and owners can see and revoke everyone's. Below them
+ * the company's facts the CLI and Claude Code need.
  */
 export function ApiKeysPage() {
   const api = useApi();
@@ -73,6 +75,7 @@ export function ApiKeysPage() {
           everyone={showAll}
           onEveryone={setEveryone}
         />
+        <CompanyFacts email={me.user.email} slug={membership.slug} companyId={companyId} />
       </div>
     </>
   );

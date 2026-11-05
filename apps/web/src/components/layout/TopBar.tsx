@@ -40,12 +40,15 @@ export function TopBar({
   now,
   user,
   attentionCount,
+  attentionPulse = false,
   onBell,
 }: {
   readonly firstName: string;
   readonly now?: Date;
   readonly user: ShellUser;
   readonly attentionCount: number;
+  /** The bell's count pulses (below 80rem, where no right rail shows it). */
+  readonly attentionPulse?: boolean;
   /** Opens what needs attention. */
   readonly onBell: () => void;
 }) {
@@ -66,6 +69,7 @@ export function TopBar({
           tone="solid"
           size="lg"
           badge={attentionCount}
+          pulse={attentionPulse}
           onClick={onBell}
           className="rounded-full"
         />

@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { type FormEvent, type ReactNode, useState } from 'react';
+import { type FormEvent, type ReactNode, type RefObject, useRef, useState } from 'react';
 import { uploadCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
@@ -7,7 +7,8 @@ import { rememberPendingLogo } from '../../api/pending-logo.ts';
 import type { Company } from '../../api/types.ts';
 import { cx } from '../cx.ts';
 import { TextField } from '../forms/Field.tsx';
-import { LogoPicker } from '../forms/image/LogoPicker.tsx';
+import { LogoPicker, type LogoPickerHandle } from '../forms/image/LogoPicker.tsx';
+import { LogoError } from '../forms/image/logo-file.ts';
 import { Badge } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
 import { Notice } from '../ui/Notice.tsx';
@@ -25,11 +26,16 @@ interface CreateCompanyFormProps {
 type Stage = 'idle' | 'creating' | 'logo';
 
 /**
- * `POST /api/companies` with the draft's name and address, then the logo's upload when one was picked. The company
- * exists once created: a logo refused or lost on the way is kept for the company's page to offer again, never a
- * reason to stop here.
+ * `POST /api/companies` with the draft's name and address, then the logo's upload when one was picked. The logo is
+ * taken from the picker itself: a crop step still open is applied as it stands, as Done would, so pressing Create
+ * mid-crop never drops it (a crop refused stops here, its reason on the picker). The company exists once created: a
+ * logo refused or lost on the upload is kept for the company's page to offer again, never a reason to stop here.
  */
-function useCreateCompany(draft: CompanyDraft, onCreated: CreateCompanyFormProps['onCreated']) {
+function useCreateCompany(
+  draft: CompanyDraft,
+  picker: RefObject<LogoPickerHandle | null>,
+  onCreated: CreateCompanyFormProps['onCreated'],
+) {
   const api = useApi();
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<unknown>();
@@ -37,11 +43,11 @@ function useCreateCompany(draft: CompanyDraft, onCreated: CreateCompanyFormProps
     setStage('creating');
     setError(undefined);
     try {
+      const logo = picker.current ? await picker.current.settle() : draft.logo;
       const chosen = draft.slug.trim();
       const company = await call(
         api.api.companies.$post({ json: { name: draft.name.trim(), ...(chosen ? { slug: chosen } : {}) } }),
       );
-      const logo = draft.logo;
       if (logo) {
         setStage('logo');
         await uploadCompanyLogo(api, company.id, logo.blob).catch((failure: unknown) =>
@@ -50,7 +56,7 @@ function useCreateCompany(draft: CompanyDraft, onCreated: CreateCompanyFormProps
       }
       await onCreated(company);
     } catch (failure) {
-      setError(failure);
+      if (!(failure instanceof LogoError)) setError(failure);
       setStage('idle');
     }
   };
@@ -77,7 +83,8 @@ function AddressHint({ address, chosen }: { readonly address: string; readonly c
 
 /** The logo, the name and the address of a new company, and the button that creates it. */
 export function CreateCompanyForm({ draft, onCreated, cancel, className }: CreateCompanyFormProps) {
-  const { stage, error, create } = useCreateCompany(draft, onCreated);
+  const picker = useRef<LogoPickerHandle>(null);
+  const { stage, error, create } = useCreateCompany(draft, picker, onCreated);
   const busy = stage !== 'idle';
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -86,6 +93,7 @@ export function CreateCompanyForm({ draft, onCreated, cancel, className }: Creat
   return (
     <form onSubmit={submit} className={cx('flex flex-col gap-5', className)}>
       <LogoPicker
+        ref={picker}
         name={draft.name}
         value={draft.logo}
         onChange={draft.setLogo}

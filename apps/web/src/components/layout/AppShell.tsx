@@ -4,6 +4,7 @@ import { Drawer } from './Drawer.tsx';
 import { MobileNav } from './MobileNav.tsx';
 import { type NavItem, Rail } from './Rail.tsx';
 import { RightRail, RightRailContent, type RightRailProps } from './RightRail.tsx';
+import { useRightRail, useWideScreen } from './right-rail-state.ts';
 import { type ShellUser, TopBar } from './TopBar.tsx';
 
 export interface AppShellProps extends RightRailProps {
@@ -17,22 +18,36 @@ export interface AppShellProps extends RightRailProps {
   readonly children: ReactNode;
 }
 
-/** The right rail is in view from Tailwind's `xl` breakpoint; below it the bell opens it as a drawer. */
-const WIDE = '(min-width: 80rem)';
-
 /**
  * The frame of every company page: the left icon rail, the top bar, the page, and the right rail with the
- * attention feed and the quick-create dock. On phones the rail becomes a bottom bar and the right rail a drawer.
+ * attention feed and the quick-create dock. From 80rem the right rail opens beside the page or collapses to a strip
+ * (`useRightRail`); below that the bell opens it as a drawer. On phones the rail becomes a bottom bar.
  */
 export function AppShell({ nav, badge, firstName, user, banner, children, now, ...rail }: AppShellProps) {
   const [drawer, setDrawer] = useState(false);
   const aside = useRef<HTMLElement>(null);
   const closeDrawer = useCallback(() => setDrawer(false), []);
-  const onBell = () => {
-    if (window.matchMedia(WIDE).matches) aside.current?.focus();
-    else setDrawer(true);
-  };
   const attentionCount = rail.attention.length;
+  const wide = useWideScreen();
+  const right = useRightRail(attentionCount);
+  // The collapsed rail's "+" asks for the composer's focus; any other toggle withdraws the request.
+  const [composing, setComposing] = useState(false);
+  const setRailOpen = (open: boolean) => {
+    setComposing(false);
+    right.setOpen(open);
+  };
+  const onBell = () => {
+    if (!wide) {
+      setDrawer(true);
+      return;
+    }
+    setRailOpen(true);
+    aside.current?.focus();
+  };
+  const onCompose = () => {
+    setComposing(true);
+    right.setOpen(true);
+  };
   return (
     <div className="min-h-screen md:pl-rail">
       <a
@@ -48,6 +63,7 @@ export function AppShell({ nav, badge, firstName, user, banner, children, now, .
             firstName={firstName}
             user={user}
             attentionCount={attentionCount}
+            attentionPulse={attentionCount > 0 && !wide}
             onBell={onBell}
             {...(now !== undefined ? { now } : {})}
           />
@@ -62,7 +78,15 @@ export function AppShell({ nav, badge, firstName, user, banner, children, now, .
             {children}
           </main>
         </div>
-        <RightRail asideRef={aside} {...rail} {...(now !== undefined ? { now } : {})} />
+        <RightRail
+          asideRef={aside}
+          open={right.open}
+          onOpenChange={setRailOpen}
+          onCompose={onCompose}
+          composing={composing}
+          {...rail}
+          {...(now !== undefined ? { now } : {})}
+        />
       </div>
       <MobileNav items={nav} />
       <Drawer open={drawer} onClose={closeDrawer} title="Attention required" className="h-[calc(100vh-1rem)]">

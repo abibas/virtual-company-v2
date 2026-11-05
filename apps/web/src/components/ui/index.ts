@@ -11,6 +11,7 @@ export { Badge, type BadgeProps, type BadgeVariant, roleName, StatusPill, type T
 export { Button, type ButtonProps, type ButtonSize, type ButtonTone, Spinner } from './Button.tsx';
 export { Card, type CardPadding, type CardProps, type CardVariant } from './Card.tsx';
 export { CompanyLogo, type CompanyLogoProps, type LogoSize } from './CompanyLogo.tsx';
+export { CountDot } from './CountDot.tsx';
 export { EmptyState } from './EmptyState.tsx';
 export { IconButton, type IconButtonProps, type IconButtonSize, type IconButtonTone } from './IconButton.tsx';
 export { IconTile } from './IconTile.tsx';

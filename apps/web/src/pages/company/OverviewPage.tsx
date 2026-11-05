@@ -1,5 +1,5 @@
 import { roleAtLeast } from '@mwc/shared/roles';
-import { KeyRound, Mail, Plus, Users } from 'lucide-react';
+import { Mail, Plus, Users } from 'lucide-react';
 import { useCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
@@ -8,7 +8,6 @@ import { useCompany } from '../../app/company.ts';
 import { companyAgentLinks } from '../../components/agents/links.ts';
 import { StatTile } from '../../components/data/StatTile.tsx';
 import { RunsCard } from '../../components/overview/ComingCards.tsx';
-import { CompanyFacts } from '../../components/overview/CompanyFacts.tsx';
 import { CompanyHero } from '../../components/overview/CompanyHero.tsx';
 import { TeamCard } from '../../components/overview/TeamCard.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
@@ -20,7 +19,7 @@ const ROLE_SUMMARY = {
   viewer: 'You are a viewer: you can look around, and change nothing but your own API keys.',
 } as const;
 
-/** The counts of the tiles: members, pending invitations (admins and owners), and the person's own keys. */
+/** The counts of the tiles: members, and pending invitations (admins and owners). */
 function useOverviewData(companyId: string, admin: boolean) {
   const api = useApi();
   const members = useLoad(`overview:members:${companyId}`, () =>
@@ -36,10 +35,7 @@ function useOverviewData(companyId: string, admin: boolean) {
         )
       : Promise.resolve({ invitations: [] }),
   );
-  const keys = useLoad(`overview:keys:${companyId}`, () =>
-    call(api.api.companies[':companyId']['api-keys'].$get({ param: { companyId }, query: {} })),
-  );
-  return { members, invitations, keys };
+  return { members, invitations };
 }
 
 /** A count from a loaded list: the number, a dash when it failed, the skeleton while loading. */
@@ -51,7 +47,7 @@ function countOf<T>(loaded: Loaded<T>, pick: (data: T) => number) {
   };
 }
 
-/** The three tiles, each a link to its page. */
+/** The two tiles, side by side from small screens up. */
 function Tiles({
   base,
   admin,
@@ -63,9 +59,8 @@ function Tiles({
 }) {
   const members = countOf(data.members, (d) => d.members.filter((m) => m.status === 'active').length);
   const invitations = countOf(data.invitations, (d) => d.invitations.length);
-  const keys = countOf(data.keys, (d) => d.apiKeys.filter((k) => k.status === 'active').length);
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2">
       <StatTile
         label="Members"
         icon={Users}
@@ -91,21 +86,13 @@ function Tiles({
           hint="What you may do here"
         />
       )}
-      <StatTile
-        label="Your API keys"
-        icon={KeyRound}
-        tone="teal"
-        href={`${base}/api-keys`}
-        {...keys}
-        hint={keys.hint ?? 'Active keys for the CLI and your own Claude Code'}
-      />
     </div>
   );
 }
 
-/** `/c/:slug`: the company at a glance: the hero, the numbers, what comes next, and the facts the CLI needs. */
+/** `/c/:slug`: the company at a glance: the hero, the numbers and what comes next. */
 export function OverviewPage() {
-  const { membership, me, agents } = useCompany();
+  const { membership, agents } = useCompany();
   const admin = roleAtLeast(membership.role, 'admin');
   const base = `/c/${membership.slug}`;
   const links = companyAgentLinks(membership.slug);
@@ -119,14 +106,9 @@ export function OverviewPage() {
         logoSrc={logoSrc}
         summary={ROLE_SUMMARY[membership.role]}
         actions={
-          <>
-            <ButtonLink href={`${base}/members`} tone="inverse" icon={admin ? Plus : Users}>
-              {admin ? 'Invite a teammate' : 'See the members'}
-            </ButtonLink>
-            <ButtonLink href={`${base}/api-keys`} tone="inverse-soft" icon={KeyRound}>
-              Create an API key
-            </ButtonLink>
-          </>
+          <ButtonLink href={`${base}/members`} tone="inverse" icon={admin ? Plus : Users}>
+            {admin ? 'Invite a teammate' : 'See the members'}
+          </ButtonLink>
         }
       />
       <Tiles base={base} admin={admin} data={data} />
@@ -134,7 +116,6 @@ export function OverviewPage() {
         <TeamCard agents={agents.data?.agents} href={links.chart} hireHref={admin ? links.hire : undefined} />
         <RunsCard />
       </div>
-      <CompanyFacts email={me.user.email} slug={membership.slug} companyId={membership.companyId} />
     </div>
   );
 }

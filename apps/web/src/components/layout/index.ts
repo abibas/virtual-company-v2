@@ -6,6 +6,13 @@ export { dateLine, firstName, greetingFor } from './greeting.ts';
 export { MobileNav } from './MobileNav.tsx';
 export { PageHeader } from './PageHeader.tsx';
 export { CompanyBadge, type CompanyBadgeProps, type NavItem, Rail } from './Rail.tsx';
-export { RightRail, RightRailContent, type RightRailProps } from './RightRail.tsx';
+export { RailStrip } from './RailStrip.tsx';
+export {
+  RightRail,
+  RightRailContent,
+  type RightRailFrameProps,
+  type RightRailProps,
+} from './RightRail.tsx';
+export { type RightRailState, useRightRail, useWideScreen } from './right-rail-state.ts';
 export { ThemeToggle } from './ThemeToggle.tsx';
 export { type ShellUser, TopBar, UserWell } from './TopBar.tsx';

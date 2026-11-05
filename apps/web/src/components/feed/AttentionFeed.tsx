@@ -1,4 +1,5 @@
 import { ChevronRight, Inbox } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
 import { DayGroup } from '../data/DayGroup.tsx';
@@ -9,8 +10,16 @@ import { SkeletonRow } from '../ui/Skeleton.tsx';
 import { AttentionRow } from './AttentionRow.tsx';
 import type { AttentionItem } from './kinds.ts';
 
-/** The title, the scope, and "See all" once there is something to see. */
-function FeedHeader({ subtitle, seeAllHref }: { readonly subtitle: string; readonly seeAllHref?: string }) {
+/** The title, the scope, "See all" once there is something to see, and the header's own action (collapse). */
+function FeedHeader({
+  subtitle,
+  seeAllHref,
+  action,
+}: {
+  readonly subtitle: string;
+  readonly seeAllHref?: string;
+  readonly action?: ReactNode;
+}) {
   return (
     <header className="flex items-start justify-between gap-3 px-1">
       <div>
@@ -19,15 +28,18 @@ function FeedHeader({ subtitle, seeAllHref }: { readonly subtitle: string; reado
         </h2>
         <p className="text-xs text-dim">{subtitle}</p>
       </div>
-      {seeAllHref && (
-        <Link
-          to={seeAllHref}
-          className="inline-flex items-center gap-0.5 text-sm font-semibold text-blue hover:underline"
-        >
-          See all
-          <ChevronRight size={15} strokeWidth={2.5} aria-hidden="true" />
-        </Link>
-      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {seeAllHref && (
+          <Link
+            to={seeAllHref}
+            className="inline-flex items-center gap-0.5 text-sm font-semibold text-blue hover:underline"
+          >
+            See all
+            <ChevronRight size={15} strokeWidth={2.5} aria-hidden="true" />
+          </Link>
+        )}
+        {action}
+      </div>
     </header>
   );
 }
@@ -77,6 +89,7 @@ export function AttentionFeed({
   now,
   seeAllHref,
   subtitle = 'Across all companies',
+  action,
   className,
 }: {
   readonly items: readonly AttentionItem[];
@@ -84,12 +97,18 @@ export function AttentionFeed({
   readonly now?: Date;
   readonly seeAllHref?: string;
   readonly subtitle?: string;
+  /** Beside "See all" in the header: the right rail's collapse button. */
+  readonly action?: ReactNode;
   readonly className?: string;
 }) {
   const groups = groupByDay(items, (item) => item.at, now);
   return (
     <section aria-labelledby="attention-title" className={cx('flex min-h-0 flex-col', className)}>
-      <FeedHeader subtitle={subtitle} {...(seeAllHref && items.length > 0 ? { seeAllHref } : {})} />
+      <FeedHeader
+        subtitle={subtitle}
+        action={action}
+        {...(seeAllHref && items.length > 0 ? { seeAllHref } : {})}
+      />
       <div className="scroll-quiet mt-1 min-h-0 flex-1 overflow-y-auto">
         <FeedBody groups={groups} loading={loading} />
       </div>

@@ -1,19 +1,11 @@
-import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
+import { type ReactNode, type Ref, type RefObject, useEffect, useImperativeHandle, useRef } from 'react';
 import { cx } from '../../cx.ts';
 import { formatBytes } from '../../data/format.ts';
-import type { CropRect } from './crop.ts';
-import { ImageCropper } from './ImageCropper.tsx';
+import { ImageCropper, type ImageCropperHandle } from './ImageCropper.tsx';
 import { ImageDrop } from './ImageDrop.tsx';
 import { LogoActions, LogoZone } from './LogoZone.tsx';
-import {
-  encodeLogo,
-  LogoError,
-  type LogoSource,
-  loadLogoSource,
-  type PreparedLogo,
-  releaseLogo,
-  releaseLogoSource,
-} from './logo-file.ts';
+import type { PreparedLogo } from './logo-file.ts';
+import { usePicking } from './use-picking.ts';
 
 /** An image to start with (the gallery): cropped by hand, or taken as its centred square at once. */
 export interface LogoStart {
@@ -40,72 +32,20 @@ export interface LogoPickerProps {
   readonly hint?: ReactNode;
   readonly start?: LogoStart | undefined;
   readonly className?: string;
+  readonly ref?: Ref<LogoPickerHandle>;
+}
+
+/** For a save that takes the picked logo itself (Create), instead of waiting for `onChange`. */
+export interface LogoPickerHandle {
+  /**
+   * The logo to save: waits for an image still being read and applies an open crop step as it stands, exactly as
+   * Done would (`onChange` hears of it too). Null without a pick; rejects with a `LogoError` when the crop is refused.
+   */
+  settle(): Promise<PreparedLogo | null>;
 }
 
 const DEFAULT_HINT =
   'PNG, JPEG or WebP, up to 10 MB. Click, drop a file, or paste an image; then crop it square.';
-
-/**
- * A pick is decoded and kept as the source, cropped by hand (or to its centred square at once), encoded, and handed
- * out; the source stays for Adjust until it is replaced, removed or the picker goes away.
- */
-function usePicking(value: PreparedLogo | null, onChange: LogoPickerProps['onChange']) {
-  const [source, setSource] = useState<LogoSource | null>(null);
-  const [cropping, setCropping] = useState<{ readonly initial?: CropRect } | null>(null);
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string>();
-  const latest = useRef(source);
-  latest.current = source;
-  useEffect(() => () => releaseLogoSource(latest.current), []);
-
-  const fail = (failure: unknown) =>
-    setError(failure instanceof LogoError ? failure.message : 'That image could not be read.');
-  const accept = async (from: LogoSource, crop?: CropRect) => {
-    setWorking(true);
-    try {
-      const next = await encodeLogo(from, crop);
-      releaseLogo(value);
-      onChange(next);
-      setCropping(null);
-    } catch (failure) {
-      fail(failure);
-    } finally {
-      setWorking(false);
-    }
-  };
-  const pick = async (file: File, crop = true) => {
-    setWorking(true);
-    setError(undefined);
-    try {
-      const next = await loadLogoSource(file);
-      releaseLogoSource(source);
-      setSource(next);
-      if (crop) setCropping({});
-      else await accept(next);
-    } catch (failure) {
-      fail(failure);
-    } finally {
-      setWorking(false);
-    }
-  };
-  const cancel = () => {
-    setCropping(null);
-    if (value) return;
-    releaseLogoSource(source);
-    setSource(null);
-  };
-  const adjust = () => {
-    if (value) setCropping({ initial: value.crop });
-  };
-  const clear = () => {
-    releaseLogoSource(source);
-    setSource(null);
-    releaseLogo(value);
-    setError(undefined);
-    onChange(null);
-  };
-  return { source, cropping, working, error, pick, accept, cancel, adjust, clear };
-}
 
 type Picking = ReturnType<typeof usePicking>;
 
@@ -149,7 +89,7 @@ function PickerRow({
           <LogoActions
             picked={value !== null}
             saved={Boolean(src)}
-            canAdjust={value !== null && picking.source !== null}
+            canAdjust={value !== null && picking.kept !== null}
             off={disabled || waiting}
             onOpen={() => input.current?.click()}
             onAdjust={picking.adjust}
@@ -169,10 +109,12 @@ function PickerRow({
  * name. Beside it what to do and the result's facts once it is ready.
  */
 export function LogoPicker(props: LogoPickerProps) {
-  const { value, onChange, start, className } = props;
+  const { value, onChange, start, className, ref } = props;
   const input = useRef<HTMLInputElement>(null);
+  const cropper = useRef<ImageCropperHandle>(null);
   const picking = usePicking(value, onChange);
-  const { source, cropping } = picking;
+  const { cropping } = picking;
+  useImperativeHandle(ref, () => ({ settle: () => picking.settle(() => cropper.current?.crop()) }));
   // biome-ignore lint/correctness/useExhaustiveDependencies: the starting image is taken once per `start`.
   useEffect(() => {
     if (start) void picking.pick(start.file, start.crop ?? false);
@@ -182,18 +124,21 @@ export function LogoPicker(props: LogoPickerProps) {
       {picking.error}
     </p>
   );
-  if (cropping && source) {
+  if (cropping) {
+    const { from } = cropping;
     return (
       <div className={cx('flex flex-col gap-3', className)}>
         <ImageCropper
-          src={source.url}
-          width={source.width}
-          height={source.height}
+          key={from.url}
+          ref={cropper}
+          src={from.url}
+          width={from.width}
+          height={from.height}
           initial={cropping.initial}
           label="Crop the logo"
           className="w-full max-w-sm"
           busy={picking.working}
-          onDone={(rect) => void picking.accept(source, rect)}
+          onDone={(rect) => void picking.accept(from, rect)}
           onCancel={picking.cancel}
         />
         {error}

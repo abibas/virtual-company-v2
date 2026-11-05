@@ -14,7 +14,6 @@ const PAGES: readonly { readonly key: string; readonly icon: LucideIcon }[] = [
 const TILES = [
   ['Members', '1'],
   ['Invitations', '0'],
-  ['API keys', '0'],
 ] as const;
 const SUMMARY = 'You own this company: its people, its settings, its agents.';
 
@@ -51,7 +50,7 @@ function MiniRail({ name, src }: Face) {
 /** The numbers a new company starts with, under the hero. */
 function MiniTiles() {
   return (
-    <div className="mt-2 grid grid-cols-3 gap-2">
+    <div className="mt-2 grid grid-cols-2 gap-2">
       {TILES.map(([label, value]) => (
         <div key={label} className="rounded-lg bg-surface-2 px-2.5 py-2">
           <p className="truncate text-2xs font-medium text-dim">{label}</p>
@@ -115,14 +114,9 @@ export function CompanyPreview({
             logoSrc={logoSrc}
             summary={SUMMARY}
             actions={
-              <>
-                <Button tone="inverse" size="sm" icon={Plus}>
-                  Invite a teammate
-                </Button>
-                <Button tone="inverse-soft" size="sm" icon={KeyRound}>
-                  Create an API key
-                </Button>
-              </>
+              <Button tone="inverse" size="sm" icon={Plus}>
+                Invite a teammate
+              </Button>
             }
           />
           <MiniTiles />

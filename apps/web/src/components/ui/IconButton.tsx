@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ComponentPropsWithRef } from 'react';
 import { cx } from '../cx.ts';
+import { CountDot } from './CountDot.tsx';
 import { Tooltip, type TooltipSide } from './Tooltip.tsx';
 
 export type IconButtonTone = 'ghost' | 'soft' | 'solid' | 'primary' | 'inverse';
@@ -56,6 +57,8 @@ export interface IconButtonProps extends Omit<ComponentPropsWithRef<'button'>, '
   readonly active?: boolean;
   /** A count in a red dot at the corner (the bell), hidden at 0. */
   readonly badge?: number;
+  /** The count's dot pulses softly: something waits for the person. */
+  readonly pulse?: boolean;
   /** Shows the label as a tooltip on hover and focus, on this side. */
   readonly tooltip?: TooltipSide;
   readonly round?: boolean;
@@ -69,6 +72,7 @@ export function IconButton({
   size = 'md',
   active = false,
   badge,
+  pulse = false,
   tooltip,
   round = false,
   className,
@@ -84,11 +88,7 @@ export function IconButton({
       {...rest}
     >
       <Icon size={SIZES[size].icon} strokeWidth={2} aria-hidden="true" />
-      {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-failed px-1 text-2xs font-bold text-white ring-2 ring-surface tabular">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      )}
+      <CountDot count={badge ?? 0} pulse={pulse} />
     </button>
   );
   if (!tooltip) return button;

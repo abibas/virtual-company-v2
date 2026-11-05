@@ -11,9 +11,9 @@ export {
   sameView,
   viewToRect,
 } from './crop.ts';
-export { ImageCropper, type ImageCropperProps } from './ImageCropper.tsx';
+export { ImageCropper, type ImageCropperHandle, type ImageCropperProps } from './ImageCropper.tsx';
 export { ImageDrop, type ImageDropProps, imageFileOf } from './ImageDrop.tsx';
-export { LogoPicker, type LogoPickerProps, type LogoStart } from './LogoPicker.tsx';
+export { LogoPicker, type LogoPickerHandle, type LogoPickerProps, type LogoStart } from './LogoPicker.tsx';
 export {
   encodeLogo,
   LOGO_MAX_BYTES,

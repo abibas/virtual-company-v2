@@ -1,4 +1,4 @@
-import { Bot, KeyRound, type LucideIcon, Users } from 'lucide-react';
+import { Bot, type LucideIcon, Users } from 'lucide-react';
 import { IconTile } from '../ui/IconTile.tsx';
 
 const STEPS: readonly { readonly icon: LucideIcon; readonly title: string; readonly line: string }[] = [
@@ -6,11 +6,6 @@ const STEPS: readonly { readonly icon: LucideIcon; readonly title: string; reado
     icon: Users,
     title: 'Invite your team',
     line: 'Admins, members and viewers join by email; the link signs them in.',
-  },
-  {
-    icon: KeyRound,
-    title: 'Create an API key',
-    line: 'For the mwc CLI and your own Claude Code, acting as you here.',
   },
   {
     icon: Bot,

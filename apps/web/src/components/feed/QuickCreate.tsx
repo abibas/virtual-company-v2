@@ -1,5 +1,5 @@
 import { ArrowUp } from 'lucide-react';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { cx } from '../cx.ts';
 import { IconButton } from '../ui/IconButton.tsx';
 import { FacePicker } from './FacePicker.tsx';
@@ -44,24 +44,39 @@ function TaskInput({
   );
 }
 
+/** Focuses the composer: its words when they can be typed, else the face picked, else the dock itself. */
+function focusComposer(form: HTMLFormElement | null) {
+  const target =
+    form?.querySelector<HTMLElement>('input:not(:disabled)') ??
+    form?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]') ??
+    form;
+  target?.focus();
+}
+
 /**
  * The dock at the bottom of the right rail: pick an agent by its face, say what to do, send. The faces are the
  * team's; without `onCreate` (tasks arrive in S4) a face can be picked but the words and the send button wait,
- * with `disabledNote` saying why.
+ * with `disabledNote` saying why. `focusComposer` (the collapsed rail's "+") focuses the composer as it shows.
  */
 export function QuickCreate({
   agents,
   onCreate,
   disabledNote,
+  focusComposer: focusOnShow = false,
   className,
 }: {
   readonly agents: readonly AgentRef[];
   /** Makes the task; absent, the words and the send button are disabled, with `disabledNote`. */
   readonly onCreate?: (agentId: string, text: string) => void;
   readonly disabledNote?: string | undefined;
+  readonly focusComposer?: boolean | undefined;
   readonly className?: string;
 }) {
   const id = useId();
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (focusOnShow) focusComposer(form.current);
+  }, [focusOnShow]);
   const [agentId, setAgentId] = useState<string | undefined>(agents[0]?.id);
   const [text, setText] = useState('');
   const disabled = onCreate === undefined || agents.length === 0;
@@ -74,9 +89,11 @@ export function QuickCreate({
   };
   return (
     <form
+      ref={form}
+      tabIndex={-1}
       onSubmit={submit}
       aria-labelledby={`${id}-title`}
-      className={cx('rounded-xl bg-surface-2 p-3.5', className)}
+      className={cx('rounded-xl bg-surface-2 p-3.5 outline-none', className)}
     >
       <div className="flex items-baseline justify-between gap-3">
         <h3 id={`${id}-title`} className="text-sm font-bold text-ink">
