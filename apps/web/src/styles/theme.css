@@ -84,7 +84,7 @@
   --spacing: 0.25rem;
   --spacing-rail: 76px;
   --spacing-aside: 356px;
-  --spacing-content: 1180px;
+  --spacing-content: 1600px;
 
   /* The soft halo of a count that waits for the person (the right rail's strip, the bell); motion-safe only. */
   --animate-attention: attention 2s cubic-bezier(0, 0, 0.2, 1) infinite;
