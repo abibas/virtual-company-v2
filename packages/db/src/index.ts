@@ -25,6 +25,9 @@ export {
   type OwnedTable,
   type OwnedValues,
   owned,
+  ownedIn,
+  ownersOf,
+  type ReferencedTable,
 } from './owned.ts';
 export * from './schema/index.ts';
 export {

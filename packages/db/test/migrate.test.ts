@@ -36,6 +36,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       sql`select table_name from information_schema.tables where table_schema = 'public' order by table_name`,
     );
     expect(tables.map((row) => row.table_name)).toEqual([
+      'access_profiles',
       'agents',
       'api_keys',
       'audit_log',

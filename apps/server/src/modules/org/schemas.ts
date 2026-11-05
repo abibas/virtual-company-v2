@@ -11,6 +11,7 @@ import {
   POSITION_TITLE_MAX,
 } from '@mwc/shared/org';
 import { SLUG_PATTERN } from '@mwc/shared/slugs';
+import { AgentProfileSchema, ProfileChoice } from './schemas/profiles.ts';
 
 const pathParam = (name: string, example: string) =>
   z.string().openapi({ param: { name, in: 'path' }, example });
@@ -71,6 +72,8 @@ export const AgentSchema = z
     face: z.number().int(),
     reportsTo: z.string().nullable().openapi({ description: 'Its manager’s principal; null once archived' }),
     title: z.string().nullable(),
+    /** The access profile its runs use (S3.4); null for none. */
+    profile: AgentProfileSchema.nullable(),
     createdAt: at,
     updatedAt: at,
   })
@@ -83,7 +86,7 @@ export const AgentListSchema = z.object({ agents: z.array(AgentSchema) }).openap
 
 /**
  * A new agent. Left out: the slug is derived from the name (with `-2`, `-3`, ... when taken), the face from the slug,
- * and the manager is the caller.
+ * the manager is the caller, and the profile is the caller's default here (`profileId: null` for none).
  */
 export const CreateAgentSchema = z
   .object({
@@ -97,10 +100,14 @@ export const CreateAgentSchema = z
     maxConcurrentRuns: MaxRuns.default(AGENT_DEFAULTS.maxConcurrentRuns),
     face: Face.optional(),
     reportsToPrincipalId: PrincipalRef.nullable().optional(),
+    profileId: ProfileChoice.optional(),
   })
   .openapi('CreateAgent');
 
-/** Any of the agent's fields; `status: archived` takes it off the chart, and back from there it reports to the caller. */
+/**
+ * Any of the agent's fields; `status: archived` takes it off the chart, and back from there it reports to the caller.
+ * `profileId`: one of your access profiles to give it, or null to take its profile off.
+ */
 export const UpdateAgentSchema = z
   .object({
     name: Name.optional(),
@@ -113,6 +120,7 @@ export const UpdateAgentSchema = z
     maxConcurrentRuns: MaxRuns.optional(),
     face: Face.optional(),
     status: AgentStatus.optional(),
+    profileId: ProfileChoice.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, 'Give at least one field to change')
   .openapi('UpdateAgent');
@@ -164,6 +172,7 @@ export const AgentNodeSchema = z
       face: z.number().int(),
       model: z.string(),
       effort: Effort,
+      profile: AgentProfileSchema.nullable(),
     }),
   })
   .openapi('AgentNode');

@@ -4,6 +4,8 @@ import {
   agentChanges,
   auditedAgent,
   chooseSlug,
+  giveRefusal,
+  profileStep,
   statusMove,
 } from '../../../../src/modules/org/rules/agents.ts';
 
@@ -23,6 +25,7 @@ const agent: Agent = {
   maxConcurrentRuns: 1,
   face: 9,
   settings: {},
+  profileId: null,
   createdAt: new Date('2026-11-05T10:00:00Z'),
   updatedAt: new Date('2026-11-05T10:00:00Z'),
 };
@@ -96,7 +99,45 @@ describe('auditedAgent', () => {
       instructionsRev: 4,
       maxConcurrentRuns: 1,
       face: 9,
+      profileId: null,
     });
     expect(audited).not.toHaveProperty('instructions');
+    expect(auditedAgent({ ...agent, profileId: 'pr1' }).profileId).toBe('pr1');
+  });
+});
+
+describe('giveRefusal', () => {
+  const owner = { userId: 'u1', role: 'admin', session: true } as const;
+
+  it('lets only the owner give their profile, signed in, as an admin or an owner', () => {
+    expect(giveRefusal(owner, 'u1')).toBeUndefined();
+    expect(giveRefusal({ ...owner, role: 'owner' }, 'u1')).toBeUndefined();
+  });
+
+  it.each([
+    ['someone else’s profile', owner, 'u2', 403, 'profile_not_yours'],
+    ['no such profile', owner, undefined, 422, 'profile_not_found'],
+    ['an API key', { ...owner, session: false }, 'u1', 403, 'session_required'],
+    ['a member', { ...owner, role: 'member' }, 'u1', 403, 'forbidden'],
+    ['a viewer', { ...owner, role: 'viewer' }, 'u1', 403, 'forbidden'],
+  ] as const)('refuses %s', (_, giver, ownerUserId, status, code) => {
+    expect(giveRefusal(giver, ownerUserId)).toMatchObject({ ok: false, status, code });
+  });
+
+  it('asks for the session first, then the role, then the profile', () => {
+    const keyMember = { userId: 'u1', role: 'member', session: false } as const;
+    expect(giveRefusal(keyMember, undefined)).toMatchObject({ code: 'session_required' });
+    expect(giveRefusal({ ...keyMember, session: true }, 'u2')).toMatchObject({ code: 'forbidden' });
+  });
+});
+
+describe('profileStep', () => {
+  it('gives a new profile, takes one off with null, and does nothing for the same one or none asked', () => {
+    expect(profileStep(null, 'p1')).toBe('give');
+    expect(profileStep('p1', 'p2')).toBe('give');
+    expect(profileStep('p1', null)).toBe('remove');
+    expect(profileStep('p1', 'p1')).toBe('none');
+    expect(profileStep(null, null)).toBe('none');
+    expect(profileStep('p1', undefined)).toBe('none');
   });
 });

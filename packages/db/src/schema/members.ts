@@ -3,6 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
+import { accessProfiles } from './credentials.ts';
 import { principals } from './principals.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
 import { users } from './users.ts';
@@ -64,6 +65,13 @@ export const memberships = pgTable(
     providerRole: text('provider_role'),
     /** The invitation this membership came from. */
     invitationId: uuid('invitation_id'),
+    /**
+     * The person's own access profile for the agents they hire here (S3.4); none by default. A personal row, so a
+     * plain key: it goes when the profile does.
+     */
+    defaultProfileId: uuid('default_profile_id').references(() => accessProfiles.id, {
+      onDelete: 'set null',
+    }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -77,6 +85,7 @@ export const memberships = pgTable(
     check('memberships_granted_role_check', oneOf(t.grantedRole, MembershipRole.options)),
     check('memberships_status_check', oneOf(t.status, MembershipStatus.options)),
     index('memberships_user_id_idx').on(t.userId),
+    index('memberships_default_profile_idx').on(t.defaultProfileId),
   ],
 );
 

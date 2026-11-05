@@ -14,6 +14,7 @@ import {
 } from '../rules/placement.ts';
 import { reparentOnRemoval } from '../rules.ts';
 import { type AuditBy, auditPosition, auditPositionBy, byCaller, type Caller } from './audit.ts';
+import { clearProfilesOf } from './profiles.ts';
 import { loadOrg } from './read.ts';
 
 // Principals joining and leaving the chart: an agent archived or back from the archive (`moveForStatus`, S2.3), and a
@@ -112,14 +113,15 @@ async function placeMember(
 
 /**
  * A person whose membership ended leaves the chart: their direct reports move up (`leavingPlan`) and their position
- * goes, each with its audit rows. Their access has ended already, so a chart that breaks an invariant afterwards that
- * it did not break before (an agent left at the top when no other owner is on the chart) is written all the same and
- * logged at warn level.
+ * goes, each with its audit rows, and the company's agents lose the person's access profiles (`clearProfilesOf`,
+ * S3.4). Their access has ended already, so a chart that breaks an invariant afterwards that it did not break before
+ * (an agent left at the top when no other owner is on the chart) is written all the same and logged at warn level.
  */
 async function unplaceMember(repo: OrgRepo, logger: Logger, t: TenantDb, principalId: string, by: AuditBy) {
   const org = await loadOrg(repo, t);
   const plan = leavingPlan(org, principalId);
   await takeOffChart(repo, t, by, { org, principalId, moves: plan.moves });
+  await clearProfilesOf(repo, t, principalId, by);
   if (plan.violations.length > 0) {
     const violations = plan.violations.map(({ code, principalId: on }) => ({ code, principalId: on }));
     logger.warn(

@@ -64,6 +64,7 @@ describe('POST /api/companies/:companyId/agents', () => {
       face: agentFace('slop-box'),
       reportsTo: admin.principalId,
       title: null,
+      profile: null,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt,
       instructions: '',

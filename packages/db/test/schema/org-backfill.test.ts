@@ -1,10 +1,12 @@
+import { newId } from '@mwc/shared/ids';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RawDbHandle } from '../../src/handle.ts';
+import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest, migrationStatus } from '../../src/migrate.ts';
 import { type Membership, orgPositions } from '../../src/schema/index.ts';
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
 import { journal, migrateUpTo } from '../fixtures/migrations.ts';
-import { insertCompany, insertMember, insertPrincipal } from '../fixtures/rows.ts';
+import { insertCompany, insertPrincipal, insertUser } from '../fixtures/rows.ts';
 
 /**
  * The data step of migration `0005_org` (the `-- custom:` part of `migrations/0005_org.sql`): every company's active
@@ -24,19 +26,24 @@ afterAll(() => testDb.close());
 
 const day = (n: number) => new Date(Date.UTC(2026, 9, n));
 
-/** A membership with the role (granted too), status and joining day given. */
+/**
+ * A membership with the role (granted too), status and joining day given, written with the columns `memberships` had
+ * at `0004` (a later one, as S3.4's `default_profile_id`, does not exist yet).
+ */
 async function member(
   companyId: string,
   role: Membership['role'],
   joined: number,
   status: Membership['status'] = 'active',
 ): Promise<string> {
-  const { principal } = await insertMember(handle, companyId, {
-    role,
-    grantedRole: role,
-    status,
-    createdAt: day(joined),
-  });
+  const user = await insertUser(handle);
+  const principal = await insertPrincipal(handle, companyId);
+  await queryRows(
+    handle,
+    sql`insert into memberships (id, company_id, principal_id, user_id, role, granted_role, status, created_at)
+        values (${newId()}, ${companyId}, ${principal.id}, ${user.id}, ${role}, ${role}, ${status},
+                ${day(joined).toISOString()})`,
+  );
   return principal.id;
 }
 

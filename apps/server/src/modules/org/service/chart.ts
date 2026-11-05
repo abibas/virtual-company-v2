@@ -5,47 +5,52 @@ import type { OrgRepo } from '../repo.ts';
 import type { ChartNode } from '../rules/chart.ts';
 import type { OrgState } from '../rules/placement.ts';
 import { buildTree, validateChart } from '../rules.ts';
+import type { AgentProfileView } from '../schemas/profiles.ts';
 import type { ChartNodeView, OrgChartView } from '../schemas.ts';
+import { profileRefs } from './profiles.ts';
 import { loadOrg } from './read.ts';
 
 /** Who a member is when their profile is missing (never, while `memberships.user_id` keeps its key). */
 const UNKNOWN_PERSON = { displayName: null, primaryEmail: '', imageUrl: null } as const;
 
+/** What a node shows besides the chart: people's profiles by user id, agents' access profiles by id. */
+interface Shown {
+  readonly people: ReadonlyMap<string, UserProfile>;
+  readonly profiles: ReadonlyMap<string, AgentProfileView>;
+}
+
 /**
- * One node of the chart with what the web shows of it (a person's name, email and photo), so the chart needs no other
- * call.
+ * One node of the chart with what the web shows of it (a person's name, email and photo, an agent's access profile),
+ * so the chart needs no other call.
  */
-function nodeView(org: OrgState, node: ChartNode, profiles: ReadonlyMap<string, UserProfile>): ChartNodeView {
+function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
   const position = org.positions.get(node.principalId) as OrgPosition;
   const base = { principalId: node.principalId, reportsTo: node.reportsTo, title: position.title };
   if (node.kind === 'person') {
     const member = org.members.get(node.principalId) as Membership;
-    const profile = profiles.get(member.userId);
-    const { displayName, primaryEmail: email, imageUrl } = profile ?? UNKNOWN_PERSON;
+    const { displayName, primaryEmail: email, imageUrl } = shown.people.get(member.userId) ?? UNKNOWN_PERSON;
     return {
       ...base,
       kind: 'person',
       person: { userId: member.userId, displayName, email, imageUrl, role: member.role },
     };
   }
-  const {
-    id: agentId,
-    name,
-    slug,
-    roleTitle,
-    status,
-    face,
-    model,
-    effort,
-  } = org.agents.get(node.principalId) as Agent;
-  return { ...base, kind: 'agent', agent: { agentId, name, slug, roleTitle, status, face, model, effort } };
+  const agent = org.agents.get(node.principalId) as Agent;
+  const { id: agentId, name, slug, roleTitle, status, face, model, effort } = agent;
+  const profile = shown.profiles.get(agent.profileId as string) ?? null;
+  return {
+    ...base,
+    kind: 'agent',
+    agent: { agentId, name, slug, roleTitle, status, face, model, effort, profile },
+  };
 }
 
 /**
  * Reads the company's chart for `GET /org/chart`: every active member's and every agent's place (archived agents
  * have none) with their display data, and the same as a tree (`buildTree`). A stored chart that breaks an invariant
  * is still answered, its orphans flagged in the tree, and logged at warn level once per company until its flaws
- * change. People's names, emails and photos come from the identity module's service, read outside any transaction.
+ * change. People's names, emails and photos come from the identity module's service, read outside any transaction, and
+ * agents' access profiles from `profileRefs`.
  */
 export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRepo) {
   const warned = new Map<string, string>();
@@ -61,8 +66,10 @@ export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRe
   return async (t: TenantDb): Promise<OrgChartView> => {
     const org = await loadOrg(repo, t);
     const userIds = org.chart.flatMap((node) => org.members.get(node.principalId)?.userId ?? []);
-    const profiles = await profilesOf(deps.db, userIds);
+    const people = await profilesOf(deps.db, userIds);
+    const profileIds = [...org.agents.values()].map((agent) => agent.profileId);
+    const shown = { people, profiles: await profileRefs(deps, repo, t, profileIds) };
     warnOnce(t.companyId, org.chart);
-    return { nodes: org.chart.map((node) => nodeView(org, node, profiles)), tree: buildTree(org.chart) };
+    return { nodes: org.chart.map((node) => nodeView(org, node, shown)), tree: buildTree(org.chart) };
   };
 }

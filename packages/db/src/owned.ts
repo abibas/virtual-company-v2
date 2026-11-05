@@ -1,17 +1,19 @@
-import { and, eq, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgInsertValue, PgTable, PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { type AuditEntry, auditRows } from './audit.ts';
 import { type DbHandle, type RawDb, rawDb } from './handle.ts';
 import { type AuditLogRow, auditLog } from './schema/audit-log.ts';
-import { isUuid } from './tenant.ts';
+import { isUuid, type TenantDb, tenantConnection, tenantOf } from './tenant.ts';
 
 /**
  * The personal layer (S3.1): the only way route and service code reaches personal tables, whose rows belong to one
- * person and to no company (`credentials`, `credential_uses`). `owned(db, userId)` returns an `OwnedDb` whose every
- * statement is scoped to that person: reads, updates and deletes get `owner_user_id = <userId>` added to their
- * `where`, and inserts get `owner_user_id` stamped (any value the caller passed is replaced). Like `tenant()`, it
- * lives in `@mwc/db`, so server modules use it without raw access (`@mwc/db/system`); the user id is the signed-in
- * caller's, or the owner a server-side use names, never one read from a request body.
+ * person and to no company (`credentials`, `credential_uses`, S3.4's `access_profiles`). `owned(db, userId)` returns
+ * an `OwnedDb` whose every statement is scoped to that person: reads, updates and deletes get `owner_user_id =
+ * <userId>` added to their `where`, and inserts get `owner_user_id` stamped (any value the caller passed is replaced).
+ * Like `tenant()`, it lives in `@mwc/db`, so server modules use it without raw access (`@mwc/db/system`); the user id
+ * is the signed-in caller's, or the owner a server-side use names, never one read from a request body. The bridges
+ * (S3.4) run either layer in the other's transaction: `ownedIn(t, userId)`, `ownersOf(t, table, ids)` and
+ * `o.tenant(companyId)`.
  */
 
 /** A personal table: it has `owner_user_id`. */
@@ -87,6 +89,15 @@ class OwnerScopedDb {
   transaction<R>(work: (tx: OwnedDb) => Promise<R>): Promise<R> {
     return this.#db.transaction((tx) => work(new OwnerScopedDb(tx, this.userId)));
   }
+
+  /**
+   * A company's tenant on this person's connection (their transaction when it is one), so a change of the person's own
+   * rows writes what it does to a company's rows in the same transaction (S3.4: removing an access profile writes the
+   * audit rows of the agents and defaults it leaves). The same refusals as `tenant()`.
+   */
+  tenant(companyId: string): Promise<TenantDb> {
+    return tenantOf(this.#db, companyId);
+  }
 }
 
 /** A database scoped to one person (`owned()` makes it; there is no other way to get one). */
@@ -96,4 +107,37 @@ export type OwnedDb = OwnerScopedDb;
 export function owned(handle: DbHandle, userId: string): OwnedDb {
   if (!isUuid(userId)) throw new TypeError('owned() takes a user id');
   return new OwnerScopedDb(rawDb(handle), userId);
+}
+
+/**
+ * A person's personal layer on a tenant's connection (its transaction when it is one), so a company's change reads
+ * that person's rows in its own transaction (S3.4: the access profiles of a person leaving the company). Scoped to that
+ * person as `owned()` is, with the same refusal.
+ */
+export function ownedIn(t: TenantDb, userId: string): OwnedDb {
+  if (!isUuid(userId)) throw new TypeError('ownedIn() takes a user id');
+  return new OwnerScopedDb(tenantConnection(t), userId);
+}
+
+/** A personal table whose rows have an `id`, which other rows may point at. */
+export type ReferencedTable = OwnedTable & { readonly id: AnyPgColumn };
+
+/**
+ * Whose these personal rows are: each id found mapped to its owner, read on a tenant's connection. A personal row a
+ * company's rows point at (S3.4: an agent's access profile, given by its owner) is resolved this way and then read
+ * through its owner's layer (`ownedIn`), so nothing but the owner's id is read across owners here. Unknown and
+ * malformed ids are left out.
+ */
+export async function ownersOf(
+  t: TenantDb,
+  table: ReferencedTable,
+  ids: readonly string[],
+): Promise<Map<string, string>> {
+  const valid = [...new Set(ids)].filter(isUuid);
+  if (valid.length === 0) return new Map();
+  const rows = (await tenantConnection(t)
+    .select({ id: table.id, owner: table.ownerUserId })
+    .from(table as never)
+    .where(inArray(table.id, valid))) as { id: string; owner: string }[];
+  return new Map(rows.map((row) => [row.id, row.owner]));
 }

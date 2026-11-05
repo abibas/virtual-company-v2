@@ -5,7 +5,7 @@ The schema drawn as a diagram, with a section per table: [docs/schema.md](../../
 
 | Import            | What                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------- |
-| `@mwc/db`         | the tables and row types, `tenant(db, companyId)` with `TenantDb` and `CompanyNotFoundError`, `owned(db, userId)` with `OwnedDb` (the personal layer, S3.1), `withNewCompany(db, input, work)` with `SlugTakenError`, `isUuid`, `pingDb(handle)`, `migrationStatus(handle)`, `readJournal()`, `diffFields`, `auditChanges(t, entry)`, `isUniqueViolation(error, constraint?)`, and the `DbHandle` type (a handle without its Drizzle object) |
+| `@mwc/db`         | the tables and row types, `tenant(db, companyId)` with `TenantDb` and `CompanyNotFoundError`, `owned(db, userId)` with `OwnedDb` (the personal layer, S3.1) and its bridges `ownedIn(t, userId)` and `ownersOf(t, table, ids)` (S3.4), `withNewCompany(db, input, work)` with `SlugTakenError`, `isUuid`, `pingDb(handle)`, `migrationStatus(handle)`, `readJournal()`, `diffFields`, `auditChanges(t, entry)`, `isUniqueViolation(error, constraint?)`, and the `DbHandle` type (a handle without its Drizzle object) |
 | `@mwc/db/system`  | raw, unscoped access: `createDb(url, { poolSize, onnotice })` (postgres.js, lazy connect), `migrateToLatest(handle)`, `queryRows(handle, sql)`, `reserveSession(handle)` (a session of its own: a connection reserved from the pool, PGlite's one session; the jobs lock, S1.10), `rawDb(handle)` (the Drizzle database), `rawHandle(handle)`, `tenantOf(rawDb, companyId)` (`tenant()` on a raw database or an open transaction: the identity store writes a projection's audit rows in its own transaction). Server modules may not import it (below) |
 | `@mwc/db/schema`  | the Drizzle tables and row types only                                                  |
 | `@mwc/db/pglite`  | `createPgliteDb()`: an in-memory PGlite handle for tests (PGlite is a dev dependency)   |
@@ -80,6 +80,18 @@ await o.transaction(async (tx) => tx.audit({ actorKind: 'user', entityType: 'cre
 
 The user id is the signed-in caller's (`c.var.userId` of a personal route), or the owner a server-side use names;
 another person's rows are never reached through it.
+
+A personal row a company's rows point at (S3.4: `access_profiles`, from `agents.profile_id` and
+`memberships.default_profile_id`) is read and changed in the company's transaction through the bridges, never raw
+access:
+
+```ts
+const owners = await ownersOf(t, accessProfiles, ids);           // Map<id, ownerUserId>: whose rows, nothing more
+await ownedIn(t, ownerUserId).select(accessProfiles);            // that owner's layer on the tenant's connection
+await owned(db, userId).transaction(async (o) => {
+  const company = await o.tenant(companyId);                      // a company's tenant in the person's transaction
+});
+```
 
 Raw access is `@mwc/db/system`: the platform (startup, auth, jobs), migrations and scripts, the webhook inbox
 and the identity store. `biome.json` forbids it, with `@mwc/db/pglite`, `/migrate` and `/testing`, under

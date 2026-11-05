@@ -60,9 +60,15 @@ export async function snapshotOf(handle: DbHandle): Promise<IdentitySnapshot> {
     .where(eq(userIdentities.provider, PROVIDER));
   for (const { user, identity } of people)
     memory.addUser({ ...user, issuer: identity.issuer, subject: identity.subject });
-  for (const { id: _id, principalId: _p, createdAt: _c, updatedAt: _u, ...m } of await db
-    .select()
-    .from(memberships)) {
+  // A membership's default access profile (S3.4) is the org module's, not the identity store's.
+  for (const {
+    id: _id,
+    principalId: _p,
+    createdAt: _c,
+    updatedAt: _u,
+    defaultProfileId: _d,
+    ...m
+  } of await db.select().from(memberships)) {
     await memory.upsertMembership(m);
   }
   for (const i of await db.select().from(invitations)) {

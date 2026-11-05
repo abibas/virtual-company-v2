@@ -34,7 +34,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
-│   │   │   │   ├── credentials/    subscriptions (store, sign-in, limits built), profiles S3
+│   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
@@ -270,7 +270,12 @@ Personal data, a person's own rows that belong to no company (S3.1: `credentials
 scopes every statement to that person (reads, updates and deletes get `owner_user_id = …`, inserts get it stamped)
 and writes their audit rows with no company (`o.audit(entry)`). It is neither tenant data nor raw access, so a module
 uses it without an exemption; the user id is the signed-in caller's (`c.var.userId` of a personal route) or the owner a
-server-side use names.
+server-side use names. S3.4's `access_profiles` is personal too, and company rows point at it (`agents.profile_id`,
+`memberships.default_profile_id`), so `@mwc/db` bridges the two layers in one transaction: `ownedIn(t, userId)` (a
+person's layer on a tenant's connection), `ownersOf(t, table, ids)` (whose personal rows these are, nothing more; the
+rows are then read through their owner's layer) and `o.tenant(companyId)` (a company's tenant on a person's
+connection). The org module reads the profiles its agents point at this way; the credentials module asks the org
+module's service for the agents using a profile and for the audit rows its removal leaves.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the

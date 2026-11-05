@@ -80,6 +80,35 @@ Newest first, one entry per lesson:
   acceptance scenario's folder does, or raise `big-folder` for `test/fixtures/` folders.
 - **Status:** `open`.
 
+### 2026-11-05: Access profiles: personal rows that company rows point at, read across both layers in one transaction
+
+- **What happened:** S3.4's `access_profiles` is personal (an owner, no company), but `agents.profile_id` and
+  `memberships.default_profile_id` point at it. The org module must read a profile's owner and name in a company's
+  transaction (giving one, the agents' `profile` field, the leave hook), and the credentials module must write audit
+  rows in each company when a profile is removed, in the owner's transaction. Neither `tenant()` nor `owned()` reaches
+  the other's rows, a module may not use raw access, and a second connection inside a transaction hangs on PGlite (the
+  S1.7 lesson). The placement table has no row for it. The two modules also need each other: the credentials module
+  lists the agents using a profile and the org module reads the profiles.
+- **Where:** `packages/db/src/owned.ts` (`ownedIn`, `ownersOf`, `OwnedDb.tenant`; 143 lines) with
+  `tenant.ts`'s package-internal `tenantConnection` (239 lines); `apps/server/src/modules/org/repo/profiles.ts`,
+  `service/profiles.ts` (typed on a structural `ProfileRepo`), `rules/agents.ts` (the give rule merged in, 156 lines);
+  `apps/server/src/modules/credentials/{routes,service,repo,rules,schemas}/profiles.ts`; the S3.4 commit.
+- **What was done:** bridges in `@mwc/db` instead of an exemption: `ownersOf` reads only whose a personal row is, and
+  the row is then read through its owner's layer on the tenant's connection. One module direction only: the
+  credentials module calls the org module's service (`agentsUsingProfiles`, `auditProfileRemoval`), the org module
+  reads `access_profiles` through the bridges in its own repo and imports nothing of the credentials module. Two
+  `fan-in` warnings were avoided: `org/repo.ts` stays at 7 importers (`service/profiles.ts` types its repo
+  structurally) and `rules/placement.ts` at 7 (the give rule went into `rules/agents.ts`, not a new `rules/profiles.ts`);
+  `identity/service.ts` went from 7 to 9 (`profilesOf` for the owners' names, `companiesOf` for the owner's companies),
+  a new `fan-in` warning. The new response fields also needed the web's design samples and the hire preview to carry
+  them (`profile: null`, `defaultProfileId: null`) for the web to typecheck, and the identity store's contract fixture
+  to leave out `default_profile_id`.
+- **Suggested change:** placement-table rows: "A personal row a company's rows point at → read in the company's module
+  through `ownersOf` and `ownedIn`; the owner's module asks the company's module's service for its uses" and "A change
+  of a person's own rows that writes company rows in the same transaction → `o.tenant(companyId)`". With the open
+  `fan-in` lessons, count a module's files as one importer, which leaves `identity/service.ts` at 5 modules.
+- **Status:** `open`.
+
 ### 2026-11-05: Personal data: a third access layer, a third kind of route guard, and three folders at 13 entries
 
 - **What happened:** S3.1's `credentials` and `credential_uses` belong to a person and to no company. The placement

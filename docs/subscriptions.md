@@ -139,6 +139,32 @@ optional gateway, later the GitHub and Jira sign-ins of S7. Its owner gives it t
 admin or owner (`agents.profile_id`); each person has a default profile per company for the agents they hire. A
 profile never moves a credential into a company: it is a reference the server resolves at run time.
 
+Built in S3.4 (migration `0008_access_profiles`):
+
+- **Slots.** `access_profiles` is personal (an owner, no company). Each slot holds one of the owner's own credentials of
+  a kind it takes: Claude `claude_oauth`, `claude_setup_token` or `anthropic_api_key`; OpenAI `codex_oauth` or
+  `openai_api_key`; gateway `gateway` (`PROFILE_SLOT_KINDS` of `@mwc/shared/credentials`). A revoked credential cannot be
+  put in; one revoked while in a slot stays until it is replaced. Removing a credential empties its slots; names are
+  unique per owner.
+- **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
+  only, like subscriptions. The list shows each slot as subscription metadata and the agents using the profile in the
+  owner's companies.
+- **Giving one to an agent:** `profileId` on `POST`/`PATCH /api/companies/:companyId/agents`. Only the profile's owner
+  gives it, signed in (an API key: 403 `session_required`), in a company where they are an admin or owner; someone
+  else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`. Any admin or owner of the company takes a
+  profile off an agent (`null`), with a session or an API key. Agents and the chart show
+  `profile: {id, name, ownerUserId, ownerName}`, never its subscriptions.
+- **The default:** `PUT /api/companies/:companyId/me/default-profile` sets the caller's own default there (the same
+  rule as giving; clearing it is any active member's), shown as `defaultProfileId` on `GET /api/me`. An agent hired
+  without `profileId` gets the hirer's default, also when hired with an API key: the owner chose it signed in.
+- **Leaving a company** (removed, leaving, removed or deleted at the provider, suspended: every path of the org chart's
+  lifecycle) takes the person's profiles off the company's agents in the same transaction, so their personal
+  subscriptions stop powering a company they left. A re-activation does not put them back.
+- **Removing a profile** takes it off its agents and its owner's defaults through the foreign keys, with the audit rows
+  of each in its company, by the owner.
+- **Audit:** profile create, update and delete (personal rows), an agent's `profileId`, a membership's
+  `defaultProfileId`.
+
 ## Security
 
 - **At rest:** AES-256-GCM per secret, with the AAD binding it to its id, owner and kind, and a key version so the

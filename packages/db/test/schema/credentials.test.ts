@@ -3,9 +3,25 @@ import { eq } from 'drizzle-orm';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RawDbHandle } from '../../src/handle.ts';
-import { credentials, credentialUses, type NewCredential } from '../../src/schema/index.ts';
+import {
+  accessProfiles,
+  agents,
+  credentials,
+  credentialUses,
+  memberships,
+  type NewAccessProfile,
+  type NewCredential,
+} from '../../src/schema/index.ts';
 import { pgError, type TestDb } from '../../src/testing.ts';
-import { insertUser, MISSING_ID, migratedTestDb } from '../fixtures/rows.ts';
+import {
+  insertAgent,
+  insertCompany,
+  insertMember,
+  insertUser,
+  MISSING_ID,
+  migratedTestDb,
+  unique,
+} from '../fixtures/rows.ts';
 
 let testDb: TestDb;
 let handle: RawDbHandle;
@@ -149,5 +165,147 @@ describe('credential_uses', () => {
       code: '23503',
       constraint: 'credential_uses_owner_user_id_users_id_fk',
     });
+  });
+});
+
+const profile = async (values: Partial<NewAccessProfile> = {}) => {
+  const [row] = await handle.db
+    .insert(accessProfiles)
+    .values({ ownerUserId: ownerId, name: unique('profile'), ...values })
+    .returning();
+  return row as typeof accessProfiles.$inferSelect;
+};
+
+const profileRow = async (id: string) =>
+  (await handle.db.select().from(accessProfiles).where(eq(accessProfiles.id, id)))[0];
+
+describe('access_profiles', () => {
+  it('names a bundle of its owner’s credentials, its slots empty by default', async () => {
+    const row = await profile({ name: 'Work' });
+    expect(row).toMatchObject({
+      ownerUserId: ownerId,
+      name: 'Work',
+      claudeCredentialId: null,
+      openaiCredentialId: null,
+      gatewayCredentialId: null,
+    });
+    const [claude] = await insert({ kind: 'claude_oauth' });
+    const [openai] = await insert({ kind: 'codex_oauth' });
+    const [gateway] = await insert({ kind: 'gateway' });
+    const full = await profile({
+      name: 'x'.repeat(80),
+      claudeCredentialId: claude?.id,
+      openaiCredentialId: openai?.id,
+      gatewayCredentialId: gateway?.id,
+    });
+    expect(full).toMatchObject({ claudeCredentialId: claude?.id, gatewayCredentialId: gateway?.id });
+  });
+
+  it('keeps names unique per owner; another owner may use the same one', async () => {
+    const name = unique('same');
+    await profile({ name });
+    expect(await pgError(profile({ name }))).toMatchObject({
+      code: '23505',
+      constraint: 'access_profiles_owner_user_id_name_unique',
+    });
+    const other = (await insertUser(handle)).id;
+    expect((await profile({ name, ownerUserId: other })).name).toBe(name);
+  });
+
+  it.each([
+    ['an empty name', { name: '' }, '23514', 'access_profiles_name_check'],
+    ['a name over 80 characters', { name: 'x'.repeat(81) }, '23514', 'access_profiles_name_check'],
+    [
+      'an owner who is not a user',
+      { ownerUserId: MISSING_ID },
+      '23503',
+      'access_profiles_owner_user_id_users_id_fk',
+    ],
+    [
+      'a slot naming no credential',
+      { claudeCredentialId: MISSING_ID },
+      '23503',
+      'access_profiles_claude_credential_id_credentials_id_fk',
+    ],
+  ])('refuses %s', async (_, values, code, constraint) => {
+    expect(await pgError(profile(values))).toMatchObject({ code, constraint });
+  });
+
+  it('empties the slots of a credential that is removed, and only those', async () => {
+    const [claude] = await insert({ kind: 'claude_setup_token' });
+    const [openai] = await insert({ kind: 'openai_api_key' });
+    const [gateway] = await insert({ kind: 'gateway' });
+    const ids = {
+      claudeCredentialId: claude?.id,
+      openaiCredentialId: openai?.id,
+      gatewayCredentialId: gateway?.id,
+    };
+    const first = await profile(ids);
+    const second = await profile({ claudeCredentialId: claude?.id });
+    for (const credential of [openai, gateway]) {
+      await handle.db.delete(credentials).where(eq(credentials.id, credential?.id as string));
+    }
+    expect(await profileRow(first.id)).toMatchObject({
+      claudeCredentialId: claude?.id,
+      openaiCredentialId: null,
+      gatewayCredentialId: null,
+    });
+    await handle.db.delete(credentials).where(eq(credentials.id, claude?.id as string));
+    expect(await profileRow(first.id)).toMatchObject({ claudeCredentialId: null });
+    expect(await profileRow(second.id)).toMatchObject({ claudeCredentialId: null });
+  });
+
+  it('is taken off its agents and its owner’s defaults when it is removed', async () => {
+    const company = await insertCompany(handle);
+    const member = await insertMember(handle, company.id, { userId: ownerId });
+    const given = await profile();
+    const kept = await profile();
+    const agent = await insertAgent(handle, company.id, { profileId: given.id });
+    const other = await insertAgent(handle, company.id, { profileId: kept.id });
+    await handle.db
+      .update(memberships)
+      .set({ defaultProfileId: given.id })
+      .where(eq(memberships.id, member.membership.id));
+    await handle.db.delete(accessProfiles).where(eq(accessProfiles.id, given.id));
+    const profileOf = async (id: string) =>
+      (await handle.db.select().from(agents).where(eq(agents.id, id)))[0]?.profileId;
+    expect(await profileOf(agent.id)).toBeNull();
+    expect(await profileOf(other.id)).toBe(kept.id);
+    const [membership] = await handle.db
+      .select()
+      .from(memberships)
+      .where(eq(memberships.id, member.membership.id));
+    expect(membership?.defaultProfileId).toBeNull();
+  });
+
+  it('refuses an agent or a default naming no profile', async () => {
+    const company = await insertCompany(handle);
+    expect(await pgError(insertAgent(handle, company.id, { profileId: MISSING_ID }))).toMatchObject({
+      code: '23503',
+      constraint: 'agents_profile_id_access_profiles_id_fk',
+    });
+    expect(await pgError(insertMember(handle, company.id, { defaultProfileId: MISSING_ID }))).toMatchObject({
+      code: '23503',
+      constraint: 'memberships_default_profile_id_access_profiles_id_fk',
+    });
+  });
+
+  it('is a personal table: an owner, no company, and three slots of credentials', () => {
+    const config = getTableConfig(accessProfiles);
+    expect(config.columns.some((c) => c.name === 'company_id')).toBe(false);
+    expect(config.columns.find((c) => c.name === 'owner_user_id')?.notNull).toBe(true);
+    const refs = config.foreignKeys.map((fk) => {
+      const ref = fk.reference();
+      return [ref.columns.map((c) => c.name), getTableConfig(ref.foreignTable).name, fk.onDelete];
+    });
+    expect(refs).toEqual(
+      expect.arrayContaining([
+        [['owner_user_id'], 'users', 'no action'],
+        [['claude_credential_id'], 'credentials', 'set null'],
+        [['openai_credential_id'], 'credentials', 'set null'],
+        [['gateway_credential_id'], 'credentials', 'set null'],
+      ]),
+    );
+    expect(refs).toHaveLength(4);
   });
 });

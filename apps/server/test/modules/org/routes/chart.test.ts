@@ -96,6 +96,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           face: lead.face,
           model: 'claude-opus-5-5',
           effort: 'xhigh',
+          profile: null,
         },
       },
       expect.objectContaining({ principalId: coder.principalId, reportsTo: lead.principalId }),

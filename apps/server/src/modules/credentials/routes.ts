@@ -5,6 +5,7 @@ import { jsonBody, jsonResponse } from '../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import type { Keyring } from '../../platform/secrets/keyring.ts';
+import { accessProfileRoutes } from './routes/profiles.ts';
 import { wantsRefresh } from './rules/limits.ts';
 import { LimitsQuerySchema, SubscriptionLimitsListSchema } from './schemas/limits.ts';
 import {
@@ -152,5 +153,6 @@ export function credentialsRoutes(
       const result = await subscriptions.remove(callerOf(c.var), c.req.valid('param').credentialId);
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.body(null, 204);
-    });
+    })
+    .route('/', accessProfileRoutes(deps));
 }

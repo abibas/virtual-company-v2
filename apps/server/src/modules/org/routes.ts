@@ -5,6 +5,7 @@ import type { ServerDeps } from '../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
+import { DefaultProfileBodySchema, DefaultProfileSchema } from './schemas/profiles.ts';
 import {
   AgentDetailSchema,
   AgentListQuerySchema,
@@ -21,9 +22,10 @@ import {
 import { type Caller, type OrgService, orgService } from './service.ts';
 
 /**
- * `/api/companies/{companyId}/agents` (list and read: viewer and above; create and change: admin and above) and
+ * `/api/companies/{companyId}/agents` (list and read: viewer and above; create and change: admin and above),
  * `/api/companies/{companyId}/org` (a position: admins move anyone and title anyone, members title themselves; the
- * chart: viewer and above). The org rules' refusals are 422s with their codes.
+ * chart: viewer and above) and `/api/companies/{companyId}/me/default-profile` (a member's own default access profile,
+ * S3.4). The org rules' refusals are 422s with their codes.
  */
 
 const AGENTS = '/api/companies/{companyId}/agents' as const;
@@ -37,6 +39,13 @@ const NO_AGENT = errorResponse(
   'No such company, or not an active member of it (`not_found`), or no such agent in it (`agent_not_found`)',
 );
 const SLUG_TAKEN = errorResponse('Another agent of the company has the slug (`agent_slug_taken`)');
+const GIVE_REFUSED = errorResponse(
+  'Below admin (`forbidden`), an access profile that is not yours to give (`profile_not_yours`), or one given with an ' +
+    'API key (`session_required`)',
+);
+const REFUSED_OR_NO_PROFILE = errorResponse(
+  'The org rules refuse the place (their code and sentence), or no such access profile (`profile_not_found`)',
+);
 
 const route = <P extends CompanyPath>(deps: ServerDeps, role: MembershipRole, path: P, tag: string) =>
   companyRoute(deps, { role, path, tag });
@@ -76,14 +85,16 @@ const createAgentRoute = (deps: ServerDeps) => {
     summary: 'Create an agent on the chart (admin and above)',
     description:
       'Defaults: model `claude-opus-5-5`, effort `high`, harness `claude_code`, one run at a time, the slug from the ' +
-      'name (`-2`, `-3`, ... when taken), the face from the slug, and the caller as its manager.',
+      'name (`-2`, `-3`, ... when taken), the face from the slug, the caller as its manager, and the caller’s default ' +
+      'access profile here (`profileId`: one of yours, signed in, or null for none).',
     request: { params: AgentsParamsSchema, body: jsonBody(CreateAgentSchema) },
     responses: {
       201: jsonResponse('The new agent', AgentDetailSchema),
       400: INVALID,
       ...refusals,
+      403: GIVE_REFUSED,
       409: SLUG_TAKEN,
-      422: REFUSED,
+      422: REFUSED_OR_NO_PROFILE,
     },
   });
 };
@@ -97,16 +108,17 @@ const updateAgentRoute = (deps: ServerDeps) => {
     description:
       'New instructions bump `instructionsRev`. Archiving moves its reports up (to the company’s earliest active ' +
       'owner when nobody above can take an agent) and removes its place; back from the archive it reports to the ' +
-      'caller. There is no hard delete.',
+      'caller. There is no hard delete. `profileId`: only its owner gives an access profile, signed in; any admin ' +
+      'takes it off (`null`).',
     request: { params: AgentParamsSchema, body: jsonBody(UpdateAgentSchema) },
     responses: {
       200: jsonResponse('The agent after the change', AgentDetailSchema),
       400: INVALID,
       401: refusals[401],
-      403: refusals[403],
+      403: GIVE_REFUSED,
       404: NO_AGENT,
       409: SLUG_TAKEN,
-      422: REFUSED,
+      422: REFUSED_OR_NO_PROFILE,
     },
   });
 };
@@ -144,14 +156,37 @@ const chartRoute = (deps: ServerDeps) => {
   });
 };
 
-/** Who acts, from the guard's membership and the request id. */
+const defaultProfileRoute = (deps: ServerDeps) => {
+  const { base, refusals } = route(deps, 'viewer', '/api/companies/{companyId}/me/default-profile', 'agents');
+  return createRoute({
+    ...base,
+    method: 'put',
+    summary: 'Your default access profile for the agents you hire here, or null for none',
+    description:
+      'Clearing it is any active member’s; a profile must be yours, chosen signed in as an admin or owner.',
+    request: { params: AgentsParamsSchema, body: jsonBody(DefaultProfileBodySchema) },
+    responses: {
+      200: jsonResponse('Your default here', DefaultProfileSchema),
+      400: INVALID,
+      401: refusals[401],
+      403: GIVE_REFUSED,
+      404: refusals[404],
+      422: errorResponse('No such access profile (`profile_not_found`)'),
+    },
+  });
+};
+
+/** Who acts, from the guard's membership, the credential and the request id. */
 const callerOf = (v: {
-  membership: { principalId: string; role: MembershipRole };
+  actor: { via: string };
+  membership: { principalId: string; role: MembershipRole; userId: string };
   requestId: string;
 }): Caller => ({
   principalId: v.membership.principalId,
   role: v.membership.role,
   requestId: v.requestId,
+  userId: v.membership.userId,
+  session: v.actor.via === 'clerk',
 });
 
 function agentRoutes(deps: ServerDeps, org: OrgService) {
@@ -185,7 +220,13 @@ function chartRoutes(deps: ServerDeps, org: OrgService) {
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.position, 200);
     })
-    .openapi(chartRoute(deps), async (c) => c.json(await org.chart(c.var.tenant), 200));
+    .openapi(chartRoute(deps), async (c) => c.json(await org.chart(c.var.tenant), 200))
+    .openapi(defaultProfileRoute(deps), async (c) => {
+      const { profileId } = c.req.valid('json');
+      const result = await org.setDefaultProfile(c.var.tenant, callerOf(c.var), profileId);
+      if (!result.ok) return errorJson(c, result.status, result.code, result.message);
+      return c.json(result.value, 200);
+    });
 }
 
 /** The org module's routes: the agents, and the chart with its positions. */

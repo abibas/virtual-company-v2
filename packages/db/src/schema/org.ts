@@ -22,6 +22,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
+import { accessProfiles } from './credentials.ts';
 import { principals } from './principals.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
 
@@ -62,6 +63,11 @@ export const agents = pgTable(
     /** The web's drawn face (`AgentFace`): 7 colours × 6 features, 0–41. */
     face: smallint('face').notNull().default(0),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    /**
+     * The access profile its runs use (S3.4): a person's bundle of subscriptions, given by its owner, who is an admin
+     * or owner here; none by default. A personal row, so a plain key: it goes when the profile does.
+     */
+    profileId: uuid('profile_id').references(() => accessProfiles.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -79,6 +85,7 @@ export const agents = pgTable(
     check('agents_instructions_rev_check', sql`${t.instructionsRev} >= 1`),
     check('agents_max_concurrent_runs_check', within(sql`${t.maxConcurrentRuns}`, AGENT_MAX_CONCURRENT_RUNS)),
     check('agents_face_check', within(sql`${t.face}`, AGENT_FACE)),
+    index('agents_profile_idx').on(t.profileId),
   ],
 );
 

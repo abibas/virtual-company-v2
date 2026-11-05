@@ -2,10 +2,18 @@ import { randomBytes } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RawDbHandle } from '../src/handle.ts';
-import { type OwnedDb, owned } from '../src/owned.ts';
-import { auditLog, credentials, credentialUses } from '../src/schema/index.ts';
+import { type OwnedDb, owned, ownedIn, ownersOf } from '../src/owned.ts';
+import {
+  accessProfiles,
+  agents,
+  auditLog,
+  credentials,
+  credentialUses,
+  principals,
+} from '../src/schema/index.ts';
+import { CompanyNotFoundError, type TenantDb, tenant } from '../src/tenant.ts';
 import type { TestDb } from '../src/testing.ts';
-import { insertUser, migratedTestDb, unique } from './fixtures/rows.ts';
+import { insertCompany, insertUser, MISSING_ID, migratedTestDb, unique } from './fixtures/rows.ts';
 
 let testDb: TestDb;
 let handle: RawDbHandle;
@@ -130,3 +138,68 @@ describe('owned()', () => {
     expect(kept).toBe(1);
   });
 });
+
+describe('the bridges between the personal and the tenant layer', () => {
+  const addProfile = async (o: OwnedDb) => {
+    const [inserted] = await o.insert(accessProfiles, { name: unique('profile') }).returning();
+    return inserted as typeof accessProfiles.$inferSelect;
+  };
+
+  it("ownedIn reads and writes a person's rows in a company's transaction, scoped to that person", async () => {
+    const company = await insertCompany(handle);
+    const t = await tenant(handle, company.id);
+    const mine = await addProfile(ihor);
+    const theirs = await addProfile(other);
+    const label = unique('in-tenant');
+    const failure = t.transaction(async (tx) => {
+      const o = ownedIn(tx, ihor.userId);
+      expect(o.userId).toBe(ihor.userId);
+      expect((await o.select(accessProfiles)).map((r) => r.id)).toContain(mine.id);
+      expect(await o.select(accessProfiles, eq(accessProfiles.id, theirs.id))).toEqual([]);
+      await o.insert(credentials, row(label));
+      throw new Error('stop');
+    });
+    await expect(failure).rejects.toThrow('stop');
+    expect(await ihor.select(credentials, eq(credentials.label, label))).toEqual([]);
+    expect(() => ownedIn(t, 'not-a-user')).toThrow('ownedIn() takes a user id');
+  });
+
+  it('ownersOf tells whose rows these are, leaving out unknown and malformed ids', async () => {
+    const t = await tenant(handle, (await insertCompany(handle)).id);
+    const mine = await addProfile(ihor);
+    const theirs = await addProfile(other);
+    const owners = await ownersOf(t, accessProfiles, [mine.id, theirs.id, mine.id, MISSING_ID, 'nope']);
+    expect(owners).toEqual(
+      new Map([
+        [mine.id, ihor.userId],
+        [theirs.id, other.userId],
+      ]),
+    );
+    expect(await ownersOf(t, accessProfiles, ['nope'])).toEqual(new Map());
+    expect(await ownersOf(t, accessProfiles, [])).toEqual(new Map());
+  });
+
+  it("o.tenant opens a company's tenant in the person's transaction, with tenant()'s refusals", async () => {
+    const company = await insertCompany(handle);
+    const name = unique('rolled-back');
+    const failure = ihor.transaction(async (tx) => {
+      const t = await tx.tenant(company.id);
+      expect(t.companyId).toBe(company.id);
+      await insertAgentIn(t, name);
+      await addProfile(tx);
+      throw new Error('stop');
+    });
+    await expect(failure).rejects.toThrow('stop');
+    expect(await (await tenant(handle, company.id)).select(agents, eq(agents.name, name))).toEqual([]);
+    await expect(ihor.tenant(MISSING_ID)).rejects.toBeInstanceOf(CompanyNotFoundError);
+    const deleted = await insertCompany(handle, { status: 'deleted' });
+    await expect(ihor.tenant(deleted.id)).rejects.toBeInstanceOf(CompanyNotFoundError);
+  });
+});
+
+/** An agent written through a tenant (its principal first), so it rolls back with the tenant's transaction. */
+async function insertAgentIn(t: TenantDb, name: string) {
+  const [principal] = await t.insert(principals, { kind: 'agent' }).returning();
+  const principalId = (principal as { id: string }).id;
+  await t.insert(agents, { principalId, name, slug: unique('agent'), roleTitle: 'Coder', model: 'm' });
+}

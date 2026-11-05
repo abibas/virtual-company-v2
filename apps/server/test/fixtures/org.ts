@@ -5,22 +5,38 @@
  * the lifecycle tests (S2.4): a company whose owner has an admin under them, a person invited by someone and accepted
  * at the fake provider, the server learning of a membership's start or end by each path (a webhook delivery, the
  * reconcile on sign-in, the self reconcile, Sync now, the periodic reconcile of the jobs loop), and the chart as the
- * API shows it.
+ * API shows it. For access profiles (S3.4): subscriptions of every kind sealed as the store seals them, profiles made
+ * straight through the personal layer and put on agents and defaults straight in the tables, and raw reads of both.
  */
-import { auditLog, type DbHandle, orgPositions, tenant } from '@mwc/db';
+import { randomBytes } from 'node:crypto';
+import {
+  type AccessProfile,
+  accessProfiles,
+  agents,
+  auditLog,
+  credentials,
+  type DbHandle,
+  memberships,
+  orgPositions,
+  owned,
+  tenant,
+} from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import type { MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import type { CredentialKind, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { captureLogger, getJson, seedAgent, testConfig } from '@mwc/testkit';
 import { and, asc, eq } from 'drizzle-orm';
 import type { Logger } from 'pino';
 import { expect } from 'vitest';
 import { moduleJobs } from '../../src/app.ts';
+import { credentialSecrets, type StoreCredentialInput } from '../../src/modules/credentials/index.ts';
+import type { SubscriptionView } from '../../src/modules/credentials/schemas.ts';
 import { SELF_RECONCILE_INTERVAL_MS } from '../../src/modules/identity/service.ts';
 import type { MemberView } from '../../src/modules/members/schemas.ts';
 import { validateChart } from '../../src/modules/org/rules.ts';
 import type { AgentDetailView, OrgChartView } from '../../src/modules/org/schemas.ts';
 import { memberChart } from '../../src/modules/org/service/lifecycle.ts';
+import type { Keyring } from '../../src/platform/secrets/keyring.ts';
 import { type AuthWorld, addPerson, bearer, newSubject, type Person } from './auth.ts';
 import { acceptAtProvider, invite, memberWithEmail, runOutbox, signUp } from './invitations.ts';
 import { as, type MembersCompany, membersCompany } from './members.ts';
@@ -250,5 +266,110 @@ export async function positionAudit(w: AuthWorld, principalId: string) {
   return (await auditRows(w.t.db, 'org_position', principalId)).map(
     (row) =>
       [row.action, row.actorPrincipalId ?? row.actorKind, row.requestId, row.oldValue, row.newValue] as const,
+  );
+}
+
+export const PROFILES = '/api/me/access-profiles';
+
+export const defaultPath = (companyId: string) => `/api/companies/${companyId}/me/default-profile`;
+
+/** A secret of each kind's shape: made up, never a real one. */
+const SECRETS: Readonly<Record<CredentialKind, unknown>> = {
+  claude_oauth: {
+    credentials: { claudeAiOauth: { accessToken: 'sk-ant-oat01-LOGINaccessNEVERshown' } },
+    account: { emailAddress: 'ihor@example.com' },
+  },
+  claude_setup_token: { token: 'sk-ant-oat01-SETUPtokenNEVERshownAGAIN_0123456789' },
+  codex_oauth: { auth: { tokens: { access_token: 'codex-ACCESStokenNEVERshown' } } },
+  anthropic_api_key: { apiKey: 'sk-ant-api03-ANTHROPICkeyNEVERshown_abcdef' },
+  openai_api_key: { apiKey: 'sk-proj-OPENAIkeyNEVERshown_ghijkl' },
+  gateway: { headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' } },
+};
+
+/** Asserts a body (or rows) carry no secret of the subscriptions these helpers seal. */
+export function noSecret(value: unknown): void {
+  const text = JSON.stringify(value);
+  for (const secret of [
+    'LOGINaccess',
+    'SETUPtoken',
+    'codex-ACCESS',
+    'ANTHROPICkey',
+    'OPENAIkey',
+    'HEADERvalue',
+  ]) {
+    expect(text).not.toContain(secret);
+  }
+}
+
+/** Seals a subscription of `kind` for a person, as the store does (`storeCredential`). */
+export function addSubscription(
+  w: AuthWorld,
+  keyring: Keyring,
+  userId: string,
+  kind: CredentialKind,
+  label = `${kind} ${randomBytes(2).toString('hex')}`,
+): Promise<SubscriptionView> {
+  const input = { kind, secret: SECRETS[kind], label, ownerUserId: userId } as StoreCredentialInput;
+  return credentialSecrets({ db: w.t.db, keyring, clock: w.clock }).storeCredential(input);
+}
+
+/** Marks a subscription revoked at its provider, straight in the table. */
+export async function revokeSubscription(db: DbHandle, id: string): Promise<void> {
+  await rawDb(db).update(credentials).set({ status: 'revoked' }).where(eq(credentials.id, id));
+}
+
+/** A profile of a person's, straight through the personal layer (no rules checked). */
+export async function seedProfile(
+  db: DbHandle,
+  userId: string,
+  values: Partial<Omit<AccessProfile, 'id' | 'ownerUserId'>> = {},
+): Promise<AccessProfile> {
+  const name = `Profile ${randomBytes(3).toString('hex')}`;
+  const [row] = await owned(db, userId)
+    .insert(accessProfiles, { name, ...values })
+    .returning();
+  return row as AccessProfile;
+}
+
+/** Puts a profile on an agent straight in the table (no rules checked). */
+export async function putProfile(db: DbHandle, companyId: string, agentId: string, profileId: string | null) {
+  await (await tenant(db, companyId)).update(agents, { profileId }, eq(agents.id, agentId));
+}
+
+/** Sets a membership's default profile straight in the table (no rules checked). */
+export async function putDefault(db: DbHandle, membershipId: string, profileId: string | null) {
+  await rawDb(db)
+    .update(memberships)
+    .set({ defaultProfileId: profileId })
+    .where(eq(memberships.id, membershipId));
+}
+
+/** The profile an agent holds, as stored. */
+export const agentProfileOf = async (db: DbHandle, agentId: string) =>
+  (await rawDb(db).select().from(agents).where(eq(agents.id, agentId)))[0]?.profileId;
+
+/** The default profile a membership holds, as stored. */
+export const defaultProfileOf = async (db: DbHandle, membershipId: string) =>
+  (await rawDb(db).select().from(memberships).where(eq(memberships.id, membershipId)))[0]?.defaultProfileId;
+
+/** One field's audit rows of an entity, oldest first, as `[companyId, action, by, requestId, old, new]`. */
+export async function fieldAudit(db: DbHandle, entityType: string, entityId: string, field: string) {
+  const rows = await rawDb(db)
+    .select()
+    .from(auditLog)
+    .where(
+      and(eq(auditLog.entityType, entityType), eq(auditLog.entityId, entityId), eq(auditLog.field, field)),
+    )
+    .orderBy(asc(auditLog.id));
+  return rows.map(
+    (row) =>
+      [
+        row.companyId,
+        row.action,
+        row.actorPrincipalId ?? row.actorKind,
+        row.requestId,
+        row.oldValue,
+        row.newValue,
+      ] as const,
   );
 }

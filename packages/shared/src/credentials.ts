@@ -33,3 +33,26 @@ export const SECRET_MAX = 4096;
 
 /** How many headers a gateway sends with each request: 1 to 20. */
 export const GATEWAY_HEADERS = { min: 1, max: 20 } as const;
+
+/** An access profile's name ("Work"), after trimming: 1 to 80 characters, unique per owner (`access_profiles_name_check`). */
+export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;
+
+/**
+ * An access profile's slots and the credential kinds each one takes (S3.4, docs/subscriptions.md): the Claude
+ * subscription a `claude_code` agent's runs use, the OpenAI one a `codex` agent's, and an optional gateway. A slot
+ * holds one of the profile owner's own credentials, never a revoked one.
+ */
+export const PROFILE_SLOT_KINDS = {
+  claude: ['claude_oauth', 'claude_setup_token', 'anthropic_api_key'],
+  openai: ['codex_oauth', 'openai_api_key'],
+  gateway: ['gateway'],
+} as const satisfies Record<string, readonly CredentialKind[]>;
+export type ProfileSlot = keyof typeof PROFILE_SLOT_KINDS;
+
+/** The slots in the order a profile shows them. */
+export const PROFILE_SLOTS = ['claude', 'openai', 'gateway'] as const satisfies readonly ProfileSlot[];
+
+/** True when a credential of `kind` may go in `slot`. */
+export function fitsSlot(slot: ProfileSlot, kind: CredentialKind): boolean {
+  return (PROFILE_SLOT_KINDS[slot] as readonly CredentialKind[]).includes(kind);
+}

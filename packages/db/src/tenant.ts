@@ -159,10 +159,23 @@ class ScopedDb {
   transaction<R>(work: (tx: TenantDb) => Promise<R>): Promise<R> {
     return this.#db.transaction((tx) => work(new ScopedDb(tx, this.company)));
   }
+
+  /** For `tenantConnection` (below). */
+  static connectionOf(t: ScopedDb): RawDb {
+    return t.#db;
+  }
 }
 
 /** A database scoped to one company (`tenant()` makes it; there is no other way to get one). */
 export type TenantDb = ScopedDb;
+
+/**
+ * A tenant's connection (its transaction when it is one), for the personal layer's bridges (`ownedIn`, `ownersOf`).
+ * Package-internal: neither `@mwc/db` nor `@mwc/db/system` exports it.
+ */
+export function tenantConnection(t: TenantDb): RawDb {
+  return ScopedDb.connectionOf(t);
+}
 
 /**
  * Opens a company's tenant. Refuses, with `CompanyNotFoundError`, a company that does not exist, is

@@ -82,7 +82,7 @@ const agentNode = ({
   kind: 'agent',
   reportsTo,
   title: null,
-  agent: { agentId: `a-${slug}`, name, slug, roleTitle, status, face, model, effort },
+  agent: { agentId: `a-${slug}`, name, slug, roleTitle, status, face, model, effort, profile: null },
 });
 
 const NODES: readonly ChartNode[] = [
@@ -128,6 +128,7 @@ const detailOf = (agent: SampleAgent): AgentDetail => ({
   face: agent.face,
   reportsTo: agent.reportsTo,
   title: null,
+  profile: null,
   createdAt: days(-agent.hired),
   updatedAt: days(-1),
   instructions: agent.slug === 'vega' ? INSTRUCTIONS : '',

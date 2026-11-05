@@ -16,6 +16,7 @@ import {
 } from '@mwc/db';
 import type { AgentStatus } from '@mwc/shared/enums';
 import { asc, eq, inArray, ne } from 'drizzle-orm';
+import { profileRows } from './repo/profiles.ts';
 
 /** Every position of the company, in the order they were placed: the chart's stable order. */
 const positions = (t: TenantDb): Promise<OrgPosition[]> =>
@@ -107,7 +108,8 @@ async function removePosition(t: TenantDb, principalId: string): Promise<OrgPosi
 /**
  * The org module's data access, through the company's tenant only: the agents, the positions, the active
  * memberships (who of the people is on the chart) and who invited a person, the company row's lock that serializes
- * every change of the chart, and the audit rows.
+ * every change of the chart, and the audit rows; and the access profiles the agents and defaults point at
+ * (`repo/profiles.ts`, S3.4).
  */
 export function orgRepo() {
   return {
@@ -125,6 +127,7 @@ export function orgRepo() {
     placePosition,
     updatePosition,
     removePosition,
+    ...profileRows,
     audit: (t: TenantDb, entry: AuditEntry) => auditChanges(t, entry),
   };
 }

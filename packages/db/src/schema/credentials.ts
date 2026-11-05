@@ -1,4 +1,4 @@
-import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
+import { ACCESS_PROFILE_NAME, CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
 import { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
@@ -12,6 +12,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { bytea, createdAt, oneOf, updatedAt } from './columns.ts';
@@ -92,7 +93,47 @@ export const credentialUses = pgTable(
   ],
 );
 
+/** A slot of an access profile: one of its owner's credentials, emptied when that credential is removed. */
+const slot = (name: string) => uuid(name).references(() => credentials.id, { onDelete: 'set null' });
+
+/**
+ * Access profiles (S3.4, docs/subscriptions.md): a person's named bundles of their own subscriptions, which they give
+ * to agents (`agents.profile_id`) and choose as their default for the agents they hire in a company
+ * (`memberships.default_profile_id`). A personal table like `credentials`, reached through `owned(db, userId)`. A
+ * profile never moves a credential into a company: it is a reference the server resolves at run time.
+ *
+ * Each slot holds one of the owner's credentials of a kind that fits it (`PROFILE_SLOT_KINDS` of
+ * `@mwc/shared/credentials`), never a revoked one: the credentials module checks that, since SQL cannot read another
+ * row's owner or kind here. Removing a credential empties its slots; removing a profile takes it off its agents and
+ * defaults (both `on delete set null`).
+ */
+export const accessProfiles = pgTable(
+  'access_profiles',
+  {
+    id: uuid('id').primaryKey().$defaultFn(newId),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id),
+    /** What its owner calls it ("Work"), unique among theirs. */
+    name: text('name').notNull(),
+    /** The Claude subscription of `claude_code` agents: `claude_oauth`, `claude_setup_token` or `anthropic_api_key`. */
+    claudeCredentialId: slot('claude_credential_id'),
+    /** The OpenAI one of `codex` agents: `codex_oauth` or `openai_api_key`. */
+    openaiCredentialId: slot('openai_credential_id'),
+    /** An optional gateway the runs send their AI requests through. */
+    gatewayCredentialId: slot('gateway_credential_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique('access_profiles_owner_user_id_name_unique').on(t.ownerUserId, t.name),
+    check('access_profiles_name_check', lengthWithin(t.name, ACCESS_PROFILE_NAME)),
+  ],
+);
+
 export type Credential = typeof credentials.$inferSelect;
 export type NewCredential = typeof credentials.$inferInsert;
 export type CredentialUse = typeof credentialUses.$inferSelect;
 export type NewCredentialUse = typeof credentialUses.$inferInsert;
+export type AccessProfile = typeof accessProfiles.$inferSelect;
+export type NewAccessProfile = typeof accessProfiles.$inferInsert;

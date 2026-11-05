@@ -7,6 +7,10 @@ export interface Caller {
   readonly principalId: string;
   readonly role: MembershipRole;
   readonly requestId: string;
+  /** The member's person, whose access profiles are theirs to give (S3.4). */
+  readonly userId: string;
+  /** Signed in to the web app (a session) rather than with an API key: giving a profile needs it. */
+  readonly session: boolean;
 }
 
 /**
@@ -24,7 +28,7 @@ export const byCaller = (caller: Caller): AuditBy => ({
 /** Who did what to which entity, for its audit rows (a person through the API: agents do not change the chart yet). */
 export const auditEntry = (
   caller: Caller,
-  entityType: 'agent' | 'org_position',
+  entityType: 'agent' | 'org_position' | 'membership',
   entityId: string,
   action: string,
 ) => ({ ...byCaller(caller), entityType, entityId, action }) as const;

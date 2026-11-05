@@ -48,6 +48,8 @@ export interface UserCompany {
   readonly status: typeof memberships.$inferSelect.status;
   /** The SHA-256 of the company's logo (its version and ETag), null when it has none; never the image. */
   readonly logoSha256: string | null;
+  /** The person's default access profile for the agents they hire there (S3.4); null for none. */
+  readonly defaultProfileId: string | null;
 }
 
 /**
@@ -76,6 +78,7 @@ export async function listUserCompanies(
       role: memberships.role,
       status: memberships.status,
       logoSha256: companyLogos.sha256,
+      defaultProfileId: memberships.defaultProfileId,
     })
     .from(memberships)
     .innerJoin(companies, eq(companies.id, memberships.companyId))

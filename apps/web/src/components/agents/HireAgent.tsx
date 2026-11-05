@@ -44,6 +44,7 @@ function previewNode(draft: AgentDraft): ChartNode {
       face: draft.face,
       model: values.model.trim() || '…',
       effort: values.effort,
+      profile: null,
     },
   };
 }
