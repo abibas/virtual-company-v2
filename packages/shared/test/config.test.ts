@@ -1,7 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { CLERK_SECRET_KEY_PATTERN, ConfigError, loadConfig } from '../src/config.ts';
+import { CLERK_SECRET_KEY_PATTERN, ConfigError, decodeMasterKey, loadConfig } from '../src/config.ts';
 
 const valid = { DATABASE_URL: 'postgres://mwc:mwc@localhost:9952/mwc' };
+/** A master key made for this run only: production refuses to start without one. */
+const MASTER_KEY = randomBytes(32).toString('base64');
+const PRODUCTION = { NODE_ENV: 'production', MWC_MASTER_KEY: MASTER_KEY };
 
 describe('loadConfig', () => {
   it('applies the defaults when only DATABASE_URL is given', () => {
@@ -221,9 +225,9 @@ describe('loadConfig MWC_WEB_ORIGIN', () => {
   });
 
   it('defaults to the origin of the public URL in production, where the server serves the UI', () => {
-    const prod = { ...valid, NODE_ENV: 'production', MWC_PUBLIC_URL: 'https://mwc.example.com/app/' };
+    const prod = { ...valid, ...PRODUCTION, MWC_PUBLIC_URL: 'https://mwc.example.com/app/' };
     expect(loadConfig(prod).MWC_WEB_ORIGIN).toBe('https://mwc.example.com');
-    expect(loadConfig({ ...valid, NODE_ENV: 'production', MWC_PORT: '9950' }).MWC_WEB_ORIGIN).toBe(
+    expect(loadConfig({ ...valid, ...PRODUCTION, MWC_PORT: '9950' }).MWC_WEB_ORIGIN).toBe(
       'http://localhost:9950',
     );
   });
@@ -243,12 +247,12 @@ describe('loadConfig company creation', () => {
   it('lets anyone create companies by default, and only the listed creators in production', () => {
     expect(loadConfig(valid).MWC_COMPANY_CREATION).toBe('any');
     expect(loadConfig({ ...valid, NODE_ENV: 'test' }).MWC_COMPANY_CREATION).toBe('any');
-    expect(loadConfig({ ...valid, NODE_ENV: 'production' }).MWC_COMPANY_CREATION).toBe('allowlist');
+    expect(loadConfig({ ...valid, ...PRODUCTION }).MWC_COMPANY_CREATION).toBe('allowlist');
     expect(loadConfig({ ...valid, MWC_COMPANY_CREATION: '' }).MWC_COMPANY_CREATION).toBe('any');
     for (const mode of ['any', 'allowlist', 'none'] as const) {
-      expect(
-        loadConfig({ ...valid, NODE_ENV: 'production', MWC_COMPANY_CREATION: mode }).MWC_COMPANY_CREATION,
-      ).toBe(mode);
+      expect(loadConfig({ ...valid, ...PRODUCTION, MWC_COMPANY_CREATION: mode }).MWC_COMPANY_CREATION).toBe(
+        mode,
+      );
     }
     expect(() => loadConfig({ ...valid, MWC_COMPANY_CREATION: 'some' })).toThrow(/MWC_COMPANY_CREATION/);
   });
@@ -267,7 +271,7 @@ describe('loadConfig company creation', () => {
 describe('loadConfig jobs', () => {
   it('runs the jobs loop by default, also in production, and not with NODE_ENV=test unless asked', () => {
     expect(loadConfig(valid).MWC_JOBS).toBe(true);
-    expect(loadConfig({ ...valid, NODE_ENV: 'production' }).MWC_JOBS).toBe(true);
+    expect(loadConfig({ ...valid, ...PRODUCTION }).MWC_JOBS).toBe(true);
     expect(loadConfig({ ...valid, NODE_ENV: 'test' }).MWC_JOBS).toBe(false);
     expect(loadConfig({ ...valid, NODE_ENV: 'test', MWC_JOBS: 'on' }).MWC_JOBS).toBe(true);
     expect(loadConfig({ ...valid, MWC_JOBS: '' }).MWC_JOBS).toBe(true);
@@ -282,5 +286,42 @@ describe('loadConfig jobs', () => {
     for (const minutes of ['0', '1441', '2.5', 'ten']) {
       expect(() => loadConfig({ ...valid, MWC_RECONCILE_MINUTES: minutes })).toThrow(/MWC_RECONCILE_MINUTES/);
     }
+  });
+});
+
+describe('loadConfig MWC_MASTER_KEY', () => {
+  it('is optional outside production and kept as given when it is the base64 of 32 bytes', () => {
+    expect(loadConfig(valid).MWC_MASTER_KEY).toBeUndefined();
+    expect(loadConfig({ ...valid, NODE_ENV: 'test', MWC_MASTER_KEY: '' }).MWC_MASTER_KEY).toBeUndefined();
+    expect(loadConfig({ ...valid, MWC_MASTER_KEY: MASTER_KEY }).MWC_MASTER_KEY).toBe(MASTER_KEY);
+  });
+
+  it('refuses to start production without one, naming the variable', () => {
+    const failure = () => loadConfig({ ...valid, NODE_ENV: 'production' });
+    expect(failure).toThrow(ConfigError);
+    expect(failure).toThrow(/MWC_MASTER_KEY: required in production/);
+    expect(loadConfig({ ...valid, ...PRODUCTION }).MWC_MASTER_KEY).toBe(MASTER_KEY);
+  });
+
+  it('refuses a value that is not the base64 of 32 bytes, and never echoes it', () => {
+    const short = randomBytes(16).toString('base64');
+    const long = randomBytes(33).toString('base64');
+    for (const bad of [short, long, MASTER_KEY.slice(0, -1), `${MASTER_KEY} `, 'not a key at all']) {
+      try {
+        loadConfig({ ...valid, MWC_MASTER_KEY: bad });
+        expect.unreachable(`accepted ${bad.length} characters`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ConfigError);
+        expect((error as Error).message).toMatch(/MWC_MASTER_KEY: must be the base64 of 32 bytes/);
+        expect((error as Error).message).not.toContain(bad.trim());
+      }
+    }
+  });
+
+  it('decodes a well-formed key to its 32 bytes and nothing else', () => {
+    const bytes = randomBytes(32);
+    expect(decodeMasterKey(bytes.toString('base64'))).toEqual(new Uint8Array(bytes));
+    expect(decodeMasterKey(bytes.toString('base64url'))).toBeUndefined();
+    expect(decodeMasterKey('')).toBeUndefined();
   });
 });

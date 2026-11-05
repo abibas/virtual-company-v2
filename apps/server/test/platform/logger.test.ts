@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { createLogger } from '../../src/platform/logger.ts';
+import { createLogger, REDACTED, REDACTED_PATHS } from '../../src/platform/logger.ts';
 
 function sink() {
   const chunks: string[] = [];
@@ -67,5 +67,28 @@ describe('createLogger', () => {
       'pino-pretty is not available; logging JSON',
       'after fallback',
     ]);
+  });
+
+  it('blanks out secrets at the top of a line and one level down, in JSON and in pretty lines', async () => {
+    const token = 'sk-ant-oat01-never-in-a-log';
+    const secrets = {
+      token,
+      apiKey: 'sk-ant-api03-never',
+      payload: { headers: { 'x-api-key': 'gw-never' }, credentials: { accessToken: 'at-never' } },
+      key: { MWC_MASTER_KEY: 'bWFzdGVyLWtleS1uZXZlcg==', masterKey: 'raw-never' },
+      request: { authorization: 'Bearer never', auth: { tokens: 'codex-never' }, ciphertext: 'c-never' },
+      kept: { label: 'Max at home', kind: 'claude_setup_token' },
+    };
+    for (const NODE_ENV of ['production', 'development'] as const) {
+      const out = sink();
+      const logger = await createLogger({ NODE_ENV, MWC_LOG_LEVEL: 'info' }, { destination: out.stream });
+      logger.info(secrets, 'stored');
+      await flush();
+      const text = out.text();
+      expect(text).not.toMatch(/never/);
+      expect(text).toContain(REDACTED);
+      expect(text).toContain('Max at home');
+    }
+    expect(REDACTED_PATHS).toContain('*.headers');
   });
 });

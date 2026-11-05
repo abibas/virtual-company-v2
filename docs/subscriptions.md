@@ -61,7 +61,8 @@ profile never moves a credential into a company: it is a reference the server re
 
 - **At rest:** AES-256-GCM per secret, with the AAD binding it to its id, owner and kind, and a key version so the
   master key can rotate. The master key is `MWC_MASTER_KEY` in production (a cloud key service later) and a generated
-  `.data/master.key` (0600, git-ignored) in development. It is never logged or printed.
+  `.data/master.key` (0600, git-ignored) in development; tests use a key in memory (S3.1). It is never logged or
+  printed.
 - **Write-only:** the API returns metadata (kind, label, account email, plan, status, last checked), never the secret,
   not even to its owner. Adding, renaming, removing and assigning need the owner's Clerk session; API keys are refused.
 - **On machines:** nothing at rest. How a run receives its credential is decided in S5, starting with a short test of a
@@ -69,7 +70,8 @@ profile never moves a credential into a company: it is a reference the server re
   container or a box finds nothing reusable. The fallback hands the credential to the run's environment over the
   runner's connection, never to disk, where root on that machine could read it while the run lives.
 - **Audit:** every add, change, removal and assignment, and every server-side use of a secret (a usage check, later a
-  run), with who or what used it.
+  run), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
+  subscription is removed (S3.1).
 
 ## The limits widget
 

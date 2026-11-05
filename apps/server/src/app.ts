@@ -3,6 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
 import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
+import { credentialsRoutes } from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
@@ -15,6 +16,8 @@ import { mountWeb } from './platform/http/web.ts';
 import { identityFromConfig } from './platform/identity.ts';
 import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
+import { ephemeralKeyring } from './platform/secrets/keyring.ts';
+import { envKeyring } from './platform/secrets/master-key.ts';
 
 export type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 
@@ -27,12 +30,14 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * `app.request()` on PGlite and `platform/start.ts` serves it on Postgres. Each module is a router from
  * `newRouter()`, exported by `modules/<area>/index.ts` and mounted here. The identity provider is the one
  * passed in (tests: the fake), else the one the configuration names (`platform/identity.ts`: the Clerk
- * connector, or none).
+ * connector, or none). The master keyring is the one passed in (`platform/start.ts` loads it), else MWC_MASTER_KEY's,
+ * else a key in memory (tests and demos).
  */
 export function createApp(deps: AppDeps) {
   const clock = deps.clock ?? (() => new Date());
   const server: ServerDeps = { ...deps, clock, identity: deps.identity ?? identityFromConfig(deps.config) };
   const withChart = withMemberChart(server);
+  const keyring = deps.keyring ?? envKeyring(deps.config) ?? ephemeralKeyring();
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -50,7 +55,8 @@ export function createApp(deps: AppDeps) {
     .route('/', companiesRoutes(server))
     .route('/', membersRoutes(withChart))
     .route('/', apiKeysRoutes(server))
-    .route('/', orgRoutes(server));
+    .route('/', orgRoutes(server))
+    .route('/', credentialsRoutes({ ...server, keyring }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

@@ -5,7 +5,7 @@ The schema drawn as a diagram, with a section per table: [docs/schema.md](../../
 
 | Import            | What                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------- |
-| `@mwc/db`         | the tables and row types, `tenant(db, companyId)` with `TenantDb` and `CompanyNotFoundError`, `withNewCompany(db, input, work)` with `SlugTakenError`, `isUuid`, `pingDb(handle)`, `migrationStatus(handle)`, `readJournal()`, `diffFields`, `auditChanges(t, entry)`, `isUniqueViolation(error, constraint?)`, and the `DbHandle` type (a handle without its Drizzle object) |
+| `@mwc/db`         | the tables and row types, `tenant(db, companyId)` with `TenantDb` and `CompanyNotFoundError`, `owned(db, userId)` with `OwnedDb` (the personal layer, S3.1), `withNewCompany(db, input, work)` with `SlugTakenError`, `isUuid`, `pingDb(handle)`, `migrationStatus(handle)`, `readJournal()`, `diffFields`, `auditChanges(t, entry)`, `isUniqueViolation(error, constraint?)`, and the `DbHandle` type (a handle without its Drizzle object) |
 | `@mwc/db/system`  | raw, unscoped access: `createDb(url, { poolSize, onnotice })` (postgres.js, lazy connect), `migrateToLatest(handle)`, `queryRows(handle, sql)`, `reserveSession(handle)` (a session of its own: a connection reserved from the pool, PGlite's one session; the jobs lock, S1.10), `rawDb(handle)` (the Drizzle database), `rawHandle(handle)`, `tenantOf(rawDb, companyId)` (`tenant()` on a raw database or an open transaction: the identity store writes a projection's audit rows in its own transaction). Server modules may not import it (below) |
 | `@mwc/db/schema`  | the Drizzle tables and row types only                                                  |
 | `@mwc/db/pglite`  | `createPgliteDb()`: an in-memory PGlite handle for tests (PGlite is a dev dependency)   |
@@ -61,6 +61,25 @@ const company = await withNewCompany(db, { name: 'Acme', slugs: ['acme', 'acme-2
 
 A `companyId` passed to `insert` or `update` is replaced or dropped: a row never lands in or moves to another
 company. The composite foreign keys refuse a cross-company reference even when a raw query tries it.
+
+## The personal layer
+
+Personal tables hold a person's own rows, which belong to no company (S3.1: `credentials`, `credential_uses`):
+they have `owner_user_id` and no `company_id`. `owned(db, userId)` is the only way route and service code reaches
+them; its `OwnedDb` (`src/owned.ts`) scopes every statement to that person as `TenantDb` does to a company, and
+writes their audit rows with no company:
+
+```ts
+const o = owned(db, userId);                                                     // a user id, else a TypeError
+await o.select(credentials).orderBy(asc(credentials.createdAt));                 // + owner_user_id = …
+await o.insert(credentials, { kind, label, keyVersion, iv, authTag, ciphertext }); // owner_user_id stamped
+await o.update(credentials, { label }, eq(credentials.id, id)).returning();      // own rows only, never moved
+await o.delete(credentials, eq(credentials.id, id)).returning();
+await o.transaction(async (tx) => tx.audit({ actorKind: 'user', entityType: 'credential', entityId: id, action: 'delete', changes }));
+```
+
+The user id is the signed-in caller's (`c.var.userId` of a personal route), or the owner a server-side use names;
+another person's rows are never reached through it.
 
 Raw access is `@mwc/db/system`: the platform (startup, auth, jobs), migrations and scripts, the webhook inbox
 and the identity store. `biome.json` forbids it, with `@mwc/db/pglite`, `/migrate` and `/testing`, under
@@ -125,7 +144,12 @@ not what `diagram` would write. `pnpm mwc check` runs both in its "db drift" ste
 - `users.primary_email` is stored lower-cased (a CHECK refuses anything else) and is not unique; `companies.slug` is
   lower-case kebab, 1–63 characters.
 - `audit_log` is append-only, one row per changed field (`diffFields(before, after)` makes them);
-  `company_id` is null for global events.
+  `company_id` is null for global events, and for a person's own changes (`OwnedDb.audit`).
+- The personal tables (S3.1, `src/schema/credentials.ts`): `credentials` (a person's subscriptions: `kind` and
+  `status` are `CredentialKind` and `CredentialStatus`, `label` 1–80 characters, `account_meta` a JSON object of
+  non-secret details, and the sealed secret: `key_version` ≥ 1, `iv` 12 bytes, `auth_tag` 16 bytes, `ciphertext`)
+  and `credential_uses` (each server-side opening of a secret: `purpose` 1–80 characters, `at`). `credential_id` of a
+  use has no foreign key, so the record outlives the credential, like its audit rows.
 - Tests use `createTestDb()` + `migrateToLatest()`: a real Postgres in WebAssembly, in memory, and in
   `mwc check --full` the same tests on the dev Postgres 17 (`TEST_DB=postgres`), so write them through
   `queryRows` and Drizzle rather than a driver's own API.

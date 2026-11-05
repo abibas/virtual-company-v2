@@ -19,6 +19,7 @@ Most_Wanted_corp_v2/
 │   │   │   ├── platform/           cross-cutting, no business rules
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI, throttle
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
+│   │   │   │   ├── secrets/        master keyring: seal, open (built)          S3.1
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S5
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S4/S5
 │   │   │   ├── modules/            one folder per business area
@@ -32,7 +33,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
-│   │   │   │   ├── credentials/    subscriptions, access profiles, limits      S3
+│   │   │   │   ├── credentials/    subscriptions (store built), profiles, limits S3
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
@@ -116,7 +117,12 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   (`companyMember(deps, role)` gives both as the tuple zod-openapi needs to type the handler's `c.var`), and gets
   the provider and the clock as `ServerDeps` (`env.ts`); `companyRoute(deps, { role, path, tag })` (S1.6) is the
   shared base of a company route (the path as a literal type, the tag, the bearer credential, `companyMember` and the
-  guard's refusals in the OpenAPI document). `jobs/outbox.ts` (S1.5) is the identity outbox:
+  guard's refusals in the OpenAPI document); `personalRoute(deps, { path, tag })` (`personal.ts`, S3.1) is the same
+  for a personal route under `/api/me/...`: `authn()` then `requireSession()` (a signed-in session only, an API key
+  403 `session_required`), which puts `c.var.userId` on the context. `secrets/` (S3.1) is the master keyring:
+  `keyring.ts` (`Keyring`: seal and open with AES-256-GCM and additional data, key versions) and `master-key.ts`
+  (`loadKeyring`: MWC_MASTER_KEY, the development `.data/master.key`, or a test key in memory), which `start.ts`
+  loads and `createApp` hands the credentials module. `jobs/outbox.ts` (S1.5) is the identity outbox:
   `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
   handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after
   its last try, or at once for an `OutboxGiveUpError`: a refusal no retry fixes), and what a handler starts with
@@ -251,6 +257,13 @@ audit rows) commit together or not at all; no slug free rejects with `SlugTakenE
 a global row and tenant rows in one transaction without `@mwc/db/system`. `auditChanges(t, entry)` writes the
 per-field audit rows of `diffFields` in the tenant's company, and `isUniqueViolation(error, constraint?)` tells a
 taken value (a 409) from a failure on both drivers.
+
+Personal data, a person's own rows that belong to no company (S3.1: `credentials`, `credential_uses`, which have
+`owner_user_id` and no `company_id`), is reached the same way through `owned(db, userId)` of `@mwc/db`: its `OwnedDb`
+scopes every statement to that person (reads, updates and deletes get `owner_user_id = …`, inserts get it stamped)
+and writes their audit rows with no company (`o.audit(entry)`). It is neither tenant data nor raw access, so a module
+uses it without an exemption; the user id is the signed-in caller's (`c.var.userId` of a personal route) or the owner a
+server-side use names.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the

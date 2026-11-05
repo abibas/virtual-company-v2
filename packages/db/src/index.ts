@@ -18,6 +18,14 @@ export {
   migrationStatus,
   readJournal,
 } from './migrate.ts';
+export {
+  type OwnedAuditEntry,
+  type OwnedDb,
+  type OwnedSet,
+  type OwnedTable,
+  type OwnedValues,
+  owned,
+} from './owned.ts';
 export * from './schema/index.ts';
 export {
   CompanyNotFoundError,

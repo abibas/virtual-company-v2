@@ -13,6 +13,15 @@ export const IdentityMode = z.enum(['clerk', 'none']);
  */
 export const CLERK_SECRET_KEY_PATTERN = /^sk_(test|live)_[A-Za-z0-9]{20,}$/;
 
+/** The master key's shape: the standard base64 of exactly 32 bytes, as `openssl rand -base64 32` prints it. */
+const MASTER_KEY_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
+
+/** The 32 bytes of a well-formed MWC_MASTER_KEY, or undefined for anything else. Nothing here echoes the value. */
+export function decodeMasterKey(value: string): Uint8Array | undefined {
+  if (!MASTER_KEY_PATTERN.test(value)) return undefined;
+  return new Uint8Array(Buffer.from(value, 'base64'));
+}
+
 /** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
 export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
@@ -80,6 +89,18 @@ const EnvSchema = z.object({
   MWC_JOBS: z.preprocess(emptyAsUnset, z.stringbool().optional()),
   /** Minutes between two reconciles of one company with its organization (1 to 1440). Default 10. */
   MWC_RECONCILE_MINUTES: z.preprocess(emptyAsUnset, z.coerce.number().int().min(1).max(1440).default(10)),
+  /**
+   * The master key that seals people's subscriptions (AES-256-GCM): the base64 of 32 random bytes. Required in
+   * production; in development the server makes `.data/master.key` once instead, and tests use a key in memory. A
+   * secret: never logged or echoed, and a problem names the variable only.
+   */
+  MWC_MASTER_KEY: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .refine((value) => decodeMasterKey(value) !== undefined, 'must be the base64 of 32 bytes')
+      .optional(),
+  ),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
@@ -99,6 +120,16 @@ function requireClerkKeys(env: z.infer<typeof EnvSchema>, ctx: z.RefinementCtx):
   }
 }
 
+/** Production seals subscriptions only under a master key it is given: it never makes one of its own. */
+function requireMasterKey(env: z.infer<typeof EnvSchema>, ctx: z.RefinementCtx): void {
+  if (env.NODE_ENV !== 'production' || env.MWC_MASTER_KEY !== undefined) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: ['MWC_MASTER_KEY'],
+    message: 'required in production (the base64 of 32 random bytes: openssl rand -base64 32)',
+  });
+}
+
 /** The default web origin: the public URL in production, else the web dev server of the port or slot. */
 function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): string {
   if (env.NODE_ENV === 'production') return new URL(publicUrl).origin;
@@ -111,10 +142,13 @@ function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): st
  * is validated once at startup, and a missing or malformed value fails fast.
  * Precedence for the API port: MWC_PORT, then MWC_PORT_SLOT's API port, then 9950. Company creation is open
  * to anyone signed in, except in production, where only MWC_COMPANY_CREATORS may create. The jobs loop runs unless
- * MWC_JOBS turns it off or NODE_ENV is test. The Clerk keys are
+ * MWC_JOBS turns it off or NODE_ENV is test. Production needs MWC_MASTER_KEY. The Clerk keys and the master key are
  * secrets: nothing logs the configuration, and a problem names the variable, never its value.
  */
-export const ConfigSchema = EnvSchema.superRefine(requireClerkKeys).transform((env) => {
+export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
+  requireClerkKeys(env, ctx);
+  requireMasterKey(env, ctx);
+}).transform((env) => {
   const {
     MWC_PORT_SLOT,
     MWC_PORT,

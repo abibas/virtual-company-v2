@@ -27,6 +27,33 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: Personal data: a third access layer, a third kind of route guard, and three folders at 13 entries
+
+- **What happened:** S3.1's `credentials` and `credential_uses` belong to a person and to no company. The placement
+  table knows two ways to the database: `tenant(db, companyId)` for tenant rows and raw access (`@mwc/db/system`) for
+  the platform and the identity store; personal rows are neither, and a module may not use raw access. The routes
+  are personal too (`/api/me/subscriptions`, a session only), which neither `companyRoute` nor `authn()` alone
+  covers. The new files took three folders from 12 to 13 entries (`big-folder`): `packages/db/src/` (`owned.ts`),
+  `packages/db/test/` (`owned.test.ts`) and `packages/db/src/schema/` (`credentials.ts`); the report went from 54
+  warnings (without coverage) to 57 plus the low-coverage list. The server's master keyring is cross-cutting code
+  with no business rules, so it went to a new platform folder.
+- **Where:** `packages/db/src/owned.ts` (`owned(db, userId)`, `OwnedDb`, 99 lines) and `src/audit.ts` (`auditRows`,
+  shared by both layers), `src/schema/credentials.ts`, `migrations/0007_credentials.sql`;
+  `apps/server/src/platform/auth/personal.ts` (`requireSession`, `personalRoute`), `platform/secrets/{keyring,
+  master-key}.ts`; `apps/server/src/modules/credentials/` with `schemas/secrets.ts` (the secrets' shapes, a role
+  folder beside `schemas.ts`) and `service/secrets.ts` (the internal service); the S3.1 commit.
+- **What was done:** a personal layer in `@mwc/db` beside the tenant layer (every statement scoped to
+  `owner_user_id`, inserts stamped, audit rows with no company), so no new Biome exemption; `personalRoute` beside
+  `companyRoute`; the three folders left at 13, since each file is its own concern and mirrors its source (merging
+  `owned.ts` into `tenant.ts` would pass 300 lines). The test fixtures stayed at 12: `authWorld()` takes a `keyring`
+  instead of a new fixture file.
+- **Suggested change:** placement-table rows: "A person's own rows (no company) → a personal table with
+  `owner_user_id`, reached through `owned(db, userId)`" and "A route under `/api/me/...` for the caller's own rows →
+  `personalRoute(deps, { path, tag })`". At the next review, group the access layers (`packages/db/src/access/`
+  with `tenant.ts` and `owned.ts`, re-exported as today) or raise `folderEntries` for `packages/db/src/schema/`, which
+  grows by a table group each stage (S4 machines, S5 tasks and runs).
+- **Status:** `open`.
+
 ### 2026-11-05: User profiles: the session's fan-in, the cropper's round mask, and a changed column instead of a new one
 
 - **What happened:** user profiles (Ihor's request) were specified as "migration `0006`: add `users.image_url`", but the

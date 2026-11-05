@@ -77,7 +77,12 @@ export interface AuditEntry {
  */
 export async function auditChanges(t: TenantDb, entry: AuditEntry): Promise<AuditLogRow[]> {
   if (entry.changes.length === 0) return [];
-  const rows = entry.changes.map((change) => ({
+  return t.insert(auditLog, auditRows(entry)).returning();
+}
+
+/** The `audit_log` rows of an entry, one per change, without a company (the caller's layer decides it). */
+export function auditRows(entry: AuditEntry) {
+  return entry.changes.map((change) => ({
     actorKind: entry.actorKind,
     actorPrincipalId: entry.actorPrincipalId ?? null,
     requestId: entry.requestId ?? null,
@@ -88,5 +93,4 @@ export async function auditChanges(t: TenantDb, entry: AuditEntry): Promise<Audi
     oldValue: change.old,
     newValue: change.new,
   }));
-  return t.insert(auditLog, rows).returning();
 }

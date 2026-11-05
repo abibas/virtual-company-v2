@@ -41,6 +41,8 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'audit_log',
       'companies',
       'company_logos',
+      'credential_uses',
+      'credentials',
       'identity_events',
       'identity_marks',
       'identity_outbox',

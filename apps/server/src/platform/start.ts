@@ -11,6 +11,8 @@ import { advisoryJobsLock } from './jobs/lock.ts';
 import { createJobsRunner, type JobsRunner, SYSTEM_TIMERS, type Timers } from './jobs/runner.ts';
 import { JOBS_OFF } from './jobs/status.ts';
 import { createLogger } from './logger.ts';
+import type { Keyring } from './secrets/keyring.ts';
+import { DEV_DATA_DIR, loadKeyring } from './secrets/master-key.ts';
 import { gracefulShutdown } from './shutdown.ts';
 import { readServerVersion } from './version.ts';
 
@@ -33,6 +35,8 @@ export interface StartDeps {
   /** Apply the migrations before listening even when MWC_MIGRATE_ON_START is off. */
   readonly migrate: boolean;
   createLogger(config: Config): Promise<Logger>;
+  /** The master keys that seal subscriptions: MWC_MASTER_KEY, the development `.data/master.key`, or (tests) memory. */
+  loadKeyring(config: Config, logger: Logger): Promise<Keyring>;
   readVersion(): string;
   serve: Serve;
   /** Registers a signal handler: `process.on`. */
@@ -51,6 +55,7 @@ const SYSTEM: StartDeps = {
   dbLabel: 'postgres',
   migrate: false,
   createLogger: (config) => createLogger(config),
+  loadKeyring: (config, logger) => loadKeyring(config, { dataDir: DEV_DATA_DIR, logger }),
   readVersion: () => readServerVersion(),
   serve: (options, onListening) => nodeServe(options, onListening) as Server,
   onSignal: (signal, handler) => {
@@ -106,7 +111,7 @@ function warnIgnoredSecretKey(
 
 /**
  * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError`
- * listing every problem when it is invalid, before anything is opened), the logger, the database, the
+ * listing every problem when it is invalid, before anything is opened), the logger, the master keyring, the database, the
  * migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the listening server, the jobs loop
  * (MWC_JOBS), and the graceful shutdown on SIGTERM and SIGINT. A server error (the port is taken) exits 1.
  */
@@ -118,6 +123,8 @@ export async function start(
   const config = loadConfig({ ...env });
   const logger = await deps.createLogger(config);
   warnIgnoredSecretKey(env, config, logger);
+  // Before the database: a key file that is not a key stops the start with nothing opened.
+  const keyring = await deps.loadKeyring(config, logger);
   const version = deps.readVersion();
   const db = await deps.openDb(config, logger);
 
@@ -139,7 +146,7 @@ export async function start(
     ...webDist,
   };
   const jobs = jobsRunner(serverDeps, deps.timers);
-  const app = createApp({ ...serverDeps, jobs: jobs ?? JOBS_OFF });
+  const app = createApp({ ...serverDeps, keyring, jobs: jobs ?? JOBS_OFF });
   const server = deps.serve(
     { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST },
     (info) => {

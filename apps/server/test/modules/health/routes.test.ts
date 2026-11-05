@@ -187,6 +187,8 @@ describe('GET /api/config', () => {
     CLERK_JWT_KEY: '-----BEGIN PUBLIC KEY-----jwtkeyvalue-----END PUBLIC KEY-----',
     CLERK_WEBHOOK_SIGNING_SECRET: 'whsec_webhooksecretvalue',
     DATABASE_URL: 'postgres://mwc:hunter2@db.internal:5432/mwc',
+    // Production needs a master key; /api/config never shows it either.
+    MWC_MASTER_KEY: Buffer.alloc(32, 7).toString('base64'),
   };
   const clerkConfig = (extra: Record<string, string> = {}) =>
     loadConfig({

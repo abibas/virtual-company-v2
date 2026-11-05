@@ -95,3 +95,21 @@ export type Harness = z.infer<typeof Harness>;
 /** `agents.effort`: the reasoning effort the harness runs the agent's model with. */
 export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
 export type Effort = z.infer<typeof Effort>;
+
+/**
+ * `credentials.kind`: what a person's subscription is (docs/subscriptions.md). The two logins are written by the sign-in
+ * helper (S3.2); the other four are pasted.
+ */
+export const CredentialKind = z.enum([
+  'claude_oauth',
+  'claude_setup_token',
+  'codex_oauth',
+  'anthropic_api_key',
+  'openai_api_key',
+  'gateway',
+]);
+export type CredentialKind = z.infer<typeof CredentialKind>;
+
+/** `credentials.status`: usable, its login has to be signed in again, or revoked at the provider. */
+export const CredentialStatus = z.enum(['active', 'needs_sign_in', 'revoked']);
+export type CredentialStatus = z.infer<typeof CredentialStatus>;

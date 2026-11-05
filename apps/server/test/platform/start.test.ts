@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
@@ -10,6 +11,8 @@ import { type PostgresDbHandle, rawHandle } from '@mwc/db/system';
 import { ConfigError } from '@mwc/shared/config';
 import { captureLogger, getJson, LEVEL } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ephemeralKeyring } from '../../src/platform/secrets/keyring.ts';
+import { MasterKeyError } from '../../src/platform/secrets/master-key.ts';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';
 import { readServerVersion } from '../../src/platform/version.ts';
 import { manualTimers } from '../fixtures/jobs.ts';
@@ -96,6 +99,31 @@ describe('start', () => {
     });
     // Not migrated: MWC_MIGRATE_ON_START is off by default.
     expect((await getJson(started.app, '/readyz')).status).toBe(503);
+  });
+
+  it('loads the master keyring before the database, and stops with nothing opened when its key cannot be used', async () => {
+    const keyring = ephemeralKeyring();
+    const loadKeyring = vi.fn(async () => keyring);
+    const t = testDeps({ loadKeyring });
+    const started = await start(ENV, t.deps);
+    open.push(started.db);
+    expect(loadKeyring).toHaveBeenCalledWith(started.config, started.logger);
+
+    const openDb = vi.fn(() => createPgliteDb());
+    const unusable = new MasterKeyError('.data/master.key is not a 32-byte key');
+    const broken = testDeps({ openDb, loadKeyring: () => Promise.reject(unusable) });
+    await expect(start(ENV, broken.deps)).rejects.toBe(unusable);
+    expect(openDb).not.toHaveBeenCalled();
+    expect(broken.fake.calls).toEqual([]);
+  });
+
+  it('refuses to start production without MWC_MASTER_KEY, naming it, before anything is opened', async () => {
+    const t = testDeps({ openDb: vi.fn(() => createPgliteDb()) });
+    const failure = start({ ...ENV, NODE_ENV: 'production' }, t.deps);
+    await expect(failure).rejects.toBeInstanceOf(ConfigError);
+    await expect(failure).rejects.toThrow(/MWC_MASTER_KEY: required in production/);
+    expect(t.deps.openDb).not.toHaveBeenCalled();
+    expect(t.fake.calls).toEqual([]);
   });
 
   it('keeps sign-in off and says why, by name only, when CLERK_SECRET_KEY is not a Clerk secret key', async () => {
@@ -197,7 +225,14 @@ describe('start', () => {
     const port = await freePort();
     const exit = vi.fn();
     const started = await start(
-      { ...ENV, NODE_ENV: 'production', MWC_LOG_LEVEL: 'fatal', MWC_PORT: String(port), MWC_JOBS: 'off' },
+      {
+        ...ENV,
+        NODE_ENV: 'production',
+        MWC_MASTER_KEY: randomBytes(32).toString('base64'),
+        MWC_LOG_LEVEL: 'fatal',
+        MWC_PORT: String(port),
+        MWC_JOBS: 'off',
+      },
       { exit },
     );
     try {

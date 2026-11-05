@@ -22,6 +22,7 @@ import { hashApiKey } from '../../src/platform/auth/api-keys.ts';
 import { type AuthDeps, authn } from '../../src/platform/auth/authn.ts';
 import { requireMembership } from '../../src/platform/auth/membership.ts';
 import type { AppEnv } from '../../src/platform/env.ts';
+import type { Keyring } from '../../src/platform/secrets/keyring.ts';
 
 /** The origin the test configuration accepts tokens from (MWC_WEB_ORIGIN's default). */
 export const WEB_ORIGIN = testConfig.MWC_WEB_ORIGIN;
@@ -42,11 +43,14 @@ export function mountProbe(app: App | Hono<AppEnv>, deps: AuthDeps): void {
   }
 }
 
-/** A test app with the fake provider and the probe routes, both on one fixed clock. */
-export async function authWorld(): Promise<AuthWorld> {
+/**
+ * A test app with the fake provider and the probe routes, both on one fixed clock; with `keyring`, the app seals
+ * subscriptions under it (else under a key of its own in memory).
+ */
+export async function authWorld(options: { readonly keyring?: Keyring } = {}): Promise<AuthWorld> {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
-  const t = await createTestApp({ clock, identity: fake });
+  const t = await createTestApp({ clock, identity: fake, ...options });
   const deps: AuthDeps = { db: t.db, config: testConfig, logger: t.logger, identity: fake };
   mountProbe(t.app, deps);
   return { t, fake, clock, deps };

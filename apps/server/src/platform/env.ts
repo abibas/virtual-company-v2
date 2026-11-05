@@ -3,6 +3,7 @@ import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { JobsView } from './jobs/status.ts';
+import type { Keyring } from './secrets/keyring.ts';
 
 /** What `createApp` needs from the outside world; tests pass PGlite, a capture logger and a fixed clock. */
 export interface AppDeps {
@@ -27,6 +28,11 @@ export interface AppDeps {
   readonly identity?: IdentityProvider | undefined;
   /** The process's jobs loop, for `/readyz` (`platform/start.ts` passes it). Omitted, the jobs are off (`JOBS_OFF`). */
   readonly jobs?: JobsView;
+  /**
+   * The master keys that seal people's subscriptions (`platform/start.ts` loads them). Omitted, MWC_MASTER_KEY's, or
+   * a key in memory (tests and demos: what it sealed opens only in this process).
+   */
+  readonly keyring?: Keyring;
 }
 
 /** What the modules and the auth middleware get from `createApp`: the deps with their defaults applied. */

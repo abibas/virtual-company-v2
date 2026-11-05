@@ -76,9 +76,11 @@ Without the keys the app says "Sign-in is not configured on this server" on ever
 The web reads its sign-in settings from `GET /api/config` when it loads, so nothing about Clerk is built into it.
 
 The prod-like stack, the server image as it would run in the cloud (API and UI on 9990, its own
-Postgres on 9992, a one-shot `migrate` before the server starts):
+Postgres on 9992, a one-shot `migrate` before the server starts). Like production, it needs `MWC_MASTER_KEY` (the
+master key that seals subscriptions) in your shell, and keep the same one for the stack's data:
 
 ```sh
+export MWC_MASTER_KEY=...   # the base64 of 32 random bytes (openssl rand -base64 32), kept outside the repo
 docker compose -f deploy/compose.prod.yml up -d --build --wait
 docker compose -f deploy/compose.prod.yml logs server     # pino JSON lines
 docker compose -f deploy/compose.prod.yml down            # keeps the data volume

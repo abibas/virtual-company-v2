@@ -4,6 +4,8 @@ import {
   AgentStatus,
   ApiKeyKind,
   CompanyStatus,
+  CredentialKind,
+  CredentialStatus,
   Effort,
   Harness,
   IdentityEventStatus,
@@ -42,6 +44,15 @@ describe('enums', () => {
     expect(AgentStatus.options).toEqual(['active', 'paused', 'archived']);
     expect(Harness.options).toEqual(['claude_code', 'codex']);
     expect(Effort.options).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+    expect(CredentialKind.options).toEqual([
+      'claude_oauth',
+      'claude_setup_token',
+      'codex_oauth',
+      'anthropic_api_key',
+      'openai_api_key',
+      'gateway',
+    ]);
+    expect(CredentialStatus.options).toEqual(['active', 'needs_sign_in', 'revoked']);
   });
 
   it('accepts known values and rejects others', () => {

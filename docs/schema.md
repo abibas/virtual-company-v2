@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 15. Migrations: 7, the last is `0006_user_profiles`.
+Tables: 17. Migrations: 8, the last is `0007_credentials`.
 
 ```mermaid
 erDiagram
@@ -79,6 +79,29 @@ erDiagram
     uuid updated_by_principal_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
+  }
+  credential_uses {
+    bigserial id PK "not null, default auto-increment"
+    uuid credential_id "not null"
+    uuid owner_user_id FK "not null"
+    text purpose "not null"
+    timestamptz at "not null, default now()"
+  }
+  credentials {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid owner_user_id FK "not null"
+    text kind "not null, claude_oauth|claude_setup_token|codex_oauth|anthropic_api_key|openai_api_key|gateway"
+    text label "not null"
+    text account_email "nullable"
+    jsonb account_meta "not null, default '{}'"
+    text status "not null, default 'active', active|needs_sign_in|revoked"
+    integer key_version "not null"
+    bytea iv "not null"
+    bytea auth_tag "not null"
+    bytea ciphertext "not null"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+    timestamptz last_used_at "nullable"
   }
   identity_events {
     uuid id PK "not null, default newId() (app-side)"
@@ -192,6 +215,8 @@ erDiagram
   companies }o--o| users : "created_by_user_id"
   company_logos |o--|| companies : "company_id"
   company_logos }o--o| principals : "company_id, updated_by_principal_id"
+  credential_uses }o--|| users : "owner_user_id"
+  credentials }o--|| users : "owner_user_id"
   identity_outbox }o--|| companies : "company_id"
   invitations }o--|| companies : "company_id"
   invitations }o--o| users : "accepted_by_user_id"
@@ -367,6 +392,59 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `company_logos_size_check`: `"size" between 1 and 1048576`
   - `company_logos_sha256_check`: `"sha256" ~ '^[0-9a-f]{64}$'`
 - **Indexes:** none
+
+### `credential_uses`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `bigserial` | no | `auto-increment` | PK |  |
+| `credential_id` | `uuid` | no |  |  |  |
+| `owner_user_id` | `uuid` | no |  | FK |  |
+| `purpose` | `text` | no |  |  |  |
+| `at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `owner_user_id` → `users` (`id`), on delete no action (`credential_uses_owner_user_id_users_id_fk`)
+- **Unique:** none
+- **Checks:**
+  - `credential_uses_purpose_check`: `char_length("purpose") between 1 and 80`
+- **Indexes:**
+  - `credential_uses_credential_idx` on (`credential_id`, `at`)
+
+### `credentials`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `owner_user_id` | `uuid` | no |  | FK |  |
+| `kind` | `text` | no |  |  | `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway` |
+| `label` | `text` | no |  |  |  |
+| `account_email` | `text` | yes |  |  |  |
+| `account_meta` | `jsonb` | no | `'{}'` |  |  |
+| `status` | `text` | no | `'active'` |  | `active`, `needs_sign_in`, `revoked` |
+| `key_version` | `integer` | no |  |  |  |
+| `iv` | `bytea` | no |  |  |  |
+| `auth_tag` | `bytea` | no |  |  |  |
+| `ciphertext` | `bytea` | no |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `last_used_at` | `timestamp with time zone` | yes |  |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `owner_user_id` → `users` (`id`), on delete no action (`credentials_owner_user_id_users_id_fk`)
+- **Unique:** none
+- **Checks:**
+  - `credentials_kind_check`: `kind` is one of `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`
+  - `credentials_status_check`: `status` is one of `active`, `needs_sign_in`, `revoked`
+  - `credentials_label_check`: `char_length("label") between 1 and 80`
+  - `credentials_key_version_check`: `"key_version" >= 1`
+  - `credentials_iv_check`: `octet_length("iv") = 12`
+  - `credentials_auth_tag_check`: `octet_length("auth_tag") = 16`
+  - `credentials_account_meta_check`: `jsonb_typeof("account_meta") = 'object'`
+- **Indexes:**
+  - `credentials_owner_idx` on (`owner_user_id`, `created_at`)
 
 ### `identity_events`
 

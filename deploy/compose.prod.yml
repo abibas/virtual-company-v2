@@ -55,6 +55,10 @@ services:
       MWC_LOG_LEVEL: info
       # The jobs loop (also the default); with no Clerk keys it idles and the outbox waits.
       MWC_JOBS: "on"
+      # Required in production: the server refuses to start without it. Export it in your shell first (the base64
+      # of 32 random bytes: openssl rand -base64 32) and keep it; subscriptions sealed under one key do not open
+      # under another.
+      MWC_MASTER_KEY: ${MWC_MASTER_KEY:-}
       DATABASE_URL: postgres://mwc:mwc@postgres:5432/mwc
     ports:
       - "127.0.0.1:9990:9950"
