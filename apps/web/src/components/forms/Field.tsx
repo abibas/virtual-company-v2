@@ -38,6 +38,27 @@ export function Field({
   );
 }
 
+/**
+ * A labelled group of choices that names itself (a segmented control, a face picker, both with their own
+ * `aria-label`): the same label shown above it, and the hint below.
+ */
+export function ChoiceField({
+  label,
+  hint,
+  className,
+  children,
+}: Omit<FieldFrame, 'error'> & { readonly children: ReactNode }) {
+  return (
+    <div className={cx('flex min-w-0 flex-col items-start gap-1.5', className)}>
+      <p aria-hidden="true" className="text-sm font-semibold text-ink-2">
+        {label}
+      </p>
+      {children}
+      {hint && <p className="text-xs text-dim">{hint}</p>}
+    </div>
+  );
+}
+
 const describedBy = (id: string, frame: FieldFrame) =>
   [frame.hint ? `${id}-hint` : '', frame.error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
 

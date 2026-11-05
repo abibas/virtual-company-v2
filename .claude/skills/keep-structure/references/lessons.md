@@ -85,6 +85,32 @@ Newest first, one entry per lesson:
   inbox routing), consider one typed in-process list of membership events composed in `app.ts` instead of a port each.
 - **Status:** `open`.
 
+### 2026-11-05: The org chart's web: a library group and a page group took components/ to 14 entries
+
+- **What happened:** S2.5 added a library group, `components/org/` (the org tree, the node card, the manager select and
+  their helpers: 5 files and a barrel), and the Agents pages' parts, `components/agents/` (12 files, the largest
+  `AgentForm.tsx` at 228 lines). `components/` went from 12 to 14 entries (`big-folder`; a single new group would
+  have made it 13, a warning all the same). The report without coverage went from 35 to 46 warnings: that one and
+  10 `fan-in`, of which six are library primitives that the second large page area brought to 8 importers
+  (`ui/Skeleton.tsx` 10, `data/format.ts` 9, `forms/ConfirmInline.tsx`, `forms/Input.tsx`, `ui/EmptyState.tsx`,
+  `ui/IconButton.tsx` 8), three are the area's own shared files (`org/chart.ts` 11, `api/org.ts` 9,
+  `agents/links.ts` 9, mostly type imports) and one is `api/client.ts` (8, the `Api` type only). One draft
+  component went over 60 lines (`StatusActions`, 61) and was cut by a table of the next status. The card menus sit in
+  a chart that scrolls sideways, which cuts off an absolutely placed dropdown: `Menu` got an opt-in `floating` panel
+  fixed to the window (`forms/floating.ts`) rather than a new popover primitive.
+- **Where:** `apps/web/src/components/{org,agents}/`, `apps/web/src/api/org.ts`, `components/forms/{Menu,floating}`;
+  the S2.5 commit.
+- **What was done:** the library pieces went to `org/` with a barrel, the page's parts to `agents/`, as the open lesson
+  on the library describes them. `AgentList` went to `api/types.ts` with the other inferred shapes (so `api/org.ts`
+  is imported for its hooks and calls), the members' `TableSkeleton` became `ui/Skeleton.tsx`'s `SkeletonRows` instead
+  of a second page importing the members' panel, and the gallery's org sample reuses `records.ts`'s `days` instead of
+  importing `sample.ts` (which stays at 7 importers).
+- **Suggested change:** the two open web lessons again, now with this evidence: let `components/` hold the library
+  groups and the page groups apart (`components/lib/<group>/` and `components/pages/<area>/`, or `folderEntries` raised
+  for `apps/web/src/components/`), and count only value imports for `fan-in`, which would leave out `api/types.ts`,
+  `api/client.ts` and most of `agents/links.ts`.
+- **Status:** `open`.
+
 ### 2026-11-05: The org API: one routes file kept for fan-in, tests split by route group, rules parts that build on the entry
 
 - **What happened:** S2.3 added six routes to `modules/org/`. Two route group files (`routes/agents.ts`,

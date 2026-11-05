@@ -158,7 +158,7 @@ const BODIES = { members: MembersBody, 'api-keys': KeysBody, settings: SettingsB
  * The Members, API keys and Settings pages in the shell, built from the same parts as the real pages, on sample
  * records and an API client that refuses every change.
  */
-export function PagesMock({ page }: { readonly page: Exclude<MockPage, 'dashboard'> }) {
+export function PagesMock({ page }: { readonly page: Exclude<MockPage, 'dashboard' | 'org'> }) {
   const [api] = useState(sampleApi);
   const Body = BODIES[page];
   return (

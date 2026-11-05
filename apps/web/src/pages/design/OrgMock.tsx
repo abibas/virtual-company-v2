@@ -1,0 +1,70 @@
+import { useState } from 'react';
+import { ApiContext } from '../../api/context.ts';
+import type { AgentFilter } from '../../api/types.ts';
+import { useLocation } from '../../app/router.tsx';
+import { AgentProfile } from '../../components/agents/AgentProfile.tsx';
+import { AgentsView } from '../../components/agents/AgentsView.tsx';
+import { HireAgent } from '../../components/agents/HireAgent.tsx';
+import type { AgentLinks } from '../../components/agents/links.ts';
+import { MockShell } from './MockShell.tsx';
+import { SAMPLE_CHART, sampleAgent, sampleAgentList } from './org-sample.ts';
+import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from './records.ts';
+
+const HERE = '/design/org';
+
+/** The Agents pages' links inside the gallery: the tabs and the agents are query strings of this one mock. */
+const LINKS: AgentLinks = {
+  chart: HERE,
+  list: `${HERE}?view=list`,
+  hire: `${HERE}?agent=new`,
+  agent: (agent) => `${HERE}?agent=${agent.slug}`,
+};
+
+const none = () => undefined;
+
+/** The Agents page on the sample chart, as the owner sees it, with the list filtered in memory. */
+function AgentsBody({ list }: { readonly list: boolean }) {
+  const [status, setStatus] = useState<AgentFilter>('active');
+  return (
+    <AgentsView
+      companyId={SAMPLE_COMPANY.id}
+      tab={list ? 'list' : 'chart'}
+      links={LINKS}
+      chart={loaded(SAMPLE_CHART)}
+      agents={loaded(sampleAgentList(status))}
+      status={status}
+      onStatus={setStatus}
+      admin
+      meUserId={SAMPLE_ME.id}
+      onChanged={none}
+    />
+  );
+}
+
+/**
+ * `/design/org`: the org chart and the list of agents (`?view=list`), the hire form (`?agent=new`) and an agent's
+ * page (`?agent=vega`), built from the same parts as the real pages, on sample records and an API client that refuses
+ * every change.
+ */
+export function OrgMock() {
+  const { search } = useLocation();
+  const [api] = useState(sampleApi);
+  const address = search.get('agent');
+  const common = {
+    companyId: SAMPLE_COMPANY.id,
+    chart: loaded(SAMPLE_CHART),
+    meUserId: SAMPLE_ME.id,
+    links: LINKS,
+  };
+  return (
+    <ApiContext value={api}>
+      <MockShell active="org">
+        {address === null && <AgentsBody list={search.get('view') === 'list'} />}
+        {address === 'new' && <HireAgent {...common} onHired={none} />}
+        {address !== null && address !== 'new' && (
+          <AgentProfile {...common} agent={sampleAgent(address)} admin onChanged={none} />
+        )}
+      </MockShell>
+    </ApiContext>
+  );
+}

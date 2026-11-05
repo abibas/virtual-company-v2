@@ -10,6 +10,8 @@ export interface RightRailProps {
   readonly attentionLoading?: boolean;
   readonly agents: readonly AgentRef[];
   readonly onQuickCreate?: ((agentId: string, text: string) => void) | undefined;
+  /** Why the dock takes no task yet (without `onQuickCreate`): "Tasks arrive in S4". */
+  readonly quickCreateNote?: string | undefined;
   readonly seeAllHref?: string | undefined;
   readonly now?: Date | undefined;
 }
@@ -20,6 +22,7 @@ export function RightRailContent({
   attentionLoading = false,
   agents,
   onQuickCreate,
+  quickCreateNote,
   seeAllHref,
   now,
   className,
@@ -36,7 +39,7 @@ export function RightRailContent({
       <QuickCreate
         agents={agents}
         {...(onQuickCreate !== undefined ? { onCreate: onQuickCreate } : {})}
-        disabledNote={agents.length === 0 ? 'Agents arrive in S2' : undefined}
+        disabledNote={quickCreateNote}
         className="mt-3 shrink-0"
       />
     </div>

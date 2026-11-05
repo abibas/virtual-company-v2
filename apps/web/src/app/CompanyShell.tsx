@@ -1,6 +1,7 @@
 import { UserButton, useClerk } from '@clerk/react';
-import { type ComponentType, useEffect, useMemo, useState } from 'react';
+import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useAttention } from '../api/attention.ts';
+import { useAgentList } from '../api/org.ts';
 import { usePendingLogo } from '../api/pending-logo.ts';
 import { LogoRetryNotice } from '../components/company/LogoRetryNotice.tsx';
 import { LoadingBlock } from '../components/data/LoadState.tsx';
@@ -8,22 +9,26 @@ import { AppShell } from '../components/layout/AppShell.tsx';
 import { CenteredState } from '../components/layout/CenteredState.tsx';
 import { firstName } from '../components/layout/greeting.ts';
 import { PageHeader } from '../components/layout/PageHeader.tsx';
+import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
 import { ButtonLink } from '../components/ui/Button.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
+import { AgentPage } from '../pages/company/AgentPage.tsx';
+import { AgentsPage } from '../pages/company/AgentsPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { MembersPage } from '../pages/company/MembersPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
 import { SettingsPage } from '../pages/company/SettingsPage.tsx';
 import { CompanySwitcher } from './CompanySwitcher.tsx';
-import { CompanyContext } from './company.ts';
-import { companyNav } from './nav.ts';
+import { CompanyContext, type CompanyView } from './company.ts';
+import { companyHrefs, companyNav } from './nav.ts';
 import { PlainShell } from './PlainShell.tsx';
 import { rememberCompany, useSession } from './session.tsx';
 
 /** The pages of a company, by the path after `/c/:slug/`. */
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
+  agents: AgentsPage,
   members: MembersPage,
   'api-keys': ApiKeysPage,
   settings: SettingsPage,
@@ -91,26 +96,43 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
-/** `/c/:slug/...`: a company the person is an active member of, in the app shell, with its page. */
-export function CompanyShell({ slug, section }: { readonly slug: string; readonly section: string }) {
-  const { view, provisioning, checked } = useCompanyMembership(slug);
-  const attention = useAttention();
-  const pendingLogo = usePendingLogo(view?.membership.companyId ?? '');
-  if (view === null && !checked) {
-    return (
-      <CenteredState>
-        <LoadingBlock label="Opening the company…" />
-      </CenteredState>
-    );
-  }
-  if (view === null) return <NoCompany slug={slug} />;
-  const Page = SECTIONS[section];
-  const { membership, me } = view;
+/** The page at `section` (the path after `/c/:slug/`): a company page, an agent's page, or not found. */
+function pageAt(section: string): ReactNode {
+  const [head = '', ...rest] = section.split('/');
+  const address = rest.length === 1 ? rest[0] : undefined;
+  if (head === 'agents' && address) return <AgentPage address={address} />;
+  const Page = rest.length === 0 ? SECTIONS[head] : undefined;
+  if (Page) return <Page />;
   return (
-    <CompanyContext value={view}>
+    <PageHeader title="Page not found">
+      <p>This company has no page at this address.</p>
+    </PageHeader>
+  );
+}
+
+/**
+ * The company's frame around its page: the rail and the switcher (to the same section of another company), the
+ * attention feed, the quick-create dock with the team's faces (its tasks arrive in S4), and the company's notices.
+ */
+function CompanyFrame({
+  view,
+  section,
+  provisioning,
+}: {
+  readonly view: Omit<CompanyView, 'agents'>;
+  readonly section: string;
+  readonly provisioning: boolean;
+}) {
+  const { membership, me } = view;
+  const attention = useAttention();
+  const pendingLogo = usePendingLogo(membership.companyId);
+  const agents = useAgentList(membership.companyId);
+  const head = section.split('/')[0] ?? '';
+  return (
+    <CompanyContext value={{ ...view, agents }}>
       <AppShell
-        nav={companyNav(membership.slug, section)}
-        badge={<CompanySwitcher current={membership} section={section} />}
+        nav={companyNav(companyHrefs(membership.slug), head)}
+        badge={<CompanySwitcher current={membership} section={head} />}
         firstName={firstName(me.user.displayName, me.user.email)}
         user={{
           name: me.user.displayName || me.user.email,
@@ -119,7 +141,8 @@ export function CompanyShell({ slug, section }: { readonly slug: string; readonl
         }}
         attention={attention.items}
         attentionLoading={attention.loading}
-        agents={[]}
+        agents={agents.data?.agents.map(agentRef) ?? []}
+        quickCreateNote="Tasks arrive in S4"
         banner={
           (provisioning || pendingLogo) && (
             <div className="flex flex-col gap-3">
@@ -134,14 +157,22 @@ export function CompanyShell({ slug, section }: { readonly slug: string; readonl
           )
         }
       >
-        {Page ? (
-          <Page />
-        ) : (
-          <PageHeader title="Page not found">
-            <p>This company has no page at this address.</p>
-          </PageHeader>
-        )}
+        {pageAt(section)}
       </AppShell>
     </CompanyContext>
   );
+}
+
+/** `/c/:slug/...`: a company the person is an active member of, in the app shell, with its page. */
+export function CompanyShell({ slug, section }: { readonly slug: string; readonly section: string }) {
+  const { view, provisioning, checked } = useCompanyMembership(slug);
+  if (view === null && !checked) {
+    return (
+      <CenteredState>
+        <LoadingBlock label="Opening the company…" />
+      </CenteredState>
+    );
+  }
+  if (view === null) return <NoCompany slug={slug} />;
+  return <CompanyFrame view={view} section={section} provisioning={provisioning} />;
 }

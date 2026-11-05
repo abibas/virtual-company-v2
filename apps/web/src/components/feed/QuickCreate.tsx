@@ -45,8 +45,9 @@ function TaskInput({
 }
 
 /**
- * The dock at the bottom of the right rail: pick an agent by its face, say what to do, send. Until agents exist
- * (S2) it shows the drawn faces and a note, and takes nothing.
+ * The dock at the bottom of the right rail: pick an agent by its face, say what to do, send. The faces are the
+ * team's; without `onCreate` (tasks arrive in S4) a face can be picked but the words and the send button wait,
+ * with `disabledNote` saying why.
  */
 export function QuickCreate({
   agents,
@@ -55,7 +56,7 @@ export function QuickCreate({
   className,
 }: {
   readonly agents: readonly AgentRef[];
-  /** Makes the task; absent, the dock is disabled with `disabledNote`. */
+  /** Makes the task; absent, the words and the send button are disabled, with `disabledNote`. */
   readonly onCreate?: (agentId: string, text: string) => void;
   readonly disabledNote?: string | undefined;
   readonly className?: string;
@@ -83,18 +84,16 @@ export function QuickCreate({
         </h3>
         {disabled && disabledNote && <p className="text-xs text-dim">{disabledNote}</p>}
       </div>
-      <FacePicker
-        agents={agents}
-        value={agent?.id}
-        onChange={setAgentId}
-        disabled={disabled}
-        className="mt-3"
-      />
+      {agents.length > 0 ? (
+        <FacePicker agents={agents} value={agent?.id} onChange={setAgentId} className="mt-3" />
+      ) : (
+        <p className="mt-3 text-xs text-dim">No agents yet: their faces show here once they are hired.</p>
+      )}
       <TaskInput
         id={`${id}-text`}
         value={text}
         disabled={disabled}
-        placeholder={agent && !disabled ? `What should ${agent.name} do?` : 'Describe a task'}
+        placeholder={agent ? `What should ${agent.name} do?` : 'Describe a task'}
         onChange={setText}
       />
     </form>

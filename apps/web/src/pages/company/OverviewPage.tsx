@@ -5,16 +5,18 @@ import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
 import { type Loaded, useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
+import { companyAgentLinks } from '../../components/agents/links.ts';
 import { StatTile } from '../../components/data/StatTile.tsx';
-import { AgentsCard, RunsCard } from '../../components/overview/ComingCards.tsx';
+import { RunsCard } from '../../components/overview/ComingCards.tsx';
 import { CompanyFacts } from '../../components/overview/CompanyFacts.tsx';
 import { CompanyHero } from '../../components/overview/CompanyHero.tsx';
+import { TeamCard } from '../../components/overview/TeamCard.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 
 const ROLE_SUMMARY = {
-  owner: 'You own this company: you manage its people, its settings and can delete it.',
-  admin: 'You are an admin: you invite people, set their roles and change the company’s settings.',
-  member: 'You are a member: you work in the company and see who else is in it.',
+  owner: 'You own this company: you manage its people, its agents and its settings, and can delete it.',
+  admin: 'You are an admin: you invite people, hire agents, set roles and change the company’s settings.',
+  member: 'You are a member: you work in the company and see its people and agents.',
   viewer: 'You are a viewer: you can look around, and change nothing but your own API keys.',
 } as const;
 
@@ -103,9 +105,10 @@ function Tiles({
 
 /** `/c/:slug`: the company at a glance: the hero, the numbers, what comes next, and the facts the CLI needs. */
 export function OverviewPage() {
-  const { membership, me } = useCompany();
+  const { membership, me, agents } = useCompany();
   const admin = roleAtLeast(membership.role, 'admin');
   const base = `/c/${membership.slug}`;
+  const links = companyAgentLinks(membership.slug);
   const data = useOverviewData(membership.companyId, admin);
   const logoSrc = useCompanyLogo(membership.companyId, membership.logo?.version);
   return (
@@ -128,7 +131,7 @@ export function OverviewPage() {
       />
       <Tiles base={base} admin={admin} data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <AgentsCard />
+        <TeamCard agents={agents.data?.agents} href={links.chart} hireHref={admin ? links.hire : undefined} />
         <RunsCard />
       </div>
       <CompanyFacts email={me.user.email} slug={membership.slug} companyId={membership.companyId} />

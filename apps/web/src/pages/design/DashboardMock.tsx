@@ -2,14 +2,19 @@ import { KeyRound, Mail, Plus, Users } from 'lucide-react';
 import { useCompanyLogo } from '../../api/company-logo.ts';
 import { useLocation } from '../../app/router.tsx';
 import { StatTile } from '../../components/data/StatTile.tsx';
-import { AgentsCard, RunsCard } from '../../components/overview/ComingCards.tsx';
+import { RunsCard } from '../../components/overview/ComingCards.tsx';
 import { CompanyFacts } from '../../components/overview/CompanyFacts.tsx';
 import { CompanyHero } from '../../components/overview/CompanyHero.tsx';
+import { TeamCard } from '../../components/overview/TeamCard.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { MockShell, SAMPLE_LOGO_VERSION } from './MockShell.tsx';
+import { sampleAgentList } from './org-sample.ts';
 import { SAMPLE_COMPANY, SAMPLE_ME } from './records.ts';
 
 const HERE = '/design/dashboard';
+
+/** The sample team: the agents of the sample chart that are not archived. */
+const TEAM = sampleAgentList('all').agents.filter((agent) => agent.status !== 'archived');
 
 /** What the real Overview shows, with made-up numbers, in the shell with sample data (`?logo=1` for the logo). */
 export function DashboardMock() {
@@ -23,7 +28,7 @@ export function DashboardMock() {
           name={SAMPLE_COMPANY.name}
           status="active"
           logoSrc={logoSrc}
-          summary="You own this company: you manage its people, its settings, and soon its agents."
+          summary="You own this company: you manage its people, its agents and its settings, and can delete it."
           actions={
             <>
               <Button tone="inverse" icon={Plus}>
@@ -61,7 +66,7 @@ export function DashboardMock() {
           />
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <AgentsCard />
+          <TeamCard agents={TEAM} href="/design/org" hireHref="/design/org?agent=new" />
           <RunsCard />
         </div>
         <CompanyFacts email={SAMPLE_ME.email} slug={SAMPLE_COMPANY.slug} companyId={SAMPLE_COMPANY.id} />

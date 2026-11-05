@@ -1,11 +1,24 @@
 import { cx } from '../cx.ts';
 
-/** A placeholder block the shape of what is loading; it pulses unless reduced motion is asked for. */
-export function Skeleton({ className }: { readonly className?: string }) {
+/**
+ * A placeholder block the shape of what is loading; it pulses unless reduced motion is asked for. `inverse` sits on
+ * the gradient cards.
+ */
+export function Skeleton({
+  inverse = false,
+  className,
+}: {
+  readonly inverse?: boolean;
+  readonly className?: string;
+}) {
   return (
     <span
       aria-hidden="true"
-      className={cx('block rounded-md bg-surface-3 motion-safe:animate-pulse', className)}
+      className={cx(
+        'block rounded-md motion-safe:animate-pulse',
+        inverse ? 'bg-white/20' : 'bg-surface-3',
+        className,
+      )}
     />
   );
 }
@@ -42,5 +55,17 @@ export function SkeletonRow() {
       </span>
       <Skeleton className="h-3 w-12" />
     </span>
+  );
+}
+
+/** A table or list loading: a few rows the shape of its records. */
+export function SkeletonRows({ rows = 3 }: { readonly rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the rows are identical placeholders.
+        <SkeletonRow key={index} />
+      ))}
+    </>
   );
 }

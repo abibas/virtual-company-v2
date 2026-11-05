@@ -15,12 +15,46 @@ export function Input({ className, size = 'md', ...rest }: InputProps) {
   return <input className={cx(CONTROL, size === 'sm' && CONTROL_SM, className)} {...rest} />;
 }
 
+export interface SelectOption {
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
+  /** Options next to each other with the same group are shown under its heading (an `optgroup`). */
+  readonly group?: string;
+}
+
 export type SelectProps = Omit<ComponentPropsWithRef<'select'>, 'size'> & {
   readonly size?: 'sm' | 'md';
-  readonly options: readonly { readonly value: string; readonly label: string }[];
+  readonly options: readonly SelectOption[];
 };
 
-/** A native select (keyboard and screen-reader friendly as it is) with the house chevron. */
+const optionOf = (option: SelectOption) => (
+  <option key={option.value} value={option.value} disabled={option.disabled}>
+    {option.label}
+  </option>
+);
+
+/** The options in their groups: runs of options with the same `group` become one `optgroup`. */
+function grouped(options: readonly SelectOption[]) {
+  const runs: { group: string | undefined; options: SelectOption[] }[] = [];
+  for (const option of options) {
+    const last = runs.at(-1);
+    if (last && last.group === option.group) last.options.push(option);
+    else runs.push({ group: option.group, options: [option] });
+  }
+  return runs.map((run, index) =>
+    run.group === undefined ? (
+      run.options.map(optionOf)
+    ) : (
+      // biome-ignore lint/suspicious/noArrayIndexKey: a group's place in the list is its identity.
+      <optgroup key={`${index}-${run.group}`} label={run.group}>
+        {run.options.map(optionOf)}
+      </optgroup>
+    ),
+  );
+}
+
+/** A native select (keyboard and screen-reader friendly as it is) with the house chevron; options may be grouped. */
 export function Select({ className, size = 'md', options, ...rest }: SelectProps) {
   return (
     <span className={cx('relative inline-flex w-full min-w-0', className)}>
@@ -28,11 +62,7 @@ export function Select({ className, size = 'md', options, ...rest }: SelectProps
         className={cx(CONTROL, size === 'sm' && CONTROL_SM, 'cursor-pointer appearance-none pr-9')}
         {...rest}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {grouped(options)}
       </select>
       <ChevronDown
         size={16}

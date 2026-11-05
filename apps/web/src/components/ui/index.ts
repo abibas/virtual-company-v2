@@ -16,5 +16,5 @@ export { IconButton, type IconButtonProps, type IconButtonSize, type IconButtonT
 export { IconTile } from './IconTile.tsx';
 export { Notice, type NoticeTone } from './Notice.tsx';
 export { Panel } from './Panel.tsx';
-export { Skeleton, SkeletonRow, SkeletonText } from './Skeleton.tsx';
+export { Skeleton, SkeletonRow, SkeletonRows, SkeletonText } from './Skeleton.tsx';
 export { Tooltip, type TooltipSide } from './Tooltip.tsx';

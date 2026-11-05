@@ -1,4 +1,4 @@
-import type { InferResponseType } from 'hono/client';
+import type { InferRequestType, InferResponseType } from 'hono/client';
 import type { Api } from './client.ts';
 
 /** The response shapes the pages use, inferred from the server's routes (nothing is restated by hand). */
@@ -13,3 +13,19 @@ export type Invitation = InferResponseType<CompanyRoutes['invitations']['$get'],
 export type ApiKey = InferResponseType<CompanyRoutes['api-keys']['$get'], 200>['apiKeys'][number];
 export type CreatedApiKey = InferResponseType<CompanyRoutes['api-keys']['$post'], 201>;
 export type CompanySync = InferResponseType<CompanyRoutes['sync']['$post'], 200>;
+
+type AgentRoutes = CompanyRoutes['agents'];
+/** `GET /agents`: the agents, oldest first, without their instructions. */
+export type AgentList = InferResponseType<AgentRoutes['$get'], 200>;
+export type Agent = AgentList['agents'][number];
+export type AgentDetail = InferResponseType<AgentRoutes[':agentId']['$get'], 200>;
+/** `?status=` of the agent list: one status, or `all`. */
+export type AgentFilter = NonNullable<InferRequestType<AgentRoutes['$get']>['query']['status']>;
+export type NewAgent = InferRequestType<AgentRoutes['$post']>['json'];
+export type AgentChanges = InferRequestType<AgentRoutes[':agentId']['$patch']>['json'];
+export type PositionChange = InferRequestType<
+  CompanyRoutes['org']['positions'][':principalId']['$put']
+>['json'];
+export type OrgChart = InferResponseType<CompanyRoutes['org']['chart']['$get'], 200>;
+export type ChartNode = OrgChart['nodes'][number];
+export type OrgTreeNode = OrgChart['tree'][number];

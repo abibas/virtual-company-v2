@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { Link } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
+import { useFloatingPanel } from './floating.ts';
 
 /** Closes an open disclosure on Escape (focus back on its button) or on a click outside it. */
 export function useDismiss(
@@ -66,17 +67,20 @@ export interface MenuTriggerProps {
 
 /**
  * A dropdown: the trigger gets the ARIA wiring, the items are `MenuItem`s. Opening focuses the first item; arrow keys
- * move, Escape or a click outside closes (focus back on the trigger); picking an item closes it.
+ * move, Escape or a click outside closes (focus back on the trigger); picking an item closes it. `floating` fixes
+ * the panel to the window (`useFloatingPanel`), for a trigger inside a scrolling container that would cut it off.
  */
 export function Menu({
   trigger,
   align = 'start',
   width = 'w-64',
+  floating = false,
   children,
 }: {
   readonly trigger: (props: MenuTriggerProps) => ReactNode;
   readonly align?: 'start' | 'end';
   readonly width?: string;
+  readonly floating?: boolean;
   readonly children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -86,9 +90,10 @@ export function Menu({
   const id = useId();
   const close = useCallback(() => setOpen(false), []);
   useDismiss(open, close, root, button);
+  const place = useFloatingPanel(open && floating, align, button, panel, close);
   useEffect(() => {
-    if (open) panel.current?.querySelector<HTMLElement>(ITEMS)?.focus();
-  }, [open]);
+    if (open) panel.current?.querySelector<HTMLElement>(ITEMS)?.focus({ preventScroll: floating });
+  }, [open, floating]);
 
   return (
     <div ref={root} className="relative inline-flex">
@@ -108,9 +113,10 @@ export function Menu({
         onClick={(event) => {
           if ((event.target as HTMLElement).closest('[role="menuitem"]')) close();
         }}
+        style={floating ? place : undefined}
         className={cx(
-          'absolute top-full z-30 mt-2 max-w-[calc(100vw-2rem)] rounded-xl bg-surface p-1.5 shadow-float ring-1 ring-line',
-          align === 'start' ? 'left-0' : 'right-0',
+          'max-w-[calc(100vw-2rem)] rounded-xl bg-surface p-1.5 shadow-float ring-1 ring-line',
+          floating ? 'z-40' : cx('absolute top-full z-30 mt-2', align === 'start' ? 'left-0' : 'right-0'),
           width,
         )}
       >

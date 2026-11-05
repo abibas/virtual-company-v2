@@ -1,11 +1,10 @@
-import { Bot, Inbox, KeyRound, LayoutGrid, ListChecks, Settings, Users } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { primeCompanyLogo } from '../../api/company-logo.ts';
 import { CompanySwitcher } from '../../app/CompanySwitcher.tsx';
+import { companyNav } from '../../app/nav.ts';
 import { useLocation } from '../../app/router.tsx';
 import { type Session, SessionContext } from '../../app/session.tsx';
 import { AppShell } from '../../components/layout/AppShell.tsx';
-import type { NavItem } from '../../components/layout/Rail.tsx';
 import type { ShellUser } from '../../components/layout/TopBar.tsx';
 import { Avatar } from '../../components/ui/Avatar.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
@@ -16,39 +15,21 @@ import { SAMPLE_AGENTS, SAMPLE_ATTENTION, SAMPLE_LOGO_SRC, SAMPLE_NOW } from './
 /** The version the sample company's logo is primed under with `?logo=1` (the hook asks for it; the gallery has no API). */
 export const SAMPLE_LOGO_VERSION = 'sample';
 
-export type MockPage = 'dashboard' | 'members' | 'api-keys' | 'settings';
+export type MockPage = 'dashboard' | 'org' | 'members' | 'api-keys' | 'settings';
 
-const nav = (active: MockPage): readonly NavItem[] => [
-  {
-    key: 'overview',
-    label: 'Overview',
-    icon: LayoutGrid,
-    href: '/design/dashboard',
-    active: active === 'dashboard',
-  },
-  { key: 'members', label: 'Members', icon: Users, href: '/design/members', active: active === 'members' },
-  {
-    key: 'api-keys',
-    label: 'API keys',
-    icon: KeyRound,
-    href: '/design/api-keys',
-    active: active === 'api-keys',
-  },
-  {
-    key: 'settings',
-    label: 'Settings',
-    icon: Settings,
-    href: '/design/settings',
-    active: active === 'settings',
-  },
-  { key: 'agents', label: 'Agents', icon: Bot, soon: 'coming in S2' },
-  { key: 'tasks', label: 'Tasks', icon: ListChecks, soon: 'coming in S4' },
-  { key: 'inbox', label: 'Inbox', icon: Inbox, soon: 'coming in S5' },
-];
+/** The mock page of each section of the real company pages, so the rail is the company's own, pointing here. */
+const MOCK_PATHS: Readonly<Record<string, string>> = {
+  '': '/design/dashboard',
+  agents: '/design/org',
+  members: '/design/members',
+  'api-keys': '/design/api-keys',
+  settings: '/design/settings',
+};
 
 /** The section of the real company pages each mock page stands for (the switcher keeps it across companies). */
 const SECTIONS: Readonly<Record<MockPage, string>> = {
   dashboard: '',
+  org: 'agents',
   members: 'members',
   'api-keys': 'api-keys',
   settings: 'settings',
@@ -101,7 +82,7 @@ export function MockShell({ active, children }: { readonly active: MockPage; rea
   return (
     <SessionContext value={session}>
       <AppShell
-        nav={nav(active)}
+        nav={companyNav((section) => MOCK_PATHS[section] ?? '/design', SECTIONS[active])}
         badge={<CompanySwitcher current={current} section={SECTIONS[active]} />}
         firstName="Ihor"
         now={SAMPLE_NOW}

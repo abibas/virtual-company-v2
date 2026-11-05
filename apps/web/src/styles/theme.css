@@ -184,6 +184,13 @@
   background-image: var(--gradient-hero);
 }
 
+/* A faint dot grid: the canvas a chart is drawn on. */
+@utility canvas-dots {
+  background-color: var(--surface-2);
+  background-image: radial-gradient(var(--line-2) 1px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+
 /* Thin, quiet scrollbars inside panels. */
 @utility scroll-quiet {
   scrollbar-width: thin;

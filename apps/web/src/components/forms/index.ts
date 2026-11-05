@@ -1,11 +1,20 @@
 export { ConfirmInline } from './ConfirmInline.tsx';
 export { CopyButton } from './CopyButton.tsx';
-export { Field, SelectField, type SelectFieldProps, TextField, type TextFieldProps } from './Field.tsx';
+export {
+  ChoiceField,
+  Field,
+  SelectField,
+  type SelectFieldProps,
+  TextField,
+  type TextFieldProps,
+} from './Field.tsx';
+export { useFloatingPanel } from './floating.ts';
 export {
   CONTROL,
   Input,
   type InputProps,
   Select,
+  type SelectOption,
   type SelectProps,
   Textarea,
   type TextareaProps,

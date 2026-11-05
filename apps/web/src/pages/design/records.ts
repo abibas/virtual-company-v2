@@ -3,7 +3,8 @@ import type { ApiKey, Invitation, Me, Member, Membership } from '../../api/types
 import type { Loaded } from '../../api/use-load.ts';
 import { SAMPLE_NOW } from './sample.ts';
 
-const days = (offset: number, hour = 10) => {
+/** A day `offset` days from the gallery's "now", at `hour`, ISO. */
+export const days = (offset: number, hour = 10) => {
   const date = new Date(SAMPLE_NOW);
   date.setDate(date.getDate() + offset);
   date.setHours(hour, 0, 0, 0);

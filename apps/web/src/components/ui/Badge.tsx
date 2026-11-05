@@ -70,9 +70,11 @@ export function Badge({
   );
 }
 
-/** Every status the identity pages show, with its tone and its words. */
+/** Every status the identity and org pages show (people, invitations, keys, companies, agents), toned and worded. */
 const STATUSES: Readonly<Record<string, readonly [Tone, string]>> = {
   active: ['done', 'Active'],
+  paused: ['input', 'Paused'],
+  archived: ['pending', 'Archived'],
   invited: ['input', 'Invited'],
   suspended: ['blocked', 'Suspended'],
   removed: ['pending', 'Removed'],

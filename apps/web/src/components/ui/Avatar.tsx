@@ -80,6 +80,8 @@ export function Avatar({
 }
 
 export interface StackedPerson {
+  /** What tells two people of the same name apart (an agent's id); the name when absent. */
+  readonly id?: string;
   readonly name: string;
   readonly src?: string | null | undefined;
   readonly fallback?: ReactNode;
@@ -106,7 +108,7 @@ export function AvatarStack({
     <span className={cx('inline-flex items-center', className)} aria-hidden="true">
       {shown.map((person, index) => (
         <Avatar
-          key={person.name}
+          key={person.id ?? person.name}
           name={person.name}
           src={person.src}
           fallback={person.fallback}
