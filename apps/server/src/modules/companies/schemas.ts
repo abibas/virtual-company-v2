@@ -49,7 +49,10 @@ export const CompanyListSchema = z
   .object({ companies: z.array(CompanySummarySchema) })
   .openapi('CompanyList');
 
-/** A slug left out is derived from the name, with a suffix when that one is taken; a chosen slug that is taken is a 409. */
+/**
+ * A slug left out is derived from the name, with a suffix when that one is taken or reserved; a chosen slug that is
+ * taken is a 409, a reserved one (`RESERVED_SLUGS`, the app's own first path segments) a 422.
+ */
 export const CreateCompanySchema = z.object({ name: Name, slug: Slug.optional() }).openapi('CreateCompany');
 
 export const UpdateCompanySchema = z

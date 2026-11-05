@@ -11,7 +11,6 @@ import { firstName } from '../components/layout/greeting.ts';
 import { PageHeader } from '../components/layout/PageHeader.tsx';
 import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
-import { ButtonLink } from '../components/ui/Button.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { AgentsPage } from '../pages/company/AgentsPage.tsx';
@@ -19,13 +18,13 @@ import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { MembersPage } from '../pages/company/MembersPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
 import { SettingsPage } from '../pages/company/SettingsPage.tsx';
+import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { CompanySwitcher } from './CompanySwitcher.tsx';
 import { CompanyContext, type CompanyView } from './company.ts';
 import { companyHrefs, companyNav } from './nav.ts';
-import { PlainShell } from './PlainShell.tsx';
 import { rememberCompany, useSession } from './session.tsx';
 
-/** The pages of a company, by the path after `/c/:slug/`. */
+/** The pages of a company, by the path after `/:slug/`. */
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
   agents: AgentsPage,
@@ -47,22 +46,6 @@ function useActiveOrganization(orgId: string | null) {
     if (!orgId || !clerk.loaded || clerk.organization?.id === orgId) return;
     clerk.setActive({ organization: orgId }).catch(() => undefined);
   }, [clerk, orgId]);
-}
-
-function NoCompany({ slug }: { readonly slug: string }) {
-  return (
-    <PlainShell>
-      <PageHeader title="No company here">
-        <p>
-          There is no company at <code className="font-mono text-xs">/c/{slug}</code> that you are a member
-          of. It may have been renamed or deleted, or your membership ended.
-        </p>
-      </PageHeader>
-      <ButtonLink href="/" tone="primary">
-        Open one of your companies
-      </ButtonLink>
-    </PlainShell>
-  );
 }
 
 /**
@@ -96,7 +79,7 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
-/** The page at `section` (the path after `/c/:slug/`): a company page, an agent's page, or not found. */
+/** The page at `section` (the path after `/:slug/`): a company page, an agent's page, or not found. */
 function pageAt(section: string): ReactNode {
   const [head = '', ...rest] = section.split('/');
   const address = rest.length === 1 ? rest[0] : undefined;
@@ -163,7 +146,10 @@ function CompanyFrame({
   );
 }
 
-/** `/c/:slug/...`: a company the person is an active member of, in the app shell, with its page. */
+/**
+ * `/:slug/...`: a company the person is an active member of, in the app shell, with its page; the not-found page for
+ * a first segment that is no company of theirs.
+ */
 export function CompanyShell({ slug, section }: { readonly slug: string; readonly section: string }) {
   const { view, provisioning, checked } = useCompanyMembership(slug);
   if (view === null && !checked) {
@@ -173,6 +159,13 @@ export function CompanyShell({ slug, section }: { readonly slug: string; readonl
       </CenteredState>
     );
   }
-  if (view === null) return <NoCompany slug={slug} />;
+  if (view === null) {
+    return (
+      <NotFoundPage>
+        There is no page here, and no company of yours at <code className="font-mono text-xs">/{slug}</code>.
+        A company may have been renamed or deleted, or your membership ended.
+      </NotFoundPage>
+    );
+  }
   return <CompanyFrame view={view} section={section} provisioning={provisioning} />;
 }

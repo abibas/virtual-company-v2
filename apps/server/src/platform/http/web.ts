@@ -13,8 +13,8 @@ const REVALIDATE = 'no-cache';
 /**
  * Serves the built web UI from `webDist` after every API route: files as they are (assets/ cached
  * for a year, the rest revalidated), and index.html for any other GET without a file extension
- * outside /api, so client-side routes load the app. /api paths never fall back to the UI; they keep
- * the JSON 404.
+ * outside /api, so client-side routes (a company's `/<slug>/...` among them) load the app. /api
+ * paths never fall back to the UI; they keep the JSON 404.
  */
 export function mountWeb(app: OpenAPIHono<AppEnv>, webDist: string, logger: Logger): void {
   const indexPath = join(webDist, 'index.html');

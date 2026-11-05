@@ -55,7 +55,7 @@ function AgentAt({
 }
 
 /**
- * `/c/:slug/agents/new` (hire an agent, admins and owners) and `/c/:slug/agents/:agent` (an agent by its slug, or its
+ * `/:slug/agents/new` (hire an agent, admins and owners) and `/:slug/agents/:agent` (an agent by its slug, or its
  * id: its page, editable by admins and owners, read-only for everyone else).
  */
 export function AgentPage({ address }: { readonly address: string }) {

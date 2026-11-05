@@ -23,7 +23,7 @@ function useMemberImages(companyId: string) {
 }
 
 /**
- * `/c/:slug/agents`: the org chart (people and agents, moved and titled from their cards) and, with `?view=list`, the
+ * `/:slug/agents`: the org chart (people and agents, moved and titled from their cards) and, with `?view=list`, the
  * list of agents by status. Admins and owners hire agents from here.
  */
 export function AgentsPage() {

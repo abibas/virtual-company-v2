@@ -27,7 +27,7 @@ const findOrganization = (provider: IdentityProvider, companyId: string) =>
 
 /**
  * Creates the organization with the company's name and id (private metadata), its creator as the first member. No
- * slug: the company's slug is ours (`/c/:slug`), and the provider's would be a second one in its own namespace that
+ * slug: the company's slug is ours (`/:slug`), and the provider's would be a second one in its own namespace that
  * nothing keeps up to date (Clerk refuses any slug while its organization slugs are off, their default).
  */
 function createOrganization(provider: IdentityProvider, company: Company, payload: Record<string, unknown>) {

@@ -114,6 +114,27 @@ describe('POST /api/companies', () => {
     });
   });
 
+  it('refuses a chosen reserved slug with 422 and creates nothing; a derived one takes its next suffix', async () => {
+    for (const slug of ['settings', 'c', 'api', 'sign-in']) {
+      const res = await post(ihor.token, { name: 'Reserved Co', slug });
+      expect(res).toMatchObject({
+        status: 422,
+        body: {
+          error: {
+            code: 'slug_reserved',
+            message: `The slug ${slug} is reserved for the app's own pages; choose another one`,
+          },
+        },
+      });
+    }
+    const mine = (await getJson(w.t.app, '/api/companies', bearer(ihor.token))).body as {
+      companies: { name: string }[];
+    };
+    expect(mine.companies.filter((c) => c.name === 'Reserved Co')).toEqual([]);
+    expect((await createCompany(w, ihor.token, { name: 'Settings' })).slug).toBe('settings-2');
+    expect((await createCompany(w, ihor.token, { name: 'API' })).slug).toBe('api-2');
+  });
+
   it('refuses a missing or malformed body with 400', async () => {
     for (const body of [
       {},

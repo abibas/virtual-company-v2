@@ -1,4 +1,4 @@
-import { memberships } from '@mwc/db';
+import { companies, memberships } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { getJson, seedCompany } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
@@ -105,6 +105,26 @@ describe('PATCH /api/companies/:companyId', () => {
     expect(res).toMatchObject({ status: 409, body: { error: { code: 'slug_taken' } } });
     expect(await companyRow(w.t.db, company.id)).toMatchObject({ name: 'Clash One', slug: 'clash-one' });
     expect((await auditOf(w.t.db, company.id)).filter((r) => r.action === 'update')).toEqual([]);
+  });
+
+  it('refuses a reserved slug with 422 and writes nothing, but leaves a company its own older reserved slug', async () => {
+    const owner = await addUser(w.t.db, w.fake);
+    const company = await createCompany(w, owner.token, { name: 'Reserving' });
+    const patch = call(w, owner.token);
+    const res = await patch('PATCH', `/api/companies/${company.id}`, { name: 'Renamed', slug: 'profile' });
+    expect(res).toMatchObject({
+      status: 422,
+      body: {
+        error: {
+          code: 'slug_reserved',
+          message: "The slug profile is reserved for the app's own pages; choose another one",
+        },
+      },
+    });
+    expect(await companyRow(w.t.db, company.id)).toMatchObject({ name: 'Reserving', slug: 'reserving' });
+    await rawDb(w.t.db).update(companies).set({ slug: 'admin' }).where(eq(companies.id, company.id));
+    const kept = await patch('PATCH', `/api/companies/${company.id}`, { name: 'Older Admin', slug: 'admin' });
+    expect(kept).toMatchObject({ status: 200, body: { name: 'Older Admin', slug: 'admin' } });
   });
 
   it('refuses a member with 403, an outsider with 404 (before the body), a bad body with 400, no credential with 401', async () => {

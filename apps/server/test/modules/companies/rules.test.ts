@@ -5,6 +5,7 @@ import {
   creationRefusal,
   detectLogoType,
   FALLBACK_SLUG,
+  isReservedSlug,
   nameConfirmed,
   SLUG_MAX,
   SLUG_PATTERN,
@@ -50,6 +51,16 @@ describe('slugCandidates', () => {
     expect(long.every((slug) => slug.length <= SLUG_MAX && SLUG_PATTERN.test(slug))).toBe(true);
     expect(long.at(1)).toBe(`${'y'.repeat(61)}-2`);
     expect(withSuffix(`${'z'.repeat(55)}-${'w'.repeat(10)}`, 'abcdef')).toBe(`${'z'.repeat(55)}-abcdef`);
+  });
+
+  it('skips a derived slug that is reserved, starting at its -2 the way a taken one moves on', () => {
+    expect(slugCandidates('Settings', undefined, () => 'r').slice(0, 2)).toEqual([
+      'settings-2',
+      'settings-3',
+    ]);
+    expect(slugCandidates('C', undefined, () => 'r')[0]).toBe('c-2');
+    expect(slugCandidates('API', undefined, () => 'r')).toHaveLength(1 + 9 + 3 - 1);
+    expect(isReservedSlug('settings')).toBe(true);
   });
 });
 

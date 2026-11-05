@@ -74,7 +74,7 @@ function SwitcherChip({ name, src, address }: Face & { readonly address: string 
           <CompanyLogo name={name} src={src} size="sm" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-ink">{name}</span>
-            <span className="block truncate font-mono text-2xs text-dim">/c/{address}</span>
+            <span className="block truncate font-mono text-2xs text-dim">/{address}</span>
           </span>
           <span className="text-xs text-dim">Owner</span>
           <Check size={14} strokeWidth={2.5} className="shrink-0 text-blue" />

@@ -2,7 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
 import type { Company } from '../../api/types.ts';
-import { SLUG_INPUT_PATTERN } from '../company/slug.ts';
+import { reservedAddressError, SLUG_INPUT_PATTERN } from '../company/slug.ts';
 import { TextField } from '../forms/Field.tsx';
 import { Button } from '../ui/Button.tsx';
 import { Notice } from '../ui/Notice.tsx';
@@ -40,8 +40,10 @@ function useDetailsForm({ companyId, name: savedName, slug: savedSlug, onSaved }
       setBusy(false);
     }
   };
-  const canSave = Object.keys(changes).length > 0 && name.trim() !== '';
-  return { name, setName, slug, setSlug, busy, result, canSave, save };
+  // A company keeps an older reserved address it already has; only a new one is refused.
+  const reserved = changes.slug === undefined ? undefined : reservedAddressError(changes.slug);
+  const canSave = Object.keys(changes).length > 0 && name.trim() !== '' && reserved === undefined;
+  return { name, setName, slug, setSlug, busy, result, reserved, canSave, save };
 }
 
 /** Rename the company or change its address (admins and owners); only the fields that changed are sent. */
@@ -70,9 +72,10 @@ export function CompanyDetailsForm(props: CompanyDetailsFormProps) {
           pattern={SLUG_INPUT_PATTERN}
           maxLength={63}
           spellCheck={false}
+          error={form.reserved}
           hint={
             <>
-              Opens at <span className="font-mono">/c/{form.slug.trim() || '…'}</span>. Old links stop working
+              Opens at <span className="font-mono">/{form.slug.trim() || '…'}</span>. Old links stop working
               when it changes.
             </>
           }

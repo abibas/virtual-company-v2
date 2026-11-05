@@ -1,6 +1,7 @@
 import { SignIn, SignUp, useAuth, useUser } from '@clerk/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Membership } from '../../api/types.ts';
+import { companyPath } from '../../app/nav.ts';
 import { PlainShell } from '../../app/PlainShell.tsx';
 import { navigate, Redirect, useLocation } from '../../app/router.tsx';
 import { SessionGate, useSession } from '../../app/session.tsx';
@@ -39,7 +40,7 @@ function JoinInvitedCompany() {
   const reconciled = useRef(false);
 
   useEffect(() => {
-    if (invited) navigate(`/c/${invited.slug}`, { replace: true });
+    if (invited) navigate(companyPath(invited.slug), { replace: true });
     else if (organization === undefined) navigate('/', { replace: true });
   }, [invited, organization]);
   useEffect(() => {

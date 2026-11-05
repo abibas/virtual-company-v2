@@ -1,3 +1,4 @@
+import { companyPath } from '../app/nav.ts';
 import { Redirect } from '../app/router.tsx';
 import { chooseCompany, useSession } from '../app/session.tsx';
 
@@ -5,5 +6,5 @@ import { chooseCompany, useSession } from '../app/session.tsx';
 export function LandingPage() {
   const { me } = useSession();
   const company = chooseCompany(me);
-  return <Redirect to={company ? `/c/${company.slug}` : '/companies/new'} />;
+  return <Redirect to={company ? companyPath(company.slug) : '/companies/new'} />;
 }

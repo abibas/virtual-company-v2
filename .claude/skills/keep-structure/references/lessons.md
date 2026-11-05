@@ -27,6 +27,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: A check on the web's routes, with no web tests to hold it
+
+- **What happened:** company addresses moved from `/c/<slug>` to `/<slug>`, so every first path segment of the web
+  and the server must be in `RESERVED_SLUGS` (`@mwc/shared/slugs`), and a test has to fail when a new route is not.
+  `apps/web` may have no tests, and its route table is an if-chain in `app/AppRoutes.tsx` (plus `/design` in
+  `app/App.tsx`), not data another package can import.
+- **Where:** `apps/server/test/platform/http/web.test.ts` (the serving test of the built web, 127 lines) reads the two
+  route files as text, leaves out their comments and checks the first segment of every quoted absolute path, and the
+  first segment of every OpenAPI path. The web's one company link helper, `companyPath` in `app/nav.ts`, made that file
+  a `fan-in` warning (10 importers; `router.tsx` has 29).
+- **What was done:** the text check, so the parallel web work could keep the if-chain as it is.
+- **Suggested change:** a placement-table row for checks that guard the web from outside it (the server's web test, as
+  here), or a route table as data in `app/` that such a test imports; and `nav.ts` with the files meant to be imported
+  everywhere in the open `fan-in` suggestions.
+- **Status:** `open`.
+
 ### 2026-11-05: The MCP server reuses the CLI's API client, company choice and rendering
 
 - **What happened:** S2.6's `@mwc/mcp` needed more of the CLI than the saved logins: the GET with a personal key and

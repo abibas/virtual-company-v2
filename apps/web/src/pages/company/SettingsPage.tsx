@@ -3,6 +3,7 @@ import { removeCompanyLogo, uploadCompanyLogo, useCompanyLogo } from '../../api/
 import { useApi } from '../../api/context.ts';
 import type { Membership } from '../../api/types.ts';
 import { useCompany } from '../../app/company.ts';
+import { companyPath } from '../../app/nav.ts';
 import { navigate } from '../../app/router.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { CompanyDetailsForm } from '../../components/settings/CompanyDetailsForm.tsx';
@@ -48,13 +49,13 @@ function DetailsReadOnly({ membership }: { readonly membership: Membership }) {
       <dt className="text-dim">Name</dt>
       <dd className="font-medium text-ink">{membership.name}</dd>
       <dt className="text-dim">Address</dt>
-      <dd className="font-mono text-xs text-ink-2">/c/{membership.slug}</dd>
+      <dd className="font-mono text-xs text-ink-2">/{membership.slug}</dd>
     </dl>
   );
 }
 
 /**
- * `/c/:slug/settings`: the logo, the name and the address (admins and owners change them) and deleting the company
+ * `/:slug/settings`: the logo, the name and the address (admins and owners change them) and deleting the company
  * (owners).
  */
 export function SettingsPage() {
@@ -75,7 +76,7 @@ export function SettingsPage() {
         <LogoSettings membership={membership} admin={admin} reload={reload} />
         <Panel
           title="Name and address"
-          description="The address is the company's place in every link: /c/<address>."
+          description="The address is the company's place in every link: /<address>."
         >
           {admin ? (
             <CompanyDetailsForm
@@ -84,7 +85,7 @@ export function SettingsPage() {
               slug={membership.slug}
               onSaved={async (company) => {
                 if (company.slug !== membership.slug)
-                  navigate(`/c/${company.slug}/settings`, { replace: true });
+                  navigate(companyPath(company.slug, 'settings'), { replace: true });
                 await reload();
               }}
             />

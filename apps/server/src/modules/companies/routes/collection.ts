@@ -32,6 +32,7 @@ const createCompanyRoute = (deps: ServerDeps) =>
           '(`company_creation_disabled`, `company_creation_not_allowed`)',
       ),
       409: errorResponse('The chosen slug is taken (`slug_taken`)'),
+      422: errorResponse("The chosen slug is one of the app's own first path segments (`slug_reserved`)"),
     },
   });
 
@@ -51,6 +52,7 @@ export function collectionRoutes(deps: ServerDeps, companies: CompaniesService) 
     .openapi(createCompanyRoute(deps), async (c) => {
       const result = await companies.create(c.var.actor, c.req.valid('json'), c.var.requestId);
       if (!result.ok && result.status === 409) return errorJson(c, 409, result.code, result.message);
+      if (!result.ok && result.status === 422) return errorJson(c, 422, result.code, result.message);
       if (!result.ok) return errorJson(c, 403, result.code, result.message);
       // A new company has no logo yet.
       return c.json(companyView(result.company, null), 201);

@@ -1,4 +1,5 @@
 import { UserButton } from '@clerk/react';
+import { companyPath } from '../app/nav.ts';
 import { Link, navigate } from '../app/router.tsx';
 import { useSession } from '../app/session.tsx';
 import { CreateCompanyScreen } from '../components/company/CreateCompanyScreen.tsx';
@@ -23,7 +24,7 @@ export function CreateCompanyPage() {
       }
       onCreated={async (company) => {
         await reload();
-        navigate(`/c/${company.slug}`);
+        navigate(companyPath(company.slug));
       }}
       cancel={
         !first && (

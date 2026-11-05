@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isReservedSlug } from '@mwc/shared/slugs';
 import { brokenDb, createTestApp, LEVEL, type TestApp } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -81,5 +82,46 @@ describe('the built web UI (webDist)', () => {
     } finally {
       rmSync(empty, { recursive: true, force: true });
     }
+  });
+});
+
+/** The web's route table: its own pages (`AppRoutes.tsx`) and the development gallery (`App.tsx`). */
+const WEB_ROUTE_FILES = ['AppRoutes.tsx', 'App.tsx'];
+const webApp = new URL('../../../../web/src/app/', import.meta.url);
+
+/** The first segment of every absolute path written in the code of a file (comments left out). */
+function firstSegments(source: string): string[] {
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  return [...code.matchAll(/['"`]\/([a-z0-9][^/'"`?#*\s]*)/gi)].map((match) => match[1] ?? '');
+}
+
+describe('company addresses at /<slug>', () => {
+  it('answers a company’s deep links with index.html, while the API and the probes keep answering', async () => {
+    for (const path of [
+      '/most-wanted',
+      '/most-wanted/agents',
+      '/most-wanted/agents/slop-box',
+      '/c/acme/members',
+    ]) {
+      const res = await t.app.request(path);
+      expect(res.status, path).toBe(200);
+      expect(await res.text()).toContain('<div id="root">');
+    }
+    for (const path of ['/healthz', '/readyz', '/api/openapi.json']) {
+      expect((await t.app.request(path)).headers.get('content-type'), path).toContain('application/json');
+    }
+  });
+
+  it('never lets a company slug shadow a path the server answers or a page of the web', async () => {
+    const doc = (await (await t.app.request('/api/openapi.json')).json()) as {
+      paths: Record<string, unknown>;
+    };
+    const server = Object.keys(doc.paths).map((path) => path.split('/')[1] ?? '');
+    expect(new Set(server)).toEqual(new Set(['api', 'healthz', 'readyz']));
+    const web = WEB_ROUTE_FILES.flatMap((file) => firstSegments(readFileSync(new URL(file, webApp), 'utf8')));
+    expect(web).toEqual(
+      expect.arrayContaining(['sign-in', 'sign-up', 'accept-invitation', 'companies', 'c', 'design']),
+    );
+    for (const segment of [...server, ...web]) expect(isReservedSlug(segment), segment).toBe(true);
   });
 });

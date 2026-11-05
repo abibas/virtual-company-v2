@@ -40,6 +40,7 @@ const updateCompanyRoute = (deps: ServerDeps) => {
       400: INVALID,
       ...refusals,
       409: errorResponse('The slug is taken (`slug_taken`)'),
+      422: errorResponse("The slug is one of the app's own first path segments (`slug_reserved`)"),
     },
   });
 };
@@ -74,6 +75,7 @@ export function companyRoutes(deps: ServerDeps, companies: CompaniesService) {
         c.req.valid('json'),
         c.var.requestId,
       );
+      if (!result.ok && result.status === 422) return errorJson(c, 422, result.code, result.message);
       if (!result.ok) return errorJson(c, 409, result.code, result.message);
       return c.json(companyView(result.company, await logoRefOf(c.var.tenant)), 200);
     })

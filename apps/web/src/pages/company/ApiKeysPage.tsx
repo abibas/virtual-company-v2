@@ -15,7 +15,7 @@ import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 
 /**
- * `/c/:slug/api-keys`: personal API keys for the `mwc` CLI and your own Claude Code. Make one (its secret shown once,
+ * `/:slug/api-keys`: personal API keys for the `mwc` CLI and your own Claude Code. Make one (its secret shown once,
  * kept only in this page's memory), see and revoke yours; admins and owners can see and revoke everyone's. Below them
  * the company's facts the CLI and Claude Code need.
  */

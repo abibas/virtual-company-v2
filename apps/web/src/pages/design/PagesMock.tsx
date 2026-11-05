@@ -137,7 +137,7 @@ function SettingsBody() {
         <SampleLogoPanel />
         <Panel
           title="Name and address"
-          description="The address is the company's place in every link: /c/<address>."
+          description="The address is the company's place in every link: /<address>."
         >
           <CompanyDetailsForm
             companyId={SAMPLE_COMPANY.id}

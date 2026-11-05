@@ -1,9 +1,9 @@
 import type { CompanyCreation } from '@mwc/shared/config';
 import type { LogoContentType } from '@mwc/shared/enums';
-import { slugify as slugifyOr, withSuffix } from '@mwc/shared/slugs';
+import { isReservedSlug, slugify as slugifyOr, withSuffix } from '@mwc/shared/slugs';
 
 // The slug rule is shared with agents (`@mwc/shared/slugs`); re-exported here so its imports stay where they were.
-export { SLUG_MAX, SLUG_PATTERN, withSuffix } from '@mwc/shared/slugs';
+export { isReservedSlug, SLUG_MAX, SLUG_PATTERN, withSuffix } from '@mwc/shared/slugs';
 
 /** The slug of a name with no letter or digit in it (`!!!`, `日本`). */
 export const FALLBACK_SLUG = 'company';
@@ -23,15 +23,16 @@ export function slugify(name: string): string {
 
 /**
  * The slugs a new company tries, in order (the first free one wins). A slug the caller chose is the only one, so a
- * taken one is refused; a slug derived from the name is followed by `-2` … `-10` and then random suffixes, so a
- * common name still finds a free slug.
+ * taken one is refused (a reserved one never gets here: the service refuses it first); a slug derived from the name
+ * is followed by `-2` … `-10` and then random suffixes, so a common name still finds a free slug, and a derived slug
+ * that is a reserved word (`Settings`) starts at its `-2`, the way a taken one moves on.
  */
 export function slugCandidates(name: string, chosen: string | undefined, random: () => string): string[] {
   if (chosen !== undefined) return [chosen];
   const base = slugify(name);
   const numbered = Array.from({ length: NUMBERED_SLUGS }, (_, i) => withSuffix(base, String(i + 2)));
   const randoms = Array.from({ length: RANDOM_SLUGS }, () => withSuffix(base, random()));
-  return [base, ...numbered, ...randoms];
+  return [base, ...numbered, ...randoms].filter((slug) => !isReservedSlug(slug));
 }
 
 /** Why the creation policy refuses someone, or undefined when it lets them create a company. */

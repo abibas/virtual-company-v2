@@ -17,7 +17,7 @@ export interface CompanyView {
 
 export const CompanyContext = createContext<CompanyView | null>(null);
 
-/** The company on screen; only inside the company shell (`/c/:slug`). */
+/** The company on screen; only inside the company shell (`/:slug`). */
 export function useCompany(): CompanyView {
   const view = useContext(CompanyContext);
   if (view === null) throw new Error('useCompany() is used outside the company shell');

@@ -1,3 +1,5 @@
+import { companyPath } from '../../app/nav.ts';
+
 /** Where the Agents pages link to, so the same parts serve the company's routes and the design gallery. */
 export interface AgentLinks {
   /** The org chart (the Agents page's first tab). */
@@ -17,9 +19,9 @@ const HIRE = 'new';
 export const agentAddress = (agent: { readonly slug: string; readonly id: string }): string =>
   agent.slug === HIRE ? agent.id : agent.slug;
 
-/** The links of a company's Agents pages: `/c/:slug/agents`, `?view=list`, `/new` and `/:agent`. */
+/** The links of a company's Agents pages: `/:slug/agents`, `?view=list`, `/new` and `/:agent`. */
 export function companyAgentLinks(companySlug: string): AgentLinks {
-  const base = `/c/${companySlug}/agents`;
+  const base = companyPath(companySlug, 'agents');
   return {
     chart: base,
     list: `${base}?view=list`,

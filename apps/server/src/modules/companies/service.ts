@@ -6,7 +6,14 @@ import type { ServerDeps } from '../../platform/env.ts';
 import { enqueueOutbox, outboxKey } from '../../platform/jobs/outbox.ts';
 import { companiesOf, profileOf } from '../identity/service.ts';
 import { companiesRepo } from './repo.ts';
-import { audited, changedFields, creationRefusal, nameConfirmed, slugCandidates } from './rules.ts';
+import {
+  audited,
+  changedFields,
+  creationRefusal,
+  isReservedSlug,
+  nameConfirmed,
+  slugCandidates,
+} from './rules.ts';
 import type { CompanySummary, CompanyView, CreateCompany, UpdateCompany } from './schemas.ts';
 
 /** A refusal the routes answer in the common error shape. */
@@ -64,6 +71,10 @@ const slugTaken = (slug: string | undefined) =>
     slug ? `The slug ${slug} is taken` : 'No free slug was found for this name; choose one',
   );
 
+/** A chosen slug that is one of the app's own first path segments: a company there would hide that page. */
+const slugReserved = (slug: string) =>
+  refuse(422, 'slug_reserved', `The slug ${slug} is reserved for the app's own pages; choose another one`);
+
 type Repo = ReturnType<typeof companiesRepo>;
 type Deps = Pick<ServerDeps, 'db' | 'config' | 'identity'>;
 
@@ -102,6 +113,7 @@ async function createCompany(
   const refusal = await policyRefusal(deps, creator.userId);
   if (refusal) return refusal;
   const { name, slug } = call.input;
+  if (slug !== undefined && isReservedSlug(slug)) return slugReserved(slug);
   const input = { name, slugs: slugCandidates(name, slug, random), createdByUserId: creator.userId };
   try {
     const company = await repo.create(
@@ -141,12 +153,17 @@ async function listCompanies(deps: Deps, actor: Actor): Promise<CompanySummary[]
   }));
 }
 
-/** Renames the company or changes its slug, with one audit row per changed field; a taken slug is a 409. */
+/**
+ * Renames the company or changes its slug, with one audit row per changed field; a taken slug is a 409, a reserved one
+ * a 422 (unless it is the company's slug already, which the patch then leaves as it is).
+ */
 async function updateCompany(
   repo: Repo,
   t: TenantDb,
   call: { member: MemberContext; patch: UpdateCompany; requestId: string },
 ): Promise<{ ok: true; company: Company } | Refusal> {
+  const { slug } = call.patch;
+  if (slug !== undefined && slug !== t.company.slug && isReservedSlug(slug)) return slugReserved(slug);
   try {
     const company = await t.transaction(async (tx) => {
       const before = await repo.lock(tx);

@@ -5,6 +5,7 @@ import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
 import { type Loaded, useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
+import { companyPath } from '../../app/nav.ts';
 import { companyAgentLinks } from '../../components/agents/links.ts';
 import { StatTile } from '../../components/data/StatTile.tsx';
 import { RunsCard } from '../../components/overview/ComingCards.tsx';
@@ -90,11 +91,11 @@ function Tiles({
   );
 }
 
-/** `/c/:slug`: the company at a glance: the hero, the numbers and what comes next. */
+/** `/:slug`: the company at a glance: the hero, the numbers and what comes next. */
 export function OverviewPage() {
   const { membership, agents } = useCompany();
   const admin = roleAtLeast(membership.role, 'admin');
-  const base = `/c/${membership.slug}`;
+  const base = companyPath(membership.slug);
   const links = companyAgentLinks(membership.slug);
   const data = useOverviewData(membership.companyId, admin);
   const logoSrc = useCompanyLogo(membership.companyId, membership.logo?.version);

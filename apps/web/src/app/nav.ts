@@ -1,14 +1,26 @@
 import { Bot, Inbox, KeyRound, LayoutGrid, ListChecks, type LucideIcon, Settings, Users } from 'lucide-react';
 import type { NavItem } from '../components/layout/Rail.tsx';
 
-/** A company page's address from its section, the first part of the path after `/c/:slug/` ('' for Overview). */
+/** A company page's address from its section, the first part of the path after `/:slug/` ('' for Overview). */
 export type SectionHref = (section: string) => string;
 
-/** The addresses of a company's pages: `/c/:slug` and `/c/:slug/<section>`. */
+/**
+ * A company page's address, the one place every company link is built: `/<slug>` for its Overview, `/<slug>/<path>`
+ * for the rest (`members`, `agents/new`). A slug is never one of the app's own first segments (`RESERVED_SLUGS`).
+ */
+export const companyPath = (slug: string, path = ''): string => (path ? `/${slug}/${path}` : `/${slug}`);
+
+/** The addresses of a company's pages: `/:slug` and `/:slug/<section>`. */
 export const companyHrefs =
   (slug: string): SectionHref =>
   (section) =>
-    section ? `/c/${slug}/${section}` : `/c/${slug}`;
+    companyPath(slug, section);
+
+/** The address an old company link (`/c/<slug>/...`, before 2026-11-05) opens now: the same without `/c`. */
+export function withoutOldPrefix(href: string): string {
+  const rest = href.slice('/c'.length);
+  return rest.startsWith('/') ? rest : `/${rest}`;
+}
 
 /**
  * The rail of a company: its pages (the one of `section` current), then the ones of later stages shown muted with

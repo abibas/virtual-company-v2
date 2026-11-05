@@ -26,7 +26,7 @@ login that reaches several companies and none named, the tool answers with their
 
 This is your step; nothing in the repository changes your Claude Code configuration.
 
-1. Make a personal API key on the web app's API keys page (`/c/<slug>/api-keys`) and save it with `mwc login`, from the
+1. Make a personal API key on the web app's API keys page (`/<slug>/api-keys`) and save it with `mwc login`, from the
    repository root:
 
    ```sh

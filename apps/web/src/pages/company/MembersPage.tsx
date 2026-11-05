@@ -36,7 +36,7 @@ function useMembersData(companyId: string, admin: boolean) {
 }
 
 /**
- * `/c/:slug/members`: the people of the company with their roles; for admins and owners also the invitation form,
+ * `/:slug/members`: the people of the company with their roles; for admins and owners also the invitation form,
  * the pending invitations and Sync now. Viewers and members see the list, and may leave.
  */
 export function MembersPage() {

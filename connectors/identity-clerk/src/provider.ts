@@ -114,7 +114,7 @@ export class ClerkIdentityProvider implements IdentityProvider {
   }
 
   /**
-   * Never sends a slug (`capabilities.organizationSlugs` is false): company slugs are ours (`/c/:slug`), Clerk refuses
+   * Never sends a slug (`capabilities.organizationSlugs` is false): company slugs are ours (`/:slug`), Clerk refuses
    * any slug with 403 `organization_slugs_disabled` while its organization slugs are off (the default of a B2B
    * application), and one sent once would go stale when the company's slug changes, since nothing updates it.
    */

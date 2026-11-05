@@ -5,6 +5,7 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../components/forms/Me
 import { CompanyBadge } from '../components/layout/Rail.tsx';
 import { roleName } from '../components/ui/Badge.tsx';
 import { CompanyLogo } from '../components/ui/CompanyLogo.tsx';
+import { companyPath } from './nav.ts';
 import { useSession } from './session.tsx';
 
 /** One company of the menu: its logo, its name, the person's role there, on the same page of that company. */
@@ -20,7 +21,7 @@ function CompanyItem({
   const src = useCompanyLogo(company.companyId, company.logo?.version);
   return (
     <MenuItem
-      href={`/c/${company.slug}${section ? `/${section}` : ''}`}
+      href={companyPath(company.slug, section)}
       current={current}
       leading={<CompanyLogo name={company.name} src={src} size="sm" />}
       trailing={roleName(company.role)}

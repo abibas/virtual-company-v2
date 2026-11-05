@@ -31,7 +31,7 @@ typed again; `MWC_COMPANY_CREATION`, `MWC_COMPANY_CREATORS`); memberships (S1.6)
 webhooks (S1.8, `POST /api/webhooks/clerk`); personal API keys and `mwc login` / `whoami` / `logout` (S1.9); the
 jobs loop (S1.10: the identity outbox, the webhook event retry and the periodic reconcile, one runner per database by
 an advisory lock; `MWC_JOBS`, `MWC_RECONCILE_MINUTES`); the web app for identity (S1.11: sign-in and sign-up with Clerk,
-onboarding, the company shell `/c/:slug` with its switcher, Members, API keys, Settings, `/accept-invitation`; the
+onboarding, the company shell `/:slug` with its switcher, Members, API keys, Settings, `/accept-invitation`; the
 publishable key comes from `GET /api/config` at run time); the S1 acceptance as a server-side scenario (S1.12: the
 two-person story over the HTTP API on every acceptance path, `POST /api/me/reconcile` for a person signed in already,
 audit rows on the reconcile paths; a real-Clerk variant on request); next S1.13, the structure review.
@@ -69,7 +69,7 @@ lists the keys).
 2. `pnpm dev`, then open **http://localhost:9951** (`localhost`, not `127.0.0.1`: the API accepts session tokens
    issued to `MWC_WEB_ORIGIN`, `http://localhost:9951` by default).
 3. Sign up or sign in with an email code or Google. The first time, the app asks you to create your company (or to
-   ask for an invitation); then it opens `/c/<slug>`: Overview, Members (invite, roles, remove, Sync now), API keys
+   ask for an invitation); then it opens `/<slug>`: Overview, Members (invite, roles, remove, Sync now), API keys
    (make one for `mwc login`) and Settings (rename, change the address, delete).
 
 Without the keys the app says "Sign-in is not configured on this server" on every page and shows the API status.
@@ -94,7 +94,7 @@ pnpm mwc ports          # the port map (9950–9999)
 ```
 
 Your own Claude Code (or a script) reaches the API with a personal API key. Make one on the web app's API keys page
-(`/c/<slug>/api-keys`; the key is shown once, with the `mwc login` command to paste), then:
+(`/<slug>/api-keys`; the key is shown once, with the `mwc login` command to paste), then:
 
 ```sh
 pbpaste | pnpm mwc login --server http://localhost:9950 --company <id|slug>   # or MWC_API_KEY=... ; never an argument

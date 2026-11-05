@@ -17,7 +17,7 @@ export function CompanyFacts({
         <dt className="text-dim">Signed in as</dt>
         <dd className="break-all font-medium text-ink">{email}</dd>
         <dt className="text-dim">Address</dt>
-        <dd className="font-mono text-sm text-ink-2">/c/{slug}</dd>
+        <dd className="font-mono text-sm text-ink-2">/{slug}</dd>
         <dt className="text-dim">Company id</dt>
         <dd className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="min-w-0 break-all font-mono text-xs text-ink-2">{companyId}</span>

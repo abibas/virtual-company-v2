@@ -13,7 +13,7 @@ import { Badge } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
 import { Notice } from '../ui/Notice.tsx';
 import type { CompanyDraft } from './draft.ts';
-import { SLUG_INPUT_PATTERN } from './slug.ts';
+import { reservedAddressError, SLUG_INPUT_PATTERN } from './slug.ts';
 
 interface CreateCompanyFormProps {
   readonly draft: CompanyDraft;
@@ -63,12 +63,12 @@ function useCreateCompany(
   return { stage, error, create };
 }
 
-/** The live address under the field: `/c/<address>` as the server will make it, and where it comes from. */
+/** The live address under the field: `/<address>` as the server will make it, and where it comes from. */
 function AddressHint({ address, chosen }: { readonly address: string; readonly chosen: boolean }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Badge tone={address ? 'blue' : 'neutral'} className="max-w-full font-mono font-medium">
-        <span className="truncate">/c/{address || 'your-address'}</span>
+        <span className="truncate">/{address || 'your-address'}</span>
       </Badge>
       <span>
         {chosen
@@ -86,6 +86,7 @@ export function CreateCompanyForm({ draft, onCreated, cancel, className }: Creat
   const picker = useRef<LogoPickerHandle>(null);
   const { stage, error, create } = useCreateCompany(draft, picker, onCreated);
   const busy = stage !== 'idle';
+  const reserved = reservedAddressError(draft.slug);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     void create();
@@ -120,6 +121,7 @@ export function CreateCompanyForm({ draft, onCreated, cancel, className }: Creat
         spellCheck={false}
         placeholder={draft.address || 'most-wanted'}
         hint={<AddressHint address={draft.address} chosen={draft.slug.trim() !== ''} />}
+        error={reserved}
       />
       {error !== undefined && <Notice tone="error">{friendlyMessage(error)}</Notice>}
       <div className="flex flex-col items-center gap-3 pt-1">
@@ -128,7 +130,7 @@ export function CreateCompanyForm({ draft, onCreated, cancel, className }: Creat
           tone="primary"
           size="lg"
           busy={busy}
-          disabled={draft.name.trim() === ''}
+          disabled={draft.name.trim() === '' || reserved !== undefined}
           trailingIcon={ArrowRight}
           className="w-full"
         >

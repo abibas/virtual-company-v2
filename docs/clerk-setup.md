@@ -29,7 +29,7 @@ below.
 | Membership                                                       | **optional** (personal accounts allowed), changed from required on 2026-11-04 | a new person must not be stuck with `sts=pending` before their first company exists | indirectly: a fresh user's session token is not pending |
 | Members per organization                                         | 5 (the Hobby limit)           | plan limit; enough for the S1 tests                                   | Backend API: `maxAllowedMemberships` 5; Frontend API: `max_allowed_memberships` 5 |
 | Organization creator role                                        | `org:admin` (default)         | the creator is the first admin; owner is a local decision             | Backend API: `creatorRole`                       |
-| Organization slugs ("Enable organization slugs")                 | off (default); may stay off   | we do not use Clerk slugs: a company's slug is ours (`/c/:slug`), and the connector never sends one (Clerk refuses any slug with 403 `organization_slugs_disabled` while they are off) | Backend API: `slugDisabled` (recorded, not required; `true` on 2026-11-04) |
+| Organization slugs ("Enable organization slugs")                 | off (default); may stay off   | we do not use Clerk slugs: a company's slug is ours (`/:slug`), and the connector never sends one (Clerk refuses any slug with 403 `organization_slugs_disabled` while they are off) | Backend API: `slugDisabled` (recorded, not required; `true` on 2026-11-04) |
 | Organization roles                                               | `org:admin`, `org:member` (defaults, no custom roles) | the connector's role map (below)                    | the contract: invitations and role updates use exactly these |
 | Email address                                                    | required, verified at sign-up | identity is `(issuer, subject)`, but every person needs a working email | Frontend API environment: `email_address` `required`, `verify_at_sign_up` |
 | Sign-in with email                                               | email verification code       | a code sent to the email signs in                                     | Frontend API environment: `first_factors` has `email_code` |
@@ -122,7 +122,7 @@ configured on this server.
 | `/accept-invitation`  | the invitations' `redirectUrl`: Clerk's `<SignUp/>` takes `__clerk_ticket` (or `<SignIn/>` when `__clerk_status=sign_in`), with hash routing so the ticket stays in the query; `__clerk_status=complete` goes to `/sign-in` and comes back. Signed in, it calls `GET /api/me` (the sign-in reconcile links the membership) and opens the company of the person's newest Clerk membership; when that session was reconciled already (the person was signed in before accepting), it calls `POST /api/me/reconcile` once (S1.12) |
 | `/`                   | after sign-in (Clerk's fallback redirect): the last company opened in this browser, else the first, else `/companies/new` |
 
-After sign-out Clerk returns to `/sign-in`. The company shell (`/c/:slug`) makes the company's organization Clerk's active
+After sign-out Clerk returns to `/sign-in`. The company shell (`/:slug`) makes the company's organization Clerk's active
 one (`setActive`), so Clerk's own components agree with the page; access never depends on it, and a refusal is ignored.
 
 **Origins and redirects.** Session tokens must be issued to `MWC_WEB_ORIGIN` (`azp`), `http://localhost:9951` in
