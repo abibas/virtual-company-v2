@@ -76,6 +76,12 @@ devDependency): `createTestApp()`, `createTestDb()` (PGlite by default, a fresh 
 Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock()`, `getJson`/`postJson`,
 `captureLogger()`, `seedCompany()` (a company with its owner and the owner's root position on the org chart), `seedAgent()` (an agent with its place), `seedMember()` and `seedApiKey()` (a person on the chart and a personal key the API accepts), and the identity provider and store contracts (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
 
+## How the work is run
+
+The main chat (the CEO office) plans, delegates, merges and verifies. It loads the self-reflection skill
+(`.claude/skills/self-reflection`) before briefing a subagent (effort by task size, the brief template) and after
+every batch, stage, complaint or incident, to review its own work and get faster.
+
 ## Layout
 
 Load the keep-structure skill (`.claude/skills/keep-structure`) before adding, moving or splitting files,
