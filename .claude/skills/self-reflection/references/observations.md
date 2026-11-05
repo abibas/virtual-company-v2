@@ -18,8 +18,10 @@ Rows stay short on purpose. Each row's **Ref** points at the full record, for a 
   gives the id's first 8 characters; `ls …/subagents/agent-<prefix>*` finds it.
 - **The result**: the commits in the Ref (`git show <hash>` in this repository), which are permanent.
 - Searching: the files are JSON lines; `grep -c '"type":"tool_use"'` counts tool calls, and `jq` reads messages.
-- **Retention**: Claude Code deletes transcripts older than its `cleanupPeriodDays` setting (30 days by default).
-  A review of older phases has the commits and these rows, not the transcripts, unless that setting is raised.
+- **Retention**: transcripts are kept 365 days (`cleanupPeriodDays`, Ihor's decision on 2026-11-05: "keep for now,
+  365 days, so once we feel we are overwhelmed we can remove it"). Nobody deletes them after a review.
+- **Evaluated**: each session heading below says how far the reflections have read it. A later pass starts after
+  that point, and goes back into evaluated transcripts only to dig for the why of a pattern.
 
 ## Columns
 
@@ -45,6 +47,8 @@ Rows stay short on purpose. Each row's **Ref** points at the full record, for a 
 ## Log
 
 ### Session 8f2e137d-f01d-48ef-8530-b3c102ac3ca2 (2026-11-03 to 2026-11-05: v2 plan, S0–S3)
+
+Evaluated: every row below, by the reflection of 2026-11-05 (reflections.md).
 
 | Date       | Stage    | Task                                   | Size            | Who / effort | Brief | Min     | Tokens      | Result | After      | Ihor                                   | Note | Ref |
 | ---------- | -------- | -------------------------------------- | --------------- | ------------ | ----- | ------- | ----------- | ------ | ---------- | -------------------------------------- | ---- | ---------------------------- |

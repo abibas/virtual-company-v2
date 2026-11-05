@@ -49,7 +49,8 @@ done in the main chat gets a row too. A new session starts a new session heading
    checks, merges and reports, and its memory. **Ask Ihor first** for anything that changes one of his rules (full
    server coverage, no frontend tests, the structure rules, the step-by-step approvals, who commits).
 5. **Record it** in [references/reflections.md](references/reflections.md): the date, the facts table, the
-   changes, and what to measure next time. The next reflection checks whether the changes worked and keeps or
+   changes, and what to measure next time. Then update the "Evaluated:" line under each session heading in the
+   observations log, so the next pass knows where to start. The next reflection checks whether the changes worked and keeps or
    reverts them.
 
 ## Standing rules learned so far
