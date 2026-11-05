@@ -63,3 +63,6 @@ done in the main chat gets a row too. A new session starts a new session heading
 - Parallel agents never edit the same doc. Done notes are one or two lines; the main chat adds them when merging if
   two agents would collide.
 - Report what is done in a few lines, in plain words, for Ihor. Long reports are written for nobody.
+- Before a push the working tree is clean (`git status --short` empty): the hooks check the files on disk, so a
+  formatted file left uncommitted passes them while the commit stays broken. Never pipe a check into `tail` inside an
+  `&&` chain; the pipe hides its failure.
