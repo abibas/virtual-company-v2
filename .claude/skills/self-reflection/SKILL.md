@@ -22,8 +22,9 @@ This skill is for the main chat. Subagents do not load it; they get its brief te
 Add one row to [references/observations.md](references/observations.md): the size as briefed and in hindsight, who
 and at which effort, the office's own grade of its brief (A, B, C), the minutes and tokens from the task
 notification, the result (ok, dev, fix, redo, stop), what merging cost, Ihor's reaction, and the one thing worth
-learning. Be honest about the office's own mistakes; that is what the log is for. A task done in the main chat gets a
-row too.
+learning, and the **Ref**: the subagent id and the commits, so the full transcript can be found later. Keep the row
+short; the transcript holds the detail. Be honest about the office's own mistakes; that is what the log is for. A task
+done in the main chat gets a row too. A new session starts a new session heading in the log.
 
 ## Reflect (after a batch, a stage, a complaint or an incident)
 
@@ -40,6 +41,8 @@ row too.
    - over-thinking: the effort or model above what the size needed;
    - fixed cost: reading, re-running checks, waiting on sequential steps that could run in parallel;
    - collisions: merge conflicts, a restart that killed one of Ihor's live flows.
+   When a pattern needs its why (a brief that went wrong, a run that took twice its budget), open the transcripts
+   the rows point to (observations.md, "Sources") rather than guessing.
 3. **Choose at most 5 changes**, each with its evidence and its expected saving. Prefer the ones that remove a whole
    class of waste.
 4. **Apply the changes that are the office's own** at once: the effort table, the brief template, how the office
