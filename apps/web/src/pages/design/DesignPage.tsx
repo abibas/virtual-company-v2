@@ -11,6 +11,7 @@ import { ButtonsSection } from './gallery/Buttons.tsx';
 import { CardsSection } from './gallery/Cards.tsx';
 import { FormsSection } from './gallery/Forms.tsx';
 import { ListsSection } from './gallery/Lists.tsx';
+import { NewCompanyMock } from './NewCompanyMock.tsx';
 import { PagesMock } from './PagesMock.tsx';
 import { SignInMock } from './SignInMock.tsx';
 
@@ -21,6 +22,7 @@ const VIEWS = [
   { href: '/design/api-keys', label: 'API keys' },
   { href: '/design/settings', label: 'Settings' },
   { href: '/design/sign-in', label: 'Sign-in' },
+  { href: '/design/new-company', label: 'New company' },
 ] as const;
 
 const SECTIONS = [
@@ -108,6 +110,8 @@ function mockAt(pathname: string) {
       return <PagesMock page="settings" />;
     case '/design/sign-in':
       return <SignInMock />;
+    case '/design/new-company':
+      return <NewCompanyMock />;
     default:
       return null;
   }
@@ -115,7 +119,7 @@ function mockAt(pathname: string) {
 
 /**
  * `/design` (development only, no API and no sign-in): the component gallery; the dashboard, Members, API keys and
- * Settings pages in the shell with sample data; and the sign-in layout with a stand-in for Clerk.
+ * Settings pages in the shell with sample data; the sign-in layout with a stand-in for Clerk; the create-company page.
  * `?theme=dark` (or light) picks the scheme, so a screenshot run can ask for either.
  */
 export function DesignPage() {

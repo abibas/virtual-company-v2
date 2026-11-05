@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ApiContext } from '../../api/context.ts';
+import { useLocation } from '../../app/router.tsx';
 import { CreateKeyForm } from '../../components/api-keys/CreateKeyForm.tsx';
 import { KeysPanel } from '../../components/api-keys/KeysPanel.tsx';
 import { LoginCommand } from '../../components/api-keys/LoginCommand.tsx';
@@ -8,6 +9,7 @@ import { InvitationsPanel } from '../../components/members/InvitationsPanel.tsx'
 import { InvitePanel } from '../../components/members/InviteForm.tsx';
 import { PeoplePanel } from '../../components/members/PeoplePanel.tsx';
 import { CompanyDetailsForm } from '../../components/settings/CompanyDetailsForm.tsx';
+import { CompanyLogoPanel } from '../../components/settings/CompanyLogoPanel.tsx';
 import { DeleteCompany } from '../../components/settings/DeleteCompany.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import { type MockPage, MockShell } from './MockShell.tsx';
@@ -21,6 +23,7 @@ import {
   SAMPLE_MEMBERS,
   sampleApi,
 } from './records.ts';
+import { SAMPLE_LOGO_SRC } from './sample.ts';
 
 const none = () => undefined;
 
@@ -92,14 +95,36 @@ function KeysBody() {
   );
 }
 
+/** The logo panel on a logo kept in memory: a pick becomes the saved logo, Remove clears it. `?logo=1` starts with one. */
+function SampleLogoPanel() {
+  const { search } = useLocation();
+  const [src, setSrc] = useState<string | null>(() => (search.get('logo') === '1' ? SAMPLE_LOGO_SRC : null));
+  return (
+    <CompanyLogoPanel
+      name={SAMPLE_COMPANY.name}
+      logoSrc={src}
+      canChange
+      onUpload={(logo) => {
+        setSrc(URL.createObjectURL(logo.blob));
+        return Promise.resolve();
+      }}
+      onRemove={() => {
+        setSrc(null);
+        return Promise.resolve();
+      }}
+    />
+  );
+}
+
 /** The Settings page's parts, as an owner sees them. */
 function SettingsBody() {
   return (
     <>
       <PageHeader title="Settings">
-        <p>The company’s name and address.</p>
+        <p>The company’s name, address and logo.</p>
       </PageHeader>
       <div className="grid gap-4 md:gap-5">
+        <SampleLogoPanel />
         <Panel
           title="Name and address"
           description="The address is the company's place in every link: /c/<address>."

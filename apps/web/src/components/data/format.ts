@@ -26,6 +26,13 @@ export function fromNow(iso: string | null | undefined, empty = '—', now = Dat
   return RELATIVE.format(days, 'day');
 }
 
+/** A byte count as people read it ("812 B", "48 KB", "1.2 MB"). */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** A count with its noun ("1 member", "3 members"). */
 export function count(n: number, singular: string, plural = `${singular}s`): string {
   return `${n} ${n === 1 ? singular : plural}`;

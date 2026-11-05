@@ -25,6 +25,15 @@ function UserChip({ user }: { readonly user: ShellUser }) {
   );
 }
 
+/** A white circle for Clerk's user button (the account menu) beside the theme toggle, outside a company. */
+export function UserWell({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="inline-flex size-10 items-center justify-center rounded-full bg-surface shadow-card">
+      {children}
+    </span>
+  );
+}
+
 /** The date and the greeting, the search box, the bell with its count, and the person. */
 export function TopBar({
   firstName,

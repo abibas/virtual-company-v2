@@ -2,6 +2,7 @@ import { UserButton } from '@clerk/react';
 import type { ReactNode } from 'react';
 import { Brand } from '../components/layout/Brand.tsx';
 import { ThemeToggle } from '../components/layout/ThemeToggle.tsx';
+import { UserWell } from '../components/layout/TopBar.tsx';
 import { Card } from '../components/ui/Card.tsx';
 
 /** The frame of the signed-in pages outside a company: the brand, the user menu, one card in the middle. */
@@ -12,9 +13,9 @@ export function PlainShell({ children }: { readonly children: ReactNode }) {
         <Brand />
         <div className="flex items-center gap-2">
           <ThemeToggle tone="solid" />
-          <span className="inline-flex size-10 items-center justify-center rounded-full bg-surface shadow-card">
+          <UserWell>
             <UserButton />
-          </span>
+          </UserWell>
         </div>
       </header>
       <main id="main" className="mx-auto w-full max-w-xl px-4 py-6 md:py-10">

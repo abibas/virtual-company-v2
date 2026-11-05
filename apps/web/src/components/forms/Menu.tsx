@@ -124,6 +124,8 @@ export interface MenuItemProps {
   readonly href?: string;
   readonly onSelect?: () => void;
   readonly icon?: LucideIcon;
+  /** Replaces the icon (a company's logo). */
+  readonly leading?: ReactNode;
   readonly description?: ReactNode;
   readonly trailing?: ReactNode;
   /** The item that is in effect now (a check mark). */
@@ -140,6 +142,7 @@ export function MenuItem({
   href,
   onSelect,
   icon: Icon,
+  leading,
   description,
   trailing,
   current = false,
@@ -154,7 +157,8 @@ export function MenuItem({
   );
   const body = (
     <>
-      {Icon && <Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 text-dim" />}
+      {leading ??
+        (Icon && <Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 text-dim" />)}
       <span className="min-w-0 flex-1">
         <span className="block truncate">{children}</span>
         {description && <span className="block truncate text-xs font-normal text-dim">{description}</span>}

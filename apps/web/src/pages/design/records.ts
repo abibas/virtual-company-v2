@@ -1,5 +1,5 @@
 import type { Api } from '../../api/client.ts';
-import type { ApiKey, Invitation, Member } from '../../api/types.ts';
+import type { ApiKey, Invitation, Me, Member, Membership } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { SAMPLE_NOW } from './sample.ts';
 
@@ -16,6 +16,35 @@ export const SAMPLE_COMPANY = {
   slug: 'most-wanted',
 };
 export const SAMPLE_ME = { id: 'u-ihor', email: 'ihor@example.com' };
+
+/** The sample company as one of the person's memberships (what the shell and the switcher read). */
+export const SAMPLE_MEMBERSHIP: Membership = {
+  companyId: SAMPLE_COMPANY.id,
+  slug: SAMPLE_COMPANY.slug,
+  name: SAMPLE_COMPANY.name,
+  role: 'owner',
+  status: 'active',
+  companyStatus: 'active',
+  identityOrgId: 'org_sample',
+};
+
+/** `GET /api/me` for the gallery: the person with two companies, the sample one first. */
+export const SAMPLE_SESSION: Me = {
+  user: { id: SAMPLE_ME.id, email: SAMPLE_ME.email, displayName: 'Ihor Herasko', imageUrl: null },
+  memberships: [
+    SAMPLE_MEMBERSHIP,
+    {
+      companyId: '019a4f0c-8c1e-7c4b-9a52-3d1f2b6e7a11',
+      slug: 'airia-platform',
+      name: 'Airia Platform',
+      role: 'admin',
+      status: 'active',
+      companyStatus: 'active',
+      identityOrgId: 'org_sample_2',
+    },
+  ],
+  session: { via: 'clerk', pending: false },
+};
 
 const person = (
   n: number,

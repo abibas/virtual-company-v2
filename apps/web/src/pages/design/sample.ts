@@ -132,3 +132,18 @@ export const SAMPLE_PEOPLE: readonly SamplePerson[] = [
     joinedAt: at(60, '12:00'),
   },
 ];
+
+/** A made-up logo for the gallery: a bolt on the teal gradient, as an SVG data URL (any `src` can take it). */
+export const SAMPLE_LOGO_SRC = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2bd1b9"/>' +
+    '<stop offset="1" stop-color="#0b8c7e"/></linearGradient></defs>' +
+    '<rect width="256" height="256" rx="56" fill="url(#g)"/>' +
+    '<path d="M150 40 90 140h40l-24 76 64-104h-40z" fill="#fff"/></svg>',
+)}`;
+
+/** The same logo as a file, for the picker and the draft (an SVG the picker rasterises to PNG). */
+export async function sampleLogoFile(): Promise<File> {
+  const blob = await (await fetch(SAMPLE_LOGO_SRC)).blob();
+  return new File([blob], 'sample-logo.svg', { type: 'image/svg+xml' });
+}

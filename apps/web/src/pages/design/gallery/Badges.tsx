@@ -4,8 +4,12 @@ import { ATTENTION_KINDS, KINDS } from '../../../components/feed/kinds.ts';
 import { KbdHint } from '../../../components/forms/KbdHint.tsx';
 import { Avatar, AvatarStack } from '../../../components/ui/Avatar.tsx';
 import { Badge, StatusPill, type Tone } from '../../../components/ui/Badge.tsx';
+import { CompanyLogo, type LogoSize } from '../../../components/ui/CompanyLogo.tsx';
 import { IconTile } from '../../../components/ui/IconTile.tsx';
+import { SAMPLE_LOGO_SRC } from '../sample.ts';
 import { Example, Section } from './Section.tsx';
+
+const LOGO_SIZES: readonly LogoSize[] = ['xs', 'sm', 'md', 'lg', 'xl'];
 
 const TONES: readonly Tone[] = [
   'neutral',
@@ -110,6 +114,17 @@ function AvatarExamples() {
           />
         ))}
       </Example>
+      <Example label="CompanyLogo sizes: the initials on the gradient, an image, and inverse on a gradient card">
+        {LOGO_SIZES.map((size) => (
+          <CompanyLogo key={size} name="Most Wanted" size={size} />
+        ))}
+        <CompanyLogo name="Most Wanted" size="md" src={SAMPLE_LOGO_SRC} />
+        <CompanyLogo name="Most Wanted" size="lg" src={SAMPLE_LOGO_SRC} />
+        <span className="gradient-hero inline-flex items-center gap-3 rounded-xl p-3">
+          <CompanyLogo name="Most Wanted" size="md" inverse />
+          <CompanyLogo name="Most Wanted" size="md" src={SAMPLE_LOGO_SRC} inverse />
+        </span>
+      </Example>
       <Example label="IconTile sizes and KbdHint">
         <IconTile icon={KeyRound} size="sm" tone="teal" />
         <IconTile icon={KeyRound} size="md" tone="blue" />
@@ -126,7 +141,7 @@ export function BadgesSection() {
   return (
     <Section
       id="badges"
-      title="Badge, StatusPill, Avatar, IconTile"
+      title="Badge, StatusPill, Avatar, CompanyLogo, IconTile"
       description="The status palette carries the six attention kinds; everything else is quiet."
     >
       <BadgeExamples />

@@ -52,6 +52,23 @@ Newest first, one entry per lesson:
   value imports.
 - **Status:** `open`.
 
+### 2026-11-05: Two library groups passed 12 entries with the company logo
+
+- **What happened:** the create-company redesign added `ui/CompanyLogo.tsx` (a company's face, imported by 8 files at
+  once: the rail badge, the switcher, the hero, the preview, the picker, the Settings panel and the gallery) and three
+  files to `forms/` (`ImageDrop.tsx`, `LogoPicker.tsx`, `logo-file.ts`). `components/ui/` went from 12 to 13 entries
+  and `components/forms/` from 10 to 13, so both are `big-folder` warnings; `CompanyLogo.tsx` is a `fan-in` one. Two
+  more layout files (`CompanyBadge.tsx`, `UserWell.tsx`) would have taken `components/layout/` to 14; they went into
+  `Rail.tsx` (the rail's badge) and `TopBar.tsx` (beside `UserChip`) instead.
+- **Where:** `apps/web/src/components/{ui,forms,layout}/`; the create-company commit.
+- **What was done:** the two library groups kept one file per component, as the open lesson on the library describes
+  them; the layout pieces were folded into the files whose part they are.
+- **Suggested change:** a library group (`components/ui/`, `forms/`, `data/`, `feed/`, `layout/`) is flat by design,
+  one file per component with a barrel: raise `folderEntries` for `apps/web/src/components/*/`, or list them with the
+  server's platform files as folders whose growth is expected. The alternative, sub-folders by kind inside a group
+  (`forms/logo/`), would hide components from the barrel's one-level listing.
+- **Status:** `open`.
+
 ### 2026-11-04: The component library, a shared class helper and a development-only gallery
 
 - **What happened:** the redesign gave the web a reusable component library (about 60 components) and a gallery to

@@ -1,10 +1,36 @@
 import type { LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 import { Link } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
+import { CompanyLogo } from '../ui/CompanyLogo.tsx';
 import { iconButtonClass, iconSize } from '../ui/IconButton.tsx';
 import { Tooltip } from '../ui/Tooltip.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
+
+export interface CompanyBadgeProps extends ComponentPropsWithRef<'button'> {
+  readonly name: string;
+  /** The company's logo (an object URL), else its initials on the gradient. */
+  readonly src?: string | null | undefined;
+}
+
+/** The company at the top of the rail: its logo as a button named in a tooltip; the switcher's trigger. */
+export function CompanyBadge({ name, src, className, ...rest }: CompanyBadgeProps) {
+  return (
+    <Tooltip label={name} side="right">
+      <button
+        type="button"
+        aria-label={`Company: ${name}. Switch company`}
+        className={cx(
+          'inline-flex cursor-pointer rounded-lg transition-transform duration-150 hover:scale-105',
+          className,
+        )}
+        {...rest}
+      >
+        <CompanyLogo name={name} src={src} size="md" className={src ? 'shadow-card' : 'shadow-primary'} />
+      </button>
+    </Tooltip>
+  );
+}
 
 export interface NavItem {
   readonly key: string;

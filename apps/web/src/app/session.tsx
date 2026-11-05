@@ -21,7 +21,8 @@ export interface Session {
   reconcile(): Promise<Me>;
 }
 
-const SessionContext = createContext<Session | null>(null);
+/** Provided by `<SessionGate>`; the design gallery provides a sample session itself. */
+export const SessionContext = createContext<Session | null>(null);
 
 /** The signed-in person; only inside `<SessionGate>`. */
 export function useSession(): Session {
