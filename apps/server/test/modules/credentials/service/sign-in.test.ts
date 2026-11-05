@@ -275,7 +275,7 @@ describe('who may sign in', () => {
     expect(s.helper.last.written).toEqual([]);
   });
 
-  it('is off without a helper (MWC_LOGIN_HELPER=none): 503', () => {
+  it('is off without a helper (MWC_LOGIN_HELPER=none): 503', async () => {
     const off = signInService({
       db: s.w.t.db,
       keyring: ephemeralKeyring(),
@@ -288,6 +288,8 @@ describe('who may sign in', () => {
       status: 503,
       code: 'sign_in_unavailable',
     });
+    // Nothing to end at shutdown.
+    await expect(off.shutdown()).resolves.toBeUndefined();
   });
 });
 

@@ -1,6 +1,6 @@
 import type { PastedCredentialKind } from '@mwc/shared/credentials';
 import { ChevronRight, ShieldCheck } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import type { SignInProvider, Subscription, SubscriptionKind } from '../../api/types.ts';
 import { List, ListRow } from '../data/List.tsx';
 import { Sheet } from '../layout/Drawer.tsx';
@@ -8,7 +8,69 @@ import { Badge } from '../ui/Badge.tsx';
 import { kindIcon, kindTone } from './KindBadge.tsx';
 import { PasteForm, pasteTitle } from './PasteForm.tsx';
 import { SignInFlow } from './SignInFlow.tsx';
-import type { AddStep, AddSubscription } from './sign-in.ts';
+import { type SignInControl, useSignIn } from './sign-in.ts';
+
+/** Where the add sheet is: its choices, a sign-in, or a paste form. */
+export type AddStep =
+  | { readonly kind: 'choose' }
+  /** `credentialId`: Sign in again on that subscription, renewed in place. */
+  | { readonly kind: 'sign-in'; readonly provider: SignInProvider; readonly credentialId?: string }
+  | { readonly kind: 'paste'; readonly paste: PastedCredentialKind };
+
+export interface AddSubscription {
+  readonly open: boolean;
+  readonly step: AddStep;
+  readonly signIn: SignInControl;
+  /** Opens the sheet at its choices. */
+  choose(): void;
+  /**
+   * Opens the sheet on a sign-in (or moves it there) and starts it: the person's click is the request. With
+   * `credentialId` (a card's Sign in again), it renews that subscription instead of adding one.
+   */
+  signInWith(provider: SignInProvider, credentialId?: string): void;
+  paste(kind: PastedCredentialKind): void;
+  /** Back to the choices; a sign-in in progress is cancelled. */
+  back(): void;
+  /** Closes the sheet; a sign-in in progress is cancelled. */
+  close(): void;
+}
+
+/**
+ * The add sheet's state, held by the page that shows it (the Subscriptions page, the home widget), so a card's Sign
+ * in again and the sheet's own choices start the same sign-in. `onSignedIn` hears of a sign-in's new subscription.
+ */
+export function useAddSubscription(onSignedIn: () => void): AddSubscription {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<AddStep>({ kind: 'choose' });
+  const signIn = useSignIn(onSignedIn);
+  return {
+    open,
+    step,
+    signIn,
+    choose: () => {
+      setStep({ kind: 'choose' });
+      setOpen(true);
+    },
+    signInWith: (provider, credentialId) => {
+      setStep(
+        credentialId === undefined
+          ? { kind: 'sign-in', provider }
+          : { kind: 'sign-in', provider, credentialId },
+      );
+      setOpen(true);
+      signIn.start(provider, credentialId);
+    },
+    paste: (kind) => setStep({ kind: 'paste', paste: kind }),
+    back: () => {
+      signIn.stop();
+      setStep({ kind: 'choose' });
+    },
+    close: () => {
+      signIn.stop();
+      setOpen(false);
+    },
+  };
+}
 
 interface Choice {
   readonly title: string;

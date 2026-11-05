@@ -1,12 +1,18 @@
-import type { PastedCredentialKind } from '@mwc/shared/credentials';
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage, isApiError } from '../../api/errors.ts';
+import { isTransient, nextOutage, type Outage } from '../../api/retry.ts';
 import { type SubscriptionCalls, subscriptionCalls } from '../../api/subscriptions.ts';
 import type { SignIn, SignInProvider } from '../../api/types.ts';
 
 /** The server's sign-in is polled this often while it runs (docs/subscriptions.md). */
 const POLL_MS = 2000;
+
+/** How long polls ride out a server that does not answer (a restart) before the sign-in is given up. */
+const POLL_OUTAGE_MS = 20_000;
+
+const INTERRUPTED = 'The sign-in was interrupted (the server restarted). Start again.';
+const NO_ANSWER = 'The server did not answer for 20 seconds. Start again once it is back.';
 
 const ACTIVE: ReadonlySet<SignIn['state']> = new Set([
   'starting',
@@ -26,7 +32,9 @@ export type SignInPhase =
   /** The server refused to start one (503 off on this server, 409 one already open). */
   | { readonly kind: 'refused'; readonly provider: SignInProvider; readonly message: string }
   /** The sign-in as the last poll saw it; `email` is the new subscription's account, once looked up. */
-  | { readonly kind: 'live'; readonly signIn: SignIn; readonly email: string | null | undefined };
+  | { readonly kind: 'live'; readonly signIn: SignIn; readonly email: string | null | undefined }
+  /** The server no longer knows the sign-in (it restarted): Start again begins a fresh one. */
+  | { readonly kind: 'interrupted'; readonly signIn: SignIn };
 
 export interface SignInControl {
   readonly phase: SignInPhase;
@@ -41,25 +49,36 @@ export interface SignInControl {
 
 const NO_CODE = { sending: false, error: undefined } as const;
 
-/** Takes a poll's answer, unless a later start or stop made it stale. */
-type Follow = (signIn: SignIn, generation: number) => void;
+/** Takes a poll's answer, unless a later start or stop made it stale; `interrupted`: the server forgot it. */
+type Follow = (signIn: SignIn, generation: number, interrupted?: boolean) => void;
 
 /**
- * Polls a running sign-in every 2 seconds. Each answer is a new object, which schedules the next poll; a blip polls
- * again, and a sign-in the server no longer knows (it restarted) ends as failed.
+ * Polls a running sign-in every 2 seconds. Each answer is a new object, which schedules the next poll. A server that
+ * does not answer (a restart) is polled again sooner, then less often, for up to 20 seconds; another blip polls again;
+ * a sign-in the server no longer knows (it restarted) ends as interrupted.
  */
 function usePoll(signIn: SignIn | undefined, calls: SubscriptionCalls, follow: Follow, generation: number) {
+  const outage = useRef<{ readonly id: string; readonly outage: Outage } | undefined>(undefined);
   useEffect(() => {
     if (!signIn || !isActive(signIn)) return;
+    const current = outage.current?.id === signIn.id ? outage.current.outage : undefined;
     const timer = setTimeout(() => {
       calls.signIn(signIn.id).then(
-        (next) => follow(next, generation),
-        (error: unknown) =>
-          isApiError(error, 'sign_in_not_found')
-            ? follow({ ...signIn, state: 'failed', message: friendlyMessage(error) }, generation)
-            : follow({ ...signIn }, generation),
+        (next) => {
+          outage.current = undefined;
+          follow(next, generation);
+        },
+        (error: unknown) => {
+          const next = isTransient(error) ? nextOutage(current, POLL_OUTAGE_MS) : undefined;
+          outage.current = next && { id: signIn.id, outage: next };
+          if (isApiError(error, 'sign_in_not_found'))
+            follow({ ...signIn, state: 'failed', message: INTERRUPTED }, generation, true);
+          else if (isTransient(error) && !next)
+            follow({ ...signIn, state: 'failed', message: NO_ANSWER }, generation);
+          else follow({ ...signIn }, generation);
+        },
       );
-    }, POLL_MS);
+    }, current?.waitMs ?? POLL_MS);
     return () => clearTimeout(timer);
   }, [signIn, calls, follow, generation]);
 }
@@ -127,10 +146,14 @@ export function useSignIn(onDone: () => void): SignInControl {
   /** The sign-in followed now, for Stop and for leaving the page. */
   const live = useRef<SignIn | undefined>(undefined);
 
-  const follow = useCallback<Follow>((signIn, gen) => {
+  const follow = useCallback<Follow>((signIn, gen, interrupted = false) => {
     if (gen !== generation.current) return;
     live.current = signIn;
-    setPhase((p) => ({ kind: 'live', signIn, email: p.kind === 'live' ? p.email : undefined }));
+    setPhase((p) =>
+      interrupted
+        ? { kind: 'interrupted', signIn }
+        : { kind: 'live', signIn, email: p.kind === 'live' ? p.email : undefined },
+    );
   }, []);
 
   const code = useCode(calls, live, generation, follow);
@@ -169,66 +192,4 @@ export function useSignIn(onDone: () => void): SignInControl {
     setPhase({ kind: 'idle' });
   };
   return { phase, code: phase.kind === 'live' ? code.code : NO_CODE, start, sendCode: code.send, stop };
-}
-
-/** Where the add sheet is: its choices, a sign-in, or a paste form. */
-export type AddStep =
-  | { readonly kind: 'choose' }
-  /** `credentialId`: Sign in again on that subscription, renewed in place. */
-  | { readonly kind: 'sign-in'; readonly provider: SignInProvider; readonly credentialId?: string }
-  | { readonly kind: 'paste'; readonly paste: PastedCredentialKind };
-
-export interface AddSubscription {
-  readonly open: boolean;
-  readonly step: AddStep;
-  readonly signIn: SignInControl;
-  /** Opens the sheet at its choices. */
-  choose(): void;
-  /**
-   * Opens the sheet on a sign-in (or moves it there) and starts it: the person's click is the request. With
-   * `credentialId` (a card's Sign in again), it renews that subscription instead of adding one.
-   */
-  signInWith(provider: SignInProvider, credentialId?: string): void;
-  paste(kind: PastedCredentialKind): void;
-  /** Back to the choices; a sign-in in progress is cancelled. */
-  back(): void;
-  /** Closes the sheet; a sign-in in progress is cancelled. */
-  close(): void;
-}
-
-/**
- * The add sheet's state, held by the page that shows it (the Subscriptions page, the home widget), so a card's Sign
- * in again and the sheet's own choices start the same sign-in. `onSignedIn` hears of a sign-in's new subscription.
- */
-export function useAddSubscription(onSignedIn: () => void): AddSubscription {
-  const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<AddStep>({ kind: 'choose' });
-  const signIn = useSignIn(onSignedIn);
-  return {
-    open,
-    step,
-    signIn,
-    choose: () => {
-      setStep({ kind: 'choose' });
-      setOpen(true);
-    },
-    signInWith: (provider, credentialId) => {
-      setStep(
-        credentialId === undefined
-          ? { kind: 'sign-in', provider }
-          : { kind: 'sign-in', provider, credentialId },
-      );
-      setOpen(true);
-      signIn.start(provider, credentialId);
-    },
-    paste: (kind) => setStep({ kind: 'paste', paste: kind }),
-    back: () => {
-      signIn.stop();
-      setStep({ kind: 'choose' });
-    },
-    close: () => {
-      signIn.stop();
-      setOpen(false);
-    },
-  };
 }

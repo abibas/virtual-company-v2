@@ -23,6 +23,9 @@ export class FakeSandbox implements LoginSandbox {
   #onWrite: ((sandbox: FakeSandbox, input: string) => void) | undefined;
   /** Holds every file read until it settles: a test's way to catch a sign-in while it stores. */
   hold: Promise<void> | undefined;
+  /** Holds every kill until it settles; `removed` turns true after it, as when `docker rm` has returned. */
+  killHold: Promise<void> | undefined;
+  removed = false;
 
   constructor(files: Record<string, string>, onWrite?: (sandbox: FakeSandbox, input: string) => void) {
     this.#files = { ...files };
@@ -64,6 +67,8 @@ export class FakeSandbox implements LoginSandbox {
 
   async kill(): Promise<void> {
     this.kills += 1;
+    await this.killHold;
+    this.removed = true;
   }
 }
 
@@ -97,7 +102,8 @@ export const codexScript = (): SandboxScript => ({
 
 /**
  * A `LoginHelper` that hands out scripted sandboxes. `start` resolves after the test's `gate` (when set), and fails
- * with `failNext` once; each sandbox replays its script's output on the tick after it is returned.
+ * with `failNext` once; each sandbox replays its script's output on the tick after it is returned. `sweep` counts its
+ * calls and reports `leftovers` removed (or throws `sweepError`).
  */
 export class FakeLoginHelper implements LoginHelper {
   readonly mode = 'docker' as const;
@@ -106,6 +112,15 @@ export class FakeLoginHelper implements LoginHelper {
   script: SandboxScript = claudeScript();
   failNext: Error | undefined;
   gate: Promise<void> | undefined;
+  sweeps = 0;
+  leftovers = 0;
+  sweepError: Error | undefined;
+
+  async sweep(): Promise<number> {
+    this.sweeps += 1;
+    if (this.sweepError !== undefined) throw this.sweepError;
+    return this.leftovers;
+  }
 
   async start(command: LoginCommand): Promise<LoginSandbox> {
     this.commands.push(command);

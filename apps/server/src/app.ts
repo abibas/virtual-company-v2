@@ -32,15 +32,16 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * `newRouter()`, exported by `modules/<area>/index.ts` and mounted here. The identity provider is the one
  * passed in (tests: the fake), else the one the configuration names (`platform/identity.ts`: the Clerk
  * connector, or none). The master keyring is the one passed in (`platform/start.ts` loads it), else MWC_MASTER_KEY's,
- * else a key in memory (tests and demos). The sign-in helper is the one passed in (tests: a fake), else the one
- * MWC_LOGIN_HELPER names.
+ * else a key in memory (tests and demos). The sign-in helper is the one passed in (tests: a fake; undefined: none),
+ * else the one MWC_LOGIN_HELPER names.
  */
 export function createApp(deps: AppDeps) {
   const clock = deps.clock ?? (() => new Date());
   const server: ServerDeps = { ...deps, clock, identity: deps.identity ?? identityFromConfig(deps.config) };
   const withChart = withMemberChart(server);
   const keyring = deps.keyring ?? envKeyring(deps.config) ?? ephemeralKeyring();
-  const loginHelper = deps.loginHelper ?? loginHelperFromConfig(deps.config, deps.logger);
+  const loginHelper =
+    'loginHelper' in deps ? deps.loginHelper : loginHelperFromConfig(deps.config, deps.logger);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));

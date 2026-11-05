@@ -11,6 +11,8 @@ export interface ShutdownDeps {
   closeDb(): Promise<void>;
   /** Stops the jobs loop (waits for its tick in flight, gives its lock up); absent with MWC_JOBS=off. */
   stopJobs?(): Promise<void>;
+  /** Ends what the modules keep in memory (the sign-ins in progress, their sandboxes killed) while the database is open. */
+  stopModules?(): Promise<unknown>;
   readonly logger: Logger;
   /** `process.exit`, injectable for tests. */
   exit(code: number): void;
@@ -18,9 +20,10 @@ export interface ShutdownDeps {
 }
 
 /**
- * Returns the signal handler for SIGTERM/SIGINT: stop accepting connections and the jobs loop, let running
- * requests and the jobs' tick finish, close the database, exit 0. If that takes longer than the timeout (10 s),
- * exit 1. A second signal while shutting down is ignored, so Ctrl-C twice does not cut the cleanup short.
+ * Returns the signal handler for SIGTERM/SIGINT: stop accepting connections, the jobs loop and the modules' work in
+ * memory; let running requests, the jobs' tick and the sign-ins' sandbox kills finish; close the database; exit 0. If
+ * that takes longer than the timeout (10 s), exit 1. A second signal while shutting down is ignored, so Ctrl-C twice
+ * does not cut the cleanup short.
  */
 export function gracefulShutdown(deps: ShutdownDeps): (signal: string) => Promise<void> {
   let started = false;
@@ -40,7 +43,7 @@ export function gracefulShutdown(deps: ShutdownDeps): (signal: string) => Promis
         // Keep-alive connections with no request in flight would hold close() open; drop them now.
         deps.server.closeIdleConnections();
       });
-      await Promise.all([closed, deps.stopJobs?.()]);
+      await Promise.all([closed, deps.stopJobs?.(), deps.stopModules?.()]);
       await deps.closeDb();
       clearTimeout(timer);
       deps.logger.info('shut down');

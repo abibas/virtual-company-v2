@@ -68,6 +68,13 @@ describe('localLoginHelper', () => {
     expect(w.fs.rm).toHaveBeenCalledWith(HOME, { recursive: true, force: true });
   });
 
+  it('sweeps nothing at startup: a folder names no server, and its own shutdown removed its homes', async () => {
+    const w = localWorld();
+    expect(await w.helper.sweep()).toBe(0);
+    expect(w.calls).toEqual([]);
+    expect(w.fs.rm).not.toHaveBeenCalled();
+  });
+
   it('says plainly when the tools are not installed', async () => {
     const w = localWorld();
     const sandbox = await w.helper.start({ argv: ARGV });

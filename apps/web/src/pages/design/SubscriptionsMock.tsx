@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { ApiContext } from '../../api/context.ts';
 import type { LimitWindow, SubscriptionLimits } from '../../api/types.ts';
 import { useLocation } from '../../app/router.tsx';
-import { AddSubscriptionSheet } from '../../components/subscriptions/AddSubscriptionSheet.tsx';
+import {
+  AddSubscriptionSheet,
+  useAddSubscription,
+} from '../../components/subscriptions/AddSubscriptionSheet.tsx';
 import { LimitsWidget } from '../../components/subscriptions/LimitsWidget.tsx';
-import { useAddSubscription } from '../../components/subscriptions/sign-in.ts';
 import { MockShell } from './MockShell.tsx';
 import { days, loaded, sampleApi } from './records.ts';
 

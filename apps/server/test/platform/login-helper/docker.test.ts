@@ -1,6 +1,7 @@
 import { captureLogger } from '@mwc/testkit';
 import { describe, expect, it } from 'vitest';
 import {
+  containerIds,
   dockerLoginHelper,
   LOGIN_IMAGE_REPOSITORY,
   loginImageTag,
@@ -11,6 +12,7 @@ import {
   sandboxReadArgs,
   sandboxRemoveArgs,
   sandboxRunArgs,
+  sweepListArgs,
 } from '../../../src/platform/login-helper/docker.ts';
 import { LoginHelperError } from '../../../src/platform/login-helper/port.ts';
 import { fakeSpawn, type SpawnCall } from '../../fixtures/sign-in/child.ts';
@@ -18,6 +20,9 @@ import { fakeSpawn, type SpawnCall } from '../../fixtures/sign-in/child.ts';
 const DOCKERFILE = 'FROM node:24.21.0-slim\nRUN npm install --global @anthropic-ai/claude-code@2.1.308\n';
 const TAG = loginImageTag(DOCKERFILE);
 const ARGV = ['claude', 'auth', 'login', '--claudeai'];
+const INSTANCE = 'api-test';
+const ID_A = 'a'.repeat(64);
+const ID_B = '0123456789ab';
 
 describe('the docker arguments', () => {
   it('tags the image with the first 12 hex digits of the Dockerfile', () => {
@@ -26,11 +31,12 @@ describe('the docker arguments', () => {
     expect(loginImageTag(`${DOCKERFILE}# changed\n`)).not.toBe(TAG);
   });
 
-  it('runs a sandbox detached, removed when it stops, locked down, with nothing from the host', () => {
-    const args = sandboxRunArgs(TAG, 'mwc-login-test');
+  it('runs a sandbox detached, removed when it stops, labelled, locked down, with nothing from the host', () => {
+    const args = sandboxRunArgs(TAG, 'mwc-login-test', INSTANCE);
     expect(args.slice(0, 5)).toEqual(['run', '--detach', '--rm', '--name', 'mwc-login-test']);
     for (const flag of ['--read-only', '--rm']) expect(args).toContain(flag);
     const pairs = (flag: string) => args.flatMap((arg, index) => (arg === flag ? [args[index + 1]] : []));
+    expect(pairs('--label')).toEqual(['mwc.login-helper=1', `mwc.instance=${INSTANCE}`]);
     expect(pairs('--cap-drop')).toEqual(['ALL']);
     expect(pairs('--security-opt')).toEqual(['no-new-privileges']);
     expect(pairs('--pids-limit')).toEqual(['256']);
@@ -91,6 +97,7 @@ function dockerWorld(
     spawn,
     dockerfile: async () => DOCKERFILE,
     logger: logs.logger,
+    instance: INSTANCE,
     newName: () => `mwc-login-test-${++n}`,
   });
   const commands = () => calls.map((call) => call.args.slice(0, 2).join(' '));
@@ -104,7 +111,7 @@ describe('dockerLoginHelper', () => {
     const sandbox = await w.helper.start({ argv: ARGV });
     expect(w.commands()).toEqual(['image inspect', 'run --detach', 'exec --interactive']);
     expect(w.calls[0]?.args).toContain(TAG);
-    expect(w.calls[1]?.args).toEqual(sandboxRunArgs(TAG, 'mwc-login-test-1'));
+    expect(w.calls[1]?.args).toEqual(sandboxRunArgs(TAG, 'mwc-login-test-1', INSTANCE));
     expect(w.calls[2]?.args).toEqual(sandboxExecArgs('mwc-login-test-1', ARGV));
     expect(w.calls.every((call) => call.command === 'docker')).toBe(true);
     sandbox.write('code\r');
@@ -172,8 +179,62 @@ describe('dockerLoginHelper', () => {
       spawn,
       dockerfile: async () => DOCKERFILE,
       logger: captureLogger().logger,
+      instance: INSTANCE,
     });
     await helper.start({ argv: ARGV });
     expect(calls[1]?.args[4]).toMatch(/^mwc-login-[0-9a-f]{12}$/);
+  });
+});
+
+describe('the startup sweep', () => {
+  it('lists the running containers carrying both labels and removes them by id, as plain arguments', () => {
+    expect(sweepListArgs('api-9950')).toEqual([
+      'ps',
+      '--quiet',
+      '--no-trunc',
+      '--filter',
+      'label=mwc.login-helper=1',
+      '--filter',
+      'label=mwc.instance=api-9950',
+    ]);
+    expect(sandboxRemoveArgs(ID_A, ID_B)).toEqual(['rm', '--force', ID_A, ID_B]);
+    expect(containerIds(`${ID_A}\n${ID_B}\n\nWARNING: not an id\n`)).toEqual([ID_A, ID_B]);
+  });
+
+  it("removes this instance's leftover sandboxes with one docker rm --force, and says how many", async () => {
+    const w = dockerWorld({ 'ps --quiet': { stdout: `${ID_A}\n${ID_B}\n` } });
+    expect(await w.helper.sweep()).toBe(2);
+    expect(w.calls.map((call) => call.args)).toEqual([
+      sweepListArgs(INSTANCE),
+      sandboxRemoveArgs(ID_A, ID_B),
+    ]);
+  });
+
+  it('removes nothing when none is left, or when Docker is stopped or missing', async () => {
+    for (const answer of [{ stdout: '' }, { code: 1 }, { missing: true }]) {
+      const w = dockerWorld({ 'ps --quiet': answer });
+      expect(await w.helper.sweep()).toBe(0);
+      expect(w.commands()).toEqual(['ps --quiet']);
+    }
+  });
+
+  it('warns when the leftovers could not be removed', async () => {
+    const w = dockerWorld({ 'ps --quiet': { stdout: ID_A }, 'rm --force': { code: 1 } });
+    expect(await w.helper.sweep()).toBe(0);
+    expect(w.logs.at(-1)).toMatchObject({
+      msg: 'left sign-in sandboxes were not removed',
+      exitCode: 1,
+      count: 1,
+    });
+  });
+
+  it('refuses an instance label that a filter could read as more', () => {
+    const deps = {
+      spawn: fakeSpawn().spawn,
+      dockerfile: async () => DOCKERFILE,
+      logger: captureLogger().logger,
+    };
+    expect(() => dockerLoginHelper({ ...deps, instance: 'api-1,label=x' })).toThrow(RangeError);
+    expect(() => dockerLoginHelper({ ...deps, instance: '' })).toThrow(RangeError);
   });
 });

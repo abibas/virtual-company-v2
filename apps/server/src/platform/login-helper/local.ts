@@ -62,5 +62,7 @@ export function localLoginHelper(deps: LocalHelperDeps): LoginHelper {
         notFound: 'The sign-in tools (script, claude, codex) are not installed on this server.',
       });
     },
+    // A folder carries no label naming its server, so nothing is swept: a graceful shutdown removes the homes.
+    sweep: async () => 0,
   };
 }

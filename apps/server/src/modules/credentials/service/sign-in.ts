@@ -58,6 +58,11 @@ function signInSessions(ctx: SessionContext) {
       return session;
     },
 
+    /** Ends every sign-in (the server is stopping) and resolves once their sandboxes are killed. */
+    async stop(): Promise<void> {
+      await Promise.all([...sessions.values()].map((session) => session.stop()));
+    },
+
     /** Opens and begins a sign-in for the caller; undefined while another of theirs is active. */
     open(caller: Caller, provider: SignInProvider, target: SignInTarget): SignInSession | undefined {
       const previous = latest.get(caller.userId);
@@ -80,7 +85,7 @@ function signInSessions(ctx: SessionContext) {
  * the person who started it (another person's is the same 404 as none), at most one active per person, each ending
  * within 10 minutes with its sandbox killed. The finished login is sealed and stored under its owner with
  * `storeCredential`, or, to sign in again, renews their own subscription in place with `renewCredentialLogin`. A server
- * restart forgets the sign-ins in progress; their containers end themselves.
+ * restart forgets the sign-ins in progress: a graceful shutdown (`shutdown`) cancels them and kills their sandboxes.
  */
 export function signInService(deps: SignInDeps) {
   const ctx = contextOf(deps);
@@ -124,6 +129,11 @@ export function signInService(deps: SignInDeps) {
       const session = own(caller, id);
       if (session === undefined) return SIGN_IN_NOT_FOUND;
       return session.submitCode(code) ? found(session) : SIGN_IN_NOT_WAITING;
+    },
+
+    /** The server is stopping: cancels every sign-in in progress and resolves once their sandboxes are killed. */
+    shutdown: async (): Promise<void> => {
+      await registry?.stop();
     },
 
     /** Cancels the caller's sign-in and kills its sandbox; one that has ended stays as it was. */

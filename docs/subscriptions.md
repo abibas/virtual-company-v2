@@ -108,8 +108,11 @@ As built in S3.2:
   address, with OpenAI's code) → `waiting_for_code` (Claude's prompt is up) → `completing` (the code is in, or Codex
   finished; the files are read and stored) → `done` (with `credentialId`), or `failed` (a plain message), `expired`,
   `cancelled`. The CLI has 90 seconds to show its address and Claude 60 seconds to finish after the code. Every end
-  kills the sandbox; a login already being stored finishes `done` even when cancelled or out of time. A server
-  restart forgets the sign-ins in progress (their containers end themselves).
+  kills the sandbox; a login already being stored finishes `done` even when cancelled or out of time.
+- **Restarts.** A graceful shutdown cancels the sign-ins in progress and kills their sandboxes; every container is
+  labelled `mwc.login-helper=1` and `mwc.instance=api-<port>`, so the next server on that port removes what a crash
+  left (`docker ps --filter label=…`, then `docker rm --force`); the page retries a poll through a short outage and
+  offers **Start again** when the server no longer knows the sign-in.
 - **Routes** (personal, a session only; an API key is 403 `session_required`): `POST /api/me/subscriptions/sign-in`
   `{ provider: 'claude' | 'openai', label? }` → 201 `starting`; `GET /api/me/subscriptions/sign-in/:id` (the web polls
   every 2 seconds); `POST /api/me/subscriptions/sign-in/:id/code` `{ code }` → 200 `completing`, 409

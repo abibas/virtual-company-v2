@@ -11,10 +11,14 @@ import { advisoryJobsLock } from './jobs/lock.ts';
 import { createJobsRunner, type JobsRunner, SYSTEM_TIMERS, type Timers } from './jobs/runner.ts';
 import { JOBS_OFF } from './jobs/status.ts';
 import { createLogger } from './logger.ts';
+import { loginHelperFromConfig } from './login-helper/select.ts';
 import type { Keyring } from './secrets/keyring.ts';
 import { DEV_DATA_DIR, loadKeyring } from './secrets/master-key.ts';
 import { gracefulShutdown } from './shutdown.ts';
 import { readServerVersion } from './version.ts';
+
+/** The sign-in helper MWC_LOGIN_HELPER names (`login-helper/port.ts`). */
+type LoginHelper = NonNullable<ReturnType<typeof loginHelperFromConfig>>;
 
 /** `serve()` of `@hono/node-server`, narrowed to what `start` uses. */
 export type Serve = (
@@ -38,6 +42,8 @@ export interface StartDeps {
   /** The master keys that seal subscriptions: MWC_MASTER_KEY, the development `.data/master.key`, or (tests) memory. */
   loadKeyring(config: Config, logger: Logger): Promise<Keyring>;
   readVersion(): string;
+  /** The sign-in helper MWC_LOGIN_HELPER names (`loginHelperFromConfig`); swept once the server listens. */
+  loginHelper(config: Config, logger: Logger): LoginHelper | undefined;
   serve: Serve;
   /** Registers a signal handler: `process.on`. */
   onSignal(signal: 'SIGTERM' | 'SIGINT', handler: (signal: string) => void): void;
@@ -57,6 +63,7 @@ const SYSTEM: StartDeps = {
   createLogger: (config) => createLogger(config),
   loadKeyring: (config, logger) => loadKeyring(config, { dataDir: DEV_DATA_DIR, logger }),
   readVersion: () => readServerVersion(),
+  loginHelper: (config, logger) => loginHelperFromConfig(config, logger),
   serve: (options, onListening) => nodeServe(options, onListening) as Server,
   onSignal: (signal, handler) => {
     process.on(signal, handler);
@@ -74,7 +81,10 @@ export interface Started {
   readonly server: Server;
   /** The jobs loop, running from the moment the server listens; undefined with MWC_JOBS=off. */
   readonly jobs: JobsRunner | undefined;
-  /** The SIGTERM/SIGINT handler: stop listening and the jobs, let requests finish, close the database, exit. */
+  /**
+   * The SIGTERM/SIGINT handler: stop listening, the jobs and the sign-ins in progress (their sandboxes killed), let
+   * requests finish, close the database, exit.
+   */
   readonly shutdown: (signal: string) => Promise<void>;
 }
 
@@ -91,6 +101,30 @@ function jobsRunner(server: ServerDeps, timers: Timers): JobsRunner | undefined 
     lock: advisoryJobsLock(server.db),
     timers,
   });
+}
+
+/** The database, with the migrations applied first when MWC_MIGRATE_ON_START (or `migrate`) says so. */
+async function openDatabase(deps: StartDeps, config: Config, logger: Logger): Promise<DbHandle> {
+  const db = await deps.openDb(config, logger);
+  if (deps.migrate || config.MWC_MIGRATE_ON_START) {
+    logger.info({ db: deps.dbLabel }, 'applying migrations');
+    await migrateToLatest(db);
+  }
+  return db;
+}
+
+/**
+ * Once the server listens: removes the sign-in sandboxes an earlier server on its port left running (a crash, a kill),
+ * and says how many. A sweep that fails is a warning, never a stop.
+ */
+async function sweepSandboxes(helper: LoginHelper, logger: Logger): Promise<void> {
+  try {
+    const removed = await helper.sweep();
+    if (removed > 0)
+      logger.info({ helper: helper.mode, removed }, 'removed sign-in sandboxes a stopped server left');
+  } catch (error) {
+    logger.warn({ err: error }, 'could not sweep the sign-in sandboxes');
+  }
 }
 
 /**
@@ -113,7 +147,8 @@ function warnIgnoredSecretKey(
  * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError`
  * listing every problem when it is invalid, before anything is opened), the logger, the master keyring, the database, the
  * migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the listening server, the jobs loop
- * (MWC_JOBS), and the graceful shutdown on SIGTERM and SIGINT. A server error (the port is taken) exits 1.
+ * (MWC_JOBS), the sweep of the sign-in sandboxes a stopped server left, and the graceful shutdown on SIGTERM and SIGINT,
+ * which ends the sign-ins in progress. A server error (the port is taken) exits 1.
  */
 export async function start(
   env: Readonly<Record<string, string | undefined>>,
@@ -126,12 +161,7 @@ export async function start(
   // Before the database: a key file that is not a key stops the start with nothing opened.
   const keyring = await deps.loadKeyring(config, logger);
   const version = deps.readVersion();
-  const db = await deps.openDb(config, logger);
-
-  if (deps.migrate || config.MWC_MIGRATE_ON_START) {
-    logger.info({ db: deps.dbLabel }, 'applying migrations');
-    await migrateToLatest(db);
-  }
+  const db = await openDatabase(deps, config, logger);
 
   // One provider for the routes and the jobs (the Clerk connector keeps its invitation rate window in memory).
   const identity = identityFromConfig(config);
@@ -146,12 +176,17 @@ export async function start(
     ...webDist,
   };
   const jobs = jobsRunner(serverDeps, deps.timers);
-  const app = createApp({ ...serverDeps, keyring, jobs: jobs ?? JOBS_OFF });
+  const loginHelper = deps.loginHelper(config, logger);
+  const stops: (() => Promise<void>)[] = [];
+  const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
+  const app = createApp({ ...serverDeps, keyring, jobs: jobs ?? JOBS_OFF, loginHelper, onShutdown });
   const server = deps.serve(
     { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST },
     (info) => {
       const line = { host: config.MWC_HOST, port: info.port, version, db: deps.dbLabel };
       logger.info({ ...line, identity: config.MWC_IDENTITY, jobs: jobs !== undefined }, 'listening');
+      // Only now: a server that could not take the port must not remove the sandboxes of the one holding it.
+      if (loginHelper) void sweepSandboxes(loginHelper, logger);
     },
   );
   server.on('error', (error) => {
@@ -165,6 +200,7 @@ export async function start(
   const shutdown = gracefulShutdown({
     server,
     closeDb: () => db.close(),
+    stopModules: () => Promise.all(stops.map((stop) => stop())),
     logger,
     exit: deps.exit,
     ...stopJobs,

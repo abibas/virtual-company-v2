@@ -61,6 +61,32 @@ describe('gracefulShutdown', () => {
     expect(order).toEqual(['server closed', 'jobs stopping', 'jobs stopped', 'db closed', 'exit 0']);
   });
 
+  it("ends the modules' work in memory (the sign-ins' sandboxes) before the database closes", async () => {
+    const order: string[] = [];
+    let killed = () => {};
+    const shutdown = gracefulShutdown({
+      server: fakeServer((callback) => callback()),
+      stopModules: () =>
+        new Promise<void>((resolve) => {
+          order.push('sign-ins stopping');
+          killed = () => {
+            order.push('sandboxes killed');
+            resolve();
+          };
+        }),
+      closeDb: async () => {
+        order.push('db closed');
+      },
+      logger: captureLogger().logger,
+      exit: (code) => order.push(`exit ${code}`),
+    });
+    const done = shutdown('SIGTERM');
+    await vi.waitFor(() => expect(order).toEqual(['sign-ins stopping']));
+    killed();
+    await done;
+    expect(order).toEqual(['sign-ins stopping', 'sandboxes killed', 'db closed', 'exit 0']);
+  });
+
   it('exits 1 when closing fails', async () => {
     const exit = vi.fn();
     const { logger, lines } = captureLogger();

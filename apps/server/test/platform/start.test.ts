@@ -16,6 +16,7 @@ import { MasterKeyError } from '../../src/platform/secrets/master-key.ts';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';
 import { readServerVersion } from '../../src/platform/version.ts';
 import { manualTimers } from '../fixtures/jobs.ts';
+import { FakeLoginHelper } from '../fixtures/sign-in/helper.ts';
 
 const ENV = { NODE_ENV: 'test', DATABASE_URL: 'postgres://mwc:mwc@127.0.0.1:9999/mwc' };
 
@@ -188,6 +189,52 @@ describe('start', () => {
     expect(t.exit).toHaveBeenCalledWith(0);
     // The database is closed: a query on it fails now.
     await expect(migrationStatus(started.db)).rejects.toThrow();
+  });
+
+  it('sweeps the sign-in sandboxes an earlier server on its port left, only once it listens', async () => {
+    const helper = new FakeLoginHelper();
+    helper.leftovers = 2;
+    const loginHelper = vi.fn(() => helper);
+    let listening = () => {};
+    const serve: Serve = (options, onListening) => {
+      listening = () => onListening({ port: options.port, address: options.hostname, family: 'IPv4' });
+      return fakeServe().server as unknown as Server;
+    };
+    const t = testDeps({ loginHelper, serve });
+    const started = await start(ENV, t.deps);
+    open.push(started.db);
+    expect(loginHelper).toHaveBeenCalledWith(started.config, started.logger);
+    // Not listening yet (the port may be another server's): nothing is swept.
+    expect(helper.sweeps).toBe(0);
+    listening();
+    await vi.waitFor(() =>
+      expect(
+        t.lines.find((line) => line.msg === 'removed sign-in sandboxes a stopped server left'),
+      ).toMatchObject({
+        level: LEVEL.info,
+        helper: 'docker',
+        removed: 2,
+      }),
+    );
+    expect(helper.sweeps).toBe(1);
+  });
+
+  it('says nothing when no sandbox was left, and warns when the sweep fails', async () => {
+    const quiet = new FakeLoginHelper();
+    const t = testDeps({ loginHelper: () => quiet });
+    open.push((await start(ENV, t.deps)).db);
+    await vi.waitFor(() => expect(quiet.sweeps).toBe(1));
+    expect(t.lines.some((line) => line.msg.includes('sign-in sandboxes'))).toBe(false);
+
+    const failing = new FakeLoginHelper();
+    failing.sweepError = new Error('docker went away');
+    const f = testDeps({ loginHelper: () => failing });
+    open.push((await start(ENV, f.deps)).db);
+    await vi.waitFor(() =>
+      expect(f.lines.find((line) => line.msg === 'could not sweep the sign-in sandboxes')?.level).toBe(
+        LEVEL.warn,
+      ),
+    );
   });
 
   it('runs the jobs loop with MWC_JOBS=on once it listens, shows it in /readyz and stops it before the database', async () => {

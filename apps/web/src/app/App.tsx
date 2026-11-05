@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { fetchPublicConfig, PublicConfigContext } from '../api/config.ts';
 import { friendlyMessage } from '../api/errors.ts';
+import { BOOT_RETRY_MS, retryTransient } from '../api/retry.ts';
 import type { PublicConfig } from '../api/types.ts';
 import { LoadingBlock } from '../components/data/LoadState.tsx';
 import { Brand } from '../components/layout/Brand.tsx';
@@ -21,16 +22,16 @@ const DesignPage = import.meta.env.DEV
   : null;
 
 /**
- * The app's boot: it reads `GET /api/config` (so one built image runs anywhere), then starts Clerk with the
- * publishable key it gives, or shows that sign-in is not configured on this server. `/design` in development
- * needs neither.
+ * The app's boot: it reads `GET /api/config` (so one built image runs anywhere; a server restarting is waited for,
+ * about 10 seconds), then starts Clerk with the publishable key it gives, or shows that sign-in is not configured on
+ * this server. `/design` in development needs neither.
  */
 export function App() {
   const { pathname } = useLocation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const load = useCallback(() => {
     setBoot({ status: 'loading' });
-    fetchPublicConfig().then(
+    retryTransient(fetchPublicConfig, BOOT_RETRY_MS).then(
       (config) => setBoot({ status: 'ready', config }),
       (error: unknown) => setBoot({ status: 'failed', error }),
     );

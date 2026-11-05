@@ -12,11 +12,10 @@ import { IconButton } from '../ui/IconButton.tsx';
 import { Panel } from '../ui/Panel.tsx';
 import { Skeleton } from '../ui/Skeleton.tsx';
 import { Tooltip } from '../ui/Tooltip.tsx';
-import { AddSubscriptionSheet } from './AddSubscriptionSheet.tsx';
+import { AddSubscriptionSheet, useAddSubscription } from './AddSubscriptionSheet.tsx';
 import { accountLine, hasLimits } from './KindBadge.tsx';
 import { LimitMeters } from './LimitMeters.tsx';
 import { sourceText, useNow } from './limits.ts';
-import { useAddSubscription } from './sign-in.ts';
 
 /** One subscription's card: its name and account, where the numbers come from (the info mark), and its bars. */
 export function LimitCard({ limits, now }: { readonly limits: SubscriptionLimits; readonly now: number }) {

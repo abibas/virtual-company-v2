@@ -103,11 +103,15 @@ const cancelRoute = (deps: AuthDeps) => {
 /** The caller of a personal route: the signed-in person and the request. */
 const callerOf = (v: { userId: string; requestId: string }) => ({ userId: v.userId, requestId: v.requestId });
 
-/** The routes on the server's deps, the master keyring and the configured helper (undefined: MWC_LOGIN_HELPER=none). */
+/**
+ * The routes on the server's deps, the master keyring and the configured helper (undefined: MWC_LOGIN_HELPER=none). The
+ * sign-ins in progress are cancelled, and their sandboxes killed, when the server shuts down (`onShutdown`).
+ */
 export function signInRoutes(
   deps: Omit<ServerDeps, 'loginHelper'> & { readonly keyring: Keyring } & Pick<SignInDeps, 'loginHelper'>,
 ) {
   const signIns = signInService(deps);
+  deps.onShutdown?.(signIns.shutdown);
   return newRouter()
     .openapi(startRoute(deps), async (c) => {
       const { credentialId, ...body } = c.req.valid('json');

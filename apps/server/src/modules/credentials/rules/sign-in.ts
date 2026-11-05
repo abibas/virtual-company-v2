@@ -72,6 +72,7 @@ export const SIGN_IN_ENDINGS = {
   codeTimeout: 'Claude did not finish signing in after the code. Start again.',
   notSaved: 'The login could not be saved. Start again.',
   gone: 'The subscription was removed or revoked while you signed in. Nothing was stored.',
+  interrupted: 'The sign-in was interrupted (the server restarted). Start again.',
 } as const;
 
 /** Why a sign-in failed when its CLI stopped without a finished login, from where it was. */

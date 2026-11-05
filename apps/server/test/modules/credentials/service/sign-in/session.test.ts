@@ -2,7 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SIGN_IN_ENDINGS, SIGN_IN_LIMITS } from '../../../../../src/modules/credentials/rules/sign-in.ts';
 import { SYSTEM_SIGN_IN_TIMERS } from '../../../../../src/modules/credentials/service/sign-in/context.ts';
 import { CLAUDE_CODE, CLAUDE_OUTPUT } from '../../../../fixtures/sign-in/cli.ts';
-import { claudeScript, codexScript, helperError, settle } from '../../../../fixtures/sign-in/helper.ts';
+import {
+  claudeScript,
+  codexScript,
+  type FakeSandbox,
+  helperError,
+  settle,
+  until,
+} from '../../../../fixtures/sign-in/helper.ts';
 import {
   as,
   type SignInWorld,
@@ -104,6 +111,87 @@ describe('cancel', () => {
     expect(read(started.id).state).toBe('completing');
     release();
     await untilState(s, started.id, 'done');
+  });
+});
+
+describe('shutdown', () => {
+  /** A promise that settles when the test says, and a flag that tells whether `stopping` has resolved yet. */
+  const held = () => {
+    let release = () => {};
+    const promise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { promise, release };
+  };
+  const watch = (stopping: Promise<void>) => {
+    const seen = { done: false };
+    void stopping.then(() => {
+      seen.done = true;
+    });
+    return seen;
+  };
+
+  it('cancels every sign-in in progress and resolves only once their sandboxes are removed', async () => {
+    const mine = start();
+    await settle();
+    s.helper.script = codexScript();
+    const theirs = signInOf(s.signIns.start(as(s.other), { provider: 'openai' }));
+    await settle();
+    const [claude, codex] = s.helper.sandboxes as [FakeSandbox, FakeSandbox];
+    const kill = held();
+    claude.killHold = kill.promise;
+    codex.killHold = kill.promise;
+
+    const stopping = s.signIns.shutdown();
+    const seen = watch(stopping);
+    await settle();
+    for (const [user, id] of [
+      [s.ihor, mine.id],
+      [s.other, theirs.id],
+    ] as const) {
+      expect(signInOf(s.signIns.get(as(user), id))).toMatchObject({
+        state: 'cancelled',
+        message: SIGN_IN_ENDINGS.interrupted,
+      });
+    }
+    expect([claude.kills, codex.kills, seen.done]).toEqual([1, 1, false]);
+    kill.release();
+    await stopping;
+    expect([claude.removed, codex.removed]).toEqual([true, true]);
+    expect(ended()).toMatchObject({ state: 'cancelled', reason: 'shutdown' });
+    expect(s.timers.pending).toEqual([]);
+    // Ended sign-ins stay as they are.
+    await s.signIns.shutdown();
+    expect([claude.kills, codex.kills]).toEqual([1, 1]);
+  });
+
+  it('waits for a sandbox still starting and kills it before it resolves', async () => {
+    const gate = held();
+    s.helper.gate = gate.promise;
+    const started = start();
+    const seen = watch(s.signIns.shutdown());
+    await settle();
+    expect(read(started.id)).toMatchObject({ state: 'cancelled', url: null });
+    expect([s.helper.sandboxes.length, seen.done]).toEqual([0, false]);
+    gate.release();
+    await until(() => seen.done, 'the shutdown');
+    expect([s.helper.last.kills, s.helper.last.removed]).toEqual([1, true]);
+  });
+
+  it('lets a login being stored finish done, then kills its sandbox', async () => {
+    const started = start();
+    await settle();
+    const store = held();
+    s.helper.last.hold = store.promise;
+    code(started.id);
+    await settle();
+    const seen = watch(s.signIns.shutdown());
+    await settle();
+    expect([read(started.id).state, seen.done]).toEqual(['completing', false]);
+    store.release();
+    await until(() => seen.done, 'the shutdown');
+    expect(read(started.id).state).toBe('done');
+    expect([s.helper.last.kills, s.helper.last.removed]).toEqual([1, true]);
   });
 });
 

@@ -26,7 +26,7 @@ function statesOf(phase: SignInPhase): StepStates {
 /** Why it ended without a subscription, in plain words. */
 function endedWhy(phase: SignInPhase): string | undefined {
   if (phase.kind === 'refused') return phase.message;
-  if (phase.kind !== 'live') return undefined;
+  if (phase.kind !== 'live' && phase.kind !== 'interrupted') return undefined;
   const { state, message } = phase.signIn;
   if (state === 'expired') return message ?? 'The sign-in ran out of time (10 minutes). Nothing was stored.';
   if (state === 'cancelled') return message ?? 'The sign-in was cancelled. Nothing was stored.';
@@ -170,7 +170,8 @@ interface SignInFlowProps {
 
 /**
  * Sign in with Claude or OpenAI, as it happens: the steps filling in, the provider's page to open, the code, then
- * "Signed in as …", or why it ended with Try again. Cancel ends the sign-in on the server.
+ * "Signed in as …", or why it ended with Try again (Start again when a server restart interrupted it, with the same
+ * provider and subscription). Cancel ends the sign-in on the server.
  */
 export function SignInFlow({ provider, credentialId, control, onBack, onDone }: SignInFlowProps) {
   const { phase } = control;
@@ -187,7 +188,7 @@ export function SignInFlow({ provider, credentialId, control, onBack, onDone }: 
         {why && <Button onClick={onBack}>Back</Button>}
         {why && (
           <Button tone="primary" icon={RotateCcw} onClick={() => control.start(provider, credentialId)}>
-            Try again
+            {phase.kind === 'interrupted' ? 'Start again' : 'Try again'}
           </Button>
         )}
         {live?.signIn.state === 'done' && (

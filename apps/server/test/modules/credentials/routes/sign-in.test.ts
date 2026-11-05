@@ -39,13 +39,16 @@ import {
 const SIGN_IN = '/api/me/subscriptions/sign-in';
 const helper = new FakeLoginHelper();
 const keyring = ephemeralKeyring();
+/** What the app registered to end at shutdown. */
+const stops: (() => Promise<void>)[] = [];
 let w: AuthWorld;
 let ihor: LinkedUser;
 let other: LinkedUser;
 beforeAll(async () => {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
-  const t = await createTestApp({ clock, identity: fake, loginHelper: helper, keyring });
+  const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
+  const t = await createTestApp({ clock, identity: fake, loginHelper: helper, keyring, onShutdown });
   w = { t, fake, clock, deps: { db: t.db, config: testConfig, logger: t.logger, identity: fake } };
   ihor = await addUser(t.db, fake);
   other = await addUser(t.db, fake);
@@ -309,6 +312,17 @@ describe('the sign-in routes', () => {
     await until(async () => (await poll(ihor, started.id)).state === 'done', 'done');
     const text = JSON.stringify(w.t.logs);
     for (const secret of [...SECRETS, CLAUDE_AUTHORIZE_URL]) expect(text).not.toContain(secret);
+  });
+
+  it('end when the server shuts down: the sign-ins in progress cancelled and their sandboxes removed', async () => {
+    const started = await begin(ihor, { provider: 'claude' });
+    expect(stops).toHaveLength(1);
+    await Promise.all(stops.map((stop) => stop()));
+    expect([helper.last.kills, helper.last.removed]).toEqual([1, true]);
+    expect(await poll(ihor, started.id)).toMatchObject({
+      state: 'cancelled',
+      message: 'The sign-in was interrupted (the server restarted). Start again.',
+    });
   });
 
   it('are in the API document', async () => {

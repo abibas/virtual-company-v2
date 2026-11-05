@@ -38,6 +38,12 @@ export interface LoginCommand {
 export interface LoginHelper {
   readonly mode: Exclude<LoginHelperMode, 'none'>;
   start(command: LoginCommand): Promise<LoginSandbox>;
+  /**
+   * Removes the sandboxes an earlier server of this instance left running (it crashed or was killed mid-sign-in), and
+   * nothing else; resolves with how many. The server calls it once it listens, so one that cannot take its port
+   * sweeps nothing.
+   */
+  sweep(): Promise<number>;
 }
 
 /** A sandbox that could not be made or started, in plain words for the person signing in. */

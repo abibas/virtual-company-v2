@@ -2,6 +2,7 @@ import { SignOutButton } from '@clerk/react';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../api/context.ts';
 import { ApiError, call, friendlyMessage, isApiError } from '../api/errors.ts';
+import { BOOT_RETRY_MS, retryTransient } from '../api/retry.ts';
 import type { Me, Membership } from '../api/types.ts';
 import { LoadingBlock } from '../components/data/LoadState.tsx';
 import { Brand } from '../components/layout/Brand.tsx';
@@ -80,7 +81,8 @@ const PENDING = new ApiError(403, 'session_pending', 'The session has a pending 
 
 /**
  * Loads `GET /api/me` once the person is signed in (the server links them and reconciles their memberships on the
- * first call of a session) and shows its children only with it. Key it by the user id, so another person starts over.
+ * first call of a session; a server restarting is waited for, about 10 seconds) and shows its children only with it.
+ * Key it by the user id, so another person starts over.
  */
 export function SessionGate({ children }: { readonly children: ReactNode }) {
   const api = useApi();
@@ -100,7 +102,7 @@ export function SessionGate({ children }: { readonly children: ReactNode }) {
 
   const load = useCallback(() => {
     setState({ status: 'loading' });
-    reload().catch((error: unknown) => setState({ status: 'failed', error }));
+    retryTransient(reload, BOOT_RETRY_MS).catch((error: unknown) => setState({ status: 'failed', error }));
   }, [reload]);
 
   useEffect(load, [load]);

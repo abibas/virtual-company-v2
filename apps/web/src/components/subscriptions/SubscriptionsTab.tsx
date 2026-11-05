@@ -15,10 +15,9 @@ import { Card } from '../ui/Card.tsx';
 import { EmptyState } from '../ui/EmptyState.tsx';
 import { Notice } from '../ui/Notice.tsx';
 import { Skeleton } from '../ui/Skeleton.tsx';
-import { AddSubscriptionSheet } from './AddSubscriptionSheet.tsx';
+import { AddSubscriptionSheet, useAddSubscription } from './AddSubscriptionSheet.tsx';
 import { useNow } from './limits.ts';
 import { SubscriptionCard } from './SubscriptionCard.tsx';
-import { useAddSubscription } from './sign-in.ts';
 
 const SKELETON = (
   <div className="grid gap-4 md:grid-cols-2">

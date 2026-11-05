@@ -50,6 +50,9 @@ export class SignInSession {
   #limit: unknown;
   #wait: unknown;
   #storing = false;
+  /** What `stop` waits for: the sandbox starting, then the login being stored; and the sandbox being killed. */
+  #running: Promise<void> = Promise.resolve();
+  #killing: Promise<void> = Promise.resolve();
 
   constructor(ctx: SessionContext, owner: SessionOwner, flow: SignInFlow, target: SignInTarget) {
     this.#ctx = ctx;
@@ -82,7 +85,7 @@ export class SignInSession {
   /** Sets the 10-minute limit and starts the sandbox in the background. */
   begin(): void {
     this.#limit = this.#ctx.timers.setTimeout(() => this.#timeUp(), this.#ctx.limits.ttlMs);
-    void this.#launch();
+    this.#running = this.#launch();
   }
 
   /** Types Claude's code into the CLI; false when this sign-in is not waiting for one. */
@@ -97,6 +100,13 @@ export class SignInSession {
 
   cancel(): void {
     if (!this.#storing) this.#end('cancelled', SIGN_IN_ENDINGS.cancelled, 'cancelled');
+  }
+
+  /** The server is stopping: ends it (a login being stored is stored first); resolves once its sandbox is killed. */
+  async stop(): Promise<void> {
+    if (!this.#storing) this.#end('cancelled', SIGN_IN_ENDINGS.interrupted, 'shutdown');
+    await this.#running;
+    await this.#killing;
   }
 
   /** Ends it as expired when its limit has passed by the clock (a poll can come before the timer). */
@@ -150,7 +160,10 @@ export class SignInSession {
   /** The CLI stopped: a finished login (after Claude's code, or OpenAI's device approval) is read, else it failed. */
   async #exited(exit: SandboxExit): Promise<void> {
     if (!this.active) return;
-    if (exit.code === 0 && finishesOnExit(this.#flow.provider, this.#state)) return this.#complete();
+    if (exit.code === 0 && finishesOnExit(this.#flow.provider, this.#state)) {
+      this.#running = this.#complete();
+      return this.#running;
+    }
     const ending = exit.error ?? exitEnding(this.#flow.provider, this.#state);
     this.#end('failed', ending, `exit ${exit.code ?? 'none'}`);
   }
@@ -211,7 +224,7 @@ export class SignInSession {
     this.#ctx.timers.clearTimeout(this.#limit);
     this.#clearWait();
     this.#screen = '';
-    void this.#kill();
+    this.#killing = this.#kill();
     const line = { signInId: this.id, provider: this.#flow.provider, state, reason };
     this.#ctx.logger.info(line, 'sign-in ended');
   }

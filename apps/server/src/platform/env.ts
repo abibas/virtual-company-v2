@@ -40,10 +40,16 @@ export interface AppDeps {
    */
   readonly providerFetch?: typeof fetch;
   /**
-   * Where Sign in with Claude and Sign in with OpenAI run the CLIs' logins (tests pass a fake). Omitted, the helper
-   * MWC_LOGIN_HELPER names (`login-helper/select.ts`): Docker, a local temporary folder, or none (those sign-ins 503).
+   * Where Sign in with Claude and Sign in with OpenAI run the CLIs' logins (tests pass a fake; `platform/start.ts` the
+   * one it sweeps; undefined: none). Omitted, the helper MWC_LOGIN_HELPER names (`login-helper/select.ts`): Docker, a
+   * local temporary folder, or none (those sign-ins 503).
    */
-  readonly loginHelper?: LoginHelper;
+  readonly loginHelper?: LoginHelper | undefined;
+  /**
+   * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
+   * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.
+   */
+  readonly onShutdown?: (stop: () => Promise<void>) => void;
 }
 
 /** What the modules and the auth middleware get from `createApp`: the deps with their defaults applied. */

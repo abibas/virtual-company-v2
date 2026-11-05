@@ -13,9 +13,11 @@ import { ttyArgv } from './tty.ts';
  * The container is started detached with `sleep` as its only process, so it outlives the CLI long enough for the
  * login's files to be read (`docker exec … cat`); the login runs in it with `docker exec -i` behind `script`'s
  * pseudo-terminal; `kill` removes the container (`docker rm --force`), which `--rm` also does when `sleep` ends on its
- * own after SANDBOX_LIFETIME_S, the backstop for a server that stops mid-sign-in. Nothing from the host is mounted or
- * passed in: no volume, no environment variable, no credential; no capabilities, no new privileges, a read-only root,
- * a tmpfs home, a memory, CPU and process limit, and the image's non-root `node` user.
+ * own after SANDBOX_LIFETIME_S. A graceful shutdown kills the sandboxes of the sign-ins in progress; every container
+ * carries SANDBOX_LABEL and its server's instance label, so `sweep` (at the next start) removes the ones a crashed or
+ * killed server left, and only those. Nothing from the host is mounted or passed in: no volume, no environment
+ * variable, no credential; no capabilities, no new privileges, a read-only root, a tmpfs home, a memory, CPU and
+ * process limit, and the image's non-root `node` user.
  */
 
 /** The image's repository; its tag is the first 12 hex digits of the Dockerfile's SHA-256. */
@@ -33,6 +35,12 @@ export const LOGIN_DOCKERFILE = new URL('../../../../../deploy/Dockerfile.login'
 /** The sign-in image's Dockerfile, as text. */
 export const readLoginDockerfile = (): Promise<string> => readFile(LOGIN_DOCKERFILE, 'utf8');
 
+/** The label every sandbox carries, so the sweep finds sign-in sandboxes and never another container. */
+export const SANDBOX_LABEL = 'mwc.login-helper=1';
+
+/** The label naming the server instance that started a sandbox (`DockerHelperDeps.instance`). */
+export const INSTANCE_LABEL = 'mwc.instance';
+
 const NO_DOCKER = 'Docker is not available on this server. Start Docker and try again.';
 
 /** The image's tag for this Dockerfile: a changed file builds a new image. */
@@ -41,14 +49,18 @@ export function loginImageTag(dockerfile: string): string {
   return `${LOGIN_IMAGE_REPOSITORY}:${hash.slice(0, 12)}`;
 }
 
-/** `docker run` for one sandbox: detached, removed when it stops, locked down, nothing from the host. */
-export function sandboxRunArgs(image: string, name: string): string[] {
+/** `docker run` for one sandbox: detached, removed when it stops, labelled, locked down, nothing from the host. */
+export function sandboxRunArgs(image: string, name: string, instance: string): string[] {
   return [
     'run',
     '--detach',
     '--rm',
     '--name',
     name,
+    '--label',
+    SANDBOX_LABEL,
+    '--label',
+    `${INSTANCE_LABEL}=${instance}`,
     '--read-only',
     '--tmpfs',
     '/tmp:rw,nosuid,nodev,size=64m',
@@ -82,9 +94,20 @@ export function sandboxReadArgs(name: string, path: string): string[] {
   return ['exec', name, 'cat', '--', `${SANDBOX_HOME}/${path}`];
 }
 
-/** `docker rm --force`: stops the sandbox and deletes it with its home. */
-export function sandboxRemoveArgs(name: string): string[] {
-  return ['rm', '--force', name];
+/** `docker rm --force`: stops the sandboxes (by name or id) and deletes them with their homes. */
+export function sandboxRemoveArgs(...names: string[]): string[] {
+  return ['rm', '--force', ...names];
+}
+
+/** `docker ps` of the running containers carrying both labels: this instance's sandboxes, by full id. */
+export function sweepListArgs(instance: string): string[] {
+  const labels = [SANDBOX_LABEL, `${INSTANCE_LABEL}=${instance}`];
+  return ['ps', '--quiet', '--no-trunc', ...labels.flatMap((label) => ['--filter', `label=${label}`])];
+}
+
+/** The container ids `docker ps --quiet` printed; anything that is not an id is dropped. */
+export function containerIds(stdout: string): string[] {
+  return stdout.split(/\s+/).filter((id) => /^[0-9a-f]{12,64}$/.test(id));
 }
 
 export interface DockerHelperDeps {
@@ -93,6 +116,8 @@ export interface DockerHelperDeps {
   /** The Dockerfile's text (`LOGIN_DOCKERFILE`). */
   readonly dockerfile: () => Promise<string>;
   readonly logger: Logger;
+  /** This server's instance label (`[\w.-]+`, stable across its restarts): the sweep removes only its sandboxes. */
+  readonly instance: string;
   /** A new container name; random by default. */
   readonly newName?: () => string;
 }
@@ -119,8 +144,25 @@ async function ensureImage(deps: DockerHelperDeps, docker: Docker): Promise<stri
   return tag;
 }
 
+/** Removes this instance's running sandboxes; with Docker stopped or missing, there is nothing to remove. */
+async function sweepSandboxes(deps: DockerHelperDeps, docker: Docker): Promise<number> {
+  const listed = await docker(sweepListArgs(deps.instance), { timeoutMs: 30_000 });
+  if (listed.code !== 0) {
+    deps.logger.debug({ exitCode: listed.code }, 'could not list the sign-in sandboxes');
+    return 0;
+  }
+  const ids = containerIds(listed.stdout);
+  if (ids.length === 0) return 0;
+  const removed = await docker(sandboxRemoveArgs(...ids), { timeoutMs: 60_000 });
+  if (removed.code === 0) return ids.length;
+  deps.logger.warn({ exitCode: removed.code, count: ids.length }, 'left sign-in sandboxes were not removed');
+  return 0;
+}
+
 /** The Docker sign-in helper. The image is built on the first sign-in (and again after a failed build). */
 export function dockerLoginHelper(deps: DockerHelperDeps): LoginHelper {
+  if (!/^[\w.-]+$/.test(deps.instance))
+    throw new RangeError('An instance label is letters, digits, _ . and -');
   const docker: Docker = (args, options) =>
     runCommand(deps.spawn, 'docker', args, { ...options, notFound: NO_DOCKER });
   let image: Promise<string> | undefined;
@@ -136,7 +178,7 @@ export function dockerLoginHelper(deps: DockerHelperDeps): LoginHelper {
     async start(command) {
       const tag = await imageTag();
       const name = deps.newName?.() ?? `mwc-login-${randomBytes(6).toString('hex')}`;
-      const started = await docker(sandboxRunArgs(tag, name), { timeoutMs: 60_000 });
+      const started = await docker(sandboxRunArgs(tag, name, deps.instance), { timeoutMs: 60_000 });
       if (started.code !== 0) {
         throw new LoginHelperError(
           started.error ?? 'The sign-in sandbox did not start. Check that Docker is running.',
@@ -154,5 +196,6 @@ export function dockerLoginHelper(deps: DockerHelperDeps): LoginHelper {
         notFound: NO_DOCKER,
       });
     },
+    sweep: () => sweepSandboxes(deps, docker),
   };
 }
