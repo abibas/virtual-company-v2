@@ -48,6 +48,10 @@ export const HARNESS_OPTIONS: readonly SegmentOption<Harness>[] = [
 export const modelLine = (model: string, effort: Effort): string =>
   `${modelLabel(model)} · ${effortLabel(effort)}`;
 
+/** The access profile an agent's runs use, with its owner ("Work · Ihor Herasko"), or "None". */
+export const profileLabel = (profile: Agent['profile']): string =>
+  profile ? `${profile.name} · ${profile.ownerName}` : 'None';
+
 /** An agent as the feed and the quick-create dock show it: its name, its role and its drawn face. */
 export function agentRef(agent: Pick<Agent, 'id' | 'name' | 'roleTitle' | 'face'>): AgentRef {
   return { id: agent.id, name: agent.name, role: agent.roleTitle, face: agent.face };

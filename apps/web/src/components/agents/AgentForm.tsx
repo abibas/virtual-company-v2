@@ -215,12 +215,15 @@ export interface AgentFormProps {
   readonly readOnly?: boolean;
 }
 
-/** The agent's fields, in four panels: who it is, how it works, its place, its instructions. */
+/**
+ * The agent's fields, in four panels: who it is, how it works (with its access profile), its place, its
+ * instructions.
+ */
 export function AgentForm({ draft, chart, agent, meUserId, readOnly = false }: AgentFormProps) {
   return (
     <div className="grid gap-4 md:gap-5">
       <IdentityPanel draft={draft} readOnly={readOnly} isNew={agent === undefined} />
-      <ModelPanel draft={draft} readOnly={readOnly} />
+      <ModelPanel draft={draft} readOnly={readOnly} agent={agent} meUserId={meUserId} />
       <PlacePanel draft={draft} readOnly={readOnly} chart={chart} agent={agent} meUserId={meUserId} />
       <InstructionsPanel draft={draft} readOnly={readOnly} agent={agent} />
     </div>

@@ -75,10 +75,14 @@ export function Button({
   );
 }
 
-/** A link that looks like a button: in-app through the router, or a plain anchor with `external` (the API docs). */
+/**
+ * A link that looks like a button: in-app through the router, a plain anchor with `external` (the API docs), or a
+ * new tab with `newTab` (a provider's sign-in page), with no opener and no referrer.
+ */
 export function ButtonLink({
   href,
   external = false,
+  newTab = false,
   tone = 'secondary',
   size = 'md',
   icon: Icon,
@@ -88,6 +92,7 @@ export function ButtonLink({
 }: {
   readonly href: string;
   readonly external?: boolean;
+  readonly newTab?: boolean;
   readonly tone?: ButtonTone;
   readonly size?: ButtonSize;
   readonly icon?: LucideIcon;
@@ -104,6 +109,13 @@ export function ButtonLink({
       {Trailing && <Trailing size={iconSize} strokeWidth={2.25} aria-hidden="true" />}
     </>
   );
+  if (newTab) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={classes}>
+        {body}
+      </a>
+    );
+  }
   if (external) {
     return (
       <a href={href} className={classes}>

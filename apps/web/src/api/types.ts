@@ -29,3 +29,21 @@ export type PositionChange = InferRequestType<
 export type OrgChart = InferResponseType<CompanyRoutes['org']['chart']['$get'], 200>;
 export type ChartNode = OrgChart['nodes'][number];
 export type OrgTreeNode = OrgChart['tree'][number];
+/** The access profile an agent uses, as agents show it: its name and owner, never its subscriptions. */
+export type AgentProfile = NonNullable<Agent['profile']>;
+
+/** The person's own subscriptions, sign-ins, limits and access profiles (`/api/me/...`, a Clerk session only). */
+type SubscriptionRoutes = Api['api']['me']['subscriptions'];
+type ProfileRoutes = Api['api']['me']['access-profiles'];
+
+export type Subscription = InferResponseType<SubscriptionRoutes['$get'], 200>['subscriptions'][number];
+export type SubscriptionKind = Subscription['kind'];
+export type NewSubscription = InferRequestType<SubscriptionRoutes['$post']>['json'];
+export type LimitsList = InferResponseType<SubscriptionRoutes['limits']['$get'], 200>;
+export type SubscriptionLimits = LimitsList['limits'][number];
+export type LimitWindow = SubscriptionLimits['windows'][number];
+export type SignIn = InferResponseType<SubscriptionRoutes['sign-in'][':signInId']['$get'], 200>;
+export type SignInProvider = SignIn['provider'];
+export type AccessProfile = InferResponseType<ProfileRoutes['$get'], 200>['profiles'][number];
+export type NewAccessProfile = InferRequestType<ProfileRoutes['$post']>['json'];
+export type AccessProfileChanges = InferRequestType<ProfileRoutes[':profileId']['$patch']>['json'];

@@ -80,6 +80,30 @@ export function TextField({ label, hint, error, className, ...input }: TextField
   );
 }
 
+/**
+ * The attributes of a field that takes a secret (a token, an API key, a header's value): dots on screen, no
+ * spelling or autocorrect, and no browser or password manager offering to save or fill it.
+ */
+export const SECRET_INPUT = {
+  type: 'password',
+  autoComplete: 'off',
+  autoCapitalize: 'off',
+  autoCorrect: 'off',
+  spellCheck: false,
+  'data-1p-ignore': true,
+  'data-lpignore': 'true',
+} as const;
+
+export type SecretFieldProps = Omit<TextFieldProps, 'type' | 'autoComplete'>;
+
+/**
+ * A labelled field for a secret that goes to the server once and never comes back: shown as dots, never kept by the
+ * browser. The form clears it after saving.
+ */
+export function SecretField(props: SecretFieldProps) {
+  return <TextField {...props} {...SECRET_INPUT} />;
+}
+
 export type SelectFieldProps = FieldFrame & Omit<SelectProps, 'className'>;
 
 /** A labelled select. */

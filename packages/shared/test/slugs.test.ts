@@ -27,6 +27,7 @@ describe('the reserved slugs', () => {
   it('keeps the app’s and the server’s first path segments, the old company prefix among them', () => {
     const kept = ['c', 'api', 'assets', 'design', 'sign-in', 'sign-up', 'sign-out', 'companies'];
     kept.push('accept-invitation', 'onboarding', 'profile', 'account', 'settings', 'me', 'new', 'admin');
+    kept.push('subscriptions');
     kept.push('docs', 'healthz', 'readyz', 'static', 'favicon.ico', 'robots.txt');
     for (const slug of kept) expect(isReservedSlug(slug), slug).toBe(true);
   });

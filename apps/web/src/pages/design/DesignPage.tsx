@@ -15,6 +15,7 @@ import { NewCompanyMock } from './NewCompanyMock.tsx';
 import { OrgMock } from './OrgMock.tsx';
 import { PagesMock } from './PagesMock.tsx';
 import { SignInMock } from './SignInMock.tsx';
+import { SubscriptionsMock } from './SubscriptionsMock.tsx';
 
 const VIEWS = [
   { href: '/design', label: 'Components' },
@@ -23,6 +24,7 @@ const VIEWS = [
   { href: '/design/members', label: 'Members' },
   { href: '/design/api-keys', label: 'API keys' },
   { href: '/design/settings', label: 'Settings' },
+  { href: '/design/subscriptions', label: 'Subscriptions' },
   { href: '/design/sign-in', label: 'Sign-in' },
   { href: '/design/new-company', label: 'New company' },
 ] as const;
@@ -112,6 +114,8 @@ function mockAt(pathname: string) {
       return <PagesMock page="api-keys" />;
     case '/design/settings':
       return <PagesMock page="settings" />;
+    case '/design/subscriptions':
+      return <SubscriptionsMock />;
     case '/design/sign-in':
       return <SignInMock />;
     case '/design/new-company':
@@ -123,7 +127,8 @@ function mockAt(pathname: string) {
 
 /**
  * `/design` (development only, no API and no sign-in): the component gallery; the dashboard, the org chart (with the
- * agents' list, form and page), Members, API keys and Settings pages in the shell with sample data; the sign-in layout with a stand-in for Clerk; the create-company page.
+ * agents' list, form and page), Members, API keys and Settings pages in the shell with sample data; the home page's
+ * Subscription limits widget on sample cards; the sign-in layout with a stand-in for Clerk; the create-company page.
  * `?theme=dark` (or light) picks the scheme, so a screenshot run can ask for either.
  */
 export function DesignPage() {

@@ -1,7 +1,7 @@
 export { AppShell, type AppShellProps } from './AppShell.tsx';
 export { Brand, BrandMark } from './Brand.tsx';
 export { CenteredState } from './CenteredState.tsx';
-export { Drawer } from './Drawer.tsx';
+export { Drawer, Sheet } from './Drawer.tsx';
 export { dateLine, firstName, greetingFor } from './greeting.ts';
 export { MobileNav } from './MobileNav.tsx';
 export { PageHeader } from './PageHeader.tsx';

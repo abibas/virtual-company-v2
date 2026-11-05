@@ -26,6 +26,31 @@ export function fromNow(iso: string | null | undefined, empty = '—', now = Dat
   return RELATIVE.format(days, 'day');
 }
 
+const WEEKDAY_TIME = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** A date with its weekday and time ("Tue, Nov 10, 6:00 PM"), for a moment within the coming days. */
+export function formatWeekdayTime(iso: string): string {
+  return WEEKDAY_TIME.format(new Date(iso));
+}
+
+/** A span of time as people read it, to the minute ("2d 3h", "1h 56m", "42m", "less than a minute"). */
+export function formatDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'less than a minute';
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  const rest = minutes % 60;
+  if (hours > 0) return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
+  return `${rest}m`;
+}
+
 /** A byte count as people read it ("812 B", "48 KB", "1.2 MB"). */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

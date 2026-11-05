@@ -3,12 +3,16 @@ export { CopyButton } from './CopyButton.tsx';
 export {
   ChoiceField,
   Field,
+  SECRET_INPUT,
+  SecretField,
+  type SecretFieldProps,
   SelectField,
   type SelectFieldProps,
   TextField,
   type TextFieldProps,
 } from './Field.tsx';
 export { useFloatingPanel } from './floating.ts';
+export { InlineEdit } from './InlineEdit.tsx';
 export {
   CONTROL,
   Input,

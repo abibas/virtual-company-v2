@@ -10,6 +10,7 @@ import { LandingPage } from '../pages/LandingPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { OnboardingPage, onboardingHref } from '../pages/OnboardingPage.tsx';
 import { ProfilePage } from '../pages/ProfilePage.tsx';
+import { SubscriptionsPage } from '../pages/SubscriptionsPage.tsx';
 import { CompanyShell } from './CompanyShell.tsx';
 import { withoutOldPrefix } from './nav.ts';
 import { matchPath, Redirect, useLocation } from './router.tsx';
@@ -32,6 +33,7 @@ function NamedOnly({ href, children }: { readonly href: string; readonly childre
 function signedInPage(pathname: string): ReactNode {
   if (pathname === '/') return <LandingPage />;
   if (pathname === '/profile') return <ProfilePage />;
+  if (pathname === '/subscriptions') return <SubscriptionsPage />;
   if (pathname === '/companies/new') return <CreateCompanyPage />;
   const company = matchPath('/:slug/*', pathname);
   if (company?.slug && !isReservedSlug(company.slug)) {
@@ -58,9 +60,9 @@ function SignedIn({ href, children }: { readonly href: string; readonly children
 
 /**
  * The routes: `/sign-in`, `/sign-up` (Clerk's own steps below them) and `/accept-invitation` for everyone; `/`
- * (the company to open), `/companies/new`, `/profile` and `/:slug/...` (a company) behind sign-in, each once the
- * person has a name: until then `/onboarding` asks for it. An old company link, `/c/<slug>/...`, is replaced by the
- * same address without `/c`.
+ * (the company to open), `/companies/new`, `/profile`, `/subscriptions` and `/:slug/...` (a company) behind
+ * sign-in, each once the person has a name: until then `/onboarding` asks for it. An old company link,
+ * `/c/<slug>/...`, is replaced by the same address without `/c`.
  */
 export function AppRoutes() {
   const { pathname, href } = useLocation();

@@ -7,6 +7,7 @@ export {
   MODELS,
   modelLabel,
   modelLine,
+  profileLabel,
 } from './agent-labels.ts';
 export {
   below,

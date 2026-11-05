@@ -1,14 +1,14 @@
-import { Bot, Plus } from 'lucide-react';
+import { Bot, Layers, Plus } from 'lucide-react';
 import type { Agent, AgentFilter, AgentList, ChartNode } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { Link } from '../../app/router.tsx';
 import { type Column, DataTable, Primary } from '../data/DataTable.tsx';
 import { LoadState } from '../data/LoadState.tsx';
 import { SegmentedControl, type SegmentOption } from '../forms/Segmented.tsx';
-import { effortLabel, modelLabel } from '../org/agent-labels.ts';
+import { effortLabel, modelLabel, profileLabel } from '../org/agent-labels.ts';
 import { nodeName } from '../org/chart.ts';
 import { AgentAvatar } from '../org/OrgNodeCard.tsx';
-import { StatusPill } from '../ui/Badge.tsx';
+import { Badge, StatusPill } from '../ui/Badge.tsx';
 import { ButtonLink } from '../ui/Button.tsx';
 import { EmptyState } from '../ui/EmptyState.tsx';
 import { Panel } from '../ui/Panel.tsx';
@@ -29,7 +29,19 @@ const NONE: Readonly<Record<AgentFilter, string>> = {
   all: 'No agents yet',
 };
 
-/** The columns: the agent (face, name, slug), its role, status, model, effort and manager. */
+/** The access profile its runs use, as a small badge with its owner on hover, or None. */
+function ProfileCell({ profile }: { readonly profile: Agent['profile'] }) {
+  if (!profile) return <span className="text-dim">None</span>;
+  return (
+    <span title={profileLabel(profile)}>
+      <Badge size="sm" icon={Layers}>
+        {profile.name}
+      </Badge>
+    </span>
+  );
+}
+
+/** The columns: the agent (face, name, slug), its role, status, model, effort, access profile and manager. */
 function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): readonly Column<Agent>[] {
   return [
     {
@@ -64,6 +76,12 @@ function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): r
       cell: (agent) => modelLabel(agent.model),
     },
     { key: 'effort', header: 'Effort', hide: 'sm', cell: (agent) => effortLabel(agent.effort) },
+    {
+      key: 'profile',
+      header: 'Profile',
+      hide: 'lg',
+      cell: (agent) => <ProfileCell profile={agent.profile} />,
+    },
     { key: 'manager', header: 'Reports to', hide: 'lg', cell: managerOf },
   ];
 }

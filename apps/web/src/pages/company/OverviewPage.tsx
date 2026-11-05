@@ -11,6 +11,7 @@ import { StatTile } from '../../components/data/StatTile.tsx';
 import { RunsCard } from '../../components/overview/ComingCards.tsx';
 import { CompanyHero } from '../../components/overview/CompanyHero.tsx';
 import { TeamCard } from '../../components/overview/TeamCard.tsx';
+import { SubscriptionLimitsWidget } from '../../components/subscriptions/LimitsWidget.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 
 const ROLE_SUMMARY = {
@@ -91,7 +92,10 @@ function Tiles({
   );
 }
 
-/** `/:slug`: the company at a glance: the hero, the numbers and what comes next. */
+/**
+ * `/:slug`: the company at a glance: the hero, the numbers, the person's own subscription limits (across companies)
+ * and what comes next.
+ */
 export function OverviewPage() {
   const { membership, agents } = useCompany();
   const admin = roleAtLeast(membership.role, 'admin');
@@ -113,6 +117,7 @@ export function OverviewPage() {
         }
       />
       <Tiles base={base} admin={admin} data={data} />
+      <SubscriptionLimitsWidget />
       <div className="grid gap-4 lg:grid-cols-2">
         <TeamCard agents={agents.data?.agents} href={links.chart} hireHref={admin ? links.hire : undefined} />
         <RunsCard />

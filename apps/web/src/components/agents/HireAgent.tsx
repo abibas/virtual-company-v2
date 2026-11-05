@@ -21,6 +21,8 @@ export interface HireAgentProps {
   readonly chart: Loaded<OrgChart>;
   readonly meUserId: string;
   readonly links: AgentLinks;
+  /** The hirer's default access profile in the company, the form's starting profile; none by default. */
+  readonly defaultProfileId?: string | null | undefined;
   /** Hired: refresh the team and open its page. */
   readonly onHired: (agent: AgentDetail) => void;
 }
@@ -130,15 +132,22 @@ function HireForm({ companyId, chart, draft, meUserId, links, onHired }: HireFor
   );
 }
 
-/** The draft starts under the signed-in person (else the chart's first top), once the chart is known. */
-function HireWithChart(props: Omit<HireFormProps, 'draft'>) {
+/**
+ * The draft starts under the signed-in person (else the chart's first top) with their default access profile, once
+ * the chart is known.
+ */
+function HireWithChart({
+  defaultProfileId,
+  ...props
+}: Omit<HireFormProps, 'draft'> & { readonly defaultProfileId: string | null }) {
   const me = personNode(props.chart.nodes, props.meUserId);
-  const draft = useAgentDraft(undefined, me?.principalId ?? props.chart.tree[0]?.principalId ?? '');
+  const reportsTo = me?.principalId ?? props.chart.tree[0]?.principalId ?? '';
+  const draft = useAgentDraft(undefined, reportsTo, defaultProfileId);
   return <HireForm {...props} draft={draft} />;
 }
 
 /** `/agents/new` (admins and owners): hire an agent onto the chart. */
-export function HireAgent({ chart, links, ...rest }: HireAgentProps) {
+export function HireAgent({ chart, links, defaultProfileId = null, ...rest }: HireAgentProps) {
   return (
     <>
       <PageHeader
@@ -152,7 +161,7 @@ export function HireAgent({ chart, links, ...rest }: HireAgentProps) {
         <p>Give it a name, a job and a face, choose how it works, and place it on the chart.</p>
       </PageHeader>
       <LoadState loaded={chart} label="Loading the chart…">
-        {(data) => <HireWithChart chart={data} links={links} {...rest} />}
+        {(data) => <HireWithChart chart={data} links={links} defaultProfileId={defaultProfileId} {...rest} />}
       </LoadState>
     </>
   );

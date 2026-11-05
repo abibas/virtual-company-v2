@@ -225,11 +225,15 @@ root, the routes, the small router `router.tsx`, the session gate over `GET /api
 context), `src/pages/` (one file per page; `pages/auth/` for sign-in, sign-up, the invitation and the not-configured
 page, `pages/company/` for the pages under `/:slug`, `pages/design/` the development-only gallery), `src/components/`
 (the library, grouped by role, each group with a barrel: `ui/` the shared primitives: button, panel, notice, loading
-states, badges and status pills, avatars; `forms/` fields, selects, menus, segmented controls, inline confirmation;
-`data/`, `feed/`, `layout/`, `auth/`; `org/` the org chart's tree, node card and manager select (S2.5); and one page's
-parts each: `members/`, `api-keys/`, `settings/`, `company/`, `overview/`, `agents/`), `src/api/` (the typed client
-`hc<AppType>`, `call()` and the error messages, the response types inferred from the routes, the `useLoad` hook, the
-API and configuration contexts, and the org hooks and calls `org.ts`), `src/styles/` (the Tailwind theme and base
+states, badges and status pills, avatars, tooltips; `forms/` fields (the secret field among them), selects, menus,
+segmented controls, inline confirmation and inline rename; `data/` tables, lists, stat tiles, the meter and the steps;
+`feed/`, `layout/` (the shells, the drawer and the sheet), `auth/`; `org/` the org chart's tree, node card and manager
+select (S2.5); and one page's parts each: `members/`, `api-keys/`, `settings/`, `company/`, `overview/`, `agents/`,
+`subscriptions/` (S3.5: the Subscriptions page's tabs and cards, the add sheet with its sign-in and paste flows, and
+the home page's Subscription limits widget)), `src/api/` (the typed client `hc<AppType>`, `call()` and the error
+messages, the response types inferred from the routes, the `useLoad` hook, the API and configuration contexts, the
+org hooks and calls `org.ts`, and the person's own subscriptions, limits and access profiles `subscriptions.ts`),
+`src/styles/` (the Tailwind theme and base
 styles). A hook used by one component stays in its file. Source files keep the 300-line limit and components
 stay under about 60 lines (rows, panels and hooks of their own). No frontend tests for now (no UI unit tests, no
 browser smoke): `mwc check` typechecks it in every lane and `--full` builds it.

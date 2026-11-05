@@ -27,6 +27,8 @@ export interface AgentValues {
   /** The manager's principal id. */
   readonly reportsTo: string;
   readonly instructions: string;
+  /** The access profile its runs use (the signed-in person's, or another's it already has); null for none. */
+  readonly profileId: string | null;
 }
 
 export interface AgentDraft {
@@ -45,8 +47,8 @@ export interface AgentDraft {
 const within = (text: string, limits: { readonly min: number; readonly max: number }) =>
   text.trim().length >= limits.min && text.trim().length <= limits.max;
 
-/** The form's start: the agent's own values, or a new agent's defaults under `reportsTo`. */
-function startOf(agent: AgentDetail | undefined, reportsTo: string): AgentValues {
+/** The form's start: the agent's own values, or a new agent's defaults under `reportsTo` with `profileId`. */
+function startOf(agent: AgentDetail | undefined, reportsTo: string, profileId: string | null): AgentValues {
   const model = agent?.model ?? AGENT_DEFAULTS.model;
   return {
     name: agent?.name ?? '',
@@ -60,12 +62,20 @@ function startOf(agent: AgentDetail | undefined, reportsTo: string): AgentValues
     // An archived agent has no place (and no manager) until it is restored.
     reportsTo: agent ? (agent.reportsTo ?? '') : reportsTo,
     instructions: agent?.instructions ?? AGENT_DEFAULTS.instructions,
+    profileId: agent ? (agent.profile?.id ?? null) : profileId,
   };
 }
 
-/** The agent form's state: its values, the slug and face they lead to, and whether the API would take them. */
-export function useAgentDraft(agent: AgentDetail | undefined, reportsTo: string): AgentDraft {
-  const [values, setValues] = useState(() => startOf(agent, reportsTo));
+/**
+ * The agent form's state: its values, the slug and face they lead to, and whether the API would take them. A new
+ * agent starts with `defaultProfileId`, the hirer's default access profile in the company.
+ */
+export function useAgentDraft(
+  agent: AgentDetail | undefined,
+  reportsTo: string,
+  defaultProfileId: string | null = null,
+): AgentDraft {
+  const [values, setValues] = useState(() => startOf(agent, reportsTo, defaultProfileId));
   const slug = slugify(values.name, 'agent');
   return {
     values,
@@ -77,11 +87,11 @@ export function useAgentDraft(agent: AgentDetail | undefined, reportsTo: string)
       within(values.roleTitle, AGENT_ROLE_TITLE) &&
       within(values.model, { min: 1, max: AGENT_MODEL_MAX }) &&
       values.instructions.length <= AGENT_INSTRUCTIONS_MAX,
-    reset: () => setValues(startOf(agent, reportsTo)),
+    reset: () => setValues(startOf(agent, reportsTo, defaultProfileId)),
   };
 }
 
-/** The new agent as `POST /agents` takes it: every field, the face as shown, and its manager. */
+/** The new agent as `POST /agents` takes it: every field, the face as shown, its manager and its access profile. */
 export function newAgentOf(draft: AgentDraft): NewAgent {
   const { values } = draft;
   return {
@@ -94,6 +104,7 @@ export function newAgentOf(draft: AgentDraft): NewAgent {
     maxConcurrentRuns: values.maxConcurrentRuns,
     instructions: values.instructions,
     reportsToPrincipalId: values.reportsTo,
+    profileId: values.profileId,
   };
 }
 
@@ -110,7 +121,9 @@ export function changesOf(draft: AgentDraft, agent: AgentDetail): Partial<AgentC
     maxConcurrentRuns: values.maxConcurrentRuns,
     instructions: values.instructions,
   };
-  return Object.fromEntries(
+  const changed = Object.fromEntries(
     Object.entries(next).filter(([key, value]) => agent[key as keyof typeof next] !== value),
   ) as Partial<AgentChanges>;
+  const profileId = agent.profile?.id ?? null;
+  return values.profileId === profileId ? changed : { ...changed, profileId: values.profileId };
 }

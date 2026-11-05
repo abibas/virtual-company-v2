@@ -123,8 +123,10 @@ As built in S3.2:
 
 1. Docker Desktop runs on the Mac, and the server runs in development (`pnpm dev`; `MWC_LOGIN_HELPER` unset means
    `docker`). The first sign-in builds the image (a minute or two); later ones start in seconds.
-2. On the Subscriptions page (S3.5), choose **Add a subscription**, then **Sign in with Claude** or **Sign in with
-   OpenAI**. Until then the API does the same: `POST /api/me/subscriptions/sign-in` with your web session.
+2. On the Subscriptions page (`/subscriptions`: your account menu → **Subscriptions**, or **Manage** on the home
+   page's Subscription limits), choose **Add a subscription**, then **Sign in with Claude** or **Sign in with
+   OpenAI** (the home page's **Add a subscription** opens the same sheet). The API does the same:
+   `POST /api/me/subscriptions/sign-in` with your web session.
 3. Claude: open the address shown, approve on Anthropic's page, copy the code it shows and paste it back in the app.
    OpenAI: open the device page, sign in to ChatGPT and type in the one-time code shown in the app; the app notices
    when you are done. If OpenAI's page says device code sign-in is off for your account, turn it on in ChatGPT's

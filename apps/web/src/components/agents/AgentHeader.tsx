@@ -6,7 +6,7 @@ import type { OrgCalls } from '../../api/org.ts';
 import type { AgentDetail, ChartNode } from '../../api/types.ts';
 import { formatDate, formatDateTime } from '../data/format.ts';
 import { ConfirmInline } from '../forms/ConfirmInline.tsx';
-import { harnessLabel, modelLine } from '../org/agent-labels.ts';
+import { harnessLabel, modelLine, profileLabel } from '../org/agent-labels.ts';
 import { nodeName } from '../org/chart.ts';
 import { AgentAvatar } from '../org/OrgNodeCard.tsx';
 import { StatusPill } from '../ui/Badge.tsx';
@@ -69,7 +69,10 @@ function StatusActions({ agent, calls, onChanged }: StatusProps) {
   );
 }
 
-/** The facts under the name: its handle, its manager, what powers it, its revision and when it was hired. */
+/**
+ * The facts under the name: its handle, its manager, what powers it and on whose access profile, its revision and
+ * when it was hired.
+ */
 function AgentFacts({
   agent,
   manager,
@@ -81,6 +84,7 @@ function AgentFacts({
     ['Handle', agent.slug],
     ['Reports to', manager ? nodeName(manager) : agent.status === 'archived' ? 'Off the chart' : '—'],
     ['Runs on', `${harnessLabel(agent.harness)}, ${modelLine(agent.model, agent.effort)}`],
+    ['Access profile', profileLabel(agent.profile)],
     ['Instructions', `Revision ${agent.instructionsRev}`],
   ];
   return (

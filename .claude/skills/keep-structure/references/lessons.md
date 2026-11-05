@@ -27,6 +27,30 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: The subscriptions web: a 15th entry in components/, a 13th in forms/, and a page group held at 12
+
+- **What happened:** S3.5 added the Subscriptions page, the add sheet with its sign-in and paste flows, access profiles
+  and the home widget. Its page parts are one group, `components/subscriptions/` (12 files, the largest `PasteForm.tsx`
+  at 238 lines and `sign-in.ts` at 226), so `components/` went from 14 to 15 entries. The library gained a meter, steps,
+  a sheet, a secret field and an inline rename: `forms/` went from 12 to 13 entries with `InlineEdit.tsx` (a new
+  `big-folder` warning). The first draft had three more warnings: `api/subscriptions.ts` imported by 8 files (`fan-in`),
+  `ProfilesTab.tsx` at 254 lines (`near-limit`) and two functions over 60 lines (`ProfilesTab`, `useSignIn`).
+  `forms/Segmented.tsx` went from 7 to 8 importers (the page's `Tabs`), a new `fan-in` warning.
+- **Where:** `apps/web/src/components/subscriptions/`, `apps/web/src/api/subscriptions.ts`,
+  `components/data/{Meter,Steps}.tsx`, `components/layout/Drawer.tsx` (`Sheet`), `components/forms/{Field,InlineEdit}.tsx`,
+  `pages/SubscriptionsPage.tsx`, `pages/design/SubscriptionsMock.tsx`; the S3.5 commit.
+- **What was done:** the meter and the steps went to `data/` (8 to 10 entries) rather than `ui/` (14); the sheet went
+  into `Drawer.tsx` beside the drawer, sharing its focus hook, so `layout/` stays at 14; `SecretField` went into
+  `Field.tsx` with the other labelled fields. The cards take callbacks (`rename`, `remove`, `update`, `create`) instead
+  of the calls object, which left `api/subscriptions.ts` at 6 importers; the profile defaults stayed in `ProfilesTab.tsx`
+  and the new-profile card moved into `ProfileCard.tsx` (200 and 222 lines), so the page group holds 12 files; the code
+  form and the polling became hooks of their own (`useCode`, `usePoll`, `useDone`). The gallery mock reads the sample
+  day from `records.ts`'s `days`, so `sample.ts` stays at 7 importers.
+- **Suggested change:** the open web lessons again: let `components/` hold the library groups and the page groups apart,
+  or raise `folderEntries` for `apps/web/src/components/` and its library groups; count only value imports for
+  `fan-in` (a library primitive such as `Segmented.tsx` is meant to be imported by every page).
+- **Status:** `open`.
+
 ### 2026-11-05: Provider usage checks in a module, not a connector
 
 - **What happened:** S3.3's limits call three outside systems (Anthropic's usage API and Messages endpoint, OpenAI's
