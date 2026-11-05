@@ -4,9 +4,9 @@ import { CompanySwitcher } from '../../app/CompanySwitcher.tsx';
 import { companyNav } from '../../app/nav.ts';
 import { useLocation } from '../../app/router.tsx';
 import { type Session, SessionContext } from '../../app/session.tsx';
+import { MenuItem } from '../../components/forms/Menu.tsx';
 import { AppShell } from '../../components/layout/AppShell.tsx';
 import type { ShellUser } from '../../components/layout/TopBar.tsx';
-import { Avatar } from '../../components/ui/Avatar.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
 import { SAMPLE_COMPANY, SAMPLE_MEMBERSHIP, SAMPLE_SESSION } from './records.ts';
@@ -37,11 +37,14 @@ const SECTIONS: Readonly<Record<MockPage, string>> = {
 
 const USER: ShellUser = {
   name: 'Ihor Herasko',
+  email: 'ihor@example.com',
   role: 'Owner',
   menu: (
-    <button type="button" aria-label="Account menu (sample)" className="cursor-pointer rounded-full">
-      <Avatar name="Ihor Herasko" size="sm" />
-    </button>
+    <>
+      <MenuItem onSelect={() => undefined}>Your profile (sample)</MenuItem>
+      <MenuItem onSelect={() => undefined}>Manage account (sample)</MenuItem>
+      <MenuItem onSelect={() => undefined}>Sign out (sample)</MenuItem>
+    </>
   ),
 };
 

@@ -1,8 +1,9 @@
-import { UserButton, useClerk } from '@clerk/react';
+import { useClerk } from '@clerk/react';
 import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useAttention } from '../api/attention.ts';
 import { useAgentList } from '../api/org.ts';
 import { usePendingLogo } from '../api/pending-logo.ts';
+import { shellUser } from '../components/auth/AccountMenu.tsx';
 import { LogoRetryNotice } from '../components/company/LogoRetryNotice.tsx';
 import { LoadingBlock } from '../components/data/LoadState.tsx';
 import { AppShell } from '../components/layout/AppShell.tsx';
@@ -117,11 +118,7 @@ function CompanyFrame({
         nav={companyNav(companyHrefs(membership.slug), head)}
         badge={<CompanySwitcher current={membership} section={head} />}
         firstName={firstName(me.user.displayName, me.user.email)}
-        user={{
-          name: me.user.displayName || me.user.email,
-          role: roleName(membership.role),
-          menu: <UserButton />,
-        }}
+        user={shellUser(me.user, roleName(membership.role))}
         attention={attention.items}
         attentionLoading={attention.loading}
         agents={agents.data?.agents.map(agentRef) ?? []}

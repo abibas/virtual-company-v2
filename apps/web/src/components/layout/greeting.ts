@@ -15,8 +15,8 @@ export function dateLine(now: Date = new Date()): string {
 }
 
 /** The name to greet someone by: their first name, else the part of their email before the @. */
-export function firstName(displayName: string, email = ''): string {
-  const name = displayName.trim().split(/\s+/)[0];
+export function firstName(displayName: string | null, email = ''): string {
+  const name = displayName?.trim().split(/\s+/)[0];
   if (name) return name;
   return email.split('@')[0] || 'there';
 }

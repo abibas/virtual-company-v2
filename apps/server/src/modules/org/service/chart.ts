@@ -8,18 +8,24 @@ import { buildTree, validateChart } from '../rules.ts';
 import type { ChartNodeView, OrgChartView } from '../schemas.ts';
 import { loadOrg } from './read.ts';
 
-/** One node of the chart with what the web shows of it, so the chart needs no other call. */
+/** Who a member is when their profile is missing (never, while `memberships.user_id` keeps its key). */
+const UNKNOWN_PERSON = { displayName: null, primaryEmail: '', imageUrl: null } as const;
+
+/**
+ * One node of the chart with what the web shows of it (a person's name, email and photo), so the chart needs no other
+ * call.
+ */
 function nodeView(org: OrgState, node: ChartNode, profiles: ReadonlyMap<string, UserProfile>): ChartNodeView {
   const position = org.positions.get(node.principalId) as OrgPosition;
   const base = { principalId: node.principalId, reportsTo: node.reportsTo, title: position.title };
   if (node.kind === 'person') {
     const member = org.members.get(node.principalId) as Membership;
     const profile = profiles.get(member.userId);
-    const { displayName, primaryEmail: email } = profile ?? { displayName: '', primaryEmail: '' };
+    const { displayName, primaryEmail: email, imageUrl } = profile ?? UNKNOWN_PERSON;
     return {
       ...base,
       kind: 'person',
-      person: { userId: member.userId, displayName, email, role: member.role },
+      person: { userId: member.userId, displayName, email, imageUrl, role: member.role },
     };
   }
   const {
@@ -39,7 +45,7 @@ function nodeView(org: OrgState, node: ChartNode, profiles: ReadonlyMap<string, 
  * Reads the company's chart for `GET /org/chart`: every active member's and every agent's place (archived agents
  * have none) with their display data, and the same as a tree (`buildTree`). A stored chart that breaks an invariant
  * is still answered, its orphans flagged in the tree, and logged at warn level once per company until its flaws
- * change. People's names and emails come from the identity module's service, read outside any transaction.
+ * change. People's names, emails and photos come from the identity module's service, read outside any transaction.
  */
 export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRepo) {
   const warned = new Map<string, string>();

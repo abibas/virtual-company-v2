@@ -49,6 +49,17 @@ describe('mwc whoami', () => {
     expect(r.out() + r.err()).not.toContain(KEY.slice(11));
   });
 
+  it('names a person who has not given a name by their email', async () => {
+    const config = loggedIn();
+    const body = meBody();
+    const api = fakeApi({
+      [KEY]: { status: 200, body: { ...body, user: { ...body.user, displayName: null } } },
+    });
+    const r = await run([], config.env, api.fetch);
+    expect(r.code).toBe(0);
+    expect(r.out()).toContain('user     olga@example.test\n');
+  });
+
   it('lets MWC_SERVER and MWC_API_KEY take precedence over the saved login', async () => {
     const config = loggedIn();
     const api = fakeApi({ [OTHER_KEY]: { status: 200, body: meBody(GLOBEX) } });

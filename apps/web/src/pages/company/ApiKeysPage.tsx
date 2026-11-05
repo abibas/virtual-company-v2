@@ -75,7 +75,7 @@ export function ApiKeysPage() {
           everyone={showAll}
           onEveryone={setEveryone}
         />
-        <CompanyFacts email={me.user.email} slug={membership.slug} companyId={companyId} />
+        <CompanyFacts user={me.user} slug={membership.slug} companyId={companyId} />
       </div>
     </>
   );

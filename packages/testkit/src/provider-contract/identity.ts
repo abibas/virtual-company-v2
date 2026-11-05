@@ -37,6 +37,17 @@ export const getsUsers: ContractCase = {
   },
 };
 
+export const getsNamelessUsers: ContractCase = {
+  name: 'getUser gives a person who signed up without a name no name and no photo (never the email or a default)',
+  async run({ target, provider }) {
+    const created = await target.createUser('nameless', null);
+    const found = await provider.getUser(created.subject);
+    expect(found).toMatchObject({ subject: created.subject, displayName: null });
+    // Clerk gives everyone a generated image; it is not a photo of theirs, so the port has none.
+    expect(found).not.toHaveProperty('imageUrl');
+  },
+};
+
 export const verifiesTokens: ContractCase = {
   name: 'verifyAccessToken accepts a session token and refuses garbage or a tampered token as unauthorized',
   async run({ target, provider, owner }) {

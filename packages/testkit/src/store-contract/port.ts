@@ -22,7 +22,7 @@ const person = (subject: string, issuer = ISSUER): NewStoredUser => ({
 const byId = (rows: readonly StoredMembership[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
 
 export const keepsUsers: StoreContractCase = {
-  name: 'upsertUser inserts by (issuer, subject) and updates in place; getUser and getUserById read it back',
+  name: 'upsertUser inserts by (issuer, subject) and updates in place (a name or photo to none too); getUser reads it back',
   async run(target) {
     const { store } = await target.fresh();
     const created = await store.upsertUser(person('s1'));
@@ -36,6 +36,10 @@ export const keepsUsers: StoreContractCase = {
       status: 'deactivated' as const,
     };
     expect(await store.upsertUser(changed)).toEqual({ ...changed, id: created.id });
+    // A person without a name and a photo taken away: both null, read back as null.
+    const bare = { ...changed, displayName: null, imageUrl: null };
+    expect(await store.upsertUser(bare)).toEqual({ ...bare, id: created.id });
+    expect(await store.getUser(ISSUER, 's1')).toEqual({ ...bare, id: created.id });
     // Another issuer's subject is another person, even with the same email.
     const other = await store.upsertUser(person('s1', 'https://other.test'));
     expect(other.id).not.toBe(created.id);

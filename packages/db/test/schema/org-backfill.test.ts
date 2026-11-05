@@ -3,7 +3,7 @@ import type { RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest, migrationStatus } from '../../src/migrate.ts';
 import { type Membership, orgPositions } from '../../src/schema/index.ts';
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
-import { migrateUpTo } from '../fixtures/migrations.ts';
+import { journal, migrateUpTo } from '../fixtures/migrations.ts';
 import { insertCompany, insertMember, insertPrincipal } from '../fixtures/rows.ts';
 
 /**
@@ -83,8 +83,8 @@ describe(`0005_org on ${testDbKind()}: existing members placed on the chart`, ()
     positions = new Map(rows.map((row) => [row.principalId, row.reportsToPrincipalId]));
   });
 
-  it('applies the migration', async () => {
-    expect(await migrationStatus(handle)).toMatchObject({ last: '0005_org', current: true });
+  it('applies the migration (and the ones after it)', async () => {
+    expect(await migrationStatus(handle)).toMatchObject({ last: journal.entries.at(-1)?.tag, current: true });
   });
 
   it("puts owners at the root and everyone else under the company's earliest active owner", () => {

@@ -58,7 +58,9 @@ slug unless it is made with `{ organizationSlugs: true }`, like the Clerk connec
 `fake:<subject>` with optional `;org=<externalId>` and `;pending`, and `;sid=<id>`, `;iss=<issuer>`, `;azp=<origin>`,
 `;exp=<ms>` and `;nbf=<ms>`, which `verifyAccessToken` checks as Clerk checks its claims (another issuer, an origin outside
 the caller's `authorizedParties`, expired or not yet valid with 5 seconds of skew on the fake's clock: `unauthorized`);
-the parts live in `src/fake/` (`tokens`, `organizations`, `invitations`, `webhooks`, `world`); `createUser`, `updateUser`,
+the parts live in `src/fake/` (`tokens`, `organizations`, `invitations`, `webhooks`, `world`); `createUser` (named after
+the email's part before the @ unless given a `displayName`; `displayName: null` signs up a person without a name, as a
+Clerk sign-up without one), `updateUser` (a null name or `imageUrl` takes it away),
 `deleteUser`, `addMember` (a dashboard add) and `accept(invitationExternalId, subject)` (the membership
 gets the invitation's role, a copy of its private metadata and its id); every change emitted as a
 normalized event with strictly increasing `occurredAt` from an injectable clock (`drainEvents()`);

@@ -17,8 +17,11 @@ export interface PersonNode extends NodeBase {
   readonly kind: 'person';
   readonly person: {
     readonly userId: string;
-    readonly displayName: string;
+    /** Null while the person has not given a name. */
+    readonly displayName: string | null;
     readonly email: string;
+    /** Their photo; null for none. */
+    readonly imageUrl: string | null;
     readonly role: string;
   };
 }

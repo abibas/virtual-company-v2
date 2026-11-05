@@ -18,8 +18,11 @@ export interface ContractTarget {
   readonly runId: string;
   /** An email the provider accepts without sending real mail (Clerk: `...+clerk_test@example.com`). */
   email(label: string): string;
-  /** A person signs up (the provider's dashboard or API, not the port). */
-  createUser(label: string, displayName: string): Promise<ExternalUser>;
+  /**
+   * A person signs up (the provider's dashboard or API, not the port), with `displayName` as their first and last
+   * name; null signs them up without a name and without a photo of their own.
+   */
+  createUser(label: string, displayName: string | null): Promise<ExternalUser>;
   /** A session token for the person, and the authorized parties to verify it with. */
   mintToken(subject: string): Promise<{ token: string; authorizedParties: string[] }>;
   /** Well-formed ids of things that do not exist at the provider. */

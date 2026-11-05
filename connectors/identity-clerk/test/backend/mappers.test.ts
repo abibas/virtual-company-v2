@@ -3,6 +3,7 @@ import { InMemoryIdentityStore } from '@mwc/identity-core/memory-store';
 import { describe, expect, it } from 'vitest';
 import {
   displayNameOf,
+  imageOf,
   toExternalInvitation,
   toExternalMembership,
   toExternalOrg,
@@ -47,17 +48,38 @@ describe('Backend API objects as identity-core shapes', () => {
     expect(toExternalUser(clerkUser({ hasImage: false }))).not.toHaveProperty('imageUrl');
   });
 
+  it("maps a person who gave no name and has Clerk's default image: no name, no photo", () => {
+    const nameless = clerkUser({ firstName: null, lastName: '  ', username: 'ann1', hasImage: false });
+    expect(toExternalUser(nameless)).toEqual({
+      subject: 'user_1',
+      primaryEmail: 'ann@x.test',
+      displayName: null,
+      updatedAt: T0,
+    });
+    expect(toExternalUser(clerkUser({ hasImage: true, imageUrl: '' }))).not.toHaveProperty('imageUrl');
+  });
+
   it('refuses a user without a primary email address as invalid', () => {
     expect(() => toExternalUser(clerkUser({ primaryEmailAddressId: null }))).toThrow(
       expect.objectContaining({ code: 'invalid' }),
     );
   });
 
-  it('names a person by full name, else username, else the email', () => {
-    expect(displayNameOf('Ann', null, 'ann1', 'a@x.test')).toBe('Ann');
-    expect(displayNameOf(' ', '', 'ann1', 'a@x.test')).toBe('ann1');
-    expect(displayNameOf(null, null, null, 'a@x.test')).toBe('a');
-    expect(displayNameOf(null, null, null, '@x.test')).toBe('@x.test');
+  it('names a person by their first and last name, trimmed, and nothing else', () => {
+    expect(displayNameOf('Ihor', 'Herasko')).toBe('Ihor Herasko');
+    expect(displayNameOf('  Ihor ', ' Herasko  ')).toBe('Ihor Herasko');
+    expect(displayNameOf('Ann', null)).toBe('Ann');
+    expect(displayNameOf(undefined, 'Lee')).toBe('Lee');
+    expect(displayNameOf(' ', '')).toBeNull();
+    expect(displayNameOf(null, undefined)).toBeNull();
+  });
+
+  it('takes the image only when Clerk says the person has one of their own', () => {
+    expect(imageOf(true, 'https://img.clerk.com/me')).toEqual({ imageUrl: 'https://img.clerk.com/me' });
+    expect(imageOf(false, 'https://img.clerk.com/default')).toEqual({});
+    expect(imageOf(null, 'https://img.clerk.com/default')).toEqual({});
+    expect(imageOf(true, '')).toEqual({});
+    expect(imageOf(undefined, undefined)).toEqual({});
   });
 
   it('maps an organization with its private metadata', () => {

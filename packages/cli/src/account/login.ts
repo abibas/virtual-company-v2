@@ -2,7 +2,7 @@ import { apiKeyKind, apiKeyPrefix } from '@mwc/shared/api-keys';
 import type { ParsedArgs } from '../args.ts';
 import { credentialsPath, normalizeServer, saveLogin } from '../credentials.ts';
 import type { MainIo } from '../io.ts';
-import { type Fetch, getMe, type MeMembership } from './api.ts';
+import { type Fetch, getMe, type MeMembership, userLabel } from './api.ts';
 import { readKey, type SecretInput } from './secret.ts';
 
 /** What `mwc login` reaches outside the process; `main()` passes the real ones. */
@@ -76,7 +76,7 @@ export async function login(args: ParsedArgs, io: MainIo, deps: AccountDeps): Pr
     return fail(io, `cannot save the login: ${(error as Error).message}`);
   }
   io.stdout(
-    `Logged in to ${server} as ${me.user.displayName} <${me.user.email}>\n` +
+    `Logged in to ${server} as ${userLabel(me.user)}\n` +
       `  company  ${membership.name} (${membership.slug}), role ${membership.role}\n` +
       `  key      ${apiKeyPrefix(key)}... saved in ${path}\n`,
   );

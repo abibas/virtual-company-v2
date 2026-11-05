@@ -10,6 +10,8 @@ import { type DraftStart, useCompanyDraft } from './draft.ts';
 
 export interface CreateCompanyScreenProps {
   readonly email: string;
+  /** The person's name for "Signed in as" (their email when left out). */
+  readonly name?: string | undefined;
   readonly imageUrl?: string | null | undefined;
   /** The person's first company: the onboarding words, and the other way in (an invitation) below the card. */
   readonly first: boolean;
@@ -31,6 +33,7 @@ const JOINING =
  */
 export function CreateCompanyScreen({
   email,
+  name = email,
   imageUrl,
   first,
   onCreated,
@@ -58,9 +61,9 @@ export function CreateCompanyScreen({
           Name it and give it a logo. You become its owner; all of it can change later.
         </p>
         <p className="mt-3 flex items-center gap-2 text-xs text-dim">
-          <Avatar name={email} src={imageUrl} size="xs" />
+          <Avatar name={name} src={imageUrl} size="xs" tone="gradient" />
           <span className="min-w-0 truncate">
-            Signed in as <span className="font-semibold text-ink-2">{email}</span>
+            Signed in as <span className="font-semibold text-ink-2">{name}</span>
           </span>
         </p>
         <CreateCompanyForm className="mt-6" draft={draft} onCreated={onCreated} cancel={cancel} />

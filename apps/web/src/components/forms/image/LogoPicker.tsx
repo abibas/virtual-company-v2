@@ -3,7 +3,7 @@ import { cx } from '../../cx.ts';
 import { formatBytes } from '../../data/format.ts';
 import { ImageCropper, type ImageCropperHandle } from './ImageCropper.tsx';
 import { ImageDrop } from './ImageDrop.tsx';
-import { LogoActions, LogoZone } from './LogoZone.tsx';
+import { LogoActions, LogoZone, PICKER_KINDS, type PickerKind } from './LogoZone.tsx';
 import type { PreparedLogo } from './logo-file.ts';
 import { usePicking } from './use-picking.ts';
 
@@ -14,7 +14,9 @@ export interface LogoStart {
 }
 
 export interface LogoPickerProps {
-  /** The company's name: its initials stand in until there is a logo. */
+  /** A company's logo (a rounded tile, the default) or a person's photo (round): the shape, the crop and the words. */
+  readonly kind?: PickerKind;
+  /** The company's (or the person's) name: its initials stand in until there is an image. */
   readonly name: string;
   /** The logo saved already (an object URL), if any. */
   readonly src?: string | null | undefined;
@@ -44,9 +46,6 @@ export interface LogoPickerHandle {
   settle(): Promise<PreparedLogo | null>;
 }
 
-const DEFAULT_HINT =
-  'PNG, JPEG or WebP, up to 10 MB. Click, drop a file, or paste an image; then crop it square.';
-
 type Picking = ReturnType<typeof usePicking>;
 
 /** The picker's usual row: the zone, and beside it the label, the facts or the hint, the actions and any error. */
@@ -62,21 +61,23 @@ function PickerRow({
   readonly error: ReactNode;
 }) {
   const { name, src, value, onRemove, busy = false, disabled = false, pasteAnywhere = false } = props;
-  const { label = 'Company logo', hint = DEFAULT_HINT } = props;
+  const kind = props.kind ?? 'logo';
+  const words = PICKER_KINDS[kind];
+  const { label = words.label, hint = words.hint } = props;
   const shown = value?.url ?? src ?? null;
   const waiting = picking.working || busy;
   return (
     <>
       <ImageDrop
-        label={shown ? 'Replace the logo' : 'Add a logo'}
+        label={shown ? words.replace : words.add}
         onFile={(file) => void picking.pick(file)}
         dashed={!shown && !name.trim()}
         pasteAnywhere={pasteAnywhere}
         inputRef={input}
         disabled={disabled || waiting}
-        className="size-24 rounded-2xl"
+        className={cx('size-24', words.zone)}
       >
-        <LogoZone name={name} shown={shown} waiting={waiting} />
+        <LogoZone name={name} shown={shown} waiting={waiting} kind={kind} />
       </ImageDrop>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
         <p className="text-sm font-semibold text-ink-2">{label}</p>
@@ -95,6 +96,7 @@ function PickerRow({
             onAdjust={picking.adjust}
             onClear={picking.clear}
             onRemove={onRemove}
+            kind={kind}
           />
         </div>
         {error}
@@ -106,10 +108,12 @@ function PickerRow({
 /**
  * The company's logo, chosen in place: a rounded square that takes a click, a drop or a paste; the image is then
  * cropped square (moved and zoomed by hand), and the zone shows the result, the saved logo, or the initials of the
- * name. Beside it what to do and the result's facts once it is ready.
+ * name. Beside it what to do and the result's facts once it is ready. `kind="photo"` is the same picker for a
+ * person's photo: a round zone and a round crop mask (the result is still a square image), in a person's words.
  */
 export function LogoPicker(props: LogoPickerProps) {
   const { value, onChange, start, className, ref } = props;
+  const kind = props.kind ?? 'logo';
   const input = useRef<HTMLInputElement>(null);
   const cropper = useRef<ImageCropperHandle>(null);
   const picking = usePicking(value, onChange);
@@ -135,7 +139,8 @@ export function LogoPicker(props: LogoPickerProps) {
           width={from.width}
           height={from.height}
           initial={cropping.initial}
-          label="Crop the logo"
+          label={PICKER_KINDS[kind].crop}
+          shape={PICKER_KINDS[kind].shape}
           className="w-full max-w-sm"
           busy={picking.working}
           onDone={(rect) => void picking.accept(from, rect)}

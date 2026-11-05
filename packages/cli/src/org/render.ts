@@ -26,7 +26,7 @@ export const companyJson = (company: CompanyRef) => ({
 
 /** What the chart calls a principal: a person's display name (their email when they have none), an agent's name. */
 export function nodeName(node: ChartNode): string {
-  return node.kind === 'person' ? node.person.displayName.trim() || node.person.email : node.agent.name;
+  return node.kind === 'person' ? node.person.displayName?.trim() || node.person.email : node.agent.name;
 }
 
 /** Every principal on the chart by its id, with its `nodeName`. */

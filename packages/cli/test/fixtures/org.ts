@@ -66,7 +66,7 @@ async function seedPeople(t: TestApp) {
   });
   const ann = await seedMember(t.db, id, {
     role: 'viewer',
-    displayName: '',
+    displayName: null,
     email: 'ann@acme.test',
     reportsTo: bob.principal.id,
   });

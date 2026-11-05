@@ -14,7 +14,9 @@ export const users = pgTable(
     id: uuid('id').primaryKey().$defaultFn(newId),
     /** Stored lower-cased; the CHECK refuses anything else. Not unique, and never used to link anything. */
     primaryEmail: text('primary_email').notNull(),
-    displayName: text('display_name').notNull(),
+    /** The person's own name (first and last); null until they give one, so the web asks for it. Never the email. */
+    displayName: text('display_name'),
+    /** The photo they chose at the identity provider; null for none (the web draws their initials). */
     imageUrl: text('image_url'),
     status: text('status').$type<UserStatus>().notNull().default('active'),
     createdAt: createdAt(),

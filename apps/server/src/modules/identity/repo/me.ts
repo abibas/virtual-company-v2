@@ -10,7 +10,9 @@ import { and, asc, eq, inArray, isNull, ne, type SQL } from 'drizzle-orm';
 export interface UserProfile {
   readonly id: string;
   readonly primaryEmail: string;
-  readonly displayName: string;
+  /** The person's own name; null until they give one. */
+  readonly displayName: string | null;
+  /** Their photo; null for none. */
   readonly imageUrl: string | null;
   readonly status: 'active' | 'deactivated';
 }

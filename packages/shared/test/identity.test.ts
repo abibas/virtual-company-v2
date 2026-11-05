@@ -129,9 +129,10 @@ const contracts: [string, z.ZodType, unknown[], unknown[]][] = [
   [
     'ExternalUser',
     ExternalUser,
-    [user, { ...user, displayName: '', imageUrl: 'https://img.test/a.png' }],
+    [user, { ...user, displayName: null, imageUrl: 'https://img.test/a.png' }],
     [
       { ...user, primaryEmail: 'not-an-email' },
+      { ...user, displayName: undefined },
       { ...user, imageUrl: 'not a url' },
       { ...user, subject: '' },
       { ...user, updatedAt: undefined },

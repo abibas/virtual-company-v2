@@ -1,4 +1,4 @@
-import { getJson, LEVEL, seedAgent } from '@mwc/testkit';
+import { getJson, LEVEL, seedAgent, seedMember } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/auth.ts';
 import { call } from '../../../fixtures/companies.ts';
@@ -60,6 +60,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           userId: owner.userId,
           displayName: `Owner ${owner.subject}`,
           email: `${owner.subject}@owners.test`,
+          imageUrl: null,
           role: 'owner',
         },
       },
@@ -72,6 +73,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           userId: admin.userId,
           displayName: admin.subject,
           email: `${admin.subject}@people.test`,
+          imageUrl: null,
           role: 'admin',
         },
       },
@@ -121,6 +123,30 @@ describe('GET /api/companies/:companyId/org/chart', () => {
     ]);
     expect(chart.tree[0]?.kind).toBe('person');
     expect(chart.tree[0]?.children[0]?.children[1]?.kind).toBe('agent');
+  });
+
+  it("shows a person's photo, and no name for a person who has not given one (the web shows the email)", async () => {
+    const company = await membersCompany(w);
+    const ann = await seedMember(w.t.db, company.companyId, {
+      displayName: null,
+      email: 'ann@photos.test',
+      imageUrl: 'https://img.test/ann.png',
+      reportsTo: company.owner.principalId,
+    });
+    const chart = await chartOf(company.owner, company);
+    expect(chart.nodes.find((node) => node.principalId === ann.principal.id)).toEqual({
+      principalId: ann.principal.id,
+      kind: 'person',
+      reportsTo: company.owner.principalId,
+      title: null,
+      person: {
+        userId: ann.user.id,
+        displayName: null,
+        email: 'ann@photos.test',
+        imageUrl: 'https://img.test/ann.png',
+        role: 'member',
+      },
+    });
   });
 
   it('still answers a chart that breaks its invariants, orphans flagged, and logs it once', async () => {

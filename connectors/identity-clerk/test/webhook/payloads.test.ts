@@ -26,12 +26,17 @@ describe('Clerk webhook payloads as normalized events', () => {
     };
     expect(bodyOf('user.created', userJson())).toEqual(user);
     expect(bodyOf('user.updated', userJson())).toEqual(user);
+    // No name (a username is not one) and Clerk's generated image: no name and no photo.
     expect(
       bodyOf('user.updated', userJson({ has_image: false, first_name: null, username: 'ann1' })),
     ).toEqual({
       type: 'user.upserted',
-      data: { subject: 'user_1', primaryEmail: 'ann@x.test', displayName: 'ann1', updatedAt: T0 },
+      data: { subject: 'user_1', primaryEmail: 'ann@x.test', displayName: null, updatedAt: T0 },
     });
+    expect(
+      bodyOf('user.updated', userJson({ first_name: ' Ihor ', last_name: 'Herasko ', has_image: null }))
+        ?.data,
+    ).toEqual({ subject: 'user_1', primaryEmail: 'ann@x.test', displayName: 'Ihor Herasko', updatedAt: T0 });
     expect(bodyOf('user.deleted', { object: 'user', id: 'user_1', deleted: true })).toEqual({
       type: 'user.deleted',
       data: { subject: 'user_1' },

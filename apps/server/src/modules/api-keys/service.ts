@@ -146,7 +146,7 @@ export function apiKeysService(deps: Pick<ServerDeps, 'db'>) {
       const owner = {
         principalId: row.principalId,
         userId,
-        displayName: profile?.displayName ?? '',
+        displayName: profile?.displayName ?? null,
         email: profile?.primaryEmail ?? '',
       };
       return apiKeyView(row, now, owner);

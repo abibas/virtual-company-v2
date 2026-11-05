@@ -6,8 +6,13 @@ export const MeUserSchema = z
   .object({
     id: z.string().openapi({ example: '019a4f0c-8c1e-7c4b-9a52-3d1f2b6e7a10' }),
     email: z.string().openapi({ example: 'ihor@example.com' }),
-    displayName: z.string(),
-    imageUrl: z.string().nullable(),
+    displayName: z.string().nullable().openapi({
+      example: 'Ihor Herasko',
+      description: "The person's first and last name; null until they give one (the web asks for it then)",
+    }),
+    imageUrl: z.string().nullable().openapi({
+      description: 'Their photo at the identity provider; null for none (the web draws their initials)',
+    }),
   })
   .openapi('MeUser');
 

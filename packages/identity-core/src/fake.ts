@@ -14,7 +14,7 @@ import { createFakeInvitation, listFakeInvitations, revokeFakeInvitation } from 
 import { createFakeOrganization, deleteFakeOrganization } from './fake/organizations.ts';
 import { verifyFakeToken } from './fake/tokens.ts';
 import { fakeWebhookFor, parseFakeWebhook } from './fake/webhooks.ts';
-import { type AcceptOptions, type FakeUserInput, FakeWorld } from './fake/world.ts';
+import { type AcceptOptions, type FakeUserInput, type FakeUserPatch, FakeWorld } from './fake/world.ts';
 import type {
   CreateInvitationInput,
   CreateOrganizationInput,
@@ -27,7 +27,7 @@ import type {
 
 export { FAKE_CLOCK_SKEW_MS, type FakeToken, parseFakeToken } from './fake/tokens.ts';
 export { FAKE_SIGNATURE_HEADER } from './fake/webhooks.ts';
-export type { AcceptOptions, FakeUserInput } from './fake/world.ts';
+export type { AcceptOptions, FakeUserInput, FakeUserPatch } from './fake/world.ts';
 
 export const FAKE_ISSUER = 'https://identity.fake.mwc.test';
 const DEFAULT_SECRET = 'fake-webhook-secret';
@@ -110,10 +110,7 @@ export class FakeIdentityProvider implements IdentityProvider {
   }
 
   /** A person changes their profile. */
-  updateUser(
-    subject: string,
-    patch: { email?: string; displayName?: string; imageUrl?: string },
-  ): ExternalUser {
+  updateUser(subject: string, patch: FakeUserPatch): ExternalUser {
     return this.#world.updateUser(subject, patch);
   }
 

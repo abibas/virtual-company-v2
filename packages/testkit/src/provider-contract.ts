@@ -1,5 +1,11 @@
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { describesItself, getsUsers, parsesWebhooks, verifiesTokens } from './provider-contract/identity.ts';
+import {
+  describesItself,
+  getsNamelessUsers,
+  getsUsers,
+  parsesWebhooks,
+  verifiesTokens,
+} from './provider-contract/identity.ts';
 import {
   acceptsInvitations,
   createsInvitations,
@@ -34,7 +40,7 @@ export {
 
 /**
  * The `IdentityProvider` contract (docs/testing.md, "Provider contract"): one scenario that every provider
- * passes in the same way. A person signs up, a token verifies, a company's organization is created and
+ * passes in the same way. A person signs up (and one without a name has none), a token verifies, a company's organization is created and
  * found again by its metadata, an invitation goes out, is replaced by a second one to the same email, is listed,
  * revoked or accepted (its metadata must reach the membership), the member is promoted and removed, a webhook
  * verifies, and the organization is deleted. Each case builds on the ones before it, in this order.
@@ -42,6 +48,7 @@ export {
 export const PROVIDER_CONTRACT: readonly ContractCase[] = [
   describesItself,
   getsUsers,
+  getsNamelessUsers,
   verifiesTokens,
   createsOrganizations,
   refusesTakenSlugs,

@@ -47,7 +47,7 @@ describe('me', () => {
   });
 
   it('says so when the key has no company left, and names a person by their email when they have no name', async () => {
-    const me = { id: 'u1', email: 'ann@acme.test', displayName: '', imageUrl: null };
+    const me = { id: 'u1', email: 'ann@acme.test', displayName: null, imageUrl: null };
     const alone: Fetch = async () =>
       Response.json({ user: me, memberships: [], session: { via: 'api_key' } });
     const r = await callTool(await connect(keyEnv(w), alone), 'me');

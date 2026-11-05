@@ -34,7 +34,7 @@ export interface SeedableStore {
     issuer: string;
     subject: string;
     primaryEmail: string;
-    displayName: string;
+    displayName: string | null;
     imageUrl?: string | null;
     status?: UserStatus;
   }): Promise<StoredUser>;

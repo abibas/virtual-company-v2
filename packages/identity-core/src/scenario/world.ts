@@ -49,7 +49,7 @@ export interface IdentitySeeder {
     issuer: string;
     subject: string;
     primaryEmail: string;
-    displayName: string;
+    displayName: string | null;
   }): { readonly id: string } | Promise<{ readonly id: string }>;
   addMembership(input: { companyId: string; userId: string; role: MembershipRole }): unknown;
   addInvitation(input: {

@@ -140,8 +140,11 @@ export const PersonNodeSchema = z
     kind: z.literal('person'),
     person: z.object({
       userId: z.string(),
-      displayName: z.string(),
+      /** Their first and last name; null while they have not given one (show the email). */
+      displayName: z.string().nullable(),
       email: z.string(),
+      /** Their photo; null for none (draw their initials). */
+      imageUrl: z.string().nullable(),
       role: MembershipRole,
     }),
   })

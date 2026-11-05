@@ -25,7 +25,6 @@ export interface AgentsViewProps {
   readonly onStatus: (status: AgentFilter) => void;
   readonly admin: boolean;
   readonly meUserId: string;
-  readonly imageOf?: ((userId: string) => string | null | undefined) | undefined;
   /** Someone moved or got a title: read the chart and the team again. */
   readonly onChanged: () => void;
 }

@@ -15,4 +15,4 @@ export {
 } from './RightRail.tsx';
 export { type RightRailState, useRightRail, useWideScreen } from './right-rail-state.ts';
 export { ThemeToggle } from './ThemeToggle.tsx';
-export { type ShellUser, TopBar, UserWell } from './TopBar.tsx';
+export { type ShellUser, TopBar, UserPill } from './TopBar.tsx';

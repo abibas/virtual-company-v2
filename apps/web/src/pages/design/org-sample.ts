@@ -31,6 +31,7 @@ const person = (
     userId: n === 1 ? 'u-ihor' : `u-${n}`,
     displayName,
     email: `${displayName.split(' ')[0]?.toLowerCase()}@example.com`,
+    imageUrl: null,
     role,
   },
 });

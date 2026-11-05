@@ -246,7 +246,7 @@ describe('GET /api/companies/:companyId/api-keys', () => {
     expect(keys.find((k) => k.id === orphan.id)?.owner).toEqual({
       principalId: (agent as { id: string }).id,
       userId: null,
-      displayName: '',
+      displayName: null,
       email: '',
     });
   });

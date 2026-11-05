@@ -2,7 +2,7 @@ import { apiKeyKind, apiKeyPrefix } from '@mwc/shared/api-keys';
 import type { ParsedArgs } from '../args.ts';
 import { type ActiveLogin, credentialsPath, readCredentials, resolveLogin } from '../credentials.ts';
 import type { MainIo } from '../io.ts';
-import { getMe } from './api.ts';
+import { getMe, userLabel } from './api.ts';
 import type { AccountDeps } from './login.ts';
 
 const fail = (io: MainIo, message: string, code = 1) => {
@@ -51,7 +51,7 @@ export async function whoami(
   const status = membership.status === 'active' ? '' : ` (${membership.status})`;
   io.stdout(
     `server   ${active.server}\n` +
-      `user     ${me.user.displayName} <${me.user.email}>\n` +
+      `user     ${userLabel(me.user)}\n` +
       `company  ${membership.name} (${membership.slug}, ${membership.companyId})\n` +
       `role     ${membership.role}${status}\n` +
       `key      ${apiKeyPrefix(active.key)}... (${from})\n`,

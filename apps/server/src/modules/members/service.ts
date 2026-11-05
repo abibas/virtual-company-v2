@@ -21,7 +21,7 @@ import { changeRole, type RoleChange } from './service/role.ts';
 export type MembersDeps = Pick<ServerDeps, 'db'> & ChartDeps;
 
 /** Who a membership names when their profile is missing (never, while `memberships.user_id` keeps its key). */
-const UNKNOWN_PROFILE = { displayName: '', primaryEmail: '', imageUrl: null } as const;
+const UNKNOWN_PROFILE = { displayName: null, primaryEmail: '', imageUrl: null } as const;
 
 /** A membership as the API shows it, with the person's name, email and picture from their (global) profile. */
 export function memberView(

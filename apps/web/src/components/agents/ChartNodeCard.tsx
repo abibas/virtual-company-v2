@@ -18,8 +18,6 @@ export interface ChartView {
   readonly admin: boolean;
   readonly calls: OrgCalls;
   readonly links: AgentLinks;
-  /** A person's picture by user id (from the member list), when known. */
-  readonly imageOf?: ((userId: string) => string | null | undefined) | undefined;
   /** A place changed: read the chart (and the team) again. */
   readonly onChanged: () => void;
 }
@@ -97,7 +95,6 @@ export function ChartNodeCard({ place, view }: { readonly place: OrgTreeNode; re
   return (
     <OrgNodeCard
       node={node}
-      imageUrl={node.kind === 'person' ? view.imageOf?.(node.person.userId) : undefined}
       you={you}
       orphan={place.orphan}
       href={href}

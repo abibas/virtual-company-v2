@@ -16,7 +16,7 @@ const ACME = { companyId: 'c1', slug: 'acme', name: 'Acme' };
 const person = (
   principalId: string,
   reportsTo: string | null,
-  displayName: string,
+  displayName: string | null,
   title: string | null = null,
 ) =>
   ({
@@ -24,7 +24,13 @@ const person = (
     reportsTo,
     title,
     kind: 'person',
-    person: { userId: `u-${principalId}`, displayName, email: `${principalId}@acme.test`, role: 'member' },
+    person: {
+      userId: `u-${principalId}`,
+      displayName,
+      email: `${principalId}@acme.test`,
+      imageUrl: null,
+      role: 'member',
+    },
   }) satisfies PersonNode;
 
 const agentNode = (principalId: string, reportsTo: string | null, name: string) =>
@@ -75,6 +81,7 @@ const agent = (fields: Partial<Agent>): Agent => ({
 describe('the org chart as text', () => {
   it('names people by their display name, else their email, and agents by their name', () => {
     expect(nodeName(person('p1', null, '  '))).toBe('p1@acme.test');
+    expect(nodeName(person('p1', null, null))).toBe('p1@acme.test');
     expect(nodeName(person('p1', null, 'Olga'))).toBe('Olga');
     expect(nodeName(agentNode('p2', 'p1', 'SLOP BOX'))).toBe('SLOP BOX');
   });

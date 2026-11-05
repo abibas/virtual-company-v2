@@ -31,7 +31,7 @@ describe('memberView', () => {
     });
   });
 
-  it('shows empty name and email when the profile is missing', () => {
-    expect(memberView(row, undefined)).toMatchObject({ displayName: '', email: '', imageUrl: null });
+  it('shows no name, an empty email and no photo when the profile is missing', () => {
+    expect(memberView(row, undefined)).toMatchObject({ displayName: null, email: '', imageUrl: null });
   });
 });

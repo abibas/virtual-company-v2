@@ -4,6 +4,7 @@ export {
   type AvatarSize,
   AvatarStack,
   initials,
+  personName,
   type StackedPerson,
   tintOf,
 } from './Avatar.tsx';

@@ -10,8 +10,16 @@ import { IdentityProviderError } from '../errors.ts';
 export interface FakeUserInput {
   readonly subject?: string;
   readonly email: string;
-  readonly displayName?: string;
+  /** The person's name; the email's part before the @ when left out, none (as a real sign-up without one) for null. */
+  readonly displayName?: string | null;
   readonly imageUrl?: string;
+}
+
+/** A profile change: undefined keeps a field; a null name or image removes it (the photo taken away). */
+export interface FakeUserPatch {
+  readonly email?: string;
+  readonly displayName?: string | null;
+  readonly imageUrl?: string | null;
 }
 
 export interface AcceptOptions {
@@ -66,7 +74,7 @@ export class FakeWorld {
     const user: ExternalUser = {
       subject,
       primaryEmail: email,
-      displayName: input.displayName ?? email.split('@')[0] ?? email,
+      displayName: input.displayName === undefined ? (email.split('@')[0] ?? email) : input.displayName,
       ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
       updatedAt: this.tick(),
     };
@@ -76,16 +84,14 @@ export class FakeWorld {
   }
 
   /** A person changes their profile. */
-  updateUser(
-    subject: string,
-    patch: { email?: string; displayName?: string; imageUrl?: string },
-  ): ExternalUser {
-    const user = this.user(subject);
+  updateUser(subject: string, patch: FakeUserPatch): ExternalUser {
+    const { imageUrl: image, ...user } = this.user(subject);
+    const imageUrl = patch.imageUrl === undefined ? image : (patch.imageUrl ?? undefined);
     const updated: ExternalUser = {
       ...user,
       ...(patch.email === undefined ? {} : { primaryEmail: patch.email.toLowerCase() }),
       ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
-      ...(patch.imageUrl === undefined ? {} : { imageUrl: patch.imageUrl }),
+      ...(imageUrl === undefined ? {} : { imageUrl }),
       updatedAt: this.tick(),
     };
     this.users.set(subject, updated);

@@ -12,11 +12,16 @@ export interface MeMembership {
   readonly status: string;
 }
 
-/** The part of `GET /api/me` the commands read. */
+/** The part of `GET /api/me` the commands read; `displayName` is null while the person has not given a name. */
 export interface Me {
-  readonly user: { readonly id: string; readonly email: string; readonly displayName: string };
+  readonly user: { readonly id: string; readonly email: string; readonly displayName: string | null };
   readonly memberships: readonly MeMembership[];
   readonly session: { readonly via: string };
+}
+
+/** How the commands name the person: `Name <email>`, or the email alone while they have no name. */
+export function userLabel(user: Me['user']): string {
+  return user.displayName ? `${user.displayName} <${user.email}>` : user.email;
 }
 
 export type MeResult = { readonly ok: true; readonly me: Me } | ApiFailure;

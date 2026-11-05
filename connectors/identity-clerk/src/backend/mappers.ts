@@ -22,15 +22,30 @@ function metadataOf(value: Record<string, unknown> | null | undefined): Identity
   return value ? { ...value } : {};
 }
 
-/** The display name Clerk would show: first and last name, else the username, else the email's local part. */
+/**
+ * The person's own name: their first and last name, each trimmed, joined by a space; null when both are empty. Never
+ * the username or the email, so a person who has not given a name has none (the web asks them for it).
+ */
 export function displayNameOf(
-  firstName: string | null,
-  lastName: string | null,
-  username: string | null,
-  email: string,
-): string {
-  const full = [firstName, lastName].filter((part) => part && part.trim() !== '').join(' ');
-  return full || username || email.split('@')[0] || email;
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string | null {
+  const full = [firstName, lastName]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part !== '')
+    .join(' ');
+  return full || null;
+}
+
+/**
+ * The person's photo: Clerk's `image_url` only when `has_image` says they uploaded one (or brought one from a social
+ * sign-in); otherwise the URL is Clerk's generated default, which the web replaces with the person's initials.
+ */
+export function imageOf(
+  hasImage: boolean | null | undefined,
+  imageUrl: string | null | undefined,
+): { imageUrl?: string } {
+  return hasImage && imageUrl ? { imageUrl } : {};
 }
 
 export function toExternalUser(user: ClerkUserData): ExternalUser {
@@ -41,8 +56,8 @@ export function toExternalUser(user: ClerkUserData): ExternalUser {
   return {
     subject: user.id,
     primaryEmail: email,
-    displayName: displayNameOf(user.firstName, user.lastName, user.username, email),
-    ...(user.hasImage && user.imageUrl ? { imageUrl: user.imageUrl } : {}),
+    displayName: displayNameOf(user.firstName, user.lastName),
+    ...imageOf(user.hasImage, user.imageUrl),
     updatedAt: user.updatedAt,
   };
 }

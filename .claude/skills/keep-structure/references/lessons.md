@@ -27,6 +27,31 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: User profiles: the session's fan-in, the cropper's round mask, and a changed column instead of a new one
+
+- **What happened:** user profiles (Ihor's request) were specified as "migration `0006`: add `users.image_url`", but the
+  column had been there since `0000_init`; what the feature needed was `users.display_name` nullable (a person without a
+  name has none, so the web asks for it) and a data step clearing the email stand-ins stored before. In the web, the
+  two new pages (`pages/OnboardingPage.tsx`, `pages/ProfilePage.tsx`) and `app/PlainShell.tsx`, which now draws the
+  person's own menu, read the session, taking `app/session.tsx` from 7 importers to 10 (a new `fan-in` warning). The
+  round crop mask and the cropper's buttons as `CropActions` keep `forms/image/ImageCropper.tsx` at 215 lines; the
+  first draft's own split of the stage's input handling was dropped for the same split made on main in the meantime
+  (`crop-gestures.ts`). The account menu and the profile form went to `components/auth/` (now 8 entries):
+  `components/` is at 14 already, and a `profile/` group would have made it 15.
+- **Where:** `packages/db/migrations/0006_user_profiles.sql` (its `-- custom:` part) and
+  `packages/db/test/schema/users-backfill.test.ts`; `apps/web/src/components/auth/{AccountMenu.tsx,ProfileForm.tsx,
+  profile.ts}`, `components/forms/image/{ImageCropper,LogoPicker,LogoZone}.tsx`; the user profiles commit.
+- **What was done:** the migration changes the column the feature needs, and its data step is tested on a database
+  seeded at `0005_org` (`migrateUpTo`), beside the table's test as the S2.1 lesson suggests. The profile form takes the
+  session's `reconcile` as a prop, so no component of the library reads the session (as before); the pages and the
+  plain shell do, and the fan-in stays: `app/session.tsx` is the web's platform, like `api/types.ts`, and passing the
+  session down from `AppRoutes` would only hide the dependency. `/onboarding` and `/profile` are written as literals in
+  `AppRoutes.tsx`, so the server's web test (the entry below) checks them against `RESERVED_SLUGS`.
+- **Suggested change:** with the S1.11 lesson, leave `app/session.tsx` out of `fan-in` with the web's other platform
+  files (or count only value imports), and a placement-table row for "pieces of the signed-in person's account (menu,
+  profile form) → `components/auth/`".
+- **Status:** `open`.
+
 ### 2026-11-05: A check on the web's routes, with no web tests to hold it
 
 - **What happened:** company addresses moved from `/c/<slug>` to `/<slug>`, so every first path segment of the web

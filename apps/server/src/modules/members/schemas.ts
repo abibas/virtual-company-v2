@@ -21,8 +21,10 @@ export const MemberSchema = z
     id: z.string(),
     userId: z.string(),
     principalId: z.string(),
-    displayName: z.string(),
+    /** Their first and last name; null while they have not given one. */
+    displayName: z.string().nullable(),
     email: z.string(),
+    /** Their photo; null for none. */
     imageUrl: z.string().nullable(),
     role: MembershipRole,
     status: MembershipStatus,

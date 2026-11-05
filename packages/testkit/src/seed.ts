@@ -137,8 +137,11 @@ export async function seedAgent(
 export interface SeedMemberOptions {
   readonly role?: MembershipRole;
   readonly status?: MembershipStatus;
-  readonly displayName?: string;
+  /** Their name: `Member <tag>` when left out, none for null (a person who has not given one). */
+  readonly displayName?: string | null;
   readonly email?: string;
+  /** Their photo; none by default. */
+  readonly imageUrl?: string | null;
   /** Whom they report to on the chart (a principal of the company), or null for no position at all. */
   readonly reportsTo: string | null;
   readonly title?: string | null;
@@ -165,7 +168,8 @@ export async function seedMember(
     .insert(users)
     .values({
       primaryEmail: (options.email ?? `member-${tag}@seed.test`).toLowerCase(),
-      displayName: options.displayName ?? `Member ${tag}`,
+      displayName: options.displayName === undefined ? `Member ${tag}` : options.displayName,
+      imageUrl: options.imageUrl ?? null,
     })
     .returning()) as [User];
   const t = await tenant(db, companyId);

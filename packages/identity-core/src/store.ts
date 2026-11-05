@@ -18,7 +18,9 @@ export interface StoredUser {
   readonly subject: string;
   /** Lower-cased. */
   readonly primaryEmail: string;
-  readonly displayName: string;
+  /** The person's own name; null until they give one. */
+  readonly displayName: string | null;
+  /** The photo they chose; null for none. */
   readonly imageUrl: string | null;
   readonly status: UserStatus;
 }

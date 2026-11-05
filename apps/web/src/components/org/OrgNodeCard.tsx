@@ -11,8 +11,6 @@ import { nodeName, nodeSubtitle } from './chart.ts';
 
 export interface OrgNodeCardProps {
   readonly node: ChartNode;
-  /** A person's picture (from the member list); their initials without one. */
-  readonly imageUrl?: string | null | undefined;
   /** The signed-in person's own card. */
   readonly you?: boolean;
   /** A top entry whose manager is not on the chart (a flaw the server reports). */
@@ -40,16 +38,8 @@ export function AgentAvatar({
   return <Avatar name={agent.name} size={size} fallback={face} {...(className ? { className } : {})} />;
 }
 
-/** A place on the chart's face: an agent's drawn face, or a person's picture, else their initials in blue. */
-export function NodeAvatar({
-  node,
-  imageUrl,
-  size = 'md',
-}: {
-  readonly node: ChartNode;
-  readonly imageUrl?: string | null | undefined;
-  readonly size?: AvatarSize;
-}) {
+/** A place on the chart's face: an agent's drawn face, or a person's photo (the chart's), else their initials in blue. */
+export function NodeAvatar({ node, size = 'md' }: { readonly node: ChartNode; readonly size?: AvatarSize }) {
   if (node.kind === 'agent') return <AgentAvatar agent={node.agent} size={size} />;
   const name = nodeName(node);
   const blue = (
@@ -57,7 +47,7 @@ export function NodeAvatar({
       {initials(name)}
     </span>
   );
-  return <Avatar name={name} src={imageUrl} size={size} fallback={blue} />;
+  return <Avatar name={name} src={node.person.imageUrl} size={size} fallback={blue} />;
 }
 
 /** What a card says under its name: a person's role; an agent's status, model and effort; a missing manager. */
@@ -90,7 +80,7 @@ function NodeFacts({ node, orphan }: { readonly node: ChartNode; readonly orphan
  * People carry the blue accent and agents the teal one, so the two read apart at a glance.
  */
 export function OrgNodeCard(props: OrgNodeCardProps) {
-  const { node, imageUrl, you = false, orphan = false, href, actions, children, className } = props;
+  const { node, you = false, orphan = false, href, actions, children, className } = props;
   const agent = node.kind === 'agent';
   const name = nodeName(node);
   const subtitle = nodeSubtitle(node);
@@ -108,7 +98,7 @@ export function OrgNodeCard(props: OrgNodeCardProps) {
         className={cx('absolute inset-x-4 top-0 h-[3px] rounded-b-full', agent ? 'bg-teal' : 'bg-blue')}
       />
       <div className="flex items-start gap-3 p-3 pb-2.5">
-        <NodeAvatar node={node} imageUrl={imageUrl} />
+        <NodeAvatar node={node} />
         <div className="min-w-0 flex-1 pt-0.5">
           <p className="truncate text-sm font-bold text-ink">
             {href ? (

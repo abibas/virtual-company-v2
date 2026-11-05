@@ -138,11 +138,12 @@ async function openFapi({ clerk, config }: ClerkRun): Promise<Fapi> {
   return client;
 }
 
-async function createUser(run: ClerkRun, label: string, displayName: string) {
-  const [firstName = displayName, ...rest] = displayName.split(' ');
+/** A user with the first word of `displayName` as the first name and the rest as the last; no name for null. */
+async function createUser(run: ClerkRun, label: string, displayName: string | null) {
+  const [firstName, ...rest] = displayName?.split(' ') ?? [];
   const user = await run.clerk.users.createUser({
     emailAddress: [run.email(label)],
-    firstName,
+    ...(firstName ? { firstName } : {}),
     ...(rest.length > 0 ? { lastName: rest.join(' ') } : {}),
     skipPasswordRequirement: true,
   });

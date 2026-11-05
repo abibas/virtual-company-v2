@@ -8,10 +8,22 @@ import { SignInPage, SignUpPage } from '../pages/auth/SignInPage.tsx';
 import { CreateCompanyPage } from '../pages/CreateCompanyPage.tsx';
 import { LandingPage } from '../pages/LandingPage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
+import { OnboardingPage, onboardingHref } from '../pages/OnboardingPage.tsx';
+import { ProfilePage } from '../pages/ProfilePage.tsx';
 import { CompanyShell } from './CompanyShell.tsx';
 import { withoutOldPrefix } from './nav.ts';
 import { matchPath, Redirect, useLocation } from './router.tsx';
-import { SessionGate } from './session.tsx';
+import { SessionGate, useSession } from './session.tsx';
+
+/**
+ * A person who has not given their name yet (right after Clerk's sign-up, or an invitee's) goes to onboarding first,
+ * then on to where they were going; every other page waits for it.
+ */
+function NamedOnly({ href, children }: { readonly href: string; readonly children: ReactNode }) {
+  const { me } = useSession();
+  if (me.user.displayName === null) return <Redirect to={onboardingHref(href)} />;
+  return children;
+}
 
 /**
  * The pages behind sign-in, by path; any other first segment is a company's address, unless the app keeps it for its
@@ -19,6 +31,7 @@ import { SessionGate } from './session.tsx';
  */
 function signedInPage(pathname: string): ReactNode {
   if (pathname === '/') return <LandingPage />;
+  if (pathname === '/profile') return <ProfilePage />;
   if (pathname === '/companies/new') return <CreateCompanyPage />;
   const company = matchPath('/:slug/*', pathname);
   if (company?.slug && !isReservedSlug(company.slug)) {
@@ -45,8 +58,9 @@ function SignedIn({ href, children }: { readonly href: string; readonly children
 
 /**
  * The routes: `/sign-in`, `/sign-up` (Clerk's own steps below them) and `/accept-invitation` for everyone; `/`
- * (the company to open), `/companies/new` and `/:slug/...` (a company) behind sign-in. An old company link,
- * `/c/<slug>/...`, is replaced by the same address without `/c`.
+ * (the company to open), `/companies/new`, `/profile` and `/:slug/...` (a company) behind sign-in, each once the
+ * person has a name: until then `/onboarding` asks for it. An old company link, `/c/<slug>/...`, is replaced by the
+ * same address without `/c`.
  */
 export function AppRoutes() {
   const { pathname, href } = useLocation();
@@ -54,5 +68,16 @@ export function AppRoutes() {
   if (matchPath('/sign-in/*', pathname)) return <SignInPage />;
   if (matchPath('/sign-up/*', pathname)) return <SignUpPage />;
   if (pathname === '/accept-invitation') return <AcceptInvitationPage />;
-  return <SignedIn href={href}>{signedInPage(pathname)}</SignedIn>;
+  if (pathname === '/onboarding') {
+    return (
+      <SignedIn href={href}>
+        <OnboardingPage />
+      </SignedIn>
+    );
+  }
+  return (
+    <SignedIn href={href}>
+      <NamedOnly href={href}>{signedInPage(pathname)}</NamedOnly>
+    </SignedIn>
+  );
 }

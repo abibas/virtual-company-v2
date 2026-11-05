@@ -45,7 +45,8 @@ export const ApiKeyOwnerSchema = z
   .object({
     principalId: z.string(),
     userId: z.string().nullable(),
-    displayName: z.string(),
+    /** Their first and last name; null while they have not given one. */
+    displayName: z.string().nullable(),
     email: z.string(),
   })
   .openapi('ApiKeyOwner');

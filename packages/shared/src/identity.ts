@@ -38,7 +38,9 @@ export type VerifiedIdentity = z.infer<typeof VerifiedIdentity>;
 export const ExternalUser = z.object({
   subject: z.string().min(1),
   primaryEmail: z.email(),
-  displayName: z.string(),
+  /** The person's own name (Clerk: first and last name, trimmed); null when they have not given one. Never the email. */
+  displayName: z.string().nullable(),
+  /** A photo the person chose; absent for none (a provider's generated default image is not one). */
   imageUrl: z.url().optional(),
   updatedAt: EpochMs,
 });

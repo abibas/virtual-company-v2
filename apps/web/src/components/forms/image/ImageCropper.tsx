@@ -25,6 +25,14 @@ export interface ImageCropperHandle {
   crop(): CropRect;
 }
 
+/** The frame's mask: a company logo's rounded tile, or a person's round photo. */
+export type CropShape = 'square' | 'round';
+
+const MASKS: Readonly<Record<CropShape, { readonly className: string; readonly says: string }>> = {
+  square: { className: 'rounded-[25%]', says: 'the square is what the tile will show' },
+  round: { className: 'rounded-full', says: 'the circle is what the photo will show' },
+};
+
 export interface ImageCropperProps extends Source {
   /** The image (an object or data URL). */
   readonly src: string;
@@ -35,11 +43,13 @@ export interface ImageCropperProps extends Source {
   readonly label?: string;
   /** Done is working (the result is being encoded). */
   readonly busy?: boolean;
+  /** The frame's mask (`square` by default); the result is a square either way. */
+  readonly shape?: CropShape;
   readonly className?: string;
   readonly ref?: Ref<ImageCropperHandle>;
 }
 
-/** The stage: the image under the pointers and the keys, and the frame masked like a logo tile over it. */
+/** The stage: the image under the pointers and keys, and the frame masked as a tile or a photo over it. */
 function CropStage({
   src,
   view,
@@ -47,6 +57,7 @@ function CropStage({
   update,
   label,
   hintId,
+  shape,
 }: {
   readonly src: string;
   readonly view: CropView;
@@ -54,6 +65,7 @@ function CropStage({
   readonly update: Update;
   readonly label: string;
   readonly hintId: string;
+  readonly shape: CropShape;
 }) {
   const stage = useRef<HTMLButtonElement>(null);
   const pointers = usePointers(update);
@@ -63,7 +75,7 @@ function CropStage({
     <button
       ref={stage}
       type="button"
-      aria-label={`${label}: the square is what the tile will show`}
+      aria-label={`${label}: ${MASKS[shape].says}`}
       aria-describedby={hintId}
       onKeyDown={(event) => onKeys(event, update)}
       {...pointers}
@@ -82,7 +94,10 @@ function CropStage({
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-8 rounded-[25%] shadow-[0_0_0_160px_rgba(10,12,30,0.55)] ring-2 ring-white/90"
+        className={cx(
+          'pointer-events-none absolute inset-8 shadow-[0_0_0_160px_rgba(10,12,30,0.55)] ring-2 ring-white/90',
+          MASKS[shape].className,
+        )}
       />
     </button>
   );
@@ -108,10 +123,42 @@ function ZoomSlider({ zoom, update }: { readonly zoom: number; readonly update: 
   );
 }
 
+/** Reset on the left; Cancel and Done on the right. */
+function CropActions({
+  atDefault,
+  busy,
+  onReset,
+  onCancel,
+  onDone,
+}: {
+  readonly atDefault: boolean;
+  readonly busy: boolean;
+  readonly onReset: () => void;
+  readonly onCancel: () => void;
+  readonly onDone: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <Button size="sm" tone="quiet" icon={RotateCcw} disabled={atDefault || busy} onClick={onReset}>
+        Reset
+      </Button>
+      <div className="flex items-center gap-2">
+        <Button size="sm" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" tone="primary" icon={Check} busy={busy} onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * A square crop of an image, by hand: drag (or touch) to move it, the slider, the wheel, a pinch or plus and
- * minus to zoom, the arrow keys to move. The frame is masked like a `CompanyLogo` tile, so what it shows is what the
- * tile will show; what falls outside is dimmed. Done gives the square in the source's pixels.
+ * minus to zoom, the arrow keys to move. The frame is masked like a `CompanyLogo` tile, or round like a person's
+ * `Avatar` with `shape="round"`, so what it shows is what the tile or the photo will show; what falls outside is
+ * dimmed. Done gives the square in the source's pixels.
  */
 export function ImageCropper({
   src,
@@ -122,6 +169,7 @@ export function ImageCropper({
   onCancel,
   label = 'Crop the image',
   busy = false,
+  shape = 'square',
   className,
   ref,
 }: ImageCropperProps) {
@@ -145,33 +193,23 @@ export function ImageCropper({
           Drag to move. Scroll, pinch or use the slider to zoom; arrow keys and plus and minus work too.
         </p>
       </div>
-      <CropStage src={src} view={view} source={source} update={update} label={label} hintId={hintId} />
+      <CropStage
+        src={src}
+        view={view}
+        source={source}
+        update={update}
+        label={label}
+        hintId={hintId}
+        shape={shape}
+      />
       <ZoomSlider zoom={view.zoom} update={update} />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          size="sm"
-          tone="quiet"
-          icon={RotateCcw}
-          disabled={atDefault || busy}
-          onClick={() => update(() => DEFAULT_VIEW)}
-        >
-          Reset
-        </Button>
-        <div className="flex items-center gap-2">
-          <Button size="sm" disabled={busy} onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            tone="primary"
-            icon={Check}
-            busy={busy}
-            onClick={() => onDone(viewToRect(view, FRAME, source))}
-          >
-            Done
-          </Button>
-        </div>
-      </div>
+      <CropActions
+        atDefault={atDefault}
+        busy={busy}
+        onReset={() => update(() => DEFAULT_VIEW)}
+        onCancel={onCancel}
+        onDone={() => onDone(viewToRect(view, FRAME, source))}
+      />
     </div>
   );
 }

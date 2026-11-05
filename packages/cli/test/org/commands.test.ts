@@ -63,7 +63,13 @@ describe('mwc org tree', () => {
       reportsTo: null,
       title: 'CEO',
       kind: 'person',
-      person: { userId: expect.any(String), displayName: 'Olga', email: 'olga@acme.test', role: 'owner' },
+      person: {
+        userId: expect.any(String),
+        displayName: 'Olga',
+        email: 'olga@acme.test',
+        imageUrl: null,
+        role: 'owner',
+      },
     });
     expect(
       body.tree.map((top: { principalId: string; orphan: boolean }) => [top.principalId, top.orphan]),

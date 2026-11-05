@@ -35,6 +35,7 @@ below.
 | Sign-in with email                                               | email verification code       | a code sent to the email signs in                                     | Frontend API environment: `first_factors` has `email_code` |
 | Password                                                         | on, **required at sign-up** (default) | not chosen for v2: found by the first contract run; Clerk's `<SignUp/>` asks for one, and the contract's ticket sign-up sends a random one when asked. Turning it off is Ihor's call in the dashboard | Frontend API environment: `password` (recorded, not required; enabled and required on 2026-11-04) |
 | Google                                                           | on (Clerk's shared development credentials) | one-click sign-in                                       | Frontend API environment: `oauth_google.enabled` |
+| First and last name                                              | **on, optional** (not required at sign-up) | a person's name, shown instead of their email (user profiles, 2026-11-05); Clerk's `<SignUp/>` does not ask for it, our onboarding does (below) | not checked; read from the public `/v1/environment` on 2026-11-05 (`first_name` and `last_name` enabled, not required) |
 | Organization invitations                                         | on (default)                  | Clerk sends the invitation email                                      | the contract: create, list, revoke, accept       |
 | Webhooks                                                         | none yet                      | reconcile is the default; the endpoint exists since S1.8 (below)      | no                                               |
 
@@ -121,6 +122,15 @@ configured on this server.
 | `/sign-up`            | Clerk's `<SignUp/>` (path routing, `/sign-up/...`)                                           |
 | `/accept-invitation`  | the invitations' `redirectUrl`: Clerk's `<SignUp/>` takes `__clerk_ticket` (or `<SignIn/>` when `__clerk_status=sign_in`), with hash routing so the ticket stays in the query; `__clerk_status=complete` goes to `/sign-in` and comes back. Signed in, it calls `GET /api/me` (the sign-in reconcile links the membership) and opens the company of the person's newest Clerk membership; when that session was reconciled already (the person was signed in before accepting), it calls `POST /api/me/reconcile` once (S1.12) |
 | `/`                   | after sign-in (Clerk's fallback redirect): the last company opened in this browser, else the first, else `/companies/new` |
+| `/onboarding`         | "Tell us who you are" (2026-11-05): a signed-in person whose `GET /api/me` has no `displayName` is sent here before any other page, with the page they were going to as `redirect_url`; right after Clerk's sign-up, and an invitee once their company opens. First and last name are required here (Clerk keeps them optional), a photo is optional, cropped round. Saving calls clerk-js `user.update({ firstName, lastName })`, then `user.setProfileImage({ file })` when a photo was picked, then `POST /api/me/reconcile`, and goes on (`/` opens their company, or creating one) |
+| `/profile`            | the account menu's "Your profile": the same name and photo, changed later; Remove takes the photo away (`user.setProfileImage({ file: null })`). The menu's "Manage account" is Clerk's own profile (`openUserProfile`): email, sign-in methods, sessions |
+
+**Names and photos.** Clerk holds a person's first and last name and photo, so its own account page and ours agree;
+the connector maps `first_name` and `last_name`, trimmed and joined, to `displayName` (null when both are empty: never
+the username or the email) and `image_url` to `imageUrl` only when `has_image` is true, since every Clerk user has a
+generated default image that is not a photo of theirs (the web draws the initials instead). The `user.updated` webhook,
+the reconcile on sign-in and `POST /api/me/reconcile` refresh both. Making the names required in the dashboard would make
+Clerk's `<SignUp/>` ask for them too; it is not needed, since the onboarding asks.
 
 After sign-out Clerk returns to `/sign-in`. The company shell (`/:slug`) makes the company's organization Clerk's active
 one (`setActive`), so Clerk's own components agree with the page; access never depends on it, and a refusal is ignored.

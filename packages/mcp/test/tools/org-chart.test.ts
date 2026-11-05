@@ -96,7 +96,7 @@ describe('org_chart', () => {
       reportsTo: null,
       title: null,
       kind: 'person' as const,
-      person: { userId: 'u1', displayName: '', email: 'ann@acme.test', role: 'viewer' },
+      person: { userId: 'u1', displayName: null, email: 'ann@acme.test', imageUrl: null, role: 'viewer' },
     };
     expect(compactNode(node, new Set())).toEqual({
       principalId: 'p1',

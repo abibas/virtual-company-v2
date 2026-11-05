@@ -1,9 +1,10 @@
-import { UserButton } from '@clerk/react';
 import { companyPath } from '../app/nav.ts';
 import { Link, navigate } from '../app/router.tsx';
 import { useSession } from '../app/session.tsx';
+import { shellUser } from '../components/auth/AccountMenu.tsx';
 import { CreateCompanyScreen } from '../components/company/CreateCompanyScreen.tsx';
-import { UserWell } from '../components/layout/TopBar.tsx';
+import { UserPill } from '../components/layout/TopBar.tsx';
+import { personName } from '../components/ui/Avatar.tsx';
 
 /**
  * `/companies/new`: create a company; the person becomes its owner and lands in it. For someone with no company yet
@@ -15,13 +16,10 @@ export function CreateCompanyPage() {
   return (
     <CreateCompanyScreen
       email={me.user.email}
+      name={personName(me.user.displayName, me.user.email)}
       imageUrl={me.user.imageUrl}
       first={first}
-      corner={
-        <UserWell>
-          <UserButton />
-        </UserWell>
-      }
+      corner={<UserPill user={shellUser(me.user)} compact />}
       onCreated={async (company) => {
         await reload();
         navigate(companyPath(company.slug));

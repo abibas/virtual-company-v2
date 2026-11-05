@@ -23,7 +23,7 @@ describe('the provider contract', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names[0]).toMatch(/^describes itself/);
     expect(names.at(-1)).toMatch(/^deleteOrganization/);
-    expect(PROVIDER_CONTRACT).toHaveLength(16);
+    expect(PROVIDER_CONTRACT).toHaveLength(17);
   });
 
   it('gives each fake target its own run id and contract emails', () => {

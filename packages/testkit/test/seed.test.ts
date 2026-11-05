@@ -167,8 +167,20 @@ describe('seedMember', () => {
     expect(one.membership).toMatchObject({ role: 'member', status: 'suspended' });
     expect(one.user.primaryEmail).not.toBe(two.user.primaryEmail);
     expect(one.user.displayName).toMatch(/^Member [0-9a-f]{8}$/);
+    expect(one.user.imageUrl).toBeNull();
     expect(await scoped.select(memberships)).toHaveLength(3);
     expect(await scoped.select(orgPositions)).toHaveLength(1);
+  });
+
+  it('adds a person without a name, or with a photo', async () => {
+    const { company } = await seedCompany(testDb.handle);
+    const nameless = await seedMember(testDb.handle, company.id, { reportsTo: null, displayName: null });
+    expect(nameless.user).toMatchObject({ displayName: null, imageUrl: null });
+    const pictured = await seedMember(testDb.handle, company.id, {
+      reportsTo: null,
+      imageUrl: 'https://img.test/ann.png',
+    });
+    expect(pictured.user.imageUrl).toBe('https://img.test/ann.png');
   });
 });
 

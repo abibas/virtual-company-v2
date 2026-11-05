@@ -84,7 +84,7 @@ One import for what tests need; add `"@mwc/testkit": "workspace:*"` to the packa
 | `describeStoreContract(name, makeTarget, { shuffles, doubles, orders, timeoutMs })`, `memoryStoreTarget()`, `STORE_CONTRACT` | the `IdentityStore` contract as a Vitest suite for one store (below); also `@mwc/testkit/store-contract`, which loads without the server |
 | `seedCompany(db, { slug, name, status, identityOrgId, owner })` | an active company with its owner (user, identity at the fake's issuer, person principal, owner membership, root position on the org chart, S2.3), the tenant rows through `tenant()`; returns `{ company, owner, tenant }` |
 | `seedAgent(db, companyId, { reportsTo, title, ...agent fields })` | an agent (S2.3): its principal (kind `agent`), its row (a unique name and slug unless given) and its position under `reportsTo`, none for `reportsTo: null` or an archived agent; the org rules are not checked, so a test can seed a broken chart; returns `{ principal, agent }` |
-| `seedMember(db, companyId, { reportsTo, title, role, status, displayName, email })` | a person (S2.6): their user (no provider identity, so no session sign-in), person principal, membership (an active member unless said) and position under `reportsTo`, none for `null`; names unique per call; returns `{ user, principal, membership }` |
+| `seedMember(db, companyId, { reportsTo, title, role, status, displayName, email, imageUrl })` | a person (S2.6): their user (no provider identity, so no session sign-in; `displayName: null` for a person without a name, `imageUrl` their photo), person principal, membership (an active member unless said) and position under `reportsTo`, none for `null`; names unique per call; returns `{ user, principal, membership }` |
 | `seedApiKey(db, companyId, principalId, { name, expiresAt, revokedAt })` | a personal API key (S2.6) stored as the API stores one (its SHA-256 and prefix only); returns `{ key, id }`, the key for `Authorization: Bearer`, so clients of the API (the mwc CLI, `@mwc/mcp`) test against `createTestApp()` |
 
 ```ts
@@ -109,8 +109,9 @@ S1.2 the provider contract and `signedWebhook`, S1.3 the store contract and `see
 
 ## Provider contract
 
-`PROVIDER_CONTRACT` (`packages/testkit/src/provider-contract.ts`) is one scenario of 16 cases that every
-`IdentityProvider` passes in the same way: describe itself, get a user, verify a token, create an organization
+`PROVIDER_CONTRACT` (`packages/testkit/src/provider-contract.ts`) is one scenario of 17 cases that every
+`IdentityProvider` passes in the same way: describe itself, get a user, get a user who signed up without a name (no
+name and no photo: never the email, never a provider's generated default image), verify a token, create an organization
 and find it by metadata, refuse a taken slug (only a provider with `capabilities.organizationSlugs`; skipped on Clerk,
 whose connector sends no slug), list the creator as an admin-like member, refuse an unknown organization, create an
 invitation (metadata, role, 14-day expiry), replace it with a second one to the same email (the first turns revoked, as

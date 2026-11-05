@@ -61,6 +61,35 @@ describe('FakeIdentityProvider: users', () => {
     expect(await fake.getUser(user.subject)).toBeNull();
   });
 
+  it('signs up a person without a name, and takes a name or a photo away again', async () => {
+    const { fake } = world();
+    const user = fake.createUser({ email: 'nameless@x.test', displayName: null });
+    expect(user).toEqual({
+      subject: expect.any(String),
+      primaryEmail: 'nameless@x.test',
+      displayName: null,
+      updatedAt: T0,
+    });
+    const named = fake.updateUser(user.subject, {
+      displayName: 'Ihor Herasko',
+      imageUrl: 'https://i/me.png',
+    });
+    expect(named).toMatchObject({ displayName: 'Ihor Herasko', imageUrl: 'https://i/me.png' });
+    expect(fake.updateUser(user.subject, { email: 'n@x.test' })).toMatchObject({
+      imageUrl: 'https://i/me.png',
+    });
+    const bare = fake.updateUser(user.subject, { displayName: null, imageUrl: null });
+    expect(bare).toEqual({
+      subject: user.subject,
+      primaryEmail: 'n@x.test',
+      displayName: null,
+      updatedAt: expect.any(Number),
+    });
+    expect(await fake.getUser(user.subject)).toEqual(bare);
+    fake.deleteUser(user.subject);
+    expect(await fake.getUser(user.subject)).toBeNull();
+  });
+
   it('refuses a subject taken now or before, and changes to an unknown user', async () => {
     const { fake } = world();
     fake.createUser({ subject: 'u1', email: 'one@x.test' });

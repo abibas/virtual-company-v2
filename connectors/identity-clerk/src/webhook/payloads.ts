@@ -6,7 +6,7 @@ import type {
   IdentityMetadata,
 } from '@mwc/shared/identity';
 import { z } from 'zod';
-import { displayNameOf } from '../backend/mappers.ts';
+import { displayNameOf, imageOf } from '../backend/mappers.ts';
 
 /**
  * The parts of Clerk's webhook payloads (snake_case JSON, as the Backend API sends them) that become
@@ -31,7 +31,6 @@ export const UserPayload = z
     id: z.string().min(1),
     first_name: z.string().nullish(),
     last_name: z.string().nullish(),
-    username: z.string().nullish(),
     image_url: z.string().nullish(),
     has_image: z.boolean().nullish(),
     primary_email_address_id: z.string().nullish(),
@@ -48,13 +47,8 @@ export const UserPayload = z
     return {
       subject: user.id,
       primaryEmail: email,
-      displayName: displayNameOf(
-        user.first_name ?? null,
-        user.last_name ?? null,
-        user.username ?? null,
-        email,
-      ),
-      ...(user.has_image && user.image_url ? { imageUrl: user.image_url } : {}),
+      displayName: displayNameOf(user.first_name, user.last_name),
+      ...imageOf(user.has_image, user.image_url),
       updatedAt: user.updated_at,
     };
   });

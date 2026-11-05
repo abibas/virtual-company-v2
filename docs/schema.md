@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 15. Migrations: 6, the last is `0005_org`.
+Tables: 15. Migrations: 7, the last is `0006_user_profiles`.
 
 ```mermaid
 erDiagram
@@ -177,7 +177,7 @@ erDiagram
   users {
     uuid id PK "not null, default newId() (app-side)"
     text primary_email "not null"
-    text display_name "not null"
+    text display_name "nullable"
     text image_url "nullable"
     text status "not null, default 'active', active|deactivated"
     timestamptz created_at "not null, default now()"
@@ -593,7 +593,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | ------ | ---- | -------- | ------- | --- | -------------- |
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `primary_email` | `text` | no |  |  |  |
-| `display_name` | `text` | no |  |  |  |
+| `display_name` | `text` | yes |  |  |  |
 | `image_url` | `text` | yes |  |  |  |
 | `status` | `text` | no | `'active'` |  | `active`, `deactivated` |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
