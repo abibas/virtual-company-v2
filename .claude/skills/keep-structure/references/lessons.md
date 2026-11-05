@@ -468,3 +468,4 @@ count clearly grew. The review adds a row.
 | Date       | When                                  | near-limit | long-function | big-folder | fan-in | low-coverage | Total |
 | ---------- | ------------------------------------- | ---------- | ------------- | ---------- | ------ | ------------ | ----- |
 | 2026-11-04 | S1.0d, the first report (no review)   | 2          | 6             | 0          | 4      | 5            | 17    |
+| 2026-11-05 | S1.13, held; Ihor kept it as is     | 1          | 5             | 1          | 28     | 5            | 40    |
