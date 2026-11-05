@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { CompanyStatus, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import { LogoRef } from '@mwc/shared/logos';
 
 export const MeUserSchema = z
   .object({
@@ -11,8 +12,9 @@ export const MeUserSchema = z
   .openapi('MeUser');
 
 /**
- * One company the user belongs to: their role and membership status there, the company's status, and its organization
- * at the identity provider (null while provisioning; the web makes it Clerk's active organization).
+ * One company the user belongs to: their role and membership status there, the company's status, its organization
+ * at the identity provider (null while provisioning; the web makes it Clerk's active organization) and its logo's
+ * version (for `GET /api/companies/{companyId}/logo?v=<version>`; null when it has none).
  */
 export const MeMembershipSchema = z
   .object({
@@ -23,6 +25,7 @@ export const MeMembershipSchema = z
     status: MembershipStatus,
     companyStatus: CompanyStatus,
     identityOrgId: z.string().nullable().openapi({ example: 'org_2abc...' }),
+    logo: LogoRef.nullable().openapi({ example: { version: '9f86d081884c7d65' } }),
   })
   .openapi('MeMembership');
 

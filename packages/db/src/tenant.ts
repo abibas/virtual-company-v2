@@ -1,5 +1,11 @@
 import { and, eq, type SQL } from 'drizzle-orm';
-import type { AnyPgColumn, PgInsertValue, PgTable, PgUpdateSetSource } from 'drizzle-orm/pg-core';
+import type {
+  AnyPgColumn,
+  PgInsertValue,
+  PgTable,
+  PgUpdateSetSource,
+  SelectedFields,
+} from 'drizzle-orm/pg-core';
 import { type DbHandle, type RawDb, rawDb } from './handle.ts';
 import { type Company, companies } from './schema/companies.ts';
 
@@ -86,6 +92,17 @@ class ScopedDb {
     // an unresolved T, and the builder still carries T, so callers get their table's row type.
     return this.#db
       .select()
+      .from<T>(table as never)
+      .where(this.scoped(table, where));
+  }
+
+  /**
+   * `select <fields> from table where company_id = … [and where]`: only the columns named, for a table with a large
+   * column most reads do not need (a logo's bytes); chain as `select`.
+   */
+  selectFields<T extends TenantTable, F extends SelectedFields>(table: T, fields: F, where?: SQL) {
+    return this.#db
+      .select(fields)
       .from<T>(table as never)
       .where(this.scoped(table, where));
   }

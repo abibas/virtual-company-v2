@@ -45,6 +45,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'api_keys',
       'audit_log',
       'companies',
+      'company_logos',
       'identity_events',
       'identity_marks',
       'identity_outbox',

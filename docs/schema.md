@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 12. Migrations: 4, the last is `0003_company_reconciled_at`.
+Tables: 13. Migrations: 5, the last is `0004_company_logos`.
 
 ```mermaid
 erDiagram
@@ -48,6 +48,16 @@ erDiagram
     jsonb settings "not null, default '{}'"
     uuid created_by_user_id FK "nullable"
     timestamptz deleted_at "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
+  company_logos {
+    uuid company_id PK, FK "not null"
+    text content_type "not null, image/png|image/jpeg|image/webp"
+    bytea bytes "not null"
+    integer size "not null"
+    text sha256 "not null"
+    uuid updated_by_principal_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -151,6 +161,8 @@ erDiagram
   audit_log }o--o| companies : "company_id"
   audit_log }o--o| principals : "company_id, actor_principal_id"
   companies }o--o| users : "created_by_user_id"
+  company_logos |o--|| companies : "company_id"
+  company_logos }o--o| principals : "company_id, updated_by_principal_id"
   identity_outbox }o--|| companies : "company_id"
   invitations }o--|| companies : "company_id"
   invitations }o--o| users : "accepted_by_user_id"
@@ -256,6 +268,30 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `companies_slug_check`: `"slug" ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'`
   - `companies_status_check`: `status` is one of `provisioning`, `active`, `suspended`, `deleted`
+- **Indexes:** none
+
+### `company_logos`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `content_type` | `text` | no |  |  | `image/png`, `image/jpeg`, `image/webp` |
+| `bytes` | `bytea` | no |  |  |  |
+| `size` | `integer` | no |  |  |  |
+| `sha256` | `text` | no |  |  |  |
+| `updated_by_principal_id` | `uuid` | yes |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete cascade (`company_logos_company_id_companies_id_fk`)
+  - (`company_id`, `updated_by_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`company_logos_updated_by_principal_fk`)
+- **Unique:** none
+- **Checks:**
+  - `company_logos_content_type_check`: `content_type` is one of `image/png`, `image/jpeg`, `image/webp`
+  - `company_logos_size_check`: `"size" between 1 and 1048576`
+  - `company_logos_sha256_check`: `"sha256" ~ '^[0-9a-f]{64}$'`
 - **Indexes:** none
 
 ### `identity_events`

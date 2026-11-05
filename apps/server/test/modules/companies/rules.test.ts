@@ -3,6 +3,7 @@ import {
   audited,
   changedFields,
   creationRefusal,
+  detectLogoType,
   FALLBACK_SLUG,
   nameConfirmed,
   SLUG_MAX,
@@ -99,5 +100,34 @@ describe('nameConfirmed, changedFields and audited', () => {
       identityOrgId: null,
       deletedAt: null,
     });
+  });
+});
+
+describe('detectLogoType', () => {
+  const bytes = (...values: number[]) => Uint8Array.from(values);
+  const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const RIFF = [0x52, 0x49, 0x46, 0x46];
+  const WEBP = [0x57, 0x45, 0x42, 0x50];
+
+  it('tells a PNG, a JPEG and a WebP from their first bytes, whatever follows', () => {
+    expect(detectLogoType(bytes(...PNG, 0, 0, 0, 13))).toBe('image/png');
+    expect(detectLogoType(bytes(...PNG))).toBe('image/png');
+    expect(detectLogoType(bytes(0xff, 0xd8, 0xff, 0xe0))).toBe('image/jpeg');
+    expect(detectLogoType(bytes(0xff, 0xd8, 0xff))).toBe('image/jpeg');
+    expect(detectLogoType(bytes(...RIFF, 0x1a, 0, 0, 0, ...WEBP, 0x56))).toBe('image/webp');
+    expect(detectLogoType(bytes(...RIFF, 0xff, 0xff, 0xff, 0xff, ...WEBP))).toBe('image/webp');
+  });
+
+  it('knows nothing else: GIF, SVG, other RIFF files, signatures cut short or bent, nothing at all', () => {
+    const text = (value: string) => new TextEncoder().encode(value);
+    expect(detectLogoType(text('GIF89a'))).toBeUndefined();
+    expect(detectLogoType(text('<svg xmlns="http://www.w3.org/2000/svg"/>'))).toBeUndefined();
+    expect(detectLogoType(bytes(...RIFF, 0x1a, 0, 0, 0, 0x57, 0x41, 0x56, 0x45))).toBeUndefined();
+    expect(detectLogoType(bytes(...RIFF, 0x1a, 0, 0, 0, 0x57, 0x45, 0x42))).toBeUndefined();
+    expect(detectLogoType(bytes(...PNG.slice(0, 7)))).toBeUndefined();
+    expect(detectLogoType(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x00))).toBeUndefined();
+    expect(detectLogoType(bytes(0xff, 0xd8))).toBeUndefined();
+    expect(detectLogoType(bytes(0xff, 0xd8, 0x00))).toBeUndefined();
+    expect(detectLogoType(bytes())).toBeUndefined();
   });
 });

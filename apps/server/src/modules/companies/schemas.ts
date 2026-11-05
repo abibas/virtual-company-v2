@@ -1,6 +1,10 @@
 import { z } from '@hono/zod-openapi';
-import { CompanyStatus, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import { CompanyStatus, LogoContentType, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import { LogoRef } from '@mwc/shared/logos';
 import { NAME_MAX, SLUG_PATTERN } from './rules.ts';
+
+/** The company's logo version (for `GET .../logo?v=<version>`), or null when it has none. */
+const Logo = LogoRef.nullable().openapi({ example: { version: '9f86d081884c7d65' } });
 
 const Name = z.string().trim().min(1).max(NAME_MAX).openapi({ example: 'Most Wanted' });
 const Slug = z
@@ -22,6 +26,7 @@ export const CompanySchema = z
     name: z.string(),
     status: CompanyStatus,
     identityOrgId: z.string().nullable(),
+    logo: Logo,
     createdAt: z.string().openapi({ format: 'date-time' }),
     updatedAt: z.string().openapi({ format: 'date-time' }),
   })
@@ -36,6 +41,7 @@ export const CompanySummarySchema = z
     status: CompanyStatus,
     role: MembershipRole,
     membershipStatus: MembershipStatus,
+    logo: Logo,
   })
   .openapi('CompanySummary');
 
@@ -61,7 +67,42 @@ export const DeleteCompanySchema = z
   })
   .openapi('DeleteCompany');
 
+/** `PUT .../logo`: a multipart form with one file, `file` (its declared type and name are not trusted). */
+export const LogoUploadSchema = z
+  .object({
+    file: z.instanceof(File).openapi({
+      type: 'string',
+      format: 'binary',
+      description: 'A PNG, JPEG or WebP image of at most 1 MB, told by its first bytes',
+    }),
+  })
+  .openapi('LogoUpload');
+
+/** `GET .../logo?v=<version>`: the version a company response named, which makes the answer cacheable for good. */
+export const LogoQuerySchema = z.object({
+  v: z
+    .string()
+    .optional()
+    .openapi({ param: { name: 'v', in: 'query' }, example: '9f86d081884c7d65' }),
+});
+
+/** The logo stored: its version, the type its bytes show, its size and when it was set. */
+export const LogoSchema = z
+  .object({
+    logo: z.object({
+      version: z.string().openapi({ example: '9f86d081884c7d65' }),
+      contentType: LogoContentType,
+      size: z.number().int(),
+      updatedAt: z.string().openapi({ format: 'date-time' }),
+    }),
+  })
+  .openapi('Logo');
+
+/** The logo as `GET .../logo` sends it: the image itself. */
+export const LogoImageSchema = z.string().openapi({ type: 'string', format: 'binary' });
+
 export type CompanyView = z.infer<typeof CompanySchema>;
+export type LogoView = z.infer<typeof LogoSchema>['logo'];
 export type CompanySummary = z.infer<typeof CompanySummarySchema>;
 export type CreateCompany = z.infer<typeof CreateCompanySchema>;
 export type UpdateCompany = z.infer<typeof UpdateCompanySchema>;

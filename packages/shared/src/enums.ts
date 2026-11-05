@@ -79,3 +79,7 @@ export type IdentityOutboxOp = z.infer<typeof IdentityOutboxOp>;
 /** `identity_outbox.status`: pending (also while waiting for a retry), done, or failed for good. */
 export const IdentityOutboxStatus = z.enum(['pending', 'done', 'failed']);
 export type IdentityOutboxStatus = z.infer<typeof IdentityOutboxStatus>;
+
+/** `company_logos.content_type`: the image types a company logo may be, told from the file's own first bytes. */
+export const LogoContentType = z.enum(['image/png', 'image/jpeg', 'image/webp']);
+export type LogoContentType = z.infer<typeof LogoContentType>;

@@ -1,6 +1,7 @@
 import { type DbHandle, isUniqueViolation } from '@mwc/db';
 import { type IdentityProvider, type ProjectionChange, reconcileUser } from '@mwc/identity-core';
 import type { VerifiedIdentity } from '@mwc/shared/identity';
+import { logoRef } from '@mwc/shared/logos';
 import type { Actor } from '../../../platform/auth/actor.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { Throttle } from '../../../platform/http/throttle.ts';
@@ -138,7 +139,10 @@ function meView(profile: UserProfile, memberships: UserCompany[], actor: Actor):
       displayName: profile.displayName,
       imageUrl: profile.imageUrl,
     },
-    memberships,
+    memberships: memberships.map(({ logoSha256, ...membership }) => ({
+      ...membership,
+      logo: logoRef(logoSha256),
+    })),
     session: { via: actor.via === 'clerk' ? 'clerk' : 'api_key', pending: actor.identity?.pending ?? false },
   };
 }

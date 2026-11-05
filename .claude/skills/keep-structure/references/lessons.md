@@ -27,6 +27,31 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: A table with one row per company does not fit "UNIQUE(company_id, id)"
+
+- **What happened:** company logos (Ihor's request, 2026-11-05) are one row per company, so `company_logos` has
+  `company_id` as its primary key and no `id`. The skill's tenant rule ("every tenant table has `company_id` and
+  `UNIQUE(company_id, id)`") and `packages/db/test/schema/tenant.test.ts`, which checks that pair on every table with
+  a `company_id`, had no case for it. Its `company_id` also cascades on delete, unlike `companyIdColumn()`, so the
+  helper of `src/schema/tenant.ts` did not fit either. The image (up to 1 MB) made `TenantDb.select` (every column)
+  the wrong read for a company or a list, and the tenant layer had no way to name columns. The new schema file made
+  `src/schema/columns.ts` (`createdAt`, `updatedAt`, `oneOf`, now `bytea`) a `fan-in` warning, 7 importers to 8 (the
+  report went from 35 to 36 warnings after `pnpm mwc check`): every table file imports those helpers, so the next
+  table would have done it. Two more `fan-in` warnings of the first draft were avoided: the logo service takes the
+  acting principal's id instead of `MemberContext`, and the upload route types its body limit with `AppEnv`, so
+  `platform/auth/actor.ts` stays at 6 importers.
+- **Where:** `packages/db/src/schema/company-logos.ts` (45 lines), `test/schema/tenant.test.ts` (`ONE_PER_COMPANY`),
+  `src/tenant.ts` (`selectFields`), `apps/server/src/modules/companies/repo/logo.ts` (a `repo/` file beside
+  `repo.ts`, as the S1.7 lesson suggested for a second table).
+- **What was done:** the table lists itself apart in the tenant test (its `company_id` is the primary key, points at
+  `companies` and nothing points at it); `TenantDb.selectFields(table, fields, where?)` reads only the named columns,
+  scoped like `select`; `docs/architecture.md` (section 6) and `packages/db/README.md` say so.
+- **Suggested change:** the skill's tenant rule: "every tenant table has `company_id` and `UNIQUE(company_id, id)`,
+  or, with one row per company, `company_id` as its primary key and no `id`". Leave `packages/db/src/schema/columns.ts`
+  out of `fan-in` with the other files meant to be imported everywhere (the open S1.6 and S1.9 lessons), or count only
+  value imports.
+- **Status:** `open`.
+
 ### 2026-11-04: The component library, a shared class helper and a development-only gallery
 
 - **What happened:** the redesign gave the web a reusable component library (about 60 components) and a gallery to

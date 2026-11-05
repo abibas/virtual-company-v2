@@ -6,6 +6,7 @@ import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { CompanyParamsSchema, CompanySchema, DeleteCompanySchema, UpdateCompanySchema } from '../schemas.ts';
+import { logoRefOf } from '../service/logo.ts';
 import { type CompaniesService, companyView } from '../service.ts';
 
 /** `GET`, `PATCH` and `DELETE /api/companies/{companyId}`: read (member), rename (admin), delete (owner). */
@@ -63,7 +64,9 @@ const deleteCompanyRoute = (deps: ServerDeps) => {
 
 export function companyRoutes(deps: ServerDeps, companies: CompaniesService) {
   return newRouter()
-    .openapi(getCompanyRoute(deps), (c) => c.json(companyView(c.var.tenant.company), 200))
+    .openapi(getCompanyRoute(deps), async (c) =>
+      c.json(companyView(c.var.tenant.company, await logoRefOf(c.var.tenant)), 200),
+    )
     .openapi(updateCompanyRoute(deps), async (c) => {
       const result = await companies.update(
         c.var.tenant,
@@ -72,7 +75,7 @@ export function companyRoutes(deps: ServerDeps, companies: CompaniesService) {
         c.var.requestId,
       );
       if (!result.ok) return errorJson(c, 409, result.code, result.message);
-      return c.json(companyView(result.company), 200);
+      return c.json(companyView(result.company, await logoRefOf(c.var.tenant)), 200);
     })
     .openapi(deleteCompanyRoute(deps), async (c) => {
       const { tenant, membership, requestId } = c.var;

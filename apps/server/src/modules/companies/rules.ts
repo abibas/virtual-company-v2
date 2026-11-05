@@ -1,4 +1,5 @@
 import type { CompanyCreation } from '@mwc/shared/config';
+import type { LogoContentType } from '@mwc/shared/enums';
 
 /** The slug rule of `companies.slug` (its CHECK): lower-case kebab, 1 to 63 characters, no dash at either end. */
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -96,4 +97,30 @@ export type AuditedCompany = {
 export function audited(company: AuditedCompany): AuditedCompany {
   const { name, slug, status, identityOrgId, deletedAt } = company;
   return { name, slug, status, identityOrgId, deletedAt };
+}
+
+/** The first bytes of an image type; null matches any byte. */
+interface Signature {
+  readonly type: LogoContentType;
+  readonly bytes: readonly (number | null)[];
+}
+
+/** The first bytes of each image type a logo may be: the type is told from these, never from a name or a header. */
+const SIGNATURES: readonly Signature[] = [
+  { type: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  { type: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
+  // RIFF, the 4-byte size of the rest (any), WEBP.
+  { type: 'image/webp', bytes: [0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50] },
+];
+
+/**
+ * The image type a logo's bytes show (PNG, JPEG or WebP), or undefined for anything else: SVG (which can carry
+ * scripts), GIF, other images, text. A declared type or a file name never counts.
+ */
+export function detectLogoType(bytes: Uint8Array): LogoContentType | undefined {
+  return SIGNATURES.find(
+    (signature) =>
+      bytes.length >= signature.bytes.length &&
+      signature.bytes.every((byte, i) => byte === null || bytes[i] === byte),
+  )?.type;
 }

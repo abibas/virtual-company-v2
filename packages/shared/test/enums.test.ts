@@ -9,6 +9,7 @@ import {
   IdentityOutboxOp,
   IdentityOutboxStatus,
   InvitationStatus,
+  LogoContentType,
   MembershipRole,
   MembershipStatus,
   PrincipalKind,
@@ -34,6 +35,7 @@ describe('enums', () => {
       'delete_org',
     ]);
     expect(IdentityOutboxStatus.options).toEqual(['pending', 'done', 'failed']);
+    expect(LogoContentType.options).toEqual(['image/png', 'image/jpeg', 'image/webp']);
   });
 
   it('accepts known values and rejects others', () => {

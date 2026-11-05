@@ -1,5 +1,13 @@
 import { type SQL, sql } from 'drizzle-orm';
-import { type AnyPgColumn, timestamp } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, customType, timestamp } from 'drizzle-orm/pg-core';
+
+/**
+ * A `bytea` column (Drizzle 0.45 has no built-in one). Both drivers take a `Uint8Array` and give one back
+ * (postgres.js a `Buffer`, which is one).
+ */
+export const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => 'bytea',
+});
 
 /** `created_at timestamptz not null default now()`. */
 export const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();

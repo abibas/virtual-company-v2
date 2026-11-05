@@ -23,6 +23,7 @@ export {
   IdentityEventStatus,
   IdentityOutboxOp,
   IdentityOutboxStatus,
+  LogoContentType,
   PrincipalKind,
   UserStatus,
 } from './enums.ts';
@@ -46,5 +47,6 @@ export {
   VerifiedIdentity,
 } from './identity.ts';
 export { idTime, isId, newId } from './ids.ts';
+export { LOGO_MAX_BYTES, LOGO_VERSION_LENGTH, LogoRef, logoRef, logoVersion } from './logos.ts';
 export { PORTS, SLOT_BASE, SLOT_COUNT, type SlotPorts, slotFromPath, slotPorts } from './ports.ts';
 export { ROLE_RANK, roleAtLeast } from './roles.ts';

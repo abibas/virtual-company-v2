@@ -33,6 +33,7 @@ once and refuses one that is missing, deleted (`status = 'deleted'` or `deleted_
 ```ts
 const t = await tenant(db, companyId);
 await t.select(memberships, eq(memberships.status, 'active')).orderBy(asc(memberships.id)); // + company_id = …
+await t.selectFields(companyLogos, { sha256: companyLogos.sha256 });                        // only these columns
 await t.insert(principals, { kind: 'person' }).returning();                                 // company_id stamped
 await t.update(invitations, { status: 'revoked' }, eq(invitations.id, id)).returning();     // own rows only
 await t.delete(apiKeys, eq(apiKeys.id, id));
@@ -103,6 +104,12 @@ not what `diagram` would write. `pnpm mwc check` runs both in its "db drift" ste
   most one pending per email and company, a partial unique index) and `api_keys` (the SHA-256 of the secret,
   64 lower-case hex digits; a runner key needs its `machine_id`). `audit_log.actor_principal_id` points at a
   principal of the row's company.
+- `company_logos` (2026-11-05): one row per company, so `company_id` is its primary key and it has no `id` and no
+  `UNIQUE(company_id, id)` (nothing points at it; `test/schema/tenant.test.ts` lists it apart). The image is a
+  `bytea` (the `bytea` helper of `src/schema/columns.ts`) of 1 to 1,048,576 bytes, `content_type` one of
+  `LogoContentType` (PNG, JPEG, WebP), `sha256` 64 lower-case hex digits, `updated_by_principal_id` a principal of
+  the same company (null for the system); deleting the company row deletes it (`on delete cascade`). Read it with
+  `selectFields` when the bytes are not needed.
 - The global identity tables: `user_identities` (a person is `(issuer, subject)`, unique; two users may share an
   email), `identity_events` (the inbox, unique on `(provider, external_event_id)`), `identity_outbox` (provider
   calls, unique `idempotency_key`), and the projector's `identity_marks` and `identity_parked_events`.

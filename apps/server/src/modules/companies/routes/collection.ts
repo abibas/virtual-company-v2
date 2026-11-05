@@ -52,7 +52,8 @@ export function collectionRoutes(deps: ServerDeps, companies: CompaniesService) 
       const result = await companies.create(c.var.actor, c.req.valid('json'), c.var.requestId);
       if (!result.ok && result.status === 409) return errorJson(c, 409, result.code, result.message);
       if (!result.ok) return errorJson(c, 403, result.code, result.message);
-      return c.json(companyView(result.company), 201);
+      // A new company has no logo yet.
+      return c.json(companyView(result.company, null), 201);
     })
     .openapi(listCompaniesRoute(deps), async (c) =>
       c.json({ companies: await companies.list(c.var.actor) }, 200),

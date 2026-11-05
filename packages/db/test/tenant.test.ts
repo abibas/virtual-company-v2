@@ -107,6 +107,19 @@ describe('TenantDb', () => {
     expect(await t.select(principals, eq(principals.id, theirs.id))).toEqual([]);
   });
 
+  it("reads only the columns named, of this company's rows only", async () => {
+    const theirs = await insertPrincipal(handle, globex.id, 'agent');
+    const [ours] = await t.insert(principals, { kind: 'agent' }).returning();
+    const fields = { id: principals.id, kind: principals.kind };
+    const rows = await t.selectFields(principals, fields, eq(principals.kind, 'agent'));
+    expect(rows).toContainEqual({ id: ours?.id, kind: 'agent' });
+    expect(rows.every((row) => Object.keys(row).join() === 'id,kind')).toBe(true);
+    expect(rows.map((row) => row.id)).not.toContain(theirs.id);
+    expect(await t.selectFields(principals, fields).orderBy(asc(principals.id))).toHaveLength(
+      (await t.select(principals)).length,
+    );
+  });
+
   it("updates and deletes only this company's rows, and never moves a row to another company", async () => {
     const theirs = await (await tenant(handle, globex.id)).insert(invitations, invitation()).returning();
     const [ours] = await t.insert(invitations, invitation()).returning();

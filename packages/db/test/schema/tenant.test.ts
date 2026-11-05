@@ -9,13 +9,17 @@ import { insertCompany, insertPrincipal, MISSING_ID, migratedTestDb } from '../f
 
 /** Global tables that name a company without being tenant rows (no composite keys point at them). */
 const GLOBAL_WITH_COMPANY = ['audit_log', 'identity_outbox'];
+/** Tenant tables with one row per company: `company_id` is their primary key, they have no `id` and nothing points at them. */
+const ONE_PER_COMPANY = ['company_logos'];
 
 const tables = (Object.values(schema) as unknown[])
   .filter((value): value is PgTable => is(value, PgTable))
   .map((table) => getTableConfig(table));
-const tenantTables = tables.filter(
+const withCompany = tables.filter(
   (t) => t.columns.some((c) => c.name === 'company_id') && !GLOBAL_WITH_COMPANY.includes(t.name),
 );
+const tenantTables = withCompany.filter((t) => !ONE_PER_COMPANY.includes(t.name));
+const onePerCompany = withCompany.filter((t) => ONE_PER_COMPANY.includes(t.name));
 
 describe('the tenant conventions, on every tenant table', () => {
   it('finds the S1 tenant tables', () => {
@@ -25,7 +29,19 @@ describe('the tenant conventions, on every tenant table', () => {
       'memberships',
       'principals',
     ]);
+    expect(onePerCompany.map((t) => t.name)).toEqual(ONE_PER_COMPANY);
   });
+
+  it.each(onePerCompany.map((t) => [t.name, t] as const))(
+    '%s: company_id is the primary key and points at companies, no id',
+    (_, t) => {
+      const companyId = t.columns.find((c) => c.name === 'company_id');
+      expect(companyId?.primary).toBe(true);
+      expect(t.columns.some((c) => c.name === 'id')).toBe(false);
+      const companyFk = t.foreignKeys.map((fk) => fk.reference()).find((r) => r.columns.length === 1);
+      expect(getTableConfig(companyFk?.foreignTable as PgTable).name).toBe('companies');
+    },
+  );
 
   it.each(tenantTables.map((t) => [t.name, t] as const))(
     '%s: company_id not null, UNIQUE(company_id, id)',
@@ -50,7 +66,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(5);
+    expect(composite).toBe(6);
   });
 });
 

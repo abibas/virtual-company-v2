@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { type Company, diffFields, isUniqueViolation, SlugTakenError, type TenantDb } from '@mwc/db';
+import { type LogoRef, logoRef } from '@mwc/shared/logos';
 import type { Actor, MemberContext } from '../../platform/auth/actor.ts';
 import type { ServerDeps } from '../../platform/env.ts';
 import { enqueueOutbox, outboxKey } from '../../platform/jobs/outbox.ts';
@@ -31,14 +32,15 @@ const POLICY_MESSAGES = {
 /** Six random base-36 characters: the suffix of a derived slug when the numbered ones are taken. */
 export const randomSuffix = () => (randomBytes(4).readUInt32BE(0) % 36 ** 6).toString(36).padStart(6, '0');
 
-/** The company as the API shows it. */
-export function companyView(company: Company): CompanyView {
+/** The company as the API shows it, with its logo's version (`logoRefOf`), null when it has none. */
+export function companyView(company: Company, logo: LogoRef | null): CompanyView {
   return {
     id: company.id,
     slug: company.slug,
     name: company.name,
     status: company.status,
     identityOrgId: company.identityOrgId,
+    logo,
     createdAt: company.createdAt.toISOString(),
     updatedAt: company.updatedAt.toISOString(),
   };
@@ -126,7 +128,7 @@ async function createCompany(
   }
 }
 
-/** My companies, exactly as `GET /api/me` lists them, with my role and membership status in each. */
+/** My companies, exactly as `GET /api/me` lists them, with my role and membership status in each, and its logo. */
 async function listCompanies(deps: Deps, actor: Actor): Promise<CompanySummary[]> {
   return (await companiesOf(deps.db, actor)).map((row) => ({
     id: row.companyId,
@@ -135,6 +137,7 @@ async function listCompanies(deps: Deps, actor: Actor): Promise<CompanySummary[]
     status: row.companyStatus,
     role: row.role,
     membershipStatus: row.status,
+    logo: logoRef(row.logoSha256),
   }));
 }
 

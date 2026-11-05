@@ -24,7 +24,7 @@ Most_Wanted_corp_v2/
 │   │   │   ├── modules/            one folder per business area
 │   │   │   │   ├── health/         liveness, readiness, versions, /api/config  S0/S1.11
 │   │   │   │   ├── identity/       identity store, me, sync, webhook inbox (built) S1.4–S1.8
-│   │   │   │   ├── companies/      create, list, read, rename, soft delete (built) S1.5
+│   │   │   │   ├── companies/      create, list, read, rename, soft delete, logo (built) S1.5
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
 │   │   │   │   ├── org/            agents, reporting chain, org chart          S2

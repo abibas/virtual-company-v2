@@ -1,4 +1,4 @@
-import { companies, isUuid, memberships, users } from '@mwc/db';
+import { companies, companyLogos, isUuid, memberships, users } from '@mwc/db';
 import type { RawDb } from '@mwc/db/system';
 import { and, asc, eq, inArray, isNull, ne, type SQL } from 'drizzle-orm';
 
@@ -44,11 +44,13 @@ export interface UserCompany {
   readonly identityOrgId: string | null;
   readonly role: typeof memberships.$inferSelect.role;
   readonly status: typeof memberships.$inferSelect.status;
+  /** The SHA-256 of the company's logo (its version and ETag), null when it has none; never the image. */
+  readonly logoSha256: string | null;
 }
 
 /**
- * The user's memberships that are not removed, in companies that are not deleted, by company name; only in
- * `onlyCompanyId` when it is given (an API key bound to one company).
+ * The user's memberships that are not removed, in companies that are not deleted, by company name, with the SHA-256
+ * of each company's logo; only in `onlyCompanyId` when it is given (an API key bound to one company).
  */
 export async function listUserCompanies(
   db: RawDb,
@@ -71,9 +73,11 @@ export async function listUserCompanies(
       identityOrgId: companies.identityOrgId,
       role: memberships.role,
       status: memberships.status,
+      logoSha256: companyLogos.sha256,
     })
     .from(memberships)
     .innerJoin(companies, eq(companies.id, memberships.companyId))
+    .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id))
     .where(and(...where))
     .orderBy(asc(companies.name), asc(companies.id));
 }

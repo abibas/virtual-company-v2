@@ -10,6 +10,7 @@
     "./config": "./src/config.ts",
     "./enums": "./src/enums.ts",
     "./identity": "./src/identity.ts",
+    "./logos": "./src/logos.ts",
     "./ids": "./src/ids.ts",
     "./ports": "./src/ports.ts",
     "./roles": "./src/roles.ts"

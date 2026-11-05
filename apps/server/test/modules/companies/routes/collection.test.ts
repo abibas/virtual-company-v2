@@ -39,6 +39,7 @@ describe('POST /api/companies', () => {
       name: 'Acme Robotics',
       status: 'provisioning',
       identityOrgId: null,
+      logo: null,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
@@ -204,6 +205,7 @@ describe('GET /api/companies', () => {
         status: 'provisioning',
         role: 'owner',
         membershipStatus: 'active',
+        logo: null,
       },
       {
         id: other.company.id,
@@ -212,6 +214,7 @@ describe('GET /api/companies', () => {
         status: 'active',
         role: 'viewer',
         membershipStatus: 'active',
+        logo: null,
       },
     ]);
     expect(companies.map((c) => c.id)).not.toContain(notMine.company.id);

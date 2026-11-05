@@ -29,6 +29,13 @@
       "when": 1793816729961,
       "tag": "0003_company_reconciled_at",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793861837027,
+      "tag": "0004_company_logos",
+      "breakpoints": true
     }
   ]
 }
