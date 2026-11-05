@@ -143,7 +143,11 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   `POST /api/webhooks/clerk` in its `routes.ts`, `service/webhooks.ts` (verify, record once, process inline),
   `service/events.ts` (`processInboxEvent`, and `retryIdentityEvents` for S1.10's loop), and its raw database access
   in `repo/events.ts` (the `identity_events` rows, claimed under `for update skip locked`) and `repo/audit.ts` (a
-  projection's audit rows), under the identity repo's Biome exemption. Later `realtime/`.
+  projection's audit rows), under the identity repo's Biome exemption. A membership that turns active or stops being
+  active moves its person on the org chart in its own transaction (S2.4): the database store's `upsertMembership`
+  (`repo/memberships.ts`) and the members module's removal call the org module's `memberChart`
+  (`org/service/lifecycle.ts`), which `createApp` and `moduleJobs` in `app.ts` pass them as `ChartDeps`, a port the
+  identity module defines (`repo/chart.ts`), so neither module imports the org module. Later `realtime/`.
 - `src/modules/<area>/` is one business area. A module has up to these files:
 
   | File         | Role                                                                            |

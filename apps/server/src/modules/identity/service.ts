@@ -5,7 +5,7 @@ import { type UserProfile, userIdOf, userProfile, userProfiles, userSubject } fr
  * The identity module's service: who is calling (`service/me.ts`, re-exported here) and the lookups of people the
  * other modules call (profiles, a person's subject at the provider and back), so none of them reads the identity repo.
  */
-export type { UserCompany, UserProfile } from './repo.ts';
+export type { ChartDeps, MemberChart, UserCompany, UserProfile } from './repo.ts';
 export {
   companiesOf,
   isUniqueViolation,

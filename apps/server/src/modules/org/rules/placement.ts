@@ -1,7 +1,7 @@
 import type { Agent, Membership, OrgPosition } from '@mwc/db';
 import type { MembershipRole } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
-import { validateChart, validateMove } from '../rules.ts';
+import { type ChartViolation, validateChart, validateMove } from '../rules.ts';
 import { applyMoves, type Chart, type ChartMove, type ChartNode } from './chart.ts';
 
 // The org API's decisions over a company's stored chart: who is on it, whether a placement or a removal keeps it
@@ -82,13 +82,18 @@ export function earliestOwner(memberList: readonly Membership[]): string | null 
   return owners[0]?.principalId ?? null;
 }
 
+/** The invariants `after` breaks that `before` did not (by code and principal), in chart order. */
+export function addedViolations(before: Chart, after: Chart): ChartViolation[] {
+  const known = new Set(validateChart(before).map((v) => `${v.code} ${v.principalId}`));
+  return validateChart(after).filter((v) => !known.has(`${v.code} ${v.principalId}`));
+}
+
 /**
  * The first invariant `after` breaks that `before` did not, as a 422, or undefined. A chart stored with a flaw
  * already (an orphan left by a removed member) still takes changes that add none.
  */
 export function chartRefusal(before: Chart, after: Chart): Refusal<422> | undefined {
-  const known = new Set(validateChart(before).map((v) => `${v.code} ${v.principalId}`));
-  const added = validateChart(after).find((v) => !known.has(`${v.code} ${v.principalId}`));
+  const [added] = addedViolations(before, after);
   return added && refuse(422, added.code, added.message);
 }
 

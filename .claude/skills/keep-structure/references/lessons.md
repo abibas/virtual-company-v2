@@ -49,6 +49,42 @@ Newest first, one entry per lesson:
   before S4 adds the task and inbox calls to both.
 - **Status:** `open`.
 
+### 2026-11-05: One module acting on another's state change, in its transaction: the org chart's lifecycle hooks
+
+- **What happened:** S2.4 moves people on the org chart whenever a membership turns active or stops being active, in
+  the same transaction. Every identity path (webhook events, a deleted user, the reconcile on sign-in, the self
+  reconcile, Sync now, the periodic reconcile) changes a membership's status in one place, the database identity
+  store's `upsertMembership` (`modules/identity/repo/memberships.ts`), the only call site that can hold that
+  transaction (the reconciles run without one, a store call at a time); the members module's removal is the other.
+  Calling the org module from there would add identity → org and members → org, while org already imports
+  `identity/service.ts` (`profilesOf`, the chart's names) and identity and members already import each other (the S1.7
+  entry below): new module cycles, and a repo calling another module's service. The placement table has no row for
+  "module A acts when module B changes its state, in B's transaction".
+- **Where:** `apps/server/src/modules/identity/repo/chart.ts` (69 lines: the port `MemberChart`, `ChartActor`,
+  `ChartDeps`, `chartStep`, `lockedTenant`), `repo/memberships.ts` (120), `repo.ts` (208: `DbIdentityStoreOptions`
+  gains `chart` and `requestId`), `modules/org/service/lifecycle.ts` (`memberChart`, and S2.3's `service/status.ts`
+  merged in), `modules/members/service.ts` (`MembersDeps`), `service/remove.ts`, `apps/server/src/app.ts`
+  (`withMemberChart`, `moduleJobs`); the S2.4 commit.
+- **What was done:** the identity module defines the port (its `service.ts` re-exports it for the members module, which
+  imports that file already); the org module implements it (`memberChart(deps)`, typed on its own); `app.ts`, which
+  already composes the modules' jobs, passes it to the identity and members modules as `chart`, and the typecheck
+  holds it to the port there. No module imports one it did not import before. The first draft imported the port's
+  types from `identity/service.ts` in four more files (the org lifecycle, the members routes and removal), which took it
+  to 11 importers, and its own `service/lifecycle.ts` took `org/repo.ts` and `org/rules/placement.ts` to 8: three new
+  `fan-in` warnings. Now the members module types its deps as `MembersDeps` (its `service.ts`) and its removal's call
+  structurally, and S2.3's
+  `service/status.ts` (an agent archived or restored) went into `service/lifecycle.ts`, one file for every principal
+  joining or leaving the chart: the three files keep 7 importers each. The cost: `SyncDeps`, `meService`,
+  `identityRoutes`, `membersService`, `membersRoutes` and `DbIdentityStoreOptions` take `chart`, so the tests that build
+  those deps by hand pass `testChart()` (`test/fixtures/org.ts`): 8 test files, a line or two each. The in-memory
+  identity store and the store contract stay without a chart, so `packages/identity-core/src/memory-store.ts` stays at
+  250 lines.
+- **Suggested change:** a placement-table row: "Module A acting on a change module B makes, in B's transaction → a port
+  B defines (in `repo/` or `service.ts`), implemented by A's service and passed in by `app.ts` (as `moduleJobs` and
+  `withMemberChart` do); never an import that closes a module cycle." If more come (S4's tasks of a removed member, S5's
+  inbox routing), consider one typed in-process list of membership events composed in `app.ts` instead of a port each.
+- **Status:** `open`.
+
 ### 2026-11-05: The org API: one routes file kept for fan-in, tests split by route group, rules parts that build on the entry
 
 - **What happened:** S2.3 added six routes to `modules/org/`. Two route group files (`routes/agents.ts`,

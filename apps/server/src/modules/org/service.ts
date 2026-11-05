@@ -23,7 +23,7 @@ const LIST_STATUSES: Readonly<Record<string, readonly AgentStatus[] | undefined>
 
 /**
  * The org module's logic: the agents (list, read, create, change, archive: `service/agents.ts`,
- * `service/status.ts`), the positions (`service/positions.ts`) and the chart (`service/chart.ts`). Every change runs
+ * `service/lifecycle.ts`), the positions (`service/positions.ts`) and the chart (`service/chart.ts`). Every change runs
  * under the company row's lock, so two changes never pass the org rules each on a chart the other changes.
  */
 export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {

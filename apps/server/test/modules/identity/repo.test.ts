@@ -14,6 +14,7 @@ import {
   seedableDbStore,
   snapshotOf,
 } from '../../fixtures/identity-store.ts';
+import { testChart } from '../../fixtures/org.ts';
 
 // The same contract the in-memory store passes (packages/testkit/test/store-contract.test.ts), on the
 // database: fewer convergence runs, since each one empties and seeds the tables again.
@@ -30,7 +31,7 @@ describe('DbIdentityStore on the tables', () => {
   beforeAll(async () => {
     testDb = await createTestDb();
     await migrateToLatest(testDb.handle);
-    store = dbIdentityStore(testDb.handle, { provider: PROVIDER });
+    store = dbIdentityStore(testDb.handle, { provider: PROVIDER, chart: testChart() });
   });
   beforeEach(() => emptyIdentityTables(testDb.handle));
   afterAll(() => testDb.close());
@@ -70,9 +71,10 @@ describe('DbIdentityStore on the tables', () => {
       .insert(userIdentities)
       .values({ userId: bob.id, provider: 'oidc', issuer: 'https://idp.test', subject: 'b-1' });
     expect(await store.getUserById(bob.id)).toMatchObject({ issuer: 'https://issuer.test', subject: 'bob' });
-    const oidc = dbIdentityStore(testDb.handle, { provider: 'oidc' });
+    const oidc = dbIdentityStore(testDb.handle, { provider: 'oidc', chart: testChart() });
     expect(await oidc.getUserById(bob.id)).toMatchObject({ issuer: 'https://idp.test', subject: 'b-1' });
-    expect(await dbIdentityStore(testDb.handle, { provider: 'clerk' }).getUserById(bob.id)).toBeUndefined();
+    const clerk = dbIdentityStore(testDb.handle, { provider: 'clerk', chart: testChart() });
+    expect(await clerk.getUserById(bob.id)).toBeUndefined();
   });
 
   it('projects an event in one transaction: an error rolls back everything it wrote', async () => {

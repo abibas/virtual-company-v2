@@ -1,7 +1,7 @@
 import type { Invitation, Membership, TenantDb } from '@mwc/db';
 import { invitationStatusAt } from '@mwc/shared/identity';
 import type { ServerDeps } from '../../platform/env.ts';
-import { profilesOf, type UserProfile } from '../identity/service.ts';
+import { type ChartDeps, profilesOf, type UserProfile } from '../identity/service.ts';
 import { membersRepo } from './repo.ts';
 import { type InvitationFilter, type Refusal, storedStatuses } from './rules.ts';
 import type { InvitationView, MemberView } from './schemas.ts';
@@ -16,6 +16,9 @@ import {
 } from './service/invitations.ts';
 import { type Removal, removeMember } from './service/remove.ts';
 import { changeRole, type RoleChange } from './service/role.ts';
+
+/** What the members module's routes and services need: the database, and the org chart a removal changes. */
+export type MembersDeps = Pick<ServerDeps, 'db'> & ChartDeps;
 
 /** Who a membership names when their profile is missing (never, while `memberships.user_id` keeps its key). */
 const UNKNOWN_PROFILE = { displayName: '', primaryEmail: '', imageUrl: null } as const;
@@ -42,9 +45,9 @@ export function memberView(
 /**
  * The members module's logic: the member list, role changes and removals (`service/role.ts`, `service/remove.ts`);
  * the outbox handlers are in `service/provider.ts`. People's profiles are global rows, read through the identity
- * module's service.
+ * module's service. A removal takes the person off the org chart through `chart` (the org module's, from `createApp`).
  */
-export function membersService(deps: Pick<ServerDeps, 'db'>) {
+export function membersService(deps: MembersDeps) {
   const repo = membersRepo();
   const views = async (rows: readonly Membership[]) => {
     const profiles = await profilesOf(
@@ -63,7 +66,7 @@ export function membersService(deps: Pick<ServerDeps, 'db'>) {
       return { ok: true, member: member as MemberView };
     },
 
-    remove: (t: TenantDb, call: Removal) => removeMember(repo, t, call),
+    remove: (t: TenantDb, call: Removal) => removeMember(repo, t, call, deps.chart),
   };
 }
 

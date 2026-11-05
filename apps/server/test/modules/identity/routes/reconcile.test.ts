@@ -66,7 +66,7 @@ describe('POST /api/me/reconcile', () => {
       (row) => row.requestId === 'req-reconcile-me',
     );
     expect(new Set(audited.map((row) => `${row.actorKind} ${row.entityType} ${row.action}`))).toEqual(
-      new Set(['system membership activate', 'system invitation accept']),
+      new Set(['system membership activate', 'system invitation accept', 'system org_position create']),
     );
   });
 

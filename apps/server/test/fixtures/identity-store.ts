@@ -19,6 +19,7 @@ import { createTestDb, type TestDb } from '@mwc/testkit';
 import type { IdentitySnapshot, SeedableStore, StoreContractTarget } from '@mwc/testkit/store-contract';
 import { asc, eq, sql } from 'drizzle-orm';
 import { type DbIdentityStore, dbIdentityStore } from '../../src/modules/identity/repo.ts';
+import { testChart } from './org.ts';
 
 /** The provider kind of the fake (`FakeIdentityProvider.kind`): what the contract's scenarios use. */
 export const PROVIDER = 'fake';
@@ -80,7 +81,7 @@ export async function snapshotOf(handle: DbHandle): Promise<IdentitySnapshot> {
 /** A seedable database store on `handle` (seeds go straight into the tables, as the services will make them). */
 export function seedableDbStore(
   handle: DbHandle,
-  store: DbIdentityStore = dbIdentityStore(handle, { provider: PROVIDER }),
+  store: DbIdentityStore = dbIdentityStore(handle, { provider: PROVIDER, chart: testChart() }),
 ): SeedableStore {
   const db = rawDb(handle);
   return {

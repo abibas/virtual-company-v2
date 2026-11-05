@@ -88,7 +88,8 @@ describe('runJobsOnce on the fake provider', () => {
       status: 'active',
     });
     // The periodic reconcile's changes are audited by the system, with no request id, as the jobs' other rows: the
-    // owner's membership linked to its provider membership on the first reconcile, then the acceptance.
+    // owner's membership linked to its provider membership on the first reconcile, then the acceptance, with the
+    // invitee's place on the org chart.
     const accepted = (await auditOf(w.t.db, company.id)).filter((row) => row.actorKind === 'system');
     expect(
       new Set(accepted.map((row) => `${row.entityType} ${row.action} ${row.field} ${row.requestId}`)),
@@ -103,6 +104,7 @@ describe('runJobsOnce on the fake provider', () => {
         ),
         'invitation accept acceptedByUserId null',
         'invitation accept status null',
+        'org_position create reportsToPrincipalId null',
       ]),
     );
   });

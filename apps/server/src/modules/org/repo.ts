@@ -3,6 +3,7 @@ import {
   type AuditEntry,
   agents,
   auditChanges,
+  invitations,
   isUuid,
   type Membership,
   memberships,
@@ -46,6 +47,13 @@ async function getAgent(t: TenantDb, id: string): Promise<Agent | undefined> {
 async function getPosition(t: TenantDb, principalId: string): Promise<OrgPosition | undefined> {
   const [row] = await t.select(orgPositions, eq(orgPositions.principalId, principalId));
   return row;
+}
+
+/** Who sent this invitation of the company (their principal); null when nobody did or there is no such invitation. */
+async function inviterOf(t: TenantDb, invitationId: string): Promise<string | null> {
+  const by = { invitedBy: invitations.invitedByPrincipalId };
+  const [row] = await t.selectFields(invitations, by, eq(invitations.id, invitationId));
+  return row?.invitedBy ?? null;
 }
 
 /** The slugs every agent of the company holds, archived ones too (a slug stays taken). */
@@ -98,8 +106,8 @@ async function removePosition(t: TenantDb, principalId: string): Promise<OrgPosi
 
 /**
  * The org module's data access, through the company's tenant only: the agents, the positions, the active
- * memberships (who of the people is on the chart), the company row's lock that serializes every change of the
- * chart, and the audit rows.
+ * memberships (who of the people is on the chart) and who invited a person, the company row's lock that serializes
+ * every change of the chart, and the audit rows.
  */
 export function orgRepo() {
   return {
@@ -110,6 +118,7 @@ export function orgRepo() {
     listAgents,
     getAgent,
     getPosition,
+    inviterOf,
     takenSlugs,
     insertAgent,
     updateAgent,

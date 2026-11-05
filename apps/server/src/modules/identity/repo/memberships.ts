@@ -2,10 +2,12 @@ import { companies, isUuid, type Membership, memberships, principals } from '@mw
 import type { RawDb } from '@mwc/db/system';
 import type { NewStoredMembership, StoredCompany, StoredMembership } from '@mwc/identity-core';
 import { and, asc, eq } from 'drizzle-orm';
+import { type ChartActor, chartStep, lockedTenant, type MemberChart, moveOnChart } from './chart.ts';
 
 /**
  * Companies as the projector sees them (id, organization link, status) and memberships across companies.
- * A new membership gets its person principal in the same transaction: a principal is a person in one company.
+ * A new membership gets its person principal in the same transaction: a principal is a person in one company. A
+ * membership that turns active or stops being active moves its person on the org chart in that transaction too.
  */
 
 const companyColumns = {
@@ -69,27 +71,50 @@ export async function listMemberships(
   return rows.map(stored);
 }
 
-/** Updates the membership of `(companyId, userId)`, or makes it with a new person principal. */
+/** Writes the membership of `(companyId, userId)` over `before`, or makes it with a new person principal. */
+async function writeMembership(
+  db: RawDb,
+  membership: NewStoredMembership,
+  before: Membership | undefined,
+): Promise<Membership> {
+  const { companyId, userId, ...fields } = membership;
+  if (before) {
+    const where = and(eq(memberships.companyId, companyId), eq(memberships.userId, userId));
+    const [updated] = (await db.update(memberships).set(fields).where(where).returning()) as [Membership];
+    return updated;
+  }
+  const [principal] = (await db
+    .insert(principals)
+    .values({ companyId, kind: 'person' })
+    .returning({ id: principals.id })) as [{ id: string }];
+  const [created] = (await db
+    .insert(memberships)
+    .values({ ...fields, companyId, userId, principalId: principal.id })
+    .returning()) as [Membership];
+  return created;
+}
+
+/**
+ * Updates the membership of `(companyId, userId)`, or makes it with a new person principal, in one transaction. When
+ * it turns active, or stops being active, the company row is locked first and the person is placed on the org chart
+ * or taken off it, their reports moved up (`chart`, by `by`), in the same transaction; a deleted company's chart is
+ * left as it is.
+ */
 export async function upsertMembership(
   db: RawDb,
   membership: NewStoredMembership,
+  hook: { readonly chart: MemberChart; readonly by: ChartActor },
 ): Promise<StoredMembership> {
-  const { companyId, userId, ...fields } = membership;
-  const [updated] = await db
-    .update(memberships)
-    .set(fields)
-    .where(and(eq(memberships.companyId, companyId), eq(memberships.userId, userId)))
-    .returning();
-  if (updated) return stored(updated);
+  const { companyId, userId } = membership;
   return db.transaction(async (tx) => {
-    const [principal] = (await tx
-      .insert(principals)
-      .values({ companyId, kind: 'person' })
-      .returning({ id: principals.id })) as [{ id: string }];
-    const [created] = (await tx
-      .insert(memberships)
-      .values({ ...fields, companyId, userId, principalId: principal.id })
-      .returning()) as [Membership];
-    return stored(created);
+    const [before] = await tx
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.companyId, companyId), eq(memberships.userId, userId)));
+    const step = chartStep(before?.status, membership.status);
+    const t = step && (await lockedTenant(tx, companyId));
+    const saved = await writeMembership(tx, membership, before);
+    if (step && t) await moveOnChart(t, step, saved, hook);
+    return stored(saved);
   });
 }

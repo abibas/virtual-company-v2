@@ -269,10 +269,11 @@ describe('acceptance on sign-in (GET /api/me)', () => {
       role: 'admin',
       status: 'active',
     });
-    // What the reconcile changed is audited, by the system, with the sign-in's request id.
+    // What the reconcile changed is audited, by the system, with the sign-in's request id: the person placed on the
+    // org chart too (S2.4).
     const audited = (await projectionAudit(acme.companyId)).filter((row) => row[4] === 'req-sign-in');
     expect(new Set(audited.map((row) => row.slice(0, 4).join(' ')))).toEqual(
-      new Set(['system  membership activate', 'system  invitation accept']),
+      new Set(['system  membership activate', 'system  invitation accept', 'system  org_position create']),
     );
   });
 

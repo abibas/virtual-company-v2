@@ -13,8 +13,8 @@ import {
 import { placeRefusal, type Refusal, type RefusalStatus } from '../rules/placement.ts';
 import type { AgentDetailView, CreateAgent, UpdateAgent } from '../schemas.ts';
 import { auditEntry, auditPosition, type Caller } from './audit.ts';
+import { moveForStatus } from './lifecycle.ts';
 import { agentDetail, loadOrg } from './read.ts';
-import { moveForStatus } from './status.ts';
 
 export type AgentResult<S extends RefusalStatus> =
   | { readonly ok: true; readonly agent: AgentDetailView }

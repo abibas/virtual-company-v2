@@ -14,6 +14,7 @@ import type {
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { auditProjection } from './repo/audit.ts';
 import * as bookkeeping from './repo/bookkeeping.ts';
+import type { ChartActor, MemberChart } from './repo/chart.ts';
 import * as invitations from './repo/invitations.ts';
 import {
   getUserProfile,
@@ -36,6 +37,13 @@ export interface DbIdentityStoreOptions {
    * `expired` from then on.
    */
   readonly now?: () => Date;
+  /** The org chart a membership that starts or ends moves its person on (the org module's, from `ChartDeps`). */
+  readonly chart: MemberChart;
+  /**
+   * The id on the audit rows of those chart moves, by the system: a webhook event's delivery id, the id of the request
+   * that ran a reconcile; none (the default) for the periodic reconcile.
+   */
+  readonly requestId?: string | null;
 }
 
 /**
@@ -47,19 +55,23 @@ export interface DbIdentityStoreOptions {
  * alone), so this store reads the raw database (`@mwc/db/system`): the identity module's repo is the one place
  * in `modules/` allowed to (biome.json). A malformed id finds nothing instead of failing. `transaction(work)`
  * runs `work` on a store bound to one transaction: the webhook inbox projects each event in one, with its audit rows
- * (`audit`), S1.8.
+ * (`audit`), S1.8. A membership that turns active or stops being active moves its person on the org chart (`chart`)
+ * in the membership's own transaction (S2.4); the in-memory store has no chart, since the store contract has none.
  */
 export class DbIdentityStore implements IdentityStore {
   readonly #db: RawDb;
   readonly #options: DbIdentityStoreOptions;
   readonly #provider: string;
   readonly #now: () => Date;
+  readonly #chart: { readonly chart: MemberChart; readonly by: ChartActor };
 
   constructor(db: RawDb, options: DbIdentityStoreOptions) {
     this.#db = db;
     this.#options = options;
     this.#provider = options.provider;
     this.#now = options.now ?? (() => new Date());
+    const by = { actorKind: 'system', actorPrincipalId: null, requestId: options.requestId ?? null } as const;
+    this.#chart = { chart: options.chart, by };
   }
 
   /** Runs `work` in one transaction (a savepoint when already inside one); an error rolls it all back. */
@@ -98,7 +110,7 @@ export class DbIdentityStore implements IdentityStore {
   }
 
   upsertMembership(membership: NewStoredMembership): Promise<StoredMembership> {
-    return memberships.upsertMembership(this.#db, membership);
+    return memberships.upsertMembership(this.#db, membership, this.#chart);
   }
 
   getInvitation(id: string): Promise<StoredInvitation | undefined> {
@@ -139,6 +151,7 @@ export class DbIdentityStore implements IdentityStore {
   }
 }
 
+export type { ChartActor, ChartDeps, MemberChart } from './repo/chart.ts';
 export {
   claimDueInboxEvents,
   type InboxOutcome,

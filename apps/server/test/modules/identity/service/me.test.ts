@@ -9,6 +9,7 @@ import {
 } from '../../../../src/modules/identity/service/me.ts';
 import type { Actor } from '../../../../src/platform/auth/actor.ts';
 import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/auth.ts';
+import { testChart } from '../../../fixtures/org.ts';
 
 const unique = Object.assign(new Error('duplicate key'), { code: '23505' });
 
@@ -71,11 +72,12 @@ describe('meService', () => {
     });
   });
   afterAll(() => w.t.close());
+  const deps = () => ({ ...w.deps, chart: testChart() });
 
   it('reconciles a session again once it has been forgotten', async () => {
     const { company } = await seedCompany(w.t.db);
     const person = await addPerson(w.t.db, w.fake, company.id);
-    const service = meService({ ...w.deps }, { rememberedSessions: 1 });
+    const service = meService(deps(), { rememberedSessions: 1 });
     const linked = (sessionId: string) => ({ ...actor(person.subject, sessionId), userId: person.userId });
     const getUser = vi.spyOn(w.fake, 'getUser');
     for (const sessionId of ['s1', 's1', 's2', 's1']) await service.me(linked(sessionId), w.clock);
@@ -86,7 +88,7 @@ describe('meService', () => {
   it('without a session id, reconciles only a person who is not linked yet', async () => {
     const { company } = await seedCompany(w.t.db);
     const person = await addPerson(w.t.db, w.fake, company.id);
-    const service = meService(w.deps);
+    const service = meService(deps());
     const getUser = vi.spyOn(w.fake, 'getUser');
     expect(await service.me({ ...actor(person.subject), userId: person.userId }, w.clock)).toMatchObject({
       ok: true,
@@ -104,7 +106,7 @@ describe('meService', () => {
   it('reads the local user without a provider (sign-in off)', async () => {
     const { company } = await seedCompany(w.t.db);
     const person = await addPerson(w.t.db, w.fake, company.id);
-    const service = meService({ ...w.deps, identity: undefined });
+    const service = meService({ ...deps(), identity: undefined });
     const result = await service.me({ ...actor(person.subject, 's'), userId: person.userId }, w.clock);
     expect(result).toMatchObject({ ok: true, me: { user: { id: person.userId } } });
   });
@@ -114,9 +116,9 @@ describe('meService', () => {
     const person = await addPerson(w.t.db, w.fake, company.id);
     const refused = { ok: false, status: 403, code: 'forbidden' };
     const viaKey: Actor = { kind: 'user', via: 'api_key', userId: person.userId, companyId: company.id };
-    expect(await meService(w.deps).reconcile(viaKey, w.clock)).toMatchObject(refused);
+    expect(await meService(deps()).reconcile(viaKey, w.clock)).toMatchObject(refused);
     const signedIn = { ...actor(person.subject, 's'), userId: person.userId };
-    expect(await meService({ ...w.deps, identity: undefined }).reconcile(signedIn, w.clock)).toMatchObject(
+    expect(await meService({ ...deps(), identity: undefined }).reconcile(signedIn, w.clock)).toMatchObject(
       refused,
     );
   });
@@ -124,7 +126,7 @@ describe('meService', () => {
   it('reconciles a session it reconciled already when asked, one turn per person per interval', async () => {
     const { company } = await seedCompany(w.t.db);
     const person = await addPerson(w.t.db, w.fake, company.id);
-    const service = meService(w.deps, { selfReconcileIntervalMs: 2_000 });
+    const service = meService(deps(), { selfReconcileIntervalMs: 2_000 });
     const linked = { ...actor(person.subject, 's1'), userId: person.userId };
     const getUser = vi.spyOn(w.fake, 'getUser');
     await service.me(linked, w.clock);

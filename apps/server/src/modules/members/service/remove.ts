@@ -1,4 +1,4 @@
-import { diffFields, type TenantDb } from '@mwc/db';
+import { type AuditEntry, diffFields, type TenantDb } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
 import { enqueueOutbox, outboxKey } from '../../../platform/jobs/outbox.ts';
 import type { MembersRepo } from '../repo.ts';
@@ -12,15 +12,31 @@ export interface Removal {
   readonly now: Date;
 }
 
+/** The org chart's side of a removal: the identity module's `MemberChart`, of which a removal needs one call. */
+interface Unplace {
+  unplaceMember(
+    t: TenantDb,
+    principalId: string,
+    by: Pick<AuditEntry, 'actorKind' | 'actorPrincipalId' | 'requestId'>,
+  ): Promise<void>;
+}
+
 /**
  * Removes a member, local first, so their access ends with this transaction: under the company's lock the two
  * memberships are read as they are now (403 when the actor is no longer active, 404 for an unknown or removed
  * target), the removal rules apply (403; leaving is always allowed), and the last-owner guard refuses removing the
  * last active owner (409 `last_owner`). Then the membership turns `removed` (their sessions get 404 on the company
- * from now on), their API keys in this company are revoked (401 from now on), each with its audit row, and the
- * outbox `remove_member` call follows (a new key for every removal: a person can be invited back and removed again).
+ * from now on), their API keys in this company are revoked (401 from now on), each with its audit row, the person
+ * leaves the org chart (`chart.unplaceMember`: their direct reports move up, their position goes, audited by the
+ * actor), and the outbox `remove_member` call follows (a new key for every removal: a person can be invited back and
+ * removed again).
  */
-export function removeMember(repo: MembersRepo, t: TenantDb, call: Removal): Promise<{ ok: true } | Refusal> {
+export function removeMember(
+  repo: MembersRepo,
+  t: TenantDb,
+  call: Removal,
+  chart: Unplace,
+): Promise<{ ok: true } | Refusal> {
   return t.transaction(async (tx) => {
     const pair = checkPair(...(await repo.lockedPair(tx, call.actorId, call.membershipId)));
     if ('ok' in pair) return pair;
@@ -51,8 +67,7 @@ export function removeMember(repo: MembersRepo, t: TenantDb, call: Removal): Pro
         changes: diffFields({ revokedAt: null }, { revokedAt: key.revokedAt }),
       });
     }
-    // S2 (org_positions, docs/roadmap.md S2.4): the person's direct reports move up to their manager here, in this
-    // transaction, before the outbox call.
+    await chart.unplaceMember(tx, target.principalId, who);
     await enqueueOutbox(tx, {
       op: 'remove_member',
       idempotencyKey: outboxKey('remove_member', target.id, newId()),

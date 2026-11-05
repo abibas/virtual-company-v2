@@ -14,7 +14,7 @@ import {
   type NormalizedIdentityEvent,
 } from '@mwc/shared/identity';
 import { type ProviderRemoval, queueProviderRemovals } from '../../members/service/provider.ts';
-import { dbIdentityStore, replacedInvitations } from '../repo.ts';
+import { type ChartDeps, dbIdentityStore, replacedInvitations } from '../repo.ts';
 
 /**
  * Two of the three paths that bring provider state in, both through the one projector on the database store (the
@@ -22,10 +22,12 @@ import { dbIdentityStore, replacedInvitations } from '../repo.ts';
  * (`projectIdentityEvent`, which S1.8's webhook inbox calls) and a whole company (`reconcileCompany`: the jobs loop of
  * S1.10 and `POST /api/companies/:companyId/sync`). The store reads an invitation past its expiry as expired, so an
  * acceptance after the expiry never activates anyone; after projecting, a provider membership that came from an
- * invitation revoked, expired or failed here is queued for removal at the provider (our database wins).
+ * invitation revoked, expired or failed here is queued for removal at the provider (our database wins). A membership
+ * that turns active or stops being active moves its person on the org chart in its own transaction (`chart`, S2.4),
+ * audited by the system with the same request id as the rest.
  */
 
-export interface SyncDeps {
+export interface SyncDeps extends ChartDeps {
   readonly db: DbHandle;
   readonly identity: IdentityProvider | undefined;
   readonly clock: () => Date;
@@ -132,7 +134,12 @@ export async function reconcileCompany(
   requestId: string | null = null,
 ): Promise<CompanySync> {
   const provider = providerOf(deps.identity);
-  const store = dbIdentityStore(deps.db, { provider: provider.kind, now: deps.clock });
+  const store = dbIdentityStore(deps.db, {
+    provider: provider.kind,
+    now: deps.clock,
+    chart: deps.chart,
+    requestId,
+  });
   const company = await store.getCompany(companyId);
   if (company === undefined || company.status === 'deleted') throw new CompanyNotFoundError(companyId);
   const orgExternalId = company.identityOrgExternalId;
@@ -172,7 +179,12 @@ export async function projectIdentityEvent(
   event: NormalizedIdentityEvent,
 ): Promise<ProjectionChange[]> {
   const provider = providerOf(deps.identity);
-  const store = dbIdentityStore(deps.db, { provider: provider.kind, now: deps.clock });
+  const store = dbIdentityStore(deps.db, {
+    provider: provider.kind,
+    now: deps.clock,
+    chart: deps.chart,
+    requestId: event.externalEventId,
+  });
   if (event.type === 'invitation.revoked') {
     const company = await store.getCompanyByOrgExternalId(event.data.orgExternalId);
     if (company && replacedCopy(event.data, await replacedInvitations(deps.db, company.id))) {

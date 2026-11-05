@@ -6,7 +6,7 @@ import { companiesRoutes, companyOutboxHandlers } from './modules/companies/inde
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
-import { orgRoutes } from './modules/org/index.ts';
+import { memberChart, orgRoutes } from './modules/org/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
@@ -32,6 +32,7 @@ export const REQUEST_ID_MAX_LENGTH = 128;
 export function createApp(deps: AppDeps) {
   const clock = deps.clock ?? (() => new Date());
   const server: ServerDeps = { ...deps, clock, identity: deps.identity ?? identityFromConfig(deps.config) };
+  const withChart = withMemberChart(server);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -45,9 +46,9 @@ export function createApp(deps: AppDeps) {
 
   const routes = app
     .route('/', healthRoutes(deps))
-    .route('/', identityRoutes(server))
+    .route('/', identityRoutes(withChart))
     .route('/', companiesRoutes(server))
-    .route('/', membersRoutes(server))
+    .route('/', membersRoutes(withChart))
     .route('/', apiKeysRoutes(server))
     .route('/', orgRoutes(server));
   mountDocs(app, deps);
@@ -60,19 +61,30 @@ export function createApp(deps: AppDeps) {
 export type AppType = ReturnType<typeof createApp>;
 
 /**
+ * The deps with the org module's side of a membership's start and end (`memberChart`), for the identity and members
+ * modules, whose paths start and end memberships: composed here, so neither of them imports the org module, which
+ * reads people's profiles through the identity module (S2.4).
+ */
+export function withMemberChart(deps: ServerDeps) {
+  return { ...deps, chart: memberChart(deps) };
+}
+
+/**
  * What the jobs loop (`platform/jobs/`, started by `platform/start.ts`) runs from the modules: their outbox handlers
  * in one registry (companies: create_org, delete_org; members: update_role, remove_member; invitations: invite,
- * revoke_invite), the retry of webhook events and the company reconcile (identity). The modules export them and only
- * this file composes them, so no module imports the loop and the loop imports no module.
+ * revoke_invite), the retry of webhook events and the company reconcile (identity), both with the org chart a
+ * membership that starts or ends moves its person on. The modules export them and only this file composes them, so no
+ * module imports the loop and the loop imports no module.
  */
 export function moduleJobs(deps: ServerDeps): ModuleJobs {
+  const identity = withMemberChart(deps);
   return {
     outboxHandlers: outboxRegistry(
       companyOutboxHandlers(deps),
       memberOutboxHandlers(deps),
       invitationOutboxHandlers(deps),
     ),
-    retryEvents: () => retryIdentityEvents(deps),
-    reconcileCompany: (companyId) => reconcileCompany(deps, companyId),
+    retryEvents: () => retryIdentityEvents(identity),
+    reconcileCompany: (companyId) => reconcileCompany(identity, companyId),
   };
 }

@@ -10,7 +10,7 @@ import { newRouter } from '../../platform/http/router.ts';
 import { CompanySyncSchema, MeSchema, SyncParamsSchema, WebhookReceiptSchema } from './schemas.ts';
 import { reconcileCompany } from './service/sync.ts';
 import { receiveWebhook } from './service/webhooks.ts';
-import { meService } from './service.ts';
+import { type ChartDeps, meService } from './service.ts';
 
 /** The largest webhook body read; Clerk's deliveries are a few KB. */
 export const WEBHOOK_MAX_BYTES = 512 * 1024;
@@ -124,8 +124,9 @@ const clerkWebhookRoute = () =>
 /**
  * `GET /api/me` (who is calling, with reconcile on sign-in), `POST /api/me/reconcile` (the same reconcile at once, on
  * the person's request), `POST /api/companies/:companyId/sync` and the webhook inbox, `POST /api/webhooks/clerk`.
+ * Each of them may start or end memberships, which moves people on the org chart (`chart`, from `createApp`).
  */
-export function identityRoutes(deps: ServerDeps) {
+export function identityRoutes(deps: ServerDeps & ChartDeps) {
   const me = meService(deps);
   return newRouter()
     .openapi(meRoute(deps), async (c) => {

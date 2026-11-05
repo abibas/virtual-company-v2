@@ -17,6 +17,7 @@ import {
   membershipRow,
   ROLES,
 } from '../../../fixtures/members.ts';
+import { testChart } from '../../../fixtures/org.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {
@@ -233,12 +234,15 @@ describe('membersService.remove', () => {
       .update(memberships)
       .set({ status: 'removed' })
       .where(eq(memberships.id, admin.membershipId));
-    const result = await membersService({ db: w.t.db }).remove(await tenant(w.t.db, company.companyId), {
-      actorId: admin.membershipId,
-      membershipId: target.membershipId,
-      requestId: 'req',
-      now: w.clock(),
-    });
+    const result = await membersService({ db: w.t.db, chart: testChart() }).remove(
+      await tenant(w.t.db, company.companyId),
+      {
+        actorId: admin.membershipId,
+        membershipId: target.membershipId,
+        requestId: 'req',
+        now: w.clock(),
+      },
+    );
     expect(result).toMatchObject({ ok: false, status: 403, code: 'forbidden' });
     expect((await membershipRow(w.t.db, target.membershipId))?.status).toBe('active');
   });

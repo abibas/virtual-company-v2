@@ -178,6 +178,8 @@ describe('the audit rows of what a delivery changed', () => {
     await deliverEvents(w, events);
     const membership = await byEvent(acme.companyId, one(events, 'membership.upserted'));
     expect(membership.map((row) => [row.entityType, row.action, row.field])).toEqual([
+      // Placed under the inviter, the owner, while the membership turned active (S2.4).
+      ['org_position', 'create', 'reportsToPrincipalId'],
       ['invitation', 'update', 'acceptedByUserId'],
       ['membership', 'activate', 'externalMembershipId'],
       ['membership', 'activate', 'grantedRole'],
@@ -190,6 +192,7 @@ describe('the audit rows of what a delivery changed', () => {
       oldValue: null,
       newValue: 'active',
     });
+    expect(membership[0]).toMatchObject({ oldValue: null, newValue: acme.owner.principalId });
     const invitation = await byEvent(acme.companyId, one(events, 'invitation.accepted'));
     expect(invitation).toEqual([
       expect.objectContaining({
@@ -222,8 +225,9 @@ describe('the audit rows of what a delivery changed', () => {
     const [removed] = w.fake.drainEvents();
     await deliverEvents(w, [removed as NormalizedIdentityEvent]);
     const remove = await byEvent(acme.companyId, removed as NormalizedIdentityEvent);
-    expect(remove.map((row) => [row.action, row.field, row.oldValue, row.newValue])).toEqual([
-      ['remove', 'status', 'active', 'removed'],
+    expect(remove.map((row) => [row.entityType, row.action, row.field, row.oldValue, row.newValue])).toEqual([
+      ['org_position', 'delete', 'reportsToPrincipalId', acme.owner.principalId, null],
+      ['membership', 'remove', 'status', 'active', 'removed'],
     ]);
     const again = redelivered(removed as Of<'membership.deleted'>);
     await deliverEvents(w, [again]);

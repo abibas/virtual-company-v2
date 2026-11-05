@@ -21,6 +21,7 @@ import {
   signUp,
 } from '../../../fixtures/invitations.ts';
 import { membersCompany } from '../../../fixtures/members.ts';
+import { testChart } from '../../../fixtures/org.ts';
 import { deliverEvents, failWrites, inboxRow } from '../../../fixtures/webhooks.ts';
 
 let w: AuthWorld;
@@ -29,7 +30,13 @@ beforeAll(async () => {
 });
 afterAll(() => w.t.close());
 
-const deps = (logger = captureLogger().logger) => ({ db: w.t.db, identity: w.fake, clock: w.clock, logger });
+const deps = (logger = captureLogger().logger) => ({
+  db: w.t.db,
+  identity: w.fake,
+  clock: w.clock,
+  logger,
+  chart: testChart(logger),
+});
 
 /** A company whose invitation of `email` was accepted at the fake: the user and invitation events delivered. */
 async function acceptance(email: string) {

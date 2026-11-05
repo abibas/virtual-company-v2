@@ -12,7 +12,7 @@ import {
   MembersParamsSchema,
   UpdateMemberSchema,
 } from '../schemas.ts';
-import { membersService } from '../service.ts';
+import { type MembersDeps, membersService } from '../service.ts';
 
 /**
  * `/api/companies/{companyId}/members`: the member list (viewer and above), a member's role (admin and above, with
@@ -87,7 +87,7 @@ const removeMemberRoute = (deps: ServerDeps) => {
   });
 };
 
-export function memberRoutes(deps: ServerDeps) {
+export function memberRoutes(deps: ServerDeps & MembersDeps) {
   const members = membersService(deps);
   return newRouter()
     .openapi(listMembersRoute(deps), async (c) => c.json({ members: await members.list(c.var.tenant) }, 200))

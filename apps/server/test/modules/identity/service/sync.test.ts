@@ -23,6 +23,7 @@ import {
   membersCompany,
   providerRoleOf,
 } from '../../../fixtures/members.ts';
+import { testChart } from '../../../fixtures/org.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {
@@ -30,7 +31,7 @@ beforeAll(async () => {
 });
 afterAll(() => w.t.close());
 
-const deps = () => ({ db: w.t.db, identity: w.fake, clock: w.clock });
+const deps = () => ({ db: w.t.db, identity: w.fake, clock: w.clock, chart: testChart() });
 const project = async (events: readonly NormalizedIdentityEvent[]) => {
   for (const event of events) await projectIdentityEvent(deps(), event);
 };
@@ -300,7 +301,7 @@ describe('acceptance through the company reconcile (reconcileCompany)', () => {
       .where(eq(companies.id, provisioning.companyId));
     await expect(reconcileCompany(deps(), provisioning.companyId)).rejects.toThrow(CompanyNotFoundError);
     await expect(reconcileCompany(deps(), 'not-a-company')).rejects.toThrow(CompanyNotFoundError);
-    const none = { db: w.t.db, identity: undefined, clock: w.clock };
+    const none = { ...deps(), identity: undefined };
     await expect(reconcileCompany(none, provisioning.companyId)).rejects.toThrow(/No identity provider/);
     const event = { type: 'user.deleted', data: { subject: 's' } } as NormalizedIdentityEvent;
     await expect(projectIdentityEvent(none, event)).rejects.toThrow(/No identity provider/);

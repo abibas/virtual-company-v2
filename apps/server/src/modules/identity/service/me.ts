@@ -5,7 +5,14 @@ import { logoRef } from '@mwc/shared/logos';
 import type { Actor } from '../../../platform/auth/actor.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { Throttle } from '../../../platform/http/throttle.ts';
-import { dbIdentityStore, type UserCompany, type UserProfile, userCompanies, userProfile } from '../repo.ts';
+import {
+  type ChartDeps,
+  dbIdentityStore,
+  type UserCompany,
+  type UserProfile,
+  userCompanies,
+  userProfile,
+} from '../repo.ts';
 import type { Me } from '../schemas.ts';
 
 /**
@@ -82,7 +89,7 @@ const SESSION_ONLY: SelfReconcileResult = {
   message: 'Only a signed-in session can reconcile itself; an API key cannot',
 };
 
-interface SignInDeps extends Pick<ServerDeps, 'db' | 'logger'> {
+interface SignInDeps extends Pick<ServerDeps, 'db' | 'logger'>, ChartDeps {
   readonly provider: IdentityProvider;
   /** The sessions this process has reconciled. */
   readonly reconciled: RecentKeys;
@@ -105,7 +112,12 @@ async function signIn(deps: SignInDeps, actor: Actor, identity: VerifiedIdentity
   const { now } = call;
   const key = identity.sessionId && `${identity.issuer}|${identity.subject}|${identity.sessionId}`;
   if (!call.force && actor.userId !== undefined && (!key || deps.reconciled.has(key))) return actor.userId;
-  const store = dbIdentityStore(deps.db, { provider: deps.provider.kind, now });
+  const store = dbIdentityStore(deps.db, {
+    provider: deps.provider.kind,
+    now,
+    chart: deps.chart,
+    requestId: call.requestId,
+  });
   let changes: ProjectionChange[];
   try {
     ({ changes } = await retryOnUniqueViolation(() =>
@@ -159,10 +171,11 @@ function meView(profile: UserProfile, memberships: UserCompany[], actor: Actor):
  * reconciled, so an invitation accepted while signed in shows up without waiting for a webhook, the periodic
  * reconcile or Sync now. One person gets one such turn every `SELF_RECONCILE_INTERVAL_MS` in this process (429
  * `rate_limited` with the time left otherwise); an API key is refused (403 `forbidden`). A provider failure for a
- * person seen before serves the local state, as `GET /api/me` does.
+ * person seen before serves the local state, as `GET /api/me` does. Either reconcile places a person whose membership
+ * turned active on the org chart, and takes off it one whose membership ended (`chart`).
  */
 export function meService(
-  deps: Pick<ServerDeps, 'db' | 'identity' | 'logger'>,
+  deps: Pick<ServerDeps, 'db' | 'identity' | 'logger'> & ChartDeps,
   options: MeServiceOptions = {},
 ) {
   const remembered = options.rememberedSessions ?? REMEMBERED_SESSIONS;

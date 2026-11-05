@@ -16,6 +16,7 @@ import {
   membershipRow,
   ROLES,
 } from '../../../fixtures/members.ts';
+import { testChart } from '../../../fixtures/org.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {
@@ -222,7 +223,7 @@ describe('membersService.changeRole', () => {
     const admin = await addMember(w, company, 'admin');
     const target = await addMember(w, company, 'member');
     const scoped = await tenant(w.t.db, company.companyId);
-    const service = membersService({ db: w.t.db });
+    const service = membersService({ db: w.t.db, chart: testChart() });
     await rawDb(w.t.db)
       .update(memberships)
       .set({ role: 'member', grantedRole: 'member' })

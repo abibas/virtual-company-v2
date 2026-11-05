@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { MemberView } from '../../src/modules/members/schemas.ts';
+import type { AgentDetailView } from '../../src/modules/org/schemas.ts';
+import { expectPlacedUnderOwner, makeAgentAs, managersIn } from '../fixtures/acceptance/chart.ts';
 import { expectAuditTrail, expectStrangers } from '../fixtures/acceptance/checks.ts';
 import { ACCEPTANCE_PATHS, type Acceptance, acceptBy, SECOND_NAME } from '../fixtures/acceptance/paths.ts';
 import {
@@ -21,7 +23,9 @@ import { type AcceptanceWorld, acceptanceWorld, aDayAhead } from '../fixtures/ac
  * the fake identity provider, once per acceptance path, each on a fresh database (PGlite, or Postgres in `--full`):
  * Ihor founds a company, invites a second person, who accepts and is found active as a member, cannot administer,
  * is promoted to admin, makes an API key, and is removed, losing access at once; every change is audited, and a third
- * company owned by someone else stays out of sight throughout. The steps share their state in order.
+ * company owned by someone else stays out of sight throughout. The steps share their state in order. With S2.4 the
+ * story also follows the org chart: the invitee appears under Ihor once they accept, makes an agent that reports to
+ * them, and on removal leaves the chart while the agent moves up to Ihor.
  */
 describe.each(ACCEPTANCE_PATHS)('S1 acceptance, the invitation accepted by %s', (path) => {
   let w: AcceptanceWorld<FakeTarget>;
@@ -31,6 +35,7 @@ describe.each(ACCEPTANCE_PATHS)('S1 acceptance, the invitation accepted by %s', 
   let accepted: Acceptance;
   let member: MemberView;
   let key: string;
+  let agent: AgentDetailView;
 
   beforeAll(async () => {
     const clock = aDayAhead();
@@ -51,10 +56,11 @@ describe.each(ACCEPTANCE_PATHS)('S1 acceptance, the invitation accepted by %s', 
     expect(invited.invitation.email).toBe('second+clerk_test@example.com');
   });
 
-  it(`3. the second person accepts (${path}): an active member, the invitation accepted`, async () => {
+  it(`3. the second person accepts (${path}): an active member under Ihor on the chart`, async () => {
     accepted = await acceptBy(path, w, home, invited);
     member = await expectActiveMember(w, home, invited, accepted.person);
     expect(member.displayName).toBe(SECOND_NAME);
+    await expectPlacedUnderOwner(w, home, member.principalId, accepted.auditRequestIds);
     await expectStrangers(w, home, stranger, [accepted.person]);
   });
 
@@ -62,8 +68,9 @@ describe.each(ACCEPTANCE_PATHS)('S1 acceptance, the invitation accepted by %s', 
     await expectNoAdminRights(w, home, accepted.person);
   });
 
-  it('5. Ihor promotes them to admin, the outbox pushes the role, and they can invite', async () => {
+  it('5. Ihor promotes them to admin, the outbox pushes the role, and they can invite and make an agent', async () => {
     await promoteToAdmin(w, home, member, accepted.person);
+    agent = await makeAgentAs(w, home, accepted.person, member.principalId);
   });
 
   it('6. they make a personal API key, and GET /api/me with it answers as them', async () => {
@@ -73,6 +80,10 @@ describe.each(ACCEPTANCE_PATHS)('S1 acceptance, the invitation accepted by %s', 
 
   it('7. Ihor removes them: 404 for the session and 401 for the key at once, gone at the provider next tick', async () => {
     await removeMember(w, home, member, accepted.person, key);
+    expect(await managersIn(w, home, [member.principalId, agent.principalId])).toEqual([
+      undefined,
+      home.ownerPrincipalId,
+    ]);
     await expectStrangers(w, home, stranger, [accepted.person]);
   });
 
@@ -87,9 +98,13 @@ describe.each(ACCEPTANCE_PATHS)('S1 acceptance, the invitation accepted by %s', 
         { label: 'owner-invites', principalId: owner, entity: 'invitation', action: 'create' },
         { label: 'owner-promotes', principalId: owner, entity: 'membership', action: 'update' },
         { label: 'admin-invites', principalId: second, entity: 'invitation', action: 'create' },
+        { label: 'admin-creates-agent', principalId: second, entity: 'agent', action: 'create' },
+        { label: 'admin-creates-agent', principalId: second, entity: 'org_position', action: 'create' },
         { label: 'admin-creates-key', principalId: second, entity: 'api_key', action: 'create' },
         { label: 'owner-removes', principalId: owner, entity: 'membership', action: 'remove' },
         { label: 'owner-removes', principalId: owner, entity: 'api_key', action: 'revoke' },
+        { label: 'owner-removes', principalId: owner, entity: 'org_position', action: 'update' },
+        { label: 'owner-removes', principalId: owner, entity: 'org_position', action: 'delete' },
       ],
       accepted.auditRequestIds,
     );
