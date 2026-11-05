@@ -108,7 +108,12 @@ describe('claudeWindows', () => {
       limits: [
         { kind: 'session', group: 'session', percent: 22, resets_at: '2026-11-05T23:40:00Z' },
         { kind: 'weekly_all', group: 'weekly', percent: 51, resets_at: '2026-11-11T04:00:00Z' },
-        { kind: 'weekly_scoped', percent: 31, resets_at: '2026-11-11T03:59:00Z', scope: { model: { display_name: 'Fable' } } },
+        {
+          kind: 'weekly_scoped',
+          percent: 31,
+          resets_at: '2026-11-11T03:59:00Z',
+          scope: { model: { display_name: 'Fable' } },
+        },
         { kind: 'weekly_scoped', percent: 12, resets_at: null, scope: { model: { display_name: 'Opus' } } },
         { kind: 'weekly_scoped', percent: 9, scope: { model: {} } },
         { kind: 'weekly_scoped', percent: 9, scope: { model: { display_name: '!!!' } } },
