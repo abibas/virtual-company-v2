@@ -1,6 +1,14 @@
 import { AgentStatus, Effort, Harness } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
-import { sql } from 'drizzle-orm';
+import {
+  AGENT_FACE,
+  AGENT_MAX_CONCURRENT_RUNS,
+  AGENT_NAME,
+  AGENT_ROLE_TITLE,
+  POSITION_TITLE_MAX,
+} from '@mwc/shared/org';
+import { SLUG_PATTERN } from '@mwc/shared/slugs';
+import { type SQL, sql } from 'drizzle-orm';
 import {
   check,
   index,
@@ -16,6 +24,13 @@ import {
 import { createdAt, oneOf, updatedAt } from './columns.ts';
 import { principals } from './principals.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
+
+/** A number written into a CHECK as it is (the limits come from `@mwc/shared/org`, which the API's schemas read too). */
+const n = (value: number) => sql.raw(String(value));
+
+/** `<value> between <min> and <max>`. */
+const within = (value: SQL, range: { readonly min: number; readonly max: number }) =>
+  sql`${value} between ${n(range.min)} and ${n(range.max)}`;
 
 /**
  * The org structure (S2): the company's agents and everyone's place on its chart.
@@ -55,15 +70,15 @@ export const agents = pgTable(
     unique('agents_company_id_principal_id_unique').on(t.companyId, t.principalId),
     unique('agents_company_id_slug_unique').on(t.companyId, t.slug),
     tenantForeignKey('agents_principal_fk', t.companyId, t.principalId, principals),
-    check('agents_name_check', sql`char_length(${t.name}) between 1 and 80`),
-    check('agents_slug_check', sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'`),
-    check('agents_role_title_check', sql`char_length(${t.roleTitle}) between 1 and 80`),
+    check('agents_name_check', within(sql`char_length(${t.name})`, AGENT_NAME)),
+    check('agents_slug_check', sql`${t.slug} ~ '${sql.raw(SLUG_PATTERN.source)}'`),
+    check('agents_role_title_check', within(sql`char_length(${t.roleTitle})`, AGENT_ROLE_TITLE)),
     check('agents_status_check', oneOf(t.status, AgentStatus.options)),
     check('agents_harness_check', oneOf(t.harness, Harness.options)),
     check('agents_effort_check', oneOf(t.effort, Effort.options)),
     check('agents_instructions_rev_check', sql`${t.instructionsRev} >= 1`),
-    check('agents_max_concurrent_runs_check', sql`${t.maxConcurrentRuns} between 1 and 8`),
-    check('agents_face_check', sql`${t.face} between 0 and 41`),
+    check('agents_max_concurrent_runs_check', within(sql`${t.maxConcurrentRuns}`, AGENT_MAX_CONCURRENT_RUNS)),
+    check('agents_face_check', within(sql`${t.face}`, AGENT_FACE)),
   ],
 );
 
@@ -90,7 +105,7 @@ export const orgPositions = pgTable(
     tenantForeignKey('org_positions_principal_fk', t.companyId, t.principalId, principals),
     tenantForeignKey('org_positions_reports_to_fk', t.companyId, t.reportsToPrincipalId, principals),
     check('org_positions_not_self_check', sql`${t.principalId} <> ${t.reportsToPrincipalId}`),
-    check('org_positions_title_check', sql`char_length(${t.title}) <= 80`),
+    check('org_positions_title_check', sql`char_length(${t.title}) <= ${n(POSITION_TITLE_MAX)}`),
     index('org_positions_reports_to_idx').on(t.companyId, t.reportsToPrincipalId),
   ],
 );

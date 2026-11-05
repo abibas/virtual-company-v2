@@ -51,5 +51,17 @@ export {
 } from './identity.ts';
 export { idTime, isId, newId } from './ids.ts';
 export { LOGO_MAX_BYTES, LOGO_VERSION_LENGTH, LogoRef, logoRef, logoVersion } from './logos.ts';
+export {
+  AGENT_DEFAULTS,
+  AGENT_FACE,
+  AGENT_INSTRUCTIONS_MAX,
+  AGENT_MAX_CONCURRENT_RUNS,
+  AGENT_MODEL_MAX,
+  AGENT_NAME,
+  AGENT_ROLE_TITLE,
+  agentFace,
+  POSITION_TITLE_MAX,
+} from './org.ts';
 export { PORTS, SLOT_BASE, SLOT_COUNT, type SlotPorts, slotFromPath, slotPorts } from './ports.ts';
 export { ROLE_RANK, roleAtLeast } from './roles.ts';
+export { SLUG_MAX, SLUG_PATTERN, slugify, withSuffix } from './slugs.ts';

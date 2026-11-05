@@ -27,7 +27,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── companies/      create, list, read, rename, soft delete, logo (built) S1.5
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
-│   │   │   │   ├── org/            agents, reporting chain, org chart          S2
+│   │   │   │   ├── org/            agents, reporting chain, org chart (built)  S2
 │   │   │   │   ├── machines/       enrollment, placements                      S3
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S4
 │   │   │   │   ├── runs/           runs, events, scheduler                     S4

@@ -67,7 +67,7 @@ built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Nod
 itself runs on Node's own type stripping too (no tsx). Test helpers come from `@mwc/testkit` (a
 devDependency): `createTestApp()`, `createTestDb()` (PGlite by default, a fresh database on the dev
 Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock()`, `getJson`/`postJson`,
-`captureLogger()`, `seedCompany()` (a company with its owner), and the identity provider and store contracts (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
+`captureLogger()`, `seedCompany()` (a company with its owner and the owner's root position on the org chart), `seedAgent()` (an agent with its place), and the identity provider and store contracts (docs/testing.md). The db package's own tests import `@mwc/db/testing` directly.
 
 ## Layout
 

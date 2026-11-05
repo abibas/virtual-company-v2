@@ -12,8 +12,10 @@
     "./identity": "./src/identity.ts",
     "./logos": "./src/logos.ts",
     "./ids": "./src/ids.ts",
+    "./org": "./src/org.ts",
     "./ports": "./src/ports.ts",
-    "./roles": "./src/roles.ts"
+    "./roles": "./src/roles.ts",
+    "./slugs": "./src/slugs.ts"
   },
   "scripts": {
     "test": "vitest run"

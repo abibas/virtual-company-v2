@@ -27,6 +27,30 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-05: The org API: one routes file kept for fan-in, tests split by route group, rules parts that build on the entry
+
+- **What happened:** S2.3 added six routes to `modules/org/`. Two route group files (`routes/agents.ts`,
+  `routes/chart.ts`), as the module template suggests past about three routes, would each import
+  `platform/auth/membership.ts` (`companyRoute`), taking it from 6 importers to 8 (a new `fan-in` warning). The
+  module's new pure rules build on S2.2's (`validateMove`, `validateChart`), so `rules/placement.ts` imports the
+  entry `rules.ts`, while `rules.ts` re-exports `rules/chart.ts` and `rules/violations.ts`: the folder holds parts the
+  entry is made of and parts made of the entry. The slug rule companies and agents share (and the web copies) was a
+  companies rule.
+- **Where:** `apps/server/src/modules/org/routes.ts` (195 lines: two router functions, `agentRoutes` and
+  `chartRoutes`, and one route factory per route), `rules/placement.ts` (159), `rules/agents.ts` (101); tests in
+  `apps/server/test/modules/org/routes/{agents,agent-updates,positions,chart}.test.ts` (204 to 342 lines) with no
+  `src/.../routes/*.ts` to mirror; `packages/shared/src/slugs.ts`; the S2.3 commit.
+- **What was done:** one `routes.ts`, so `membership.ts` has 7 importers and the report keeps its count; the tests
+  split along the route groups (one file would pass 1,100 lines). `rules.ts` does not re-export the new parts (that
+  would make a cycle); the services import `rules/agents.ts` and `rules/placement.ts` directly. The slug rule went
+  to `@mwc/shared/slugs` (a contract: two CHECKs, two modules and the web), with a fallback word per caller;
+  `companies/rules.ts` re-exports it, so no import moved and its tests stayed as they were.
+- **Suggested change:** the open suggestions of the S1.6 and S1.8 lessons (count a module's files as one importer for
+  `fan-in`, and allow a test split along the seams of one source file) would have let the routes split by group
+  without a warning. A line in the module template: "a rules part that builds on the entry's rules imports the
+  entry and is not re-exported by it; the entry re-exports only the parts it is made of".
+- **Status:** `open`.
+
 ### 2026-11-05: The org tables: a table keyed by its principal, and a migration's data step with no source to mirror
 
 - **What happened:** S2.1 added `agents` and `org_positions`. `org_positions` is one row per principal, so its primary

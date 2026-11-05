@@ -48,9 +48,15 @@ export {
   PROVIDER_CONTRACT,
   type ProviderContractOptions,
 } from './provider-contract.ts';
-// A company with its owner (user, identity, principal, owner membership) in one line (S1.3), the tenant
-// rows through the tenant layer.
-export { type SeedCompanyOptions, type SeededCompany, seedCompany } from './seed.ts';
+// A company with its owner (user, identity, principal, owner membership, root position) in one line (S1.3,
+// the position S2.3), and an agent with its place on the chart (S2.3); the tenant rows through the tenant layer.
+export {
+  type SeedAgentOptions,
+  type SeedCompanyOptions,
+  type SeededCompany,
+  seedAgent,
+  seedCompany,
+} from './seed.ts';
 // The IdentityStore contract (S1.3): the port, the projector's convergence and reconcile on a store, run
 // against the in-memory store here and against the database store in @mwc/server. Also importable alone,
 // without the server: @mwc/testkit/store-contract.

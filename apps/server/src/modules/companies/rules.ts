@@ -1,9 +1,10 @@
 import type { CompanyCreation } from '@mwc/shared/config';
 import type { LogoContentType } from '@mwc/shared/enums';
+import { slugify as slugifyOr, withSuffix } from '@mwc/shared/slugs';
 
-/** The slug rule of `companies.slug` (its CHECK): lower-case kebab, 1 to 63 characters, no dash at either end. */
-export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-export const SLUG_MAX = 63;
+// The slug rule is shared with agents (`@mwc/shared/slugs`); re-exported here so its imports stay where they were.
+export { SLUG_MAX, SLUG_PATTERN, withSuffix } from '@mwc/shared/slugs';
+
 /** The slug of a name with no letter or digit in it (`!!!`, `日本`). */
 export const FALLBACK_SLUG = 'company';
 /** The longest company name, after trimming. */
@@ -12,28 +13,12 @@ export const NAME_MAX = 100;
 export const NUMBERED_SLUGS = 9;
 export const RANDOM_SLUGS = 3;
 
-/** Cuts a slug to `max` characters and drops the dashes that end up at its end. */
-function cut(slug: string, max: number): string {
-  return slug.slice(0, max).replace(/-+$/, '');
-}
-
 /**
  * A slug from a company name: accents dropped (`Café` → `cafe`), lower-cased, every run of other characters one
  * dash, no dash at either end, at most 63 characters; `company` when nothing is left.
  */
 export function slugify(name: string): string {
-  const kebab = name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+/, '');
-  return cut(kebab, SLUG_MAX) || FALLBACK_SLUG;
-}
-
-/** `base-suffix`, with `base` cut so the whole stays within 63 characters. */
-export function withSuffix(base: string, suffix: string): string {
-  return `${cut(base, SLUG_MAX - suffix.length - 1)}-${suffix}`;
+  return slugifyOr(name, FALLBACK_SLUG);
 }
 
 /**

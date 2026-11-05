@@ -6,6 +6,7 @@ import { companiesRoutes, companyOutboxHandlers } from './modules/companies/inde
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
+import { orgRoutes } from './modules/org/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
@@ -47,7 +48,8 @@ export function createApp(deps: AppDeps) {
     .route('/', identityRoutes(server))
     .route('/', companiesRoutes(server))
     .route('/', membersRoutes(server))
-    .route('/', apiKeysRoutes(server));
+    .route('/', apiKeysRoutes(server))
+    .route('/', orgRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
