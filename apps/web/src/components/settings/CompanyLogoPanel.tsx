@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
-import { LogoPicker } from '../forms/LogoPicker.tsx';
-import { type PreparedLogo, releaseLogo } from '../forms/logo-file.ts';
+import { LogoPicker, type LogoStart } from '../forms/image/LogoPicker.tsx';
+import { type PreparedLogo, releaseLogo } from '../forms/image/logo-file.ts';
 import { CompanyLogo } from '../ui/CompanyLogo.tsx';
 import { Notice } from '../ui/Notice.tsx';
 import { Panel } from '../ui/Panel.tsx';
@@ -14,12 +14,14 @@ interface CompanyLogoPanelProps {
   readonly canChange: boolean;
   readonly onUpload: (logo: PreparedLogo) => Promise<void>;
   readonly onRemove: () => Promise<void>;
+  /** An image to start with (the gallery). */
+  readonly start?: LogoStart | undefined;
 }
 
 const HINT =
-  'PNG, JPEG or WebP, up to 10 MB; it is scaled to 512 pixels. Click, drop a file, or paste an image.';
+  'PNG, JPEG or WebP, up to 10 MB; cropped square and scaled to 512 pixels. Click, drop a file, or paste an image.';
 
-/** A pick is saved at once; while it is, the picker shows it, and then the result or the refusal. */
+/** A crop is saved at once; while it is, the picker shows it, and then the result or the refusal. */
 function useLogoChange(onUpload: CompanyLogoPanelProps['onUpload']) {
   const [pending, setPending] = useState<PreparedLogo | null>(null);
   const [result, setResult] = useState<{ readonly ok: boolean; readonly text: string }>();
@@ -44,8 +46,15 @@ function useLogoChange(onUpload: CompanyLogoPanelProps['onUpload']) {
   return { pending, result, change, dismiss: () => setResult(undefined) };
 }
 
-/** The company's logo on Settings: change or remove it (admins and owners), or see it. */
-export function CompanyLogoPanel({ name, logoSrc, canChange, onUpload, onRemove }: CompanyLogoPanelProps) {
+/** The company's logo on Settings: change (pick, crop, upload) or remove it (admins and owners), or see it. */
+export function CompanyLogoPanel({
+  name,
+  logoSrc,
+  canChange,
+  onUpload,
+  onRemove,
+  start,
+}: CompanyLogoPanelProps) {
   const logo = useLogoChange(onUpload);
   return (
     <Panel
@@ -63,6 +72,7 @@ export function CompanyLogoPanel({ name, logoSrc, canChange, onUpload, onRemove 
             onRemove={onRemove}
             busy={logo.pending !== null}
             hint={HINT}
+            start={start}
           />
           {logo.result && (
             <Notice tone={logo.result.ok ? 'success' : 'error'} onDismiss={logo.dismiss}>

@@ -142,8 +142,18 @@ export const SAMPLE_LOGO_SRC = `data:image/svg+xml,${encodeURIComponent(
     '<path d="M150 40 90 140h40l-24 76 64-104h-40z" fill="#fff"/></svg>',
 )}`;
 
-/** The same logo as a file, for the picker and the draft (an SVG the picker rasterises to PNG). */
-export async function sampleLogoFile(): Promise<File> {
-  const blob = await (await fetch(SAMPLE_LOGO_SRC)).blob();
-  return new File([blob], 'sample-logo.svg', { type: 'image/svg+xml' });
+/** A wide version of it (640×360, the bolt off centre), for the crop step: a logo that is not square yet. */
+export const SAMPLE_WIDE_LOGO_SRC = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2bd1b9"/>' +
+    '<stop offset="1" stop-color="#0b8c7e"/></linearGradient></defs>' +
+    '<rect width="640" height="360" fill="#141a33"/><circle cx="430" cy="180" r="150" fill="url(#g)"/>' +
+    '<path d="M452 60l-60 100h40l-24 76 64-104h-40z" fill="#fff"/>' +
+    '<text x="48" y="200" font-family="sans-serif" font-size="56" font-weight="800" fill="#fff">MW</text></svg>',
+)}`;
+
+/** The logos as files, for the picker and the draft (SVGs the picker rasterises to PNG). */
+export async function sampleLogoFile(wide = false): Promise<File> {
+  const blob = await (await fetch(wide ? SAMPLE_WIDE_LOGO_SRC : SAMPLE_LOGO_SRC)).blob();
+  return new File([blob], wide ? 'sample-wide-logo.svg' : 'sample-logo.svg', { type: 'image/svg+xml' });
 }

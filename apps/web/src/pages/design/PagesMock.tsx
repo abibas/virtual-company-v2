@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiContext } from '../../api/context.ts';
 import { useLocation } from '../../app/router.tsx';
 import { CreateKeyForm } from '../../components/api-keys/CreateKeyForm.tsx';
 import { KeysPanel } from '../../components/api-keys/KeysPanel.tsx';
 import { LoginCommand } from '../../components/api-keys/LoginCommand.tsx';
+import type { LogoStart } from '../../components/forms/image/LogoPicker.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { InvitationsPanel } from '../../components/members/InvitationsPanel.tsx';
 import { InvitePanel } from '../../components/members/InviteForm.tsx';
@@ -23,7 +24,7 @@ import {
   SAMPLE_MEMBERS,
   sampleApi,
 } from './records.ts';
-import { SAMPLE_LOGO_SRC } from './sample.ts';
+import { SAMPLE_LOGO_SRC, sampleLogoFile } from './sample.ts';
 
 const none = () => undefined;
 
@@ -95,15 +96,24 @@ function KeysBody() {
   );
 }
 
-/** The logo panel on a logo kept in memory: a pick becomes the saved logo, Remove clears it. `?logo=1` starts with one. */
+/**
+ * The logo panel on a logo kept in memory: a pick becomes the saved logo, Remove clears it. `?logo=1` starts with
+ * one; `?crop=1` starts in the crop step on the wide sample logo.
+ */
 function SampleLogoPanel() {
   const { search } = useLocation();
   const [src, setSrc] = useState<string | null>(() => (search.get('logo') === '1' ? SAMPLE_LOGO_SRC : null));
+  const [start, setStart] = useState<LogoStart>();
+  const crop = search.get('crop') === '1';
+  useEffect(() => {
+    if (crop) void sampleLogoFile(true).then((file) => setStart({ file, crop: true }));
+  }, [crop]);
   return (
     <CompanyLogoPanel
       name={SAMPLE_COMPANY.name}
       logoSrc={src}
       canChange
+      start={start}
       onUpload={(logo) => {
         setSrc(URL.createObjectURL(logo.blob));
         return Promise.resolve();

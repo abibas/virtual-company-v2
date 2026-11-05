@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { cx } from '../cx.ts';
+import { cx } from '../../cx.ts';
 
 /** The first image file of a drop or a paste, if any. */
 export function imageFileOf(transfer: DataTransfer | null): File | null {

@@ -62,7 +62,9 @@ Newest first, one entry per lesson:
   `Rail.tsx` (the rail's badge) and `TopBar.tsx` (beside `UserChip`) instead.
 - **Where:** `apps/web/src/components/{ui,forms,layout}/`; the create-company commit.
 - **What was done:** the two library groups kept one file per component, as the open lesson on the library describes
-  them; the layout pieces were folded into the files whose part they are.
+  them; the layout pieces were folded into the files whose part they are. The crop step then added `ImageCropper`,
+  `crop.ts` and `LogoZone.tsx`, so the image pieces became a sub-group, `forms/image/` with its own barrel re-exported
+  by `forms/index.ts` (`forms/` is at 11 entries); `ui/` stays at 13.
 - **Suggested change:** a library group (`components/ui/`, `forms/`, `data/`, `feed/`, `layout/`) is flat by design,
   one file per component with a barrel: raise `folderEntries` for `apps/web/src/components/*/`, or list them with the
   server's platform files as folders whose growth is expected. The alternative, sub-folders by kind inside a group

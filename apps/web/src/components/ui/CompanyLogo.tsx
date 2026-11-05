@@ -38,7 +38,7 @@ export function CompanyLogo({ name, src, size = 'md', inverse = false, className
     >
       {src ? (
         <>
-          <img src={src} alt="" className="size-full object-contain" />
+          <img src={src} alt="" className="size-full object-cover" />
           <span className="absolute inset-0 rounded-[inherit] ring-1 ring-black/10 ring-inset" />
         </>
       ) : (

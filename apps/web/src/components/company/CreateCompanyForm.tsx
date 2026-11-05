@@ -7,7 +7,7 @@ import { rememberPendingLogo } from '../../api/pending-logo.ts';
 import type { Company } from '../../api/types.ts';
 import { cx } from '../cx.ts';
 import { TextField } from '../forms/Field.tsx';
-import { LogoPicker } from '../forms/LogoPicker.tsx';
+import { LogoPicker } from '../forms/image/LogoPicker.tsx';
 import { Badge } from '../ui/Badge.tsx';
 import { Button } from '../ui/Button.tsx';
 import { Notice } from '../ui/Notice.tsx';
@@ -89,6 +89,7 @@ export function CreateCompanyForm({ draft, onCreated, cancel, className }: Creat
         name={draft.name}
         value={draft.logo}
         onChange={draft.setLogo}
+        start={draft.startLogo}
         pasteAnywhere
         disabled={busy}
       />

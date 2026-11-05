@@ -4,14 +4,16 @@ import { ConfirmInline } from '../../../components/forms/ConfirmInline.tsx';
 import { CopyButton } from '../../../components/forms/CopyButton.tsx';
 import { SelectField, TextField } from '../../../components/forms/Field.tsx';
 import { Input, Textarea } from '../../../components/forms/Input.tsx';
-import { LogoPicker } from '../../../components/forms/LogoPicker.tsx';
-import type { PreparedLogo } from '../../../components/forms/logo-file.ts';
+import type { CropRect } from '../../../components/forms/image/crop.ts';
+import { ImageCropper } from '../../../components/forms/image/ImageCropper.tsx';
+import { LogoPicker } from '../../../components/forms/image/LogoPicker.tsx';
+import type { PreparedLogo } from '../../../components/forms/image/logo-file.ts';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../../../components/forms/Menu.tsx';
 import { SearchBox } from '../../../components/forms/SearchBox.tsx';
 import { SegmentedControl, Tabs } from '../../../components/forms/Segmented.tsx';
 import { Switch } from '../../../components/forms/Switch.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
-import { SAMPLE_LOGO_SRC } from '../sample.ts';
+import { SAMPLE_LOGO_SRC, SAMPLE_WIDE_LOGO_SRC } from '../sample.ts';
 import { Example, Section } from './Section.tsx';
 
 const ROLES = [
@@ -79,28 +81,63 @@ function LogoPickerExamples() {
   );
 }
 
+/** The cropper on the wide sample logo; Done reports the square it chose. */
+function CropperExample() {
+  const [crop, setCrop] = useState<CropRect>();
+  return (
+    <Example
+      label="ImageCropper: drag, scroll, pinch or use the slider; arrow keys and plus and minus; Done gives the square"
+      className="grid gap-5 lg:grid-cols-[auto_1fr]"
+      wrap={false}
+    >
+      <ImageCropper
+        src={SAMPLE_WIDE_LOGO_SRC}
+        width={640}
+        height={360}
+        label="Crop the logo"
+        onDone={setCrop}
+        onCancel={() => setCrop(undefined)}
+        className="w-full max-w-sm"
+      />
+      <p className="text-sm text-dim">
+        {crop
+          ? `Done: the square at ${crop.x}, ${crop.y}, ${crop.size} pixels a side of a 640×360 image.`
+          : 'Nothing chosen yet.'}
+      </p>
+    </Example>
+  );
+}
+
+/** The text controls: fields with a hint and an error, disabled, small, and a textarea. */
+function FieldExamples() {
+  return (
+    <Example
+      label="TextField, SelectField, with a hint and an error"
+      className="grid gap-4 sm:grid-cols-3"
+      wrap={false}
+    >
+      <TextField label="Company name" placeholder="Most Wanted" hint="You can rename it later." />
+      <SelectField label="Role" options={ROLES} defaultValue="member" />
+      <TextField label="Email" defaultValue="theo@example" error="Check the form: enter a valid email." />
+      <TextField label="Disabled" value="Read only" disabled onChange={() => undefined} />
+      <Input size="sm" placeholder="A small input" className="self-end" />
+      <Textarea placeholder="A longer note" className="sm:row-span-2" />
+    </Example>
+  );
+}
+
 export function FormsSection() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [on, setOn] = useState(true);
   return (
     <Section
       id="forms"
-      title="Fields, LogoPicker, Search, Segmented, Switch, Menu"
+      title="Fields, LogoPicker, ImageCropper, Search, Segmented, Switch, Menu"
       description="Tinted fields that turn white with a blue ring on focus; errors speak under the field."
     >
-      <Example
-        label="TextField, SelectField, with a hint and an error"
-        className="grid gap-4 sm:grid-cols-3"
-        wrap={false}
-      >
-        <TextField label="Company name" placeholder="Most Wanted" hint="You can rename it later." />
-        <SelectField label="Role" options={ROLES} defaultValue="member" />
-        <TextField label="Email" defaultValue="theo@example" error="Check the form: enter a valid email." />
-        <TextField label="Disabled" value="Read only" disabled onChange={() => undefined} />
-        <Input size="sm" placeholder="A small input" className="self-end" />
-        <Textarea placeholder="A longer note" className="sm:row-span-2" />
-      </Example>
+      <FieldExamples />
       <LogoPickerExamples />
+      <CropperExample />
       <Example label="SearchBox with the ⌘K hint (focus only; search comes later)" wrap={false}>
         <SearchBox className="max-w-md" />
       </Example>
