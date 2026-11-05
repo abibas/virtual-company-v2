@@ -134,7 +134,7 @@ Full map and rules: `docs/ports.md`.
 apps/        server, web (now); runner (S3)
 packages/    shared, db, identity-core, testkit, cli, mcp (now); harness-core (S4)
 connectors/  identity-clerk (now); harness-claude-code (S4), jira, github, gateway, harness-codex (S6–S7)
-deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server
+deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper)
 docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, mcp, schema (generated)
 ```
 

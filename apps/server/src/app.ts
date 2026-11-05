@@ -3,7 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
 import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
-import { credentialsRoutes } from './modules/credentials/index.ts';
+import { credentialsRoutes, signInRoutes } from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
@@ -16,6 +16,7 @@ import { mountWeb } from './platform/http/web.ts';
 import { identityFromConfig } from './platform/identity.ts';
 import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
+import { loginHelperFromConfig } from './platform/login-helper/select.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 
@@ -31,13 +32,15 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * `newRouter()`, exported by `modules/<area>/index.ts` and mounted here. The identity provider is the one
  * passed in (tests: the fake), else the one the configuration names (`platform/identity.ts`: the Clerk
  * connector, or none). The master keyring is the one passed in (`platform/start.ts` loads it), else MWC_MASTER_KEY's,
- * else a key in memory (tests and demos).
+ * else a key in memory (tests and demos). The sign-in helper is the one passed in (tests: a fake), else the one
+ * MWC_LOGIN_HELPER names.
  */
 export function createApp(deps: AppDeps) {
   const clock = deps.clock ?? (() => new Date());
   const server: ServerDeps = { ...deps, clock, identity: deps.identity ?? identityFromConfig(deps.config) };
   const withChart = withMemberChart(server);
   const keyring = deps.keyring ?? envKeyring(deps.config) ?? ephemeralKeyring();
+  const loginHelper = deps.loginHelper ?? loginHelperFromConfig(deps.config, deps.logger);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -56,7 +59,8 @@ export function createApp(deps: AppDeps) {
     .route('/', membersRoutes(withChart))
     .route('/', apiKeysRoutes(server))
     .route('/', orgRoutes(server))
-    .route('/', credentialsRoutes({ ...server, keyring }));
+    .route('/', credentialsRoutes({ ...server, keyring }))
+    .route('/', signInRoutes({ ...server, keyring, loginHelper }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

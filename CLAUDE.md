@@ -68,7 +68,9 @@ the same login; adding it (`claude mcp add mwc -- node <repo>/packages/mcp/src/m
 never done from here (`docs/mcp.md`).
 
 `deploy/`: `compose.yml` is the dev Postgres only; `compose.prod.yml` is the prod-like stack (9990/9992)
-built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Node 24 directly. `mwc`
+built from `Dockerfile.server`, whose runtime runs the TypeScript sources on Node 24 directly; `Dockerfile.login` is
+the sign-in helper's image (the official Claude Code and Codex CLIs, pinned), which the server builds on the first
+sign-in in development (`docs/subscriptions.md`). `mwc`
 itself runs on Node's own type stripping too (no tsx). Test helpers come from `@mwc/testkit` (a
 devDependency): `createTestApp()`, `createTestDb()` (PGlite by default, a fresh database on the dev
 Postgres with `TEST_DB=postgres`; write tests so they pass on both), `fixedClock()`, `getJson`/`postJson`,

@@ -24,6 +24,7 @@ describe('loadConfig', () => {
       MWC_COMPANY_CREATORS: [],
       MWC_JOBS: true,
       MWC_RECONCILE_MINUTES: 10,
+      MWC_LOGIN_HELPER: 'docker',
     });
   });
 
@@ -286,6 +287,18 @@ describe('loadConfig jobs', () => {
     for (const minutes of ['0', '1441', '2.5', 'ten']) {
       expect(() => loadConfig({ ...valid, MWC_RECONCILE_MINUTES: minutes })).toThrow(/MWC_RECONCILE_MINUTES/);
     }
+  });
+});
+
+describe('loadConfig MWC_LOGIN_HELPER', () => {
+  it('is docker in development, none in production and tests, and whatever it names', () => {
+    expect(loadConfig(valid).MWC_LOGIN_HELPER).toBe('docker');
+    expect(loadConfig({ ...valid, MWC_LOGIN_HELPER: '' }).MWC_LOGIN_HELPER).toBe('docker');
+    expect(loadConfig({ ...valid, ...PRODUCTION }).MWC_LOGIN_HELPER).toBe('none');
+    expect(loadConfig({ ...valid, NODE_ENV: 'test' }).MWC_LOGIN_HELPER).toBe('none');
+    expect(loadConfig({ ...valid, ...PRODUCTION, MWC_LOGIN_HELPER: 'local' }).MWC_LOGIN_HELPER).toBe('local');
+    expect(loadConfig({ ...valid, MWC_LOGIN_HELPER: 'none' }).MWC_LOGIN_HELPER).toBe('none');
+    expect(() => loadConfig({ ...valid, MWC_LOGIN_HELPER: 'podman' })).toThrow(/MWC_LOGIN_HELPER/);
   });
 });
 

@@ -22,6 +22,13 @@ export function decodeMasterKey(value: string): Uint8Array | undefined {
   return new Uint8Array(Buffer.from(value, 'base64'));
 }
 
+/**
+ * Where Sign in with Claude and Sign in with OpenAI run the official CLI's login (MWC_LOGIN_HELPER,
+ * docs/subscriptions.md): a throwaway Docker container (`docker`), a private temporary folder on a Linux server that
+ * has the CLIs (`local`), or nowhere (`none`: those sign-ins answer 503).
+ */
+export const LoginHelperMode = z.enum(['docker', 'local', 'none']);
+
 /** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
 export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
@@ -101,10 +108,16 @@ const EnvSchema = z.object({
       .refine((value) => decodeMasterKey(value) !== undefined, 'must be the base64 of 32 bytes')
       .optional(),
   ),
+  /**
+   * The sign-in helper: `docker`, `local` or `none`. Defaults to docker in development and to none in production
+   * (whose image does not carry the CLIs yet) and in tests (which pass a fake).
+   */
+  MWC_LOGIN_HELPER: z.preprocess(emptyAsUnset, LoginHelperMode.optional()),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
 export type CompanyCreation = z.infer<typeof CompanyCreation>;
+export type LoginHelperMode = z.infer<typeof LoginHelperMode>;
 
 /** MWC_IDENTITY when it is set, else clerk for a well-formed Clerk secret key, else none. */
 function identityMode(env: z.infer<typeof EnvSchema>): IdentityMode {
@@ -142,7 +155,8 @@ function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): st
  * is validated once at startup, and a missing or malformed value fails fast.
  * Precedence for the API port: MWC_PORT, then MWC_PORT_SLOT's API port, then 9950. Company creation is open
  * to anyone signed in, except in production, where only MWC_COMPANY_CREATORS may create. The jobs loop runs unless
- * MWC_JOBS turns it off or NODE_ENV is test. Production needs MWC_MASTER_KEY. The Clerk keys and the master key are
+ * MWC_JOBS turns it off or NODE_ENV is test. Production needs MWC_MASTER_KEY. The sign-in helper is Docker in development
+ * and off elsewhere unless MWC_LOGIN_HELPER names one. The Clerk keys and the master key are
  * secrets: nothing logs the configuration, and a problem names the variable, never its value.
  */
 export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
@@ -157,6 +171,7 @@ export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
     MWC_IDENTITY,
     MWC_COMPANY_CREATION,
     MWC_JOBS,
+    MWC_LOGIN_HELPER,
     ...rest
   } = env;
   const port = MWC_PORT ?? (MWC_PORT_SLOT === undefined ? PORTS.api : slotPorts(MWC_PORT_SLOT).api);
@@ -172,6 +187,7 @@ export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
     MWC_IDENTITY: identity,
     MWC_COMPANY_CREATION: MWC_COMPANY_CREATION ?? (env.NODE_ENV === 'production' ? 'allowlist' : 'any'),
     MWC_JOBS: MWC_JOBS ?? env.NODE_ENV !== 'test',
+    MWC_LOGIN_HELPER: MWC_LOGIN_HELPER ?? (env.NODE_ENV === 'development' ? 'docker' : 'none'),
   };
 });
 

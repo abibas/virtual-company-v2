@@ -77,6 +77,9 @@ describe('createLogger', () => {
       payload: { headers: { 'x-api-key': 'gw-never' }, credentials: { accessToken: 'at-never' } },
       key: { MWC_MASTER_KEY: 'bWFzdGVyLWtleS1uZXZlcg==', masterKey: 'raw-never' },
       request: { authorization: 'Bearer never', auth: { tokens: 'codex-never' }, ciphertext: 'c-never' },
+      login: { claudeAiOauth: { accessToken: 'at-never' }, refreshToken: 'rt-never', id_token: 'id-never' },
+      signIn: { pastedCode: 'code-never', screen: 'echo-never', output: 'out-never', tokens: { a: 'never' } },
+      access_token: 'top-never',
       kept: { label: 'Max at home', kind: 'claude_setup_token' },
     };
     for (const NODE_ENV of ['production', 'development'] as const) {

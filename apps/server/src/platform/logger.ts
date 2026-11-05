@@ -13,7 +13,10 @@ export interface LoggerOptions {
 const importPretty = async () =>
   (await import('pino-pretty')).default as (options: object) => DestinationStream;
 
-/** The keys a secret travels under (tokens, API keys, a gateway's headers, the logins' files, the master key). */
+/**
+ * The keys a secret travels under (tokens, API keys, a gateway's headers, the logins' files and tokens, a sign-in's code
+ * and screen, the master key).
+ */
 const SECRET_KEYS = [
   'token',
   'apiKey',
@@ -26,6 +29,17 @@ const SECRET_KEYS = [
   'ciphertext',
   'masterKey',
   'MWC_MASTER_KEY',
+  // The logins' tokens (S3.2), the sign-in's pasted code and the CLI's screen, which echoes it.
+  'claudeAiOauth',
+  'accessToken',
+  'refreshToken',
+  'tokens',
+  'access_token',
+  'refresh_token',
+  'id_token',
+  'pastedCode',
+  'screen',
+  'output',
 ];
 
 /**

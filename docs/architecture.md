@@ -61,7 +61,7 @@ packages/mcp                @mwc/mcp             MCP server for humans' Claude C
 connectors/identity-clerk   @mwc/identity-clerk  Clerk implementation of IdentityProvider (verifyToken, Backend API, verifyWebhook, role map)
 connectors/identity-oidc    @mwc/identity-oidc   other identity providers (OIDC) and user sync (SCIM), later
 connectors/harness-claude-code, harness-codex, jira, github, gateway   the HarnessDriver for each CLI, and the outside systems of S6–S7
-deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, later Dockerfile.runner and Kubernetes
+deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper), later Dockerfile.runner and Kubernetes
 docs/                       architecture, roadmap, ports, structure, testing, clerk-setup, mcp (adding @mwc/mcp to your own Claude Code), schema (generated); later runner-protocol, harness
 ```
 

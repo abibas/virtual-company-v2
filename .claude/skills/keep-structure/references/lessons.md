@@ -54,6 +54,32 @@ Newest first, one entry per lesson:
   `connectors/ai-providers` package with a port in a core package.
 - **Status:** `open`.
 
+### 2026-11-05: A local process edge in the platform, a module's port importers trimmed, and the server's fixtures at 13
+
+- **What happened:** S3.2's sign-in helper runs the official Claude Code and Codex CLIs' logins in a Docker container
+  (development) or a temporary folder (a Linux server). The placement table sends "anything that talks to an outside
+  system (Clerk, Claude Code, Jira)" to a connector behind a `packages/*-core` port; the helper talks to the local
+  Docker daemon and to processes, not to a provider's API, and the step's brief put it in the server platform, so it
+  went to a new platform folder next to `secrets/` and `jobs/`. Its port, `port.ts`, was first imported by 9 files of
+  the server (`fan-in`): the two helpers, `process.ts`, `select.ts`, `env.ts` and four credentials files. The first
+  draft of the session class was 244 lines (`near-limit`). The sign-in tests' doubles (a fake child process, a fake
+  helper replaying CLI output, made-up CLI fixtures, the service world) took `apps/server/test/fixtures/` from 12
+  entries to 13 (`big-folder`), even as one folder.
+- **Where:** `apps/server/src/platform/login-helper/` (`port.ts` 55 lines, `process.ts` 135, `docker.ts` 158,
+  `local.ts` 66, `tty.ts` 21, `select.ts` 36); `apps/server/src/modules/credentials/service/sign-in/` (`session.ts`,
+  `context.ts`, `flows.ts`), `routes/sign-in.ts`; `apps/server/test/fixtures/sign-in/` (4 files); S3.2.
+- **What was done:** the routes take the helper's type from the service's `SignInDeps` and the flows read files through a
+  one-method interface of their own, so `port.ts` has 7 importers; the session's context and timers moved to
+  `service/sign-in/context.ts` and two pure rules (`finishesOnExit`, `exitEnding`) to `rules/sign-in.ts`, so
+  `session.ts` is 208 lines. The real `spawn` is injected everywhere (`select.ts` passes node's), so the Docker
+  and local helpers are covered by tests with a fake child and nothing is excluded from coverage. The fixtures folder
+  warning stays.
+- **Suggested change:** a placement-table row: "Code that runs local processes or containers for the server (the
+  sign-in helper; later the runner's own sandbox) → `apps/server/src/platform/<area>/` with `spawn` injected; a provider's
+  API stays a connector". And let `apps/server/test/fixtures/` group helpers by module (`fixtures/<module>/`), as the
+  acceptance scenario's folder does, or raise `big-folder` for `test/fixtures/` folders.
+- **Status:** `open`.
+
 ### 2026-11-05: Personal data: a third access layer, a third kind of route guard, and three folders at 13 entries
 
 - **What happened:** S3.1's `credentials` and `credential_uses` belong to a person and to no company. The placement

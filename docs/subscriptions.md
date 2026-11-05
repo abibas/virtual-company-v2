@@ -50,6 +50,88 @@ mounts and no credentials. The flow streams the provider's sign-in address to th
 Anthropic shows back into the page; the helper's resulting files are read, encrypted and stored, and the sandbox is
 deleted. Only Ihor completes a sign-in; nothing signs in for him.
 
+As built in S3.2:
+
+- **The port.** `LoginHelper` (`apps/server/src/platform/login-helper/port.ts`) starts one login in a sandbox and gives
+  its output as it comes, typing into its terminal, reading a file of its home and killing it. `MWC_LOGIN_HELPER`
+  chooses it: `docker` (the development default), `local`, or `none` (production and tests by default, until the
+  server image carries the CLIs: `POST /api/me/subscriptions/sign-in` answers 503 `sign_in_unavailable`; tests pass a
+  fake).
+- **`docker`.** The image is built on the first sign-in from `deploy/Dockerfile.login` alone (no build context) and
+  tagged `mwc-login:<the first 12 hex digits of the file's SHA-256>`: `node:24.21.0-slim`, the system CA roots (Codex
+  checks TLS against them), `@anthropic-ai/claude-code@2.1.308` (published 2026-10-22) and `@openai/codex@0.163.0`
+  (2026-10-15), pinned on 2026-11-05 at least 14 days after their release, the non-root `node` user. Each sign-in
+  starts a container detached with `--rm`, `--read-only`, a tmpfs `/tmp` and a tmpfs home (`/home/node`, 0700),
+  `--cap-drop ALL`, `--security-opt no-new-privileges`, `--pids-limit 256`, `--memory 1g`, `--cpus 1`,
+  `--user 1000:1000`, no volume, no environment variable and no credential from the host; its only process is
+  `sleep 720`, so it ends by itself after 12 minutes if the server stops mid-sign-in. The CLI runs in it with
+  `docker exec -i` behind util-linux's `script -qfec "stty cols 2000 rows 50; exec <cli>" /dev/null`, the terminal
+  the CLIs need (never `docker run -t` from a server without one). The login's files are read with
+  `docker exec <name> cat`, and `docker rm --force` ends it.
+- **`local`.** For a Linux server whose own container has the CLIs and `script`: a private `mkdtemp` folder is the
+  login's whole home, with an environment made from nothing (HOME, CODEX_HOME, PATH, the terminal, the CLIs' update
+  and telemetry switches; no CLAUDE_CONFIG_DIR, no key), removed afterwards.
+- **Claude.** `claude auth login --claudeai`, the subscription's full OAuth login (with a refresh token; not the
+  inference-only `setup-token`). The pinned CLI prints, with no browser to open:
+
+  ```
+  Opening browser to sign in…
+  If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&client_id=…&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainference+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload+user%3Aplugins&code_challenge=…&code_challenge_method=S256&state=…
+  Paste code here if prompted >
+  ```
+
+  The address (an OSC 8 hyperlink and plain text) is passed on only when it is https on `claude.com`, `claude.ai`,
+  `platform.claude.com` or `console.anthropic.com` with the path `/oauth/authorize`. The pasted code (`<code>#<state>`,
+  one word of URL-safe characters) is typed in with Enter; a clean exit means signed in, and
+  `~/.claude/.credentials.json` (required, with an access token) and the `oauthAccount` of `~/.claude.json` are read.
+  Stored as `claude_oauth`, secret `{ credentials, account }`, email `oauthAccount.emailAddress`, details
+  `organizationName`, `subscriptionType`, `rateLimitTier` and `scopes`, named "Claude · <email>".
+- **OpenAI.** `codex login --device-auth -c cli_auth_credentials_store=file`. The pinned CLI prints:
+
+  ```
+  Follow these steps to sign in with ChatGPT using device code authorization:
+
+  1. Open this link in your browser and sign in to your account
+     https://auth.openai.com/codex/device
+
+  2. Enter this one-time code (expires in 15 minutes)
+     XXXX-XXXXX
+
+  Continue only if you started this login in Codex. If a website or another person gave you this code, cancel.
+  ```
+
+  and waits; a clean exit means signed in, and `~/.codex/auth.json` (with an access token) is read. Stored as
+  `codex_oauth`, secret `{ auth }`, email from the id_token's `email` claim (decoded for display, not verified), the
+  ChatGPT plan (`chatgpt_plan_type`) as `planType`, named "OpenAI · <email>".
+- **Sessions.** In the server's memory, bound to the person who started one (another person's is a 404 like none), at
+  most one active per person (`409 sign_in_active`), 10 minutes each. States: `starting` → `waiting_for_user` (the
+  address, with OpenAI's code) → `waiting_for_code` (Claude's prompt is up) → `completing` (the code is in, or Codex
+  finished; the files are read and stored) → `done` (with `credentialId`), or `failed` (a plain message), `expired`,
+  `cancelled`. The CLI has 90 seconds to show its address and Claude 60 seconds to finish after the code. Every end
+  kills the sandbox; a login already being stored finishes `done` even when cancelled or out of time. A server
+  restart forgets the sign-ins in progress (their containers end themselves).
+- **Routes** (personal, a session only; an API key is 403 `session_required`): `POST /api/me/subscriptions/sign-in`
+  `{ provider: 'claude' | 'openai', label? }` → 201 `starting`; `GET /api/me/subscriptions/sign-in/:id` (the web polls
+  every 2 seconds); `POST /api/me/subscriptions/sign-in/:id/code` `{ code }` → 200 `completing`, 409
+  `sign_in_not_waiting` when no code is awaited (always for OpenAI); `DELETE /api/me/subscriptions/sign-in/:id` →
+  200 `cancelled`.
+- **Logs.** A sign-in logs its id, provider, helper and how it ended, never the CLI's output (the terminal echoes the
+  pasted code), the code, an address, a token or a file; the logger also blanks the logins' token keys, `pastedCode`,
+  `screen` and `output`.
+
+### How to sign in (Ihor)
+
+1. Docker Desktop runs on the Mac, and the server runs in development (`pnpm dev`; `MWC_LOGIN_HELPER` unset means
+   `docker`). The first sign-in builds the image (a minute or two); later ones start in seconds.
+2. On the Subscriptions page (S3.5), choose **Add a subscription**, then **Sign in with Claude** or **Sign in with
+   OpenAI**. Until then the API does the same: `POST /api/me/subscriptions/sign-in` with your web session.
+3. Claude: open the address shown, approve on Anthropic's page, copy the code it shows and paste it back in the app.
+   OpenAI: open the device page, sign in to ChatGPT and type in the one-time code shown in the app; the app notices
+   when you are done. If OpenAI's page says device code sign-in is off for your account, turn it on in ChatGPT's
+   security settings and start again.
+4. The page shows the new subscription, named "Claude · <email>" or "OpenAI · <email>" (rename it on the page). Cancel
+   or wait 10 minutes to give up; nothing is stored then.
+
 ## Access profiles
 
 A personal, named bundle: the Claude subscription for `claude_code` agents, the OpenAI one for `codex` agents, an
