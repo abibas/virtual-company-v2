@@ -1,6 +1,8 @@
 import { CREDENTIAL_LABEL } from '@mwc/shared/credentials';
 import { LogIn } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import type { SignInProvider, Subscription, SubscriptionLimits } from '../../api/types.ts';
+import { cx } from '../cx.ts';
 import { formatDate, formatDateTime, fromNow } from '../data/format.ts';
 import { ConfirmInline } from '../forms/ConfirmInline.tsx';
 import { InlineEdit } from '../forms/InlineEdit.tsx';
@@ -21,6 +23,8 @@ interface SubscriptionCardProps {
   readonly remove: () => Promise<void>;
   /** Sign in again, for a login that needs it: the same sign-in as adding one, renewing this subscription in place. */
   readonly onSignIn: (provider: SignInProvider, credentialId: string) => void;
+  /** Just signed in (added or renewed): scrolled into view and ringed for a moment, so it is found below the fold. */
+  readonly highlighted?: boolean;
 }
 
 /** Its limits: the bars of a plan, a line for keys and gateways, nothing for a revoked one. */
@@ -64,11 +68,21 @@ export function SubscriptionCard({
   rename,
   remove,
   onSignIn,
+  highlighted = false,
 }: SubscriptionCardProps) {
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlighted) card.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlighted]);
   const provider = signInOf(subscription.kind);
   const account = accountLine(subscription);
   return (
-    <Card as="article" aria-label={subscription.label} className="flex flex-col gap-4">
+    <Card
+      ref={card}
+      as="article"
+      aria-label={subscription.label}
+      className={cx('flex flex-col gap-4 transition-shadow duration-500', highlighted && 'ring-2 ring-blue')}
+    >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">

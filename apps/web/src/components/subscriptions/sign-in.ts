@@ -87,7 +87,7 @@ function usePoll(signIn: SignIn | undefined, calls: SubscriptionCalls, follow: F
 function useDone(
   credentialId: string | null,
   calls: SubscriptionCalls,
-  onDone: () => void,
+  onDone: (credentialId: string) => void,
   onEmail: (email: string | null) => void,
 ) {
   const tell = useRef({ onDone, onEmail });
@@ -95,7 +95,7 @@ function useDone(
   useEffect(() => {
     if (!credentialId) return;
     let current = true;
-    tell.current.onDone();
+    tell.current.onDone(credentialId);
     calls.list().then(
       ({ subscriptions }) => {
         if (current)
@@ -137,7 +137,7 @@ function useCode(
  * Sign in with Claude or OpenAI, live: starts the server's sign-in, polls it while it runs, sends Claude's pasted
  * code, and cancels it on Stop or when the page goes away. `onDone` hears of the new subscription.
  */
-export function useSignIn(onDone: () => void): SignInControl {
+export function useSignIn(onDone: (credentialId: string) => void): SignInControl {
   const api = useApi();
   const calls = useMemo(() => subscriptionCalls(api), [api]);
   const [phase, setPhase] = useState<SignInPhase>({ kind: 'idle' });

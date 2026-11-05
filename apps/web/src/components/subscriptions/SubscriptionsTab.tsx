@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Sparkles } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import {
   type SubscriptionCalls,
@@ -69,10 +69,12 @@ interface ListProps {
   readonly onChanged: () => void;
   readonly onSignIn: (provider: SignInProvider, credentialId: string) => void;
   readonly onAdd: () => void;
+  /** The subscription a sign-in just added or renewed, highlighted for a moment. */
+  readonly highlight: string | undefined;
 }
 
 /** The cards, two across from md; the invitation to add the first one. */
-function SubscriptionList({ list, limits, now, calls, onChanged, onSignIn, onAdd }: ListProps) {
+function SubscriptionList({ list, limits, now, calls, onChanged, onSignIn, onAdd, highlight }: ListProps) {
   if (list.length === 0) {
     return (
       <Card>
@@ -103,6 +105,7 @@ function SubscriptionList({ list, limits, now, calls, onChanged, onSignIn, onAdd
           rename={(label) => calls.rename(subscription.id, label).then(onChanged)}
           remove={() => calls.remove(subscription.id).then(onChanged)}
           onSignIn={onSignIn}
+          highlighted={subscription.id === highlight}
         />
       ))}
     </div>
@@ -124,7 +127,17 @@ export function SubscriptionsTab() {
     subscriptions.reload();
     limits.reload();
   };
-  const adding = useAddSubscription(changed);
+  const [highlight, setHighlight] = useState<string>();
+  useEffect(() => {
+    if (!highlight) return;
+    const timer = setTimeout(() => setHighlight(undefined), 4000);
+    return () => clearTimeout(timer);
+  }, [highlight]);
+  const adding = useAddSubscription((credentialId) => {
+    changed();
+    setHighlight(credentialId);
+    setAdded('Signed in. Your subscription is highlighted below.');
+  });
   return (
     <>
       <TabBar refreshing={limits.refreshing} onRefresh={limits.refresh} onAdd={adding.choose} />
@@ -145,6 +158,7 @@ export function SubscriptionsTab() {
             onChanged={changed}
             onSignIn={adding.signInWith}
             onAdd={adding.choose}
+            highlight={highlight}
           />
         )}
       </LoadState>

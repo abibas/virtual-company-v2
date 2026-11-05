@@ -39,7 +39,7 @@ export interface AddSubscription {
  * The add sheet's state, held by the page that shows it (the Subscriptions page, the home widget), so a card's Sign
  * in again and the sheet's own choices start the same sign-in. `onSignedIn` hears of a sign-in's new subscription.
  */
-export function useAddSubscription(onSignedIn: () => void): AddSubscription {
+export function useAddSubscription(onSignedIn: (credentialId: string) => void): AddSubscription {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<AddStep>({ kind: 'choose' });
   const signIn = useSignIn(onSignedIn);
