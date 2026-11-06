@@ -67,6 +67,11 @@ export interface RunnerHub {
   ): Promise<ReplyTo<F>>;
   /** Closes every socket of the machine with `code`; false when it has none. */
   disconnect(machineId: string, code: number, reason: string): boolean;
+  /**
+   * Calls `listener` each time a runner is ready (it answered `server.hello`; the power code sends it its hold);
+   * returns the unsubscribe. A listener that throws is logged, never the connection's problem.
+   */
+  onConnect(listener: (runner: ConnectedRunner) => void): () => void;
   /** A new socket of an authenticated runner (the socket route calls it). */
   open(link: SocketLink, runner: RunnerCredential): SocketHandlers;
   /** Resolves once every write queued so far is done. */
@@ -143,6 +148,34 @@ async function closeAll(all: ReadonlySet<RunnerConnection>, timeoutMs: number, i
   await idle();
 }
 
+/** A ready connection as the hub shows it. */
+function runnerOf(connection: RunnerConnection): ConnectedRunner {
+  const { version, caps } = connection.hello as RunnerHello;
+  const { machineId, runner } = connection;
+  return { companyId: runner.companyId, machineId, version, caps, connectedAt: connection.readyAt as Date };
+}
+
+/** The connect listeners, each called in turn; one that throws is logged. */
+function connectListeners(logger: Logger) {
+  const listeners = new Set<(runner: ConnectedRunner) => void>();
+  return {
+    add(listener: (runner: ConnectedRunner) => void): () => void {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    ready(connection: RunnerConnection): void {
+      const runner = runnerOf(connection);
+      for (const listener of listeners) {
+        try {
+          listener(runner);
+        } catch (error) {
+          logger.error({ err: error, machineId: runner.machineId }, 'runner hub: a connect listener failed');
+        }
+      }
+    },
+  };
+}
+
 /** The hub on the server's database, logger and clock. */
 export function createRunnerHub(
   deps: { readonly db: DbHandle; readonly logger: Logger; readonly clock: () => Date },
@@ -150,6 +183,7 @@ export function createRunnerHub(
 ): RunnerHub {
   const sockets = connections();
   const queues = machineQueues(deps.logger);
+  const listeners = connectListeners(deps.logger);
   const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   let closing = false;
   const ctx: ConnectionContext = {
@@ -158,6 +192,7 @@ export function createRunnerHub(
     minRunnerVersion: options.minRunnerVersion ?? MIN_RUNNER_VERSION,
     enqueue: queues.enqueue,
     claim: sockets.claim,
+    ready: listeners.ready,
     release: sockets.release,
   };
   return {
@@ -165,11 +200,9 @@ export function createRunnerHub(
     isOnline: (machineId) => sockets.ready(machineId) !== undefined,
     connected(machineId) {
       const connection = sockets.ready(machineId);
-      if (connection === undefined) return undefined;
-      const { version, caps } = connection.hello as RunnerHello;
-      const connectedAt = connection.readyAt as Date;
-      return { companyId: connection.runner.companyId, machineId, version, caps, connectedAt };
+      return connection === undefined ? undefined : runnerOf(connection);
     },
+    onConnect: listeners.add,
     send(machineId, frame) {
       const connection = sockets.ready(machineId);
       connection?.link.send(encodeFrame(frame));

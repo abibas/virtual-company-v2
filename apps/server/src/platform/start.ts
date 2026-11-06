@@ -5,7 +5,7 @@ import { createDb, type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { WebSocketServer } from 'ws';
-import { createApp, moduleJobs } from '../app.ts';
+import { createApp, createRunnerHub, moduleJobs, type RunnerHub } from '../app.ts';
 import type { ServerDeps } from './env.ts';
 import { identityFromConfig } from './identity.ts';
 import { advisoryJobsLock } from './jobs/lock.ts';
@@ -93,19 +93,37 @@ export interface Started {
   readonly shutdown: (signal: string) => Promise<void>;
 }
 
-/** The jobs loop on the app's database, provider and clock, with the advisory lock; undefined when MWC_JOBS=off. */
-function jobsRunner(server: ServerDeps, timers: Timers): JobsRunner | undefined {
+/**
+ * The jobs loop on the app's database, provider, clock and runner hub (the power scheduler commands runners through
+ * it), with the advisory lock; undefined when MWC_JOBS=off.
+ */
+function jobsRunner(server: ServerDeps, hub: RunnerHub, timers: Timers): JobsRunner | undefined {
   if (!server.config.MWC_JOBS) return undefined;
   return createJobsRunner({
     db: server.db,
     clock: server.clock,
     logger: server.logger,
     identity: server.identity,
-    work: moduleJobs(server),
+    work: moduleJobs({ ...server, hub }),
     reconcileIntervalMs: server.config.MWC_RECONCILE_MINUTES * 60_000,
     lock: advisoryJobsLock(server.db),
     timers,
   });
+}
+
+/**
+ * The app and the jobs loop on one runner hub (the runners' sockets and the power scheduler), and what the shutdown
+ * stops before the database closes: the hub and the sign-ins in progress.
+ */
+function compose(server: ServerDeps, deps: StartDeps, keyring: Keyring) {
+  const stops: (() => Promise<void>)[] = [];
+  const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
+  const runnerHub = createRunnerHub(server);
+  onShutdown(() => runnerHub.close());
+  const jobs = jobsRunner(server, runnerHub, deps.timers);
+  const loginHelper = deps.loginHelper(server.config, server.logger);
+  const app = createApp({ ...server, keyring, jobs: jobs ?? JOBS_OFF, loginHelper, onShutdown, runnerHub });
+  return { app, jobs, loginHelper, stops };
 }
 
 /** The database, with the migrations applied first when MWC_MIGRATE_ON_START (or `migrate`) says so. */
@@ -180,11 +198,7 @@ export async function start(
     identity,
     ...webDist,
   };
-  const jobs = jobsRunner(serverDeps, deps.timers);
-  const loginHelper = deps.loginHelper(config, logger);
-  const stops: (() => Promise<void>)[] = [];
-  const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
-  const app = createApp({ ...serverDeps, keyring, jobs: jobs ?? JOBS_OFF, loginHelper, onShutdown });
+  const { app, jobs, loginHelper, stops } = compose(serverDeps, deps, keyring);
   const websocket = { server: createSocketServer() };
   const server = deps.serve(
     { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST, websocket },

@@ -57,6 +57,25 @@ describe('which runners the hub has', () => {
     await eventually('gone', () => !w.hub.isOnline(machineId));
     expect(w.hub.connected(machineId)).toBeUndefined();
   });
+
+  it('tells each connect listener about a runner once it is ready, logs one that throws, and stops on unsubscribe', async () => {
+    const { machineId, runnerKey } = await enroll(w, company);
+    const seen: string[] = [];
+    const off = w.hub.onConnect((runner) => seen.push(`${runner.machineId} ${runner.version}`));
+    const offBoom = w.hub.onConnect(() => {
+      throw new Error('boom');
+    });
+    const runner = await w.connect(runnerKey, { version: '0.7.0' });
+    expect(seen).toEqual([`${machineId} 0.7.0`]);
+    expect(w.logs).toContainEqual(
+      expect.objectContaining({ msg: 'runner hub: a connect listener failed', machineId }),
+    );
+    off();
+    offBoom();
+    await runner.reconnect();
+    expect(seen).toHaveLength(1);
+    expect(w.hub.isOnline(machineId)).toBe(true);
+  });
 });
 
 describe('send and request', () => {
@@ -66,7 +85,9 @@ describe('send and request', () => {
     expect(w.hub.send(machineId, hold)).toBe(false);
     const runner = await w.connect(runnerKey);
     expect(w.hub.send(machineId, hold)).toBe(true);
-    expect(await runner.frames.next('machine.hold')).toEqual(hold);
+    // The power code sends it a hold of its own on connect (none here), before or after this one.
+    expect(await runner.frames.next('machine.hold', (frame) => frame.cmdId === hold.cmdId)).toEqual(hold);
+    expect(await runner.frames.next('machine.hold')).toMatchObject({ until: null });
   });
 
   it('matches power.result to its power.command, and cmd.ack to any other command', async () => {

@@ -184,6 +184,12 @@ importers:
 
   apps/runner:
     dependencies:
+      '@mwc/machine-airia-devbox':
+        specifier: workspace:*
+        version: link:../../connectors/machine-airia-devbox
+      '@mwc/machines-core':
+        specifier: workspace:*
+        version: link:../../packages/machines-core
       '@mwc/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -221,6 +227,9 @@ importers:
       '@mwc/identity-core':
         specifier: workspace:*
         version: link:../../packages/identity-core
+      '@mwc/machines-core':
+        specifier: workspace:*
+        version: link:../../packages/machines-core
       '@mwc/shared':
         specifier: workspace:*
         version: link:../../packages/shared

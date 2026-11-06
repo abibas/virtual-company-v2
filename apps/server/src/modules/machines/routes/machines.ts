@@ -11,14 +11,14 @@ import {
   MachineParamsSchema,
   MachineSchema,
   MachinesParamsSchema,
-  RenameMachineSchema,
+  UpdateMachineSchema,
 } from '../schemas.ts';
 import { machineStatsList } from '../service/stats.ts';
 import type { Caller, MachinesService } from '../service.ts';
 
 /**
- * `/api/companies/{companyId}/machines`: the company's machines and the home board's stats (viewer and above), renaming
- * and removing one (admin and above). Another company's machine is a 404.
+ * `/api/companies/{companyId}/machines`: the company's machines and the home board's stats (viewer and above), changing
+ * one (its name, a devbox's controller) and removing one (admin and above). Another company's machine is a 404.
  */
 
 const MACHINES = '/api/companies/{companyId}/machines' as const;
@@ -74,18 +74,25 @@ const getRoute = (deps: ServerDeps) => {
   });
 };
 
-const renameRoute = (deps: ServerDeps) => {
+const updateRoute = (deps: ServerDeps) => {
   const { base, refusals } = route(deps, 'admin', `${MACHINES}/{machineId}`);
   return createRoute({
     ...base,
     method: 'patch',
-    summary: 'Rename a machine (admin and above)',
-    request: { params: MachineParamsSchema, body: jsonBody(RenameMachineSchema) },
+    summary: "Rename a machine, or choose a devbox's controller (admin and above)",
+    description:
+      '`controllerMachineId` names the machine of this company whose runner starts and stops this devbox; null ' +
+      'clears it (the one connected machine that can power it is then picked when it is next powered).',
+    request: { params: MachineParamsSchema, body: jsonBody(UpdateMachineSchema) },
     responses: {
-      200: jsonResponse('The machine, renamed', MachineSchema),
+      200: jsonResponse('The machine, changed', MachineSchema),
       400: INVALID,
       ...refusals,
       404: NO_MACHINE,
+      422: errorResponse(
+        'A controller for a machine that is not a devbox (`not_a_vm`), an unknown one (`controller_not_found`) or ' +
+          'itself (`controller_is_self`)',
+      ),
     },
   });
 };
@@ -125,14 +132,9 @@ export function machineRoutes(deps: ServerDeps, machines: MachinesService) {
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.machine, 200);
     })
-    .openapi(renameRoute(deps), async (c) => {
+    .openapi(updateRoute(deps), async (c) => {
       const { machineId } = c.req.valid('param');
-      const result = await machines.rename(
-        c.var.tenant,
-        callerOf(c.var),
-        machineId,
-        c.req.valid('json').name,
-      );
+      const result = await machines.update(c.var.tenant, callerOf(c.var), machineId, c.req.valid('json'));
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.machine, 200);
     })

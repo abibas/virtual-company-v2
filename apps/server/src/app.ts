@@ -21,7 +21,7 @@ import { loginHelperFromConfig } from './platform/login-helper/select.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 
-export type { RunnerHub } from './modules/machines/index.ts';
+export { createRunnerHub, type RunnerHub } from './modules/machines/index.ts';
 export type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 
 /** What `createApp` takes: the app's deps and, from the composition that shares them, the module objects it mounts. */
@@ -103,12 +103,13 @@ export function withMemberChart(deps: ServerDeps) {
 
 /**
  * What the jobs loop (`platform/jobs/`, started by `platform/start.ts`) runs from the modules: the machines' upkeep
- * (the offline sweep and the hourly prune of samples), their outbox handlers in one registry (companies: create_org,
+ * (the offline sweep, the hourly prune of samples and, with the app's runner hub, the power scheduler), their outbox
+ * handlers in one registry (companies: create_org,
  * delete_org; members: update_role, remove_member; invitations: invite, revoke_invite), the retry of webhook events and
  * the company reconcile (identity), both with the org chart a membership that starts or ends moves its person on. The modules export them and only this file composes them, so no
  * module imports the loop and the loop imports no module.
  */
-export function moduleJobs(deps: ServerDeps): ModuleJobs {
+export function moduleJobs(deps: ServerDeps & { readonly hub?: RunnerHub }): ModuleJobs {
   const identity = withMemberChart(deps);
   return {
     machines: machineUpkeep(deps),

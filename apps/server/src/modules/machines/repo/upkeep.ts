@@ -1,10 +1,10 @@
-import { companies, type DbHandle, machineSamples, machines } from '@mwc/db';
+import { companies, type DbHandle, type Machine, machineSamples, machines } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import { and, eq, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, isNull, lt, ne, or } from 'drizzle-orm';
 
 /**
  * The machines' upkeep across every company (the jobs loop): the one place this module reads without a tenant, listed
- * in biome.json's exemption, since a lapsed lease or an old sample can be any company's. It only finds and deletes;
+ * in biome.json's exemption, since a lapsed lease, an old sample or a power decision can be any company's. It only finds and deletes;
  * changes to a machine go through its company's tenant (`service/upkeep.ts`).
  */
 
@@ -22,6 +22,15 @@ export const staleMachines = (db: DbHandle, cutoff: Date): Promise<{ companyId: 
         isNull(companies.deletedAt),
       ),
     );
+
+/** Every machine not removed, in companies not deleted, by company: the power scheduler decides each one. */
+export const presentMachines = (db: DbHandle): Promise<Machine[]> =>
+  rawDb(db)
+    .select(getTableColumns(machines))
+    .from(machines)
+    .innerJoin(companies, eq(companies.id, machines.companyId))
+    .where(and(isNull(machines.removedAt), ne(companies.status, 'deleted'), isNull(companies.deletedAt)))
+    .orderBy(asc(machines.companyId), asc(machines.id));
 
 /** Deletes every sample taken before `before`; returns how many. */
 export async function pruneSamples(db: DbHandle, before: Date): Promise<number> {

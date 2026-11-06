@@ -44,5 +44,7 @@ describe('the real process behind main', () => {
     expect(process.listeners('SIGINT')).toContain(handler);
     process.off('SIGINT', handler);
     deps.keepAlive()();
+    // A power controller only where the airia CLI and gcloud are installed; found without starting either.
+    expect(deps.power?.providers.every((provider) => provider === 'airia_devbox')).toBe(true);
   });
 });

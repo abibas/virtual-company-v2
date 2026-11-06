@@ -1,8 +1,15 @@
 import { diffFields, type Machine, type TenantDb } from '@mwc/db';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { type MachinesRepo, machinesRepo } from './repo.ts';
-import { MACHINE_NOT_FOUND, type Refusal } from './rules.ts';
-import type { MachineView } from './schemas.ts';
+import { isPowered } from './rules/power.ts';
+import {
+  CONTROLLER_IS_SELF,
+  CONTROLLER_NOT_FOUND,
+  MACHINE_NOT_FOUND,
+  NOT_A_VM,
+  type Refusal,
+} from './rules.ts';
+import type { MachineUpdate, MachineView } from './schemas.ts';
 import type { RunnerHub } from './service/hub.ts';
 
 const iso = (at: Date | null) => at?.toISOString() ?? null;
@@ -48,18 +55,44 @@ const userEntry = (caller: Caller, entityType: string, entityId: string, action:
   action,
 });
 
-async function rename(
+/** Why a machine cannot get this controller (only a devbox, a machine of the company, never itself), or undefined. */
+async function controllerRefusal(
+  repo: MachinesRepo,
+  t: TenantDb,
+  machine: Machine,
+  controllerId: string | null | undefined,
+): Promise<Refusal<422> | undefined> {
+  if (controllerId === undefined || controllerId === null) return undefined;
+  if (!isPowered(machine)) return NOT_A_VM;
+  if (controllerId === machine.id) return CONTROLLER_IS_SELF;
+  return (await repo.get(t, controllerId)) === undefined ? CONTROLLER_NOT_FOUND : undefined;
+}
+
+/** Renames a machine and/or sets (or clears) a devbox's controller; audited. */
+async function update(
   repo: MachinesRepo,
   t: TenantDb,
   caller: Caller,
   id: string,
-  name: string,
-): Promise<Viewed> {
+  change: MachineUpdate,
+): Promise<Viewed | Refusal<422>> {
   return t.transaction(async (tx) => {
     const before = await repo.get(tx, id);
     if (before === undefined) return MACHINE_NOT_FOUND;
-    const row = (await repo.update(tx, before.id, { name })) as Machine;
-    const changes = diffFields({ name: before.name }, { name: row.name });
+    const refusal = await controllerRefusal(repo, tx, before, change.controllerMachineId);
+    if (refusal !== undefined) return refusal;
+    const set = {
+      ...(change.name === undefined ? {} : { name: change.name }),
+      ...(change.controllerMachineId === undefined
+        ? {}
+        : { controllerMachineId: change.controllerMachineId }),
+    };
+    const row = (await repo.update(tx, before.id, set)) as Machine;
+    const fields = (machine: Machine) => ({
+      name: machine.name,
+      controllerMachineId: machine.controllerMachineId,
+    });
+    const changes = diffFields(fields(before), fields(row));
     await repo.audit(tx, { ...userEntry(caller, 'machine', row.id, 'update'), changes });
     return { ok: true as const, machine: machineView(row) };
   });
@@ -104,7 +137,8 @@ export function machinesService(deps: { readonly hub: RunnerHub }) {
       return row === undefined ? MACHINE_NOT_FOUND : { ok: true, machine: machineView(row) };
     },
 
-    rename: (t: TenantDb, caller: Caller, id: string, name: string) => rename(repo, t, caller, id, name),
+    update: (t: TenantDb, caller: Caller, id: string, change: MachineUpdate) =>
+      update(repo, t, caller, id, change),
 
     remove: (t: TenantDb, caller: Caller, id: string) => remove(repo, deps.hub, t, caller, id),
   };

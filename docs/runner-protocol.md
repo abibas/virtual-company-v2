@@ -121,6 +121,14 @@ limit alone.
   `airia devbox up --no-wait`, `airia devbox stop`, `gcloud compute instances describe --format=json` for `status`, and
   `add-metadata devbox-tz=` for `set_timezone`, and answers `power.result` with the mapped status and metadata. Every
   decision and outcome is a `machine_power_events` row (`PowerEventAction`).
+- **Power answers** (S4.4b). A controller's `power.result.metadata` is `{size, hourlyCost, rules}` (the devbox's size,
+  dollars an hour and its own stop rules from its instance metadata; null when unknown), and its `error` is the
+  driver's `<code>: <message>`, the code one of `@mwc/machines-core`'s `MACHINE_POWER_ERROR_CODES`; a runner without a
+  power driver answers `no_power_driver`, which the server reads as `cli_missing`. A runner is a controller when the
+  `airia` and `gcloud` executables are found (on the PATH, `/opt/homebrew/bin`, `/usr/local/bin` or
+  `~/google-cloud-sdk/bin`, without starting a process); a missing gcloud sign-in shows on the first command.
+- **When the server sends `machine.hold`** (S4.4b): each time a runner connects (its current hold, null included),
+  whenever the scheduler's decision changes it (a step at most once a minute), and right after a policy change.
 
 ## Limits and timers
 

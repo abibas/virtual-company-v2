@@ -42,6 +42,8 @@ export interface ConnectionContext {
   enqueue(machineId: string, work: () => Promise<void>): void;
   /** Makes this connection its machine's current one, closing the one it replaces with 4004. */
   claim(connection: RunnerConnection): void;
+  /** This connection answered `server.hello`: commands go to it from now on. */
+  ready(connection: RunnerConnection): void;
   /** Forgets this connection; true when it was its machine's current one. */
   release(connection: RunnerConnection): boolean;
 }
@@ -194,6 +196,7 @@ export class RunnerConnection {
         this.readyAt = now;
         this.link.send(serverHello);
         this.#log('info', { version: hello.version }, 'runner: connected');
+        this.#ctx.ready(this);
       },
       () => this.link.close(1011, 'The server could not record the connection'),
     );

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { readFile, statfs } from 'node:fs/promises';
 import os from 'node:os';
 import { WebSocket } from 'ws';
+import { detectPowerExecutor } from '../power/detect.ts';
 import type { MainDeps } from '../start.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
 
@@ -47,5 +48,7 @@ export function nodeDeps(): MainDeps {
       return () => clearInterval(timer);
     },
     version: readRunnerVersion(),
+    // A power controller when the airia CLI and gcloud are installed here (found without starting a process).
+    power: detectPowerExecutor({ env: process.env, home: os.homedir(), exists: existsSync }),
   };
 }

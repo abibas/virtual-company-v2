@@ -3,9 +3,10 @@ import { rawDb } from '@mwc/db/system';
 import { TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { machineUpkeep } from '../../../../src/modules/machines/index.ts';
+import { createRunnerHub, machineUpkeep } from '../../../../src/modules/machines/index.ts';
 import { MACHINE_LEASE_MS, PRUNE_INTERVAL_MS } from '../../../../src/modules/machines/rules.ts';
 import { lapsed } from '../../../../src/modules/machines/service/presence.ts';
+import { POWER_STEP_MS } from '../../../../src/modules/machines/service/upkeep.ts';
 import { enroll, machineRow, sampleAt, samplesOf, sessionsOf } from '../../../fixtures/machines/machines.ts';
 import { type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
 import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
@@ -86,6 +87,23 @@ describe('the prune', () => {
     w.clock.advance(1);
     expect((await upkeep()).pruned).toBe(1);
     expect(await samplesOf(w.t.db, machineId)).toHaveLength(1);
+    w.clock.set(TEST_NOW);
+  });
+});
+
+describe('the power step', () => {
+  it('runs with the runner hub, at most once a minute; never without it', async () => {
+    await enroll(w, company);
+    const hub = createRunnerHub({ db: w.t.db, logger: w.t.logger, clock: w.clock });
+    const upkeep = machineUpkeep({ db: w.t.db, clock: w.clock, logger: w.t.logger, hub });
+    expect((await upkeep()).power).toMatchObject({ machines: expect.any(Number), holds: 0, commands: 0 });
+    expect((await upkeep()).power?.machines).toBeUndefined();
+    w.clock.advance(POWER_STEP_MS - 1);
+    expect((await upkeep()).power).toBeNull();
+    w.clock.advance(1);
+    expect((await upkeep()).power?.machines).toBeGreaterThan(0);
+    expect((await machineUpkeep({ db: w.t.db, clock: w.clock })()).power).toBeNull();
+    await hub.close();
     w.clock.set(TEST_NOW);
   });
 });

@@ -19,6 +19,7 @@
     "@mwc/db": "workspace:*",
     "@mwc/identity-clerk": "workspace:*",
     "@mwc/identity-core": "workspace:*",
+    "@mwc/machines-core": "workspace:*",
     "@mwc/shared": "workspace:*",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.16",

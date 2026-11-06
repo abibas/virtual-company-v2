@@ -27,11 +27,16 @@ export interface MachineUpkeep {
   readonly offline: number;
   /** Samples older than 7 days deleted; null on the ticks that do not prune (it runs hourly). */
   readonly pruned: number | null;
+  /**
+   * The power scheduler's step: machines decided, holds changed, starts, stops and box readings begun; null on the
+   * ticks that do not step (it steps once a minute).
+   */
+  readonly power: { readonly machines: number; readonly holds: number; readonly commands: number } | null;
 }
 
 /** What the jobs loop runs from the modules. */
 export interface ModuleJobs {
-  /** The offline sweep and the hourly prune of machine samples. */
+  /** The offline sweep, the hourly prune of machine samples and the power scheduler's step each minute. */
   machines(): Promise<MachineUpkeep>;
   /** One registry of every op's outbox handler (`outboxRegistry` of the modules' handler maps). */
   readonly outboxHandlers: OutboxHandlers;

@@ -172,7 +172,7 @@ describe('runJobsOnce', () => {
     const work: ModuleJobs = {
       machines: vi.fn(async () => {
         order.push('machines');
-        return { offline: 0, pruned: 0 };
+        return { offline: 0, pruned: 0, power: null };
       }),
       outboxHandlers: {},
       retryEvents: vi.fn(async () => {
@@ -194,7 +194,7 @@ describe('runJobsOnce', () => {
     const tally = await tick(deps);
     expect(tally).toEqual({
       idle: false,
-      machines: { offline: 0, pruned: 0 },
+      machines: { offline: 0, pruned: 0, power: null },
       outbox: NOTHING,
       events: { claimed: 0, processed: 0, failed: 0, givenUp: 0 },
       reconcile: { due: 0, reconciled: 0, failed: 0, skipped: 0 },
@@ -226,7 +226,7 @@ describe('runJobsOnce', () => {
     const before = w.t.logs.length;
     expect(await tick({ ...deps, identity: undefined })).toEqual({
       idle: true,
-      machines: { offline: 0, pruned: 0 },
+      machines: { offline: 0, pruned: 0, power: null },
       failed: [],
     });
     expect(deps.work.retryEvents).not.toHaveBeenCalled();

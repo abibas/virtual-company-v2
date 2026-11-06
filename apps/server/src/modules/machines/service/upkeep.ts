@@ -1,8 +1,14 @@
 import { type DbHandle, tenant } from '@mwc/db';
+import type { Logger } from 'pino';
 import type { MachineUpkeep } from '../../../platform/jobs/run.ts';
 import { pruneSamples, staleMachines } from '../repo/upkeep.ts';
 import { MACHINE_LEASE_MS, PRUNE_INTERVAL_MS, SAMPLE_RETENTION_MS } from '../rules.ts';
+import type { RunnerHub } from './hub.ts';
+import { powerScheduler } from './power/scheduler.ts';
 import { lapsed } from './presence.ts';
+
+/** How often the power scheduler decides. */
+export const POWER_STEP_MS = 60_000;
 
 /** Takes offline every machine whose lease lapsed at `now` while it was still marked online; returns how many. */
 async function sweep(db: DbHandle, now: Date): Promise<number> {
@@ -16,19 +22,32 @@ async function sweep(db: DbHandle, now: Date): Promise<number> {
 
 /**
  * The machines' share of the jobs loop (`moduleJobs` in app.ts), on every tick: the offline sweep (a machine still
- * marked online whose runner said nothing for 90 s, e.g. after a server crash), and the prune of samples older than 7
- * days, at most once an hour (the first tick of a process prunes; `pruned` is null on the ticks that do not).
+ * marked online whose runner said nothing for 90 s, e.g. after a server crash), the prune of samples older than 7
+ * days at most once an hour, and the power scheduler's step at most once a minute (`power/scheduler.ts`; it needs
+ * the runner hub and the logger, so without them `power` is always null). The first tick of a process prunes and
+ * steps; `pruned` and `power` are null on the ticks that do not.
  */
 export function machineUpkeep(deps: {
   readonly db: DbHandle;
   readonly clock: () => Date;
+  readonly logger?: Logger;
+  readonly hub?: RunnerHub | undefined;
 }): () => Promise<MachineUpkeep> {
   let nextPruneMs = Number.NEGATIVE_INFINITY;
+  let nextPowerMs = Number.NEGATIVE_INFINITY;
+  const { hub, logger } = deps;
+  const scheduler =
+    hub === undefined || logger === undefined ? undefined : powerScheduler({ ...deps, hub, logger });
   return async () => {
     const now = deps.clock();
     const offline = await sweep(deps.db, now);
-    if (now.getTime() < nextPruneMs) return { offline, pruned: null };
-    nextPruneMs = now.getTime() + PRUNE_INTERVAL_MS;
-    return { offline, pruned: await pruneSamples(deps.db, new Date(now.getTime() - SAMPLE_RETENTION_MS)) };
+    let pruned: number | null = null;
+    if (now.getTime() >= nextPruneMs) {
+      nextPruneMs = now.getTime() + PRUNE_INTERVAL_MS;
+      pruned = await pruneSamples(deps.db, new Date(now.getTime() - SAMPLE_RETENTION_MS));
+    }
+    if (scheduler === undefined || now.getTime() < nextPowerMs) return { offline, pruned, power: null };
+    nextPowerMs = now.getTime() + POWER_STEP_MS;
+    return { offline, pruned, power: await scheduler.step(now) };
   };
 }

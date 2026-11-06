@@ -115,6 +115,60 @@ describe('PATCH /api/companies/:companyId/machines/:machineId', () => {
     }
     expect((await machineRow(w.t.db, machineId))?.name).toBe('This Mac');
   });
+
+  it("sets and clears a devbox's controller for an admin, audited", async () => {
+    const company = await membersCompany(w);
+    const admin = await addMember(w, company, 'admin');
+    const mac = await enroll(w, company);
+    const box = await enroll(w, company, DEVBOX);
+    const path = machinesPath(company, `/${box.machineId}`);
+    expect(await as(w, admin)('PATCH', path, { controllerMachineId: mac.machineId })).toMatchObject({
+      status: 200,
+      body: { id: box.machineId, name: 'Airia devbox', controllerMachineId: mac.machineId },
+    });
+    expect(await as(w, admin)('PATCH', path, { name: 'Box', controllerMachineId: null })).toMatchObject({
+      status: 200,
+      body: { name: 'Box', controllerMachineId: null },
+    });
+    const updates = (await auditOf(w.t.db, 'machine', box.machineId)).filter((row) =>
+      row.startsWith('update'),
+    );
+    expect(updates).toEqual(['update controllerMachineId', 'update controllerMachineId', 'update name']);
+    // Clearing on any machine is a no-op; an empty change is a 400.
+    expect(
+      (await as(w, admin)('PATCH', machinesPath(company, `/${mac.machineId}`), { controllerMachineId: null }))
+        .status,
+    ).toBe(200);
+    expect((await as(w, admin)('PATCH', path, {})).status).toBe(400);
+  });
+
+  it('refuses a controller for a machine that is not a devbox, itself, or a machine of no company of its own', async () => {
+    const company = await membersCompany(w);
+    const other = await membersCompany(w);
+    const mac = await enroll(w, company);
+    const box = await enroll(w, company, DEVBOX);
+    const theirs = await enroll(w, other);
+    const patch = (id: string, controllerMachineId: string) =>
+      as(w, company.owner)('PATCH', machinesPath(company, `/${id}`), { controllerMachineId });
+    expect(await patch(mac.machineId, box.machineId)).toMatchObject({
+      status: 422,
+      body: { error: { code: 'not_a_vm' } },
+    });
+    expect(await patch(box.machineId, box.machineId)).toMatchObject({
+      status: 422,
+      body: { error: { code: 'controller_is_self' } },
+    });
+    for (const id of [theirs.machineId, '019a5b2e-0000-7000-8000-000000000000', 'not-a-uuid']) {
+      expect(await patch(box.machineId, id)).toMatchObject({
+        status: 422,
+        body: { error: { code: 'controller_not_found' } },
+      });
+    }
+    const viewer = await addMember(w, company, 'viewer');
+    const path = machinesPath(company, `/${box.machineId}`);
+    expect((await as(w, viewer)('PATCH', path, { controllerMachineId: mac.machineId })).status).toBe(403);
+    expect((await machineRow(w.t.db, box.machineId))?.controllerMachineId).toBeNull();
+  });
 });
 
 describe('DELETE /api/companies/:companyId/machines/:machineId', () => {

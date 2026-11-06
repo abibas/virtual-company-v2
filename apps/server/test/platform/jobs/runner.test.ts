@@ -25,7 +25,7 @@ beforeAll(async () => {
 afterAll(() => w.t.close());
 
 const NO_EVENTS: EventRetry = { claimed: 0, processed: 0, failed: 0, givenUp: 0 };
-const NO_UPKEEP: MachineUpkeep = { offline: 0, pruned: null };
+const NO_UPKEEP: MachineUpkeep = { offline: 0, pruned: null, power: null };
 const machines = async () => NO_UPKEEP;
 
 /** A lock that is free and stays held, until a test says otherwise. */

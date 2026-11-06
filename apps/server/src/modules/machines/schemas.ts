@@ -51,16 +51,28 @@ export const MachineSchema = z
 
 export const MachineListSchema = z.object({ machines: z.array(MachineSchema) }).openapi('MachineList');
 
-export const RenameMachineSchema = z
+/** A machine's change: its name, and for a devbox the machine whose runner powers it (null clears it). */
+export const UpdateMachineSchema = z
   .object({
     name: z
       .string()
       .trim()
       .min(MACHINE_NAME.min, 'A name is required')
       .max(MACHINE_NAME.max, `A name is at most ${MACHINE_NAME.max} characters`)
+      .optional()
       .openapi({ example: 'Airia devbox' }),
+    controllerMachineId: z
+      .string()
+      .nullable()
+      .optional()
+      .openapi({ description: 'A machine of this company whose runner powers this devbox; null clears it' }),
   })
-  .openapi('RenameMachine');
+  .refine((body) => body.name !== undefined || body.controllerMachineId !== undefined, {
+    message: 'Nothing to change: give a name or a controllerMachineId',
+  })
+  .openapi('UpdateMachine');
+
+export type MachineUpdate = z.infer<typeof UpdateMachineSchema>;
 
 /** A new enrollment token: the token itself is in this response only. */
 export const EnrollmentTokenSchema = z

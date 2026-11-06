@@ -5,15 +5,18 @@ import { compareRunnerVersions, RUN_LEASE_MS } from '@mwc/shared/runner-protocol
  * which minute a sample is kept under, how an enrollment token is refused. The stats math is `rules/stats.ts`.
  */
 
-/** A refusal the routes answer in the common error shape. */
-export interface Refusal {
+/** The statuses a refusal of this module has. */
+export type RefusalStatus = 401 | 404 | 409 | 422 | 502;
+
+/** A refusal the routes answer in the common error shape; `S` narrows its status to what a route declares. */
+export interface Refusal<S extends RefusalStatus = 401 | 404> {
   readonly ok: false;
-  readonly status: 401 | 404;
+  readonly status: S;
   readonly code: string;
   readonly message: string;
 }
 
-const refuse = (status: Refusal['status'], code: string, message: string): Refusal => ({
+export const refuse = <S extends RefusalStatus>(status: S, code: string, message: string): Refusal<S> => ({
   ok: false,
   status,
   code,
@@ -21,6 +24,28 @@ const refuse = (status: Refusal['status'], code: string, message: string): Refus
 });
 
 export const MACHINE_NOT_FOUND = refuse(404, 'machine_not_found', 'No such machine in this company');
+export const NOT_A_VM = refuse(422, 'not_a_vm', 'Only an Airia devbox is powered on and off from here');
+export const CONTROLLER_NOT_FOUND = refuse(
+  422,
+  'controller_not_found',
+  'No such machine in this company to power this one',
+);
+export const CONTROLLER_IS_SELF = refuse(422, 'controller_is_self', 'A machine cannot power itself');
+export const NO_CONTROLLER = refuse(
+  409,
+  'no_controller',
+  'No connected machine can power this box: run the runner where the airia CLI and gcloud are signed in, or choose its controller',
+);
+export const SEVERAL_CONTROLLERS = refuse(
+  409,
+  'no_controller',
+  'Several connected machines can power this box: choose its controller',
+);
+export const CONTROLLER_OFFLINE = refuse(
+  409,
+  'controller_offline',
+  'The machine that powers this box is not connected',
+);
 export const TOKEN_UNKNOWN = refuse(401, 'unauthenticated', 'The enrollment token is not valid');
 export const TOKEN_USED = refuse(401, 'unauthenticated', 'The enrollment token was used already');
 export const TOKEN_EXPIRED = refuse(401, 'unauthenticated', 'The enrollment token has expired');
