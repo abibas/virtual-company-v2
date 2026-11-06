@@ -11,27 +11,60 @@ step of `pnpm mwc check` enforces them from one object, `packages/cli/src/struct
 ## Before writing code: decide the place
 
 Read the `open` lessons in [references/lessons.md](references/lessons.md) first. They record where this table
-fell short.
+fell short; settled ones are in `lessons-archive.md`, which you do not need to read.
+
+**Server**
 
 | You are writing                                                        | It goes in                                                        |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| An HTTP route: path, method, validation, status codes                  | `apps/server/src/modules/<area>/routes.ts`                        |
-| Business logic: decisions, orchestration, transactions                 | `modules/<area>/service.ts`                                       |
-| SQL or Drizzle queries                                                 | `modules/<area>/repo.ts`, through `tenant(db, companyId)`         |
+| An HTTP route: path, method, validation, status codes                  | `apps/server/src/modules/<area>/routes.ts`; past about three routes, `routes/<path group>.ts` mounted by `routes.ts` |
+| Business logic: decisions, orchestration, transactions                 | `modules/<area>/service.ts` (later `service/<use-case>.ts`)       |
+| SQL or Drizzle queries                                                 | `modules/<area>/repo.ts`, through `tenant(db, companyId)`; a second table gets `repo/<entity>.ts` |
 | Request and response shapes                                            | `modules/<area>/schemas.ts` (zod-openapi)                         |
 | A pure rule (no I/O): a validation, a state transition, routing        | `modules/<area>/rules.ts`                                         |
+| A person's own rows, in no company (subscriptions, profiles)           | a personal table with `owner_user_id`, through `owned(db, userId)`; its routes under `/api/me/…` with `personalRoute(deps, …)` |
+| A personal row that company rows point at (an access profile)          | the company's module reads it through `ownersOf` / `ownedIn`; the owner's module asks that module's service for its uses and writes company rows in its own transaction with `o.tenant(companyId)` |
+| A read across the caller's companies, or of a person's profile         | the identity module's service (`companiesOf`, `profileOf`); never a new raw-access exemption |
+| A store that must see every company (the identity store, the runner hub) | `modules/<area>/repo.ts` with raw access (`@mwc/db/system`), listed in the `biome.json` exemption |
+| Module A acting on a change module B makes, in B's transaction         | a port B defines, implemented by A's service and passed in by `app.ts` (as `withMemberChart`); never an import that closes a module cycle |
 | Cross-cutting code without business rules (http, auth, jobs, realtime) | `apps/server/src/platform/`                                       |
+| Code that runs local processes or containers for the server (the sign-in helper) | `apps/server/src/platform/<area>/`, with `spawn` injected   |
 | Anything that talks to an outside system (Clerk, Claude Code, Jira)    | a connector `connectors/<name>/` implementing a `packages/*-core` port |
+| A small read-only call to an outside system that one module owns (a usage check) | that module's `service/<provider>.ts` behind the injected `providerFetch`; a connector once a second module or the runner needs it |
 | A contract several packages share: zod schemas, ids, enums, protocols  | `packages/shared`                                                 |
+| Runtime code another package reuses that is not a contract (the saved logins, the API client the CLI and the MCP server share) | its owner's `src/`, as a subpath export (`@mwc/cli/credentials`, `@mwc/cli/api/*`) |
 | Tables, columns, constraints                                           | `packages/db/src/schema/` (then the database routine below)       |
-| A test helper several packages use                                     | `packages/testkit`, or exported from the owner's `src/`           |
-| A test helper one package's tests use                                  | that package's `test/fixtures/`                                   |
 | A dev tool or a one-shot command                                       | the package's `scripts/`                                          |
-| UI                                                                     | `apps/web/src/` `pages/`, `components/`, `app/`, `api/`, `styles/` |
+
+**Tests**
+
+| You are writing                                                        | It goes in                                                        |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| A test of one source file                                              | the mirrored path, `src/a/b.ts` → `test/a/b.test.ts`; split along its seams as `test/a/b/<part>.test.ts` (a routes file's groups too) |
+| A scenario: one story across modules over the HTTP API (a stage's acceptance) | `apps/server/test/scenarios/`, its helpers in `test/fixtures/<scenario>/` |
+| A test of a migration's data step (`-- custom:`)                       | `packages/db/test/schema/<table>-backfill.test.ts`, seeded at the migration before with `migrateUpTo` |
+| A route only tests need (a probe for platform middleware)              | the package's `test/fixtures/`, mounted on the test app; never in `src/` |
+| A check that guards the web from outside it (its routes against the reserved slugs) | the server's tests, as `test/platform/http/web.test.ts`   |
+| A test helper several packages use                                     | `packages/testkit` (its own `@mwc/testkit/<name>` export when it needs no server or database), or exported from the owner's `src/` |
+| A test helper one package's tests use                                  | that package's `test/fixtures/`, grouped by module (`fixtures/<module>/`) |
+| An opt-in test (real Clerk) reusing another package's test fixtures    | a relative import, loaded only when the run starts, said in the file's header |
+
+**Web** (`apps/web/src/`)
+
+| You are writing                                                        | It goes in                                                        |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| A shared component                                                     | `components/<group>/` by role (`ui`, `forms`, `data`, `feed`, `layout`, `org`, `auth`), one per file, exported by the group's barrel |
+| A page's own parts                                                     | `features/<area>/`                                                |
+| A page                                                                 | `pages/`                                                          |
+| A hook or context that calls the API, the inferred API types           | `api/`                                                            |
+| The session, the router, the shells, the company links                 | `app/`                                                            |
+| A development-only page (the gallery)                                  | `pages/design/`, behind `import.meta.env.DEV`                     |
+| Styles and design tokens                                               | `styles/`                                                         |
 
 Never: a test under `src/`; a non-test file in `test/` outside `test/fixtures/`; a new top-level folder; an
 empty folder for a later stage; a module importing another module's `repo.ts` (call its service); a module
-importing a connector (depend on the port, wire the connector in `app.ts`); logic in an `index.ts`.
+importing a connector (depend on the port, wire the connector in `app.ts`); a call to another module's service
+inside a tenant transaction (read before it: PGlite's one connection hangs); logic in an `index.ts`.
 
 ## New server module
 
@@ -59,7 +92,9 @@ importing a connector (depend on the port, wire the connector in `app.ts`); logi
 ## Database changes
 
 1. Edit `packages/db/src/schema/` (one file per table group, re-exported from `schema/index.ts`).
-2. Tenant rules: every tenant table has `company_id` and `UNIQUE(company_id, id)`; child foreign keys are
+2. Tenant rules: every tenant table has `company_id` and `UNIQUE(company_id, id)` (a table with one row per
+   company or per parent has `company_id` or `(company_id, parent_id)` as its primary key and no `id`, as
+   `company_logos` and `org_positions`); child foreign keys are
    composite `(company_id, parent_id)` → `(company_id, id)`; enums are `oneOf(column, Enum.options)` with
    the zod enum in `@mwc/shared/enums`; route code reaches tenant tables only through `tenant(db, companyId)`.
 3. `pnpm --filter @mwc/db generate --name <change>`, then review the SQL. Never edit generated SQL by hand

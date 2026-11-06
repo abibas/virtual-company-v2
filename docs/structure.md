@@ -40,7 +40,7 @@ Most_Wanted_corp_v2/
 │   │   └── test/                   mirrors src/ one to one
 │   │       └── scenarios/          stories across modules over the HTTP API     S1.12
 │   ├── web/                        React UI, no tests for now (identity pages built) S1.11
-│   │   └── src/ app/ pages/ components/ api/ styles/
+│   │   └── src/ app/ pages/ components/ features/ api/ styles/
 │   └── runner/                     machine daemon                              S4
 ├── packages/                       libraries, pure where possible
 │   ├── shared/                     contracts: config, ports, ids, enums, protocols
@@ -229,9 +229,10 @@ page, `pages/company/` for the pages under `/:slug`, `pages/design/` the develop
 states, badges and status pills, avatars, tooltips; `forms/` fields (the secret field among them), selects, menus,
 segmented controls, inline confirmation and inline rename; `data/` tables, lists, stat tiles, the meter and the steps;
 `feed/`, `layout/` (the shells, the drawer and the sheet), `auth/`; `org/` the org chart's tree, node card and manager
-select (S2.5); and one page's parts each: `members/`, `api-keys/`, `settings/`, `company/`, `overview/`, `agents/`,
-`subscriptions/` (S3.5: the Subscriptions page's tabs and cards, the add sheet with its sign-in and paste flows, and
-the home page's Subscription limits widget)), `src/api/` (the typed client `hc<AppType>`, `call()` and the error
+select (S2.5)), `src/features/` (one page area's own parts each, moved out of `components/` in the S3 review:
+`members/`, `api-keys/`, `settings/`, `company/`, `overview/`, `agents/`, `subscriptions/` (S3.5: the Subscriptions
+page's tabs and cards, the add sheet with its sign-in and paste flows, and the home page's Subscription limits
+widget)), `src/api/` (the typed client `hc<AppType>`, `call()` and the error
 messages, the response types inferred from the routes, the `useLoad` hook, the API and configuration contexts, the
 org hooks and calls `org.ts`, and the person's own subscriptions, limits and access profiles `subscriptions.ts`),
 `src/styles/` (the Tailwind theme and base

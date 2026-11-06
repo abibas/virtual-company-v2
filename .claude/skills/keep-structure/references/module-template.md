@@ -66,6 +66,14 @@ A service that grows past 300 lines becomes `service/create.ts`, `service/archiv
 imports from those files (`references/splitting.md`). Another module's data is reached through that
 module's service, never its `repo.ts`.
 
+- A repo or service with more than a handful of methods: named module functions bound by a short factory (as the
+  companies service), never one long object literal of closures; a repo serving a second table gets
+  `repo/<entity>.ts`.
+- Never call another module's service inside a tenant transaction: it runs on the `DbHandle`, and PGlite's one
+  connection hangs. Read what you need before the transaction.
+- A rules part that builds on the entry's rules imports the entry and is not re-exported by it; the entry
+  re-exports only the parts it is made of (no cycle).
+
 ## routes.ts: HTTP only
 
 ```ts
