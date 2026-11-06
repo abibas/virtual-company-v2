@@ -30,7 +30,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
 │   │   │   │   ├── org/            agents, reporting chain, org chart (built)  S2
-│   │   │   │   ├── machines/       enrollment, placements                      S4
+│   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
@@ -46,6 +46,7 @@ Most_Wanted_corp_v2/
 │   ├── shared/                     contracts: config, ports, ids, enums, protocols
 │   ├── db/                         schema, migrations, tenant layer
 │   ├── identity-core/              identity model and projector                S1
+│   ├── machines-core/              the machine power driver port and its fake  S4
 │   ├── harness-core/               harness driver interface                    S5
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
@@ -54,6 +55,7 @@ Most_Wanted_corp_v2/
 ├── connectors/                     adapters to outside systems
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
 │   ├── identity-oidc/              other identity providers, user sync         later
+│   ├── machine-airia-devbox/       the Airia devbox's power (airia CLI, gcloud), run by a runner S4
 │   ├── harness-claude-code/                                                    S5
 │   ├── harness-codex/                                                          S7
 │   └── jira/ github/ gateway/                                                  S7
