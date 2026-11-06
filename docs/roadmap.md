@@ -122,7 +122,7 @@ the devbox starts and stops from the page, its keep-on hours hold it up, This Ma
    21 frames, camelCase, parsers and limits; `@mwc/shared/machines`; `@mwc/testkit/runner`; reference `docs/runner-protocol.md`.)
 2. Server: migration `0009_machines` (machines, enrollment tokens, runner sessions, samples, power, power events),
    enrollment, the WS hub, samples ingest and the 7-day prune, the machines and stats API — integration on PGlite with
-   `ws`.
+   `ws`. **Done 2026-11-06** (migration `0009_machines`; `POST machines/enrollment-tokens`, `POST /api/runner/enroll` (`RunnerEnrollRequest/Response` in `@mwc/shared/runner-protocol`); the runner hub on `/api/runner/ws` (`modules/machines/service/hub.ts`: sessions, samples, holds, `request()` for `power.command`); `GET/PATCH/DELETE machines`, `GET machines/stats`; the offline sweep and the hourly 7-day prune; a removed machine keeps its row (`removed_at`). Tested over a real socket with `FakeRunner`; `--full` green.)
 3. `apps/runner` core: config, state dir, link and reconnect, heartbeat with the sampler, the hold drivers
    (`devbox-keepalive`, `caffeinate`), health :9953 — runner vs fake server: survives a server restart. **Done 2026-11-06** (`apps/runner`, `@mwc/runner`: config `@mwc/runner/config` (0600), the link with handshake, heartbeats every 20 s with a sample a minute, reconnect with backoff, exit codes 76/77/78, hold drivers `devbox-keepalive '20 minutes'` / `caffeinate -i -w` / none, `/healthz` on 9953; 146 tests against `FakeRunnerServer` on fake time.)
 4. Power: `packages/machines-core` (the power driver port) and `connectors/machine-airia-devbox` (`airia devbox

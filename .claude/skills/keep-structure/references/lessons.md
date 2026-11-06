@@ -28,6 +28,16 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-06: Socket routes, and a hub injected into the test app
+
+- **What happened:** S4.2's runner socket is an ordinary Hono route through `@hono/node-server`'s upgrade (auth as
+  middleware, HTTP 401 with no socket); only the transport went to `platform/realtime/sockets.ts`. The placement table
+  has no row for it. Tests that inject the hub create the database before the app (`createTestApp({ db, runnerHub })`).
+  `platform/http/router.ts` is now imported by 8 modules (`fan-in`).
+- **Suggested change:** at the S4 review, a row "a WebSocket route → its module's routes; the transport in
+  `platform/realtime/`", and a testkit helper that builds the app with a hub.
+- **Status:** `open`.
+
 ### 2026-11-06: The runner app has no rows in the placement table
 
 - **What happened:** S4.3 built `apps/runner` with `link/`, `hold/`, `stats/` and `system/` (the real Node deps in
