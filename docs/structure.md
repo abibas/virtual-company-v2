@@ -90,8 +90,9 @@ Tool configuration a package needs sits next to these (`apps/web`: `index.html`,
 stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/identity-core/fake`,
 `/memory-store` (the identity test doubles) and `/scenario` (the identity scenario and seeded shuffles), and
 `@mwc/testkit` as a whole (also `@mwc/testkit/provider-contract`, the `IdentityProvider` contract every provider
-runs, `@mwc/testkit/store-contract`, the `IdentityStore` contract every store runs, and `@mwc/testkit/webhooks`,
-svix-signed deliveries, which load without the server). Runtime code another package reuses is exported from its
+runs, `@mwc/testkit/store-contract`, the `IdentityStore` contract every store runs, `@mwc/testkit/webhooks`,
+svix-signed deliveries, and `@mwc/testkit/runner`, the runner protocol's fake server and fake runner, the last two
+loading without the server). Runtime code another package reuses is exported from its
 owner's `src/` the same way: `@mwc/cli/credentials` (S1.9), the saved logins of `mwc login`, which `@mwc/mcp` (S2.6)
 reads, and what `mwc org tree`, `mwc agents list` and `@mwc/mcp` share (S2.6): `@mwc/cli/api/client` (a GET with a
 personal key and the server's refusals), `/api/org` (the chart and agents calls and their shapes), `/api/session` (the key

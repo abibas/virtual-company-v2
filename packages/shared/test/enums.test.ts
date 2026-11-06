@@ -15,8 +15,12 @@ import {
   IdentityOutboxStatus,
   InvitationStatus,
   LogoContentType,
+  MachineKind,
+  MachineProvider,
+  MachineStatus,
   MembershipRole,
   MembershipStatus,
+  PowerEventAction,
   PrincipalKind,
   UserStatus,
 } from '../src/enums.ts';
@@ -53,6 +57,19 @@ describe('enums', () => {
       'gateway',
     ]);
     expect(CredentialStatus.options).toEqual(['active', 'needs_sign_in', 'revoked']);
+    expect(MachineKind.options).toEqual(['laptop', 'vm', 'container']);
+    expect(MachineProvider.options).toEqual(['none', 'airia_devbox']);
+    expect(MachineStatus.options).toEqual(['online', 'offline', 'draining']);
+    expect(PowerEventAction.options).toEqual([
+      'started',
+      'stopped',
+      'held',
+      'released',
+      'kept',
+      'policy',
+      'timezone',
+      'failed',
+    ]);
   });
 
   it('accepts known values and rejects others', () => {

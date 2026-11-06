@@ -28,6 +28,17 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-06: S4.1's contracts push shared's `src/` and `test/` and testkit's `src/` past 12 entries
+
+- **What happened:** the brief fixed the public paths (`@mwc/shared/machines`, `@mwc/shared/runner-protocol` as
+  `runner-protocol.ts` + `runner-protocol/`, `@mwc/testkit/runner` as `runner.ts` + `runner/`). `packages/shared/src/`
+  went from 12 to 15 entries, `packages/shared/test/` from 11 to 15 (with its first `fixtures/`), `packages/testkit/src/`
+  from 12 to 14: three `big-folder` warnings, the report from 19 to 21.
+- **What was done:** nothing; S4.2–S4.4 cite these import paths.
+- **Suggested change:** give `packages/shared/src/` (one contract file per domain, growing by design) a limit of its own
+  in `folderEntriesFor`, or group it by domain behind the same subpath exports when S4.2 or S5 adds the next contract.
+- **Status:** `open`.
+
 ### 2026-11-06: The db package's `src/` is back to 12 by moving the diagram, not by grouping the access layers
 
 - **What happened:** the S3 review planned `packages/db/src/access/` for `tenant.ts`, `owned.ts` and `audit.ts`

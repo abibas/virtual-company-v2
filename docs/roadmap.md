@@ -118,7 +118,8 @@ Done when: runners on This Mac (launchd), in a compose container and on the devb
 on the home page's Machines board with live numbers, survive a server restart, go offline on disconnect and come back;
 the devbox starts and stops from the page, its keep-on hours hold it up, This Mac stays awake while held.
 1. Runner protocol (+ hold, power and stats messages), the shared zod contracts (power policy, samples) and the testkit
-   fake server / fake runner — unit: zod round-trips, protocol fixtures.
+   fake server / fake runner — unit: zod round-trips, protocol fixtures. **Done 2026-11-06** (`@mwc/shared/runner-protocol`:
+   21 frames, camelCase, parsers and limits; `@mwc/shared/machines`; `@mwc/testkit/runner`; reference `docs/runner-protocol.md`.)
 2. Server: migration `0009_machines` (machines, enrollment tokens, runner sessions, samples, power, power events),
    enrollment, the WS hub, samples ingest and the 7-day prune, the machines and stats API — integration on PGlite with
    `ws`.

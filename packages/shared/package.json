@@ -11,11 +11,13 @@
     "./credentials": "./src/credentials.ts",
     "./enums": "./src/enums.ts",
     "./identity": "./src/identity.ts",
-    "./logos": "./src/logos.ts",
     "./ids": "./src/ids.ts",
+    "./logos": "./src/logos.ts",
+    "./machines": "./src/machines.ts",
     "./org": "./src/org.ts",
     "./ports": "./src/ports.ts",
     "./roles": "./src/roles.ts",
+    "./runner-protocol": "./src/runner-protocol.ts",
     "./slugs": "./src/slugs.ts"
   },
   "scripts": {

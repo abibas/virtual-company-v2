@@ -113,3 +113,28 @@ export type CredentialKind = z.infer<typeof CredentialKind>;
 /** `credentials.status`: usable, its login has to be signed in again, or revoked at the provider. */
 export const CredentialStatus = z.enum(['active', 'needs_sign_in', 'revoked']);
 export type CredentialStatus = z.infer<typeof CredentialStatus>;
+
+/** `machines.kind` (docs/machines.md): This Mac or another laptop, a VM such as the Airia devbox, a Docker container. */
+export const MachineKind = z.enum(['laptop', 'vm', 'container']);
+export type MachineKind = z.infer<typeof MachineKind>;
+
+/** `machines.provider`: what can power a machine on and off; `none` when nothing can (a laptop, a container). */
+export const MachineProvider = z.enum(['none', 'airia_devbox']);
+export type MachineProvider = z.infer<typeof MachineProvider>;
+
+/** `machines.status`: its runner is connected, is not, or is connected but takes no new runs. */
+export const MachineStatus = z.enum(['online', 'offline', 'draining']);
+export type MachineStatus = z.infer<typeof MachineStatus>;
+
+/** `machine_power_events.action`: every power decision and its outcome, as a machine's log shows them. */
+export const PowerEventAction = z.enum([
+  'started',
+  'stopped',
+  'held',
+  'released',
+  'kept',
+  'policy',
+  'timezone',
+  'failed',
+]);
+export type PowerEventAction = z.infer<typeof PowerEventAction>;
