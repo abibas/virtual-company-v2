@@ -14,5 +14,7 @@ export {
 export { List, ListRow, type ListRowProps } from './List.tsx';
 export { ErrorBlock, LoadingBlock, LoadState } from './LoadState.tsx';
 export { Meter, type MeterTone } from './Meter.tsx';
+export { Sparkline, type SparklineProps } from './Sparkline.tsx';
 export { type Delta, StatTile } from './StatTile.tsx';
 export { type Step, type StepState, Steps } from './Steps.tsx';
+export { UpDownBar, type UpDownSpan, upShare } from './UpDownBar.tsx';
