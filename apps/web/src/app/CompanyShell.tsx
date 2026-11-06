@@ -16,6 +16,7 @@ import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { AgentsPage } from '../pages/company/AgentsPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
+import { MachinesPage } from '../pages/company/MachinesPage.tsx';
 import { MembersPage } from '../pages/company/MembersPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
 import { SettingsPage } from '../pages/company/SettingsPage.tsx';
@@ -29,6 +30,7 @@ import { rememberCompany, useSession } from './session.tsx';
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
   agents: AgentsPage,
+  machines: MachinesPage,
   members: MembersPage,
   'api-keys': ApiKeysPage,
   settings: SettingsPage,

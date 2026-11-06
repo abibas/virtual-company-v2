@@ -47,3 +47,19 @@ export type SignInProvider = SignIn['provider'];
 export type AccessProfile = InferResponseType<ProfileRoutes['$get'], 200>['profiles'][number];
 export type NewAccessProfile = InferRequestType<ProfileRoutes['$post']>['json'];
 export type AccessProfileChanges = InferRequestType<ProfileRoutes[':profileId']['$patch']>['json'];
+
+/** The company's machines, their home-board stats, power and log (`/api/companies/:companyId/machines/...`). */
+type MachineRoutes = CompanyRoutes['machines'];
+type OneMachineRoutes = MachineRoutes[':machineId'];
+
+export type Machine = InferResponseType<MachineRoutes['$get'], 200>['machines'][number];
+export type MachineKind = Machine['kind'];
+export type MachineChanges = InferRequestType<OneMachineRoutes['$patch']>['json'];
+export type MachineStatsList = InferResponseType<MachineRoutes['stats']['$get'], 200>;
+export type MachineStats = MachineStatsList['machines'][number];
+export type UpDownSegment = MachineStats['upDown']['h24'][number];
+export type EnrollmentToken = InferResponseType<MachineRoutes['enrollment-tokens']['$post'], 201>;
+export type MachinePower = InferResponseType<OneMachineRoutes['power']['$get'], 200>;
+export type PowerPolicy = MachinePower['policy'];
+export type PowerBox = NonNullable<MachinePower['box']>;
+export type PowerEvent = InferResponseType<OneMachineRoutes['events']['$get'], 200>['events'][number];

@@ -1,4 +1,14 @@
-import { Bot, Inbox, KeyRound, LayoutGrid, ListChecks, type LucideIcon, Settings, Users } from 'lucide-react';
+import {
+  Bot,
+  Inbox,
+  KeyRound,
+  LayoutGrid,
+  ListChecks,
+  type LucideIcon,
+  Server,
+  Settings,
+  Users,
+} from 'lucide-react';
 import type { NavItem } from '../components/layout/Rail.tsx';
 
 /** A company page's address from its section, the first part of the path after `/:slug/` ('' for Overview). */
@@ -34,6 +44,7 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
   return [
     page('overview', 'Overview', LayoutGrid),
     page('agents', 'Agents', Bot),
+    page('machines', 'Machines', Server),
     page('members', 'Members', Users),
     page('api-keys', 'API keys', KeyRound),
     page('settings', 'Settings', Settings),

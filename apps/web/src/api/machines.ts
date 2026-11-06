@@ -1,0 +1,153 @@
+import { useEffect, useRef } from 'react';
+import type { Api } from './client.ts';
+import { useApi } from './context.ts';
+import { call } from './errors.ts';
+import type {
+  Machine,
+  MachineChanges,
+  MachinePower,
+  MachineStatsList,
+  PowerEvent,
+  PowerPolicy,
+} from './types.ts';
+import { type Loaded, useLoad } from './use-load.ts';
+
+/**
+ * The company's machines (docs/machines.md): the list, the home board's stats, each machine's power and log, and the
+ * changes admins make. The stats refresh every minute while the tab is visible.
+ */
+
+/** How often the board asks for the stats again; the runners sample once a minute. */
+export const STATS_EVERY_MS = 60_000;
+
+/**
+ * Calls `tick` every `everyMs` while the tab is visible, and at once when it shows again after a longer absence.
+ * Nothing while `enabled` is false.
+ */
+export function useVisibleInterval(tick: () => void, everyMs: number, enabled = true) {
+  const latest = useRef(tick);
+  latest.current = tick;
+  useEffect(() => {
+    if (!enabled) return;
+    let last = Date.now();
+    const run = () => {
+      last = Date.now();
+      latest.current();
+    };
+    const timer = setInterval(() => {
+      if (!document.hidden) run();
+    }, everyMs);
+    const onVisibility = () => {
+      if (!document.hidden && Date.now() - last >= everyMs) run();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [everyMs, enabled]);
+}
+
+/** The machines, by name. */
+export function useMachines(companyId: string): Loaded<{ readonly machines: readonly Machine[] }> {
+  const api = useApi();
+  return useLoad(`machines:${companyId}`, () => machineCalls(api, companyId).list());
+}
+
+/** Every machine's stats for the board, again every minute while the tab is visible. */
+export function useMachineStats(companyId: string): Loaded<MachineStatsList> {
+  const api = useApi();
+  const loaded = useLoad(`machine-stats:${companyId}`, () =>
+    call(api.api.companies[':companyId'].machines.stats.$get({ param: { companyId } })),
+  );
+  useVisibleInterval(loaded.reload, STATS_EVERY_MS);
+  return loaded;
+}
+
+/** A machine's power: its policy, hold, box and controller, and whether the caller may change them. */
+export function useMachinePower(companyId: string, machineId: string): Loaded<MachinePower> {
+  const api = useApi();
+  return useLoad(`machine-power:${companyId}:${machineId}`, () =>
+    call(
+      api.api.companies[':companyId'].machines[':machineId'].power.$get({ param: { companyId, machineId } }),
+    ),
+  );
+}
+
+/** A machine's last 10 power events, newest first. */
+export function useMachineEvents(
+  companyId: string,
+  machineId: string,
+): Loaded<{ readonly events: readonly PowerEvent[] }> {
+  const api = useApi();
+  return useLoad(`machine-events:${companyId}:${machineId}`, () =>
+    call(
+      api.api.companies[':companyId'].machines[':machineId'].events.$get({
+        param: { companyId, machineId },
+        query: {},
+      }),
+    ),
+  );
+}
+
+export interface PowerControl {
+  readonly power: Loaded<MachinePower>;
+  readonly events: Loaded<{ readonly events: readonly PowerEvent[] }>;
+  /** Each change throws the server's refusal; the power and the log load again after it either way. */
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  setPolicy(policy: PowerPolicy): Promise<void>;
+  setTimezone(timezone: string): Promise<void>;
+}
+
+/**
+ * A machine's power and log, read again every minute while the tab is visible (the box starts and stops in minutes,
+ * the scheduler logs on its own), with the admin's changes to them, each followed by a fresh read of both.
+ */
+export function usePowerControl(companyId: string, machineId: string): PowerControl {
+  const calls = machineCalls(useApi(), companyId);
+  const power = useMachinePower(companyId, machineId);
+  const events = useMachineEvents(companyId, machineId);
+  const again = () => {
+    power.reload();
+    events.reload();
+  };
+  useVisibleInterval(again, STATS_EVERY_MS);
+  const then = async (change: Promise<unknown>) => {
+    try {
+      await change;
+    } finally {
+      again();
+    }
+  };
+  return {
+    power,
+    events,
+    start: () => then(calls.start(machineId)),
+    stop: () => then(calls.stop(machineId)),
+    setPolicy: (policy) => then(calls.setPolicy(machineId, policy)),
+    setTimezone: (timezone) => then(calls.setTimezone(machineId, timezone)),
+  };
+}
+
+/** The calls on the machines: the list, a token to enroll one, a rename, a removal, the power policy and commands. */
+export function machineCalls(api: Api, companyId: string) {
+  const machines = api.api.companies[':companyId'].machines;
+  const one = machines[':machineId'];
+  const param = (machineId: string) => ({ param: { companyId, machineId } });
+  return {
+    list: () => call(machines.$get({ param: { companyId } })),
+    createToken: () => call(machines['enrollment-tokens'].$post({ param: { companyId } })),
+    update: (machineId: string, changes: MachineChanges) =>
+      call(one.$patch({ ...param(machineId), json: changes })),
+    remove: (machineId: string) => call(one.$delete(param(machineId))),
+    setPolicy: (machineId: string, policy: PowerPolicy) =>
+      call(one.power.$put({ ...param(machineId), json: policy })),
+    start: (machineId: string) => call(one.power.start.$post(param(machineId))),
+    stop: (machineId: string) => call(one.power.stop.$post(param(machineId))),
+    setTimezone: (machineId: string, timezone: string) =>
+      call(one.power.timezone.$post({ ...param(machineId), json: { timezone } })),
+  };
+}
+
+export type MachineCalls = ReturnType<typeof machineCalls>;

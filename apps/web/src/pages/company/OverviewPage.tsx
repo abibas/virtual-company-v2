@@ -9,6 +9,7 @@ import { companyPath } from '../../app/nav.ts';
 import { StatTile } from '../../components/data/StatTile.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 import { companyAgentLinks } from '../../features/agents/links.ts';
+import { MachinesBoard } from '../../features/machines/MachinesBoard.tsx';
 import { RunsCard } from '../../features/overview/ComingCards.tsx';
 import { CompanyHero } from '../../features/overview/CompanyHero.tsx';
 import { TeamCard } from '../../features/overview/TeamCard.tsx';
@@ -93,8 +94,8 @@ function Tiles({
 }
 
 /**
- * `/:slug`: the company at a glance: the hero, the numbers, the person's own subscription limits (across companies)
- * and what comes next.
+ * `/:slug`: the company at a glance: the hero, the numbers, the person's own subscription limits (across companies),
+ * the company's machines and what comes next.
  */
 export function OverviewPage() {
   const { membership, agents } = useCompany();
@@ -118,6 +119,7 @@ export function OverviewPage() {
       />
       <Tiles base={base} admin={admin} data={data} />
       <SubscriptionLimitsWidget />
+      <MachinesBoard companyId={membership.companyId} machinesHref={`${base}/machines`} admin={admin} />
       <div className="grid gap-4 lg:grid-cols-2">
         <TeamCard agents={agents.data?.agents} href={links.chart} hireHref={admin ? links.hire : undefined} />
         <RunsCard />
