@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiGet, type Fetch, isObject } from '../../src/api/client.ts';
+import { apiCall, apiGet, type Fetch, isObject } from '../../src/api/client.ts';
 
 const SERVER = 'http://mwc.test';
 const KEY = 'mwc_pk_Tq3ZbN8xWc1LmR5vYk7HdJ2sFg9PaE4u';
@@ -42,6 +42,20 @@ describe('apiGet', () => {
       code: 'forbidden',
       message: 'Admins only',
     });
+  });
+
+  it('posts without a body when asked, and takes the body with the status it is told', async () => {
+    const calls: string[] = [];
+    const fetch: Fetch = async (url, init) => {
+      calls.push(`${init.method} ${url} ${init.body ?? 'no body'}`);
+      return Response.json({ name: 'token' }, { status: 201 });
+    };
+    expect(await apiCall(fetch, SERVER, KEY, '/api/t', isNamed, { method: 'POST', status: 201 })).toEqual({
+      ok: true,
+      body: { name: 'token' },
+    });
+    expect(calls).toEqual([`POST ${SERVER}/api/t no body`]);
+    expect(await apiCall(fetch, SERVER, KEY, '/api/t', isNamed)).toMatchObject({ ok: false, status: 201 });
   });
 
   it('tells objects from everything else', () => {

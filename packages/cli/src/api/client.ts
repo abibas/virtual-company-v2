@@ -1,7 +1,7 @@
 /**
- * The mwc API as the CLI and `@mwc/mcp` call it: a GET with a personal API key as the bearer, through an injected
- * fetch, answering the body (when the caller's guard accepts it) or the server's refusal, `{ error: { code, message } }`.
- * Exported as `@mwc/cli/api/client`.
+ * The mwc API as the CLI and `@mwc/mcp` call it: a GET (or a POST without a body) with a personal API key as the
+ * bearer, through an injected fetch, answering the body (when the caller's guard accepts it) or the server's refusal,
+ * `{ error: { code, message } }`. Exported as `@mwc/cli/api/client`.
  */
 
 /** `fetch` as the commands use it; tests pass a fake, or one that calls a test app in-process. */
@@ -36,17 +36,29 @@ async function failure(res: Response): Promise<ApiFailure> {
   };
 }
 
-/** `GET <server><path>` with the key as the bearer; the body when it is a 200 that `accept` takes. */
-export async function apiGet<T>(
+/** A call's method and the status its body comes with. */
+export interface CallOptions {
+  readonly method?: 'GET' | 'POST';
+  /** 200 for a GET, 201 for a POST that makes something. */
+  readonly status?: number;
+}
+
+/**
+ * `<method> <server><path>` (no body) with the key as the bearer; the body when it comes with `options.status` (200 by
+ * default) and `accept` takes it.
+ */
+export async function apiCall<T>(
   fetch: Fetch,
   server: string,
   key: string,
   path: string,
   accept: (body: unknown) => body is T,
+  options: CallOptions = {},
 ): Promise<ApiResult<T>> {
   let res: Response;
   try {
     res = await fetch(`${server}${path}`, {
+      method: options.method ?? 'GET',
       headers: { authorization: `Bearer ${key}`, accept: 'application/json' },
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
@@ -57,7 +69,7 @@ export async function apiGet<T>(
     const message = `cannot reach ${server}: ${(error as Error).message}${why}`;
     return { ok: false, status: 0, code: 'unreachable', message };
   }
-  if (res.status !== 200) return failure(res);
+  if (res.status !== (options.status ?? 200)) return failure(res);
   const body: unknown = await res.json().catch(() => undefined);
   if (!accept(body)) {
     return {
@@ -68,4 +80,15 @@ export async function apiGet<T>(
     };
   }
   return { ok: true, body };
+}
+
+/** `GET <server><path>` with the key as the bearer; the body when it is a 200 that `accept` takes. */
+export function apiGet<T>(
+  fetch: Fetch,
+  server: string,
+  key: string,
+  path: string,
+  accept: (body: unknown) => body is T,
+): Promise<ApiResult<T>> {
+  return apiCall(fetch, server, key, path, accept);
 }

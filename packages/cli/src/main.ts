@@ -22,6 +22,9 @@
  *                                    the company's org chart as an indented tree (org/commands.ts)
  *   mwc agents list [--company SLUG] [--status S|all] [--json] [--server URL]
  *                                    the company's agents as a table, with whom each reports to (org/commands.ts)
+ *   mwc machine enroll-token [--company SLUG] [--server URL]
+ *                                    a one-time enrollment token and the commands that install a runner with it
+ *                                    on This Mac, the Airia devbox and a container (machines/commands.ts)
  *   mwc help
  */
 import { readFileSync } from 'node:fs';
@@ -35,6 +38,7 @@ import { commitMessageText, formatHits, type ScanDeps, scanText } from './banned
 import { bannedNames, runCheck, structureCheck } from './check.ts';
 import { runDev, systemDevDeps } from './dev.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
+import { machineCommand } from './machines/commands.ts';
 import { agentsCommand, orgCommand } from './org/commands.ts';
 import { structureReport } from './structure/report.ts';
 
@@ -116,6 +120,10 @@ const HELP = [
   '                                 the agents as a table (active and paused unless --status), with whom',
   '                                 each reports to; both use the saved login (--server URL picks one) and',
   "                                 the key's own company unless --company names another",
+  '  machine enroll-token [--company SLUG] [--server URL]',
+  '                                 a one-time token that enrolls one machine (admins and owners), with the',
+  '                                 command that installs a runner with it on This Mac, the Airia devbox and',
+  '                                 a Docker container',
   '  help',
   '',
 ].join('\n');
@@ -128,8 +136,8 @@ export interface MainDeps {
   /** The coverage summary `mwc structure --report` reads; the last run's in .cache/coverage by default. */
   coverage?(): string | undefined;
   /**
-   * What the commands that call the API reach (login, whoami, org, agents): fetch and standard input; the process's
-   * own by default.
+   * What the commands that call the API reach (login, whoami, org, agents, machine): fetch and standard input; the
+   * process's own by default.
    */
   account?: AccountDeps;
 }
@@ -168,6 +176,8 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
       return orgCommand(args, io, deps.account ?? systemAccount());
     case 'agents':
       return agentsCommand(args, io, deps.account ?? systemAccount());
+    case 'machine':
+      return machineCommand(args, io, deps.account ?? systemAccount());
     case undefined:
     case 'help':
       io.stdout(HELP);

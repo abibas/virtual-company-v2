@@ -23,8 +23,8 @@ log line and exit codes 77 and 76, so the service manager shows why; 4004 (repla
 while the process stays up, so two copies of one machine never take turns. In development the devbox reaches the server
 at `wss://<ngrok static domain>/api/runner/ws`.
 
-**Auth tiers** (Buildkite style). An admin makes a one-time **enrollment token** (`mwc_et_…`, expires); `mwc runner
-install --token` trades it at `POST /api/runner/enroll` for the machine's id and its **runner key** (`mwc_rk_` + 32
+**Auth tiers** (Buildkite style). An admin makes a one-time **enrollment token** (`mwc_et_…`, expires); the runner's
+`install --token` (S4.5, through `install.sh`) trades it at `POST /api/runner/enroll` for the machine's id and its **runner key** (`mwc_rk_` + 32
 base62, file mode 0600 on the machine, only its SHA-256 in `api_keys` with `kind=runner` and the machine). The runner
 key opens this socket and nothing else; a wrong, revoked or unknown key is refused at the upgrade with HTTP 401 (no
 socket). `key.rotate` replaces it; the old key keeps working 10 minutes. Each run gets its own **run token** in
@@ -42,6 +42,11 @@ null for `none`). The answer is 201 `RunnerEnrollResponse{machineId, companyId, 
 owned by whoever made the token. An unknown, used or expired token, or one of a deleted company, is a 401 in the common
 error shape; a body that does not match is a 400.
 
+The installer and the runner it installs are served too (S4.5, `docs/machines.md` "Installing a runner"), both public:
+`GET /api/runner/install.sh` (`RUNNER_INSTALL_SCRIPT_PATH`, a POSIX script piped into `sh -s -- --server … --token …`)
+and `GET /api/runner/runner.mjs` (`RUNNER_BUNDLE_PATH`, the bundle, with its SHA-256 in `x-mwc-runner-sha256`,
+`RUNNER_SHA256_HEADER`, which the script checks; 404 `runner_bundle_missing` until it is built).
+
 ## Connection
 
 1. Runner → `runner.hello`. No hello within 10 s: close 4008.
@@ -57,7 +62,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record → `server.hello` |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |

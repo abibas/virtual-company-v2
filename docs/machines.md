@@ -93,9 +93,77 @@ never start a machine: auto-start switches are off until Ihor turns them on (v1 
   time zone, start when hours begin, stop when they end, hold minutes, keep This Mac awake, start on message / on work
   marked "from S5"), the box's own rules read-only with "Set the box's time zone to X", the last 10 log entries;
   **Add a machine** sheet: kind → a one-time enrollment token and the exact install command (Mac:
-  `mwc runner install …`; devbox: `airia devbox ssh -- '<install>'` for Ihor to run; container: compose snippet).
+  `curl … install.sh | sh -s -- …`; devbox: `airia devbox ssh -- '<install>'` for Ihor to run; container: compose
+  command), as "Installing a runner" below has them (`publicUrl` of `GET /api/config` for the devbox's address).
   Home `/:slug`: **Machines** widget under the limits widget, one row per machine as in his screenshot, refreshed
   every minute; new library pieces `components/data/Sparkline.tsx` (dashed threshold line) and `UpDownBar.tsx`.
+
+## Installing a runner
+
+Built in S4.5. A runner is one JavaScript file, `apps/runner/dist/runner.mjs` (`pnpm --filter @mwc/runner build`,
+esbuild, Node 22 or newer, every dependency inside; `mwc check --full` builds it too), that runs the daemon (`run`) and
+installs itself (`enroll`, `install`, `status`, `uninstall`; `node runner.mjs help`). The server hands it out:
+`GET /api/runner/runner.mjs` (404 `runner_bundle_missing` until it is built; its SHA-256 in `x-mwc-runner-sha256`) and
+`GET /api/runner/install.sh`, a POSIX script that checks for Node 22 and curl, downloads the bundle to a temporary
+folder, checks its SHA-256 and runs `node runner.mjs install` with its own arguments. Both are public: the enrollment
+token is the secret. Nothing is installed by the repository's tooling; each install is a person's own step.
+
+**1. A token.** An admin or owner makes one (good for one machine within the hour), and `mwc` prints the command for
+each kind of machine with it:
+
+```sh
+pnpm mwc machine enroll-token [--company <slug>]
+```
+
+**2. The command, on the machine.**
+
+| Machine | Command | What it installs |
+|---|---|---|
+| This Mac | `curl -fsSL <url>/api/runner/install.sh \| sh -s -- --server <url> --token mwc_et_…` | a launchd agent |
+| Airia devbox | `airia devbox ssh -- 'curl -fsSL <public url>/api/runner/install.sh \| sh -s -- --server <public url> --token mwc_et_…'` (Ihor runs it; the box costs its hourly rate while up) | a systemd user unit |
+| Docker container | `MWC_ENROLL_TOKEN=mwc_et_… docker compose -f deploy/compose.yml --profile runner up -d runner-local` (from the repository folder) | the `runner-local` service |
+
+The devbox reaches the server only at its public address: `MWC_PUBLIC_URL` set to the ngrok static domain (then
+`GET /api/config` answers it as `publicUrl`, null while it is unset, and `mwc machine enroll-token` puts it in the
+devbox's command). The box needs Node 22 on the PATH of a non-interactive SSH command; a Node from nvm needs
+`. ~/.nvm/nvm.sh &&` in front of `curl`.
+
+**What `install` does.** `install --server <url> --token <mwc_et_…> [--name <name>] [--slots <n>] [--force]`:
+
+1. Refuses first, before the token is used: a system other than macOS or Linux, a container, a runner run from its
+   sources instead of `runner.mjs`, a machine already enrolled (`--force` enrolls it again as a new machine).
+2. Enrolls (`POST /api/runner/enroll`): the kind (macOS `laptop`; `/.dockerenv` or `MWC_RUNNER_IN_CONTAINER=1`
+   `container`; else `vm`), the system, architecture, host name, Unix user, the runner's version, Claude Code's
+   version (one `claude --version`, only when `claude` is on the PATH) and the provider: a machine with
+   `/usr/local/bin/devbox-keepalive` whose GCE metadata server names its instance, zone and project (1 s at most) is
+   `airia_devbox`. The name is `--name`, else `Airia devbox`, else the short host name. 2 slots unless `--slots`.
+   The id and the runner key go to `~/.config/mwc/runner.json` (0600 in a 0700 folder).
+3. Copies itself to `~/.local/share/mwc-runner/runner.mjs` and starts it as a service with the Node that installed it
+   and a short PATH (Node's folder, the folders of `claude`, `git`, `gh`, `docker`, `airia` and `gcloud` found on the
+   installer's PATH, the system's):
+   - **macOS:** `~/Library/LaunchAgents/com.mwc.runner.plist` (RunAtLoad, KeepAlive while it fails, ThrottleInterval
+     10, its log `~/.local/state/mwc-runner/runner.log`), loaded with `launchctl bootstrap gui/<uid>` (from a Terminal
+     of the desktop session). launchd cannot leave a service stopped after chosen exit codes, so under launchd the
+     runner exits 0 after a refused key (77), a runner too old (76) or a broken configuration (78) and stays stopped
+     until it is installed again.
+   - **Linux:** `~/.config/systemd/user/mwc-runner.service` (Restart=always after 10 s, `RestartPreventExitStatus=76
+     77 78`, 90 s to stop), `loginctl enable-linger` (or `sudo -n`, else a warning: the runner then stops at logout),
+     `systemctl --user daemon-reload` and `enable --now`; its log is `journalctl --user -u mwc-runner.service`.
+
+Run again without `--token`, `install` keeps the enrollment and reinstalls the service on the new bundle (a restart).
+`node ~/.local/share/mwc-runner/runner.mjs status` shows the enrollment, the service file and what the runner's health
+endpoint (127.0.0.1:9953) says, and exits 0 only when it is connected; `uninstall` removes the service and the
+installed copy and keeps `runner.json` (`--purge` removes it and the state folder); the machine stays on the server until
+it is removed on the Machines page.
+
+**The container** (`deploy/Dockerfile.runner`): Node 24 slim, git, tini as PID 1, the bundle, the user `runner`, its
+state and `runner.json` in the volume `/var/lib/mwc-runner`. Started without a `runner.json` and with
+`MWC_ENROLL_TOKEN` and `MWC_SERVER_URL`, the runner enrolls itself (kind `container`, named by `MWC_RUNNER_NAME`,
+`runner-local` in compose), then runs; later starts reuse the enrollment. The `runner-local` service is behind the
+compose profile `runner` (plain `docker compose up` still starts the dev Postgres only), reaches the dev API at
+`http://host.docker.internal:9950` (`MWC_SERVER_URL` overrides it), has a health check on 9953 and 90 s to stop.
+`docker compose -f deploy/compose.yml down` (what `mwc dev --down` runs) may stop it too; the same `up` command starts
+it again without a token. The image has no Claude Code yet (S5).
 
 ## Stage plan (S4)
 

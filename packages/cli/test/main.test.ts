@@ -134,12 +134,13 @@ describe('main', () => {
     expect(await main(['login'], login.io)).toBe(2);
   });
 
-  it('runs org tree and agents list through the account fetch (here: not logged in, then usage errors)', async () => {
+  it('runs org tree, agents list and machine enroll-token through the account fetch (here: not logged in, then usage errors)', async () => {
     const config = tempConfig();
     const account = { fetch: fakeApi().fetch, stdin: piped() };
     for (const argv of [
       ['org', 'tree'],
       ['agents', 'list'],
+      ['machine', 'enroll-token'],
     ]) {
       const c = capture({ env: config.env });
       expect(await main(argv, c.io, { account })).toBe(1);
@@ -162,6 +163,7 @@ describe('main', () => {
       '  logout [--server URL]',
       '  org tree [--company SLUG] [--json]',
       '  agents list [--company SLUG] [--status active|paused|archived|all] [--json]',
+      '  machine enroll-token [--company SLUG] [--server URL]',
     ]) {
       expect(c.out()).toContain(command);
     }

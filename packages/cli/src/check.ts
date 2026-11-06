@@ -7,7 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { cachedScanDeps, formatHits, type ScanDeps, scanFiles, systemScanDeps } from './banned.ts';
-import { DEV_COMPOSE_FILE, DEV_DATABASE_URL, postgresDown, postgresUp, type Step } from './dev.ts';
+import { type FullLane, fullSteps, NO_DOCKER } from './check/full.ts';
+import { DEV_COMPOSE_FILE, type Step } from './dev.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
 import { checkStructure, formatViolations } from './structure/check.ts';
 import { coverageReader, formatSummary, warningsOf } from './structure/report.ts';
@@ -45,16 +46,6 @@ export function structureCheck(io: MainIo, deps: ScanDeps = systemScanDeps(REPO_
   io.stdout(`structure ok in ${tree.paths.length} files\n`);
   return true;
 }
-
-/** What the --full Postgres lane needs to know about the machine before it plans its steps. */
-export interface FullLane {
-  /** The Docker daemon answers; without it the Postgres lane is skipped. */
-  readonly docker: boolean;
-  /** The dev Postgres (deploy/compose.yml) is already up, e.g. under `mwc dev`; then it is left as it is. */
-  readonly postgresRunning: boolean;
-}
-
-const NO_DOCKER: FullLane = { docker: false, postgresRunning: false };
 
 /**
  * The steps of `mwc check` for the given workspace package directories, in order. The two in-process
@@ -98,40 +89,7 @@ export function checkSteps(
     command: 'pnpm',
     args: ['exec', 'vitest', 'run', ...(flags.has('fast') ? [] : ['--coverage'])],
   });
-  if (!flags.has('full')) return steps;
-
-  // The tests again with TEST_DB=postgres: the db and server integration tests then run on the dev
-  // Postgres through postgres.js, each on its own database created and dropped on that server
-  // (@mwc/db/testing), never the dev database itself. All projects run, because Vitest 5 reports no
-  // coverage when --project filters them; the cli and shared tests ignore TEST_DB (about a second).
-  const postgres = lane.docker && packageDirs.includes('packages/db');
-  if (postgres) {
-    if (!lane.postgresRunning) steps.push(postgresUp);
-    steps.push({
-      label: 'tests on postgres',
-      command: 'pnpm',
-      args: [
-        'exec',
-        'vitest',
-        'run',
-        ...(flags.has('fast') ? [] : ['--coverage', '--coverage.reportsDirectory=.cache/coverage/postgres']),
-      ],
-      env: { TEST_DB: 'postgres', TEST_DATABASE_URL: DEV_DATABASE_URL },
-    });
-  }
-  if (packageDirs.includes('apps/web')) {
-    // The production build, straight on Node from the web package (no pnpm or shell process in between).
-    // The web has no tests for now (docs/structure.md); its typecheck runs in every lane.
-    steps.push({
-      label: 'web build',
-      command: process.execPath,
-      args: ['node_modules/vite/bin/vite.js', 'build'],
-      cwd: 'apps/web',
-    });
-  }
-  // Leave the machine as it was: stop the dev Postgres only if this run started it.
-  if (postgres && !lane.postgresRunning) steps.push(postgresDown);
-  return steps;
+  return flags.has('full') ? [...steps, ...fullSteps(flags, packageDirs, lane)] : steps;
 }
 
 /** Where workspace packages live (pnpm-workspace.yaml), in typecheck order; a missing group is fine. */

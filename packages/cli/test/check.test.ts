@@ -126,6 +126,19 @@ describe('checkSteps', () => {
       expect(existsSync(resolve(root, step.cwd ?? '', step.args[0] ?? ''))).toBe(true);
     }
   });
+
+  it('builds the runner bundle with --full, straight on Node, from a script the runner really has', () => {
+    const full = checkSteps(new Set(['full']), ['apps/runner', 'apps/web']);
+    expect(full.map((s) => s.label).slice(-2)).toEqual(['runner bundle', 'web build']);
+    const bundle = full.find((s) => s.label === 'runner bundle');
+    expect(bundle).toEqual({
+      label: 'runner bundle',
+      command: process.execPath,
+      args: ['apps/runner/scripts/build.ts'],
+    });
+    expect(existsSync(resolve(import.meta.dirname, '../../..', bundle?.args[0] ?? ''))).toBe(true);
+    expect(checkSteps(new Set(), ['apps/runner']).map((s) => s.label)).not.toContain('runner bundle');
+  });
 });
 
 /** What runCheck reads besides its steps: an in-memory tree and no coverage summary. */
