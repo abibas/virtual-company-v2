@@ -127,7 +127,7 @@ the devbox starts and stops from the page, its keep-on hours hold it up, This Ma
    (`devbox-keepalive`, `caffeinate`), health :9953 — runner vs fake server: survives a server restart.
 4. Power: `packages/machines-core` (the power driver port) and `connectors/machine-airia-devbox` (`airia devbox
    up|stop`, `gcloud … describe|add-metadata`); the server's power rules, scheduler, power API, controller routing and
-   events log.
+   events log. **S4.4a done 2026-11-06** (`@mwc/machines-core`: the `MachinePowerDriver` port, `BoxRules`, `MachinePowerError`, `FakePowerDriver`; `@mwc/machine-airia-devbox`: `airia devbox up --no-wait` / `stop`, `gcloud` describe / list / add-metadata through an injected `run`, acting only on the signed-in account's own `dev-<slug>`; tested with a fake `run` and hand-written GCE JSON.)
 5. `mwc runner install` (launchd / systemd user unit / container) + `mwc machine enroll-token` + compose `runner-local`
    + `deploy/Dockerfile.runner`.
 6. Web: the Machines page (machines, Start/Stop, power settings, the box's rules, the log, Add a machine) and the home
