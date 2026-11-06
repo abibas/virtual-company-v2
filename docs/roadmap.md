@@ -131,8 +131,8 @@ the devbox starts and stops from the page, its keep-on hours hold it up, This Ma
 5. `mwc runner install` (launchd / systemd user unit / container) + `mwc machine enroll-token` + compose `runner-local`
    + `deploy/Dockerfile.runner`. **Done 2026-11-06** (one-file runner `apps/runner/dist/runner.mjs` with `enroll|install|status|uninstall` (launchd, systemd user + linger, a container's first-boot enroll; the devbox detected through the GCE metadata server); `GET /api/runner/install.sh` and `/api/runner/runner.mjs` (sha256 checked); `publicUrl` in `/api/config`; `mwc machine enroll-token`; `Dockerfile.runner` and compose `runner-local` (profile `runner`). Nothing installed yet: the live installs are with Ihor.)
 6. Web: the Machines page (machines, Start/Stop, power settings, the box's rules, the log, Add a machine) and the home
-   page's Machines board.
-7. Placements: an agent's machine and mode (`host` folder or a fresh `container` per run) on the agent form.
+   page's Machines board. **Done 2026-11-06** (`/:slug/machines`: cards with stats, devbox Start/Stop with its cost, power settings, the box's rules and the time-zone fix, the log, rename, remove, **Add a machine** with the exact install commands; the home **Machines** board with sparklines and up/down bars; library `Sparkline` and `UpDownBar`.)
+7. Placements: an agent's machine and mode (`host` folder or a fresh `container` per run) on the agent form. **Done 2026-11-06** (migration `0010_agent_placements`; `GET/PUT/DELETE agents/:agentId/placement` in the machines module; `placement` on agents and chart nodes, `agentCount` on machines; the agent form's **Where it runs**, "Runs on" in the facts, a Machine column.)
 8. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S5 — tasks, threads, runs
