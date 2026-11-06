@@ -127,7 +127,6 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
 
 ## Tests
 
-- Mirror the paths: `src/a/b.ts` → `test/a/b.test.ts`.
 - Server code is tested through `app.request()` on `createTestApp()` (`@mwc/testkit`), outside systems
   through their fakes; write database tests that pass on PGlite and on Postgres.
 - Coverage floors: 90% lines, statements and functions and 85% branches overall; 85% lines and 75%
@@ -136,37 +135,15 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
 - No frontend tests for now: the web is typechecked and built, not tested.
 - Keep process starts few (the Mac bills each one): drive code in-process with injected fakes.
 
-## Lessons
+## Lessons and review
 
-Add a dated entry to [references/lessons.md](references/lessons.md) (format at its top), with the status
-`open`, when:
-
-- the placement table above did not cover your case;
-- a rule forced an awkward placement;
-- a split went badly;
-- a warning of `pnpm mwc structure --report` kept coming back.
-
-Record what happened, where, what you did and the change you suggest. Do not change a rule or the table
-yourself: the review brings the suggestion to Ihor.
-
-## Review
-
-A structure review runs at the end of each stage, before its tag and the stage review with Ihor (it is the
-last item of every stage in `docs/roadmap.md`). It also runs when the report's warning count clearly grows,
-and whenever Ihor asks.
-
-1. Run `pnpm mwc structure --report` and read the open lessons.
-2. Suggest at most 5 concrete improvements to Ihor, each with its evidence: split X before it hits the
-   limit, move Y, add a placement-table row, loosen or tighten a rule.
-3. Land each change he approves as its own commit. Mark the lessons `adopted` or `declined` and record the
-   report's counts.
-
-Details: [references/review.md](references/review.md).
+When the table above did not cover your case, a rule forced an awkward placement, a split went badly or a warning
+keeps coming back, add a dated `open` entry to [references/lessons.md](references/lessons.md) (format at its top).
+Never change a rule or the table yourself. The structure review, at each end of stage before the tag (and when the
+report clearly grows, or Ihor asks), brings at most 5 suggestions to Ihor: [references/review.md](references/review.md).
 
 ## Finish line
 
-Run `pnpm mwc check` (and `pnpm mwc check --full` when the database, the server or the web changed). A
-structure failure reads `path[:line]: [rule] reason`; the rule names (`layout`, `package`, `tests`, `size`,
-`modules`, `docs`) are explained in `docs/structure.md`, "What mwc check enforces". Change a rule only with
-Ihor's approval, and then `rules.ts`, its tests, `docs/structure.md` and this skill together. The `docs` rule
-fails when they disagree.
+Run `pnpm mwc check` (`--full` when the database, the server or the web changed). A structure failure reads
+`path[:line]: [rule] reason`, explained in `docs/structure.md`, "What mwc check enforces". A rule changes only with
+Ihor's approval, in `rules.ts`, its tests, `docs/structure.md` and this skill together (the `docs` rule checks).
