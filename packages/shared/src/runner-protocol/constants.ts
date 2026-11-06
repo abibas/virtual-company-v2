@@ -53,7 +53,8 @@ export const KEY_ROTATION_OVERLAP_MS = 10 * 60_000;
 
 /**
  * The close codes of a runner socket. A bad key never gets a socket: the upgrade is refused with HTTP 401.
- * A runner reconnects after every close (backoff 1 s to 60 s with jitter), at the slowest pace after 4001–4003.
+ * A runner reconnects after every close (backoff 1 s to 60 s with jitter), at the slowest pace after 4002; 4001 and
+ * 4003 stop it (exit 77 and 76) and 4004 ends its link without reconnecting (docs/runner-protocol.md, "Transport").
  */
 export const RUNNER_CLOSE = {
   /** A frame over `RUNNER_FRAME_MAX_BYTES` (RFC 6455, "message too big"; `ws` closes with it by itself). */

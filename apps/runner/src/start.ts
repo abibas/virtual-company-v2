@@ -1,0 +1,230 @@
+import {
+  isShared,
+  type RunnerConfig,
+  readRunnerConfig,
+  runnerConfigPath,
+  runnerStateDir,
+  writeRunnerConfig,
+} from './config.ts';
+import { type HealthServer, healthPort, startHealthServer } from './health.ts';
+import { caffeinateDriver } from './hold/caffeinate.ts';
+import { devboxDriver } from './hold/devbox.ts';
+import { detectHoldDriver, type HoldDriver, type HoldDriverKind, noneDriver } from './hold/driver.ts';
+import type { LinkEnd } from './link/link.ts';
+import type { WebSocketCtor } from './link/socket.ts';
+import { createLog, type Log } from './log.ts';
+import type { PowerExecutor } from './power.ts';
+import { createRunner, type Runner } from './runner.ts';
+import { createMemoryReader, type MemoryDeps } from './stats/memory.ts';
+import { type DiskStats, Sampler, type SamplerOs } from './stats/sampler.ts';
+import type { Spawn } from './system/process.ts';
+import type { Clock, Timers } from './system/time.ts';
+
+/**
+ * `mwc-runner run` (`@mwc/runner/start`): reads the configuration, makes the state folder, picks the hold driver,
+ * starts the runner and the health endpoint, and stops gracefully on SIGTERM or SIGINT (the socket closed, the hold
+ * released). A refused key and a runner too old stop the process with their own exit codes, so the service manager
+ * shows why; a replaced connection keeps it idle. `main.ts` calls it with the real process (`system/node.ts`).
+ */
+
+/** The exit codes (sysexits where one fits). */
+export const EXIT = {
+  ok: 0,
+  usage: 64,
+  /** The server needs a newer runner (4003; EX_PROTOCOL). */
+  tooOld: 76,
+  /** The server refused the runner key (HTTP 401 or 4001; EX_NOPERM). */
+  unauthorized: 77,
+  /** The configuration file or an environment variable is wrong (EX_CONFIG). */
+  config: 78,
+} as const;
+
+export interface MainDeps {
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly platform: NodeJS.Platform;
+  /** The runner's process id (`caffeinate -w`). */
+  readonly pid: number;
+  readonly os: SamplerOs & MemoryDeps['os'] & { homedir(): string };
+  readonly fs: {
+    exists(path: string): boolean;
+    readFile(path: string): Promise<string>;
+    statfs(path: string): Promise<DiskStats>;
+    /** Makes a folder and its parents, new ones 0700. */
+    mkdir(path: string): void;
+  };
+  readonly spawn: Spawn;
+  readonly WebSocket: WebSocketCtor;
+  readonly clock: Clock;
+  readonly timers: Timers;
+  readonly random: () => number;
+  /** One log line to standard output. */
+  write(line: string): void;
+  onSignal(signal: 'SIGTERM' | 'SIGINT', handler: () => void): void;
+  exit(code: number): void;
+  /** Keeps the process alive with nothing else to do (a replaced link); returns the release. */
+  keepAlive(): () => void;
+  readonly version: string;
+  /** The power controller (S4.4b); none by default. */
+  readonly power?: PowerExecutor;
+}
+
+interface Setup {
+  readonly config: RunnerConfig;
+  readonly configPath: string;
+  readonly stateDir: string;
+  readonly hold: HoldDriverKind;
+  readonly port: number;
+}
+
+/** Reads and checks everything that can be wrong before the runner starts; a message for each problem. */
+function setUp(deps: MainDeps, log: Log): Setup {
+  const configPath = runnerConfigPath(deps.env);
+  const config = readRunnerConfig(configPath);
+  if (isShared(configPath))
+    log.warn('the runner configuration is readable by others; chmod 600 it', { configPath });
+  const stateDir = runnerStateDir(deps.env);
+  deps.fs.mkdir(stateDir);
+  const hold = detectHoldDriver({
+    platform: deps.platform,
+    exists: deps.fs.exists,
+    override: deps.env.MWC_RUNNER_HOLD,
+  });
+  return { config, configPath, stateDir, hold, port: healthPort(deps.env) };
+}
+
+/** The driver of a hold kind. */
+export function holdDriverFor(kind: HoldDriverKind, deps: MainDeps, log: Log): HoldDriver {
+  if (kind === 'devbox_keepalive') {
+    return devboxDriver({
+      spawn: deps.spawn,
+      readFile: deps.fs.readFile,
+      clock: deps.clock,
+      timers: deps.timers,
+      log,
+    });
+  }
+  if (kind === 'caffeinate') return caffeinateDriver({ spawn: deps.spawn, pid: deps.pid, log });
+  return noneDriver();
+}
+
+function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
+  const { clock, timers } = deps;
+  const memory = createMemoryReader({ ...deps, readFile: deps.fs.readFile, log });
+  const home = deps.env.HOME || deps.os.homedir();
+  return createRunner({
+    config: setup.config,
+    version: deps.version,
+    log,
+    hold: holdDriverFor(setup.hold, deps, log),
+    sampler: new Sampler({ os: deps.os, statfs: deps.fs.statfs, home, memory, clock, log }),
+    ...(deps.power ? { power: deps.power } : {}),
+    saveConfig: (next) => writeRunnerConfig(setup.configPath, next),
+    clock,
+    timers,
+    random: deps.random,
+    WebSocket: deps.WebSocket,
+  });
+}
+
+/** What the runner says when its link ends for good, and the exit code; undefined when the process stays. */
+function onEnd(end: LinkEnd, version: string, log: Log): number | undefined {
+  if (end.reason === 'unauthorized') {
+    log.error('the server refused the runner key (revoked, or the machine was removed); enroll it again', {
+      code: end.code,
+    });
+    return EXIT.unauthorized;
+  }
+  if (end.reason === 'too_old') {
+    log.error('this runner is older than the server takes; update it', {
+      version,
+      minRunnerVersion: end.hello?.minRunnerVersion,
+    });
+    return EXIT.tooOld;
+  }
+  if (end.reason === 'replaced') {
+    log.warn(
+      'a newer connection of this machine replaced this one; not reconnecting until the runner restarts',
+    );
+  }
+  return undefined;
+}
+
+/** Starts the health endpoint; without it (its port taken) the runner goes on. */
+async function startHealth(runner: Runner, port: number, log: Log): Promise<HealthServer | undefined> {
+  try {
+    const health = await startHealthServer(port, () => runner.status());
+    log.info('health endpoint listening', { url: `http://127.0.0.1:${health.port}/healthz` });
+    return health;
+  } catch (error) {
+    log.error('the health endpoint cannot listen; going on without it', { port, error });
+    return undefined;
+  }
+}
+
+/**
+ * Waits for SIGTERM or SIGINT (exit 0) or a link that ends for good (its exit code), then stops the runner and the
+ * health endpoint once, however many of those come. A replaced link keeps the process alive until a signal.
+ */
+function untilStopped(
+  runner: Runner,
+  health: HealthServer | undefined,
+  deps: MainDeps,
+  log: Log,
+): Promise<number> {
+  let release: (() => void) | undefined;
+  let stopping: Promise<number> | undefined;
+  const shutdown = (code: number) => {
+    stopping ??= (async () => {
+      release?.();
+      await runner.stop();
+      await health?.close();
+      log.info('stopped', { code });
+      return code;
+    })();
+    return stopping;
+  };
+  return new Promise<number>((resolve) => {
+    const onSignal = (signal: string) => {
+      if (stopping) return;
+      log.info('stopping', { signal });
+      resolve(shutdown(EXIT.ok));
+    };
+    deps.onSignal('SIGTERM', () => onSignal('SIGTERM'));
+    deps.onSignal('SIGINT', () => onSignal('SIGINT'));
+    void runner.ended.then((end) => {
+      const exitCode = onEnd(end, deps.version, log);
+      if (exitCode !== undefined) resolve(shutdown(exitCode));
+      else if (end.reason === 'replaced') release = deps.keepAlive();
+    });
+  });
+}
+
+/** Runs `mwc-runner <argv>` and exits with its code (also returned). */
+export async function main(argv: readonly string[], deps: MainDeps): Promise<number> {
+  const log = createLog(
+    (line) => deps.write(line),
+    () => deps.clock.now(),
+  );
+  const finish = (code: number) => {
+    deps.exit(code);
+    return code;
+  };
+  if (argv.length !== 1 || argv[0] !== 'run') {
+    log.error('usage: mwc-runner run');
+    return finish(EXIT.usage);
+  }
+  let setup: Setup;
+  try {
+    setup = setUp(deps, log);
+  } catch (error) {
+    log.error((error as Error).message);
+    return finish(EXIT.config);
+  }
+  const runner = makeRunner(deps, setup, log);
+  const { config, configPath, stateDir, hold } = setup;
+  const { machineId, name, serverUrl: server } = config;
+  log.info('starting', { version: deps.version, machineId, name, server, hold, configPath, stateDir });
+  runner.start();
+  const health = await startHealth(runner, setup.port, log);
+  return finish(await untilStopped(runner, health, deps, log));
+}

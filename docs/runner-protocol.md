@@ -17,8 +17,11 @@ One outbound WebSocket per runner: `GET /api/runner/ws` (`RUNNER_WS_PATH`) with 
 mwc-runner.v1` and `Authorization: Bearer <runner key>`. Every message is one JSON text frame of at most 256 KB
 (`ws` `maxPayload`; larger closes with 1009). The server sends a WebSocket ping every 20 s and terminates a socket that
 has not answered by the next one; the runner treats 40 s without any frame or ping as a dead socket. The runner
-reconnects after every close with a backoff from 1 s to 60 s and jitter, and never gives up. In development the devbox
-reaches the server at `wss://<ngrok static domain>/api/runner/ws`.
+reconnects after every close with a backoff from 1 s to 60 s plus up to 20 % jitter, and never gives up, with three
+exceptions (S4.3): a refused key (HTTP 401 at the upgrade, or 4001) and a runner too old (4003) stop the runner with a
+log line and exit codes 77 and 76, so the service manager shows why; 4004 (replaced) ends the link without reconnecting
+while the process stays up, so two copies of one machine never take turns. In development the devbox reaches the server
+at `wss://<ngrok static domain>/api/runner/ws`.
 
 **Auth tiers** (Buildkite style). An admin makes a one-time **enrollment token** (`mwc_et_…`, expires); `mwc runner
 install --token` trades it at `POST /api/runner/enroll` for the machine's id and its **runner key** (`mwc_rk_` + 32
@@ -33,7 +36,7 @@ socket). `key.rotate` replaces it; the old key keeps working 10 minutes. Each ru
 2. The server checks `protocol` (unsupported: close 4002), marks the machine online, starts a `runner_sessions` row,
    and answers `server.hello`. A newer socket of the same machine closes the older one with 4004.
 3. If the runner's `version` is below `minRunnerVersion` (`compareRunnerVersions`), the server closes with 4003 right
-   after its hello; the runner logs that it needs an update and reconnects at the slowest pace.
+   after its hello; the runner logs that it needs an update and exits (76).
 4. Runner → `runner.resync`, then `hold.state`; then a `runner.heartbeat` every 20 s.
 
 Nothing lives only in memory on the server: after its restart every runner reconnects and repeats steps 1 to 4.

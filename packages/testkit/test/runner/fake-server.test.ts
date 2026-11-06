@@ -118,6 +118,18 @@ describe('FakeRunnerServer', () => {
     expect(server.frames.of('runner.hello')).toHaveLength(2);
   });
 
+  it('closes every socket with a close code, and pings every socket until it answers', async () => {
+    const server = await startServer();
+    const runner = await connectRunner(server);
+    // The pong (ws answers by itself) proves the ping arrived.
+    expect(await server.ping()).toBe(1);
+    await server.closeAll(4004, 'replaced');
+    expect(await runner.closed()).toEqual({ code: 4004, reason: 'replaced' });
+    expect(server.openSockets).toBe(0);
+    expect(await server.ping()).toBe(0);
+    await expect(server.closeAll(4001)).resolves.toBeUndefined();
+  });
+
   it('stops, refusing connections, and starts again on the same port', async () => {
     const server = await startServer();
     const runner = await connectRunner(server);

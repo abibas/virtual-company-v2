@@ -34,7 +34,8 @@ export interface RunnerConnection {
  * A runner protocol server for a runner's tests: a real WebSocket server on 127.0.0.1 and an ephemeral port, at
  * `RUNNER_WS_PATH`, speaking `mwc-runner.v1`. It records every frame, answers `runner.hello`, sends any server frame,
  * drops every socket at once (`dropAll`), and stops and starts again on the same port (`restart`), as a server that
- * crashed and came back. It checks no key: `connections` shows what the runner sent.
+ * crashed and came back. It closes every socket with a code (`closeAll`) and pings them (`ping`), as the real hub does.
+ * It checks no key: `connections` shows what the runner sent.
  */
 export class FakeRunnerServer {
   /** Every runner frame received, in order (`frames.next(type)` waits for the next one). */
@@ -112,6 +113,35 @@ export class FakeRunnerServer {
   sendRaw(text: string): number {
     for (const socket of this.#sockets) socket.send(text);
     return this.#sockets.size;
+  }
+
+  /** Closes every socket with a close frame (`RUNNER_CLOSE` codes: 4001, 4003, 4004…) and waits until they closed. */
+  async closeAll(code: number, reason = ''): Promise<void> {
+    const sockets = [...this.#sockets];
+    await Promise.all(
+      sockets.map(
+        (socket) =>
+          new Promise<void>((resolve) => {
+            socket.once('close', () => resolve());
+            socket.close(code, reason);
+          }),
+      ),
+    );
+  }
+
+  /** Pings every open socket, as the server does every 20 s; resolves once each answered with a pong. */
+  async ping(): Promise<number> {
+    const sockets = [...this.#sockets];
+    await Promise.all(
+      sockets.map(
+        (socket) =>
+          new Promise<void>((resolve) => {
+            socket.once('pong', () => resolve());
+            socket.ping();
+          }),
+      ),
+    );
+    return sockets.length;
   }
 
   /** Cuts every socket at once, without a close frame (the runner sees 1006), and keeps listening. */
