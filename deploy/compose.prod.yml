@@ -68,9 +68,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
-  # runner-local arrives with S3: image mwc/runner (Node 24 + a pinned claude + git + gh), dialing out
-  # to ws://server:9950/api/runner/ws, health on :9953, volumes work and runner-state,
-  # stop_grace_period 90s (docs/architecture.md section 13).
+  # A runner in a container is runner-local in deploy/compose.yml (profile `runner`, deploy/Dockerfile.runner); this
+  # stack has none yet (docs/architecture.md section 13).
 
 volumes:
   pgdata:

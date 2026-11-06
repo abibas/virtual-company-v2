@@ -2,7 +2,7 @@
   "name": "@mwc/runner",
   "version": "0.1.0",
   "private": true,
-  "description": "The runner daemon, installed once on every machine: it dials out to the server, sends heartbeats with the machine's stats, and keeps the machine awake while it is held.",
+  "description": "The runner daemon, installed once on every machine: it dials out to the server, sends heartbeats with the machine's stats, and keeps the machine awake while it is held. Built into one file (dist/runner.mjs) that also enrolls the machine and installs its service.",
   "type": "module",
   "exports": {
     "./config": "./src/config.ts",
@@ -11,6 +11,7 @@
     "./start": "./src/start.ts"
   },
   "scripts": {
+    "build": "node scripts/build.ts",
     "start": "node src/main.ts run",
     "test": "vitest run"
   },
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@mwc/testkit": "workspace:*",
-    "@types/ws": "8.18.2"
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2"
   }
 }

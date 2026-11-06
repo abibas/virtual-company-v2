@@ -199,7 +199,7 @@ describe('GET /api/config', () => {
       ...extra,
     });
 
-  it('says sign-in is off, with the web origin and the API URL, to anyone and uncached', async () => {
+  it('says sign-in is off, with the web origin, the API URL and no public URL (MWC_PUBLIC_URL unset), to anyone and uncached', async () => {
     const t = await createTestApp({ db: brokenDb() });
     const res = await t.app.request('/api/config');
     expect(res.status).toBe(200);
@@ -208,6 +208,7 @@ describe('GET /api/config', () => {
       identity: 'none',
       webOrigin: 'http://localhost:9951',
       apiUrl: 'http://localhost:9950',
+      publicUrl: null,
     });
   });
 
@@ -221,6 +222,7 @@ describe('GET /api/config', () => {
       clerkPublishableKey: config.CLERK_PUBLISHABLE_KEY,
       webOrigin: 'https://corp.example.com',
       apiUrl: 'https://corp.example.com',
+      publicUrl: 'https://corp.example.com',
     });
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);
     expect(text).not.toContain('hunter2');
@@ -231,7 +233,12 @@ describe('GET /api/config', () => {
     const t = await createTestApp({ db: brokenDb(), config });
     expect(await getJson(t.app, '/api/config')).toMatchObject({
       status: 200,
-      body: { identity: 'none', webOrigin: 'https://app.example.com', apiUrl: 'https://corp.example.com' },
+      body: {
+        identity: 'none',
+        webOrigin: 'https://app.example.com',
+        apiUrl: 'https://corp.example.com',
+        publicUrl: 'https://corp.example.com',
+      },
     });
     expect((await getJson(t.app, '/api/config')).body).not.toHaveProperty('clerkPublishableKey');
   });

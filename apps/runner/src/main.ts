@@ -1,5 +1,7 @@
-// The runner daemon, `node apps/runner/src/main.ts run`; everything it does is in start.ts, on the real process.
-import { main } from './start.ts';
+// The runner, `node apps/runner/src/main.ts <command>` or `node runner.mjs <command>` (the bundle); everything it does
+// is in cli.ts, on the real process.
+import { runCli } from './cli.ts';
+import { nodeHost } from './install/system.ts';
 import { nodeDeps } from './system/node.ts';
 
-await main(process.argv.slice(2), nodeDeps());
+process.exitCode = await runCli(process.argv.slice(2), { daemon: nodeDeps, host: nodeHost });

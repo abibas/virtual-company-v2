@@ -15,6 +15,7 @@ describe('loadConfig', () => {
       DATABASE_URL: valid.DATABASE_URL,
       MWC_PORT: 9950,
       MWC_PUBLIC_URL: 'http://localhost:9950',
+      MWC_PUBLIC_URL_SET: false,
       MWC_LOG_LEVEL: 'info',
       MWC_HOST: '127.0.0.1',
       MWC_MIGRATE_ON_START: false,
@@ -110,6 +111,8 @@ describe('loadConfig with MWC_PORT_SLOT', () => {
     const explicit = loadConfig({ ...valid, MWC_PORT_SLOT: '1', MWC_PUBLIC_URL: 'https://mwc.example.com' });
     expect(explicit.MWC_PORT).toBe(9963);
     expect(explicit.MWC_PUBLIC_URL).toBe('https://mwc.example.com');
+    expect(explicit.MWC_PUBLIC_URL_SET).toBe(true);
+    expect(loadConfig({ ...valid, MWC_PUBLIC_URL: '' }).MWC_PUBLIC_URL_SET).toBe(false);
   });
 
   it('rejects slots outside 0..9 and non-integers', () => {

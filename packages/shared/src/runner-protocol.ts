@@ -37,7 +37,10 @@ export {
   ENROLLMENT_TOKEN_PATTERN,
   ENROLLMENT_TOKEN_TTL_MS,
   EnrollmentToken,
+  RUNNER_BUNDLE_PATH,
   RUNNER_ENROLL_PATH,
+  RUNNER_INSTALL_SCRIPT_PATH,
+  RUNNER_SHA256_HEADER,
   RunnerEnrollRequest,
   RunnerEnrollResponse,
 } from './runner-protocol/enroll.ts';

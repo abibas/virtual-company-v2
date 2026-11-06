@@ -72,6 +72,15 @@ export const PublicConfigSchema = z
       example: 'http://localhost:9950',
       description: 'The public URL of the API, for `mwc login --server` (MWC_PUBLIC_URL)',
     }),
+    publicUrl: z
+      .url()
+      .nullable()
+      .openapi({
+        example: 'https://corp.example.ngrok.app',
+        description:
+          "MWC_PUBLIC_URL when it is set (the address other machines reach, as a runner's install command needs), " +
+          'null when the server only knows its local address',
+      }),
   })
   .openapi('PublicConfig');
 

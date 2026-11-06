@@ -30,6 +30,8 @@ export interface RunnerOptions {
   readonly config: RunnerConfig;
   /** This runner's version (`runner.hello.version`). */
   readonly version: string;
+  /** What `claude --version` printed when the runner started, null without Claude Code; left out of the hello unset. */
+  readonly claudeVersion?: string | null;
   readonly log: Log;
   /** How it holds the machine (`hold/`): `caps.hold` is its kind. */
   readonly hold: HoldDriver;
@@ -152,7 +154,14 @@ class RunnerDaemon implements Runner {
       hold: this.#options.hold.kind,
       power: [...this.#power.providers],
     };
-    return { type: 'runner.hello', protocol: RUNNER_PROTOCOL_VERSION, version: this.#options.version, caps };
+    const { version, claudeVersion } = this.#options;
+    return {
+      type: 'runner.hello',
+      protocol: RUNNER_PROTOCOL_VERSION,
+      version,
+      caps,
+      ...(claudeVersion === undefined ? {} : { claudeVersion }),
+    };
   }
 
   #afterHello(hello: ServerHello): RunnerFrame[] {

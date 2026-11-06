@@ -64,6 +64,8 @@ export interface MainDeps {
   /** Keeps the process alive with nothing else to do (a replaced link); returns the release. */
   keepAlive(): () => void;
   readonly version: string;
+  /** Claude Code's version (`cli.ts` asks `claude --version` once), sent in the hello; left out when unknown. */
+  readonly claudeVersion?: string | null;
   /** The power controller (S4.4b); none by default. */
   readonly power?: PowerExecutor;
 }
@@ -114,6 +116,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
   return createRunner({
     config: setup.config,
     version: deps.version,
+    ...(deps.claudeVersion === undefined ? {} : { claudeVersion: deps.claudeVersion }),
     log,
     hold: holdDriverFor(setup.hold, deps, log),
     sampler: new Sampler({ os: deps.os, statfs: deps.fs.statfs, home, memory, clock, log }),

@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1
+#
+# The runner in a container (docs/machines.md, "Installing a runner"): Node 24, git and tini as PID 1, with the runner
+# bundle (apps/runner/dist/runner.mjs, built here) run by a non-root user. Its state, runner.json with the runner key
+# included, is the volume /var/lib/mwc-runner. On its first start, without a runner.json and with MWC_ENROLL_TOKEN and
+# MWC_SERVER_URL, the runner enrolls the container (kind container), then runs; later starts need no token.
+#
+#   docker build -f deploy/Dockerfile.runner -t mwc-v2/runner:local .
+#   MWC_ENROLL_TOKEN=mwc_et_... docker compose -f deploy/compose.yml --profile runner up -d runner-local
+
+ARG NODE_IMAGE=node:24.21.0-slim
+
+# pnpm at the version pinned in package.json ("packageManager"), through corepack.
+FROM ${NODE_IMAGE} AS pnpm
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    CI=true
+WORKDIR /app
+COPY package.json ./
+RUN corepack enable && corepack install
+
+# The runner as one file: the runner, the workspace packages it depends on, and its build tool (esbuild).
+FROM pnpm AS bundle
+COPY . .
+RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store --filter-prod "@mwc/runner..." \
+ && pnpm --filter @mwc/runner build
+
+FROM ${NODE_IMAGE} AS runtime
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates git tini \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --create-home --uid 10001 --user-group runner \
+ && mkdir -p /opt/mwc-runner /var/lib/mwc-runner \
+ && chown runner:runner /var/lib/mwc-runner \
+ && chmod 0700 /var/lib/mwc-runner
+# The container is the machine (kind container); its configuration lives in the state volume; nothing holds it awake.
+ENV NODE_ENV=production \
+    MWC_RUNNER_IN_CONTAINER=1 \
+    MWC_RUNNER_STATE_DIR=/var/lib/mwc-runner \
+    MWC_RUNNER_CONFIG=/var/lib/mwc-runner/runner.json \
+    MWC_RUNNER_HOLD=none
+COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs
+USER runner
+WORKDIR /home/runner
+VOLUME /var/lib/mwc-runner
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:9953/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+# tini forwards SIGTERM to the runner (which stops its runs and releases its hold) and reaps what it leaves.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "/opt/mwc-runner/runner.mjs", "run"]

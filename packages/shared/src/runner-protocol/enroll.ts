@@ -5,7 +5,7 @@ import { ClaudeVersion, JsonObject, RunnerVersion, Uuid } from './common.ts';
 import { RunnerKey } from './server-frames.ts';
 
 /**
- * Enrolling a machine (docs/runner-protocol.md, "Enrollment"): `mwc runner install --token` trades a one-time
+ * Enrolling a machine (docs/runner-protocol.md, "Enrollment"): the runner's `install --token` trades a one-time
  * enrollment token at `POST /api/runner/enroll` for the machine's id and its runner key. Plain HTTP with JSON bodies
  * (strict objects, unlike the frames): the token is the only credential.
  */
@@ -18,6 +18,15 @@ export const ENROLLMENT_TOKEN_TTL_MS = 60 * 60_000;
 
 /** Where a runner enrolls. */
 export const RUNNER_ENROLL_PATH = '/api/runner/enroll';
+
+/**
+ * The installer a machine runs (`curl -fsSL <server>/api/runner/install.sh | sh -s -- --server <server> --token …`),
+ * the runner bundle it downloads, and the response header with the bundle's SHA-256 (hex), which it checks (S4.5).
+ * Both are public: the enrollment token passed to the script is the secret.
+ */
+export const RUNNER_INSTALL_SCRIPT_PATH = '/api/runner/install.sh';
+export const RUNNER_BUNDLE_PATH = '/api/runner/runner.mjs';
+export const RUNNER_SHA256_HEADER = 'x-mwc-runner-sha256';
 
 export const EnrollmentToken = z.string().regex(ENROLLMENT_TOKEN_PATTERN, 'an enrollment token (mwc_et_…)');
 

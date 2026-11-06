@@ -182,6 +182,8 @@ export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
     ...(MWC_PORT_SLOT === undefined ? {} : { MWC_PORT_SLOT }),
     MWC_PORT: port,
     MWC_PUBLIC_URL: publicUrl,
+    /** MWC_PUBLIC_URL was given rather than derived from the port (`/api/config`'s `publicUrl` is null without it). */
+    MWC_PUBLIC_URL_SET: MWC_PUBLIC_URL !== undefined,
     MWC_WEB_ORIGIN:
       MWC_WEB_ORIGIN === undefined ? defaultWebOrigin(env, publicUrl) : new URL(MWC_WEB_ORIGIN).origin,
     MWC_IDENTITY: identity,

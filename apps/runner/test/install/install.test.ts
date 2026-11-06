@@ -1,0 +1,96 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readRunnerConfig, writeRunnerConfig } from '../../src/config.ts';
+import { installCommand } from '../../src/install/install.ts';
+import { downloadedBundle, enrollWorld, NODE, noFetch, SERVER, testHost } from '../fixtures/host.ts';
+import { runnerConfig } from '../fixtures/runner.ts';
+
+let w: Awaited<ReturnType<typeof enrollWorld>>;
+beforeAll(async () => {
+  w = await enrollWorld();
+});
+afterAll(() => w.t.close());
+
+const commandLine = (call: { file: string; args: readonly string[] }) => [call.file, ...call.args].join(' ');
+
+describe('mwc-runner install on macOS', () => {
+  it('enrolls, copies the downloaded runner to ~/.local/share/mwc-runner and loads the launchd agent', async () => {
+    const { host, home, execs, out } = testHost({ platform: 'darwin', fetch: w.fetch });
+    downloadedBundle(host, '// runner 0.1.0\n');
+    expect(await installCommand(host, { server: SERVER, token: await w.token() })).toBe(0);
+    const bundle = join(home, '.local/share/mwc-runner/runner.mjs');
+    expect(readFileSync(bundle, 'utf8')).toBe('// runner 0.1.0\n');
+    const plist = join(home, 'Library/LaunchAgents/com.mwc.runner.plist');
+    expect(readFileSync(plist, 'utf8')).toContain(`<string>${bundle}</string>`);
+    expect(execs.map(commandLine)).toEqual([`/bin/launchctl bootstrap gui/501 ${plist}`]);
+    const config = readRunnerConfig(join(home, '.config/mwc/runner.json'));
+    expect(out()).toBe(
+      `Enrolled this machine as "ihors-mac" (laptop), machine ${config.machineId}, on ${SERVER}. ` +
+        `Its runner key is in ${home}/.config/mwc/runner.json (readable by you only).\n` +
+        `Installed the runner in ${bundle} and started it as a launchd agent (${plist}).\n` +
+        `Check it with: ${NODE} ${bundle} status\n` +
+        `Its log: tail -f ${home}/.local/state/mwc-runner/runner.log\n`,
+    );
+  });
+});
+
+describe('mwc-runner install on Linux', () => {
+  it('keeps the enrollment it has without a token, and runs from the installed copy without copying it', async () => {
+    const { host, home, execs, out } = testHost({ fetch: noFetch, files: ['/var/lib/systemd/linger/ihor'] });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER, { name: 'Airia devbox' }));
+    const installed = { ...host, selfPath: join(home, '.local/share/mwc-runner/runner.mjs') };
+    downloadedBundle(installed, '// installed\n');
+    expect(await installCommand(installed, {})).toBe(0);
+    expect(readFileSync(installed.selfPath, 'utf8')).toBe('// installed\n');
+    expect(execs.map(commandLine)).toEqual([
+      'systemctl --user daemon-reload',
+      'systemctl --user enable --now mwc-runner.service',
+    ]);
+    expect(out()).toMatch(
+      /^Keeping the enrollment as "Airia devbox", machine [-0-9a-f]+, on https:\/\/corp\.example\.test\.\n/,
+    );
+    expect(out()).toContain('started it as a systemd user unit');
+    expect(out()).toContain('Its log: journalctl --user -u mwc-runner.service -f\n');
+  });
+
+  it('shows the warnings of the service manager', async () => {
+    const refused = { code: 1, stdout: '', stderr: 'Access denied' };
+    const { host, home, out } = testHost({ exec: (file) => (file === 'systemctl' ? undefined : refused) });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    downloadedBundle(host);
+    await installCommand(host, {});
+    expect(out()).toContain('warning: the runner stops when you log out');
+  });
+});
+
+describe('mwc-runner install refusing', () => {
+  it('refuses before the token is used: another system, a container, the sources, --server without --token', async () => {
+    const token = `mwc_et_${'a1B2'.repeat(8)}`;
+    const cases = [
+      [{ platform: 'win32' as const }, 'not on win32', 1],
+      [{ files: ['/.dockerenv'] }, "the container's main process", 1],
+      [{ selfPath: '/repo/apps/runner/src/main.ts' }, 'run it from the built runner.mjs', 1],
+    ] as const;
+    for (const [options, message, code] of cases) {
+      const { host } = testHost({ ...options, fetch: noFetch });
+      await expect(installCommand(host, { server: SERVER, token })).rejects.toThrow(
+        expect.objectContaining({ code, message: expect.stringContaining(message) }),
+      );
+    }
+    const { host } = testHost({ fetch: noFetch });
+    await expect(installCommand(host, { server: SERVER })).rejects.toThrow(
+      expect.objectContaining({ code: 64, message: expect.stringContaining('--server goes with --token') }),
+    );
+  });
+
+  it('says to give a token when the machine has no enrollment, with the configuration code', async () => {
+    const { host } = testHost({ fetch: noFetch });
+    await expect(installCommand(host, {})).rejects.toThrow(
+      expect.objectContaining({
+        code: 78,
+        message: expect.stringContaining('give --server and --token to enroll it'),
+      }),
+    );
+  });
+});

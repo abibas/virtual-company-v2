@@ -81,10 +81,12 @@ export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal' | 
  */
 export function publicConfig(config: Config): PublicConfig {
   const clerk = config.MWC_IDENTITY === 'clerk' && config.CLERK_PUBLISHABLE_KEY !== undefined;
+  const apiUrl = config.MWC_PUBLIC_URL.replace(/\/+$/, '');
   return {
     identity: clerk ? 'clerk' : 'none',
     ...(clerk ? { clerkPublishableKey: config.CLERK_PUBLISHABLE_KEY } : {}),
     webOrigin: config.MWC_WEB_ORIGIN,
-    apiUrl: config.MWC_PUBLIC_URL.replace(/\/+$/, ''),
+    apiUrl,
+    publicUrl: config.MWC_PUBLIC_URL_SET ? apiUrl : null,
   };
 }

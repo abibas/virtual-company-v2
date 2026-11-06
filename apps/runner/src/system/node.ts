@@ -6,6 +6,7 @@ import { WebSocket } from 'ws';
 import { detectPowerExecutor } from '../power/detect.ts';
 import type { MainDeps } from '../start.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
+import { runnerVersion } from './version.ts';
 
 /** The real process behind `main` (`main.ts`): Node's own modules, `ws`, the environment and the signals. */
 
@@ -47,7 +48,7 @@ export function nodeDeps(): MainDeps {
       const timer = setInterval(() => {}, 2 ** 30);
       return () => clearInterval(timer);
     },
-    version: readRunnerVersion(),
+    version: runnerVersion(readRunnerVersion),
     // A power controller when the airia CLI and gcloud are installed here (found without starting a process).
     power: detectPowerExecutor({ env: process.env, home: os.homedir(), exists: existsSync }),
   };

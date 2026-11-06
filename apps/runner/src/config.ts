@@ -1,6 +1,6 @@
 /**
  * The runner's configuration file (`~/.config/mwc/runner.json`, 0600 in a 0700 folder) and its state folder. The
- * runner reads the file once at start; `mwc runner install` (S4.5) writes it with the same helpers, imported from
+ * runner reads the file once at start; its `enroll` and `install` commands (S4.5) write it with the same helpers, from
  * `@mwc/runner/config`, and `key.rotate` rewrites it with the new key. The file is a loose object, so fields a newer
  * installer adds survive a rewrite by an older runner.
  */
@@ -91,7 +91,9 @@ export function readRunnerConfig(path: string): RunnerConfig {
     text = readFileSync(path, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new RunnerConfigError(`${path} does not exist; enroll this machine with mwc runner install`);
+      throw new RunnerConfigError(
+        `${path} does not exist; enroll this machine first (mwc machine enroll-token prints its install command)`,
+      );
     }
     throw new RunnerConfigError(`cannot read ${path}: ${(error as Error).message}`);
   }

@@ -93,7 +93,7 @@ describe('reading the file', () => {
     const path = join(tempDir(), 'runner.json');
     expect(() => readRunnerConfig(path)).toThrow(RunnerConfigError);
     expect(() => readRunnerConfig(path)).toThrow(
-      `${path} does not exist; enroll this machine with mwc runner install`,
+      `${path} does not exist; enroll this machine first (mwc machine enroll-token prints its install command)`,
     );
   });
 

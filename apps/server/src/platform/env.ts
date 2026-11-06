@@ -18,6 +18,11 @@ export interface AppDeps {
   /** The built web UI (apps/web/dist) to serve for `/` and client routes; omitted in dev and tests. */
   readonly webDist?: string;
   /**
+   * The built runner (apps/runner/dist/runner.mjs) that `GET /api/runner/runner.mjs` serves. Omitted, the repository's
+   * (the server image copies it to the same place).
+   */
+  readonly runnerBundle?: string;
+  /**
    * The migrations the database must have for `/readyz` (`readJournal()` of `@mwc/db`). Omitted, the
    * package's own journal is read once when the app is built, never per request.
    */

@@ -27,7 +27,7 @@ describe('mwc-runner refusing to start', () => {
     const code = await main(['run'], { ...missing.deps, env });
     expect(code).toBe(EXIT.config);
     expect(missing.entries()[0]?.msg).toContain(
-      'none.json does not exist; enroll this machine with mwc runner install',
+      'none.json does not exist; enroll this machine first (mwc machine enroll-token prints its install command)',
     );
     const hold = world({ env: { MWC_RUNNER_HOLD: 'pmset' } });
     expect(await main(['run'], hold.deps)).toBe(EXIT.config);

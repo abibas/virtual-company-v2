@@ -1,7 +1,9 @@
-# The dev Postgres on 127.0.0.1:9952 for `pnpm dev` (mwc dev) and the `mwc check --full` Postgres lane.
+# The dev Postgres on 127.0.0.1:9952 for `pnpm dev` (mwc dev) and the `mwc check --full` Postgres lane, and, behind
+# the `runner` profile, a runner in a container (runner-local) that plain `docker compose up` leaves out.
 #
 #   docker compose -f deploy/compose.yml up -d --wait postgres
 #   docker compose -f deploy/compose.yml down          # keeps the data volume (down -v drops it)
+#   MWC_ENROLL_TOKEN=mwc_et_... docker compose -f deploy/compose.yml --profile runner up -d runner-local
 #
 # The prod-like stack (server image, migrate step, its own Postgres) is deploy/compose.prod.yml.
 name: mwc-v2
@@ -26,5 +28,41 @@ services:
       start_period: 30s
       start_interval: 1s
 
+  # A runner in a container (deploy/Dockerfile.runner; docs/machines.md, "Installing a runner"). On its first start it
+  # enrolls with the one-time token (mwc machine enroll-token prints the command) and keeps its runner.json in the
+  # runner-state volume, so later starts need no token. It dials out to the API on this machine (MWC_SERVER_URL; the dev
+  # API on 9950 by default) and publishes no port: its health endpoint (9953) is for its own health check.
+  runner-local:
+    profiles: [runner]
+    image: mwc-v2/runner:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.runner
+    environment:
+      MWC_SERVER_URL: ${MWC_SERVER_URL:-http://host.docker.internal:9950}
+      MWC_ENROLL_TOKEN: ${MWC_ENROLL_TOKEN:-}
+      MWC_RUNNER_NAME: ${MWC_RUNNER_NAME:-runner-local}
+    extra_hosts:
+      # Docker Desktop has this name; on Linux it points at the host's gateway.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - runner-state:/var/lib/mwc-runner
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9953/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    # The runner stops its runs gracefully (SIGINT, 20 s, SIGTERM, 10 s, SIGKILL) before it exits.
+    stop_grace_period: 90s
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  runner-state:
