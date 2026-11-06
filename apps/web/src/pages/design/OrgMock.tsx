@@ -18,6 +18,7 @@ const LINKS: AgentLinks = {
   list: `${HERE}?view=list`,
   hire: `${HERE}?agent=new`,
   agent: (agent) => `${HERE}?agent=${agent.slug}`,
+  machines: HERE,
 };
 
 const none = () => undefined;

@@ -13,6 +13,7 @@ import { ButtonLink } from '../../components/ui/Button.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import { SkeletonRows } from '../../components/ui/Skeleton.tsx';
+import { placementLine } from '../placements/placement-draft.ts';
 import type { AgentLinks } from './links.ts';
 
 const FILTERS: readonly SegmentOption<AgentFilter>[] = [
@@ -41,7 +42,15 @@ function ProfileCell({ profile }: { readonly profile: Agent['profile'] }) {
   );
 }
 
-/** The columns: the agent (face, name, slug), its role, status, model, effort, access profile and manager. */
+/** The machine it runs on and how, or Nowhere yet in grey. */
+function MachineCell({ placement }: { readonly placement: Agent['placement'] }) {
+  if (!placement) return <span className="text-dim">Nowhere yet</span>;
+  return <span title={placementLine(placement)}>{placement.machineName}</span>;
+}
+
+/**
+ * The columns: the agent (face, name, slug), its role, status, model, effort, access profile, machine and manager.
+ */
 function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): readonly Column<Agent>[] {
   return [
     {
@@ -81,6 +90,12 @@ function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): r
       header: 'Profile',
       hide: 'lg',
       cell: (agent) => <ProfileCell profile={agent.profile} />,
+    },
+    {
+      key: 'machine',
+      header: 'Machine',
+      hide: 'lg',
+      cell: (agent) => <MachineCell placement={agent.placement} />,
     },
     { key: 'manager', header: 'Reports to', hide: 'lg', cell: managerOf },
   ];

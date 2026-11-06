@@ -12,6 +12,7 @@ import { AgentAvatar } from '../../components/org/OrgNodeCard.tsx';
 import { StatusPill } from '../../components/ui/Badge.tsx';
 import { Button, type ButtonTone } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
+import { placementLine } from '../placements/placement-draft.ts';
 
 interface StatusProps {
   readonly agent: AgentDetail;
@@ -70,8 +71,8 @@ function StatusActions({ agent, calls, onChanged }: StatusProps) {
 }
 
 /**
- * The facts under the name: its handle, its manager, what powers it and on whose access profile, its revision and
- * when it was hired.
+ * The facts under the name: its handle, its manager, what powers it and on whose access profile, the machine it runs
+ * on and how, its revision and when it was hired.
  */
 function AgentFacts({
   agent,
@@ -83,7 +84,8 @@ function AgentFacts({
   const facts: readonly [string, string][] = [
     ['Handle', agent.slug],
     ['Reports to', manager ? nodeName(manager) : agent.status === 'archived' ? 'Off the chart' : '—'],
-    ['Runs on', `${harnessLabel(agent.harness)}, ${modelLine(agent.model, agent.effort)}`],
+    ['Powered by', `${harnessLabel(agent.harness)}, ${modelLine(agent.model, agent.effort)}`],
+    ['Runs on', placementLine(agent.placement)],
     ['Access profile', profileLabel(agent.profile)],
     ['Instructions', `Revision ${agent.instructionsRev}`],
   ];

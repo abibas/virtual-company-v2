@@ -11,11 +11,12 @@ import {
 } from './rules.ts';
 import type { MachineUpdate, MachineView } from './schemas.ts';
 import type { RunnerHub } from './service/hub.ts';
+import { agentCounts, removeMachinePlacements } from './service/placement.ts';
 
 const iso = (at: Date | null) => at?.toISOString() ?? null;
 
-/** A machine as the API shows it. */
-export function machineView(row: Machine): MachineView {
+/** A machine as the API shows it, with how many agents not archived run on it by default (`agentCount`). */
+export function machineView(row: Machine, agentCount: number): MachineView {
   return {
     id: row.id,
     name: row.name,
@@ -33,6 +34,7 @@ export function machineView(row: Machine): MachineView {
     lastSeenAt: iso(row.lastSeenAt),
     hold: { until: iso(row.holdUntil), source: row.holdSource },
     hourlyCost: row.hourlyCost,
+    agentCount,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -68,6 +70,9 @@ async function controllerRefusal(
   return (await repo.get(t, controllerId)) === undefined ? CONTROLLER_NOT_FOUND : undefined;
 }
 
+/** A machine's view with its agent count, read in the caller's transaction when it is one. */
+const viewOf = async (t: TenantDb, row: Machine) => machineView(row, (await agentCounts(t)).get(row.id) ?? 0);
+
 /** Renames a machine and/or sets (or clears) a devbox's controller; audited. */
 async function update(
   repo: MachinesRepo,
@@ -94,13 +99,14 @@ async function update(
     });
     const changes = diffFields(fields(before), fields(row));
     await repo.audit(tx, { ...userEntry(caller, 'machine', row.id, 'update'), changes });
-    return { ok: true as const, machine: machineView(row) };
+    return { ok: true as const, machine: await viewOf(tx, row) };
   });
 }
 
 /**
  * Removes a machine: it is gone from every list and read, its runner keys are revoked (its runner is refused from now
- * on), its socket is closed (4001) and it is offline; its sessions and samples stay for the history. Audited.
+ * on), the agents' placements on it are deleted, its socket is closed (4001) and it is offline; its sessions and
+ * samples stay for the history. Audited, under the company's lock (so no placement onto it is set meanwhile).
  */
 async function remove(
   repo: MachinesRepo,
@@ -110,6 +116,7 @@ async function remove(
   id: string,
 ): Promise<{ readonly ok: true } | Refusal> {
   const removed = await t.transaction(async (tx) => {
+    await tx.lockCompany();
     const machine = await repo.get(tx, id);
     if (machine === undefined) return undefined;
     const row = (await repo.update(tx, machine.id, { removedAt: caller.now, status: 'offline' })) as Machine;
@@ -119,6 +126,7 @@ async function remove(
       const revoked = diffFields({ revokedAt: null }, { revokedAt: key.revokedAt });
       await repo.audit(tx, { ...userEntry(caller, 'api_key', key.id, 'revoke'), changes: revoked });
     }
+    await removeMachinePlacements(tx, caller, row.id);
     return row;
   });
   if (removed === undefined) return MACHINE_NOT_FOUND;
@@ -130,11 +138,15 @@ async function remove(
 export function machinesService(deps: { readonly hub: RunnerHub }) {
   const repo = machinesRepo();
   return {
-    list: async (t: TenantDb) => (await repo.list(t)).map(machineView),
+    async list(t: TenantDb): Promise<MachineView[]> {
+      const rows = await repo.list(t);
+      const counts = await agentCounts(t);
+      return rows.map((row) => machineView(row, counts.get(row.id) ?? 0));
+    },
 
     async get(t: TenantDb, id: string): Promise<Viewed> {
       const row = await repo.get(t, id);
-      return row === undefined ? MACHINE_NOT_FOUND : { ok: true, machine: machineView(row) };
+      return row === undefined ? MACHINE_NOT_FOUND : { ok: true, machine: await viewOf(t, row) };
     },
 
     update: (t: TenantDb, caller: Caller, id: string, change: MachineUpdate) =>

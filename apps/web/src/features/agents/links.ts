@@ -10,6 +10,8 @@ export interface AgentLinks {
   readonly hire: string;
   /** One agent's page. */
   agent(agent: { readonly slug: string; readonly id: string }): string;
+  /** The Machines page, where the machines agents run on are enrolled. */
+  readonly machines: string;
 }
 
 /** The word of `/agents/new`; an agent with this slug is reached by its id instead. */
@@ -19,7 +21,7 @@ const HIRE = 'new';
 export const agentAddress = (agent: { readonly slug: string; readonly id: string }): string =>
   agent.slug === HIRE ? agent.id : agent.slug;
 
-/** The links of a company's Agents pages: `/:slug/agents`, `?view=list`, `/new` and `/:agent`. */
+/** The links of a company's Agents pages: `/:slug/agents`, `?view=list`, `/new` and `/:agent`, and its machines. */
 export function companyAgentLinks(companySlug: string): AgentLinks {
   const base = companyPath(companySlug, 'agents');
   return {
@@ -27,6 +29,7 @@ export function companyAgentLinks(companySlug: string): AgentLinks {
     list: `${base}?view=list`,
     hire: `${base}/${HIRE}`,
     agent: (agent) => `${base}/${agentAddress(agent)}`,
+    machines: companyPath(companySlug, 'machines'),
   };
 }
 

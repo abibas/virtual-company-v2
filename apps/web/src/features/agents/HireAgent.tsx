@@ -2,7 +2,7 @@ import { ArrowLeft, UserPlus } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
-import { orgCalls } from '../../api/org.ts';
+import { orgCalls, placementCalls } from '../../api/org.ts';
 import type { AgentDetail, ChartNode, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
@@ -12,6 +12,8 @@ import { OrgNodeCard } from '../../components/org/OrgNodeCard.tsx';
 import { OrgTree } from '../../components/org/OrgTree.tsx';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
+import { type PlacementDraft, placementStep, usePlacementDraft } from '../placements/placement-draft.ts';
+import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { type AgentDraft, newAgentOf, useAgentDraft } from './agent-draft.ts';
 import type { AgentLinks } from './links.ts';
@@ -47,12 +49,17 @@ function previewNode(draft: AgentDraft): ChartNode {
       model: values.model.trim() || '…',
       effort: values.effort,
       profile: null,
+      placement: null,
     },
   };
 }
 
 /** Its place as the chart will show it: its manager's card, and its own card under it, live. */
-function ChartPreview({ draft, chart, meUserId }: Omit<HireFormProps, 'companyId' | 'links' | 'onHired'>) {
+function ChartPreview({
+  draft,
+  chart,
+  meUserId,
+}: Omit<HireFormProps, 'companyId' | 'links' | 'onHired' | 'placement'>) {
   const manager = nodesById(chart.nodes).get(draft.values.reportsTo);
   const node = previewNode(draft);
   const leaf = { principalId: PREVIEW, kind: 'agent' as const, orphan: false, children: [] };
@@ -85,13 +92,17 @@ interface HireFormProps {
   readonly companyId: string;
   readonly chart: OrgChart;
   readonly draft: AgentDraft;
+  readonly placement: PlacementDraft;
   readonly meUserId: string;
   readonly links: AgentLinks;
   readonly onHired: (agent: AgentDetail) => void;
 }
 
-/** The form with its live preview and the Hire button: `POST /agents`, then its page. */
-function HireForm({ companyId, chart, draft, meUserId, links, onHired }: HireFormProps) {
+/**
+ * Hiring: `POST /agents`, then where it runs (`PUT` of its placement, when a machine is chosen), then `onHired`; a
+ * refusal of the hire shows in the form.
+ */
+function useHire(companyId: string, drafts: Pick<HireFormProps, 'draft' | 'placement' | 'onHired'>) {
   const api = useApi();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -100,19 +111,36 @@ function HireForm({ companyId, chart, draft, meUserId, links, onHired }: HireFor
     setBusy(true);
     setError(undefined);
     try {
-      onHired(await orgCalls(api, companyId).hire(newAgentOf(draft)));
+      const agent = await orgCalls(api, companyId).hire(newAgentOf(drafts.draft));
+      const step = placementStep(drafts.placement);
+      // Hired already: a placement refused here is chosen again on its page, which then shows it nowhere.
+      if (step.kind === 'put') {
+        await placementCalls(api, companyId)
+          .set(agent.id, step.change)
+          .catch(() => undefined);
+      }
+      drafts.onHired(agent);
     } catch (failure) {
       setError(friendlyMessage(failure));
       setBusy(false);
     }
   };
+  return { busy, error, submit };
+}
+
+/** The form with its live preview and the Hire button. */
+function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired }: HireFormProps) {
+  const { busy, error, submit } = useHire(companyId, { draft, placement, onHired });
+  const where = (
+    <WhereItRuns draft={placement} companyId={companyId} machinesHref={links.machines} readOnly={false} />
+  );
   return (
     <form
       onSubmit={(event) => void submit(event)}
       className="grid items-start gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]"
     >
       <div className="grid min-w-0 gap-4 md:gap-5">
-        <AgentForm draft={draft} chart={chart} meUserId={meUserId} />
+        <AgentForm draft={draft} where={where} chart={chart} meUserId={meUserId} />
         <FormActions
           status="It joins the chart at once and works only on the tasks it is given."
           error={error}
@@ -120,7 +148,13 @@ function HireForm({ companyId, chart, draft, meUserId, links, onHired }: HireFor
           <ButtonLink href={links.chart} tone="quiet">
             Cancel
           </ButtonLink>
-          <Button type="submit" tone="primary" icon={UserPlus} busy={busy} disabled={!draft.valid}>
+          <Button
+            type="submit"
+            tone="primary"
+            icon={UserPlus}
+            busy={busy}
+            disabled={!draft.valid || !placement.valid}
+          >
             Hire agent
           </Button>
         </FormActions>
@@ -139,11 +173,12 @@ function HireForm({ companyId, chart, draft, meUserId, links, onHired }: HireFor
 function HireWithChart({
   defaultProfileId,
   ...props
-}: Omit<HireFormProps, 'draft'> & { readonly defaultProfileId: string | null }) {
+}: Omit<HireFormProps, 'draft' | 'placement'> & { readonly defaultProfileId: string | null }) {
   const me = personNode(props.chart.nodes, props.meUserId);
   const reportsTo = me?.principalId ?? props.chart.tree[0]?.principalId ?? '';
   const draft = useAgentDraft(undefined, reportsTo, defaultProfileId);
-  return <HireForm {...props} draft={draft} />;
+  const placement = usePlacementDraft(null);
+  return <HireForm {...props} draft={draft} placement={placement} />;
 }
 
 /** `/agents/new` (admins and owners): hire an agent onto the chart. */

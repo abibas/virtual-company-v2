@@ -12,6 +12,9 @@ import {
   MachineProvider,
   MachineSample,
   MachineStatus,
+  PermissionPolicy,
+  PlacementMode,
+  PlacementPath,
   PowerAction,
   PowerEventAction,
   PowerProvider,
@@ -29,6 +32,8 @@ describe('the machines enums', () => {
     expect(MachineProvider).toBe(enums.MachineProvider);
     expect(MachineStatus).toBe(enums.MachineStatus);
     expect(PowerEventAction).toBe(enums.PowerEventAction);
+    expect(PlacementMode).toBe(enums.PlacementMode);
+    expect(PermissionPolicy).toBe(enums.PermissionPolicy);
   });
 
   it('list the protocol values', () => {
@@ -37,6 +42,16 @@ describe('the machines enums', () => {
     expect(PowerStatus.options).toEqual(['running', 'stopped', 'starting', 'stopping', 'missing', 'unknown']);
     expect(HoldDriver.options).toEqual(['devbox_keepalive', 'caffeinate', 'none']);
     expect(DevboxSize.options).toEqual(['s', 'm', 'l', 'xl']);
+  });
+});
+
+describe('PlacementPath', () => {
+  it('takes an absolute path on one line, trimmed, up to 500 characters', () => {
+    expect(PlacementPath.parse('  /Users/ihor/agents/slop-box ')).toBe('/Users/ihor/agents/slop-box');
+    expect(PlacementPath.parse(`/${'a'.repeat(499)}`)).toHaveLength(500);
+    for (const bad of ['', '   ', 'agents/slop-box', '~/airia-dev', '/a\nb', `/${'a'.repeat(500)}`]) {
+      expect(PlacementPath.safeParse(bad).success).toBe(false);
+    }
   });
 });
 

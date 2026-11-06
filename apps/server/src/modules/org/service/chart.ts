@@ -1,6 +1,7 @@
 import type { Agent, Membership, OrgPosition, TenantDb } from '@mwc/db';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { profilesOf, type UserProfile } from '../../identity/service.ts';
+import { type PlacementSummary, placementsOf } from '../../machines/service/placement.ts';
 import type { OrgRepo } from '../repo.ts';
 import type { ChartNode } from '../rules/chart.ts';
 import type { OrgState } from '../rules/placement.ts';
@@ -13,10 +14,14 @@ import { loadOrg } from './read.ts';
 /** Who a member is when their profile is missing (never, while `memberships.user_id` keeps its key). */
 const UNKNOWN_PERSON = { displayName: null, primaryEmail: '', imageUrl: null } as const;
 
-/** What a node shows besides the chart: people's profiles by user id, agents' access profiles by id. */
+/**
+ * What a node shows besides the chart: people's profiles by user id, agents' access profiles by id, and where agents
+ * run by agent id.
+ */
 interface Shown {
   readonly people: ReadonlyMap<string, UserProfile>;
   readonly profiles: ReadonlyMap<string, AgentProfileView>;
+  readonly placements: ReadonlyMap<string, PlacementSummary>;
 }
 
 /**
@@ -38,10 +43,11 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
   const agent = org.agents.get(node.principalId) as Agent;
   const { id: agentId, name, slug, roleTitle, status, face, model, effort } = agent;
   const profile = shown.profiles.get(agent.profileId as string) ?? null;
+  const placement = shown.placements.get(agentId) ?? null;
   return {
     ...base,
     kind: 'agent',
-    agent: { agentId, name, slug, roleTitle, status, face, model, effort, profile },
+    agent: { agentId, name, slug, roleTitle, status, face, model, effort, profile, placement },
   };
 }
 
@@ -49,8 +55,8 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
  * Reads the company's chart for `GET /org/chart`: every active member's and every agent's place (archived agents
  * have none) with their display data, and the same as a tree (`buildTree`). A stored chart that breaks an invariant
  * is still answered, its orphans flagged in the tree, and logged at warn level once per company until its flaws
- * change. People's names, emails and photos come from the identity module's service, read outside any transaction, and
- * agents' access profiles from `profileRefs`.
+ * change. People's names, emails and photos come from the identity module's service, read outside any transaction,
+ * agents' access profiles from `profileRefs` and where they run from the machines module's service.
  */
 export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRepo) {
   const warned = new Map<string, string>();
@@ -68,7 +74,8 @@ export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRe
     const userIds = org.chart.flatMap((node) => org.members.get(node.principalId)?.userId ?? []);
     const people = await profilesOf(deps.db, userIds);
     const profileIds = [...org.agents.values()].map((agent) => agent.profileId);
-    const shown = { people, profiles: await profileRefs(deps, repo, t, profileIds) };
+    const profiles = await profileRefs(deps, repo, t, profileIds);
+    const shown = { people, profiles, placements: await placementsOf(t) };
     warnOnce(t.companyId, org.chart);
     return { nodes: org.chart.map((node) => nodeView(org, node, shown)), tree: buildTree(org.chart) };
   };

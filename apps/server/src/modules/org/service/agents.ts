@@ -2,6 +2,7 @@ import { type Agent, diffFields, type OrgPosition, type TenantDb } from '@mwc/db
 import { newId } from '@mwc/shared/ids';
 import { agentFace } from '@mwc/shared/org';
 import type { ServerDeps } from '../../../platform/env.ts';
+import { placementsOf } from '../../machines/service/placement.ts';
 import type { OrgRepo } from '../repo.ts';
 import {
   AGENT_NOT_FOUND,
@@ -27,7 +28,10 @@ export type AgentRows<S extends RefusalStatus> =
   | { readonly ok: true; readonly agent: Agent; readonly position: OrgPosition | undefined }
   | Refusal<S>;
 
-/** An agent a change left, as the API shows it: with its access profile, read after the change's transaction. */
+/**
+ * An agent a change left, as the API shows it: with its access profile and where it runs, read after the change's
+ * transaction.
+ */
 export async function shownAgent<S extends RefusalStatus>(
   deps: Pick<ServerDeps, 'db'>,
   repo: OrgRepo,
@@ -37,7 +41,8 @@ export async function shownAgent<S extends RefusalStatus>(
   if (!result.ok) return result;
   const { agent, position } = result;
   const profile = (await profileRefs(deps, repo, t, [agent.profileId])).get(agent.profileId as string);
-  return { ok: true, agent: agentDetail(agent, position, profile ?? null) };
+  const placement = (await placementsOf(t)).get(agent.id) ?? null;
+  return { ok: true, agent: agentDetail(agent, position, { profile: profile ?? null, placement }) };
 }
 
 /**

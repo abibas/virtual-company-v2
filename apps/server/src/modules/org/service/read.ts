@@ -2,7 +2,7 @@ import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
 import type { OrgRepo } from '../repo.ts';
 import { type OrgState, orgState } from '../rules/placement.ts';
 import type { AgentProfileView } from '../schemas/profiles.ts';
-import type { AgentDetailView, AgentView, PositionView } from '../schemas.ts';
+import type { AgentDetailView, AgentPlacementSummaryView, AgentView, PositionView } from '../schemas.ts';
 
 /** The company's chart as stored (in the caller's transaction when it is one). */
 export async function loadOrg(repo: OrgRepo, t: TenantDb): Promise<OrgState> {
@@ -14,11 +14,17 @@ export async function loadOrg(repo: OrgRepo, t: TenantDb): Promise<OrgState> {
 
 type Place = Pick<OrgPosition, 'reportsToPrincipalId' | 'title'> | undefined;
 
+/** What an agent's views show beside its own row: its access profile and where it runs (the machines module's). */
+export interface AgentExtras {
+  readonly profile: AgentProfileView | null;
+  readonly placement: AgentPlacementSummaryView | null;
+}
+
 /**
- * An agent as lists show it, with its place on the chart (none once archived) and its access profile (`profile`, read
- * by `profileRefs`): never its instructions.
+ * An agent as lists show it, with its place on the chart (none once archived), its access profile (`profile`, read
+ * by `profileRefs`) and where it runs (`placement`, from the machines module): never its instructions.
  */
-export function agentView(agent: Agent, place: Place, profile: AgentProfileView | null): AgentView {
+export function agentView(agent: Agent, place: Place, extras: AgentExtras): AgentView {
   return {
     id: agent.id,
     principalId: agent.principalId,
@@ -34,15 +40,16 @@ export function agentView(agent: Agent, place: Place, profile: AgentProfileView 
     face: agent.face,
     reportsTo: place?.reportsToPrincipalId ?? null,
     title: place?.title ?? null,
-    profile,
+    profile: extras.profile,
+    placement: extras.placement,
     createdAt: agent.createdAt.toISOString(),
     updatedAt: agent.updatedAt.toISOString(),
   };
 }
 
 /** One agent with its standing instructions. */
-export function agentDetail(agent: Agent, place: Place, profile: AgentProfileView | null): AgentDetailView {
-  return { ...agentView(agent, place, profile), instructions: agent.instructions };
+export function agentDetail(agent: Agent, place: Place, extras: AgentExtras): AgentDetailView {
+  return { ...agentView(agent, place, extras), instructions: agent.instructions };
 }
 
 /** A place on the chart as the API shows it. */

@@ -1,5 +1,5 @@
 import { AGENT_MAX_CONCURRENT_RUNS, AGENT_MODEL_MAX } from '@mwc/shared/org';
-import { useId } from 'react';
+import { type ReactNode, useId } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, AgentProfile } from '../../api/types.ts';
@@ -144,14 +144,17 @@ function ProfileChoice({ draft, readOnly, agent, meUserId }: ProfileProps) {
   return <MyProfileSelect draft={draft} />;
 }
 
-/** How the agent works: its model, whose subscriptions it runs on, its effort, its harness and its runs at once. */
-export function ModelPanel(props: ProfileProps) {
+/**
+ * How the agent works: its model, whose subscriptions it runs on, its effort, its harness, its runs at once, and
+ * where it runs (`where`, the form's "Where it runs").
+ */
+export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?: ReactNode }) {
   const { draft, readOnly } = props;
   const { values, set } = draft;
   return (
     <Panel
       title="How it works"
-      description="The model behind it, whose subscription it runs on, how hard it thinks, and what runs it."
+      description="The model behind it, whose subscription it runs on, how hard it thinks, what runs it and where."
     >
       <div className="flex flex-col gap-5">
         <ModelChoice draft={draft} readOnly={readOnly} />
@@ -189,6 +192,7 @@ export function ModelPanel(props: ProfileProps) {
             />
           </ChoiceField>
         </div>
+        {where}
       </div>
     </Panel>
   );

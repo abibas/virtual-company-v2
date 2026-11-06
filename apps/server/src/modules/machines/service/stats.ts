@@ -12,6 +12,7 @@ import {
   WEEK_MS,
 } from '../rules/stats.ts';
 import type { MachineStatsListView, MachineStatsView } from '../schemas/stats.ts';
+import { agentCounts } from './placement.ts';
 
 const repo = machinesRepo();
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -31,7 +32,7 @@ const span = (row: RunnerSession): SessionSpan => ({
   disconnectedAt: row.disconnectedAt?.getTime() ?? null,
 });
 
-function statsView(machine: Machine, stats: MachineStats): MachineStatsView {
+function statsView(machine: Machine, stats: MachineStats, agentCount: number): MachineStatsView {
   const { now } = stats;
   return {
     machineId: machine.id,
@@ -40,6 +41,7 @@ function statsView(machine: Machine, stats: MachineStats): MachineStatsView {
     provider: machine.provider,
     status: machine.status,
     lastSeenAt: machine.lastSeenAt?.toISOString() ?? null,
+    agentCount,
     now: now === null ? null : { ...now, at: iso(now.at) },
     upSince: stats.upSince === null ? null : iso(stats.upSince),
     runtime: stats.runtime,
@@ -59,6 +61,7 @@ export async function machineStatsList(t: TenantDb, now: Date): Promise<MachineS
   const machines = await repo.list(t);
   const samples = byMachine(await samplesRepo.since(t, new Date(nowMs - DAY_MS)));
   const sessions = byMachine(await sessionsRepo.since(t, new Date(nowMs - WEEK_MS)));
+  const counts = await agentCounts(t);
   return {
     at: now.toISOString(),
     machines: machines.map((machine) =>
@@ -70,6 +73,7 @@ export async function machineStatsList(t: TenantDb, now: Date): Promise<MachineS
           online: machine.status !== 'offline',
           nowMs,
         }),
+        counts.get(machine.id) ?? 0,
       ),
     ),
   };

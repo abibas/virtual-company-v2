@@ -6,8 +6,11 @@ import type {
   AgentDetail,
   AgentFilter,
   AgentList,
+  AgentPlacement,
+  MachineChoice,
   NewAgent,
   OrgChart,
+  PlacementChange,
   PositionChange,
 } from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
@@ -61,3 +64,34 @@ export function orgCalls(api: Api, companyId: string) {
 }
 
 export type OrgCalls = ReturnType<typeof orgCalls>;
+
+/** Where an agent runs (S4.7): its default placement, or null; nothing is asked for a new agent (`agentId` undefined). */
+export function useAgentPlacement(companyId: string, agentId: string | undefined): Loaded<AgentPlacement> {
+  const api = useApi();
+  return useLoad(`placement:${companyId}:${agentId ?? ''}`, async () => {
+    if (agentId === undefined) return null;
+    const placement = api.api.companies[':companyId'].agents[':agentId'].placement;
+    return (await call(placement.$get({ param: { companyId, agentId } }))).placement;
+  });
+}
+
+/** The company's machines, by name, for the placement's machine select. */
+export function useMachineChoices(companyId: string): Loaded<readonly MachineChoice[]> {
+  const api = useApi();
+  return useLoad(`machine-choices:${companyId}`, async () => {
+    const machines = api.api.companies[':companyId'].machines;
+    return (await call(machines.$get({ param: { companyId } }))).machines;
+  });
+}
+
+/** Choosing and taking away where an agent runs (admins and owners). */
+export function placementCalls(api: Api, companyId: string) {
+  const placement = api.api.companies[':companyId'].agents[':agentId'].placement;
+  return {
+    set: (agentId: string, change: PlacementChange) =>
+      call(placement.$put({ param: { companyId, agentId }, json: change })),
+    remove: (agentId: string) => call(placement.$delete({ param: { companyId, agentId } })),
+  };
+}
+
+export type PlacementCalls = ReturnType<typeof placementCalls>;

@@ -82,7 +82,18 @@ const agentNode = ({
   kind: 'agent',
   reportsTo,
   title: null,
-  agent: { agentId: `a-${slug}`, name, slug, roleTitle, status, face, model, effort, profile: null },
+  agent: {
+    agentId: `a-${slug}`,
+    name,
+    slug,
+    roleTitle,
+    status,
+    face,
+    model,
+    effort,
+    profile: null,
+    placement: null,
+  },
 });
 
 const NODES: readonly ChartNode[] = [
@@ -129,6 +140,7 @@ const detailOf = (agent: SampleAgent): AgentDetail => ({
   reportsTo: agent.reportsTo,
   title: null,
   profile: null,
+  placement: agent.slug === 'mason' ? { machineId: 'm-mac', machineName: 'This Mac', mode: 'host' } : null,
   createdAt: days(-agent.hired),
   updatedAt: days(-1),
   instructions: agent.slug === 'vega' ? INSTRUCTIONS : '',

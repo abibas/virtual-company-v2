@@ -21,6 +21,8 @@ import {
   MachineStatus,
   MembershipRole,
   MembershipStatus,
+  PermissionPolicy,
+  PlacementMode,
   PowerEventAction,
   PrincipalKind,
   UserStatus,
@@ -61,6 +63,8 @@ describe('enums', () => {
     expect(MachineKind.options).toEqual(['laptop', 'vm', 'container']);
     expect(MachineProvider.options).toEqual(['none', 'airia_devbox']);
     expect(MachineStatus.options).toEqual(['online', 'offline', 'draining']);
+    expect(PlacementMode.options).toEqual(['host', 'container']);
+    expect(PermissionPolicy.options).toEqual(['ask', 'bypass']);
     expect(HoldSource.options).toEqual(['server', 'live_runs']);
     expect(PowerEventAction.options).toEqual([
       'started',

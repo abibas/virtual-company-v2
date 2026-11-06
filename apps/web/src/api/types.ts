@@ -31,6 +31,16 @@ export type ChartNode = OrgChart['nodes'][number];
 export type OrgTreeNode = OrgChart['tree'][number];
 /** The access profile an agent uses, as agents show it: its name and owner, never its subscriptions. */
 export type AgentProfile = NonNullable<Agent['profile']>;
+/** Where an agent runs, as agents and the chart show it: its machine and mode (S4.7). */
+export type AgentPlacementSummary = NonNullable<Agent['placement']>;
+type PlacementRoutes = AgentRoutes[':agentId']['placement'];
+/** `GET /agents/:agentId/placement`: its default placement with its machine's name and status, or null. */
+export type AgentPlacement = InferResponseType<PlacementRoutes['$get'], 200>['placement'];
+export type PlacementChange = InferRequestType<PlacementRoutes['$put']>['json'];
+export type PlacementMode = PlacementChange['mode'];
+export type PermissionPolicy = PlacementChange['permissionPolicy'];
+/** A machine as the placement's machine select lists it (`GET /machines`). */
+export type MachineChoice = InferResponseType<CompanyRoutes['machines']['$get'], 200>['machines'][number];
 
 /** The person's own subscriptions, sign-ins, limits and access profiles (`/api/me/...`, a Clerk session only). */
 type SubscriptionRoutes = Api['api']['me']['subscriptions'];

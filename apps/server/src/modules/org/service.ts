@@ -1,6 +1,7 @@
 import type { TenantDb } from '@mwc/db';
 import type { AgentStatus } from '@mwc/shared/enums';
 import type { ServerDeps } from '../../platform/env.ts';
+import { placementsOf } from '../machines/service/placement.ts';
 import { orgRepo } from './repo.ts';
 import { AGENT_NOT_FOUND } from './rules/agents.ts';
 import type { AgentListFilter, AgentView, CreateAgent, UpdateAgent, UpdatePosition } from './schemas.ts';
@@ -55,14 +56,21 @@ const LIST_STATUSES: Readonly<Record<string, readonly AgentStatus[] | undefined>
 export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
   const repo = orgRepo();
   return {
-    /** The company's agents, in the order they were created, each with its place on the chart and its profile. */
+    /**
+     * The company's agents, in the order they were created, each with its place on the chart, its profile and where it
+     * runs.
+     */
     async list(t: TenantDb, filter: AgentListFilter): Promise<AgentView[]> {
       const rows = await repo.listAgents(t, LIST_STATUSES[filter ?? 'default']);
       const places = new Map((await repo.positions(t)).map((position) => [position.principalId, position]));
       const profileIds = rows.map((agent) => agent.profileId);
       const profiles = await profileRefs(deps, repo, t, profileIds);
+      const placements = await placementsOf(t);
       return rows.map((agent) =>
-        agentView(agent, places.get(agent.principalId), profiles.get(agent.profileId as string) ?? null),
+        agentView(agent, places.get(agent.principalId), {
+          profile: profiles.get(agent.profileId as string) ?? null,
+          placement: placements.get(agent.id) ?? null,
+        }),
       );
     },
 

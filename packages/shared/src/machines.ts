@@ -10,10 +10,32 @@ import { EpochMs } from './identity.ts';
 
 // The enums stored in the machines tables live in ./enums.ts with the other database enums (their CHECKs are built
 // from `.options`); this module keeps exporting them, since they are part of the machines contract.
-export { HoldSource, MachineKind, MachineProvider, MachineStatus, PowerEventAction } from './enums.ts';
+export {
+  HoldSource,
+  MachineKind,
+  MachineProvider,
+  MachineStatus,
+  PermissionPolicy,
+  PlacementMode,
+  PowerEventAction,
+} from './enums.ts';
 
 /** A machine's name (`machines.name`): what people call it, 1–80 characters. */
 export const MACHINE_NAME = { min: 1, max: 80 } as const;
+
+/** A folder of an agent's placement (`agent_placements.home`, `config_dir`, `worktree_root`): 1–500 characters. */
+export const PLACEMENT_PATH = { min: 1, max: 500 } as const;
+
+/** The pattern of a placement's folder: an absolute path on its machine, on one line. */
+export const ABSOLUTE_PATH_PATTERN = /^\/[^\n\r\0]*$/;
+
+/** A placement's folder: an absolute path on its machine (`/Users/ihor/agents/slop-box`), trimmed, 1–500 characters. */
+export const PlacementPath = z
+  .string()
+  .trim()
+  .min(PLACEMENT_PATH.min)
+  .max(PLACEMENT_PATH.max)
+  .regex(ABSOLUTE_PATH_PATTERN, 'an absolute path, starting with /');
 
 /** The providers a power controller can drive: every `MachineProvider` but `none`. */
 export const PowerProvider = MachineProvider.exclude(['none']);

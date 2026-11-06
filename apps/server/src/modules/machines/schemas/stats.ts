@@ -30,6 +30,10 @@ export const MachineStatsSchema = z
     provider: MachineProvider,
     status: MachineStatus,
     lastSeenAt: dateTime.nullable(),
+    agentCount: z
+      .number()
+      .int()
+      .openapi({ description: 'Agents (not archived) whose default placement is on it' }),
     now: NowSchema.nullable(),
     /** When the current online stretch began; null when offline. */
     upSince: dateTime.nullable(),

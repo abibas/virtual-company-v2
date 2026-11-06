@@ -165,6 +165,33 @@ compose profile `runner` (plain `docker compose up` still starts the dev Postgre
 `docker compose -f deploy/compose.yml down` (what `mwc dev --down` runs) may stop it too; the same `up` command starts
 it again without a token. The image has no Claude Code yet (S5).
 
+## Placements
+
+Built in S4.7 (migration `0010_agent_placements`). An agent's placement is where its runs start (docs/subscriptions.md,
+"Where agents live"): a machine of the company and a mode, `host` (in its home folder on the machine, as the machine's
+user) or `container` (a fresh locked-down container per run; taken on any machine for now). `agent_placements` holds the
+home folder (absolute, 1–500 characters: the run's working folder, so its CLAUDE.md, skills and memory load), an
+optional `config_dir` (`CLAUDE_CONFIG_DIR`) and `worktree_root`, and `permission_policy` `ask|bypass` (default `ask`),
+with at most one default placement per agent (`is_default`, a partial unique index). No run uses it before S5.
+
+The machines module owns the table: its rows live and die with a machine (a machine's removal deletes its placements in
+the removal's transaction, audited as the remover's) and are counted per machine. The org module reads them through the
+machines module's service (`placementsOf`) for its lists; the machines module reads only an agent's id and status. An
+archived agent keeps its placement and is left out of the counts.
+
+- `GET /api/companies/:companyId/agents/:agentId/placement` (viewer and above) → `{ placement }`, the default placement
+  with `machineName` and `machineStatus`, or null.
+- `PUT` the same (admin and above) `{ machineId, mode, home, configDir?, worktreeRoot?, permissionPolicy }` → the
+  placement, created or changed in place under the company's lock; a machine not in the company or removed is a 422
+  `machine_not_found`. `DELETE` (admin and above) → 204, or 404 `placement_not_found`. Every change is audited per field
+  (`agent_placement`).
+- `GET agents`, an agent and the chart's agent nodes carry `placement: { machineId, machineName, mode } | null`;
+  `GET machines`, a machine and `GET machines/stats` rows carry `agentCount` (agents not archived whose default
+  placement is on it).
+- Web: **Where it runs** at the end of the agent form's How it works (a machine with its status, the mode, the home
+  folder, the permissions; saved with the agent, read-only below admin), "Runs on <machine> · <mode>" in the agent's
+  facts, and a Machine column in the agents table.
+
 ## Stage plan (S4)
 
 | Wave | Step | Size / effort | Notes |

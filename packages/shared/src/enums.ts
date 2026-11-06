@@ -145,3 +145,14 @@ export const PowerEventAction = z.enum([
   'failed',
 ]);
 export type PowerEventAction = z.infer<typeof PowerEventAction>;
+
+/**
+ * `agent_placements.mode` (docs/subscriptions.md, "Where agents live"): its runs work in a folder on the machine as the
+ * machine's user (`host`), or in a fresh locked-down container per run (`container`).
+ */
+export const PlacementMode = z.enum(['host', 'container']);
+export type PlacementMode = z.infer<typeof PlacementMode>;
+
+/** `agent_placements.permission_policy`: its runs ask a person before a tool outside their rules, or skip the prompts. */
+export const PermissionPolicy = z.enum(['ask', 'bypass']);
+export type PermissionPolicy = z.infer<typeof PermissionPolicy>;

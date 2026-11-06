@@ -45,6 +45,8 @@ export const MachineSchema = z
     hold: z.object({ until: dateTime.nullable(), source: HoldSource.nullable() }),
     /** What an hour of it costs, in dollars; null when nothing is known. */
     hourlyCost: z.number().nullable(),
+    /** How many agents (not archived) have their default placement on it. */
+    agentCount: z.number().int(),
     createdAt: dateTime,
   })
   .openapi('Machine');

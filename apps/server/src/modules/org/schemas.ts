@@ -1,5 +1,12 @@
 import { z } from '@hono/zod-openapi';
-import { AgentStatus, Effort, Harness, MembershipRole, PrincipalKind } from '@mwc/shared/enums';
+import {
+  AgentStatus,
+  Effort,
+  Harness,
+  MembershipRole,
+  PlacementMode,
+  PrincipalKind,
+} from '@mwc/shared/enums';
 import {
   AGENT_DEFAULTS,
   AGENT_FACE,
@@ -55,6 +62,11 @@ const Face = z.number().int().min(AGENT_FACE.min).max(AGENT_FACE.max);
 const PrincipalRef = z.string().openapi({ example: '019a4f0c-9d2f-7a3b-8c41-5e2f3a7b8c90' });
 const Title = z.string().trim().max(POSITION_TITLE_MAX).nullable().openapi({ example: 'CTO' });
 
+/** Where an agent runs (S4.7): its default placement's machine and mode; the machines module owns placements. */
+export const AgentPlacementSummarySchema = z
+  .object({ machineId: z.string(), machineName: z.string(), mode: PlacementMode })
+  .openapi('AgentPlacementSummary');
+
 /** An agent as lists show it: everything but its instructions; `reportsTo` and `title` are its place on the chart. */
 export const AgentSchema = z
   .object({
@@ -74,6 +86,8 @@ export const AgentSchema = z
     title: z.string().nullable(),
     /** The access profile its runs use (S3.4); null for none. */
     profile: AgentProfileSchema.nullable(),
+    /** Where it runs (S4.7); null until it is placed on a machine. */
+    placement: AgentPlacementSummarySchema.nullable(),
     createdAt: at,
     updatedAt: at,
   })
@@ -173,6 +187,7 @@ export const AgentNodeSchema = z
       model: z.string(),
       effort: Effort,
       profile: AgentProfileSchema.nullable(),
+      placement: AgentPlacementSummarySchema.nullable(),
     }),
   })
   .openapi('AgentNode');
@@ -211,4 +226,5 @@ export type UpdatePosition = z.infer<typeof UpdatePositionSchema>;
 export type PositionView = z.infer<typeof PositionSchema>;
 export type ChartNodeView = z.infer<typeof ChartNodeSchema>;
 export type OrgChartView = z.infer<typeof OrgChartSchema>;
+export type AgentPlacementSummaryView = z.infer<typeof AgentPlacementSummarySchema>;
 export type AgentListFilter = z.infer<typeof AgentListQuerySchema>['status'];

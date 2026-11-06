@@ -7,5 +7,6 @@ export * from './identity.ts';
 export * from './machines.ts';
 export * from './members.ts';
 export * from './org.ts';
+export * from './placements.ts';
 export * from './principals.ts';
 export * from './users.ts';

@@ -2,12 +2,25 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { type FormEvent, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
-import { type OrgCalls, orgCalls } from '../../api/org.ts';
+import {
+  type OrgCalls,
+  orgCalls,
+  type PlacementCalls,
+  placementCalls,
+  useAgentPlacement,
+} from '../../api/org.ts';
 import type { AgentDetail, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { nodesById } from '../../components/org/chart.ts';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
+import {
+  type PlacementDraft,
+  type PlacementStep,
+  placementStep,
+  usePlacementDraft,
+} from '../placements/placement-draft.ts';
+import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { AgentHeader } from './AgentHeader.tsx';
 import { type AgentDraft, changesOf, useAgentDraft } from './agent-draft.ts';
@@ -25,24 +38,40 @@ export interface AgentProfileProps {
   readonly onChanged: (agent: AgentDetail) => void;
 }
 
-/** What Save would send: the changed fields (`PATCH`) and a new manager (`PUT` of its place), then both in turn. */
+/** Saves where the agent runs, when it changed: `PUT` or `DELETE` of its placement. */
+async function savePlacement(calls: PlacementCalls, agentId: string, step: PlacementStep) {
+  if (step.kind === 'put') await calls.set(agentId, step.change);
+  if (step.kind === 'delete') await calls.remove(agentId);
+}
+
+interface SaveCalls {
+  readonly org: OrgCalls;
+  readonly placements: PlacementCalls;
+}
+
+/**
+ * What Save would send: the changed fields (`PATCH`), a new manager (`PUT` of its place) and where it runs (its
+ * placement), in turn.
+ */
 function useSaveAgent(
   agent: AgentDetail,
-  draft: AgentDraft,
-  calls: OrgCalls,
+  drafts: { readonly draft: AgentDraft; readonly placement: PlacementDraft },
+  calls: SaveCalls,
   onChanged: (a: AgentDetail) => void,
 ) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const changes = changesOf(draft, agent);
-  const manager = draft.values.reportsTo;
+  const changes = changesOf(drafts.draft, agent);
+  const manager = drafts.draft.values.reportsTo;
   const move = agent.status !== 'archived' && manager !== (agent.reportsTo ?? '');
+  const step = placementStep(drafts.placement);
   const save = async () => {
     setBusy(true);
     setError(undefined);
     try {
-      const saved = Object.keys(changes).length > 0 ? await calls.update(agent.id, changes) : agent;
-      if (move) await calls.place(agent.principalId, { reportsToPrincipalId: manager });
+      const saved = Object.keys(changes).length > 0 ? await calls.org.update(agent.id, changes) : agent;
+      if (move) await calls.org.place(agent.principalId, { reportsToPrincipalId: manager });
+      await savePlacement(calls.placements, agent.id, step);
       onChanged(saved);
     } catch (failure) {
       setError(friendlyMessage(failure));
@@ -50,7 +79,47 @@ function useSaveAgent(
       setBusy(false);
     }
   };
-  return { busy, error, dirty: Object.keys(changes).length > 0 || move, save };
+  return { busy, error, dirty: Object.keys(changes).length > 0 || move || step.kind !== 'none', save };
+}
+
+/**
+ * The agent's form on its page: the agent's draft and where it runs (loaded, then drafted), and Save (`useSaveAgent`),
+ * which reads the placement again after it.
+ */
+function useProfileForm(agent: AgentDetail, companyId: string, onChanged: (a: AgentDetail) => void) {
+  const api = useApi();
+  const org = useMemo(() => orgCalls(api, companyId), [api, companyId]);
+  const placements = useMemo(() => placementCalls(api, companyId), [api, companyId]);
+  const draft = useAgentDraft(agent, '');
+  const saved = useAgentPlacement(companyId, agent.id);
+  const placement = usePlacementDraft(saved.data);
+  const changed = (a: AgentDetail) => {
+    saved.reload();
+    onChanged(a);
+  };
+  const saving = useSaveAgent(agent, { draft, placement }, { org, placements }, changed);
+  const discard = () => {
+    draft.reset();
+    placement.reset();
+  };
+  return { org, draft, placement, discard, valid: draft.valid && placement.valid, ...saving };
+}
+
+type ProfileForm = ReturnType<typeof useProfileForm>;
+
+/** Discard and Save, with where the form stands or the last refusal. */
+function ProfileActions({ form }: { readonly form: ProfileForm }) {
+  const { dirty, busy } = form;
+  return (
+    <FormActions status={dirty ? 'Unsaved changes.' : 'Everything is saved.'} error={form.error}>
+      <Button tone="quiet" disabled={!dirty || busy} onClick={form.discard}>
+        Discard
+      </Button>
+      <Button type="submit" tone="primary" icon={Save} busy={busy} disabled={!dirty || !form.valid}>
+        Save changes
+      </Button>
+    </FormActions>
+  );
 }
 
 /** The loaded agent: its header with the status actions, then its fields, editable for admins. */
@@ -61,31 +130,33 @@ function ProfileBody({
   admin,
   meUserId,
   onChanged,
-}: Omit<AgentProfileProps, 'agent' | 'links'> & { readonly agent: AgentDetail }) {
-  const api = useApi();
-  const calls = useMemo(() => orgCalls(api, companyId), [api, companyId]);
-  const draft = useAgentDraft(agent, '');
-  const { busy, error, dirty, save } = useSaveAgent(agent, draft, calls, onChanged);
+  machinesHref,
+}: Omit<AgentProfileProps, 'agent' | 'links'> & {
+  readonly agent: AgentDetail;
+  readonly machinesHref: string;
+}) {
+  const form = useProfileForm(agent, companyId, onChanged);
   const manager = agent.reportsTo ? nodesById(chart.data?.nodes ?? []).get(agent.reportsTo) : undefined;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void save();
+    void form.save();
   };
+  const where = (
+    <WhereItRuns draft={form.placement} companyId={companyId} machinesHref={machinesHref} readOnly={!admin} />
+  );
   return (
     <div className="grid gap-4 md:gap-5">
-      <AgentHeader agent={agent} manager={manager} admin={admin} calls={calls} onChanged={onChanged} />
+      <AgentHeader agent={agent} manager={manager} admin={admin} calls={form.org} onChanged={onChanged} />
       <form onSubmit={submit} className="grid gap-4 md:gap-5">
-        <AgentForm draft={draft} chart={chart.data} agent={agent} meUserId={meUserId} readOnly={!admin} />
-        {admin && (
-          <FormActions status={dirty ? 'Unsaved changes.' : 'Everything is saved.'} error={error}>
-            <Button tone="quiet" disabled={!dirty || busy} onClick={draft.reset}>
-              Discard
-            </Button>
-            <Button type="submit" tone="primary" icon={Save} busy={busy} disabled={!dirty || !draft.valid}>
-              Save changes
-            </Button>
-          </FormActions>
-        )}
+        <AgentForm
+          draft={form.draft}
+          where={where}
+          chart={chart.data}
+          agent={agent}
+          meUserId={meUserId}
+          readOnly={!admin}
+        />
+        {admin && <ProfileActions form={form} />}
       </form>
     </div>
   );
@@ -102,7 +173,7 @@ export function AgentProfile({ agent, links, ...rest }: AgentProfileProps) {
         Agents
       </ButtonLink>
       <LoadState loaded={agent} label="Loading the agent…">
-        {(data) => <ProfileBody key={formKey(data)} agent={data} {...rest} />}
+        {(data) => <ProfileBody key={formKey(data)} agent={data} machinesHref={links.machines} {...rest} />}
       </LoadState>
     </>
   );

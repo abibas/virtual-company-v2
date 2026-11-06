@@ -35,6 +35,7 @@ const keyedByMachine = withCompany.filter((t) => KEYED_BY_MACHINE.includes(t.nam
 describe('the tenant conventions, on every tenant table', () => {
   it('finds the S1, S2 and S4 tenant tables', () => {
     expect(tenantTables.map((t) => t.name).sort()).toEqual([
+      'agent_placements',
       'agents',
       'api_keys',
       'enrollment_tokens',
@@ -111,7 +112,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(18);
+    expect(composite).toBe(20);
   });
 });
 

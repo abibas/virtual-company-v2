@@ -65,6 +65,7 @@ describe('POST /api/companies/:companyId/agents', () => {
       reportsTo: admin.principalId,
       title: null,
       profile: null,
+      placement: null,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt,
       instructions: '',

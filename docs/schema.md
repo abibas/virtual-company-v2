@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 24. Migrations: 10, the last is `0009_machines`.
+Tables: 25. Migrations: 11, the last is `0010_agent_placements`.
 
 ```mermaid
 erDiagram
@@ -14,6 +14,20 @@ erDiagram
     uuid claude_credential_id FK "nullable"
     uuid openai_credential_id FK "nullable"
     uuid gateway_credential_id FK "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
+  agent_placements {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid agent_id FK "not null"
+    uuid machine_id FK "not null"
+    text mode "not null, host|container"
+    text home "not null"
+    text config_dir "nullable"
+    text worktree_root "nullable"
+    text permission_policy "not null, default 'ask', ask|bypass"
+    boolean is_default "not null, default true"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -297,6 +311,9 @@ erDiagram
   access_profiles }o--o| credentials : "claude_credential_id"
   access_profiles }o--o| credentials : "openai_credential_id"
   access_profiles }o--o| credentials : "gateway_credential_id"
+  agent_placements }o--|| companies : "company_id"
+  agent_placements |o--|| agents : "company_id, agent_id"
+  agent_placements }o--|| machines : "company_id, machine_id"
   agents }o--|| companies : "company_id"
   agents }o--o| access_profiles : "profile_id"
   agents |o--|| principals : "company_id, principal_id"
@@ -371,6 +388,40 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
 - **Indexes:** none
+
+### `agent_placements`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `agent_id` | `uuid` | no |  | FK |  |
+| `machine_id` | `uuid` | no |  | FK |  |
+| `mode` | `text` | no |  |  | `host`, `container` |
+| `home` | `text` | no |  |  |  |
+| `config_dir` | `text` | yes |  |  |  |
+| `worktree_root` | `text` | yes |  |  |  |
+| `permission_policy` | `text` | no | `'ask'` |  | `ask`, `bypass` |
+| `is_default` | `boolean` | no | `true` |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`agent_placements_company_id_companies_id_fk`)
+  - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete no action (`agent_placements_agent_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`agent_placements_machine_fk`)
+- **Unique:**
+  - `agent_placements_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `agent_placements_mode_check`: `mode` is one of `host`, `container`
+  - `agent_placements_permission_policy_check`: `permission_policy` is one of `ask`, `bypass`
+  - `agent_placements_home_check`: `char_length("home") between 1 and 500 and left("home", 1) = '/'`
+  - `agent_placements_config_dir_check`: `char_length("config_dir") between 1 and 500 and left("config_dir", 1) = '/'`
+  - `agent_placements_worktree_root_check`: `char_length("worktree_root") between 1 and 500 and left("worktree_root", 1) = '/'`
+- **Indexes:**
+  - `agent_placements_one_default_idx` on (`company_id`, `agent_id`), unique, where `"is_default"`
+  - `agent_placements_machine_idx` on (`company_id`, `machine_id`)
 
 ### `agents`
 
