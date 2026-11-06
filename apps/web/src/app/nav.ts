@@ -48,7 +48,7 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
     page('members', 'Members', Users),
     page('api-keys', 'API keys', KeyRound),
     page('settings', 'Settings', Settings),
-    { key: 'tasks', label: 'Tasks', icon: ListChecks, soon: 'coming in S4' },
-    { key: 'inbox', label: 'Inbox', icon: Inbox, soon: 'coming in S5' },
+    { key: 'tasks', label: 'Tasks', icon: ListChecks, soon: 'coming in S5' },
+    { key: 'inbox', label: 'Inbox', icon: Inbox, soon: 'coming in S6' },
   ];
 }
