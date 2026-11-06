@@ -113,7 +113,7 @@ mounted in `createApp`, with zod-openapi routes so `/api/openapi.json` and the w
 `src/dev/memory-server.ts` (`pnpm dev:memory`) is the API on an in-memory PGlite for local demos.
 
 `apps/web`: React 19, Vite, Tailwind 4, `@clerk/react` (`src/app/` boot, Clerk root, routes and a small router,
-`src/pages/`, `src/components/` with `ui/` primitives, `src/api/` the typed client, `src/styles/theme.css` the tokens
+`src/pages/`, `src/components/` the shared component library, `src/features/` each page area's own parts, `src/api/` the typed client, `src/styles/theme.css` the tokens
 copied from the shared UI library's `theme.css`; light and dark). It reads Clerk's publishable key from `GET /api/config`
 at run time (never built in) and calls the API only through `src/api/client.ts` (`hc<AppType>`, a type-only import of
 `@mwc/server`, so no server code is bundled; `Authorization: Bearer <getToken()>` on every call). No frontend tests for
