@@ -1,0 +1,17 @@
+{
+  "name": "@mwc/machines-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provider-agnostic machine power: the MachinePowerDriver port, a box's own stop rules, the power error type and a fake driver.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fake": "./src/fake.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/shared": "workspace:*"
+  }
+}

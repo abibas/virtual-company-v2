@@ -293,6 +293,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/testkit
 
+  connectors/machine-airia-devbox:
+    dependencies:
+      '@mwc/machines-core':
+        specifier: workspace:*
+        version: link:../../packages/machines-core
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+
   packages/cli:
     dependencies:
       '@mwc/shared':
@@ -323,6 +335,12 @@ importers:
         version: 0.31.11
 
   packages/identity-core:
+    dependencies:
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/machines-core:
     dependencies:
       '@mwc/shared':
         specifier: workspace:*
