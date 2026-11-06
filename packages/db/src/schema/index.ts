@@ -4,6 +4,7 @@ export * from './companies.ts';
 export * from './company-logos.ts';
 export * from './credentials.ts';
 export * from './identity.ts';
+export * from './machines.ts';
 export * from './members.ts';
 export * from './org.ts';
 export * from './principals.ts';

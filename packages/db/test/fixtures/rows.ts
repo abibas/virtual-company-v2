@@ -13,11 +13,14 @@ import {
   companies,
   type Invitation,
   invitations,
+  type Machine,
   type Membership,
+  machines,
   memberships,
   type NewAgent,
   type NewCompany,
   type NewInvitation,
+  type NewMachine,
   type Principal,
   principals,
   type User,
@@ -131,6 +134,30 @@ export async function insertAgent(
         slug,
         roleTitle: 'Coder',
         model: 'claude-opus-5-5',
+        ...values,
+      })
+      .returning(),
+  );
+}
+
+/** A machine in a company (a laptop with no provider, offline), its name unique unless given. */
+export async function insertMachine(
+  handle: RawDbHandle,
+  companyId: string,
+  values: Partial<NewMachine> = {},
+): Promise<Machine> {
+  return one(
+    await handle.db
+      .insert(machines)
+      .values({
+        companyId,
+        name: unique('machine'),
+        kind: 'laptop',
+        os: 'darwin',
+        arch: 'arm64',
+        hostname: 'mac.local',
+        unixUser: 'ihor',
+        runnerVersion: '0.5.0',
         ...values,
       })
       .returning(),

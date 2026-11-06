@@ -1,8 +1,16 @@
 import { z } from 'zod';
-import { Harness } from '../enums.ts';
+import { Harness, HoldSource } from '../enums.ts';
 import { EpochMs } from '../identity.ts';
 import { HoldDriver, MachineSample, PowerProvider, PowerStatus } from '../machines.ts';
-import { ErrorText, frame, JsonObject, protocolObject, RunnerVersion, Uuid } from './common.ts';
+import {
+  ClaudeVersion,
+  ErrorText,
+  frame,
+  JsonObject,
+  protocolObject,
+  RunnerVersion,
+  Uuid,
+} from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 
 /** The frames a runner sends to the server (docs/runner-protocol.md, "Runner to server"). */
@@ -31,6 +39,11 @@ export const RunnerHello = frame('runner.hello', {
   protocol: z.int().min(1),
   version: RunnerVersion,
   caps: RunnerCaps,
+  /**
+   * `claude --version` on the machine now, null without Claude Code (S4.2); a runner that leaves it out keeps the
+   * version the machine has on record.
+   */
+  claudeVersion: ClaudeVersion.nullable().optional(),
 });
 export type RunnerHello = z.infer<typeof RunnerHello>;
 
@@ -136,9 +149,8 @@ export const CmdAck = frame('cmd.ack', {
 });
 export type CmdAck = z.infer<typeof CmdAck>;
 
-/** What set the runner's hold: the server's `machine.hold`, or the runner itself while runs are live. */
-export const HoldSource = z.enum(['server', 'live_runs']);
-export type HoldSource = z.infer<typeof HoldSource>;
+/** What set the runner's hold: the server's `machine.hold`, or the runner itself while runs are live (an enum of the db). */
+export { HoldSource };
 
 /**
  * The hold the runner applies, sent on every change and after each `runner.resync`: `until` is the end its driver

@@ -126,6 +126,13 @@ export type MachineProvider = z.infer<typeof MachineProvider>;
 export const MachineStatus = z.enum(['online', 'offline', 'draining']);
 export type MachineStatus = z.infer<typeof MachineStatus>;
 
+/**
+ * `machines.hold_source` and `hold.state`'s `source`: what set a runner's hold, the server's `machine.hold` or the
+ * runner itself while runs are live.
+ */
+export const HoldSource = z.enum(['server', 'live_runs']);
+export type HoldSource = z.infer<typeof HoldSource>;
+
 /** `machine_power_events.action`: every power decision and its outcome, as a machine's log shows them. */
 export const PowerEventAction = z.enum([
   'started',

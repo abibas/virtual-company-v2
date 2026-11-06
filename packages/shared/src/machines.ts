@@ -10,7 +10,10 @@ import { EpochMs } from './identity.ts';
 
 // The enums stored in the machines tables live in ./enums.ts with the other database enums (their CHECKs are built
 // from `.options`); this module keeps exporting them, since they are part of the machines contract.
-export { MachineKind, MachineProvider, MachineStatus, PowerEventAction } from './enums.ts';
+export { HoldSource, MachineKind, MachineProvider, MachineStatus, PowerEventAction } from './enums.ts';
+
+/** A machine's name (`machines.name`): what people call it, 1–80 characters. */
+export const MACHINE_NAME = { min: 1, max: 80 } as const;
 
 /** The providers a power controller can drive: every `MachineProvider` but `none`. */
 export const PowerProvider = MachineProvider.exclude(['none']);

@@ -13,6 +13,8 @@ const GLOBAL_WITH_COMPANY = ['audit_log', 'identity_outbox'];
 const ONE_PER_COMPANY = ['company_logos'];
 /** Tenant tables with one row per principal: `(company_id, principal_id)` is their primary key, they have no `id`. */
 const ONE_PER_PRINCIPAL = ['org_positions'];
+/** Tenant tables of a machine's rows keyed by it: `(company_id, machine_id, …)` is their primary key, no `id`. */
+const KEYED_BY_MACHINE = ['machine_power', 'machine_samples'];
 
 const tables = (Object.values(schema) as unknown[])
   .filter((value): value is PgTable => is(value, PgTable))
@@ -21,23 +23,44 @@ const withCompany = tables.filter(
   (t) => t.columns.some((c) => c.name === 'company_id') && !GLOBAL_WITH_COMPANY.includes(t.name),
 );
 const tenantTables = withCompany.filter(
-  (t) => !ONE_PER_COMPANY.includes(t.name) && !ONE_PER_PRINCIPAL.includes(t.name),
+  (t) =>
+    !ONE_PER_COMPANY.includes(t.name) &&
+    !ONE_PER_PRINCIPAL.includes(t.name) &&
+    !KEYED_BY_MACHINE.includes(t.name),
 );
 const onePerCompany = withCompany.filter((t) => ONE_PER_COMPANY.includes(t.name));
 const onePerPrincipal = withCompany.filter((t) => ONE_PER_PRINCIPAL.includes(t.name));
+const keyedByMachine = withCompany.filter((t) => KEYED_BY_MACHINE.includes(t.name));
 
 describe('the tenant conventions, on every tenant table', () => {
-  it('finds the S1 and S2 tenant tables', () => {
+  it('finds the S1, S2 and S4 tenant tables', () => {
     expect(tenantTables.map((t) => t.name).sort()).toEqual([
       'agents',
       'api_keys',
+      'enrollment_tokens',
       'invitations',
+      'machine_power_events',
+      'machines',
       'memberships',
       'principals',
+      'runner_sessions',
     ]);
     expect(onePerCompany.map((t) => t.name)).toEqual(ONE_PER_COMPANY);
     expect(onePerPrincipal.map((t) => t.name)).toEqual(ONE_PER_PRINCIPAL);
+    expect(keyedByMachine.map((t) => t.name).sort()).toEqual(KEYED_BY_MACHINE);
   });
+
+  it.each(keyedByMachine.map((t) => [t.name, t] as const))(
+    '%s: PRIMARY KEY(company_id, machine_id, …), the machine a composite key, no id',
+    (_, t) => {
+      const [key] = t.primaryKeys.map((pk) => pk.columns.map((c) => c.name));
+      expect(key?.slice(0, 2)).toEqual(['company_id', 'machine_id']);
+      expect(t.columns.some((c) => c.name === 'id')).toBe(false);
+      const refs = t.foreignKeys.map((fk) => fk.reference());
+      const machine = refs.find((r) => r.columns.map((c) => c.name).join() === 'company_id,machine_id');
+      expect(getTableConfig(machine?.foreignTable as PgTable).name).toBe('machines');
+    },
+  );
 
   it.each(onePerPrincipal.map((t) => [t.name, t] as const))(
     '%s: PRIMARY KEY(company_id, principal_id), the principal a composite key, no id',
@@ -88,7 +111,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(9);
+    expect(composite).toBe(18);
   });
 });
 

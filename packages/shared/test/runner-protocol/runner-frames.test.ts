@@ -29,6 +29,14 @@ describe('runner.hello', () => {
     expect(issuesOf(RunnerHello, { ...hello, caps: { ...caps, hold: 'devbox_keepalive' } })).toEqual([]);
   });
 
+  it("takes Claude Code's version, null without it, or nothing (the machine keeps its version on record)", () => {
+    expect(issuesOf(RunnerHello, { ...hello, claudeVersion: '2.1.3 (Claude Code)' })).toEqual([]);
+    expect(issuesOf(RunnerHello, { ...hello, claudeVersion: null })).toEqual([]);
+    expect(issuesOf(RunnerHello, without(hello, 'claudeVersion'))).toEqual([]);
+    expect(issuesOf(RunnerHello, { ...hello, claudeVersion: '' })).toEqual(['claudeVersion']);
+    expect(issuesOf(RunnerHello, { ...hello, claudeVersion: 'x'.repeat(101) })).toEqual(['claudeVersion']);
+  });
+
   it('refuses a bad protocol, version or caps', () => {
     expect(issuesOf(RunnerHello, { ...hello, protocol: 0 })).toEqual(['protocol']);
     expect(issuesOf(RunnerHello, { ...hello, protocol: 1.5 })).toEqual(['protocol']);

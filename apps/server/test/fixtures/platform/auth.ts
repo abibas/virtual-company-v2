@@ -4,7 +4,16 @@
  * helpers that seed people and API keys straight into the tables.
  */
 import { randomBytes } from 'node:crypto';
-import { apiKeys, type DbHandle, memberships, principals, tenant, userIdentities, users } from '@mwc/db';
+import {
+  apiKeys,
+  type DbHandle,
+  machines,
+  memberships,
+  principals,
+  tenant,
+  userIdentities,
+  users,
+} from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { ApiKeyKind, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
 import {
@@ -127,7 +136,26 @@ export interface SeedKeyOptions {
   readonly lastUsedAt?: Date | null;
 }
 
-/** An API key row as S1.9 will make it (only the SHA-256 stored); returns the key and its row id. */
+/** A machine to bind a runner key to: a laptop, offline. */
+async function seedMachineFor(scoped: Awaited<ReturnType<typeof tenant>>): Promise<string> {
+  const [machine] = await scoped
+    .insert(machines, {
+      name: 'Test Mac',
+      kind: 'laptop',
+      os: 'darwin',
+      arch: 'arm64',
+      hostname: 'mac.local',
+      unixUser: 'ihor',
+      runnerVersion: '0.5.0',
+    })
+    .returning({ id: machines.id });
+  return (machine as { id: string }).id;
+}
+
+/**
+ * An API key row as S1.9 makes it (only the SHA-256 stored); returns the key and its row id. A runner key is bound to
+ * a new machine of the company.
+ */
 export async function seedApiKey(
   db: DbHandle,
   options: SeedKeyOptions,
@@ -135,6 +163,7 @@ export async function seedApiKey(
   const kind = options.kind ?? 'personal';
   const key = options.key ?? newApiKey(kind === 'personal' ? 'pk' : kind === 'runner' ? 'rk' : 'sc');
   const scoped = await tenant(db, options.companyId);
+  const machineId = kind === 'runner' ? await seedMachineFor(scoped) : null;
   const [row] = await scoped
     .insert(apiKeys, {
       principalId: options.principalId,
@@ -142,7 +171,7 @@ export async function seedApiKey(
       name: 'test key',
       prefix: key.slice(0, 11),
       secretHash: hashApiKey(key),
-      ...(kind === 'runner' ? { machineId: '019a4f0c-8c1e-7c4b-9a52-3d1f2b6e7a10' } : {}),
+      machineId,
       expiresAt: options.expiresAt ?? null,
       revokedAt: options.revokedAt ?? null,
       lastUsedAt: options.lastUsedAt ?? null,

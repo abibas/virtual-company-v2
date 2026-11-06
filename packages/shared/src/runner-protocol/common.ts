@@ -25,6 +25,9 @@ export const RUNNER_VERSION_PATTERN =
 /** A runner's version (`runner.hello`) or the lowest one the server takes (`server.hello`). */
 export const RunnerVersion = z.string().max(64).regex(RUNNER_VERSION_PATTERN, 'a version such as 1.2.3');
 
+/** What `claude --version` printed on a machine (`2.1.3 (Claude Code)`). */
+export const ClaudeVersion = z.string().min(1).max(100);
+
 /** Why something failed, in words for the log and the machine's page. */
 export const ErrorText = z.string().min(1).max(2000);
 

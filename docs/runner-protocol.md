@@ -30,6 +30,18 @@ key opens this socket and nothing else; a wrong, revoked or unknown key is refus
 socket). `key.rotate` replaces it; the old key keeps working 10 minutes. Each run gets its own **run token** in
 `run.start` for its MCP and API calls back to the server.
 
+## Enrollment
+
+Added in S4.2 (`runner-protocol/enroll.ts`). An admin or owner makes a token with
+`POST /api/companies/{companyId}/machines/enrollment-tokens` (no body; 201 `{id, token, expiresAt}`, the token
+`mwc_et_` + 32 base62 (`ENROLLMENT_TOKEN_PATTERN`), shown once, its SHA-256 stored, good for one enrollment within
+`ENROLLMENT_TOKEN_TTL_MS`, an hour). The installer trades it at `POST /api/runner/enroll` (`RUNNER_ENROLL_PATH`, no
+session) with a `RunnerEnrollRequest`: `token`, `name` (1–80, trimmed), `kind`, `os`, `arch`, `hostname`, `unixUser`,
+`runnerVersion`, `claudeVersion` (string or null), `provider`, `providerRef` (an `AiriaDevboxRef` for `airia_devbox`,
+null for `none`). The answer is 201 `RunnerEnrollResponse{machineId, companyId, runnerKey}`, the key shown once and
+owned by whoever made the token. An unknown, used or expired token, or one of a deleted company, is a 401 in the common
+error shape; a body that does not match is a 400.
+
 ## Connection
 
 1. Runner → `runner.hello`. No hello within 10 s: close 4008.
@@ -45,7 +57,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox}` | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in) → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record → `server.hello` |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |

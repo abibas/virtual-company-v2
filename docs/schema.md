@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 18. Migrations: 9, the last is `0008_access_profiles`.
+Tables: 24. Migrations: 10, the last is `0009_machines`.
 
 ```mermaid
 erDiagram
@@ -43,7 +43,7 @@ erDiagram
     uuid principal_id FK "not null"
     text kind "not null, personal|runner|scim"
     text name "not null"
-    uuid machine_id "nullable"
+    uuid machine_id FK "nullable"
     text prefix "not null"
     text secret_hash UK "not null"
     text[] scopes "not null, default '{}'::text[]"
@@ -114,6 +114,16 @@ erDiagram
     timestamptz updated_at "not null, default now()"
     timestamptz last_used_at "nullable"
   }
+  enrollment_tokens {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    text secret_hash UK "not null"
+    timestamptz expires_at "not null"
+    timestamptz used_at "nullable"
+    uuid created_by FK "not null"
+    uuid machine_id FK "nullable"
+    timestamptz created_at "not null, default now()"
+  }
   identity_events {
     uuid id PK "not null, default newId() (app-side)"
     text provider "not null"
@@ -170,6 +180,62 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  machine_power {
+    uuid company_id PK, FK "not null"
+    uuid machine_id PK, FK "not null"
+    jsonb policy "not null, default '{}'"
+    jsonb state "not null, default '{}'"
+    uuid updated_by FK "nullable"
+    timestamptz updated_at "not null, default now()"
+  }
+  machine_power_events {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid machine_id FK "not null"
+    text action "not null, started|stopped|held|released|kept|policy|timezone|failed"
+    text reason "not null"
+    text actor "not null"
+    timestamptz at "not null, default now()"
+  }
+  machine_samples {
+    uuid company_id PK, FK "not null"
+    uuid machine_id PK, FK "not null"
+    timestamptz at PK "not null"
+    double_precision load1 "not null"
+    double_precision load5 "not null"
+    double_precision load15 "not null"
+    integer cpus "not null"
+    double_precision cpu_pct "not null"
+    double_precision mem_pct "not null"
+    bigint disk_used "not null"
+    bigint disk_total "not null"
+    bigint uptime_s "not null"
+    integer live_runs "not null"
+  }
+  machines {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    text name "not null"
+    text kind "not null, laptop|vm|container"
+    text provider "not null, default 'none', none|airia_devbox"
+    jsonb provider_ref "nullable"
+    uuid controller_machine_id FK "nullable"
+    text os "not null"
+    text arch "not null"
+    text hostname "not null"
+    text unix_user "not null"
+    text runner_version "not null"
+    text claude_version "nullable"
+    integer slots "not null, default 1"
+    text status "not null, default 'offline', online|offline|draining"
+    timestamptz last_seen_at "nullable"
+    numeric(10_4) hourly_cost "nullable"
+    timestamptz hold_until "nullable"
+    text hold_source "nullable, server|live_runs"
+    timestamptz removed_at "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   memberships {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
@@ -200,6 +266,15 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  runner_sessions {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid machine_id FK "not null"
+    timestamptz connected_at "not null, default now()"
+    timestamptz disconnected_at "nullable"
+    text version "not null"
+    text remote_ip "nullable"
+  }
   user_identities {
     uuid id PK "not null, default newId() (app-side)"
     uuid user_id FK "not null"
@@ -227,6 +302,7 @@ erDiagram
   agents |o--|| principals : "company_id, principal_id"
   api_keys }o--|| companies : "company_id"
   api_keys }o--|| principals : "company_id, principal_id"
+  api_keys }o--o| machines : "company_id, machine_id"
   audit_log }o--o| companies : "company_id"
   audit_log }o--o| principals : "company_id, actor_principal_id"
   companies }o--o| users : "created_by_user_id"
@@ -234,10 +310,22 @@ erDiagram
   company_logos }o--o| principals : "company_id, updated_by_principal_id"
   credential_uses }o--|| users : "owner_user_id"
   credentials }o--|| users : "owner_user_id"
+  enrollment_tokens }o--|| companies : "company_id"
+  enrollment_tokens }o--|| principals : "company_id, created_by"
+  enrollment_tokens }o--o| machines : "company_id, machine_id"
   identity_outbox }o--|| companies : "company_id"
   invitations }o--|| companies : "company_id"
   invitations }o--o| users : "accepted_by_user_id"
   invitations }o--o| principals : "company_id, invited_by_principal_id"
+  machine_power }o--|| companies : "company_id"
+  machine_power |o--|| machines : "company_id, machine_id"
+  machine_power }o--o| principals : "company_id, updated_by"
+  machine_power_events }o--|| companies : "company_id"
+  machine_power_events }o--|| machines : "company_id, machine_id"
+  machine_samples }o--|| companies : "company_id"
+  machine_samples }o--|| machines : "company_id, machine_id"
+  machines }o--|| companies : "company_id"
+  machines }o--o| machines : "company_id, controller_machine_id"
   memberships }o--|| companies : "company_id"
   memberships }o--|| users : "user_id"
   memberships }o--o| access_profiles : "default_profile_id"
@@ -247,6 +335,8 @@ erDiagram
   org_positions |o--|| principals : "company_id, principal_id"
   org_positions }o--o| principals : "company_id, reports_to_principal_id"
   principals }o--|| companies : "company_id"
+  runner_sessions }o--|| companies : "company_id"
+  runner_sessions }o--|| machines : "company_id, machine_id"
   user_identities }o--|| users : "user_id"
 ```
 
@@ -336,7 +426,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `principal_id` | `uuid` | no |  | FK |  |
 | `kind` | `text` | no |  |  | `personal`, `runner`, `scim` |
 | `name` | `text` | no |  |  |  |
-| `machine_id` | `uuid` | yes |  |  |  |
+| `machine_id` | `uuid` | yes |  | FK |  |
 | `prefix` | `text` | no |  |  |  |
 | `secret_hash` | `text` | no |  | UK |  |
 | `scopes` | `text[]` | no | `'{}'::text[]` |  |  |
@@ -350,6 +440,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Foreign keys:**
   - `company_id` → `companies` (`id`), on delete no action (`api_keys_company_id_companies_id_fk`)
   - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`api_keys_principal_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`api_keys_machine_fk`)
 - **Unique:**
   - `api_keys_secret_hash_unique` (`secret_hash`)
   - `api_keys_company_id_id_unique` (`company_id`, `id`)
@@ -492,6 +583,32 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Indexes:**
   - `credentials_owner_idx` on (`owner_user_id`, `created_at`)
 
+### `enrollment_tokens`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `secret_hash` | `text` | no |  | UK |  |
+| `expires_at` | `timestamp with time zone` | no |  |  |  |
+| `used_at` | `timestamp with time zone` | yes |  |  |  |
+| `created_by` | `uuid` | no |  | FK |  |
+| `machine_id` | `uuid` | yes |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`enrollment_tokens_company_id_companies_id_fk`)
+  - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`enrollment_tokens_created_by_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`enrollment_tokens_machine_fk`)
+- **Unique:**
+  - `enrollment_tokens_secret_hash_unique` (`secret_hash`)
+  - `enrollment_tokens_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `enrollment_tokens_secret_hash_check`: `"secret_hash" ~ '^[0-9a-f]{64}$'`
+  - `enrollment_tokens_machine_check`: `"machine_id" is null or "used_at" is not null`
+- **Indexes:** none
+
 ### `identity_events`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -614,6 +731,127 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Indexes:**
   - `invitations_one_pending_per_email` on (`company_id`, `email_normalized`), unique, where `"status" = 'pending'`
 
+### `machine_power`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `machine_id` | `uuid` | no |  | PK, FK |  |
+| `policy` | `jsonb` | no | `'{}'` |  |  |
+| `state` | `jsonb` | no | `'{}'` |  |  |
+| `updated_by` | `uuid` | yes |  | FK |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`, `machine_id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`machine_power_company_id_companies_id_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`machine_power_machine_fk`)
+  - (`company_id`, `updated_by`) → `principals` (`company_id`, `id`), on delete no action (`machine_power_updated_by_fk`)
+- **Unique:** none
+- **Checks:**
+  - `machine_power_policy_check`: `jsonb_typeof("policy") = 'object'`
+  - `machine_power_state_check`: `jsonb_typeof("state") = 'object'`
+- **Indexes:** none
+
+### `machine_power_events`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `machine_id` | `uuid` | no |  | FK |  |
+| `action` | `text` | no |  |  | `started`, `stopped`, `held`, `released`, `kept`, `policy`, `timezone`, `failed` |
+| `reason` | `text` | no |  |  |  |
+| `actor` | `text` | no |  |  |  |
+| `at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`machine_power_events_company_id_companies_id_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`machine_power_events_machine_fk`)
+- **Unique:**
+  - `machine_power_events_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `machine_power_events_action_check`: `action` is one of `started`, `stopped`, `held`, `released`, `kept`, `policy`, `timezone`, `failed`
+  - `machine_power_events_reason_check`: `char_length("reason") between 1 and 500`
+  - `machine_power_events_actor_check`: `"actor" ~ '^(user:[0-9a-f-]{36}|schedule|auto|system)$'`
+- **Indexes:**
+  - `machine_power_events_machine_idx` on (`company_id`, `machine_id`, `at`)
+
+### `machine_samples`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `machine_id` | `uuid` | no |  | PK, FK |  |
+| `at` | `timestamp with time zone` | no |  | PK |  |
+| `load1` | `double precision` | no |  |  |  |
+| `load5` | `double precision` | no |  |  |  |
+| `load15` | `double precision` | no |  |  |  |
+| `cpus` | `integer` | no |  |  |  |
+| `cpu_pct` | `double precision` | no |  |  |  |
+| `mem_pct` | `double precision` | no |  |  |  |
+| `disk_used` | `bigint` | no |  |  |  |
+| `disk_total` | `bigint` | no |  |  |  |
+| `uptime_s` | `bigint` | no |  |  |  |
+| `live_runs` | `integer` | no |  |  |  |
+
+- **Primary key:** `company_id`, `machine_id`, `at`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`machine_samples_company_id_companies_id_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`machine_samples_machine_fk`)
+- **Unique:** none
+- **Checks:**
+  - `machine_samples_cpus_check`: `"cpus" >= 1`
+- **Indexes:**
+  - `machine_samples_at_idx` on (`at`)
+
+### `machines`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `name` | `text` | no |  |  |  |
+| `kind` | `text` | no |  |  | `laptop`, `vm`, `container` |
+| `provider` | `text` | no | `'none'` |  | `none`, `airia_devbox` |
+| `provider_ref` | `jsonb` | yes |  |  |  |
+| `controller_machine_id` | `uuid` | yes |  | FK |  |
+| `os` | `text` | no |  |  |  |
+| `arch` | `text` | no |  |  |  |
+| `hostname` | `text` | no |  |  |  |
+| `unix_user` | `text` | no |  |  |  |
+| `runner_version` | `text` | no |  |  |  |
+| `claude_version` | `text` | yes |  |  |  |
+| `slots` | `integer` | no | `1` |  |  |
+| `status` | `text` | no | `'offline'` |  | `online`, `offline`, `draining` |
+| `last_seen_at` | `timestamp with time zone` | yes |  |  |  |
+| `hourly_cost` | `numeric(10, 4)` | yes |  |  |  |
+| `hold_until` | `timestamp with time zone` | yes |  |  |  |
+| `hold_source` | `text` | yes |  |  | `server`, `live_runs` |
+| `removed_at` | `timestamp with time zone` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`machines_company_id_companies_id_fk`)
+  - (`company_id`, `controller_machine_id`) → `machines` (`company_id`, `id`), on delete no action (`machines_controller_fk`)
+- **Unique:**
+  - `machines_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `machines_name_check`: `char_length("name") between 1 and 80`
+  - `machines_kind_check`: `kind` is one of `laptop`, `vm`, `container`
+  - `machines_provider_check`: `provider` is one of `none`, `airia_devbox`
+  - `machines_status_check`: `status` is one of `online`, `offline`, `draining`
+  - `machines_hold_source_check`: `hold_source` is one of `server`, `live_runs`
+  - `machines_provider_ref_check`: `jsonb_typeof("provider_ref") = 'object'`
+  - `machines_slots_check`: `"slots" between 0 and 64`
+  - `machines_hourly_cost_check`: `"hourly_cost" >= 0`
+  - `machines_controller_check`: `"controller_machine_id" <> "id"`
+- **Indexes:**
+  - `machines_status_idx` on (`status`, `last_seen_at`)
+
 ### `memberships`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -692,6 +930,29 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `principals_kind_check`: `kind` is one of `person`, `agent`
 - **Indexes:** none
+
+### `runner_sessions`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `machine_id` | `uuid` | no |  | FK |  |
+| `connected_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `disconnected_at` | `timestamp with time zone` | yes |  |  |  |
+| `version` | `text` | no |  |  |  |
+| `remote_ip` | `text` | yes |  |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`runner_sessions_company_id_companies_id_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`runner_sessions_machine_fk`)
+- **Unique:**
+  - `runner_sessions_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `runner_sessions_span_check`: `"disconnected_at" >= "connected_at"`
+- **Indexes:**
+  - `runner_sessions_machine_idx` on (`company_id`, `machine_id`, `connected_at`)
 
 ### `user_identities`
 

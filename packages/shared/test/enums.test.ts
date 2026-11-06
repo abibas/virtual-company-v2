@@ -8,6 +8,7 @@ import {
   CredentialStatus,
   Effort,
   Harness,
+  HoldSource,
   IdentityEventStatus,
   IdentityEventType,
   IdentityInboxType,
@@ -60,6 +61,7 @@ describe('enums', () => {
     expect(MachineKind.options).toEqual(['laptop', 'vm', 'container']);
     expect(MachineProvider.options).toEqual(['none', 'airia_devbox']);
     expect(MachineStatus.options).toEqual(['online', 'offline', 'draining']);
+    expect(HoldSource.options).toEqual(['server', 'live_runs']);
     expect(PowerEventAction.options).toEqual([
       'started',
       'stopped',

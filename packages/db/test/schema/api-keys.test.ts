@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RawDbHandle } from '../../src/handle.ts';
 import { apiKeys, type Company, type NewApiKey, type Principal } from '../../src/schema/index.ts';
 import { pgError, type TestDb } from '../../src/testing.ts';
-import { insertCompany, insertPrincipal, migratedTestDb, unique } from '../fixtures/rows.ts';
+import { insertCompany, insertMachine, insertPrincipal, migratedTestDb, unique } from '../fixtures/rows.ts';
 
 let testDb: TestDb;
 let handle: RawDbHandle;
@@ -71,8 +71,9 @@ describe('api_keys', () => {
       code: '23514',
       constraint: 'api_keys_runner_machine_check',
     });
-    const [runner] = await key({ kind: 'runner', machineId: '0190f5f0-0000-7000-8000-00000000abcd' });
-    expect(runner?.machineId).toBe('0190f5f0-0000-7000-8000-00000000abcd');
+    const machine = await insertMachine(handle, acme.id);
+    const [runner] = await key({ kind: 'runner', machineId: machine.id });
+    expect(runner?.machineId).toBe(machine.id);
     await expect(key({ kind: 'scim' })).resolves.toHaveLength(1);
     // @ts-expect-error kind is typed as ApiKeyKind; the database refuses it as well
     expect(await pgError(key({ kind: 'service' }))).toMatchObject({
@@ -81,12 +82,19 @@ describe('api_keys', () => {
     });
   });
 
-  it("refuses another company's principal", async () => {
+  it("refuses another company's principal or machine, and a machine that does not exist", async () => {
     const globex = await insertCompany(handle);
     const theirs = await insertPrincipal(handle, globex.id);
     expect(await pgError(key({ principalId: theirs.id }))).toMatchObject({
       code: '23503',
       constraint: 'api_keys_principal_fk',
     });
+    const theirMachine = await insertMachine(handle, globex.id);
+    for (const machineId of [theirMachine.id, '0190f5f0-0000-7000-8000-00000000abcd']) {
+      expect(await pgError(key({ kind: 'runner', machineId }))).toMatchObject({
+        code: '23503',
+        constraint: 'api_keys_machine_fk',
+      });
+    }
   });
 });

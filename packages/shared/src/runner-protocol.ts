@@ -8,7 +8,12 @@ import { SERVER_FRAMES, type ServerFrame } from './runner-protocol/server-frames
  * contract. The parts live in `runner-protocol/`; this entry reads and writes frames.
  */
 
-export { compareRunnerVersions, RUNNER_VERSION_PATTERN, RunnerVersion } from './runner-protocol/common.ts';
+export {
+  ClaudeVersion,
+  compareRunnerVersions,
+  RUNNER_VERSION_PATTERN,
+  RunnerVersion,
+} from './runner-protocol/common.ts';
 export {
   DEVBOX_KEEPALIVE_DURATION,
   DEVBOX_KEEPALIVE_REFRESH_MS,
@@ -28,6 +33,14 @@ export {
   RUNNER_WS_PATH,
   UNACKED_EVENTS_MAX,
 } from './runner-protocol/constants.ts';
+export {
+  ENROLLMENT_TOKEN_PATTERN,
+  ENROLLMENT_TOKEN_TTL_MS,
+  EnrollmentToken,
+  RUNNER_ENROLL_PATH,
+  RunnerEnrollRequest,
+  RunnerEnrollResponse,
+} from './runner-protocol/enroll.ts';
 export { FrameError, type FrameErrorCode, type FrameParse, utf8Bytes } from './runner-protocol/frame.ts';
 export {
   EnvName,
