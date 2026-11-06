@@ -8,8 +8,8 @@ import { rawDb } from '@mwc/db/system';
 import type { MembershipRole, MembershipStatus } from '@mwc/shared/enums';
 import { seedCompany } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
-import { type AuthWorld, addPerson, newSubject, type Person } from './auth.ts';
-import { call } from './companies.ts';
+import { call } from '../companies/companies.ts';
+import { type AuthWorld, addPerson, newSubject, type Person } from '../platform/auth.ts';
 
 export const ROLES: readonly MembershipRole[] = ['owner', 'admin', 'member', 'viewer'];
 

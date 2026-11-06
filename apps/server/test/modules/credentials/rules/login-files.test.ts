@@ -11,7 +11,7 @@ import {
   CLAUDE_CREDENTIALS,
   CODEX_AUTH,
   fakeJwt,
-} from '../../../fixtures/sign-in/cli.ts';
+} from '../../../fixtures/credentials/sign-in/cli.ts';
 
 const json = (value: unknown) => JSON.stringify(value);
 

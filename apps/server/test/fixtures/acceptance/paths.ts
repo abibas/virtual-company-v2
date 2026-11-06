@@ -10,7 +10,7 @@
  */
 import { expect } from 'vitest';
 import { SELF_RECONCILE_INTERVAL_MS } from '../../../src/modules/identity/service.ts';
-import { deliver } from '../webhooks.ts';
+import { deliver } from '../identity/webhooks.ts';
 import { type Founded, type Invited, membersOf } from './steps.ts';
 import type { FakeTarget, SignedIn } from './target.ts';
 import { type AcceptanceWorld, RECONCILE_MS } from './world.ts';

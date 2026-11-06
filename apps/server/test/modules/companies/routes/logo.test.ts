@@ -3,14 +3,6 @@ import { hc } from 'hono/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AppType } from '../../../../src/app.ts';
 import {
-  type AuthWorld,
-  addPerson,
-  authWorld,
-  bearer,
-  type Person,
-  seedApiKey,
-} from '../../../fixtures/auth.ts';
-import {
   deleteLogo,
   GIF,
   getLogo,
@@ -23,8 +15,16 @@ import {
   SVG,
   sha256,
   WEBP,
-} from '../../../fixtures/logos.ts';
-import { addMember, type MembersCompany, membersCompany } from '../../../fixtures/members.ts';
+} from '../../../fixtures/companies/logos.ts';
+import { addMember, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
+import {
+  type AuthWorld,
+  addPerson,
+  authWorld,
+  bearer,
+  type Person,
+  seedApiKey,
+} from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 let company: MembersCompany;

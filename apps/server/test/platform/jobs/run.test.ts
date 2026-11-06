@@ -7,11 +7,18 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { InvitationView, MemberView } from '../../../src/modules/members/schemas.ts';
 import { OUTBOX_FIRST_DELAY_MS } from '../../../src/platform/jobs/outbox.ts';
 import { type JobsDeps, type ModuleJobs, runJobsOnce } from '../../../src/platform/jobs/run.ts';
-import { newSubject } from '../../fixtures/auth.ts';
-import { addUser, auditOf, call, companyRow, createCompany, outboxOf } from '../../fixtures/companies.ts';
-import { providerInvitationOf } from '../../fixtures/invitations.ts';
-import { type JobsWorld, jobsWorld } from '../../fixtures/jobs.ts';
-import { deliverEvents, failWrites, inboxRow } from '../../fixtures/webhooks.ts';
+import {
+  addUser,
+  auditOf,
+  call,
+  companyRow,
+  createCompany,
+  outboxOf,
+} from '../../fixtures/companies/companies.ts';
+import { deliverEvents, failWrites, inboxRow } from '../../fixtures/identity/webhooks.ts';
+import { providerInvitationOf } from '../../fixtures/members/invitations.ts';
+import { newSubject } from '../../fixtures/platform/auth.ts';
+import { type JobsWorld, jobsWorld } from '../../fixtures/platform/jobs.ts';
 
 let w: JobsWorld;
 beforeAll(async () => {

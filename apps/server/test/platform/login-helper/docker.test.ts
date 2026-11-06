@@ -15,7 +15,7 @@ import {
   sweepListArgs,
 } from '../../../src/platform/login-helper/docker.ts';
 import { LoginHelperError } from '../../../src/platform/login-helper/port.ts';
-import { fakeSpawn, type SpawnCall } from '../../fixtures/sign-in/child.ts';
+import { fakeSpawn, type SpawnCall } from '../../fixtures/credentials/sign-in/child.ts';
 
 const DOCKERFILE = 'FROM node:24.21.0-slim\nRUN npm install --global @anthropic-ai/claude-code@2.1.308\n';
 const TAG = loginImageTag(DOCKERFILE);

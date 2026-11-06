@@ -75,6 +75,23 @@ describe('structureWarnings', () => {
     ]);
   });
 
+  it('holds the folders that grow by design to their own limit, `*` standing for one folder', () => {
+    const files: Record<string, string> = {};
+    const fill = (folder: string, n: number) => {
+      for (let i = 0; i < n; i++) files[`${folder}f${i}.ts`] = '';
+    };
+    fill('apps/web/src/components/ui/', 20);
+    fill('apps/web/src/components/forms/', 21);
+    fill('apps/web/src/components/forms/image/', 13);
+    fill('packages/db/src/schema/', 20);
+    fill('packages/db/src/diagram/', 13);
+    expect(structureWarnings(treeOf(files), undefined)).toEqual([
+      { kind: 'big-folder', path: 'apps/web/src/components/forms/', message: '22 entries' },
+      { kind: 'big-folder', path: 'apps/web/src/components/forms/image/', message: '13 entries' },
+      { kind: 'big-folder', path: 'packages/db/src/diagram/', message: '13 entries' },
+    ]);
+  });
+
   it('warns on files that 8 or more files of their package import, counting each importer once', () => {
     const files: Record<string, string> = { 'packages/db/src/rules.ts': '', 'packages/db/src/tree.ts': '' };
     for (let i = 0; i < 7; i++)

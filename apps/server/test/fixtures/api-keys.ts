@@ -6,8 +6,8 @@ import { apiKeys, auditLog, type DbHandle } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { and, asc, eq } from 'drizzle-orm';
 import type { ApiKeyView, CreatedApiKeyView } from '../../src/modules/api-keys/schemas.ts';
-import type { AuthWorld, Person } from './auth.ts';
-import { as, type MembersCompany } from './members.ts';
+import { as, type MembersCompany } from './members/members.ts';
+import type { AuthWorld, Person } from './platform/auth.ts';
 
 export type { ApiKeyView, CreatedApiKeyView };
 

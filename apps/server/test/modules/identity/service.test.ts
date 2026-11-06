@@ -1,7 +1,7 @@
 import { seedCompany } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profilesOf, subjectOf } from '../../../src/modules/identity/service.ts';
-import { type AuthWorld, addPerson, authWorld } from '../../fixtures/auth.ts';
+import { type AuthWorld, addPerson, authWorld } from '../../fixtures/platform/auth.ts';
 
 describe('profilesOf and subjectOf', () => {
   let w: AuthWorld;

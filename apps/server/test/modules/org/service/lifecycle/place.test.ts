@@ -2,9 +2,14 @@ import type { StoredMembership } from '@mwc/identity-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dbIdentityStore } from '../../../../../src/modules/identity/repo.ts';
 import type { MemberView } from '../../../../../src/modules/members/schemas.ts';
-import { type AuthWorld, addPerson, authWorld } from '../../../../fixtures/auth.ts';
-import { acceptAtProvider, invite, memberWithEmail, runOutbox } from '../../../../fixtures/invitations.ts';
-import { as, type MembersCompany, memberPath, membersCompany } from '../../../../fixtures/members.ts';
+import { deliverEvents } from '../../../../fixtures/identity/webhooks.ts';
+import {
+  acceptAtProvider,
+  invite,
+  memberWithEmail,
+  runOutbox,
+} from '../../../../fixtures/members/invitations.ts';
+import { as, type MembersCompany, memberPath, membersCompany } from '../../../../fixtures/members/members.ts';
 import {
   acceptedFrom,
   LEARNING_PATHS,
@@ -16,7 +21,7 @@ import {
   positionAudit,
   testChart,
 } from '../../../../fixtures/org.ts';
-import { deliverEvents } from '../../../../fixtures/webhooks.ts';
+import { type AuthWorld, addPerson, authWorld } from '../../../../fixtures/platform/auth.ts';
 
 // A membership that becomes active places its person on the org chart (S2.4), whatever the path: under whoever
 // invited them, else under the company's earliest active owner, once.

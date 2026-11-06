@@ -3,8 +3,8 @@ import { TEST_NOW } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiKeysService } from '../../../src/modules/api-keys/service.ts';
 import { keyRows } from '../../fixtures/api-keys.ts';
-import { type AuthWorld, authWorld } from '../../fixtures/auth.ts';
-import { addMember, membersCompany } from '../../fixtures/members.ts';
+import { addMember, membersCompany } from '../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld } from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

@@ -152,7 +152,7 @@ describe('POST /api/companies/:companyId/notes', () => {
 ```
 
 Every company route also gets the auth cases: no token (401), a non-member (404), a role too low (403); the
-auth tests' helpers are in `apps/server/test/fixtures/auth.ts`.
+auth tests' helpers are in `apps/server/test/fixtures/platform/auth.ts`.
 
 `rules.test.ts` tests `rules.ts` directly (no app, no database); `service.test.ts` only when the service has
 behaviour the routes cannot reach.

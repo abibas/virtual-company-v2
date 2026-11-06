@@ -10,8 +10,7 @@ import {
   revokeInviteHandler,
 } from '../../../../src/modules/members/service/invitation-provider.ts';
 import { OUTBOX_MAX_ATTEMPTS, processOutboxRow } from '../../../../src/platform/jobs/outbox.ts';
-import { type AuthWorld, authWorld, WEB_ORIGIN } from '../../../fixtures/auth.ts';
-import { auditOf, loseNextAnswer } from '../../../fixtures/companies.ts';
+import { auditOf, loseNextAnswer } from '../../../fixtures/companies/companies.ts';
 import {
   DAY_MS,
   invitationRow,
@@ -21,8 +20,9 @@ import {
   runOutbox,
   runRow,
   signUp,
-} from '../../../fixtures/invitations.ts';
-import { as, type MembersCompany, membersCompany } from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/invitations.ts';
+import { as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld, WEB_ORIGIN } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

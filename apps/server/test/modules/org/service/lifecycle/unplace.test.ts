@@ -2,8 +2,14 @@ import type { StoredMembership } from '@mwc/identity-core';
 import { LEVEL, seedAgent } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dbIdentityStore } from '../../../../../src/modules/identity/repo.ts';
-import { type AuthWorld, authWorld } from '../../../../fixtures/auth.ts';
-import { activeOwners, as, memberPath, membersCompany, membershipRow } from '../../../../fixtures/members.ts';
+import { deliverEvents } from '../../../../fixtures/identity/webhooks.ts';
+import {
+  activeOwners,
+  as,
+  memberPath,
+  membersCompany,
+  membershipRow,
+} from '../../../../fixtures/members/members.ts';
 import {
   LEARNING_PATHS,
   learnBy,
@@ -15,7 +21,7 @@ import {
   positionAudit,
   testChart,
 } from '../../../../fixtures/org.ts';
-import { deliverEvents } from '../../../../fixtures/webhooks.ts';
+import { type AuthWorld, authWorld } from '../../../../fixtures/platform/auth.ts';
 
 // A membership that ends (removed here or at the provider, or suspended) takes its person off the org chart (S2.4):
 // their direct reports move up with `reparentOnRemoval` and their position goes, in the same transaction as the status

@@ -4,8 +4,7 @@ import { getJson } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { MemberView } from '../../../../src/modules/members/schemas.ts';
-import { type AuthWorld, authWorld, bearer } from '../../../fixtures/auth.ts';
-import { auditOf, call, outboxOf } from '../../../fixtures/companies.ts';
+import { auditOf, call, outboxOf } from '../../../fixtures/companies/companies.ts';
 import {
   addMember,
   as,
@@ -13,7 +12,8 @@ import {
   membersCompany,
   membershipRow,
   ROLES,
-} from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld, bearer } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

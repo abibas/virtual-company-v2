@@ -1,6 +1,6 @@
 import { brokenDb, createTestApp, getJson, seedCompany, type TestApp, testConfig } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AuthWorld, addPerson, authWorld, bearer, mountProbe } from '../../fixtures/auth.ts';
+import { type AuthWorld, addPerson, authWorld, bearer, mountProbe } from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

@@ -2,11 +2,11 @@ import { isId } from '@mwc/shared/ids';
 import { eq, sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RawDbHandle } from '../src/handle.ts';
-import { queryRows } from '../src/handle.ts';
-import { migrateToLatest } from '../src/migrate.ts';
-import { auditLog, companies, users } from '../src/schema/index.ts';
-import { createTestDb, pgError, type TestDb } from '../src/testing.ts';
+import type { RawDbHandle } from '../../src/handle.ts';
+import { queryRows } from '../../src/handle.ts';
+import { migrateToLatest } from '../../src/migrate.ts';
+import { auditLog, companies, users } from '../../src/schema/index.ts';
+import { createTestDb, pgError, type TestDb } from '../../src/testing.ts';
 
 let testDb: TestDb;
 let handle: RawDbHandle;

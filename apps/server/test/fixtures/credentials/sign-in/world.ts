@@ -2,12 +2,12 @@
  * The sign-in service tests' world: a test database with two linked people, and per test a fresh `signInService` on
  * a `FakeLoginHelper` and hand-fired timers, with helpers that start, read and finish sign-ins as one of them.
  */
-import { credentialSecrets } from '../../../src/modules/credentials/index.ts';
-import type { SignInView } from '../../../src/modules/credentials/schemas/sign-in.ts';
-import { type SignInService, signInService } from '../../../src/modules/credentials/service/sign-in.ts';
-import { ephemeralKeyring } from '../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, authWorld } from '../auth.ts';
-import { addUser, type LinkedUser } from '../companies.ts';
+import { credentialSecrets } from '../../../../src/modules/credentials/index.ts';
+import type { SignInView } from '../../../../src/modules/credentials/schemas/sign-in.ts';
+import { type SignInService, signInService } from '../../../../src/modules/credentials/service/sign-in.ts';
+import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
+import { addUser, type LinkedUser } from '../../companies/companies.ts';
+import { type AuthWorld, authWorld } from '../../platform/auth.ts';
 import { FakeLoginHelper, ManualTimers, until } from './helper.ts';
 
 export interface SignInWorld {

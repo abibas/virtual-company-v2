@@ -15,8 +15,8 @@ import { ephemeralKeyring } from '../../src/platform/secrets/keyring.ts';
 import { MasterKeyError } from '../../src/platform/secrets/master-key.ts';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';
 import { readServerVersion } from '../../src/platform/version.ts';
-import { manualTimers } from '../fixtures/jobs.ts';
-import { FakeLoginHelper } from '../fixtures/sign-in/helper.ts';
+import { FakeLoginHelper } from '../fixtures/credentials/sign-in/helper.ts';
+import { manualTimers } from '../fixtures/platform/jobs.ts';
 
 const ENV = { NODE_ENV: 'test', DATABASE_URL: 'postgres://mwc:mwc@127.0.0.1:9999/mwc' };
 

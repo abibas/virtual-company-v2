@@ -4,8 +4,8 @@ import { brokenDb, FAKE_ISSUER, testConfig } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { companiesService, randomSuffix } from '../../../src/modules/companies/service.ts';
 import type { Actor } from '../../../src/platform/auth/actor.ts';
-import { type AuthWorld, authWorld } from '../../fixtures/auth.ts';
-import { addUser, createCompany } from '../../fixtures/companies.ts';
+import { addUser, createCompany } from '../../fixtures/companies/companies.ts';
+import { type AuthWorld, authWorld } from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

@@ -5,7 +5,7 @@ import { createTestDb, type TestDb, testDbKind } from '@mwc/testkit';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { advisoryJobsLock, JOBS_LOCK_KEY } from '../../../src/platform/jobs/lock.ts';
-import { onPglite, secondPool } from '../../fixtures/jobs.ts';
+import { onPglite, secondPool } from '../../fixtures/platform/jobs.ts';
 
 let testDb: TestDb;
 beforeAll(async () => {

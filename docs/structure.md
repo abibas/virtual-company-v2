@@ -180,7 +180,8 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
 - `test/` mirrors `src/`. Module and platform behaviour is tested through `app.request()` on a test
   database (`createTestApp()` from `@mwc/testkit`). A scenario, a story across modules over the whole HTTP API with no
   source file to mirror, lives in `test/scenarios/` (S1.12: `s1-acceptance.test.ts`, the S1 acceptance), its helpers in
-  `test/fixtures/<scenario>/` (`test/fixtures/acceptance/`).
+  `test/fixtures/<scenario>/` (`test/fixtures/acceptance/`). The other helpers are grouped by the module or
+  platform part they serve (`test/fixtures/identity/`, `members/`, `companies/`, `credentials/`, `platform/`).
 
 ## Connectors and ports
 
@@ -323,7 +324,7 @@ listing. The thresholds are the `warn` section of `rules.ts`:
 | --------------- | ------------------------------------------------------------------------------------------------- |
 | `near-limit`    | a limited file is above 80% of its line limit (240 lines of source, 400 in `test/`)               |
 | `long-function` | a named function is over 60 lines, from its first line to its last                               |
-| `big-folder`    | a folder has more than 12 direct entries, files and folders (generated folders are skipped)      |
+| `big-folder`    | a folder has more than 12 direct entries, files and folders (generated folders are skipped); the folders that grow by design have their own limit, `folderEntriesFor`: 20 for each folder of `apps/web/src/components/` and for `packages/db/src/schema/` |
 | `fan-in`        | 8 or more files of the same package import a file by a relative path for its values (importers outside `test/`; type-only imports and exports do not count; the files of one server module, `fanInGroups`, count as one; the files meant to be imported everywhere, `fanInExempt`: the web's `components/`, `api/` and `app/`, are never listed) |
 | `low-coverage`  | a file is under 95% lines or 90% branches in the last coverage run (`.cache/coverage/coverage-summary.json`, the json-summary report of the root `vitest.config.ts`); left out when there is none |
 

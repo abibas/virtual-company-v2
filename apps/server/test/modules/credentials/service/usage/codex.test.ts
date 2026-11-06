@@ -4,7 +4,7 @@ import { TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { codexWindows, jwtExpiry } from '../../../../../src/modules/credentials/service/usage/codex.ts';
-import { addUser, type LinkedUser } from '../../../../fixtures/companies.ts';
+import { addUser, type LinkedUser } from '../../../../fixtures/companies/companies.ts';
 import {
   codexLogin,
   json,

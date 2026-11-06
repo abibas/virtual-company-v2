@@ -18,8 +18,8 @@ import { IdentityProviderError } from '@mwc/identity-core';
 import type { MembershipRole, MembershipStatus } from '@mwc/shared/enums';
 import { FAKE_ISSUER, type FakeIdentityProvider, type FakeMethod, requestJson } from '@mwc/testkit';
 import { asc, eq } from 'drizzle-orm';
-import type { CompanyView } from '../../src/modules/companies/schemas.ts';
-import { type AuthWorld, bearer, newSubject } from './auth.ts';
+import type { CompanyView } from '../../../src/modules/companies/schemas.ts';
+import { type AuthWorld, bearer, newSubject } from '../platform/auth.ts';
 
 export interface LinkedUser {
   readonly subject: string;

@@ -4,7 +4,6 @@ import { getJson, seedCompany } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CompanyView } from '../../../../src/modules/companies/schemas.ts';
-import { type AuthWorld, addPerson, authWorld, bearer } from '../../../fixtures/auth.ts';
 import {
   addUser,
   auditFields,
@@ -14,7 +13,8 @@ import {
   createCompany,
   joinCompany,
   outboxOf,
-} from '../../../fixtures/companies.ts';
+} from '../../../fixtures/companies/companies.ts';
+import { type AuthWorld, addPerson, authWorld, bearer } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

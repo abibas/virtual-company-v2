@@ -108,7 +108,7 @@ and the identity store. `biome.json` forbids it, with `@mwc/db/pglite`, `/migrat
    the generated file is the whole truth; do not hand-edit it. If drizzle-kit cannot express something,
    append it to the generated file under a `-- custom:` comment that says why.
 4. Run `pnpm --filter @mwc/db diagram` after a schema change; it rewrites `docs/schema.md` (the Mermaid
-   ER diagram and the per-table sections, from `src/diagram.ts`). `mwc check` fails if you forget.
+   ER diagram and the per-table sections, from `src/diagram/`). `mwc check` fails if you forget.
 5. Add or update the tests in `test/*.test.ts` (they run on PGlite, and on the dev Postgres in
    `pnpm mwc check --full`), then `pnpm mwc check`.
 

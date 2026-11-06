@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SIGN_IN_ENDINGS, SIGN_IN_LIMITS } from '../../../../../src/modules/credentials/rules/sign-in.ts';
 import { SYSTEM_SIGN_IN_TIMERS } from '../../../../../src/modules/credentials/service/sign-in/context.ts';
-import { CLAUDE_CODE, CLAUDE_OUTPUT } from '../../../../fixtures/sign-in/cli.ts';
+import { CLAUDE_CODE, CLAUDE_OUTPUT } from '../../../../fixtures/credentials/sign-in/cli.ts';
 import {
   claudeScript,
   codexScript,
@@ -9,14 +9,14 @@ import {
   helperError,
   settle,
   until,
-} from '../../../../fixtures/sign-in/helper.ts';
+} from '../../../../fixtures/credentials/sign-in/helper.ts';
 import {
   as,
   type SignInWorld,
   signInOf,
   signInWorld,
   untilState,
-} from '../../../../fixtures/sign-in/world.ts';
+} from '../../../../fixtures/credentials/sign-in/world.ts';
 
 let s: SignInWorld;
 beforeAll(async () => {

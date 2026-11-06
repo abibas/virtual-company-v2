@@ -16,8 +16,8 @@ import {
   CODEX_DEVICE_URL,
   CODEX_USER_CODE,
   SECRETS,
-} from '../../../fixtures/sign-in/cli.ts';
-import { claudeScript, codexScript, settle } from '../../../fixtures/sign-in/helper.ts';
+} from '../../../fixtures/credentials/sign-in/cli.ts';
+import { claudeScript, codexScript, settle } from '../../../fixtures/credentials/sign-in/helper.ts';
 import {
   as,
   openStored,
@@ -25,7 +25,7 @@ import {
   signInOf,
   signInWorld,
   untilState,
-} from '../../../fixtures/sign-in/world.ts';
+} from '../../../fixtures/credentials/sign-in/world.ts';
 
 let s: SignInWorld;
 beforeAll(async () => {

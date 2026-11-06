@@ -6,9 +6,9 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AccessProfileView } from '../../../../src/modules/credentials/schemas/profiles.ts';
 import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../../fixtures/auth.ts';
-import { addUser, call, type LinkedUser } from '../../../fixtures/companies.ts';
+import { addUser, call, type LinkedUser } from '../../../fixtures/companies/companies.ts';
 import { addSubscription, auditRows, noSecret, PROFILES, revokeSubscription } from '../../../fixtures/org.ts';
+import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 // `/api/me/access-profiles` (S3.4): a person's own named bundles of their subscriptions, one per slot, each of a kind
 // the slot takes, never a revoked one and never someone else's; managed signed in only.

@@ -3,9 +3,8 @@ import { rawDb } from '@mwc/db/system';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Me } from '../../../../src/modules/identity/schemas.ts';
-import { type AuthWorld, authWorld, type Person, seedApiKey } from '../../../fixtures/auth.ts';
-import { call, joinCompany } from '../../../fixtures/companies.ts';
-import { as, type MembersCompany, membersCompany } from '../../../fixtures/members.ts';
+import { call, joinCompany } from '../../../fixtures/companies/companies.ts';
+import { as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
 import {
   type AgentDetailView,
   agentProfileOf,
@@ -19,6 +18,7 @@ import {
   putDefault,
   seedProfile,
 } from '../../../fixtures/org.ts';
+import { type AuthWorld, authWorld, type Person, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 // Access profiles on agents (S3.4): only a profile's owner gives it, signed in, in a company where they are an admin
 // or owner; any admin or owner takes it off; a member's default goes on the agents they hire; agents and the chart

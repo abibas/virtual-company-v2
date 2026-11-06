@@ -40,6 +40,8 @@ export interface StructureRules {
     readonly functionLines: number;
     /** A folder with more direct entries, files and folders, than this (`big-folder`). */
     readonly folderEntries: number;
+    /** A limit of their own for the folders that grow by design (`*` is one path segment). */
+    readonly folderEntriesFor: Readonly<Record<string, number>>;
     /**
      * A file that at least this many other files of its package import, outside test/ (`fan-in`). Type-only
      * imports are not counted; the importers inside one `fanInGroups` folder count as one.
@@ -105,6 +107,7 @@ export const STRUCTURE_RULES: StructureRules = {
     nearLimit: 0.8,
     functionLines: 60,
     folderEntries: 12,
+    folderEntriesFor: { 'apps/web/src/components/*/': 20, 'packages/db/src/schema/': 20 },
     fanIn: 8,
     fanInGroups: ['apps/server/src/modules/*/'],
     fanInExempt: ['apps/web/src/components/', 'apps/web/src/api/', 'apps/web/src/app/'],

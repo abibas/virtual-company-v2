@@ -2,12 +2,12 @@
  * The schema diagram: `docs/schema.md`, a Mermaid `erDiagram` of every Drizzle table and foreign key
  * followed by a plain-Markdown section per table, rendered from the tables themselves (`getTableConfig`).
  * Pure: the same tables give the same text, so `mwc check` can compare it with the committed file
- * (`scripts/schema-diagram.ts`). This file puts the page together; diagram/describe.ts reads the tables,
- * diagram/mermaid.ts draws them and diagram/markdown.ts writes the section of each.
+ * (`scripts/schema-diagram.ts`; dev tooling, the server never loads it). This file puts the page
+ * together; describe.ts reads the tables, mermaid.ts draws them and markdown.ts writes the section of each.
  */
-import { collectTables } from './diagram/describe.ts';
-import { code, renderTableSection } from './diagram/markdown.ts';
-import { renderMermaid } from './diagram/mermaid.ts';
+import { collectTables } from './describe.ts';
+import { code, renderTableSection } from './markdown.ts';
+import { renderMermaid } from './mermaid.ts';
 
 /** What the header says about `migrations/meta/_journal.json`. */
 export interface MigrationSummary {

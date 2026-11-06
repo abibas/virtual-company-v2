@@ -6,8 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { credentialSecrets } from '../../../src/modules/credentials/index.ts';
 import type { SubscriptionView } from '../../../src/modules/credentials/schemas.ts';
 import { ephemeralKeyring } from '../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../fixtures/auth.ts';
-import { addUser, call, type LinkedUser } from '../../fixtures/companies.ts';
+import { addUser, call, type LinkedUser } from '../../fixtures/companies/companies.ts';
+import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../fixtures/platform/auth.ts';
 
 const PATH = '/api/me/subscriptions';
 const SETUP_TOKEN = 'sk-ant-oat01-SETUPtokenNEVERshownAGAIN_0123456789';

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InvitationView } from '../../../../src/modules/members/schemas.ts';
-import { type AuthWorld, authWorld, WEB_ORIGIN } from '../../../fixtures/auth.ts';
-import { auditFields, auditOf, call } from '../../../fixtures/companies.ts';
+import { auditFields, auditOf, call } from '../../../fixtures/companies/companies.ts';
 import {
   DAY_MS,
   invitationRow,
@@ -9,8 +8,9 @@ import {
   invite,
   outboxRows,
   runOutbox,
-} from '../../../fixtures/invitations.ts';
-import { addMember, as, type MembersCompany, membersCompany } from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/invitations.ts';
+import { addMember, as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld, WEB_ORIGIN } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

@@ -1,16 +1,22 @@
 import { createTestApp, getJson, LEVEL, postJson } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { SELF_RECONCILE_INTERVAL_MS } from '../../../../src/modules/identity/service.ts';
-import { type AuthWorld, authWorld, bearer, newSubject, seedApiKey } from '../../../fixtures/auth.ts';
-import { auditOf } from '../../../fixtures/companies.ts';
+import { auditOf } from '../../../fixtures/companies/companies.ts';
 import {
   acceptAtProvider,
   invitationRow,
   invite,
   memberWithEmail,
   runOutbox,
-} from '../../../fixtures/invitations.ts';
-import { addMember, membersCompany } from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/invitations.ts';
+import { addMember, membersCompany } from '../../../fixtures/members/members.ts';
+import {
+  type AuthWorld,
+  authWorld,
+  bearer,
+  newSubject,
+  seedApiKey,
+} from '../../../fixtures/platform/auth.ts';
 
 /**
  * `POST /api/me/reconcile` (split from routes.test.ts along the route group): the sign-in reconcile at once, on the

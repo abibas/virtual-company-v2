@@ -17,7 +17,7 @@ import {
   storedStatuses,
   takesLastOwner,
 } from '../../../src/modules/members/rules.ts';
-import { ROLES } from '../../fixtures/members.ts';
+import { ROLES } from '../../fixtures/members/members.ts';
 
 const code = (refusal: { code: string } | undefined) => refusal?.code;
 

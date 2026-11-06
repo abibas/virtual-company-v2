@@ -10,8 +10,8 @@ import { asc, eq } from 'drizzle-orm';
 import { credentialSecrets } from '../../../src/modules/credentials/index.ts';
 import type { SubscriptionLimits } from '../../../src/modules/credentials/schemas/limits.ts';
 import { ephemeralKeyring } from '../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, authWorld, bearer } from '../auth.ts';
-import type { LinkedUser } from '../companies.ts';
+import type { LinkedUser } from '../companies/companies.ts';
+import { type AuthWorld, authWorld, bearer } from '../platform/auth.ts';
 
 /** The provider addresses the checks call, spelled out here so the tests pin them. */
 export const URLS = {

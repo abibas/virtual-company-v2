@@ -2,14 +2,14 @@
  * The sign-in tests' doubles: a `LoginHelper` whose sandboxes replay a script of CLI output (from `cli.ts`) and answer
  * what is typed into them, and timers a test fires by hand. Nothing starts a process or a container.
  */
-import type { SignInTimers } from '../../../src/modules/credentials/service/sign-in/context.ts';
+import type { SignInTimers } from '../../../../src/modules/credentials/service/sign-in/context.ts';
 import {
   type LoginCommand,
   type LoginHelper,
   LoginHelperError,
   type LoginSandbox,
   type SandboxExit,
-} from '../../../src/platform/login-helper/port.ts';
+} from '../../../../src/platform/login-helper/port.ts';
 import { CLAUDE_FILES, CLAUDE_OUTPUT, CODEX_FILES, CODEX_OUTPUT } from './cli.ts';
 
 /** A sandbox a test drives: it emits output and exits when told, and records what was typed and read. */

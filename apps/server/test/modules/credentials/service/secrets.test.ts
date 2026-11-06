@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
 import { credentialSecrets, type StoreCredentialInput } from '../../../../src/modules/credentials/index.ts';
 import { ephemeralKeyring, SecretOpenError } from '../../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
-import { addUser, type LinkedUser } from '../../../fixtures/companies.ts';
+import { addUser, type LinkedUser } from '../../../fixtures/companies/companies.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 const TOKEN = 'sk-ant-oat01-INTERNALsecretNEVERshown';
 const ACCESS = 'sk-ant-oat01-ACCESStokenNEVERshown';

@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enqueueOutbox } from '../../../src/platform/jobs/outbox.ts';
 import { JOBS_OFF, outboxBacklog } from '../../../src/platform/jobs/status.ts';
-import { HOUR_MS } from '../../fixtures/jobs.ts';
+import { HOUR_MS } from '../../fixtures/platform/jobs.ts';
 
 const clock = fixedClock(Math.ceil(Date.now() / HOUR_MS) * HOUR_MS + 24 * HOUR_MS);
 let t: TestApp;

@@ -1,7 +1,7 @@
 import { IdentityProviderError } from '@mwc/identity-core';
 import { FAKE_ISSUER, getJson, LEVEL, seedCompany } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { type AuthWorld, addPerson, authWorld, bearer, WEB_ORIGIN } from '../../fixtures/auth.ts';
+import { type AuthWorld, addPerson, authWorld, bearer, WEB_ORIGIN } from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 let companyId: string;

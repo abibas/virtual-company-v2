@@ -1,9 +1,8 @@
 import { seedAgent } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AccessProfileView } from '../../../../src/modules/credentials/schemas/profiles.ts';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
-import { addUser, call, companyRow, joinCompany } from '../../../fixtures/companies.ts';
-import { as, membersCompany } from '../../../fixtures/members.ts';
+import { addUser, call, companyRow, joinCompany } from '../../../fixtures/companies/companies.ts';
+import { as, membersCompany } from '../../../fixtures/members/members.ts';
 import {
   agentProfileOf,
   defaultProfileOf,
@@ -12,6 +11,7 @@ import {
   putDefault,
   seedProfile,
 } from '../../../fixtures/org.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 // What an access profile's owner sees of its use and what removing it does (S3.4): the agents using it in their
 // companies, and, on removal, the agents and defaults it leaves, detached by the foreign keys with audit rows in each

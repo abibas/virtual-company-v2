@@ -6,7 +6,7 @@
 import { expect } from 'vitest';
 import { validateChart } from '../../../src/modules/org/rules.ts';
 import type { AgentDetailView, OrgChartView } from '../../../src/modules/org/schemas.ts';
-import { auditOf } from '../companies.ts';
+import { auditOf } from '../companies/companies.ts';
 import type { Founded } from './steps.ts';
 import type { SignedIn } from './target.ts';
 import type { AcceptanceWorld } from './world.ts';

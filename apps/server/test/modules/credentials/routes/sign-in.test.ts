@@ -16,9 +16,7 @@ import type { AccessProfileView } from '../../../../src/modules/credentials/sche
 import type { SignInView } from '../../../../src/modules/credentials/schemas/sign-in.ts';
 import type { SubscriptionView } from '../../../../src/modules/credentials/schemas.ts';
 import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, addPerson, bearer, seedApiKey } from '../../../fixtures/auth.ts';
-import { addUser, call, type LinkedUser } from '../../../fixtures/companies.ts';
-import { addSubscription, PROFILES, revokeSubscription, seedProfile } from '../../../fixtures/org.ts';
+import { addUser, call, type LinkedUser } from '../../../fixtures/companies/companies.ts';
 import {
   CLAUDE_AUTHORIZE_URL,
   CLAUDE_CODE,
@@ -27,14 +25,16 @@ import {
   CODEX_DEVICE_URL,
   CODEX_USER_CODE,
   SECRETS,
-} from '../../../fixtures/sign-in/cli.ts';
+} from '../../../fixtures/credentials/sign-in/cli.ts';
 import {
   claudeScript,
   codexScript,
   FakeLoginHelper,
   settle,
   until,
-} from '../../../fixtures/sign-in/helper.ts';
+} from '../../../fixtures/credentials/sign-in/helper.ts';
+import { addSubscription, PROFILES, revokeSubscription, seedProfile } from '../../../fixtures/org.ts';
+import { type AuthWorld, addPerson, bearer, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 const SIGN_IN = '/api/me/subscriptions/sign-in';
 const helper = new FakeLoginHelper();

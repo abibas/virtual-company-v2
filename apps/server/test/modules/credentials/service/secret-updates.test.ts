@@ -6,8 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
 import { credentialSecrets } from '../../../../src/modules/credentials/index.ts';
 import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
-import { addUser, type LinkedUser } from '../../../fixtures/companies.ts';
+import { addUser, type LinkedUser } from '../../../fixtures/companies/companies.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 const OLD = 'sk-ant-oat01-REPLACEoldNEVERshown';
 const NEW = 'sk-ant-oat01-REPLACEnewNEVERshown';

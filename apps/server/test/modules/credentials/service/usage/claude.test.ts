@@ -4,7 +4,7 @@ import { TEST_NOW } from '@mwc/testkit';
 import { and, asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { claudeWindows } from '../../../../../src/modules/credentials/service/usage/claude.ts';
-import { addUser, type LinkedUser } from '../../../../fixtures/companies.ts';
+import { addUser, type LinkedUser } from '../../../../fixtures/companies/companies.ts';
 import {
   claudeLogin,
   json,

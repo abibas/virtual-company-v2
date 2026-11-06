@@ -13,7 +13,7 @@ import {
   inboxRow,
   inboxRows,
   WEBHOOK_PATH,
-} from '../../../fixtures/webhooks.ts';
+} from '../../../fixtures/identity/webhooks.ts';
 
 const secret = testWebhookSecret();
 const clock = fixedClock();

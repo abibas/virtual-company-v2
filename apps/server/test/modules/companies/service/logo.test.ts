@@ -1,8 +1,13 @@
 import { getJson } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CompanySummary, CompanyView } from '../../../../src/modules/companies/schemas.ts';
-import { type AuthWorld, authWorld, bearer } from '../../../fixtures/auth.ts';
-import { addUser, call, createCompany, joinCompany, type LinkedUser } from '../../../fixtures/companies.ts';
+import {
+  addUser,
+  call,
+  createCompany,
+  joinCompany,
+  type LinkedUser,
+} from '../../../fixtures/companies/companies.ts';
 import {
   deleteLogo,
   getLogo,
@@ -12,7 +17,8 @@ import {
   PNG,
   putLogo,
   sha256,
-} from '../../../fixtures/logos.ts';
+} from '../../../fixtures/companies/logos.ts';
+import { type AuthWorld, authWorld, bearer } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 let ihor: LinkedUser;

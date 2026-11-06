@@ -3,8 +3,8 @@ import { rawDb } from '@mwc/db/system';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
-import { auditOf, companyRow } from '../../../fixtures/companies.ts';
+import { auditOf, companyRow } from '../../../fixtures/companies/companies.ts';
+import { deliverEvents, inboxRow, inboxRows, redelivered } from '../../../fixtures/identity/webhooks.ts';
 import {
   acceptAtProvider,
   invitationRow,
@@ -12,9 +12,9 @@ import {
   memberWithEmail,
   runOutbox,
   signUp,
-} from '../../../fixtures/invitations.ts';
-import { as, type MembersCompany, membersCompany } from '../../../fixtures/members.ts';
-import { deliverEvents, inboxRow, inboxRows, redelivered } from '../../../fixtures/webhooks.ts';
+} from '../../../fixtures/members/invitations.ts';
+import { as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

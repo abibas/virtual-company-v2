@@ -8,10 +8,16 @@ import {
   resendInvitation,
   revokeInvitation,
 } from '../../../../src/modules/members/service/invitations.ts';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
-import { auditFields, auditOf } from '../../../fixtures/companies.ts';
-import { DAY_MS, invitationRow, invitationsPath, invite, outboxRows } from '../../../fixtures/invitations.ts';
-import { addMember, as, membersCompany } from '../../../fixtures/members.ts';
+import { auditFields, auditOf } from '../../../fixtures/companies/companies.ts';
+import {
+  DAY_MS,
+  invitationRow,
+  invitationsPath,
+  invite,
+  outboxRows,
+} from '../../../fixtures/members/invitations.ts';
+import { addMember, as, membersCompany } from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

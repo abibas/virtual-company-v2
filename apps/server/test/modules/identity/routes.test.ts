@@ -3,8 +3,8 @@ import { rawDb } from '@mwc/db/system';
 import { createTestApp, FAKE_ISSUER, getJson, LEVEL, seedCompany } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { type AuthWorld, addPerson, authWorld, bearer, seedApiKey } from '../../fixtures/auth.ts';
-import { auditOf, call } from '../../fixtures/companies.ts';
+import { auditOf, call } from '../../fixtures/companies/companies.ts';
+import { acceptedInvitation } from '../../fixtures/identity/me.ts';
 import {
   acceptAtProvider,
   DAY_MS,
@@ -13,9 +13,9 @@ import {
   outboxRows,
   runOutbox,
   signUp,
-} from '../../fixtures/invitations.ts';
-import { acceptedInvitation } from '../../fixtures/me.ts';
-import { addMember, as, membersCompany } from '../../fixtures/members.ts';
+} from '../../fixtures/members/invitations.ts';
+import { addMember, as, membersCompany } from '../../fixtures/members/members.ts';
+import { type AuthWorld, addPerson, authWorld, bearer, seedApiKey } from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

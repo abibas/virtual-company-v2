@@ -17,7 +17,7 @@ import {
 } from '@mwc/testkit';
 import { moduleJobs } from '../../../src/app.ts';
 import { type JobsDeps, type JobsTick, runJobsOnce } from '../../../src/platform/jobs/run.ts';
-import { HOUR_MS, MINUTE_MS } from '../jobs.ts';
+import { HOUR_MS, MINUTE_MS } from '../platform/jobs.ts';
 import type { AcceptanceTarget, SignedIn } from './target.ts';
 
 /** MWC_RECONCILE_MINUTES' default: how far the clock moves for the periodic reconcile to come round. */

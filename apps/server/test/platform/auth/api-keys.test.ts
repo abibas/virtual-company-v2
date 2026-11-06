@@ -21,7 +21,7 @@ import {
   newApiKey,
   type Person,
   seedApiKey,
-} from '../../fixtures/auth.ts';
+} from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 let companyId: string;

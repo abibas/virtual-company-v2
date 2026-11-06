@@ -1,6 +1,6 @@
 /**
  * Schema diagram: renders `docs/schema.md` (a Mermaid ER diagram and a section per table, see
- * src/diagram.ts) from the Drizzle schema, or checks that the committed file is current.
+ * src/diagram/page.ts) from the Drizzle schema, or checks that the committed file is current.
  *
  *   node scripts/schema-diagram.ts --write   pnpm --filter @mwc/db diagram
  *   node scripts/schema-diagram.ts --check   pnpm --filter @mwc/db check:diagram (also in mwc check's db drift)
@@ -10,7 +10,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { migrationSummary, renderSchemaDiagram } from '../src/diagram.ts';
+import { migrationSummary, renderSchemaDiagram } from '../src/diagram/page.ts';
 import * as schema from '../src/schema/index.ts';
 
 const packageDir = resolve(import.meta.dirname, '..');

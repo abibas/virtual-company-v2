@@ -5,8 +5,8 @@
 import { invitations, tenant } from '@mwc/db';
 import { IDENTITY_METADATA } from '@mwc/shared/identity';
 import { seedCompany } from '@mwc/testkit';
-import type { AuthWorld } from './auth.ts';
-import { newSubject } from './auth.ts';
+import type { AuthWorld } from '../platform/auth.ts';
+import { newSubject } from '../platform/auth.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

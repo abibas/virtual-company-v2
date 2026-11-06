@@ -13,7 +13,7 @@ import {
   PROVIDER,
   seedableDbStore,
   snapshotOf,
-} from '../../fixtures/identity-store.ts';
+} from '../../fixtures/identity/identity-store.ts';
 import { testChart } from '../../fixtures/org.ts';
 
 // The same contract the in-memory store passes (packages/testkit/test/store-contract.test.ts), on the

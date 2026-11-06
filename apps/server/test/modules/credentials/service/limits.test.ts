@@ -4,8 +4,7 @@ import { getJson, seedCompany, TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LIMIT_WINDOW_ID, LimitWindowSchema } from '../../../../src/modules/credentials/schemas/limits.ts';
-import { addPerson, seedApiKey } from '../../../fixtures/auth.ts';
-import { addUser, call, type LinkedUser } from '../../../fixtures/companies.ts';
+import { addUser, call, type LinkedUser } from '../../../fixtures/companies/companies.ts';
 import {
   claudeLogin,
   getLimits,
@@ -16,6 +15,7 @@ import {
   URLS,
   usesOf,
 } from '../../../fixtures/credentials/providers.ts';
+import { addPerson, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 const ACCESS = 'sk-ant-oat01-LIMITSaccessNEVERlogged';
 const REFRESH = 'sk-ant-ort01-LIMITSrefreshNEVERlogged';

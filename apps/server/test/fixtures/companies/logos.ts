@@ -6,8 +6,8 @@ import { createHash } from 'node:crypto';
 import { auditLog, companyLogos, type DbHandle } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { and, asc, eq } from 'drizzle-orm';
-import type { AuthWorld } from './auth.ts';
-import { bearer } from './auth.ts';
+import type { AuthWorld } from '../platform/auth.ts';
+import { bearer } from '../platform/auth.ts';
 
 const image = (base64: string) => new Uint8Array(Buffer.from(base64, 'base64'));
 

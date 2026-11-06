@@ -4,7 +4,7 @@
  * system's), and step 9, a company someone else owns, which stays out of sight throughout.
  */
 import { expect } from 'vitest';
-import { auditOf } from '../companies.ts';
+import { auditOf } from '../companies/companies.ts';
 import { type Founded, providerRoleOf } from './steps.ts';
 import type { SignedIn } from './target.ts';
 import type { AcceptanceWorld } from './world.ts';

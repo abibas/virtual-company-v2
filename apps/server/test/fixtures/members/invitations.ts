@@ -7,12 +7,12 @@ import { type IdentityOutboxRow, invitations } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { MembershipRole } from '@mwc/shared/enums';
 import { eq } from 'drizzle-orm';
-import type { InvitationView, MemberView } from '../../src/modules/members/schemas.ts';
-import { invitationOutboxHandlers } from '../../src/modules/members/service/invitation-provider.ts';
-import { memberOutboxHandlers } from '../../src/modules/members/service/provider.ts';
-import { type OutboxOutcome, processOutboxRow } from '../../src/platform/jobs/outbox.ts';
-import { type AuthWorld, newSubject, type Person } from './auth.ts';
-import { outboxOf } from './companies.ts';
+import type { InvitationView, MemberView } from '../../../src/modules/members/schemas.ts';
+import { invitationOutboxHandlers } from '../../../src/modules/members/service/invitation-provider.ts';
+import { memberOutboxHandlers } from '../../../src/modules/members/service/provider.ts';
+import { type OutboxOutcome, processOutboxRow } from '../../../src/platform/jobs/outbox.ts';
+import { outboxOf } from '../companies/companies.ts';
+import { type AuthWorld, newSubject, type Person } from '../platform/auth.ts';
 import { as, type MembersCompany } from './members.ts';
 
 export const DAY_MS = 24 * 60 * 60 * 1000;

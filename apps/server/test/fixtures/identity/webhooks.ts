@@ -12,7 +12,7 @@ import type { WebhookRequest } from '@mwc/identity-core';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import type { App } from '@mwc/testkit';
 import { asc, eq, sql } from 'drizzle-orm';
-import type { AuthWorld } from './auth.ts';
+import type { AuthWorld } from '../platform/auth.ts';
 
 export const WEBHOOK_PATH = '/api/webhooks/clerk';
 

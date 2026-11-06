@@ -7,9 +7,9 @@ import { companies, type DbHandle } from '@mwc/db';
 import { createDb, queryRows, rawDb } from '@mwc/db/system';
 import { testConfig, testDbKind } from '@mwc/testkit';
 import { eq, sql } from 'drizzle-orm';
-import { moduleJobs } from '../../src/app.ts';
-import type { JobsDeps } from '../../src/platform/jobs/run.ts';
-import type { Timers } from '../../src/platform/jobs/runner.ts';
+import { moduleJobs } from '../../../src/app.ts';
+import type { JobsDeps } from '../../../src/platform/jobs/run.ts';
+import type { Timers } from '../../../src/platform/jobs/runner.ts';
 import { type AuthWorld, authWorld } from './auth.ts';
 
 /** Tests on PGlite (the default lane) or on the dev Postgres (`--full`). */

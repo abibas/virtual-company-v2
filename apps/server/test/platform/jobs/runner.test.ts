@@ -10,7 +10,13 @@ import {
   type JobsRunnerDeps,
   SYSTEM_TIMERS,
 } from '../../../src/platform/jobs/runner.ts';
-import { type JobsWorld, jobsWorld, manualTimers, onPglite, secondPool } from '../../fixtures/jobs.ts';
+import {
+  type JobsWorld,
+  jobsWorld,
+  manualTimers,
+  onPglite,
+  secondPool,
+} from '../../fixtures/platform/jobs.ts';
 
 let w: JobsWorld;
 beforeAll(async () => {

@@ -11,9 +11,9 @@ import {
   keysPath,
   makeKey,
 } from '../../fixtures/api-keys.ts';
-import { type AuthWorld, authWorld, seedApiKey } from '../../fixtures/auth.ts';
-import { call } from '../../fixtures/companies.ts';
-import { addMember, as, membersCompany } from '../../fixtures/members.ts';
+import { call } from '../../fixtures/companies/companies.ts';
+import { addMember, as, membersCompany } from '../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld, seedApiKey } from '../../fixtures/platform/auth.ts';
 
 const DAY = 86_400_000;
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');

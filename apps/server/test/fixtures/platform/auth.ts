@@ -18,11 +18,11 @@ import {
   testConfig,
 } from '@mwc/testkit';
 import type { Hono } from 'hono';
-import { hashApiKey } from '../../src/platform/auth/api-keys.ts';
-import { type AuthDeps, authn } from '../../src/platform/auth/authn.ts';
-import { requireMembership } from '../../src/platform/auth/membership.ts';
-import type { AppEnv } from '../../src/platform/env.ts';
-import type { Keyring } from '../../src/platform/secrets/keyring.ts';
+import { hashApiKey } from '../../../src/platform/auth/api-keys.ts';
+import { type AuthDeps, authn } from '../../../src/platform/auth/authn.ts';
+import { requireMembership } from '../../../src/platform/auth/membership.ts';
+import type { AppEnv } from '../../../src/platform/env.ts';
+import type { Keyring } from '../../../src/platform/secrets/keyring.ts';
 
 /** The origin the test configuration accepts tokens from (MWC_WEB_ORIGIN's default). */
 export const WEB_ORIGIN = testConfig.MWC_WEB_ORIGIN;

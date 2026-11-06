@@ -14,7 +14,7 @@ import {
   reconcileRound,
   slotStartMs,
 } from '../../../src/platform/jobs/reconcile.ts';
-import { HOUR_MS, MINUTE_MS, reconciledAt, setReconciledAt } from '../../fixtures/jobs.ts';
+import { HOUR_MS, MINUTE_MS, reconciledAt, setReconciledAt } from '../../fixtures/platform/jobs.ts';
 
 const INTERVAL = MINUTE_MS;
 // A whole number of intervals (every slot boundary is its offset past it), a day ahead of real time.

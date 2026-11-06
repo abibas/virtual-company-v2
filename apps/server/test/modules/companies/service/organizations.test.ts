@@ -11,7 +11,6 @@ import {
   deleteOrgHandler,
 } from '../../../../src/modules/companies/service/organizations.ts';
 import { OUTBOX_FIRST_DELAY_MS, processOutboxRow } from '../../../../src/platform/jobs/outbox.ts';
-import { type AuthWorld, authWorld, bearer } from '../../../fixtures/auth.ts';
 import {
   addUser,
   auditFields,
@@ -22,7 +21,8 @@ import {
   type LinkedUser,
   loseNextAnswer,
   outboxOf,
-} from '../../../fixtures/companies.ts';
+} from '../../../fixtures/companies/companies.ts';
+import { type AuthWorld, authWorld, bearer } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 let owner: LinkedUser;

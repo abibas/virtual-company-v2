@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { localLoginHelper, sandboxEnv } from '../../../src/platform/login-helper/local.ts';
 import { ttyArgv } from '../../../src/platform/login-helper/tty.ts';
-import { fakeSpawn } from '../../fixtures/sign-in/child.ts';
+import { fakeSpawn } from '../../fixtures/credentials/sign-in/child.ts';
 
 const HOME = '/tmp/mwc-login-abc123';
 const ARGV = ['codex', 'login', '--device-auth', '-c', 'cli_auth_credentials_store=file'];

@@ -113,10 +113,10 @@ function packageImports(path: string, text: string, known: ReadonlySet<string>, 
   return [...targets];
 }
 
-/** A pattern whose `*` is one path segment, matching the start of a path. */
-function glob(pattern: string): RegExp {
+/** A pattern whose `*` is one path segment, matching the start of a path, or with `whole` all of it. */
+function glob(pattern: string, whole = false): RegExp {
   const parts = pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
-  return new RegExp(`^${parts.join('[^/]+')}`);
+  return new RegExp(`^${parts.join('[^/]+')}${whole ? '$' : ''}`);
 }
 
 /** Who imports, for `fan-in`: the folder of the `fanInGroups` pattern the file is in, or the file. */
@@ -183,6 +183,10 @@ export function structureWarnings(
   const known = new Set(tree.paths);
   const generated = rules.generated.filter((entry) => entry.endsWith('/'));
   const groups = rules.warn.fanInGroups.map((pattern) => glob(pattern));
+  const limits = Object.entries(rules.warn.folderEntriesFor).map(([pattern, limit]) => ({
+    folder: glob(pattern, true),
+    limit,
+  }));
   for (const path of tree.paths) {
     for (const [folder, entry] of folderEntries(path)) {
       if (generated.some((skip) => matches(folder, skip))) break;
@@ -199,7 +203,8 @@ export function structureWarnings(
     }
   }
   for (const [folder, inside] of entries) {
-    if (inside.size <= rules.warn.folderEntries) continue;
+    const limit = limits.find(({ folder: own }) => own.test(folder))?.limit ?? rules.warn.folderEntries;
+    if (inside.size <= limit) continue;
     found.push({ kind: 'big-folder', path: folder, message: `${inside.size} entries`, weight: inside.size });
   }
   for (const [target, from] of importers) {

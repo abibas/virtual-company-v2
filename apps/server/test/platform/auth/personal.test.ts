@@ -5,7 +5,14 @@ import { authn } from '../../../src/platform/auth/authn.ts';
 import { personalRoute, requireSession } from '../../../src/platform/auth/personal.ts';
 import type { AppEnv } from '../../../src/platform/env.ts';
 import { errorHandler } from '../../../src/platform/http/errors.ts';
-import { type AuthWorld, addPerson, authWorld, bearer, newSubject, seedApiKey } from '../../fixtures/auth.ts';
+import {
+  type AuthWorld,
+  addPerson,
+  authWorld,
+  bearer,
+  newSubject,
+  seedApiKey,
+} from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

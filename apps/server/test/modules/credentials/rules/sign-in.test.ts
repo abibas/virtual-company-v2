@@ -20,7 +20,7 @@ import {
   CODEX_DEVICE_URL,
   CODEX_OUTPUT,
   CODEX_USER_CODE,
-} from '../../../fixtures/sign-in/cli.ts';
+} from '../../../fixtures/credentials/sign-in/cli.ts';
 
 const ESC = '\u001b';
 

@@ -16,6 +16,7 @@ describe('STRUCTURE_RULES', () => {
       nearLimit: 0.8,
       functionLines: 60,
       folderEntries: 12,
+      folderEntriesFor: { 'apps/web/src/components/*/': 20, 'packages/db/src/schema/': 20 },
       fanIn: 8,
       fanInGroups: ['apps/server/src/modules/*/'],
       fanInExempt: ['apps/web/src/components/', 'apps/web/src/api/', 'apps/web/src/app/'],

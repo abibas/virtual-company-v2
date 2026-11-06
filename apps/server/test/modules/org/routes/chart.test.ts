@@ -1,8 +1,7 @@
 import { getJson, LEVEL, seedAgent, seedMember } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/auth.ts';
-import { call } from '../../../fixtures/companies.ts';
-import { as, membersCompany } from '../../../fixtures/members.ts';
+import { call } from '../../../fixtures/companies/companies.ts';
+import { as, membersCompany } from '../../../fixtures/members/members.ts';
 import {
   agentsPath,
   chartPath,
@@ -11,6 +10,7 @@ import {
   placedMember,
   positionPath,
 } from '../../../fixtures/org.ts';
+import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

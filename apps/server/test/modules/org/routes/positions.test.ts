@@ -1,8 +1,7 @@
 import { seedAgent } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AuthWorld, authWorld, type Person, seedApiKey } from '../../../fixtures/auth.ts';
-import { call } from '../../../fixtures/companies.ts';
-import { as, type MembersCompany, membersCompany } from '../../../fixtures/members.ts';
+import { call } from '../../../fixtures/companies/companies.ts';
+import { as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
 import {
   agentsPath,
   auditRows,
@@ -12,6 +11,7 @@ import {
   placeOf,
   positionPath,
 } from '../../../fixtures/org.ts';
+import { type AuthWorld, authWorld, type Person, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

@@ -4,7 +4,7 @@ import { TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { headerWindows } from '../../../../../src/modules/credentials/service/usage/setup-token.ts';
-import { addUser, call } from '../../../../fixtures/companies.ts';
+import { addUser, call } from '../../../../fixtures/companies/companies.ts';
 import {
   type Answer,
   type LimitsWorld,

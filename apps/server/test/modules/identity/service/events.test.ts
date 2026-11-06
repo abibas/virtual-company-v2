@@ -11,18 +11,18 @@ import {
   retryIdentityEvents,
 } from '../../../../src/modules/identity/service/events.ts';
 import { RETRY_FIRST_DELAY_MS, retryDelayMs } from '../../../../src/platform/jobs/retry.ts';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
-import { auditOf } from '../../../fixtures/companies.ts';
+import { auditOf } from '../../../fixtures/companies/companies.ts';
+import { deliverEvents, failWrites, inboxRow } from '../../../fixtures/identity/webhooks.ts';
 import {
   acceptAtProvider,
   invite,
   memberWithEmail,
   runOutbox,
   signUp,
-} from '../../../fixtures/invitations.ts';
-import { membersCompany } from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/invitations.ts';
+import { membersCompany } from '../../../fixtures/members/members.ts';
 import { testChart } from '../../../fixtures/org.ts';
-import { deliverEvents, failWrites, inboxRow } from '../../../fixtures/webhooks.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

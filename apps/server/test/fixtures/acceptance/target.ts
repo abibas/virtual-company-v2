@@ -7,7 +7,7 @@
 import type { IdentityProvider } from '@mwc/identity-core';
 import type { ExternalInvitation } from '@mwc/shared/identity';
 import { FakeIdentityProvider, type TestClock, testConfig } from '@mwc/testkit';
-import { newSubject } from '../auth.ts';
+import { newSubject } from '../platform/auth.ts';
 
 /** Someone signed in at the target's provider. */
 export interface SignedIn {

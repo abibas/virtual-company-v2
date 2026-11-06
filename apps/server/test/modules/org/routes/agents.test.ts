@@ -4,9 +4,8 @@ import { agentFace } from '@mwc/shared/org';
 import { seedAgent } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AuthWorld, authWorld, seedApiKey } from '../../../fixtures/auth.ts';
-import { call } from '../../../fixtures/companies.ts';
-import { addMember, as, membersCompany } from '../../../fixtures/members.ts';
+import { call } from '../../../fixtures/companies/companies.ts';
+import { addMember, as, membersCompany } from '../../../fixtures/members/members.ts';
 import {
   type AgentDetailView,
   agentsPath,
@@ -16,6 +15,7 @@ import {
   placedMember,
   placeOf,
 } from '../../../fixtures/org.ts';
+import { type AuthWorld, authWorld, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

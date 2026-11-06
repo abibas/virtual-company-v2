@@ -8,8 +8,8 @@ import {
   retryOnUniqueViolation,
 } from '../../../../src/modules/identity/service/me.ts';
 import type { Actor } from '../../../../src/platform/auth/actor.ts';
-import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/auth.ts';
 import { testChart } from '../../../fixtures/org.ts';
+import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/platform/auth.ts';
 
 const unique = Object.assign(new Error('duplicate key'), { code: '23505' });
 

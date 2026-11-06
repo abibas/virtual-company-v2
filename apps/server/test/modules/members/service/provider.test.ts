@@ -12,8 +12,7 @@ import {
   updateRoleHandler,
 } from '../../../../src/modules/members/service/provider.ts';
 import { OUTBOX_FIRST_DELAY_MS, processOutboxRow } from '../../../../src/platform/jobs/outbox.ts';
-import { type AuthWorld, authWorld, type Person } from '../../../fixtures/auth.ts';
-import { joinCompany, loseNextAnswer, outboxOf } from '../../../fixtures/companies.ts';
+import { joinCompany, loseNextAnswer, outboxOf } from '../../../fixtures/companies/companies.ts';
 import {
   addMember,
   as,
@@ -21,7 +20,8 @@ import {
   memberPath,
   membersCompany,
   providerRoleOf,
-} from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld, type Person } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

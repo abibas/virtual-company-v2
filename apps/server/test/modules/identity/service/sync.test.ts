@@ -4,7 +4,6 @@ import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { projectIdentityEvent, reconcileCompany } from '../../../../src/modules/identity/service/sync.ts';
-import { type AuthWorld, authWorld } from '../../../fixtures/auth.ts';
 import {
   acceptAtProvider,
   DAY_MS,
@@ -15,15 +14,16 @@ import {
   outboxRows,
   runOutbox,
   signUp,
-} from '../../../fixtures/invitations.ts';
+} from '../../../fixtures/members/invitations.ts';
 import {
   as,
   type MembersCompany,
   memberPath,
   membersCompany,
   providerRoleOf,
-} from '../../../fixtures/members.ts';
+} from '../../../fixtures/members/members.ts';
 import { testChart } from '../../../fixtures/org.ts';
+import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

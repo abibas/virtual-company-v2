@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { requireMembership } from '../../../src/platform/auth/membership.ts';
 import type { AppEnv } from '../../../src/platform/env.ts';
 import { errorHandler } from '../../../src/platform/http/errors.ts';
-import { type AuthWorld, addPerson, authWorld, bearer, seedApiKey } from '../../fixtures/auth.ts';
+import { type AuthWorld, addPerson, authWorld, bearer, seedApiKey } from '../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
 beforeAll(async () => {

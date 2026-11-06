@@ -2,9 +2,9 @@ import type { StoredMembership } from '@mwc/identity-core';
 import { seedAgent } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dbIdentityStore } from '../../../../../src/modules/identity/repo.ts';
-import { type AuthWorld, authWorld } from '../../../../fixtures/auth.ts';
-import { call, joinCompany } from '../../../../fixtures/companies.ts';
-import { as, type MembersCompany, memberPath, membersCompany } from '../../../../fixtures/members.ts';
+import { call, joinCompany } from '../../../../fixtures/companies/companies.ts';
+import { deliverEvents } from '../../../../fixtures/identity/webhooks.ts';
+import { as, type MembersCompany, memberPath, membersCompany } from '../../../../fixtures/members/members.ts';
 import {
   agentProfileOf,
   fieldAudit,
@@ -14,7 +14,7 @@ import {
   seedProfile,
   testChart,
 } from '../../../../fixtures/org.ts';
-import { deliverEvents } from '../../../../fixtures/webhooks.ts';
+import { type AuthWorld, authWorld } from '../../../../fixtures/platform/auth.ts';
 
 // A person who leaves a company, by any path S2.4's lifecycle covers, takes their access profiles off its agents in
 // the same transaction (S3.4): their personal subscriptions stop powering a company they left. Other people's profiles

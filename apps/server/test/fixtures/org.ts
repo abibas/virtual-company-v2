@@ -37,10 +37,10 @@ import { validateChart } from '../../src/modules/org/rules.ts';
 import type { AgentDetailView, OrgChartView } from '../../src/modules/org/schemas.ts';
 import { memberChart } from '../../src/modules/org/service/lifecycle.ts';
 import type { Keyring } from '../../src/platform/secrets/keyring.ts';
-import { type AuthWorld, addPerson, bearer, newSubject, type Person } from './auth.ts';
-import { acceptAtProvider, invite, memberWithEmail, runOutbox, signUp } from './invitations.ts';
-import { as, type MembersCompany, membersCompany } from './members.ts';
-import { deliverEvents, redelivered } from './webhooks.ts';
+import { deliverEvents, redelivered } from './identity/webhooks.ts';
+import { acceptAtProvider, invite, memberWithEmail, runOutbox, signUp } from './members/invitations.ts';
+import { as, type MembersCompany, membersCompany } from './members/members.ts';
+import { type AuthWorld, addPerson, bearer, newSubject, type Person } from './platform/auth.ts';
 
 export type { AgentDetailView, OrgChartView };
 

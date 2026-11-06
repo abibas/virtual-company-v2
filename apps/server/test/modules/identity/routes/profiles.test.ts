@@ -4,9 +4,14 @@ import { createTestApp, fixedClock, getJson, postJson, type TestApp } from '@mwc
 import { signedWebhook, testWebhookSecret } from '@mwc/testkit/webhooks';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type AuthWorld, authWorld, bearer, newSubject } from '../../../fixtures/auth.ts';
-import { addMember, as, membersCompany } from '../../../fixtures/members.ts';
-import { clerkEnvelope, clerkUserJson, clerkWebhookProvider, deliver } from '../../../fixtures/webhooks.ts';
+import {
+  clerkEnvelope,
+  clerkUserJson,
+  clerkWebhookProvider,
+  deliver,
+} from '../../../fixtures/identity/webhooks.ts';
+import { addMember, as, membersCompany } from '../../../fixtures/members/members.ts';
+import { type AuthWorld, authWorld, bearer, newSubject } from '../../../fixtures/platform/auth.ts';
 
 /**
  * A person's name and photo (user profiles, Ihor's request of 2026-11-05) on every path that brings them from the
