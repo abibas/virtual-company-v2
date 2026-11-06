@@ -108,16 +108,31 @@ shows each subscription's live 5-hour and weekly limits.
 5. Web: the Subscriptions page (cards, Add a subscription with each flow, rename, remove), access profiles, the agent form's profile, and the home page's **Subscription limits** widget. **Done 2026-11-05** (`apps/web`. `/subscriptions` (in `RESERVED_SLUGS`), personal and outside any company, in the plain shell's new `wide` column, from the account menu's **Subscriptions** and the widget's **Manage**; its tabs: **Subscriptions** (one card per subscription: kind badge, status pill, name renamed in place, account and plan, the limits' bars, **Sign in again** on a login that `needs_sign_in`, **Remove** confirmed in place, **Check limits** with `?refresh=1`) and `?tab=profiles` **Access profiles** (each profile's name renamed in place, its Claude, OpenAI and gateway slots as selects of the fitting subscriptions with None, saved at once with the 422s inline, the agents using it as company / agent links, Delete confirmed in place, **New profile**, and per company where the person is an admin or owner a **Default for agents I hire** select, `PUT /me/default-profile`). **Add a subscription** is a sheet (`Sheet`, beside `Drawer` in `layout/`) held by the page or the widget (`useAddSubscription`, `features/subscriptions/sign-in.ts`): Sign in with Claude (recommended) or OpenAI, then a setup-token, Anthropic or OpenAI key, or gateway. A sign-in starts only on the person's click, polls every 2 s, and shows its three steps live (`Steps`): starting; **Open Anthropic sign-in** / **Open OpenAI sign-in** in a new tab with Claude's code field and Continue or OpenAI's one-time code, big, with Copy; storing; then "Signed in as <email>", or why it failed or expired with **Try again**. Cancel, Back and closing the sheet `DELETE` it; a start answered after a cancel is cancelled too; 503 and 409 read "Sign-in isn't available on this server (Docker isn't running?)" and "A sign-in is already open". The paste forms take a name and the secret in `SecretField` (dots, no autocomplete or password manager), or a gateway's address and header rows (values as secrets), cleared after the save; the 400s show inline. The home widget **Subscription limits** on `/:slug` (`LimitsWidget`, the person's own subscriptions across companies): Refresh, Manage and Add a subscription (the same sheet, in place); cards two across from md with the name, the account and an info tooltip ("Live from Anthropic", "Read from the last request's limits", "Live from OpenAI", the checked time), the 5-hour and weekly `Meter` rows ("18% · resets in 1h 56m", "resets Tue, Nov 10, 6:00 PM"), the per-model weekly rows when present, blue, amber from 80%, red when reached, a refusal in plain words with the old values grey when stale; keys and gateways as one "no limits (pay as you go)" line; empty: "Add your Claude or OpenAI subscription to see its limits here". The agent form's **How it works** has **Access profile**: the person's own profiles and None, the hirer's company default when hiring, someone else's shown as "<name> · <owner>" with **Remove** for admins, read-only for members and viewers; the agent's page lists it in its facts and the agents table in a Profile column. Library: `data/Meter.tsx`, `data/Steps.tsx`, `Sheet`, `SecretField` and `SECRET_INPUT` in `forms/Field.tsx`, `forms/InlineEdit.tsx`, `formatDuration` and `formatWeekdayTime`, `ButtonLink` `newTab`, `Tooltip` `wrap` and `bottom-end`, `StatusPill` `needs_sign_in`, `profileLabel`; the drawer's focus no longer moves on a new `onClose`. `api/subscriptions.ts` holds the hooks and calls, `api/types.ts` the inferred shapes, `api/errors.ts` the new refusals' words. Gallery: `/design/subscriptions` only (the widget on a healthy card, one at 85%, one reached, one rate limited and stale, an API key; `?empty=1`). No real sign-in was started. No frontend tests, by the rule: typechecked in `mwc check` and built.)
 6. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit. **Done 2026-11-06** (68 warnings, 44 of them `fan-in`; Ihor approved all five: `fan-in` skips type imports, counts a server module once and leaves out the web's library, `api/` and `app/` (bc330a5); the web's page parts moved to `apps/web/src/features/` (fc81548); folders that grow by design warn at 20, the server's test fixtures grouped by module, the db diagram in its folder (0f3be90); the placement table covers the cases the lessons found (7c37c07); the settled lessons moved to `lessons-archive.md`, `lessons.md` from 778 lines to 58. The report ends at 19 warnings.)
 
-### S4 — machines, runner and placements
+### S4 — machines, runner, power and stats
 
-Done when: a runner installed on Ihor's Mac as a launchd service and the compose `runner-local` both show online on the Machines page, survive a server restart, go offline on disconnect and come back; a signed runner update installs itself when idle.
-1. `runner-protocol.ts` + testkit fake server / fake runner — unit: zod round-trips, protocol fixtures.
-2. Enrollment tokens + `api_keys(kind=runner)` + WS hub (hello, heartbeat, resync, ack, key.rotate) — integration on PGlite with `ws`: connect, `last_seen_at` moves, disconnect marks offline.
-3. `apps/runner` core (config, state dir, unix socket, health :9953, reconnect/backoff, awake time) — runner vs fake server: survives a server restart.
-4. `mwc runner install` (launchd / systemd / container) + `mwc machine enroll-token` + Machines page — unit: plist/unit rendering; Playwright: machines page.
-5. Self-update + drain + `runner_releases` — test with a signed tarball.
-6. Placements (`docs/subscriptions.md`): an agent's machine and mode, `host` (a folder on the machine) or `container` (a fresh locked-down container per run); no machine signs in to an AI provider.
-7. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
+Reshaped on 2026-11-06 with Ihor (design: `docs/machines.md`): one runner on every machine (This Mac, a Docker
+container, the Airia devbox), the server decides and the runner acts; keeping machines awake, the devbox's power
+through the official `airia` CLI on This Mac, and machine stats on the home page. The signed self-update moved to S8.
+
+Done when: runners on This Mac (launchd), in a compose container and on the devbox show online on the Machines page and
+on the home page's Machines board with live numbers, survive a server restart, go offline on disconnect and come back;
+the devbox starts and stops from the page, its keep-on hours hold it up, This Mac stays awake while held.
+1. Runner protocol (+ hold, power and stats messages), the shared zod contracts (power policy, samples) and the testkit
+   fake server / fake runner — unit: zod round-trips, protocol fixtures.
+2. Server: migration `0009_machines` (machines, enrollment tokens, runner sessions, samples, power, power events),
+   enrollment, the WS hub, samples ingest and the 7-day prune, the machines and stats API — integration on PGlite with
+   `ws`.
+3. `apps/runner` core: config, state dir, link and reconnect, heartbeat with the sampler, the hold drivers
+   (`devbox-keepalive`, `caffeinate`), health :9953 — runner vs fake server: survives a server restart.
+4. Power: `packages/machines-core` (the power driver port) and `connectors/machine-airia-devbox` (`airia devbox
+   up|stop`, `gcloud … describe|add-metadata`); the server's power rules, scheduler, power API, controller routing and
+   events log.
+5. `mwc runner install` (launchd / systemd user unit / container) + `mwc machine enroll-token` + compose `runner-local`
+   + `deploy/Dockerfile.runner`.
+6. Web: the Machines page (machines, Start/Stop, power settings, the box's rules, the log, Add a machine) and the home
+   page's Machines board.
+7. Placements: an agent's machine and mode (`host` folder or a fresh `container` per run) on the agent form.
+8. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S5 — tasks, threads, runs
 
@@ -147,7 +162,7 @@ Last item: **Structure review** (`.claude/skills/keep-structure/references/revie
 
 ### S8 — cloud deployment
 
-Hardened compose for a VM (TLS via a reverse proxy, backups with `pg_dump` and restore drill, log rotation), then k8s manifests (migrate Job, server Deployment + Ingress, runner pool), secrets through the platform's secret store, a staging instance, runbooks. Done when a staging stack on a cloud VM runs the S5 demo with a container runner and a laptop runner at the same time.
+Hardened compose for a VM (TLS via a reverse proxy, backups with `pg_dump` and restore drill, log rotation), then k8s manifests (migrate Job, server Deployment + Ingress, runner pool), secrets through the platform's secret store, a staging instance, runbooks, and the runner's signed self-update (moved from S4: download, verify sha256 + Ed25519, flip `current`, exit 75 when idle, drain). Done when a staging stack on a cloud VM runs the S5 demo with a container runner and a laptop runner at the same time.
 
 Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
