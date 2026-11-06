@@ -34,6 +34,8 @@ few changes Ihor approves, before the hot spots turn into failures.
      and SKILL.md in the same commit. The `docs` rule of `mwc check` fails when they disagree.
 5. **Record it in [lessons.md](lessons.md).**
    - Mark each lesson the review settled `adopted`, with the commit, or `declined`, with Ihor's reason.
+   - Move the settled entries to [lessons-archive.md](lessons-archive.md), newest first, so `lessons.md` holds
+     only the open ones (agents read it before every change; the archive is read only for the why of a rule).
    - Add a lesson for a suggestion he declined that should not come back.
    - Add a row to "Report counts" with the report's counts after the approved changes.
 
