@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ApiContext } from '../../api/context.ts';
 import { useLocation } from '../../app/router.tsx';
-import { CreateCompanyScreen } from '../../components/company/CreateCompanyScreen.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
+import { CreateCompanyScreen } from '../../features/company/CreateCompanyScreen.tsx';
 import { SAMPLE_ME, sampleApi } from './records.ts';
 import { sampleLogoFile } from './sample.ts';
 

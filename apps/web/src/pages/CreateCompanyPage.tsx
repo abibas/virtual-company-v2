@@ -2,9 +2,9 @@ import { companyPath } from '../app/nav.ts';
 import { Link, navigate } from '../app/router.tsx';
 import { useSession } from '../app/session.tsx';
 import { shellUser } from '../components/auth/AccountMenu.tsx';
-import { CreateCompanyScreen } from '../components/company/CreateCompanyScreen.tsx';
 import { UserPill } from '../components/layout/TopBar.tsx';
 import { personName } from '../components/ui/Avatar.tsx';
+import { CreateCompanyScreen } from '../features/company/CreateCompanyScreen.tsx';
 
 /**
  * `/companies/new`: create a company; the person becomes its owner and lands in it. For someone with no company yet

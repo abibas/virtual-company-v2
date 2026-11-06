@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import { ApiContext } from '../../api/context.ts';
 import { useLocation } from '../../app/router.tsx';
-import { CreateKeyForm } from '../../components/api-keys/CreateKeyForm.tsx';
-import { KeysPanel } from '../../components/api-keys/KeysPanel.tsx';
-import { LoginCommand } from '../../components/api-keys/LoginCommand.tsx';
 import type { LogoStart } from '../../components/forms/image/LogoPicker.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
-import { InvitationsPanel } from '../../components/members/InvitationsPanel.tsx';
-import { InvitePanel } from '../../components/members/InviteForm.tsx';
-import { PeoplePanel } from '../../components/members/PeoplePanel.tsx';
-import { CompanyDetailsForm } from '../../components/settings/CompanyDetailsForm.tsx';
-import { CompanyLogoPanel } from '../../components/settings/CompanyLogoPanel.tsx';
-import { DeleteCompany } from '../../components/settings/DeleteCompany.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
+import { CreateKeyForm } from '../../features/api-keys/CreateKeyForm.tsx';
+import { KeysPanel } from '../../features/api-keys/KeysPanel.tsx';
+import { LoginCommand } from '../../features/api-keys/LoginCommand.tsx';
+import { InvitationsPanel } from '../../features/members/InvitationsPanel.tsx';
+import { InvitePanel } from '../../features/members/InviteForm.tsx';
+import { PeoplePanel } from '../../features/members/PeoplePanel.tsx';
+import { CompanyDetailsForm } from '../../features/settings/CompanyDetailsForm.tsx';
+import { CompanyLogoPanel } from '../../features/settings/CompanyLogoPanel.tsx';
+import { DeleteCompany } from '../../features/settings/DeleteCompany.tsx';
 import { type MockPage, MockShell } from './MockShell.tsx';
 import {
   loaded,

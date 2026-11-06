@@ -5,8 +5,8 @@ import { useLocation } from '../../app/router.tsx';
 import {
   AddSubscriptionSheet,
   useAddSubscription,
-} from '../../components/subscriptions/AddSubscriptionSheet.tsx';
-import { LimitsWidget } from '../../components/subscriptions/LimitsWidget.tsx';
+} from '../../features/subscriptions/AddSubscriptionSheet.tsx';
+import { LimitsWidget } from '../../features/subscriptions/LimitsWidget.tsx';
 import { MockShell } from './MockShell.tsx';
 import { days, loaded, sampleApi } from './records.ts';
 

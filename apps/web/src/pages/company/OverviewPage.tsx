@@ -6,13 +6,13 @@ import { call } from '../../api/errors.ts';
 import { type Loaded, useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
 import { companyPath } from '../../app/nav.ts';
-import { companyAgentLinks } from '../../components/agents/links.ts';
 import { StatTile } from '../../components/data/StatTile.tsx';
-import { RunsCard } from '../../components/overview/ComingCards.tsx';
-import { CompanyHero } from '../../components/overview/CompanyHero.tsx';
-import { TeamCard } from '../../components/overview/TeamCard.tsx';
-import { SubscriptionLimitsWidget } from '../../components/subscriptions/LimitsWidget.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
+import { companyAgentLinks } from '../../features/agents/links.ts';
+import { RunsCard } from '../../features/overview/ComingCards.tsx';
+import { CompanyHero } from '../../features/overview/CompanyHero.tsx';
+import { TeamCard } from '../../features/overview/TeamCard.tsx';
+import { SubscriptionLimitsWidget } from '../../features/subscriptions/LimitsWidget.tsx';
 
 const ROLE_SUMMARY = {
   owner: 'You own this company: you manage its people, its agents and its settings, and can delete it.',

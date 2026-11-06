@@ -6,11 +6,11 @@ import { useCompany } from '../../app/company.ts';
 import { companyPath } from '../../app/nav.ts';
 import { navigate } from '../../app/router.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
-import { CompanyDetailsForm } from '../../components/settings/CompanyDetailsForm.tsx';
-import { CompanyLogoPanel } from '../../components/settings/CompanyLogoPanel.tsx';
-import { DeleteCompany } from '../../components/settings/DeleteCompany.tsx';
 import { roleName } from '../../components/ui/Badge.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
+import { CompanyDetailsForm } from '../../features/settings/CompanyDetailsForm.tsx';
+import { CompanyLogoPanel } from '../../features/settings/CompanyLogoPanel.tsx';
+import { DeleteCompany } from '../../features/settings/DeleteCompany.tsx';
 
 /** The logo panel on the real API: the current logo through the shared hook, uploads and removals as the member. */
 function LogoSettings({

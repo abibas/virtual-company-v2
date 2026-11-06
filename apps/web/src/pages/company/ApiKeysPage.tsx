@@ -6,13 +6,13 @@ import { call } from '../../api/errors.ts';
 import type { CreatedApiKey } from '../../api/types.ts';
 import { useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
-import { CompanyFacts } from '../../components/api-keys/CompanyFacts.tsx';
-import { CreateKeyForm } from '../../components/api-keys/CreateKeyForm.tsx';
-import { KeysPanel } from '../../components/api-keys/KeysPanel.tsx';
-import { LoginCommand } from '../../components/api-keys/LoginCommand.tsx';
-import { NewKeySecret } from '../../components/api-keys/NewKeySecret.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
+import { CompanyFacts } from '../../features/api-keys/CompanyFacts.tsx';
+import { CreateKeyForm } from '../../features/api-keys/CreateKeyForm.tsx';
+import { KeysPanel } from '../../features/api-keys/KeysPanel.tsx';
+import { LoginCommand } from '../../features/api-keys/LoginCommand.tsx';
+import { NewKeySecret } from '../../features/api-keys/NewKeySecret.tsx';
 
 /**
  * `/:slug/api-keys`: personal API keys for the `mwc` CLI and your own Claude Code. Make one (its secret shown once,

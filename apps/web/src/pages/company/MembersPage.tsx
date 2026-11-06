@@ -6,10 +6,10 @@ import { useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
 import { navigate } from '../../app/router.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
-import { InvitationsPanel } from '../../components/members/InvitationsPanel.tsx';
-import { InvitePanel } from '../../components/members/InviteForm.tsx';
-import { PeoplePanel } from '../../components/members/PeoplePanel.tsx';
 import { Notice, type NoticeTone } from '../../components/ui/Notice.tsx';
+import { InvitationsPanel } from '../../features/members/InvitationsPanel.tsx';
+import { InvitePanel } from '../../features/members/InviteForm.tsx';
+import { PeoplePanel } from '../../features/members/PeoplePanel.tsx';
 
 const LEDE = {
   admin: 'Invite people, set their roles and remove them. Changes take effect at once.',

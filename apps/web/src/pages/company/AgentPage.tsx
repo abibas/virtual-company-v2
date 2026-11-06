@@ -5,11 +5,11 @@ import type { OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
 import { navigate } from '../../app/router.tsx';
-import { AgentProfile } from '../../components/agents/AgentProfile.tsx';
-import { HireAgent } from '../../components/agents/HireAgent.tsx';
-import { type AgentLinks, companyAgentLinks, isHireAddress } from '../../components/agents/links.ts';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
+import { AgentProfile } from '../../features/agents/AgentProfile.tsx';
+import { HireAgent } from '../../features/agents/HireAgent.tsx';
+import { type AgentLinks, companyAgentLinks, isHireAddress } from '../../features/agents/links.ts';
 
 /** `/agents/new` for someone who may not hire. */
 function HiringIsForAdmins({ links }: { readonly links: AgentLinks }) {

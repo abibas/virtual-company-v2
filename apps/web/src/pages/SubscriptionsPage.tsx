@@ -5,9 +5,9 @@ import { useSession } from '../app/session.tsx';
 import { ACCESS_PROFILES_PATH, SUBSCRIPTIONS_PATH } from '../components/auth/AccountMenu.tsx';
 import { Tabs } from '../components/forms/Segmented.tsx';
 import { PageHeader } from '../components/layout/PageHeader.tsx';
-import { ProfilesTab } from '../components/subscriptions/ProfilesTab.tsx';
-import { SubscriptionsTab } from '../components/subscriptions/SubscriptionsTab.tsx';
 import { ButtonLink } from '../components/ui/Button.tsx';
+import { ProfilesTab } from '../features/subscriptions/ProfilesTab.tsx';
+import { SubscriptionsTab } from '../features/subscriptions/SubscriptionsTab.tsx';
 
 /**
  * `/subscriptions` (from the account menu and the home widget's Manage), personal and outside any company: the
