@@ -8,8 +8,8 @@ import { MachineMetrics } from './MachineMetrics.tsx';
 import { kindIcon, kindName, statusText } from './machine-text.ts';
 
 /**
- * A machine's status line: a dot and "Running · up 8d 3h" or "Asleep · last seen 5 min ago". `agents` is the spot
- * for "N agents", for when the API counts the agents placed on each machine.
+ * A machine's status line: a dot, "Running · up 8d 3h" or "Asleep · last seen 5 min ago", and "· 3 agents" (the agents
+ * placed on it).
  */
 export function MachineStatus({
   stats,
@@ -18,7 +18,7 @@ export function MachineStatus({
 }: {
   readonly stats: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'>;
   readonly now: number;
-  readonly agents?: number;
+  readonly agents?: number | undefined;
 }) {
   const { words, tone } = statusText(stats, now);
   return (
@@ -44,6 +44,7 @@ export type IdentityFacts = Pick<
   'name' | 'kind' | 'provider' | 'status' | 'lastSeenAt' | 'upSince'
 > & {
   readonly overloaded?: { readonly badge: boolean } | undefined;
+  readonly agentCount?: number | undefined;
 };
 
 /** The machine's mark, name, kind and status, with the Overloaded badge; `name` replaces the plain name (a rename). */
@@ -71,7 +72,7 @@ export function MachineIdentity({
             </Badge>
           )}
         </h3>
-        <MachineStatus stats={stats} now={now} />
+        <MachineStatus stats={stats} now={now} agents={stats.agentCount} />
       </div>
       {aside}
     </header>
