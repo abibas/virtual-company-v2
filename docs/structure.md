@@ -324,7 +324,7 @@ listing. The thresholds are the `warn` section of `rules.ts`:
 | `near-limit`    | a limited file is above 80% of its line limit (240 lines of source, 400 in `test/`)               |
 | `long-function` | a named function is over 60 lines, from its first line to its last                               |
 | `big-folder`    | a folder has more than 12 direct entries, files and folders (generated folders are skipped)      |
-| `fan-in`        | 8 or more files of the same package import a file by a relative path (importers outside `test/`) |
+| `fan-in`        | 8 or more files of the same package import a file by a relative path for its values (importers outside `test/`; type-only imports and exports do not count; the files of one server module, `fanInGroups`, count as one; the files meant to be imported everywhere, `fanInExempt`: the web's `components/`, `api/` and `app/`, are never listed) |
 | `low-coverage`  | a file is under 95% lines or 90% branches in the last coverage run (`.cache/coverage/coverage-summary.json`, the json-summary report of the root `vitest.config.ts`); left out when there is none |
 
 `long-function` is a heuristic (`packages/cli/src/structure/functions.ts`), not a parser. Biome 2.6.4 has

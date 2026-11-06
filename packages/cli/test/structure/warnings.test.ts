@@ -91,6 +91,56 @@ describe('structureWarnings', () => {
     ]);
   });
 
+  it('leaves out type-only imports and exports; a list counts only when every name is a type', () => {
+    const files: Record<string, string> = { 'packages/db/src/rules.ts': '', 'packages/db/src/types.ts': '' };
+    const typeOnly = [
+      "import type { A } from './rules.ts';\n",
+      "import type * as R from './rules.ts';\n",
+      "export type { A } from './rules.ts';\n",
+      "import {\n  type A,\n  type B,\n} from './rules.ts';\n",
+      "export type Shape = { a: 1 };\nimport type { A } from './rules.ts';\n",
+    ];
+    const mixed = [
+      "import { type A, b } from './rules.ts';\n",
+      "import {} from './rules.ts';\n",
+      "import type from './rules.ts';\n",
+      "import type { A } from './rules.ts';\nimport { b } from './rules.ts';\n",
+    ];
+    typeOnly.forEach((text, i) => {
+      files[`packages/db/src/t${i}.ts`] = text + imports('./types.ts');
+    });
+    mixed.forEach((text, i) => {
+      files[`packages/db/src/m${i}.ts`] = text + imports('./types.ts');
+    });
+    expect(structureWarnings(treeOf(files), undefined)).toEqual([
+      { kind: 'fan-in', path: 'packages/db/src/types.ts', message: 'imported by 9 files' },
+    ]);
+    for (let i = 0; i < 4; i++) files[`packages/db/src/v${i}.ts`] = imports('./rules.ts');
+    const fanIn = structureWarnings(treeOf(files), undefined).filter((w) => w.kind === 'fan-in');
+    expect(fanIn.map((w) => `${w.path}: ${w.message}`)).toEqual([
+      'packages/db/src/types.ts: imported by 9 files',
+      'packages/db/src/rules.ts: imported by 8 files',
+    ]);
+  });
+
+  it('counts the files of one server module as one importer, and never lists the files meant for everyone', () => {
+    const files: Record<string, string> = { 'apps/server/src/platform/env.ts': '' };
+    for (const area of ['identity', 'members', 'companies', 'org', 'jobs', 'agents', 'audit']) {
+      files[`apps/server/src/modules/${area}/routes.ts`] = imports('../../platform/env.ts');
+      files[`apps/server/src/modules/${area}/service/a.ts`] = imports('../../../platform/env.ts');
+    }
+    files['apps/server/src/app.ts'] = imports('./platform/env.ts');
+    files['apps/web/src/api/types.ts'] = '';
+    files['apps/web/src/components/cx.ts'] = '';
+    for (let i = 0; i < 9; i++)
+      files[`apps/web/src/pages/p${i}.tsx`] = imports('../api/types.ts') + imports('../components/cx.ts');
+    expect(structureWarnings(treeOf(files), undefined)).toEqual([
+      { kind: 'fan-in', path: 'apps/server/src/platform/env.ts', message: 'imported by 8 files' },
+    ]);
+    delete files['apps/server/src/app.ts'];
+    expect(structureWarnings(treeOf(files), undefined)).toEqual([]);
+  });
+
   it('adds the weakest-covered files of the last coverage run, and lists every kind in order', () => {
     const tree = cleanWith({ 'packages/db/src/schema/users.ts': fn('big', 70) });
     const found = structureWarnings(tree, [

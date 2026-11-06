@@ -40,8 +40,15 @@ export interface StructureRules {
     readonly functionLines: number;
     /** A folder with more direct entries, files and folders, than this (`big-folder`). */
     readonly folderEntries: number;
-    /** A file that at least this many other files of its package import, outside test/ (`fan-in`). */
+    /**
+     * A file that at least this many other files of its package import, outside test/ (`fan-in`). Type-only
+     * imports are not counted; the importers inside one `fanInGroups` folder count as one.
+     */
     readonly fanIn: number;
+    /** Folders whose files count as one importer for `fan-in` (`*` is one path segment): a server module. */
+    readonly fanInGroups: readonly string[];
+    /** Files or folders meant to be imported everywhere, never listed by `fan-in`. */
+    readonly fanInExempt: readonly string[];
     /** A file under either percentage in the last coverage run (`low-coverage`). */
     readonly coverage: { readonly lines: number; readonly branches: number };
     /** Where that run writes its summary: the json-summary reporter of the root vitest.config.ts. */
@@ -99,6 +106,8 @@ export const STRUCTURE_RULES: StructureRules = {
     functionLines: 60,
     folderEntries: 12,
     fanIn: 8,
+    fanInGroups: ['apps/server/src/modules/*/'],
+    fanInExempt: ['apps/web/src/components/', 'apps/web/src/api/', 'apps/web/src/app/'],
     coverage: { lines: 95, branches: 90 },
     coverageSummary: '.cache/coverage/coverage-summary.json',
   },

@@ -17,6 +17,8 @@ describe('STRUCTURE_RULES', () => {
       functionLines: 60,
       folderEntries: 12,
       fanIn: 8,
+      fanInGroups: ['apps/server/src/modules/*/'],
+      fanInExempt: ['apps/web/src/components/', 'apps/web/src/api/', 'apps/web/src/app/'],
       coverage: { lines: 95, branches: 90 },
       coverageSummary: '.cache/coverage/coverage-summary.json',
     });

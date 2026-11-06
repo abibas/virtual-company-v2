@@ -76,17 +76,56 @@ function folderEntries(path: string): [folder: string, entry: string][] {
     ]);
 }
 
-/** The files of its own package that `path` imports by relative path (outside test/ only). */
+/**
+ * `import type … from`, `export type … from`, or a brace list (`import { type A } from`): the names, when
+ * there is a list, and the specifier. A list counts as type-only when each of its names is `type`.
+ */
+const TYPE_IMPORT =
+  /\b(?:import|export)\s+(?:type\s+(?!from\b)[^'";=]*?|\{([^}]*)\})\s*from\s*['"]([^'"]+)['"]/g;
+
+/** How many of a text's imports of each specifier are type-only (erased when it runs). */
+function typeOnlyImports(text: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const [, list, specifier = ''] of text.matchAll(TYPE_IMPORT)) {
+    const names = list
+      ?.split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+    if (names && (names.length === 0 || !names.every((name) => /^type\s/.test(name)))) continue;
+    counts.set(specifier, (counts.get(specifier) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** The files of its own package that `path` imports by relative path for its values (outside test/ only). */
 function packageImports(path: string, text: string, known: ReadonlySet<string>, rules: StructureRules) {
   const where = packageOf(path, rules);
   if (!where || where.inner.startsWith('test/')) return [];
+  const typeOnly = typeOnlyImports(text);
   const targets = new Set<string>();
   for (const { specifier } of importsOf(text)) {
-    if (!specifier.startsWith('.')) continue;
+    const types = typeOnly.get(specifier) ?? 0;
+    if (types > 0) typeOnly.set(specifier, types - 1);
+    if (types > 0 || !specifier.startsWith('.')) continue;
     const target = posix.normalize(posix.join(dirname(path), specifier));
     if (target !== path && known.has(target) && target.startsWith(`${where.pkg}/`)) targets.add(target);
   }
   return [...targets];
+}
+
+/** A pattern whose `*` is one path segment, matching the start of a path. */
+function glob(pattern: string): RegExp {
+  const parts = pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`^${parts.join('[^/]+')}`);
+}
+
+/** Who imports, for `fan-in`: the folder of the `fanInGroups` pattern the file is in, or the file. */
+function importerOf(path: string, groups: readonly RegExp[]): string {
+  for (const group of groups) {
+    const found = group.exec(path);
+    if (found) return found[0];
+  }
+  return path;
 }
 
 /** A limited file above `warn.nearLimit` of its line limit. */
@@ -129,8 +168,9 @@ export function lowCoverage(files: readonly FileCoverage[], rules: StructureRule
 /**
  * Every early warning of the tree, in one pass over its files (each read once, in this process):
  * limited files near their limit, long named functions, folders with many entries, files many files of
- * their package import, and, with the last coverage run's files, the weakest-covered ones. Each kind is
- * listed worst first.
+ * their package import (for their values; a server module counts once, the files meant to be imported
+ * everywhere are left out), and, with the last coverage run's files, the weakest-covered ones. Each kind
+ * is listed worst first.
  */
 export function structureWarnings(
   tree: RepoTree,
@@ -142,6 +182,7 @@ export function structureWarnings(
   const importers = new Map<string, Set<string>>();
   const known = new Set(tree.paths);
   const generated = rules.generated.filter((entry) => entry.endsWith('/'));
+  const groups = rules.warn.fanInGroups.map((pattern) => glob(pattern));
   for (const path of tree.paths) {
     for (const [folder, entry] of folderEntries(path)) {
       if (generated.some((skip) => matches(folder, skip))) break;
@@ -152,8 +193,9 @@ export function structureWarnings(
     const text = size && CODE.test(path) ? tree.text(path) : undefined;
     if (text === undefined) continue;
     found.push(...longFunctions(path, text, rules));
+    const importer = importerOf(path, groups);
     for (const target of packageImports(path, text, known, rules)) {
-      importers.set(target, (importers.get(target) ?? new Set()).add(path));
+      importers.set(target, (importers.get(target) ?? new Set()).add(importer));
     }
   }
   for (const [folder, inside] of entries) {
@@ -161,7 +203,8 @@ export function structureWarnings(
     found.push({ kind: 'big-folder', path: folder, message: `${inside.size} entries`, weight: inside.size });
   }
   for (const [target, from] of importers) {
-    if (from.size < rules.warn.fanIn) continue;
+    if (from.size < rules.warn.fanIn || rules.warn.fanInExempt.some((entry) => matches(target, entry)))
+      continue;
     found.push({
       kind: 'fan-in',
       path: target,
