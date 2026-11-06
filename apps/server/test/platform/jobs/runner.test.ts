@@ -1,7 +1,7 @@
 import { captureLogger, LEVEL } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { advisoryJobsLock, type JobsLock } from '../../../src/platform/jobs/lock.ts';
-import type { EventRetry } from '../../../src/platform/jobs/run.ts';
+import type { EventRetry, MachineUpkeep } from '../../../src/platform/jobs/run.ts';
 import {
   createJobsRunner,
   JOBS_LOCK_RETRY_MS,
@@ -25,6 +25,8 @@ beforeAll(async () => {
 afterAll(() => w.t.close());
 
 const NO_EVENTS: EventRetry = { claimed: 0, processed: 0, failed: 0, givenUp: 0 };
+const NO_UPKEEP: MachineUpkeep = { offline: 0, pruned: null };
+const machines = async () => NO_UPKEEP;
 
 /** A lock that is free and stays held, until a test says otherwise. */
 const stubLock = () =>
@@ -40,7 +42,7 @@ function newRunner(overrides: Partial<JobsRunnerDeps> = {}) {
   const { logger, lines } = captureLogger();
   const retryEvents = vi.fn(async () => NO_EVENTS);
   const lock = stubLock();
-  const work = { outboxHandlers: {}, retryEvents, reconcileCompany: vi.fn(async () => {}) };
+  const work = { machines, outboxHandlers: {}, retryEvents, reconcileCompany: vi.fn(async () => {}) };
   const deps: JobsRunnerDeps = { ...w.jobs, logger, work, lock, timers: manual.timers, ...overrides };
   const said = (msg: string) => lines.filter((line) => line.msg === msg);
   return { runner: createJobsRunner(deps), manual, lines, said, retryEvents, lock };
@@ -74,7 +76,7 @@ describe('createJobsRunner', () => {
         }),
     );
     const { runner, manual } = newRunner({
-      work: { outboxHandlers: {}, retryEvents: slow, reconcileCompany: async () => {} },
+      work: { machines, outboxHandlers: {}, retryEvents: slow, reconcileCompany: async () => {} },
     });
     runner.start();
     const tick = manual.fire();
@@ -173,7 +175,7 @@ describe('stopping the jobs runner', () => {
     const lock = stubLock();
     const { runner, manual, said } = newRunner({
       lock,
-      work: { outboxHandlers: {}, retryEvents: slow, reconcileCompany: async () => {} },
+      work: { machines, outboxHandlers: {}, retryEvents: slow, reconcileCompany: async () => {} },
     });
     runner.start();
     void manual.fire();
@@ -199,7 +201,7 @@ describe('stopping the jobs runner', () => {
     const { runner, manual, said } = newRunner({
       lock,
       stopTimeoutMs: 50,
-      work: { outboxHandlers: {}, retryEvents: hang, reconcileCompany: async () => {} },
+      work: { machines, outboxHandlers: {}, retryEvents: hang, reconcileCompany: async () => {} },
     });
     runner.start();
     void manual.fire();

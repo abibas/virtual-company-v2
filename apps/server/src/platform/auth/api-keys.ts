@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { apiKeys, type DbHandle, memberships, users } from '@mwc/db';
+import { apiKeys, companies, type DbHandle, machines, memberships, users } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import {
   API_KEY_ALPHABET,
@@ -11,7 +11,7 @@ import {
 import type { ApiKeyKind } from '@mwc/shared/enums';
 import { and, eq, isNull, lte, or } from 'drizzle-orm';
 import type { Logger } from 'pino';
-import { type AuthResult, unauthenticated } from './actor.ts';
+import { type AuthFailure, type AuthResult, unauthenticated } from './actor.ts';
 
 /** The key format is shared with the CLI (`@mwc/shared/api-keys`): `mwc_<pk|rk|sc>_` and 32 base62 characters. */
 export { API_KEY_PATTERN, apiKeyKind } from '@mwc/shared/api-keys';
@@ -123,4 +123,51 @@ export async function checkApiKey(
       apiKeyId: row.id,
     },
   };
+}
+
+/** Who a runner key belongs to: its machine, the machine's company and the key's row. */
+export interface RunnerCredential {
+  readonly companyId: string;
+  readonly machineId: string;
+  readonly apiKeyId: string;
+}
+
+export type RunnerAuthResult = { readonly ok: true; readonly runner: RunnerCredential } | AuthFailure;
+
+/**
+ * The machine behind a runner key (`mwc_rk_...`), found by the key's SHA-256: what opens a runner's socket and nothing
+ * else (S4.2). Unknown, revoked and expired keys are refused (401), and so are the keys of a removed machine or a
+ * deleted company. A use is recorded at most once a minute, as for personal keys.
+ */
+export async function checkRunnerKey(
+  handle: DbHandle,
+  key: string,
+  now: Date,
+  logger: Logger,
+): Promise<RunnerAuthResult> {
+  if (apiKeyKind(key) !== 'runner') return unauthenticated('A runner key (mwc_rk_...) is required');
+  const [row] = await rawDb(handle)
+    .select({
+      id: apiKeys.id,
+      companyId: apiKeys.companyId,
+      machineId: machines.id,
+      expiresAt: apiKeys.expiresAt,
+      revokedAt: apiKeys.revokedAt,
+      lastUsedAt: apiKeys.lastUsedAt,
+      removedAt: machines.removedAt,
+      companyStatus: companies.status,
+      companyDeletedAt: companies.deletedAt,
+    })
+    .from(apiKeys)
+    .innerJoin(machines, and(eq(machines.companyId, apiKeys.companyId), eq(machines.id, apiKeys.machineId)))
+    .innerJoin(companies, eq(companies.id, apiKeys.companyId))
+    .where(and(eq(apiKeys.secretHash, hashApiKey(key)), eq(apiKeys.kind, 'runner')));
+  if (!row || row.companyStatus === 'deleted' || row.companyDeletedAt !== null) {
+    return unauthenticated('The runner key is not valid');
+  }
+  if (row.revokedAt !== null) return unauthenticated('The runner key was revoked');
+  if (row.expiresAt !== null && row.expiresAt <= now) return unauthenticated('The runner key has expired');
+  if (row.removedAt !== null) return unauthenticated('The machine was removed');
+  await touch(handle, row.id, row.lastUsedAt, now, logger);
+  return { ok: true, runner: { companyId: row.companyId, machineId: row.machineId, apiKeyId: row.id } };
 }

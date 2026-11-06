@@ -9,8 +9,10 @@ import { migrationStatus } from '@mwc/db';
 import { createPgliteDb } from '@mwc/db/pglite';
 import { type PostgresDbHandle, rawHandle } from '@mwc/db/system';
 import { ConfigError } from '@mwc/shared/config';
+import { RUNNER_FRAME_MAX_BYTES } from '@mwc/shared/runner-protocol';
 import { captureLogger, getJson, LEVEL } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { WebSocketServer } from 'ws';
 import { ephemeralKeyring } from '../../src/platform/secrets/keyring.ts';
 import { MasterKeyError } from '../../src/platform/secrets/master-key.ts';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';
@@ -81,7 +83,17 @@ describe('start', () => {
     const t = testDeps();
     const started = await start({ ...ENV, MWC_PORT: '9961', MWC_HOST: '0.0.0.0' }, t.deps);
     open.push(started.db);
-    expect(t.fake.calls).toEqual([{ fetch: started.app.fetch, port: 9961, hostname: '0.0.0.0' }]);
+    expect(t.fake.calls).toEqual([
+      {
+        fetch: started.app.fetch,
+        port: 9961,
+        hostname: '0.0.0.0',
+        websocket: { server: expect.any(WebSocketServer) },
+      },
+    ]);
+    // The runners' sockets: no port of their own, the runner protocol's frame limit and subprotocol.
+    const sockets = t.fake.calls[0]?.websocket.server as WebSocketServer;
+    expect(sockets.options).toMatchObject({ noServer: true, maxPayload: RUNNER_FRAME_MAX_BYTES });
     expect(t.lines.find((line) => line.msg === 'listening')).toMatchObject({
       level: LEVEL.info,
       host: '0.0.0.0',

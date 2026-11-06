@@ -1,5 +1,5 @@
 import { type DbHandle, migrateToLatest } from '@mwc/db/system';
-import { type AppDeps, createApp } from '@mwc/server';
+import { type AppOptions, createApp } from '@mwc/server';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import { createTestDb } from './db.ts';
@@ -25,8 +25,8 @@ export function brokenDb(mode: 'reject' | 'hang' = 'reject'): DbHandle {
 
 export type App = ReturnType<typeof createApp>;
 
-/** Anything `createApp` takes (`db`, `clock`, `webDist`, `journal`, ...), plus `migrate`. */
-export interface TestAppOptions extends Partial<AppDeps> {
+/** Anything `createApp` takes (`db`, `clock`, `webDist`, `journal`, `runnerHub`, ...), plus `migrate`. */
+export interface TestAppOptions extends Partial<AppOptions> {
   /** Apply the migrations to the fresh test database; default true. A `db` passed in is used as is. */
   readonly migrate?: boolean;
 }

@@ -67,7 +67,11 @@
       }
     },
     {
-      "includes": ["apps/server/src/modules/identity/repo.ts", "apps/server/src/modules/identity/repo/**"],
+      "includes": [
+        "apps/server/src/modules/identity/repo.ts",
+        "apps/server/src/modules/identity/repo/**",
+        "apps/server/src/modules/machines/repo/upkeep.ts"
+      ],
       "linter": {
         "rules": {
           "style": {

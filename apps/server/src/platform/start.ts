@@ -4,6 +4,7 @@ import { serve as nodeServe } from '@hono/node-server';
 import { createDb, type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
+import type { WebSocketServer } from 'ws';
 import { createApp, moduleJobs } from '../app.ts';
 import type { ServerDeps } from './env.ts';
 import { identityFromConfig } from './identity.ts';
@@ -12,6 +13,7 @@ import { createJobsRunner, type JobsRunner, SYSTEM_TIMERS, type Timers } from '.
 import { JOBS_OFF } from './jobs/status.ts';
 import { createLogger } from './logger.ts';
 import { loginHelperFromConfig } from './login-helper/select.ts';
+import { createSocketServer } from './realtime/sockets.ts';
 import type { Keyring } from './secrets/keyring.ts';
 import { DEV_DATA_DIR, loadKeyring } from './secrets/master-key.ts';
 import { gracefulShutdown } from './shutdown.ts';
@@ -26,6 +28,8 @@ export type Serve = (
     fetch: (request: Request) => Response | Promise<Response>;
     port: number;
     hostname: string;
+    /** Completes the WebSocket handshakes the app's socket routes accept (the runners' sockets). */
+    websocket: { server: WebSocketServer };
   },
   onListening: (info: AddressInfo) => void,
 ) => Server;
@@ -64,7 +68,8 @@ const SYSTEM: StartDeps = {
   loadKeyring: (config, logger) => loadKeyring(config, { dataDir: DEV_DATA_DIR, logger }),
   readVersion: () => readServerVersion(),
   loginHelper: (config, logger) => loginHelperFromConfig(config, logger),
-  serve: (options, onListening) => nodeServe(options, onListening) as Server,
+  serve: (options, onListening) =>
+    nodeServe(options as Parameters<typeof nodeServe>[0], onListening) as Server,
   onSignal: (signal, handler) => {
     process.on(signal, handler);
   },
@@ -180,8 +185,9 @@ export async function start(
   const stops: (() => Promise<void>)[] = [];
   const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
   const app = createApp({ ...serverDeps, keyring, jobs: jobs ?? JOBS_OFF, loginHelper, onShutdown });
+  const websocket = { server: createSocketServer() };
   const server = deps.serve(
-    { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST },
+    { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST, websocket },
     (info) => {
       const line = { host: config.MWC_HOST, port: info.port, version, db: deps.dbLabel };
       logger.info({ ...line, identity: config.MWC_IDENTITY, jobs: jobs !== undefined }, 'listening');

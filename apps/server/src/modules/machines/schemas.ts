@@ -1,0 +1,78 @@
+import { z } from '@hono/zod-openapi';
+import { HoldSource, MachineKind, MachineProvider, MachineStatus } from '@mwc/shared/enums';
+import { MACHINE_NAME } from '@mwc/shared/machines';
+
+/** The machines API's shapes (`/api/companies/{companyId}/machines`): never a runner key's secret or hash. */
+
+const companyId = z
+  .string()
+  .openapi({ param: { name: 'companyId', in: 'path' }, example: '019a4f0c-8c1e-7c4b-9a52-3d1f2b6e7a10' });
+
+export const MachinesParamsSchema = z.object({ companyId });
+
+export const MachineParamsSchema = z.object({
+  companyId,
+  machineId: z
+    .string()
+    .openapi({ param: { name: 'machineId', in: 'path' }, example: '019a5b2e-7c4d-7e5f-8a6b-7c8d9e0f1a2b' }),
+});
+
+const dateTime = z.string().openapi({ format: 'date-time' });
+
+/** A machine as the API shows it. */
+export const MachineSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().openapi({ example: 'This Mac' }),
+    kind: MachineKind,
+    provider: MachineProvider,
+    /** Where its provider finds it (the devbox: instance, zone, size); null for `none`. */
+    providerRef: z.record(z.string(), z.unknown()).nullable(),
+    /** The machine whose runner powers this one on and off; null when none does. */
+    controllerMachineId: z.string().nullable(),
+    os: z.string().openapi({ example: 'darwin' }),
+    arch: z.string().openapi({ example: 'arm64' }),
+    hostname: z.string(),
+    unixUser: z.string(),
+    versions: z.object({
+      runner: z.string().openapi({ example: '0.5.0' }),
+      claude: z.string().nullable().openapi({ example: '2.1.3 (Claude Code)' }),
+    }),
+    slots: z.number().int(),
+    status: MachineStatus,
+    lastSeenAt: dateTime.nullable(),
+    /** The hold its runner reports: until when it keeps the machine awake, and what set it. */
+    hold: z.object({ until: dateTime.nullable(), source: HoldSource.nullable() }),
+    /** What an hour of it costs, in dollars; null when nothing is known. */
+    hourlyCost: z.number().nullable(),
+    createdAt: dateTime,
+  })
+  .openapi('Machine');
+
+export const MachineListSchema = z.object({ machines: z.array(MachineSchema) }).openapi('MachineList');
+
+export const RenameMachineSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(MACHINE_NAME.min, 'A name is required')
+      .max(MACHINE_NAME.max, `A name is at most ${MACHINE_NAME.max} characters`)
+      .openapi({ example: 'Airia devbox' }),
+  })
+  .openapi('RenameMachine');
+
+/** A new enrollment token: the token itself is in this response only. */
+export const EnrollmentTokenSchema = z
+  .object({
+    id: z.string(),
+    token: z.string().openapi({
+      example: 'mwc_et_AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+      description: 'Shown in this response only; good for one enrollment within the hour',
+    }),
+    expiresAt: dateTime,
+  })
+  .openapi('EnrollmentToken');
+
+export type MachineView = z.infer<typeof MachineSchema>;
+export type EnrollmentTokenView = z.infer<typeof EnrollmentTokenSchema>;

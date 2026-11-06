@@ -6,10 +6,11 @@ import { drainOutbox, type OutboxDrain } from './outbox-drain.ts';
 import { type ReconcileRound, reconcileRound } from './reconcile.ts';
 
 /**
- * One tick of the jobs loop: the identity outbox, then the retry of webhook events, then the periodic reconcile, each
- * on its own, so one that fails (logged) never keeps the others from running and never reaches the caller. The work
- * comes from the modules (`ModuleJobs`, composed by `moduleJobs` in app.ts), so the platform imports no module. All
- * three call the identity provider: with none (MWC_IDENTITY=none) the tick idles, and the outbox rows wait, untouched.
+ * One tick of the jobs loop: the machines' upkeep, then the identity outbox, the retry of webhook events and the
+ * periodic reconcile, each on its own, so one that fails (logged) never keeps the others from running and never reaches
+ * the caller. The work comes from the modules (`ModuleJobs`, composed by `moduleJobs` in app.ts), so the platform imports
+ * no module. The last three call the identity provider: with none (MWC_IDENTITY=none) they idle, and the outbox rows
+ * wait, untouched; the machines' upkeep runs either way.
  */
 
 /** A webhook retry pass's counts (the identity module's `retryIdentityEvents`). */
@@ -20,8 +21,18 @@ export interface EventRetry {
   readonly givenUp: number;
 }
 
+/** A machines upkeep pass's counts (the machines module's `machineUpkeep`). */
+export interface MachineUpkeep {
+  /** Machines taken offline because their runner's lease lapsed. */
+  readonly offline: number;
+  /** Samples older than 7 days deleted; null on the ticks that do not prune (it runs hourly). */
+  readonly pruned: number | null;
+}
+
 /** What the jobs loop runs from the modules. */
 export interface ModuleJobs {
+  /** The offline sweep and the hourly prune of machine samples. */
+  machines(): Promise<MachineUpkeep>;
   /** One registry of every op's outbox handler (`outboxRegistry` of the modules' handler maps). */
   readonly outboxHandlers: OutboxHandlers;
   /** Retries the due webhook inbox events. */
@@ -41,12 +52,13 @@ export interface JobsDeps {
   readonly reconcileIntervalMs: number;
 }
 
-export type JobName = 'outbox' | 'events' | 'reconcile';
+export type JobName = 'machines' | 'outbox' | 'events' | 'reconcile';
 
 /** What one tick did, job by job; a job that failed has no entry and is named in `failed`. */
 export interface JobsTick {
-  /** No identity provider: nothing ran. */
+  /** No identity provider: only the machines' upkeep ran. */
   readonly idle: boolean;
+  readonly machines?: MachineUpkeep;
   readonly outbox?: OutboxDrain;
   readonly events?: EventRetry;
   readonly reconcile?: ReconcileRound;
@@ -55,7 +67,6 @@ export interface JobsTick {
 
 /** Runs one tick of every job; it never rejects (each job's failure is logged and named in `failed`). */
 export async function runJobsOnce(deps: JobsDeps): Promise<JobsTick> {
-  if (deps.identity === undefined) return { idle: true, failed: [] };
   const failed: JobName[] = [];
   async function attempt<K extends JobName>(
     job: K,
@@ -69,10 +80,12 @@ export async function runJobsOnce(deps: JobsDeps): Promise<JobsTick> {
       return {} as Pick<JobsTick, K>;
     }
   }
+  const machines = await attempt('machines', () => deps.work.machines());
+  if (deps.identity === undefined) return { idle: true, ...machines, failed };
   const outbox = await attempt('outbox', () => drainOutbox(deps, deps.work.outboxHandlers));
   const events = await attempt('events', () => deps.work.retryEvents());
   const reconcile = await attempt('reconcile', () =>
     reconcileRound({ ...deps, intervalMs: deps.reconcileIntervalMs, reconcile: deps.work.reconcileCompany }),
   );
-  return { idle: false, ...outbox, ...events, ...reconcile, failed };
+  return { idle: false, ...machines, ...outbox, ...events, ...reconcile, failed };
 }

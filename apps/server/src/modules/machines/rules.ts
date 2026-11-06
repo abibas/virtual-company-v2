@@ -1,0 +1,70 @@
+import { compareRunnerVersions, RUN_LEASE_MS } from '@mwc/shared/runner-protocol';
+
+/**
+ * The machines module's pure rules (S4.2): its refusals, when a runner is too old, when a machine's lease has lapsed,
+ * which minute a sample is kept under, how an enrollment token is refused. The stats math is `rules/stats.ts`.
+ */
+
+/** A refusal the routes answer in the common error shape. */
+export interface Refusal {
+  readonly ok: false;
+  readonly status: 401 | 404;
+  readonly code: string;
+  readonly message: string;
+}
+
+const refuse = (status: Refusal['status'], code: string, message: string): Refusal => ({
+  ok: false,
+  status,
+  code,
+  message,
+});
+
+export const MACHINE_NOT_FOUND = refuse(404, 'machine_not_found', 'No such machine in this company');
+export const TOKEN_UNKNOWN = refuse(401, 'unauthenticated', 'The enrollment token is not valid');
+export const TOKEN_USED = refuse(401, 'unauthenticated', 'The enrollment token was used already');
+export const TOKEN_EXPIRED = refuse(401, 'unauthenticated', 'The enrollment token has expired');
+
+/** The lowest runner version the server takes (`server.hello.minRunnerVersion`); raised when the protocol needs it. */
+export const MIN_RUNNER_VERSION = '0.0.0';
+
+/** True when a runner of `version` is below `min` and is closed with 4003 right after its hello. */
+export function isTooOld(version: string, min: string): boolean {
+  return compareRunnerVersions(version, min) < 0;
+}
+
+/** A machine whose runner sent nothing for this long is offline: the run lease (90 s), as its runs would be lost. */
+export const MACHINE_LEASE_MS = RUN_LEASE_MS;
+
+/** Samples are kept 7 days, and pruned once an hour. */
+export const SAMPLE_RETENTION_MS = 7 * 24 * 60 * 60_000;
+export const PRUNE_INTERVAL_MS = 60 * 60_000;
+
+const MINUTE_MS = 60_000;
+
+/**
+ * The minute a sample is kept under: its own time truncated to the minute, never later than the server's now (a
+ * runner's clock running ahead would keep its samples looking fresh).
+ */
+export function sampleMinute(sampleAt: number, now: Date): Date {
+  const at = Math.min(sampleAt, now.getTime());
+  return new Date(at - (((at % MINUTE_MS) + MINUTE_MS) % MINUTE_MS));
+}
+
+/**
+ * When a session that ended without its close (the server crashed, the connection was replaced or swept) is taken to
+ * have ended: the machine's last sign of life, never before the session began.
+ */
+export function endOfLostSession(connectedAt: Date, lastSeenAt: Date | null): Date {
+  return lastSeenAt !== null && lastSeenAt > connectedAt ? lastSeenAt : connectedAt;
+}
+
+/** Why an enrollment token cannot be used at `now`, or undefined when it can: once only, before it expires. */
+export function tokenRefusal(
+  token: { readonly usedAt: Date | null; readonly expiresAt: Date },
+  now: Date,
+): Refusal | undefined {
+  if (token.usedAt !== null) return TOKEN_USED;
+  if (token.expiresAt <= now) return TOKEN_EXPIRED;
+  return undefined;
+}
