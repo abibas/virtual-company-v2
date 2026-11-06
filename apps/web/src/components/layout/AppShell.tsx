@@ -70,9 +70,7 @@ export function AppShell({ nav, badge, firstName, user, banner, children, now, .
           <main
             id="main"
             tabIndex={-1}
-            className={cx(
-              'w-full max-w-content flex-1 px-4 pt-5 pb-28 outline-none md:px-6 md:pt-6 md:pb-10',
-            )}
+            className={cx('w-full flex-1 px-4 pt-5 pb-28 outline-none md:px-6 md:pt-6 md:pb-10')}
           >
             {banner && <div className="mb-5">{banner}</div>}
             {children}

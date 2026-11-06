@@ -21,7 +21,8 @@ export function RailStrip({
       <IconButton
         label="Expand the right rail"
         icon={PanelRightOpen}
-        tooltip="left"
+        // Level with the top bar: a label to the left would sit on the user's name, so it hangs below.
+        tooltip="bottom-end"
         aria-expanded={false}
         data-rail-toggle
         onClick={onExpand}
