@@ -28,6 +28,14 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-06: The runner app has no rows in the placement table
+
+- **What happened:** S4.3 built `apps/runner` with `link/`, `hold/`, `stats/` and `system/` (the real Node deps in
+  `system/node.ts`, injected everywhere else); the placement table covers the server, the tests and the web only.
+- **Suggested change:** at the S4 review, a short "Runner" block in the table (link, hold drivers, sampler, power
+  executor, the real deps in `system/`), kept within SKILL.md's 150 lines.
+- **Status:** `open`.
+
 ### 2026-11-06: S4.1's contracts push shared's `src/` and `test/` and testkit's `src/` past 12 entries
 
 - **What happened:** the brief fixed the public paths (`@mwc/shared/machines`, `@mwc/shared/runner-protocol` as

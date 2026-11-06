@@ -55,11 +55,10 @@ fell short; settled ones are in `lessons-archive.md`, which you do not need to r
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | A shared component                                                     | `components/<group>/` by role (`ui`, `forms`, `data`, `feed`, `layout`, `org`, `auth`), one per file, exported by the group's barrel |
 | A page's own parts                                                     | `features/<area>/`                                                |
-| A page                                                                 | `pages/`                                                          |
+| A page; styles and design tokens                                       | `pages/`; `styles/`                                               |
 | A hook or context that calls the API, the inferred API types           | `api/`                                                            |
 | The session, the router, the shells, the company links                 | `app/`                                                            |
 | A development-only page (the gallery)                                  | `pages/design/`, behind `import.meta.env.DEV`                     |
-| Styles and design tokens                                               | `styles/`                                                         |
 
 Never: a test under `src/`; a non-test file in `test/` outside `test/fixtures/`; a new top-level folder; an
 empty folder for a later stage; a module importing another module's `repo.ts` (call its service); a module
@@ -131,7 +130,8 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
   through their fakes; write database tests that pass on PGlite and on Postgres.
 - Coverage floors: 90% lines, statements and functions and 85% branches overall; 85% lines and 75%
   branches per file. Exclusions are only the `src/index.ts` barrels, the entries (`apps/server/src/main.ts`,
-  `packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`, `scripts/`) and `apps/web`: add tests, never exclusions.
+  `packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`, `apps/runner/src/main.ts`, `scripts/`) and `apps/web`: add
+  tests, never exclusions.
 - No frontend tests for now: the web is typechecked and built, not tested.
 - Keep process starts few (the Mac bills each one): drive code in-process with injected fakes.
 

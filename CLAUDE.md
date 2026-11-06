@@ -44,7 +44,7 @@ the living documents are `docs/architecture.md`, `docs/roadmap.md`, `docs/ports.
 Node 24 (`.nvmrc`), pnpm (pinned in `package.json`), TypeScript 7, Biome, Vitest.
 Relative imports use the `.ts` extension; packages export TypeScript sources directly
 (bundling happens only for the deployable images). `index.ts` is for barrel re-exports only;
-executable entry points are `apps/server/src/main.ts`, `packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts` and
+executable entry points are `apps/server/src/main.ts`, `packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`, `apps/runner/src/main.ts` and
 files in a package's `scripts/` (coverage excludes only those, the `src/index.ts` barrels and `apps/web`).
 Coverage reports go to `.cache/coverage` (ignored). Biome does not format Markdown.
 `docs/schema.md` is generated; after a schema change run `pnpm --filter @mwc/db generate` and

@@ -124,7 +124,7 @@ the devbox starts and stops from the page, its keep-on hours hold it up, This Ma
    enrollment, the WS hub, samples ingest and the 7-day prune, the machines and stats API — integration on PGlite with
    `ws`.
 3. `apps/runner` core: config, state dir, link and reconnect, heartbeat with the sampler, the hold drivers
-   (`devbox-keepalive`, `caffeinate`), health :9953 — runner vs fake server: survives a server restart.
+   (`devbox-keepalive`, `caffeinate`), health :9953 — runner vs fake server: survives a server restart. **Done 2026-11-06** (`apps/runner`, `@mwc/runner`: config `@mwc/runner/config` (0600), the link with handshake, heartbeats every 20 s with a sample a minute, reconnect with backoff, exit codes 76/77/78, hold drivers `devbox-keepalive '20 minutes'` / `caffeinate -i -w` / none, `/healthz` on 9953; 146 tests against `FakeRunnerServer` on fake time.)
 4. Power: `packages/machines-core` (the power driver port) and `connectors/machine-airia-devbox` (`airia devbox
    up|stop`, `gcloud … describe|add-metadata`); the server's power rules, scheduler, power API, controller routing and
    events log. **S4.4a done 2026-11-06** (`@mwc/machines-core`: the `MachinePowerDriver` port, `BoxRules`, `MachinePowerError`, `FakePowerDriver`; `@mwc/machine-airia-devbox`: `airia devbox up --no-wait` / `stop`, `gcloud` describe / list / add-metadata through an injected `run`, acting only on the signed-in account's own `dev-<slug>`; tested with a fake `run` and hand-written GCE JSON.)

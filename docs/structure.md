@@ -220,7 +220,8 @@ reaches them.
 - every file on its own: 85% lines, 75% branches (Vitest's `thresholds.perFile`).
 
 Excluded are only the `src/index.ts` barrels, the executable entries (`apps/server/src/main.ts`,
-`packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`; `scripts/` are outside `src/`) and `apps/web/**`.
+`packages/cli/src/mwc.ts`, `packages/mcp/src/main.ts`, `apps/runner/src/main.ts`; `scripts/` are outside `src/`) and
+`apps/web/**`.
 
 ## The web (`apps/web`)
 
