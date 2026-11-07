@@ -11,6 +11,8 @@ import {
   RunnerHeartbeat,
   RunnerHello,
   RunnerResync,
+  TUNNEL_ERROR_MAX,
+  TunnelState,
 } from '../../src/runner-protocol/runner-frames.ts';
 import { IDS, RUNNER_EXAMPLES, SAMPLE } from '../fixtures/runner-protocol/frames.ts';
 import { issuesOf, without } from '../fixtures/runner-protocol/issues.ts';
@@ -192,6 +194,27 @@ describe('power.result', () => {
     ).toEqual([]);
     expect(issuesOf(PowerResult, { ...result, status: 'RUNNING' })).toEqual(['status']);
     expect(issuesOf(PowerResult, { ...result, metadata: 'zone=x' })).toEqual(['metadata']);
+  });
+});
+
+describe('tunnel.state', () => {
+  const state = RUNNER_EXAMPLES['tunnel.state'];
+
+  it('takes each state, with or without why, and refuses another state, an empty or long error', () => {
+    for (const value of ['connecting', 'up', 'down']) {
+      expect(issuesOf(TunnelState, { ...state, state: value })).toEqual([]);
+    }
+    const down = {
+      ...state,
+      state: 'down',
+      error: 'ERROR: (gcloud.compute.ssh) [/usr/bin/ssh] exited with 255',
+    };
+    expect(issuesOf(TunnelState, down)).toEqual([]);
+    expect(issuesOf(TunnelState, { ...down, error: 'x'.repeat(TUNNEL_ERROR_MAX) })).toEqual([]);
+    expect(issuesOf(TunnelState, { ...down, error: 'x'.repeat(TUNNEL_ERROR_MAX + 1) })).toEqual(['error']);
+    expect(issuesOf(TunnelState, { ...down, error: '' })).toEqual(['error']);
+    expect(issuesOf(TunnelState, { ...state, state: 'linked' })).toEqual(['state']);
+    expect(issuesOf(TunnelState, without(state, 'machineId'))).toEqual(['machineId']);
   });
 });
 

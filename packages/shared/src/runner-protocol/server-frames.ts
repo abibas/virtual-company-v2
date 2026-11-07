@@ -135,6 +135,37 @@ export const PowerCommand = frame('power.command', {
 });
 export type PowerCommand = z.infer<typeof PowerCommand>;
 
+/** The most tunnels one `tunnel.set` holds (one per devbox the controller powers). */
+export const TUNNELS_MAX = 64;
+
+/** A TCP port, 1–65535. */
+const Port = z.int().min(1).max(65535);
+
+/**
+ * One reverse SSH tunnel a power controller holds for a machine it powers: the machine's `127.0.0.1:remotePort` leads
+ * to the controller's `127.0.0.1:localPort` (the server's own port), so the machine's runner reaches the server with
+ * no public address.
+ */
+export const TunnelSpec = protocolObject({
+  machineId: Uuid,
+  target: PowerTarget,
+  remotePort: Port,
+  localPort: Port,
+});
+export type TunnelSpec = z.infer<typeof TunnelSpec>;
+
+/**
+ * To a power controller: every tunnel it should hold now, the full set (an empty one stops them all). The runner
+ * reconciles it: it starts the missing ones, stops the extra ones and restarts one whose target or ports changed.
+ */
+export const TunnelSet = frame('tunnel.set', {
+  tunnels: z.array(TunnelSpec).max(TUNNELS_MAX),
+}).refine((set) => new Set(set.tunnels.map((tunnel) => tunnel.machineId)).size === set.tunnels.length, {
+  message: 'one tunnel per machine',
+  path: ['tunnels'],
+});
+export type TunnelSet = z.infer<typeof TunnelSet>;
+
 /** Every server frame, in the order of the reference. */
 export const SERVER_FRAMES = [
   ServerHello,
@@ -148,6 +179,7 @@ export const SERVER_FRAMES = [
   RunnerDrain,
   MachineHold,
   PowerCommand,
+  TunnelSet,
 ] as const;
 
 /** Any frame the server sends, told apart by `type`. */

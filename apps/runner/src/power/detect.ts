@@ -4,6 +4,7 @@ import {
   DEFAULT_PATH_DIRS,
   type ProcessRunOptions,
   processRun,
+  runEnv,
 } from '@mwc/machine-airia-devbox';
 import { NO_POWER, type PowerExecutor } from '../power.ts';
 import { driverExecutor } from './airia-devbox.ts';
@@ -12,8 +13,8 @@ import { driverExecutor } from './airia-devbox.ts';
  * Whether this machine is a power controller (S4.4b): it is when both the airia CLI and gcloud are installed, found
  * on the PATH or in the usual folders without starting a process (the Mac bills each one). Then its runner announces
  * `caps.power: ['airia_devbox']` and carries out `power.command`s with the Airia devbox driver, which runs those two
- * tools by their full paths with a short PATH that has their folders. Whether gcloud is signed in shows on the first
- * command (`needs_gcloud_login`).
+ * tools by their full paths with a short PATH that has their folders, and holds each powered box's reverse tunnel with
+ * gcloud the same way. Whether gcloud is signed in shows on the first command (`needs_gcloud_login`).
  */
 
 /** The folders searched after the PATH: Homebrew's, the classic one, and gcloud's own install folder. */
@@ -65,5 +66,6 @@ export function detectPowerExecutor(deps: DetectDeps): PowerExecutor {
   const folder = (path: string) => path.slice(0, path.lastIndexOf('/'));
   const pathDirs = [...new Set([folder(airia), folder(gcloud), ...DEFAULT_PATH_DIRS])];
   const run = processRun({ env: deps.env, pathDirs, ...(deps.execFile ? { execFile: deps.execFile } : {}) });
-  return driverExecutor(new AiriaDevboxDriver({ run, airia, gcloud }));
+  // The tunnels run gcloud with the same short PATH and passed variables as the commands.
+  return driverExecutor(new AiriaDevboxDriver({ run, airia, gcloud, env: runEnv(deps.env, pathDirs) }));
 }

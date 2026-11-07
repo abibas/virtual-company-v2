@@ -6,7 +6,7 @@ import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { EnrollmentTokenSchema, MachinesParamsSchema } from '../schemas.ts';
-import { createEnrollmentToken, enrollMachine } from '../service/enroll.ts';
+import { createEnrollmentToken, type EnrollDeps, enrollMachine } from '../service/enroll.ts';
 
 /**
  * Enrolling a machine (docs/runner-protocol.md, "Enrollment"): an admin makes a one-time token
@@ -48,7 +48,7 @@ const enrollRoute = createRoute({
   },
 });
 
-export function enrollmentRoutes(deps: ServerDeps) {
+export function enrollmentRoutes(deps: ServerDeps & EnrollDeps) {
   return newRouter()
     .openapi(createTokenRoute(deps), async (c) => {
       const caller = {
@@ -61,7 +61,7 @@ export function enrollmentRoutes(deps: ServerDeps) {
       return c.json(token, 201);
     })
     .openapi(enrollRoute, async (c) => {
-      const result = await enrollMachine(deps.db, c.req.valid('json'), c.var.clock(), c.var.requestId);
+      const result = await enrollMachine(deps, c.req.valid('json'), c.var.clock(), c.var.requestId);
       if (!result.ok) {
         c.header('www-authenticate', 'Bearer');
         return errorJson(c, result.status as 401, result.code, result.message);

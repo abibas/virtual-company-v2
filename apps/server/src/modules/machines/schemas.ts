@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { HoldSource, MachineKind, MachineProvider, MachineStatus } from '@mwc/shared/enums';
 import { MACHINE_NAME } from '@mwc/shared/machines';
+import { TunnelStatus } from '@mwc/shared/runner-protocol';
 
 /** The machines API's shapes (`/api/companies/{companyId}/machines`): never a runner key's secret or hash. */
 
@@ -18,6 +19,17 @@ export const MachineParamsSchema = z.object({
 });
 
 const dateTime = z.string().openapi({ format: 'date-time' });
+
+/** A devbox's link to this server: its controller's SSH tunnel, as the controller last reported it (memory only). */
+export const TunnelSchema = z
+  .object({
+    state: z
+      .enum(TunnelStatus.options)
+      .openapi({ description: '`connecting`, `up` (alive 10 s), or `down` (retried later)' }),
+    error: z.string().nullable().openapi({ description: 'The last line the tunnel printed when it ended' }),
+    since: dateTime.openapi({ description: 'When it entered this state' }),
+  })
+  .openapi('MachineTunnel');
 
 /** A machine as the API shows it. */
 export const MachineSchema = z
@@ -47,6 +59,8 @@ export const MachineSchema = z
     hourlyCost: z.number().nullable(),
     /** How many agents (not archived) have their default placement on it. */
     agentCount: z.number().int(),
+    /** A devbox's tunnel as its controller reported it; null for other machines and before a report. */
+    tunnel: TunnelSchema.nullable(),
     createdAt: dateTime,
   })
   .openapi('Machine');
@@ -89,4 +103,5 @@ export const EnrollmentTokenSchema = z
   .openapi('EnrollmentToken');
 
 export type MachineView = z.infer<typeof MachineSchema>;
+export type TunnelView = z.infer<typeof TunnelSchema>;
 export type EnrollmentTokenView = z.infer<typeof EnrollmentTokenSchema>;

@@ -33,6 +33,13 @@ export function nodeDeps(): MainDeps {
       },
     },
     spawn,
+    killGroup: (pid, signal) => {
+      try {
+        process.kill(-pid, signal);
+      } catch {
+        // The group is gone already.
+      }
+    },
     WebSocket,
     clock: SYSTEM_CLOCK,
     timers: SYSTEM_TIMERS,

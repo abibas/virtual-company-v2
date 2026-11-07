@@ -3,13 +3,15 @@ import type { Timers } from './time.ts';
 /**
  * Process starts, injected: Node's `child_process.spawn` in the daemon, a fake in tests (`test/fixtures/spawn.ts`).
  * The Mac's security agent bills every process start, so the runner starts few: one `sysctl` a minute at most, one
- * `caffeinate` per hold, one `devbox-keepalive` per refresh on the box.
+ * `caffeinate` per hold, one `devbox-keepalive` per refresh on the box, one tunnel per powered box (restarted slowly).
  */
 
 /** What the runner uses of a child process. */
 export interface ChildLike {
   readonly pid?: number | undefined;
   readonly stdout: NodeJS.ReadableStream | null;
+  /** Piped only for a tunnel, whose last line says why it ended. */
+  readonly stderr?: NodeJS.ReadableStream | null;
   kill(signal?: NodeJS.Signals): boolean;
   /** `exit` when the process ends; `close` once its output is read to the end too. */
   once(
@@ -19,13 +21,21 @@ export interface ChildLike {
   once(event: 'error', listener: (error: Error) => void): unknown;
 }
 
-/** The options the runner passes: stdin and stderr ignored, stdout piped when it reads it. */
+/**
+ * The options the runner passes: stdin ignored, stdout piped when it reads it, stderr piped only for a tunnel, which
+ * is also `detached` (its own process group, so its children are stopped with it) and may bring its own environment.
+ */
 export interface SpawnOptions {
-  readonly stdio: ['ignore', 'pipe' | 'ignore', 'ignore'];
+  readonly stdio: ['ignore', 'pipe' | 'ignore', 'ignore' | 'pipe'];
+  readonly detached?: boolean;
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 /** `child_process.spawn`, narrowed to what the runner uses. */
 export type Spawn = (file: string, args: readonly string[], options: SpawnOptions) => ChildLike;
+
+/** Sends a signal to a detached child's whole process group (`process.kill(-pid, signal)`); quiet once it is gone. */
+export type KillGroup = (pid: number, signal: NodeJS.Signals) => void;
 
 /** How a command ended: its exit code (null when it did not exit by itself), its output, and why it failed. */
 export interface CommandResult {

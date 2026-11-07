@@ -107,6 +107,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
     status: 'running',
     metadata: { zone: 'europe-west1-b', 'devbox-tz': 'Europe/Kyiv' },
   },
+  'tunnel.state': { type: 'tunnel.state', machineId: IDS.machine, state: 'up' },
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
@@ -147,5 +148,16 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
       ref: { instance: 'dev-ihorherasko', zone: 'europe-west1-b', size: 'm' },
     },
     action: 'start',
+  },
+  'tunnel.set': {
+    type: 'tunnel.set',
+    tunnels: [
+      {
+        machineId: IDS.machine,
+        target: { provider: 'airia_devbox', ref: { instance: 'dev-ihorherasko', zone: 'europe-west1-b' } },
+        remotePort: 9950,
+        localPort: 9950,
+      },
+    ],
   },
 };

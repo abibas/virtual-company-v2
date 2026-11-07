@@ -6,13 +6,15 @@ import type { RunnerHub } from '../hub.ts';
 import { command, resolveController } from './controller.ts';
 import { applyHold } from './hold.ts';
 import { logPower, readPower, saveFailure, saveReading, saveState } from './store.ts';
+import { syncTunnels } from './tunnels.ts';
 
 /**
  * The power scheduler (docs/machines.md, "The choice"): a step at most once a minute (the machines' jobs) decides
  * every machine's hold and sends it when it changes; for a devbox it starts the box at its keep-on hours, stops it when
  * they end, and reads its status through the controller at most every 5 minutes. Starts, stops and readings take up to
  * minutes, so they run after the step, one at a time per machine; `idle()` waits for them. What it decided is in the
- * rows, so a step after a restart takes up where the last one left off.
+ * rows, so a step after a restart takes up where the last one left off. With the server's port it also keeps every
+ * connected controller's tunnels in step with what it read (`tunnels.ts`; the hub sends only a changed set).
  */
 
 /** How often a box's status is read through its controller. */
@@ -40,6 +42,13 @@ export interface SchedulerDeps {
   readonly hub: RunnerHub;
   readonly logger: Logger;
   readonly clock: () => Date;
+  /** The server's own port, for the devboxes' tunnels; without it the scheduler sends none. */
+  readonly port?: number | undefined;
+}
+
+/** Sends the controller its tunnels after a reading, when the scheduler knows the server's port. */
+async function syncAfter(deps: SchedulerDeps, t: TenantDb, controllerId: string): Promise<void> {
+  if (deps.port !== undefined) await syncTunnels({ hub: deps.hub, port: deps.port }, t, controllerId);
 }
 
 /** True when the box was never read, or not for `BOX_CHECK_MS`. */
@@ -58,6 +67,7 @@ function powerWork(deps: SchedulerDeps, action: 'start' | 'stop', reason: string
     const at = deps.clock();
     if (result.ok) {
       await saveReading(t, machine, state.box, result.reading, at);
+      await syncAfter(deps, t, controllerId);
       await logPower(t, machine.id, {
         action: action === 'start' ? 'started' : 'stopped',
         reason,
@@ -84,8 +94,10 @@ function checkWork(deps: SchedulerDeps): Work {
   return async (t, machine, controllerId) => {
     const result = await command(deps.hub, controllerId, machine, 'status');
     const { state } = await readPower(t, machine.id);
-    if (result.ok) await saveReading(t, machine, state.box, result.reading, deps.clock());
-    else if (result.status === 502) {
+    if (result.ok) {
+      await saveReading(t, machine, state.box, result.reading, deps.clock());
+      await syncAfter(deps, t, controllerId);
+    } else if (result.status === 502) {
       await saveFailure(
         t,
         machine.id,
@@ -199,10 +211,13 @@ export function powerScheduler(deps: SchedulerDeps): PowerScheduler {
       let [machines, holds, began] = [0, 0, 0];
       for (const machine of await presentMachines(deps.db)) {
         try {
-          const done = await stepOne(deps, commands, await tenantOf(machine.companyId), machine, now);
+          const t = await tenantOf(machine.companyId);
+          const done = await stepOne(deps, commands, t, machine, now);
           machines++;
           if (done.held) holds++;
           if (done.began) began++;
+          // The safety net: a connected controller's tunnels, sent only when they changed.
+          await syncAfter(deps, t, machine.id);
         } catch (error) {
           deps.logger.error({ err: error, machineId: machine.id }, 'power: could not decide for a machine');
         }

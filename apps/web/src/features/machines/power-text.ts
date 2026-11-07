@@ -1,8 +1,9 @@
 import { ApiError } from '../../api/errors.ts';
 import type { Machine, MachinePower, PowerBox, PowerEvent } from '../../api/types.ts';
 import { formatTime, formatWeekdayTime } from '../../components/data/format.ts';
+import type { Tone } from '../../components/ui/Badge.tsx';
 
-/** How a machine's power reads: its hold, the box's own rules, the refusals and the log's actors (pure). */
+/** How a machine's power reads: its hold, its tunnel, the box's own rules, the refusals and the log's actors (pure). */
 
 export const DAYS = [
   { day: 1, label: 'Mon' },
@@ -34,6 +35,26 @@ export function holdText(machine: Machine, power: MachinePower | undefined, now:
   if (until === null || Date.parse(until) <= now) return undefined;
   const why = holdWhy(power?.state.holdReason ?? null, machine.hold.source);
   return `Kept awake until ${momentText(until, now)}${why ? ` · ${why}` : ''}`;
+}
+
+/**
+ * A devbox's link through its controller's SSH tunnel: "Linked" through This Mac's SSH tunnel, "Tunnel reconnecting"
+ * with why it dropped, or "Tunnel connecting" the first time; undefined without a report (and on other machines).
+ */
+export function tunnelText(
+  machine: Machine,
+  power: MachinePower | undefined,
+): { readonly label: string; readonly detail: string | undefined; readonly tone: Tone } | undefined {
+  const { tunnel } = machine;
+  if (tunnel === null) return undefined;
+  if (tunnel.state === 'up') {
+    const controller = power?.controller?.name ?? 'This Mac';
+    return { label: 'Linked', detail: `through ${controller}'s SSH tunnel`, tone: 'done' };
+  }
+  if (tunnel.state === 'connecting' && tunnel.error === null) {
+    return { label: 'Tunnel connecting', detail: undefined, tone: 'pending' };
+  }
+  return { label: 'Tunnel reconnecting', detail: tunnel.error ?? undefined, tone: 'input' };
 }
 
 /**

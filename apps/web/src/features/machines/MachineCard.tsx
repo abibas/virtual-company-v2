@@ -7,13 +7,14 @@ import { formatDateTime } from '../../components/data/format.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
+import { Badge } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { DevboxPower } from './DevboxPower.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
 import { MachineIdentity } from './MachineStatsRow.tsx';
 import { agoText } from './machine-text.ts';
 import { PowerSettings } from './PowerSettings.tsx';
-import { actorText, holdText } from './power-text.ts';
+import { actorText, holdText, tunnelText } from './power-text.ts';
 
 /** A part of the card under its small heading. */
 function Part({ title, children }: { readonly title: string; readonly children: ReactNode }) {
@@ -78,6 +79,65 @@ function FactsLine({
   );
 }
 
+/** A devbox's link to the server through its controller's SSH tunnel, in one short line; nothing without a report. */
+function TunnelLine({
+  machine,
+  power,
+}: {
+  readonly machine: Machine;
+  readonly power: MachinePower | undefined;
+}) {
+  const tunnel = tunnelText(machine, power);
+  if (tunnel === undefined) return null;
+  return (
+    <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
+      <Badge tone={tunnel.tone} size="sm" dot>
+        {tunnel.label}
+      </Badge>
+      {tunnel.detail && <span className="min-w-0 break-words">{tunnel.detail}</span>}
+    </p>
+  );
+}
+
+/** Who and how it is: its name (renamed in place by admins), status, facts and tunnel. */
+function Header({
+  machine,
+  stats,
+  power,
+  now,
+  admin,
+  onRename,
+}: {
+  readonly machine: Machine;
+  readonly stats: MachineStats | undefined;
+  readonly power: MachinePower | undefined;
+  readonly now: number;
+  readonly admin: boolean;
+  readonly onRename: (name: string) => Promise<void>;
+}) {
+  // The stats refresh every minute, so their status is the fresher one; the name is the machine's (a rename).
+  const facts = stats ? { ...stats, name: machine.name } : { ...machine, upSince: null };
+  return (
+    <div className="flex flex-col gap-2">
+      <MachineIdentity
+        stats={facts}
+        now={now}
+        name={
+          <InlineEdit
+            value={machine.name}
+            label={`Rename ${machine.name}`}
+            maxLength={MACHINE_NAME.max}
+            disabled={!admin}
+            onSave={onRename}
+          />
+        }
+      />
+      <FactsLine machine={machine} power={power} now={now} />
+      <TunnelLine machine={machine} power={power} />
+    </div>
+  );
+}
+
 /** The power parts: the devbox's controls, the log, and the power settings. */
 function PowerParts({
   machine,
@@ -139,8 +199,6 @@ export function MachineCard({
   readonly onChanged: () => void;
 }) {
   const control = usePowerControl(companyId, machine.id);
-  // The stats refresh every minute, so their status is the fresher one; the name is the machine's (a rename).
-  const facts = stats ? { ...stats, name: machine.name } : { ...machine, upSince: null };
   const rename = async (name: string) => {
     await calls.update(machine.id, { name });
     onChanged();
@@ -151,22 +209,14 @@ export function MachineCard({
   };
   return (
     <Card as="article" aria-label={machine.name} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <MachineIdentity
-          stats={facts}
-          now={now}
-          name={
-            <InlineEdit
-              value={machine.name}
-              label={`Rename ${machine.name}`}
-              maxLength={MACHINE_NAME.max}
-              disabled={!admin}
-              onSave={rename}
-            />
-          }
-        />
-        <FactsLine machine={machine} power={control.power.data} now={now} />
-      </div>
+      <Header
+        machine={machine}
+        stats={stats}
+        power={control.power.data}
+        now={now}
+        admin={admin}
+        onRename={rename}
+      />
       {stats && <MachineMetrics stats={stats} />}
       <PowerParts machine={machine} control={control} now={now} />
       {admin && (

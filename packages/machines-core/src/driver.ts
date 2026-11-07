@@ -22,6 +22,20 @@ export interface DiscoveredMachine extends PowerReading {
   readonly ref: PowerRef;
 }
 
+/** The ports of a reverse tunnel: the machine's `127.0.0.1:remotePort` leads to the controller's `127.0.0.1:localPort`. */
+export interface TunnelPorts {
+  readonly remotePort: number;
+  readonly localPort: number;
+}
+
+/** A long-lived process for the controller to run: the program by its full path, its arguments (no shell), its environment. */
+export interface ProcessCommand {
+  readonly command: string;
+  readonly args: readonly string[];
+  /** The whole environment it gets; the runner's own when left out. */
+  readonly env?: Readonly<Record<string, string>>;
+}
+
 /**
  * The machine power port (docs/machines.md): what a power controller (the runner on This Mac) calls to act on
  * another machine. Every method rejects with a `MachinePowerError` only. `start` and `stop` return without waiting
@@ -38,4 +52,9 @@ export interface MachinePowerDriver {
   stop(ref: PowerRef): Promise<PowerReading>;
   /** Sets the box's own time zone (the devbox's `devbox-tz`), an IANA name; the box applies it at its next check. */
   setTimezone(ref: PowerRef, timezone: string): Promise<PowerReading>;
+  /**
+   * The command of a reverse tunnel to the machine (pure: nothing runs), for a provider whose machines reach the
+   * server only through one; the controller's runner starts and supervises it. It never starts a stopped machine.
+   */
+  tunnelCommand?(ref: PowerRef, ports: TunnelPorts): ProcessCommand;
 }

@@ -41,7 +41,7 @@ describe('where the configuration and the state live', () => {
 describe('the server address', () => {
   it.each([
     ['http://localhost:9950', 'ws://localhost:9950/api/runner/ws'],
-    ['https://corp.example.ngrok.app/', 'wss://corp.example.ngrok.app/api/runner/ws'],
+    ['https://corp.example.com/', 'wss://corp.example.com/api/runner/ws'],
     ['https://corp.example.com/mwc', 'wss://corp.example.com/mwc/api/runner/ws'],
     ['wss://corp.example.com/api/runner/ws', 'wss://corp.example.com/api/runner/ws'],
     ['ws://127.0.0.1:9960', 'ws://127.0.0.1:9960/api/runner/ws'],

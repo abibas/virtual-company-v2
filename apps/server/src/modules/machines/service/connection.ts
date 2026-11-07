@@ -9,6 +9,7 @@ import {
   type RunnerFrame,
   type RunnerHello,
   type ServerFrame,
+  type TunnelState,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
@@ -46,6 +47,8 @@ export interface ConnectionContext {
   ready(connection: RunnerConnection): void;
   /** Forgets this connection; true when it was its machine's current one. */
   release(connection: RunnerConnection): boolean;
+  /** A controller reported one of its tunnels (`tunnel.state`; the hub keeps it in memory). */
+  tunnel(connection: RunnerConnection, frame: TunnelState): void;
 }
 
 interface Pending {
@@ -58,9 +61,9 @@ interface Pending {
  * One runner socket, from the upgrade to its close (docs/runner-protocol.md, "Connection"): it waits for `runner.hello`
  * (4008 after the timeout), refuses another protocol (4002) and a runner too old (4003, after `server.hello`), takes
  * over from an older connection of its machine (closed 4004), records the machine online with a session and then answers
- * `server.hello`. Heartbeats and `hold.state` update the machine; command replies settle the hub's requests; frames of
- * runs (S5) are accepted and left; unknown frames are ignored, invalid ones logged. Its close ends the session and, unless
- * it was replaced, takes the machine offline.
+ * `server.hello`. Heartbeats and `hold.state` update the machine, `tunnel.state` the hub's memory; command replies settle
+ * the hub's requests; frames of runs (S5) are accepted and left; unknown frames are ignored, invalid ones logged. Its close
+ * ends the session and, unless it was replaced, takes the machine offline.
  */
 export class RunnerConnection {
   readonly runner: RunnerCredential;
@@ -153,7 +156,8 @@ export class RunnerConnection {
       this.#run((t) => heartbeat(t, this.machineId, now, frame.sample));
     } else if (frame.type === 'hold.state') {
       this.#run((t) => hold(t, this.machineId, frame.until, frame.source));
-    } else {
+    } else if (frame.type === 'tunnel.state') this.#ctx.tunnel(this, frame);
+    else {
       this.#log(
         'debug',
         { type: frame.type },

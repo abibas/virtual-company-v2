@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Fetch } from '../../src/api/client.ts';
 import { parseArgs } from '../../src/args.ts';
 import { machineCommand } from '../../src/machines/commands.ts';
+import { portOf } from '../../src/machines/render.ts';
 import { tempConfig } from '../fixtures/account.ts';
 import { capture } from '../fixtures/io.ts';
 import { ORG_SERVER, type OrgWorld, orgWorld } from '../fixtures/org.ts';
@@ -33,20 +34,22 @@ describe('mwc machine enroll-token', () => {
     expect(r.out()).toContain(
       `  curl -fsSL ${ORG_SERVER}/api/runner/install.sh | sh -s -- --server ${ORG_SERVER} --token ${token}\n`,
     );
-    // The test server has no MWC_PUBLIC_URL: the devbox's command waits for one.
-    expect(r.out()).toContain('Set MWC_PUBLIC_URL to it');
+    // The devbox's command forwards the port of the API's own address (the test server's 9950) to the box.
+    expect(r.out()).toContain(
+      `  airia devbox ssh -- -R 127.0.0.1:9950:127.0.0.1:9950 'curl -fsSL http://127.0.0.1:9950/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --token ${token}'\n`,
+    );
     expect(r.out()).toContain(`MWC_SERVER_URL=${ORG_SERVER} MWC_ENROLL_TOKEN=${token} docker compose`);
     // The token works: the runner's installer would trade it for a machine.
     const second = await machine(['enroll-token', '--company', 'acme']);
     expect(second.out().split('\n')[2]?.trim()).not.toBe(token);
   });
 
-  it('goes on without the public address when /api/config does not answer', async () => {
+  it('takes the port of the server it talks to when /api/config does not answer', async () => {
     const noConfig: Fetch = async (url, init) =>
       url.endsWith('/api/config') ? new Response('', { status: 502 }) : w.fetch(url, init);
     const r = await machine(['enroll-token'], {}, noConfig);
     expect(r.code).toBe(0);
-    expect(r.out()).toContain('https://<your public address>');
+    expect(r.out()).toContain(`airia devbox ssh -- -R 127.0.0.1:${portOf(ORG_SERVER)}:127.0.0.1:`);
   });
 
   it("passes on the server's refusal for a member who may not make one", async () => {

@@ -27,6 +27,35 @@ const command = (action: PowerAction, args?: PowerCommand['args']): PowerCommand
 
 const driver = () => new FakePowerDriver({ boxes: [{ ref: REF, status: 'stopped', hourlyCost: 0.268 }] });
 
+describe('the tunnels of a driver', () => {
+  const tunnel = {
+    machineId: newId(),
+    target: { provider: 'airia_devbox' as const, ref: REF },
+    remotePort: 9963,
+    localPort: 9960,
+  };
+
+  it("are the driver's tunnel commands with the ports, none for another provider or a driver without them", () => {
+    const seen: unknown[] = [];
+    const withTunnels = Object.assign(driver(), {
+      tunnelCommand: (ref: typeof REF, ports: { remotePort: number; localPort: number }) => {
+        seen.push({ ref, ports });
+        return { command: '/g/gcloud', args: ['compute', 'ssh', ref.instance] };
+      },
+    });
+    const executor = driverExecutor(withTunnels);
+    expect(executor.tunnelCommand?.(tunnel)).toEqual({
+      command: '/g/gcloud',
+      args: ['compute', 'ssh', 'dev-ihor'],
+    });
+    expect(seen).toEqual([{ ref: REF, ports: { remotePort: 9963, localPort: 9960 } }]);
+    const other = { ...tunnel, target: { ...tunnel.target, provider: 'other' } } as unknown as typeof tunnel;
+    expect(executor.tunnelCommand?.(other)).toBeUndefined();
+    expect(driverExecutor(driver()).tunnelCommand?.(tunnel)).toBeUndefined();
+    expect(seen).toHaveLength(1);
+  });
+});
+
 describe('the power executor of a driver', () => {
   it("announces the driver's provider and maps each action to the driver, answering its reading", async () => {
     const fake = driver();

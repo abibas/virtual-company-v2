@@ -82,5 +82,16 @@ describe('detectPowerExecutor', () => {
       '/usr/local/bin',
     ]);
     expect(runs[0]?.options.env.HOME).toBe(HOME);
+    // Its tunnels run that gcloud with the same environment.
+    const tunnel = executor.tunnelCommand?.({
+      machineId: newId(),
+      target: { provider: 'airia_devbox', ref: { instance: 'dev-ihor', zone: 'europe-west1-b' } },
+      remotePort: 9950,
+      localPort: 9950,
+    });
+    expect(tunnel?.command).toBe('/Users/ihor/google-cloud-sdk/bin/gcloud');
+    expect(tunnel?.args.slice(0, 3)).toEqual(['compute', 'ssh', 'dev-ihor']);
+    expect(tunnel?.env).toEqual(runs[0]?.options.env);
+    expect(runs).toHaveLength(1);
   });
 });

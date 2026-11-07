@@ -20,8 +20,9 @@ has not answered by the next one; the runner treats 40 s without any frame or pi
 reconnects after every close with a backoff from 1 s to 60 s plus up to 20 % jitter, and never gives up, with three
 exceptions (S4.3): a refused key (HTTP 401 at the upgrade, or 4001) and a runner too old (4003) stop the runner with a
 log line and exit codes 77 and 76, so the service manager shows why; 4004 (replaced) ends the link without reconnecting
-while the process stays up, so two copies of one machine never take turns. In development the devbox reaches the server
-at `wss://<ngrok static domain>/api/runner/ws`.
+while the process stays up, so two copies of one machine never take turns. The Airia devbox has no public address: its
+runner dials `ws://127.0.0.1:<port>/api/runner/ws` on the box, which its controller's reverse SSH tunnel makes the
+server's own port ("Hold and power", `tunnel.set`).
 
 **Auth tiers** (Buildkite style). An admin makes a one-time **enrollment token** (`mwc_et_…`, expires); the runner's
 `install --token` (S4.5, through `install.sh`) trades it at `POST /api/runner/enroll` for the machine's id and its **runner key** (`mwc_rk_` + 32
@@ -72,6 +73,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `cmd.ack` | `cmdId`, `ok`, `error?` | once per command; a repeated `cmdId` is acked again without running it again |
 | `hold.state` | `until` (ms\|null), `source server\|live_runs` | after each resync and on every change (below) |
 | `power.result` | `cmdId`, `ok`, `status? running\|stopped\|starting\|stopping\|missing\|unknown`, `metadata?{}`, `error?` | the answer to `power.command` (instead of `cmd.ack`) |
+| `tunnel.state` | `machineId` (the box), `state connecting\|up\|down`, `error?` (1–500 characters: the last line the tunnel printed) | a controller's tunnel changed (`connecting` at each start, `up` after 10 s alive, `down` when it ended; a `connecting` after a `down` keeps its error), and every tunnel's state again after each `server.hello`; no answer |
 
 ## Server → runner
 
@@ -88,6 +90,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `runner.drain` | `cmdId` | no new runs until the runner restarts; live runs go on |
 | `machine.hold` | `cmdId`, `until` (ms\|null) | null releases the server's hold |
 | `power.command` | `cmdId`, `target{provider airia_devbox, ref{instance, zone, size?}}`, `action start\|stop\|status\|set_timezone`, `args?{timezone?}` | to a power controller; `set_timezone` needs `args.timezone` (IANA) |
+| `tunnel.set` | `tunnels[≤ 64]{machineId, target{provider airia_devbox, ref}, remotePort, localPort}` (ports 1–65535, one tunnel per machine) | to a power controller: the full set of tunnels it should hold now (an empty one stops them all); not a command (no `cmdId`, no answer) |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
 `placement{home, configDir|null, worktree|null}` (absolute or `~/` paths), `session` (`{mode: 'new', sessionId|null}`
@@ -134,6 +137,25 @@ limit alone.
   `~/google-cloud-sdk/bin`, without starting a process); a missing gcloud sign-in shows on the first command.
 - **When the server sends `machine.hold`** (S4.4b): each time a runner connects (its current hold, null included),
   whenever the scheduler's decision changes it (a step at most once a minute), and right after a policy change.
+- **Tunnels** (2026-11-07). A devbox reaches the server only through a reverse SSH tunnel over Google IAP that its
+  controller holds (`docs/machines.md`, "Installing a runner"). The server sends a controller (a connected runner with
+  `airia_devbox` in `caps.power`) `tunnel.set` with every tunnel it wants: one per non-removed devbox of its company
+  whose saved controller it is and whose last known power status is `running`, `starting` or not known yet (none for
+  `stopped`, `stopping`, `missing`), each with `remotePort` and `localPort` the server's own listen port, so the box's
+  `127.0.0.1:remotePort` leads to the controller's `127.0.0.1:localPort`. It sends the set when the controller says
+  hello, after a devbox enrolls (its controller saved when exactly one connected runner of the company can power it),
+  when a box's controller, removal or stored power status changes, and at every scheduler step as a safety net, but
+  only when it differs from the set last sent on that connection. The runner reconciles each set: it starts the
+  missing tunnels, stops the extra ones and restarts one whose target or ports changed (after the old one ended). The
+  devbox's tunnel is `gcloud compute ssh <instance> --project airia-devbox --zone <zone> --tunnel-through-iap --quiet
+  --strict-host-key-checking=no -- -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3
+  -o BatchMode=yes -R 127.0.0.1:<remotePort>:127.0.0.1:<localPort>` (gcloud by its full path; never `airia devbox ssh`,
+  which starts a stopped box). It is started `detached` and stopped as a process group, SIGTERM then SIGKILL after 5 s,
+  when it leaves the set and when the runner stops; one that ends while wanted starts again after 5 s, doubling to
+  5 minutes, from 5 s again after one that stayed up 60 s. A runner without power, or one that cannot start processes,
+  ignores `tunnel.set`. The server keeps the latest `tunnel.state` of each box in memory only (not the database) and
+  shows it on the machine in `GET machines` as `tunnel{state, error, since}` when its saved controller reported it,
+  null otherwise.
 
 ## Limits and timers
 
@@ -150,6 +172,8 @@ limit alone.
 | `DEVBOX_KEEPALIVE_REFRESH_MS`, `DEVBOX_KEEPALIVE_DURATION` | 5 min, `'20 minutes'` |
 | `RUNNER_HELLO_TIMEOUT_MS` | 10 s |
 | `KEY_ROTATION_OVERLAP_MS` | 10 min |
+| `TUNNELS_MAX`, `TUNNEL_ERROR_MAX` | 64 tunnels in one `tunnel.set`, 500 characters of a `tunnel.state` error |
+| the runner's tunnels (`apps/runner/src/power/tunnels.ts`) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | `RUNNER_CLOSE` | 1009 frame too large, 4001 unauthorized (key revoked or machine removed while connected), 4002 unsupported protocol, 4003 runner too old, 4004 replaced, 4008 hello timeout |
 
 ## Reading and writing frames

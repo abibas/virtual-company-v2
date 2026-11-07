@@ -9,6 +9,7 @@ import type { HoldDriver, HoldDriverKind } from '../../src/hold/driver.ts';
 import type { PowerExecutor } from '../../src/power.ts';
 import { createRunner, type Runner } from '../../src/runner.ts';
 import { memoryLog } from './log.ts';
+import type { FakeSpawn } from './spawn.ts';
 import { FakeTime } from './time.ts';
 
 export const RUNNER_KEY = `mwc_rk_${'A1b2C3d4'.repeat(4)}`;
@@ -92,6 +93,8 @@ export function startRunner(
   server: FakeRunnerServer,
   options: {
     power?: PowerExecutor;
+    /** Starts and stops the tunnels of a runner with `power`. */
+    spawn?: FakeSpawn;
     random?: () => number;
     saveFails?: boolean;
     config?: Partial<RunnerConfig>;
@@ -110,6 +113,9 @@ export function startRunner(
     hold: hold.driver,
     sampler,
     ...(options.power ? { power: options.power } : {}),
+    ...(options.spawn
+      ? { processes: { spawn: options.spawn.spawn, killGroup: options.spawn.killGroup } }
+      : {}),
     saveConfig: (next) => {
       if (options.saveFails) throw new Error('disk full');
       saved.push(next);

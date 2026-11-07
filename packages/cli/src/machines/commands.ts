@@ -26,8 +26,8 @@ export async function machineCommand(
   const made = await createEnrollmentToken(deps.fetch, server, key, company.companyId);
   if (!made.ok) return fail(io, command, refusal(server, made));
   const config = await getPublicConfig(deps.fetch, server, key);
-  const publicUrl = config.ok ? config.body.publicUrl : null;
+  const apiUrl = config.ok ? config.body.apiUrl : null;
   const { token, expiresAt } = made.body;
-  io.stdout(enrollTokenText({ company, token, expiresAt, server, publicUrl }));
+  io.stdout(enrollTokenText({ company, token, expiresAt, server, apiUrl }));
   return 0;
 }

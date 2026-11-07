@@ -17,7 +17,7 @@ import type { PowerExecutor } from './power.ts';
 import { createRunner, type Runner } from './runner.ts';
 import { createMemoryReader, type MemoryDeps } from './stats/memory.ts';
 import { type DiskStats, Sampler, type SamplerOs } from './stats/sampler.ts';
-import type { Spawn } from './system/process.ts';
+import type { KillGroup, Spawn } from './system/process.ts';
 import type { Clock, Timers } from './system/time.ts';
 
 /**
@@ -53,6 +53,8 @@ export interface MainDeps {
     mkdir(path: string): void;
   };
   readonly spawn: Spawn;
+  /** Signals a detached child's process group (a power controller's tunnels). */
+  readonly killGroup: KillGroup;
   readonly WebSocket: WebSocketCtor;
   readonly clock: Clock;
   readonly timers: Timers;
@@ -121,6 +123,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     hold: holdDriverFor(setup.hold, deps, log),
     sampler: new Sampler({ os: deps.os, statfs: deps.fs.statfs, home, memory, clock, log }),
     ...(deps.power ? { power: deps.power } : {}),
+    processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     saveConfig: (next) => writeRunnerConfig(setup.configPath, next),
     clock,
     timers,

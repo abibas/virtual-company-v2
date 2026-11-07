@@ -8,6 +8,7 @@ export {
   DEVBOX_PROJECT,
   POWER_TIMEOUT_MS,
   QUERY_TIMEOUT_MS,
+  TUNNEL_SSH_ARGS,
 } from './driver.ts';
 export {
   type CommandRun,
@@ -16,4 +17,5 @@ export {
   processRun,
   type RunOptions,
   type RunResult,
+  runEnv,
 } from './run.ts';

@@ -173,6 +173,25 @@ export const PowerResult = frame('power.result', {
 });
 export type PowerResult = z.infer<typeof PowerResult>;
 
+/** A tunnel as its controller sees it: its process just started, alive for a while, or ended (and retried later). */
+export const TunnelStatus = z.enum(['connecting', 'up', 'down']);
+export type TunnelStatus = z.infer<typeof TunnelStatus>;
+
+/** The longest `tunnel.state` error: the last line the tunnel's process printed, cut. */
+export const TUNNEL_ERROR_MAX = 500;
+
+/**
+ * A power controller's tunnel for a machine changed (`tunnel.set`), and each tunnel's state again after every
+ * `server.hello`: `connecting` when its process starts, `up` once it has stayed alive a while, `down` when it ended,
+ * with why (the last line it printed) as `error`; a `connecting` after a `down` keeps that error.
+ */
+export const TunnelState = frame('tunnel.state', {
+  machineId: Uuid,
+  state: TunnelStatus,
+  error: z.string().min(1).max(TUNNEL_ERROR_MAX).optional(),
+});
+export type TunnelState = z.infer<typeof TunnelState>;
+
 /** Every runner frame, in the order of the reference. */
 export const RUNNER_FRAMES = [
   RunnerHello,
@@ -185,6 +204,7 @@ export const RUNNER_FRAMES = [
   CmdAck,
   HoldState,
   PowerResult,
+  TunnelState,
 ] as const;
 
 /** Any frame a runner sends, told apart by `type`. */

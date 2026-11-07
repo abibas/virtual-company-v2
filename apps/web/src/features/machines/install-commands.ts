@@ -3,21 +3,10 @@
 /** The machines the add sheet offers. */
 export type NewMachineKind = 'mac' | 'devbox' | 'container';
 
-export type InstallCommand =
-  | { readonly kind: 'command'; readonly command: string }
-  /** No command yet: what to do first. */
-  | { readonly kind: 'note'; readonly note: string };
-
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1', '0.0.0.0']);
-
-/** True for an address only this computer reaches (localhost and its kin). */
-export function isLocalAddress(url: string): boolean {
-  try {
-    const { hostname } = new URL(url);
-    return LOCAL_HOSTS.has(hostname) || hostname.endsWith('.localhost');
-  } catch {
-    return true;
-  }
+/** The port of an address: its own, else its protocol's (443 for https, 80 for http). */
+export function portOf(url: string): number {
+  const { port, protocol } = new URL(url);
+  return Number(port || (protocol === 'https:' ? 443 : 80));
 }
 
 /** The installer run on a machine that reaches the server at `url`. */
@@ -25,31 +14,35 @@ const curlInstall = (url: string, token: string) =>
   `curl -fsSL ${url}/api/runner/install.sh | sh -s -- --server ${url} --token ${token}`;
 
 /**
+ * The devbox's installer, run on this Mac: `airia devbox ssh` with a reverse forward that makes the box's
+ * `127.0.0.1:<port>` this Mac's API for the install, and the box's runner enrolled with that address (afterwards This
+ * Mac's runner holds the same forward over IAP).
+ */
+export function devboxCommand(port: number, token: string): string {
+  const local = `http://127.0.0.1:${port}`;
+  return `airia devbox ssh -- -R 127.0.0.1:${port}:127.0.0.1:${port} '${curlInstall(local, token)}'`;
+}
+
+/**
  * The command for a kind of machine: This Mac with the API's address; the devbox over `airia devbox ssh` with the
- * public address (none while the server knows only a local one); the container through compose.
+ * port of the API's address (no public address needed); the container through compose.
  */
 export function installCommand(
   kind: NewMachineKind,
   token: string,
-  config: { readonly apiUrl: string; readonly publicUrl: string | null },
-): InstallCommand {
-  if (kind === 'mac') return { kind: 'command', command: curlInstall(config.apiUrl, token) };
-  if (kind === 'container') {
-    return {
-      kind: 'command',
-      command: `MWC_ENROLL_TOKEN=${token} docker compose -f deploy/compose.yml --profile runner up -d runner-local`,
-    };
-  }
-  if (config.publicUrl === null || isLocalAddress(config.publicUrl)) {
-    return { kind: 'note', note: 'Set MWC_PUBLIC_URL to your ngrok address first' };
-  }
-  return { kind: 'command', command: `airia devbox ssh -- '${curlInstall(config.publicUrl, token)}'` };
+  config: { readonly apiUrl: string },
+): string {
+  if (kind === 'mac') return curlInstall(config.apiUrl, token);
+  if (kind === 'devbox') return devboxCommand(portOf(config.apiUrl), token);
+  return `MWC_ENROLL_TOKEN=${token} docker compose -f deploy/compose.yml --profile runner up -d runner-local`;
 }
 
 /** Where to run it and what it installs, under the command. */
 export const COMMAND_HINTS: Readonly<Record<NewMachineKind, string>> = {
   mac: 'Run it in a Terminal on this Mac. It installs the runner as a launchd agent; it needs Node 22 or newer.',
   devbox:
-    'Run it on this Mac; it installs the runner on the box as a systemd user service. The box costs its hourly rate while it is up.',
+    "Run it on this Mac, after This Mac's runner is installed: that runner keeps the box connected afterwards. It " +
+    'installs the runner on the box as a systemd user service. It starts the box if it is stopped, and the box costs ' +
+    'its hourly rate while it is up.',
   container: 'Run it in the repository folder. It starts the runner-local service from deploy/compose.yml.',
 };

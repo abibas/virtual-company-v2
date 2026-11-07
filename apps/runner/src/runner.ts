@@ -5,6 +5,7 @@ import {
   type RunnerHello,
   type RunnerResync,
   type ServerHello,
+  type TunnelSpec,
 } from '@mwc/shared/runner-protocol';
 import { WebSocket } from 'ws';
 import { type RunnerConfig, runnerWsUrl } from './config.ts';
@@ -16,14 +17,17 @@ import { type HeartbeatDeps, Heartbeats } from './link/heartbeat.ts';
 import { Link, type LinkEnd } from './link/link.ts';
 import type { WebSocketCtor } from './link/socket.ts';
 import type { Log } from './log.ts';
+import { Tunnels } from './power/tunnels.ts';
 import { NO_POWER, type PowerExecutor } from './power.ts';
+import type { KillGroup, Spawn } from './system/process.ts';
 import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from './system/time.ts';
 
 /**
  * The runner (`@mwc/runner/runner`): the link to the server, the heartbeats with the machine's samples, the hold and
- * the commands, put together. `start()` connects and keeps reconnecting; `stop()` closes the socket and releases the
- * hold; `setLiveRuns(n)` is how S5's runs tell it how many are live (the runner holds the machine while any is);
- * `ended` resolves when the link stops for good. Everything outside the process is injected.
+ * the commands, and a power controller's tunnels, put together. `start()` connects and keeps reconnecting; `stop()`
+ * closes the socket, releases the hold and stops the tunnels; `setLiveRuns(n)` is how S5's runs tell it how many are
+ * live (the runner holds the machine while any is); `ended` resolves when the link stops for good. Everything outside
+ * the process is injected.
  */
 
 export interface RunnerOptions {
@@ -39,6 +43,8 @@ export interface RunnerOptions {
   readonly sampler: HeartbeatDeps['sampler'];
   /** What it does with `power.command`; `NO_POWER` (every command fails with `no_power_driver`) by default. */
   readonly power?: PowerExecutor;
+  /** How a power controller starts and stops its tunnels (`tunnel.set`); without it, or without power, none. */
+  readonly processes?: { readonly spawn: Spawn; readonly killGroup: KillGroup };
   /** Saves the configuration after `key.rotate`; without it the new key lives in memory only. */
   readonly saveConfig?: (config: RunnerConfig) => void | Promise<void>;
   readonly clock?: Clock;
@@ -80,6 +86,7 @@ class RunnerDaemon implements Runner {
   readonly #heartbeats: Heartbeats;
   readonly #commands: Commands;
   readonly #link: Link;
+  readonly #tunnels: Tunnels | undefined;
   #config: RunnerConfig;
   #draining = false;
 
@@ -100,8 +107,21 @@ class RunnerDaemon implements Runner {
       power: this.#power,
       saveKey: (runnerKey) => this.#saveKey(runnerKey),
       drain: () => this.#drain(),
+      setTunnels: (tunnels) => this.#setTunnels(tunnels),
       log,
     });
+    const { processes } = options;
+    const controller = this.#power.providers.length > 0 && processes !== undefined;
+    this.#tunnels = controller
+      ? new Tunnels({
+          command: (tunnel) => this.#power.tunnelCommand?.(tunnel),
+          ...processes,
+          clock,
+          timers,
+          log,
+          report: (state) => this.#link.send(state),
+        })
+      : undefined;
     this.#link = new Link({
       url: runnerWsUrl(options.config.serverUrl),
       key: () => this.#config.runnerKey,
@@ -129,7 +149,7 @@ class RunnerDaemon implements Runner {
 
   async stop(): Promise<void> {
     await this.#link.stop();
-    await this.#hold.close();
+    await Promise.all([this.#hold.close(), this.#tunnels?.close()]);
   }
 
   setLiveRuns(count: number): Promise<void> {
@@ -172,7 +192,7 @@ class RunnerDaemon implements Runner {
       });
     }
     this.#heartbeats.connected();
-    return [resync(), holdState(this.#hold.state)];
+    return [resync(), holdState(this.#hold.state), ...(this.#tunnels?.states() ?? [])];
   }
 
   async #beat(): Promise<RunnerFrame[]> {
@@ -194,6 +214,16 @@ class RunnerDaemon implements Runner {
     const next = { ...this.#config, runnerKey };
     await this.#options.saveConfig?.(next);
     this.#config = next;
+  }
+
+  #setTunnels(tunnels: readonly TunnelSpec[]): void {
+    if (this.#tunnels === undefined) {
+      this.#options.log.info('ignored tunnel.set: this runner powers no machine', {
+        tunnels: tunnels.length,
+      });
+      return;
+    }
+    this.#tunnels.set(tunnels);
   }
 
   #drain(): void {

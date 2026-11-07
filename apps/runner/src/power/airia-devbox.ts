@@ -37,10 +37,18 @@ export function outcomeOf(reading: PowerReading): PowerOutcome {
   return { ok: true, status: reading.status, metadata };
 }
 
-/** The executor of a driver: it announces the driver's provider and refuses commands for any other. */
+/**
+ * The executor of a driver: it announces the driver's provider and refuses commands for any other; its tunnels are the
+ * driver's (none for another provider, or a driver without them).
+ */
 export function driverExecutor(driver: MachinePowerDriver): PowerExecutor {
   return {
     providers: [driver.provider],
+    tunnelCommand(tunnel) {
+      if (tunnel.target.provider !== driver.provider) return undefined;
+      const { remotePort, localPort } = tunnel;
+      return driver.tunnelCommand?.(tunnel.target.ref, { remotePort, localPort });
+    },
     async execute(command) {
       if (command.target.provider !== driver.provider) {
         return { ok: false, error: `failed: this runner powers ${driver.provider} machines only` };

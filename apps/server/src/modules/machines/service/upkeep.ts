@@ -24,20 +24,23 @@ async function sweep(db: DbHandle, now: Date): Promise<number> {
  * The machines' share of the jobs loop (`moduleJobs` in app.ts), on every tick: the offline sweep (a machine still
  * marked online whose runner said nothing for 90 s, e.g. after a server crash), the prune of samples older than 7
  * days at most once an hour, and the power scheduler's step at most once a minute (`power/scheduler.ts`; it needs
- * the runner hub and the logger, so without them `power` is always null). The first tick of a process prunes and
- * steps; `pruned` and `power` are null on the ticks that do not.
+ * the runner hub and the logger, so without them `power` is always null; with the configuration it also keeps the
+ * devboxes' tunnels on the server's port). The first tick of a process prunes and steps; `pruned` and `power` are null
+ * on the ticks that do not.
  */
 export function machineUpkeep(deps: {
   readonly db: DbHandle;
   readonly clock: () => Date;
   readonly logger?: Logger;
   readonly hub?: RunnerHub | undefined;
+  readonly config?: { readonly MWC_PORT: number };
 }): () => Promise<MachineUpkeep> {
   let nextPruneMs = Number.NEGATIVE_INFINITY;
   let nextPowerMs = Number.NEGATIVE_INFINITY;
   const { hub, logger } = deps;
+  const port = deps.config?.MWC_PORT;
   const scheduler =
-    hub === undefined || logger === undefined ? undefined : powerScheduler({ ...deps, hub, logger });
+    hub === undefined || logger === undefined ? undefined : powerScheduler({ ...deps, hub, logger, port });
   return async () => {
     const now = deps.clock();
     const offline = await sweep(deps.db, now);

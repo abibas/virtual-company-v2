@@ -1,6 +1,13 @@
 // @mwc/machines-core: the machine power port (docs/machines.md). The test double is a separate import:
 // @mwc/machines-core/fake (FakePowerDriver).
-export type { DiscoveredMachine, MachinePowerDriver, PowerReading, PowerRef } from './driver.ts';
+export type {
+  DiscoveredMachine,
+  MachinePowerDriver,
+  PowerReading,
+  PowerRef,
+  ProcessCommand,
+  TunnelPorts,
+} from './driver.ts';
 export {
   isMachinePowerError,
   MACHINE_POWER_ERROR_CODES,

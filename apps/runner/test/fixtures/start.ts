@@ -87,6 +87,7 @@ export function world(options: WorldOptions = {}) {
     os: machine.os,
     fs: machine.fs,
     spawn: spawn.spawn,
+    killGroup: spawn.killGroup,
     WebSocket,
     clock: time,
     timers: time,

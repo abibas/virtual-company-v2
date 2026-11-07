@@ -1,5 +1,5 @@
 import { newId } from '@mwc/shared/ids';
-import type { PowerCommand, ServerFrame } from '@mwc/shared/runner-protocol';
+import type { PowerCommand, ServerFrame, TunnelSpec } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { Commands, NO_RUNS, REMEMBERED_COMMANDS } from '../../src/link/commands.ts';
 import { NO_POWER, type PowerExecutor } from '../../src/power.ts';
@@ -9,6 +9,7 @@ import { ROTATED_KEY } from '../fixtures/runner.ts';
 function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => void } = {}) {
   const holds: (number | null)[] = [];
   const keys: string[] = [];
+  const tunnelSets: (readonly TunnelSpec[])[] = [];
   let drained = 0;
   const logs = memoryLog();
   const handler = new Commands({
@@ -20,9 +21,10 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
     drain: () => {
       drained += 1;
     },
+    setTunnels: (tunnels) => void tunnelSets.push(tunnels),
     log: logs.log,
   });
-  return { handler, holds, keys, logs, drained: () => drained };
+  return { handler, holds, keys, tunnelSets, logs, drained: () => drained };
 }
 
 const powerCommand = (): PowerCommand => ({
@@ -55,6 +57,19 @@ describe('the commands', () => {
     expect(await commands({ power }).handler.handle(cmd)).toEqual([
       { type: 'power.result', cmdId: cmd.cmdId, ok: true, status: 'starting' },
     ]);
+  });
+
+  it('hands tunnel.set to the tunnels as it comes, with no answer (it is no command)', async () => {
+    const { handler, tunnelSets } = commands();
+    const tunnel: TunnelSpec = {
+      machineId: newId(),
+      target: { provider: 'airia_devbox', ref: { instance: 'dev-ihor', zone: 'europe-west1-b' } },
+      remotePort: 9950,
+      localPort: 9950,
+    };
+    expect(await handler.handle({ type: 'tunnel.set', tunnels: [tunnel] })).toEqual([]);
+    expect(await handler.handle({ type: 'tunnel.set', tunnels: [] })).toEqual([]);
+    expect(tunnelSets).toEqual([[tunnel], []]);
   });
 
   it('saves a rotated key before acking it, and acks a failed save as not ok', async () => {
@@ -119,6 +134,7 @@ describe('the commands', () => {
       power: NO_POWER,
       saveKey: () => {},
       drain: () => {},
+      setTunnels: () => {},
       log: memoryLog().log,
     });
     const frame: ServerFrame = { type: 'machine.hold', cmdId: newId(), until: 5 };

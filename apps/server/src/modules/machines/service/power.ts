@@ -22,6 +22,7 @@ import {
   saveReading,
   saveState,
 } from './power/store.ts';
+import { syncTunnels } from './power/tunnels.ts';
 
 /**
  * The power API's logic (docs/machines.md, S4.4b): a machine's power view, its policy, Start and Stop of a devbox
@@ -34,6 +35,8 @@ export interface PowerDeps {
   readonly hub: RunnerHub;
   readonly logger: Logger;
   readonly clock: () => Date;
+  /** The server's own port, for the devboxes' tunnels. */
+  readonly port: number;
 }
 
 /** Who acts: their principal and user, their role here. */
@@ -78,7 +81,7 @@ async function viewOf(
   };
 }
 
-/** Runs one power action on the devbox through its controller and keeps what it read, or why it failed, in the state. */
+/** Runs one power action on the devbox through its controller, keeps what it read (or why it failed), syncs tunnels. */
 async function control(
   deps: PowerDeps,
   t: TenantDb,
@@ -90,8 +93,10 @@ async function control(
   if (!controller.ok) return controller;
   const result = await command(deps.hub, controller.controllerId, machine, action, args ? { args } : {});
   const { state } = await readPower(t, machine.id);
-  if (result.ok) await saveReading(t, machine, state.box, result.reading, deps.clock());
-  else if (result.status === 502) {
+  if (result.ok) {
+    await saveReading(t, machine, state.box, result.reading, deps.clock());
+    await syncTunnels(deps, t, controller.controllerId);
+  } else if (result.status === 502) {
     await saveFailure(
       t,
       machine.id,

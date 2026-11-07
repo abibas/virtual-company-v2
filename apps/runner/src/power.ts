@@ -1,10 +1,12 @@
+import type { ProcessCommand } from '@mwc/machines-core';
 import type { PowerProvider } from '@mwc/shared/machines';
-import type { PowerCommand, PowerResult } from '@mwc/shared/runner-protocol';
+import type { PowerCommand, PowerResult, TunnelSpec } from '@mwc/shared/runner-protocol';
 
 /**
  * The power controller hook (`@mwc/runner/power`): what the runner does with a `power.command`. S4.3 ships the
  * executor of a runner that drives nothing; S4.4b passes one built on `@mwc/machines-core`'s driver (the Airia
- * devbox connector), whose `providers` the runner announces in `runner.hello.caps.power`.
+ * devbox connector), whose `providers` the runner announces in `runner.hello.caps.power`, and whose tunnel commands
+ * the runner's tunnels run (`power/tunnels.ts`).
  */
 
 /** A `power.result` without its `type` and `cmdId`. */
@@ -15,6 +17,8 @@ export interface PowerExecutor {
   readonly providers: readonly PowerProvider[];
   /** Carries out one command; a throw is reported as `ok: false` with its message. */
   execute(command: PowerCommand): Promise<PowerOutcome>;
+  /** The process of a reverse tunnel to a machine it powers (`tunnel.set`); undefined when it holds none for it. */
+  tunnelCommand?(tunnel: TunnelSpec): ProcessCommand | undefined;
 }
 
 /** The answer of a runner without a power driver. */

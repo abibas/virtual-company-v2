@@ -15,6 +15,7 @@ import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
 import type { SocketHandlers, SocketLink } from '../../../platform/realtime/sockets.ts';
 import { MIN_RUNNER_VERSION } from '../rules.ts';
 import { type ConnectionContext, HubError, RunnerConnection } from './connection.ts';
+import { type HubTunnels, tunnelBoard } from './hub/tunnels.ts';
 
 export { HubError, type HubErrorCode } from './connection.ts';
 
@@ -50,6 +51,8 @@ export interface HubOptions {
  */
 export interface RunnerHub {
   readonly pingMs: number;
+  /** The power controllers' tunnels: each one's set (sent only when changed) and the states they report (memory). */
+  readonly tunnels: HubTunnels;
   /** True while the machine's runner is connected to this process and past its hello. */
   isOnline(machineId: string): boolean;
   /** The machine's connected runner (its version, caps, since when), or undefined. */
@@ -184,6 +187,7 @@ export function createRunnerHub(
   const sockets = connections();
   const queues = machineQueues(deps.logger);
   const listeners = connectListeners(deps.logger);
+  const tunnels = tunnelBoard(deps.clock, sockets.ready);
   const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   let closing = false;
   const ctx: ConnectionContext = {
@@ -194,9 +198,11 @@ export function createRunnerHub(
     claim: sockets.claim,
     ready: listeners.ready,
     release: sockets.release,
+    tunnel: tunnels.record,
   };
   return {
     pingMs: options.pingMs ?? RUNNER_PING_MS,
+    tunnels: tunnels.api,
     isOnline: (machineId) => sockets.ready(machineId) !== undefined,
     connected(machineId) {
       const connection = sockets.ready(machineId);

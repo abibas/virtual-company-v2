@@ -92,7 +92,7 @@ function Countdown({ expiresAt, onAgain }: { readonly expiresAt: string; readonl
 
 /**
  * The install command for the chosen kind with its one-time token, Copy, the hour's countdown, and the machine once
- * it connects. For the devbox without a public address, what to set first instead.
+ * it connects.
  */
 function EnrollCommand({
   kind,
@@ -107,23 +107,15 @@ function EnrollCommand({
   readonly connected: Machine | undefined;
   readonly onAgain: () => void;
 }) {
-  const install = installCommand(kind, token.token, config);
-  if (install.kind === 'note') {
-    return (
-      <Notice tone="warning" title={install.note}>
-        The devbox reaches this server only at its public address. Set it, restart the server, then add the
-        box again.
-      </Notice>
-    );
-  }
+  const command = installCommand(kind, token.token, config);
   return (
     <div className="flex flex-col gap-3">
       <pre className="overflow-x-auto rounded-xl bg-surface-2 px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-ink-2">
-        <code>{install.command}</code>
+        <code>{command}</code>
       </pre>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Countdown expiresAt={token.expiresAt} onAgain={onAgain} />
-        <CopyButton text={install.command} label="Copy command" />
+        <CopyButton text={command} label="Copy command" />
       </div>
       <p className="text-xs text-dim">{COMMAND_HINTS[kind]}</p>
       {connected ? (

@@ -82,6 +82,9 @@ export {
   RunnerHello,
   RunnerResync,
   RunState,
+  TUNNEL_ERROR_MAX,
+  TunnelState,
+  TunnelStatus,
 } from './runner-protocol/runner-frames.ts';
 export {
   AttentionAnswer,
@@ -104,6 +107,9 @@ export {
   type ServerFrameType,
   ServerHello,
   StopMode,
+  TUNNELS_MAX,
+  TunnelSet,
+  TunnelSpec,
 } from './runner-protocol/server-frames.ts';
 
 const RUNNER_TABLE = frameTable<RunnerFrame>(RUNNER_FRAMES);

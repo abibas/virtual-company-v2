@@ -222,3 +222,51 @@ describe('AiriaDevboxDriver: setTimezone', () => {
     expect((await failure(gone.driver.setTimezone(REF, 'Europe/Kyiv'))).code).toBe('not_found');
   });
 });
+
+describe('AiriaDevboxDriver: tunnelCommand', () => {
+  const ports = { remotePort: 9950, localPort: 9950 };
+
+  it('is plain gcloud compute ssh over IAP with the reverse forward, as an argument array, and runs nothing', () => {
+    const fake = fakeRun(() => undefined);
+    const driver = new AiriaDevboxDriver({ run: fake.run, gcloud: '/opt/homebrew/bin/gcloud' });
+    expect(driver.tunnelCommand(REF, ports)).toEqual({
+      command: '/opt/homebrew/bin/gcloud',
+      args: [
+        'compute',
+        'ssh',
+        BOX,
+        '--project',
+        'airia-devbox',
+        '--zone',
+        ZONE,
+        '--tunnel-through-iap',
+        '--quiet',
+        '--strict-host-key-checking=no',
+        '--',
+        '-N',
+        '-o',
+        'ExitOnForwardFailure=yes',
+        '-o',
+        'ServerAliveInterval=15',
+        '-o',
+        'ServerAliveCountMax=3',
+        '-o',
+        'BatchMode=yes',
+        '-R',
+        '127.0.0.1:9950:127.0.0.1:9950',
+      ],
+    });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('forwards the ports it is given, in its project, with the environment it was given', () => {
+    const env = { PATH: '/g:/usr/bin', HOME: '/Users/ihor' };
+    const driver = new AiriaDevboxDriver({ run: fakeRun(() => undefined).run, project: 'other', env });
+    const tunnel = driver.tunnelCommand(REF, { remotePort: 9963, localPort: 9960 });
+    expect(tunnel.command).toBe('gcloud');
+    expect(tunnel.args.slice(3, 5)).toEqual(['--project', 'other']);
+    expect(tunnel.args.at(-1)).toBe('127.0.0.1:9963:127.0.0.1:9960');
+    expect(tunnel.args.some((arg) => /\s|'|"/.test(arg))).toBe(false);
+    expect(tunnel.env).toBe(env);
+  });
+});

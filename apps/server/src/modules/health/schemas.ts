@@ -70,16 +70,18 @@ export const PublicConfigSchema = z
     }),
     apiUrl: z.url().openapi({
       example: 'http://localhost:9950',
-      description: 'The public URL of the API, for `mwc login --server` (MWC_PUBLIC_URL)',
+      description:
+        "The API's own address, for `mwc login --server` (MWC_PUBLIC_URL, else localhost and its port); its port is " +
+        "the one the Airia devbox's tunnel forwards",
     }),
     publicUrl: z
       .url()
       .nullable()
       .openapi({
-        example: 'https://corp.example.ngrok.app',
+        example: 'https://corp.example.com',
         description:
-          "MWC_PUBLIC_URL when it is set (the address other machines reach, as a runner's install command needs), " +
-          'null when the server only knows its local address',
+          'MWC_PUBLIC_URL when it is set (the address other machines reach), null when the server only knows its ' +
+          "local address (the Airia devbox's install needs none: it uses the port of `apiUrl`)",
       }),
   })
   .openapi('PublicConfig');

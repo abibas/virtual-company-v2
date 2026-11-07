@@ -17,6 +17,7 @@ import {
   startRunner,
   stopRunners,
 } from './fixtures/runner.ts';
+import { FakeSpawn } from './fixtures/spawn.ts';
 import { FakeTime } from './fixtures/time.ts';
 
 afterEach(async () => {
@@ -101,6 +102,61 @@ describe('the runner on the wire', () => {
       true,
     ]);
     expect(sampler.taken).toHaveLength(3);
+  });
+});
+
+describe('tunnels', () => {
+  const tunnel = {
+    machineId: newId(),
+    target: { provider: 'airia_devbox' as const, ref: { instance: 'dev-ihor', zone: 'europe-west1-b' } },
+    remotePort: 9950,
+    localPort: 9950,
+  };
+  const controller = (): PowerExecutor => ({
+    providers: ['airia_devbox'],
+    execute: async () => ({ ok: true, status: 'running' }),
+    tunnelCommand: (wanted) => ({
+      command: '/g/gcloud',
+      args: ['compute', 'ssh', wanted.target.ref.instance],
+    }),
+  });
+
+  it('a controller holds what tunnel.set says, reports each state, again after a reconnect, and stops them with itself', async () => {
+    const server = await fakeServer();
+    const spawn = new FakeSpawn();
+    const { runner, time } = startRunner(server, { power: controller(), spawn });
+    await server.frames.next('runner.heartbeat');
+    server.send({ type: 'tunnel.set', tunnels: [tunnel] });
+    const state = { type: 'tunnel.state', machineId: tunnel.machineId };
+    expect(await server.frames.next('tunnel.state')).toEqual({ ...state, state: 'connecting' });
+    expect(spawn.calls.map((call) => [call.file, ...call.args])).toEqual([
+      ['/g/gcloud', 'compute', 'ssh', 'dev-ihor'],
+    ]);
+    await time.advance(10_000);
+    expect(await server.frames.next('tunnel.state')).toEqual({ ...state, state: 'up' });
+    server.dropAll();
+    await vi.waitFor(() => expect(time.pending).toContain(1_000));
+    await time.advance(1_000);
+    await server.frames.next('runner.resync');
+    expect(await server.frames.next('tunnel.state')).toEqual({ ...state, state: 'up' });
+    const pid = spawn.calls[0]?.child.pid as number;
+    await runner.stop();
+    expect(spawn.groupKills).toEqual([{ pid, signal: 'SIGTERM' }]);
+    expect(spawn.calls).toHaveLength(1);
+  });
+
+  it('a runner that powers nothing, or has no way to start processes, ignores tunnel.set', async () => {
+    for (const options of [{ spawn: new FakeSpawn() }, { power: controller() }]) {
+      const server = await fakeServer();
+      const { logs } = startRunner(server, options);
+      await server.frames.next('runner.heartbeat');
+      server.send({ type: 'tunnel.set', tunnels: [tunnel] });
+      await vi.waitFor(() =>
+        expect(logs.messages('info')).toContain('ignored tunnel.set: this runner powers no machine'),
+      );
+      expect(options.spawn?.calls ?? []).toEqual([]);
+      expect(server.frames.of('tunnel.state')).toEqual([]);
+    }
   });
 });
 

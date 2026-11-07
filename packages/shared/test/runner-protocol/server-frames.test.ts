@@ -12,6 +12,8 @@ import {
   RunStop,
   ServerFrame,
   ServerHello,
+  TUNNELS_MAX,
+  TunnelSet,
 } from '../../src/runner-protocol/server-frames.ts';
 import { IDS, SERVER_EXAMPLES } from '../fixtures/runner-protocol/frames.ts';
 import { issuesOf, without } from '../fixtures/runner-protocol/issues.ts';
@@ -135,6 +137,40 @@ describe('power.command', () => {
       'args.timezone',
     ]);
     expect(issuesOf(PowerCommand, { ...command, cmdId: IDS.cmd.toUpperCase().slice(1) })).toEqual(['cmdId']);
+  });
+});
+
+describe('tunnel.set', () => {
+  const set = SERVER_EXAMPLES['tunnel.set'];
+  const tunnel = set.tunnels[0] as (typeof set.tunnels)[number];
+  const other = { ...tunnel, machineId: IDS.agent, remotePort: 9960, localPort: 9960 };
+
+  it('takes the full set, an empty one included, up to its limit', () => {
+    expect(issuesOf(TunnelSet, { ...set, tunnels: [] })).toEqual([]);
+    expect(issuesOf(TunnelSet, { ...set, tunnels: [tunnel, other] })).toEqual([]);
+    const many = Array.from({ length: TUNNELS_MAX + 1 }, () => tunnel);
+    expect(issuesOf(TunnelSet, { ...set, tunnels: many })).toEqual(['tunnels']);
+  });
+
+  it('refuses two tunnels for one machine, a port out of range, a bad target and a missing machine', () => {
+    expect(issuesOf(TunnelSet, { ...set, tunnels: [tunnel, { ...tunnel, remotePort: 9960 }] })).toEqual([
+      'tunnels',
+    ]);
+    for (const port of [0, 65536, 99.5]) {
+      expect(issuesOf(TunnelSet, { ...set, tunnels: [{ ...tunnel, remotePort: port }] })).toEqual([
+        'tunnels.0.remotePort',
+      ]);
+      expect(issuesOf(TunnelSet, { ...set, tunnels: [{ ...tunnel, localPort: port }] })).toEqual([
+        'tunnels.0.localPort',
+      ]);
+    }
+    const target = { ...tunnel.target, provider: 'none' };
+    expect(issuesOf(TunnelSet, { ...set, tunnels: [{ ...tunnel, target }] })).toEqual([
+      'tunnels.0.target.provider',
+    ]);
+    expect(issuesOf(TunnelSet, { ...set, tunnels: [without(tunnel, 'machineId')] })).toEqual([
+      'tunnels.0.machineId',
+    ]);
   });
 });
 

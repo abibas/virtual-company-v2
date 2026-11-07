@@ -27,15 +27,13 @@ describe('the machines API', () => {
     });
   });
 
-  it('reads the public address from /api/config, null when the server has none or does not say', async () => {
-    const api = answering({ apiUrl: 'http://localhost:9950', publicUrl: 'https://corp.ngrok.app' });
+  it("reads the API's own address from /api/config, and nothing else of it", async () => {
+    const api = answering({ apiUrl: 'http://localhost:9950', publicUrl: 'https://corp.example.com' });
     expect(await getPublicConfig(api.fetch, SERVER, KEY)).toEqual({
       ok: true,
-      body: { apiUrl: 'http://localhost:9950', publicUrl: 'https://corp.ngrok.app' },
+      body: { apiUrl: 'http://localhost:9950' },
     });
     expect(api.calls).toEqual([`GET ${SERVER}/api/config`]);
-    const older = answering({ apiUrl: 'http://localhost:9950' });
-    expect(await getPublicConfig(older.fetch, SERVER, KEY)).toMatchObject({ body: { publicUrl: null } });
     expect(await getPublicConfig(answering({}, 503).fetch, SERVER, KEY)).toMatchObject({
       ok: false,
       status: 503,

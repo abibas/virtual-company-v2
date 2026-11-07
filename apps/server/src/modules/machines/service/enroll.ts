@@ -4,6 +4,7 @@ import {
   type RunnerEnrollRequest,
   type RunnerEnrollResponse,
 } from '@mwc/shared/runner-protocol';
+import type { Logger } from 'pino';
 import { generateApiKey } from '../../../platform/auth/api-keys.ts';
 import { findEnrollmentToken, generateEnrollmentToken } from '../../../platform/auth/enrollment.ts';
 import { enrollmentRepo } from '../repo/enrollment.ts';
@@ -11,6 +12,7 @@ import { machinesRepo } from '../repo.ts';
 import { type Refusal, TOKEN_UNKNOWN, tokenRefusal } from '../rules.ts';
 import type { EnrollmentTokenView } from '../schemas.ts';
 import type { Caller } from '../service.ts';
+import { linkEnrolledBox, type TunnelDeps } from './power/tunnels.ts';
 
 const repo = machinesRepo();
 
@@ -89,21 +91,25 @@ async function makeMachine(
   return { machineId: machine.id, companyId: tx.companyId, runnerKey: key.key };
 }
 
+/** What enrolling needs: the database, and for a devbox's tunnel the hub, the server's port and the logger. */
+export type EnrollDeps = TunnelDeps & { readonly db: DbHandle; readonly logger: Logger };
+
 /**
  * Enrolls a machine with a one-time token (`POST /api/runner/enroll`): the token is used in the same transaction that
  * makes the machine and its runner key (an `api_keys` row of kind `runner`, owned by whoever made the token), so it
- * works once. An unknown, used or expired token, or one of a deleted company, is refused (401).
+ * works once. An unknown, used or expired token, or one of a deleted company, is refused (401). A devbox then gets its
+ * controller when one is clear, and that controller its tunnel (`power/tunnels.ts`).
  */
 export async function enrollMachine(
-  db: DbHandle,
+  deps: EnrollDeps,
   request: RunnerEnrollRequest,
   now: Date,
   requestId: string,
 ): Promise<Enrolled> {
-  const found = await findEnrollmentToken(db, request.token);
+  const found = await findEnrollmentToken(deps.db, request.token);
   if (found === undefined) return TOKEN_UNKNOWN;
-  const t = await tenant(db, found.companyId);
-  return t.transaction(async (tx) => {
+  const t = await tenant(deps.db, found.companyId);
+  const result = await t.transaction(async (tx) => {
     const token = await enrollmentRepo.claim(tx, found.id, now);
     if (token === undefined) {
       // It could not be used: it was used already, or it has expired.
@@ -111,4 +117,8 @@ export async function enrollMachine(
     }
     return { ok: true as const, enrolled: await makeMachine(tx, token, request, requestId) };
   });
+  if (result.ok && request.provider === 'airia_devbox') {
+    await linkEnrolledBox(deps, t, result.enrolled.machineId);
+  }
+  return result;
 }

@@ -1,4 +1,4 @@
-import type { CmdAck, PowerResult, RunnerFrame, ServerFrame } from '@mwc/shared/runner-protocol';
+import type { CmdAck, PowerResult, RunnerFrame, ServerFrame, TunnelSpec } from '@mwc/shared/runner-protocol';
 import { z } from 'zod';
 import type { Log } from '../log.ts';
 import { type PowerExecutor, runPowerCommand } from '../power.ts';
@@ -7,7 +7,8 @@ import { type PowerExecutor, runPowerCommand } from '../power.ts';
  * The server's commands (docs/runner-protocol.md, "Semantics"): every frame with a `cmdId` is answered once, with
  * `cmd.ack` (`power.command` with `power.result`), and a repeat of a `cmdId` already run gets the same answer again
  * without running it again. S4.3 carries out `machine.hold`, `power.command` (through the injected executor),
- * `key.rotate` and `runner.drain`; the run commands are refused until S5, and offers are declined.
+ * `key.rotate` and `runner.drain`; the run commands are refused until S5, and offers are declined. `tunnel.set` is no
+ * command (it has no `cmdId`): the controller's tunnels take it as it comes.
  */
 
 /** How many answered commands are remembered for repeats. */
@@ -24,6 +25,8 @@ export interface CommandDeps {
   saveKey(key: string): void | Promise<void>;
   /** `runner.drain`: no new runs until the runner restarts. */
   drain(): void;
+  /** `tunnel.set`: the tunnels the server wants this controller to hold now. */
+  setTunnels(tunnels: readonly TunnelSpec[]): void;
   readonly log: Log;
 }
 
@@ -50,6 +53,10 @@ export class Commands {
   async handle(frame: ServerFrame): Promise<RunnerFrame[]> {
     if (frame.type === 'job.offer') {
       return [{ type: 'job.decline', id: frame.id, runId: frame.runId, reason: NO_RUNS }];
+    }
+    if (frame.type === 'tunnel.set') {
+      this.#deps.setTunnels(frame.tunnels);
+      return [];
     }
     if (!('cmdId' in frame)) return [];
     const { cmdId } = frame;

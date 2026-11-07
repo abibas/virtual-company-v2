@@ -4,6 +4,8 @@ import {
   MachinePowerError,
   type PowerReading,
   type PowerRef,
+  type ProcessCommand,
+  type TunnelPorts,
 } from '@mwc/machines-core';
 import { isTimeZone, type PowerStatus } from '@mwc/shared/machines';
 import { accountFrom, boxNameOf, ownerSlug } from './account.ts';
@@ -18,6 +20,22 @@ export const POWER_TIMEOUT_MS = 180_000;
 /** How long every other command may take. */
 export const QUERY_TIMEOUT_MS = 30_000;
 
+/**
+ * The ssh options of the standing tunnel: no shell on the box (`-N`), an exit when the box's port is taken
+ * (`ExitOnForwardFailure`, so the runner retries), a dead link noticed within 45 s, and never a prompt (`BatchMode`).
+ */
+export const TUNNEL_SSH_ARGS: readonly string[] = [
+  '-N',
+  '-o',
+  'ExitOnForwardFailure=yes',
+  '-o',
+  'ServerAliveInterval=15',
+  '-o',
+  'ServerAliveCountMax=3',
+  '-o',
+  'BatchMode=yes',
+];
+
 export interface AiriaDevboxDriverOptions {
   /** Runs the commands; `processRun()` on a controller, a fake in tests. */
   readonly run: CommandRun;
@@ -29,6 +47,8 @@ export interface AiriaDevboxDriverOptions {
   readonly project?: string;
   readonly powerTimeoutMs?: number;
   readonly queryTimeoutMs?: number;
+  /** The environment of the tunnel's process (`runEnv`'s, as the commands get); the runner's own when left out. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 const UP: readonly PowerStatus[] = ['running', 'starting'];
@@ -48,6 +68,7 @@ export class AiriaDevboxDriver implements MachinePowerDriver {
   readonly #project: string;
   readonly #powerTimeoutMs: number;
   readonly #queryTimeoutMs: number;
+  readonly #env: Readonly<Record<string, string>> | undefined;
 
   constructor(options: AiriaDevboxDriverOptions) {
     this.#run = options.run;
@@ -56,6 +77,7 @@ export class AiriaDevboxDriver implements MachinePowerDriver {
     this.#project = options.project ?? DEVBOX_PROJECT;
     this.#powerTimeoutMs = options.powerTimeoutMs ?? POWER_TIMEOUT_MS;
     this.#queryTimeoutMs = options.queryTimeoutMs ?? QUERY_TIMEOUT_MS;
+    this.#env = options.env;
   }
 
   async discover(): Promise<DiscoveredMachine[]> {
@@ -105,6 +127,32 @@ export class AiriaDevboxDriver implements MachinePowerDriver {
       `devbox-tz=${timezone}`,
     ]);
     return this.status(ref);
+  }
+
+  /**
+   * The box's standing reverse tunnel over Google IAP (docs/machines.md, "Installing a runner"): plain
+   * `gcloud compute ssh`, which never starts a stopped box (`airia devbox ssh` would), with the box's
+   * `127.0.0.1:remotePort` forwarded to this machine's `127.0.0.1:localPort`. Nothing runs here.
+   */
+  tunnelCommand(ref: PowerRef, ports: TunnelPorts): ProcessCommand {
+    const forward = `127.0.0.1:${ports.remotePort}:127.0.0.1:${ports.localPort}`;
+    const args = [
+      'compute',
+      'ssh',
+      ref.instance,
+      '--project',
+      this.#project,
+      '--zone',
+      ref.zone,
+      '--tunnel-through-iap',
+      '--quiet',
+      '--strict-host-key-checking=no',
+      '--',
+      ...TUNNEL_SSH_ARGS,
+      '-R',
+      forward,
+    ];
+    return { command: this.#gcloud, args, ...(this.#env === undefined ? {} : { env: this.#env }) };
   }
 
   /** Runs the airia CLI for the box unless it is already `there`, then reads it again. */
