@@ -77,19 +77,22 @@ function HoldMinutes({ policy, onChange, disabled }: Editing) {
   return (
     <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-2">
       Keep it on for
-      <Input
-        aria-label="Minutes to keep it on after a chat"
-        type="number"
-        size="sm"
-        min={0}
-        max={720}
-        value={policy.holdAfterTurnMin}
-        disabled={disabled}
-        onChange={(e) =>
-          onChange({ holdAfterTurnMin: Math.min(720, Math.max(0, Math.round(Number(e.target.value) || 0))) })
-        }
-        className="w-20 shrink-0 grow-0"
-      />
+      <span className="w-20 shrink-0">
+        <Input
+          aria-label="Minutes to keep it on after a chat"
+          type="number"
+          size="sm"
+          min={0}
+          max={720}
+          value={policy.holdAfterTurnMin}
+          disabled={disabled}
+          onChange={(e) =>
+            onChange({
+              holdAfterTurnMin: Math.min(720, Math.max(0, Math.round(Number(e.target.value) || 0))),
+            })
+          }
+        />
+      </span>
       minutes after a chat
     </span>
   );
