@@ -15,6 +15,8 @@ export interface PowerReading {
   readonly hourlyCost?: number;
   /** The box's own stop rules from its metadata; null when the machine is missing. */
   readonly rules: BoxRules | null;
+  /** True when `start` or `stop` found the machine already there (up or coming up, down or going down): nothing ran. */
+  readonly already?: true;
 }
 
 /** A machine `discover()` found for the signed-in account, with where it is. */
@@ -40,7 +42,8 @@ export interface ProcessCommand {
  * The machine power port (docs/machines.md): what a power controller (the runner on This Mac) calls to act on
  * another machine. Every method rejects with a `MachinePowerError` only. `start` and `stop` return without waiting
  * for the provider, with the reading after the command (`starting` / `stopping` while it is still at it); they do
- * nothing to a machine already there, and never create one: a missing machine rejects with `not_found`.
+ * nothing to a machine already there (their reading then says `already`), and never create one: a missing machine
+ * rejects with `not_found`.
  */
 export interface MachinePowerDriver {
   readonly provider: PowerProvider;

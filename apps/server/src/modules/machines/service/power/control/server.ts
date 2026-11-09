@@ -22,7 +22,8 @@ import { companyTunnels, reportedTunnel } from '../tunnels.ts';
  * gcloud of the computer it runs on (`LocalPower`). A command runs in-process through the driver, with the timeouts a
  * runner controller has and its answer read the same way (`<code>: <message>` → `power_failed` with the driver's code);
  * the boxes' tunnels are held here, one supervisor for every company, their states kept in the hub's memory as this
- * server's. A runner that could power a box gets an empty `tunnel.set` and never a `power.command`.
+ * server's. A runner that could power a box gets an empty `tunnel.set` and never a `power.command`. A box's runner too
+ * old to update itself is reinstalled from here over SSH (`reinstall`).
  */
 
 /** Who the hub's memory says reported the tunnels this server holds itself. */
@@ -83,7 +84,8 @@ async function runLocal(
     hourlyCost: reading.hourlyCost ?? null,
     rules: reading.rules,
   };
-  return { ok: true, reading: readingOf({ ok: true, status: reading.status, metadata }) };
+  const already = reading.already === true;
+  return { ok: true, reading: readingOf({ ok: true, status: reading.status, metadata }), already };
 }
 
 export interface ServerControlDeps {
@@ -128,5 +130,6 @@ export function serverControl(deps: ServerControlDeps): PowerControl {
       isPowered(machine) ? { kind: 'server', machineId: null, name: local.name, online: true } : null,
     tunnelOf: (row) => (isPowered(row) ? reportedTunnel(hub, row, SERVER_REPORTER) : null),
     close: () => holder.close(),
+    reinstall: (machine, ports) => local.reinstallRunner(AiriaDevboxRef.parse(machine.providerRef), ports),
   };
 }

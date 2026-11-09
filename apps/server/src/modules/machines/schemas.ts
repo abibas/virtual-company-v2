@@ -35,6 +35,22 @@ export const TunnelSchema = z
   })
   .openapi('MachineTunnel');
 
+/** A machine's runner: the build it runs, whether that is the one this server hands out, and what it can do. */
+export const MachineRunnerSchema = z
+  .object({
+    build: z.string().nullable().openapi({
+      description:
+        'The SHA-256 of the bundle it runs; null when it is offline, runs from its sources or did not say',
+    }),
+    current: z.boolean().nullable().openapi({
+      description:
+        'True when it runs the bundle this server hands out, false when another; null when either is unknown',
+    }),
+    terminal: z.boolean().openapi({ description: 'It opens terminals; false while offline' }),
+    selfUpdate: z.boolean().openapi({ description: 'It updates itself over its link; false while offline' }),
+  })
+  .openapi('MachineRunner');
+
 /** A machine as the API shows it. */
 export const MachineSchema = z
   .object({
@@ -65,6 +81,8 @@ export const MachineSchema = z
     agentCount: z.number().int(),
     /** A devbox's tunnel as its controller reported it; null for other machines and before a report. */
     tunnel: TunnelSchema.nullable(),
+    /** Its runner as this server sees it now (memory: what its connected runner said in its hello). */
+    runner: MachineRunnerSchema,
     logo: MachineLogoRefSchema,
     createdAt: dateTime,
   })

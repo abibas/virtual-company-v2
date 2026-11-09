@@ -1,0 +1,61 @@
+import type { PowerRef, TunnelPorts } from '@mwc/machines-core';
+
+/**
+ * The box's `gcloud compute ssh` commands over Google IAP (docs/machines.md, "Installing a runner" and "Updating a
+ * runner"), as argument arrays (no shell here): the standing reverse tunnel, and the runner's reinstall. Plain
+ * `gcloud compute ssh` never starts a stopped box (`airia devbox ssh` would). The driver runs neither: it hands them to
+ * whoever holds the tunnel or reinstalls the runner.
+ */
+
+/**
+ * The ssh options of the standing tunnel: no shell on the box (`-N`), an exit when the box's port is taken
+ * (`ExitOnForwardFailure`, so the runner retries), a dead link noticed within 45 s, and never a prompt (`BatchMode`).
+ */
+export const TUNNEL_SSH_ARGS: readonly string[] = [
+  '-N',
+  '-o',
+  'ExitOnForwardFailure=yes',
+  '-o',
+  'ServerAliveInterval=15',
+  '-o',
+  'ServerAliveCountMax=3',
+  '-o',
+  'BatchMode=yes',
+];
+
+/** The ports of a runner's reinstall: the server's own (`apiPort`) and the install's forward on the box (`installPort`). */
+export interface RunnerUpdatePorts {
+  readonly apiPort: number;
+  readonly installPort: number;
+}
+
+/** `gcloud compute ssh <box>` over IAP in the project and zone, quiet, up to its `--`. */
+const sshTo = (ref: PowerRef, project: string): string[] => [
+  'compute',
+  'ssh',
+  ref.instance,
+  '--project',
+  project,
+  '--zone',
+  ref.zone,
+  '--tunnel-through-iap',
+  '--quiet',
+];
+
+/** The standing tunnel: the box's `127.0.0.1:remotePort` forwarded to this machine's `127.0.0.1:localPort`. */
+export function tunnelArgs(ref: PowerRef, project: string, ports: TunnelPorts): string[] {
+  const forward = `127.0.0.1:${ports.remotePort}:127.0.0.1:${ports.localPort}`;
+  return [...sshTo(ref, project), '--strict-host-key-checking=no', '--', ...TUNNEL_SSH_ARGS, '-R', forward];
+}
+
+/**
+ * The runner's reinstall: the box's `127.0.0.1:installPort` forwarded to this server's `127.0.0.1:apiPort` while
+ * `install.sh` runs there without a token, downloading through it (`--via`) and keeping the enrollment and
+ * `--server http://127.0.0.1:apiPort`, the address the standing tunnel serves; the session ends with the install.
+ */
+export function updateArgs(ref: PowerRef, project: string, ports: RunnerUpdatePorts): string[] {
+  const via = `http://127.0.0.1:${ports.installPort}`;
+  const install = `curl -fsSL ${via}/api/runner/install.sh | sh -s -- --server http://127.0.0.1:${ports.apiPort} --via ${via}`;
+  const forward = `127.0.0.1:${ports.installPort}:127.0.0.1:${ports.apiPort}`;
+  return [...sshTo(ref, project), '--', '-o', 'ExitOnForwardFailure=yes', '-R', forward, install];
+}

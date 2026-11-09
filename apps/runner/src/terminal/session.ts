@@ -85,9 +85,16 @@ export class TerminalSession {
     this.#safely('resize', () => this.#pty.resize(cols, rows));
   }
 
-  /** Ends it: SIGHUP, SIGKILL 5 s later; `reason` goes in its `terminal.exit`. Resolves once that is sent. */
-  close(reason?: string): Promise<void> {
+  /**
+   * Ends it: SIGHUP, SIGKILL 5 s later; `reason` goes in its `terminal.exit`, and `notice` is printed in it first.
+   * Resolves once that is sent.
+   */
+  close(reason?: string, notice?: string): Promise<void> {
     if (this.#closing || this.#ended) return this.done;
+    if (notice !== undefined) {
+      this.#output.push(Buffer.from(notice));
+      this.#output.flush();
+    }
     this.#closing = true;
     this.#reason = reason;
     this.#deps.timers.clearTimeout(this.#idleTimer);

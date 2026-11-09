@@ -28,6 +28,20 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-09: Update runner grows four big folders while splitting five near-limit files
+
+- **What happened:** the runner's self-update needed its own `apps/runner/src/update/` (4 files), and the near-limit
+  files it had to grow were split along their seams: `runner.ts` (249) into its contract and `runner/daemon.ts`,
+  `start.ts` (252) by moving `MainDeps` to `system/deps.ts`, the hub (262) into `hub/sockets.ts` and `hub/replies.ts`,
+  the connector's `driver.ts` into `ssh.ts`, `MachineCard.tsx` (241) into `MachineHeader.tsx`. Near-limit warnings went
+  from 9 to 4, but `apps/runner/src/` went from 16 to 18 entries, `features/machines/` from 18 to 20, the machines
+  `service/` from 15 to 16 and `apps/runner/test/` from 17 to 18 (the report went from 41 to 38).
+- **What was done:** nothing yet.
+- **Suggested change:** at the S4 review, group the runner's top level (`runner.ts`, `runner/`, `start.ts`, `cli.ts`,
+  `power.ts`, `health.ts`) or give `apps/runner/src/` a limit of its own; split `features/machines/` into `card/`,
+  `power/` and `add/`.
+- **Status:** `open`.
+
 ### 2026-11-09: The server's own airia CLI driver pushes `platform/` to 13 entries
 
 - **What happened:** MWC_LOCAL_POWER's driver runs local processes for the server, so it went to

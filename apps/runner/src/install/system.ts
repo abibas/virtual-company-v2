@@ -8,6 +8,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -34,10 +35,16 @@ export const nodeFs: HostFs = {
     }
   },
   readFile: (path) => readFileSync(path, 'utf8'),
+  readBytes: (path) => readFileSync(path),
   writeFile: (path, text, mode) => {
     writeFileSync(path, text, { mode });
     chmodSync(path, mode);
   },
+  writeBytes: (path, bytes, mode) => {
+    writeFileSync(path, bytes, { mode, flag: 'wx' });
+    chmodSync(path, mode);
+  },
+  rename: (from, to) => renameSync(from, to),
   copyFile: (from, to) => {
     copyFileSync(from, to);
     chmodSync(to, 0o644);

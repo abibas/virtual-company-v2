@@ -52,7 +52,14 @@ describe('FakeRunner: connecting', () => {
       type: 'runner.hello',
       protocol: 1,
       version: '1.0.0',
-      caps: { harnesses: ['claude_code'], slots: 1, hold: 'none', power: [], terminal: false },
+      caps: {
+        harnesses: ['claude_code'],
+        slots: 1,
+        hold: 'none',
+        power: [],
+        terminal: false,
+        selfUpdate: false,
+      },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });
     expect(await server.frames.next('hold.state')).toEqual({
@@ -69,6 +76,7 @@ describe('FakeRunner: connecting', () => {
     const { server, runner } = await setUp({
       version: '0.5.0-rc.1',
       protocol: 2,
+      build: 'ab'.repeat(32),
       caps: { slots: 4, hold: 'devbox_keepalive', power: ['airia_devbox'] },
       runs: [run],
       hold: { until, source: 'live_runs' },
@@ -77,6 +85,7 @@ describe('FakeRunner: connecting', () => {
     expect(await server.frames.next('runner.hello')).toMatchObject({
       protocol: 2,
       version: '0.5.0-rc.1',
+      build: 'ab'.repeat(32),
       caps: { harnesses: ['claude_code'], slots: 4, hold: 'devbox_keepalive', power: ['airia_devbox'] },
     });
     expect((await server.frames.next('runner.resync')).runs).toEqual([run]);
@@ -128,18 +137,25 @@ describe('FakeRunner: heartbeats', () => {
 });
 
 describe('FakeRunner: commands', () => {
-  it('records every server frame and acks every command; power.command gets power.result', async () => {
+  it('records every server frame and acks every command; power.command and runner.update get their results', async () => {
     const { server, runner } = await setUp();
     await runner.connect();
     const hold = newId();
     const power = newId();
+    const update = newId();
     server.send({ type: 'job.offer', id: newId(), runId: newId(), agentId: newId(), expiresAt: Date.now() });
     server.send({ type: 'machine.hold', cmdId: hold, until: null });
     server.send({ type: 'power.command', cmdId: power, target: devboxTarget, action: 'status' });
+    server.send({ type: 'runner.update', cmdId: update });
     expect(await server.frames.next('cmd.ack')).toEqual({ type: 'cmd.ack', cmdId: hold, ok: true });
     expect(await server.frames.next('power.result')).toEqual({
       type: 'power.result',
       cmdId: power,
+      ok: true,
+    });
+    expect(await server.frames.next('runner.update.result')).toEqual({
+      type: 'runner.update.result',
+      cmdId: update,
       ok: true,
     });
     expect(runner.frames.all.map((frame) => frame.type)).toEqual([
@@ -147,6 +163,7 @@ describe('FakeRunner: commands', () => {
       'job.offer',
       'machine.hold',
       'power.command',
+      'runner.update',
     ]);
     expect(server.frames.all.map((frame) => frame.type)).toEqual([
       'runner.hello',
@@ -154,6 +171,7 @@ describe('FakeRunner: commands', () => {
       'hold.state',
       'cmd.ack',
       'power.result',
+      'runner.update.result',
     ]);
   });
 

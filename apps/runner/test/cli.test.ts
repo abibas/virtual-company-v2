@@ -1,8 +1,10 @@
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { HELP, parseOptions, runCli, serviceExit } from '../src/cli.ts';
+import { HELP, parseOptions, runCli, selfFacts, serviceExit } from '../src/cli.ts';
 import type { Host } from '../src/install/host.ts';
+import { PERMANENT_EXIT_CODES } from '../src/install/systemd.ts';
 import type { MainDeps } from '../src/start.ts';
+import { EXIT } from '../src/start.ts';
 import { downloadedBundle, enrollWorld, executable, json, SERVER, testHost } from './fixtures/host.ts';
 import { cleanUpLinks, fakeServer } from './fixtures/link.ts';
 import { memoryLog } from './fixtures/log.ts';
@@ -127,7 +129,35 @@ describe('mwc-runner run', () => {
   });
 });
 
+describe('what the daemon learns about itself at start', () => {
+  it('is the build of its bundle and, for the installed copy under its service manager, its self-update', async () => {
+    const probe = testHost();
+    const selfPath = join(probe.home, '.local', 'share', 'mwc-runner', 'runner.mjs');
+    const env = { HOME: probe.home, MWC_RUNNER_SERVICE: 'systemd' };
+    const { host } = testHost({ env, selfPath });
+    downloadedBundle(host, '// installed\n');
+    const facts = selfFacts(host);
+    expect(facts.build).toMatch(/^[0-9a-f]{64}$/);
+    expect(facts.update?.manager).toBe('systemd');
+  });
+
+  it('is no build and no self-update from the sources', () => {
+    expect(selfFacts(testHost({ selfPath: '/repo/apps/runner/src/main.ts' }).host)).toEqual({ build: null });
+  });
+});
+
 describe('the exit under a service manager', () => {
+  it("restarts after an update with 75 under both: launchd's KeepAlive restarts a failure, systemd any exit but 76–78", () => {
+    const codes: number[] = [];
+    const logs = memoryLog();
+    serviceExit({ MWC_RUNNER_SERVICE: 'launchd' }, (code) => codes.push(code), logs.log)(EXIT.restart);
+    serviceExit({ MWC_RUNNER_SERVICE: 'systemd' }, (code) => codes.push(code), logs.log)(EXIT.restart);
+    expect(codes).toEqual([75, 75]);
+    expect(EXIT.restart).not.toBe(0);
+    expect(PERMANENT_EXIT_CODES).not.toContain(EXIT.restart);
+    expect(logs.messages('warn')).toEqual([]);
+  });
+
   it('turns 76, 77 and 78 into 0 under launchd only', () => {
     const codes: number[] = [];
     const logs = memoryLog();

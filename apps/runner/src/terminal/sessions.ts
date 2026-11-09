@@ -80,9 +80,12 @@ export class TerminalSessions {
     else void session.close();
   }
 
-  /** Ends every open terminal (SIGHUP, SIGKILL 5 s later), with `reason` in each `terminal.exit`; resolves once ended. */
-  async closeAll(reason: string): Promise<void> {
-    await Promise.all([...this.#sessions.values()].map((session) => session.close(reason)));
+  /**
+   * Ends every open terminal (SIGHUP, SIGKILL 5 s later), with `reason` in each `terminal.exit` and `notice` printed in
+   * it first; resolves once ended.
+   */
+  async closeAll(reason: string, notice?: string): Promise<void> {
+    await Promise.all([...this.#sessions.values()].map((session) => session.close(reason, notice)));
   }
 
   /** The runner stops: no new terminal, and every open one ended with `runner_stopping`. */

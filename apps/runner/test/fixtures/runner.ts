@@ -9,6 +9,7 @@ import type { HoldDriver, HoldDriverKind } from '../../src/hold/driver.ts';
 import type { PowerExecutor } from '../../src/power.ts';
 import { createRunner, type Runner } from '../../src/runner.ts';
 import type { TerminalHost } from '../../src/terminal/sessions.ts';
+import type { SelfUpdate } from '../../src/update/self-update.ts';
 import { memoryLog } from './log.ts';
 import type { FakeSpawn } from './spawn.ts';
 import { FakeTime } from './time.ts';
@@ -101,6 +102,9 @@ export function startRunner(
     config?: Partial<RunnerConfig>;
     /** Opens terminals through this host (a fake PTY). */
     terminal?: TerminalHost;
+    /** The build it says it runs, and how it updates itself. */
+    build?: string | null;
+    update?: SelfUpdate;
   } = {},
 ): StartedRunner {
   const time = new FakeTime();
@@ -120,6 +124,8 @@ export function startRunner(
       ? { processes: { spawn: options.spawn.spawn, killGroup: options.spawn.killGroup } }
       : {}),
     ...(options.terminal ? { terminal: options.terminal } : {}),
+    ...(options.build === undefined ? {} : { build: options.build }),
+    ...(options.update ? { update: options.update } : {}),
     saveConfig: (next) => {
       if (options.saveFails) throw new Error('disk full');
       saved.push(next);

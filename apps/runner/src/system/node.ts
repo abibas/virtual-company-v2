@@ -5,8 +5,8 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import { WebSocket } from 'ws';
 import { detectPowerExecutor } from '../power/detect.ts';
-import type { MainDeps } from '../start.ts';
 import { loadPty } from '../terminal/loader.ts';
+import type { MainDeps } from './deps.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
 import { runnerVersion } from './version.ts';
 

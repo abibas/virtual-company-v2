@@ -8,7 +8,6 @@ export {
   DEVBOX_PROJECT,
   POWER_TIMEOUT_MS,
   QUERY_TIMEOUT_MS,
-  TUNNEL_SSH_ARGS,
 } from './driver.ts';
 export {
   type FindDeps,
@@ -28,3 +27,4 @@ export {
   type RunResult,
   runEnv,
 } from './run.ts';
+export { type RunnerUpdatePorts, TUNNEL_SSH_ARGS, tunnelArgs, updateArgs } from './ssh.ts';

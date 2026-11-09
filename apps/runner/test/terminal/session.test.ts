@@ -51,6 +51,25 @@ describe('a terminal session', () => {
     expect(session.close()).toBe(done);
   });
 
+  it('prints a notice before it closes when given one', async () => {
+    const pty = new FakePty(44);
+    const sent: TerminalRunnerFrame[] = [];
+    const sessionId = newId();
+    const session = new TerminalSession(sessionId, '/bin/bash', pty, {
+      timers: new FakeTime(),
+      log: memoryLog().log,
+      send: (frame) => sent.push(frame) > 0,
+      buffered: () => 0,
+      ended: () => {},
+    });
+    await session.close('runner_updating', '\r\n[Restarting.]\r\n');
+    const output = sent.find((frame) => frame.type === 'terminal.output');
+    expect(output?.type === 'terminal.output' && Buffer.from(output.data, 'base64').toString()).toBe(
+      '\r\n[Restarting.]\r\n',
+    );
+    expect(sent.at(-1)).toMatchObject({ type: 'terminal.exit', error: 'runner_updating' });
+  });
+
   it('logs a kill that throws (the shell is gone)', () => {
     const pty = new FakePty(43);
     const logs = memoryLog();

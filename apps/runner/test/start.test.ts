@@ -203,6 +203,46 @@ describe('when the server ends the link', () => {
   });
 });
 
+describe('after an update', () => {
+  it('says its build and self-update in its hello, and exits 75 for its service manager once the update is in place', async () => {
+    const server = await fakeServer();
+    const { deps, entries, time, exits } = world({ server });
+    const build = 'ab'.repeat(32);
+    const update = {
+      manager: 'systemd' as const,
+      apply: async () => ({ build: 'cd'.repeat(32), pty: true }),
+    };
+    const running = main(['run'], { ...deps, build, update });
+    const hello = await server.frames.next('runner.hello');
+    expect([hello.build, hello.caps.selfUpdate]).toEqual([build, true]);
+    expect(entries()[0]).toMatchObject({ msg: 'starting', build, selfUpdate: 'systemd' });
+    await server.frames.next('runner.heartbeat');
+    const cmdId = newId();
+    server.send({ type: 'runner.update', cmdId });
+    expect(await server.frames.next('runner.update.result')).toEqual({
+      type: 'runner.update.result',
+      cmdId,
+      ok: true,
+      build: 'cd'.repeat(32),
+    });
+    await time.advance(250);
+    expect(await running).toBe(EXIT.restart);
+    expect(exits).toEqual([75]);
+    expect(entries().map((entry) => entry.msg)).toContain('restarting on the updated runner');
+  });
+
+  it('says no build and no self-update without them', async () => {
+    const server = await fakeServer();
+    const { deps, entries, signals } = world({ server });
+    const running = main(['run'], deps);
+    const hello = await server.frames.next('runner.hello');
+    expect([hello.build, hello.caps.selfUpdate]).toEqual([undefined, false]);
+    expect(entries()[0]).toMatchObject({ build: null, selfUpdate: false });
+    signals.get('SIGTERM')?.();
+    expect(await running).toBe(EXIT.ok);
+  });
+});
+
 describe('the hold driver of each kind', () => {
   it('builds the devbox, caffeinate and none drivers', () => {
     const { deps } = world();

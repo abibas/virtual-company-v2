@@ -11,7 +11,7 @@ import {
 } from '@mwc/shared/runner-protocol';
 import { brokenDb, createTestApp, getJson } from '@mwc/testkit';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RUNNER_BUNDLE } from '../../../../src/modules/machines/service/download.ts';
+import { DEFAULT_RUNNER_BUNDLE, servedBuild } from '../../../../src/modules/machines/service/download.ts';
 import { INSTALL_SCRIPT } from '../../../../src/modules/machines/service/install-script.ts';
 
 /** A test app (no database needed: these routes read none) serving the bundle at `runnerBundle`. */
@@ -94,5 +94,22 @@ describe('GET /api/runner/pty/<target>.tgz', () => {
         body: { error: { code: 'runner_pty_missing', message: expect.stringContaining('darwin-arm64') } },
       });
     }
+  });
+});
+
+describe('the build this server hands out', () => {
+  it("is the bundle's SHA-256, hashed again only after a rebuild, and null until it is built", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mwc-build-'));
+    const path = join(dir, 'runner.mjs');
+    expect(await servedBuild(path)).toBeNull();
+    writeFileSync(path, '// one\n');
+    const one = createHash('sha256').update('// one\n').digest('hex');
+    expect(await servedBuild(path)).toBe(one);
+    expect(await servedBuild(path)).toBe(one);
+    writeFileSync(path, '// two, longer\n');
+    expect(await servedBuild(path)).toBe(createHash('sha256').update('// two, longer\n').digest('hex'));
+    // A folder where the bundle should be is no build.
+    mkdirSync(join(dir, 'folder.mjs'));
+    expect(await servedBuild(join(dir, 'folder.mjs'))).toBeNull();
   });
 });

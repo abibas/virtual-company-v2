@@ -27,8 +27,14 @@ export interface HostFs {
   /** A file the user may execute (a program on `PATH`). */
   isExecutable(path: string): boolean;
   readFile(path: string): string;
+  /** A file's bytes (the runner hashes its own bundle). */
+  readBytes(path: string): Uint8Array;
   /** Writes `text` to `path` with `mode`, replacing the file; its folder must exist. */
   writeFile(path: string, text: string, mode: number): void;
+  /** Writes bytes to `path` as a new file with `mode`; one there already is an error (a self-update's temporary files). */
+  writeBytes(path: string, bytes: Uint8Array, mode: number): void;
+  /** Renames a file or a folder over `to`, atomically on one file system. */
+  rename(from: string, to: string): void;
   /** Copies a file over `to`, which then has mode 0644. */
   copyFile(from: string, to: string): void;
   /** Copies a folder and everything in it to `to` (made), keeping the files' modes. */

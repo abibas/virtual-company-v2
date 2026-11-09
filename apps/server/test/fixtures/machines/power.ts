@@ -38,6 +38,7 @@ export async function answer(driver: FakePowerDriver, command: PowerCommand): Pr
       size: reading.size ?? null,
       hourlyCost: reading.hourlyCost ?? null,
       rules: reading.rules,
+      ...(reading.already ? { already: true } : {}),
     };
     return { ...base, ok: true, status: reading.status, metadata };
   } catch (error) {

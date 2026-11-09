@@ -60,6 +60,14 @@ describe('FakePowerDriver', () => {
     expect(driver.calls[0]).toEqual({ call: 'start', instance: 'dev-ihor' });
   });
 
+  it('says when a start or a stop found the box already there and did nothing', async () => {
+    const driver = new FakePowerDriver({ boxes: [{ ref: REF }] });
+    expect(await driver.start(REF)).not.toHaveProperty('already');
+    expect(await driver.start(REF)).toMatchObject({ status: 'starting', already: true });
+    expect(await driver.stop(REF)).not.toHaveProperty('already');
+    expect(await driver.stop(REF)).toMatchObject({ status: 'stopping', already: true });
+  });
+
   it('settles at once, or only when told', async () => {
     const quick = new FakePowerDriver({ settle: 'immediately', boxes: [{ ref: REF }] });
     expect((await quick.start(REF)).status).toBe('running');

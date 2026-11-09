@@ -129,14 +129,16 @@ export class FakePowerDriver implements MachinePowerDriver {
   async start(ref: PowerRef): Promise<PowerReading> {
     this.#enter({ call: 'start', instance: ref.instance });
     const box = this.#existing(ref);
-    if (box.status !== 'running' && box.status !== 'starting') box.status = this.#moving('starting');
+    if (box.status === 'running' || box.status === 'starting') return { ...reading(box), already: true };
+    box.status = this.#moving('starting');
     return reading(box);
   }
 
   async stop(ref: PowerRef): Promise<PowerReading> {
     this.#enter({ call: 'stop', instance: ref.instance });
     const box = this.#existing(ref);
-    if (box.status !== 'stopped' && box.status !== 'stopping') box.status = this.#moving('stopping');
+    if (box.status === 'stopped' || box.status === 'stopping') return { ...reading(box), already: true };
+    box.status = this.#moving('stopping');
     return reading(box);
   }
 

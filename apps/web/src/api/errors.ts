@@ -1,22 +1,32 @@
 import { type ClientResponse, DetailedError, parseResponse } from 'hono/client';
 
-/** A refusal or failure of an API call: the HTTP status (0 when the server was not reached) and the error code. */
+/**
+ * A refusal or failure of an API call: the HTTP status (0 when the server was not reached), the error code, and the
+ * command to run instead when the refusal names one (`update_unsupported`).
+ */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly requestId: string | undefined;
+  readonly command: string | undefined;
 
-  constructor(status: number, code: string, message: string, requestId?: string) {
+  constructor(status: number, code: string, message: string, requestId?: string, command?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.command = command;
   }
 }
 
 interface ErrorBody {
-  readonly error: { readonly code: string; readonly message: string; readonly requestId?: string };
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+    readonly requestId?: string;
+    readonly command?: unknown;
+  };
 }
 
 function isErrorBody(value: unknown): value is ErrorBody {
@@ -28,8 +38,16 @@ function toApiError(error: unknown): ApiError {
   if (error instanceof DetailedError) {
     const status = Number(error.statusCode ?? 0);
     const body: unknown = (error.detail as { data?: unknown } | undefined)?.data;
-    if (isErrorBody(body))
-      return new ApiError(status, body.error.code, body.error.message, body.error.requestId);
+    if (isErrorBody(body)) {
+      const { code, message, requestId, command } = body.error;
+      return new ApiError(
+        status,
+        code,
+        message,
+        requestId,
+        typeof command === 'string' ? command : undefined,
+      );
+    }
     return new ApiError(status, 'http_error', `The server answered ${status}`);
   }
   if (error instanceof SyntaxError)

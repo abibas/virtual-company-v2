@@ -85,6 +85,13 @@ describe('the power executor of a driver', () => {
       status: 'running',
       metadata: { size: null, hourlyCost: null, rules: null },
     });
+    // A start that found the box already up says so, for the power log's words.
+    expect(outcomeOf({ status: 'running', rules: null, already: true }).metadata).toEqual({
+      size: null,
+      hourlyCost: null,
+      rules: null,
+      already: true,
+    });
   });
 
   it("answers the driver's error as its code and message, which the server reads back", async () => {

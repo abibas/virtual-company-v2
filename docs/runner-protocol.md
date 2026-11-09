@@ -66,7 +66,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |
@@ -79,13 +79,14 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `tunnel.state` | `machineId` (the box), `state connecting\|up\|down`, `error?` (1–500 characters: the last line the tunnel printed) | a controller's tunnel changed (`connecting` at each start, `up` after 10 s alive, `down` when it ended; a `connecting` after a `down` keeps its error), and every tunnel's state again after each `server.hello`; no answer |
 | `terminal.opened` | `sessionId`, `shell` (its path) | the shell of a `terminal.open` started; no answer |
 | `terminal.output` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | what the terminal printed, batched (about 16 ms or 32 KB) |
-| `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
+| `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `runner_updating`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
+| `runner.update.result` | `cmdId`, `ok`, `build?` (the new build, when `ok`), `error?` (`<code>: <words>`, the code one of `RUNNER_UPDATE_ERRORS`: `unsupported`, `busy`, `download_failed`, `hash_mismatch`, `write_failed`) | the answer to `runner.update` (instead of `cmd.ack`); after an `ok` the runner restarts |
 
 ## Server → runner
 
 | Type | Fields | Notes |
 |---|---|---|
-| `server.hello` | `protocol`, `minRunnerVersion`, `machineId` | no `update` (the signed self-update is S8) |
+| `server.hello` | `protocol`, `minRunnerVersion`, `machineId` | no `update` (the signed self-update is S8; `runner.update` below is the SHA-256-checked one) |
 | `job.offer` | `id`, `runId`, `agentId`, `expiresAt` | unaccepted for 30 s → offered again |
 | `run.start` | `cmdId`, `spec` (below) | |
 | `run.input` | `cmdId`, `runId`, `inputId`, `text` | mid-turn or next-turn message |
@@ -101,6 +102,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.input` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | typed or pasted bytes |
 | `terminal.resize` | `sessionId`, `cols`, `rows` | |
 | `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
+| `runner.update` | `cmdId` | update yourself from the server you are linked to and restart; answered by `runner.update.result` ("Updating a runner") |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
 `placement{home, configDir|null, worktree|null}` (absolute or `~/` paths), `session` (`{mode: 'new', sessionId|null}`
@@ -115,8 +117,9 @@ limit alone.
   reconnect is a duplicate: the server inserts `ON CONFLICT DO NOTHING` and answers `run.ack` with the highest
   contiguous seq it holds; the runner forgets events up to it. At most 500 unacked events in flight over all runs; then
   the runner stops reading (its disk keeps everything).
-- **Commands.** Every server frame with a `cmdId` is answered once, `cmd.ack` (or `power.result`); duplicates after a
-  reconnect are normal, and the runner remembers the `cmdId`s it ran.
+- **Commands.** Every server frame with a `cmdId` is answered once, `cmd.ack` (or `power.result`, `runner.update.result`);
+  duplicates after a reconnect are normal, and the runner remembers the `cmdId`s it ran. A runner older than a command
+  acks it as unknown (`cmd.ack`, `ok: false`), which the server reads for `runner.update` as `unsupported`.
 - **Leases.** Each heartbeat sets `runs.lease_expires_at = now + 90 s` for the runs it lists. A lapse makes the run
   `lost` (never failed or cancelled) and the machine offline; the next resync reconciles: `running` stays running,
   `exited` is finalized from the journal, `gone` fails with `runner_lost_process` and is re-run in the same
@@ -141,7 +144,9 @@ limit alone.
   decision and outcome is a `machine_power_events` row (`PowerEventAction`).
 - **Power answers** (S4.4b). A controller's `power.result.metadata` is `{size, hourlyCost, rules}` (the devbox's size,
   dollars an hour and its own stop rules from its instance metadata; null when unknown), and its `error` is the
-  driver's `<code>: <message>`, the code one of `@mwc/machines-core`'s `MACHINE_POWER_ERROR_CODES`; a runner without a
+  driver's `<code>: <message>`, the code one of `@mwc/machines-core`'s `MACHINE_POWER_ERROR_CODES`. A `start` or `stop`
+  that found the box already there (the driver ran no airia CLI) adds `already: true` to the metadata, and the power
+  log says so ("…: the box was already on"); a runner without a
   power driver answers `no_power_driver`, which the server reads as `cli_missing`. A runner is a controller when the
   `airia` and `gcloud` executables are found (on the PATH, `/opt/homebrew/bin`, `/usr/local/bin` or
   `~/google-cloud-sdk/bin`, without starting a process); a missing gcloud sign-in shows on the first command.
@@ -186,6 +191,29 @@ stops (`runner_stopping`, sent before its socket closes). Open terminals count f
 (`hold.state` source `live_runs`). Output is batched (16 ms or 32 KB) and the PTY is paused while the socket's send
 buffer is over 1 MB, until it is down to 256 KB.
 
+## Updating a runner
+
+Added 2026-11-09 (`runner-protocol/update.ts`; what Ihor sees and the server's other paths are in docs/machines.md,
+"Updating a runner"). Every bundle says version 0.1.0, so `runner.hello.build` (the SHA-256 of the `runner.mjs` the
+runner was started from, hashed once at start; null from the sources) is how the server tells an old runner from a
+current one. A runner says `caps.selfUpdate: true` only for the installed copy that launchd or systemd runs
+(`MWC_RUNNER_SERVICE`) and restarts; the server sends `runner.update {cmdId}` only to such a runner, on a person's
+click, and waits up to 3 minutes for `runner.update.result`. The runner:
+
+1. answers `unsupported` without the capability, and `busy` while runs are live (or an update is under way);
+2. downloads `RUNNER_BUNDLE_PATH` and `RUNNER_PTY_PATH/<target>.tgz` from its own server address (http for ws, https
+   for wss), each checked against `RUNNER_SHA256_HEADER` (`hash_mismatch` without one or on a mismatch; a 404 for the
+   PTY keeps the one it has);
+3. writes the bundle to a temporary file and the PTY (unpacked in memory, regular files under `node_modules/` only) to a
+   staging folder beside the installed copy, moves the old `node_modules/` aside, the new one in, and renames the
+   temporary bundle over `runner.mjs`; a failure puts the old copy back (`write_failed`);
+4. ends its open terminals with a notice line and `terminal.exit` `error: 'runner_updating'`, answers `ok` with the new
+   `build`, and 250 ms later stops (as on SIGTERM: terminals, socket 1000, hold, tunnels) and exits 75, which its
+   service manager restarts (systemd `Restart=always`; launchd `KeepAlive {SuccessfulExit: false}`). It reconnects as
+   usual and says its new build.
+
+It trusts the server over its authenticated link and checks SHA-256 only; the signed self-update (Ed25519) is S8.
+
 ## Limits and timers
 
 | Constant | Value |
@@ -206,6 +234,7 @@ buffer is over 1 MB, until it is down to 256 KB.
 | `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
 | the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
 | the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
+| the self-update (`apps/runner/src/update/`, the server's `service/update.ts`) | 3 minutes for the runner's answer, 2 minutes per download, the restart 250 ms after the answer, exit code 75 |
 | `RUNNER_CLOSE` | 1009 frame too large, 4001 unauthorized (key revoked or machine removed while connected), 4002 unsupported protocol, 4003 runner too old, 4004 replaced, 4008 hello timeout |
 
 ## Reading and writing frames

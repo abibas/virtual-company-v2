@@ -13,6 +13,7 @@ import {
 } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
+import { RunnerBuild, RunnerUpdateResult } from './update.ts';
 
 /** The frames a runner sends to the server (docs/runner-protocol.md, "Runner to server"). */
 
@@ -26,8 +27,8 @@ export const RESYNC_RUNS_MAX = 1000;
 export const ATTENTION_OPTIONS_MAX = 32;
 
 /**
- * What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power, and
- * whether it opens terminals.
+ * What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power, whether
+ * it opens terminals, and whether it updates itself.
  */
 export const RunnerCaps = protocolObject({
   harnesses: z.array(Harness).max(Harness.options.length),
@@ -37,6 +38,11 @@ export const RunnerCaps = protocolObject({
   power: z.array(PowerProvider).max(PowerProvider.options.length),
   /** True when its PTY loaded (`terminal.open` works); false from a runner older than the terminal. */
   terminal: z.boolean().default(false),
+  /**
+   * True for an installed copy its service manager restarts (launchd or systemd): it carries out `runner.update`. False
+   * in a container, from the sources, and from a runner older than the self-update.
+   */
+  selfUpdate: z.boolean().default(false),
 });
 export type RunnerCaps = z.infer<typeof RunnerCaps>;
 
@@ -50,6 +56,11 @@ export const RunnerHello = frame('runner.hello', {
    * version the machine has on record.
    */
   claudeVersion: ClaudeVersion.nullable().optional(),
+  /**
+   * The build it runs: the SHA-256 of the `runner.mjs` it was started from, null from the sources; left out by a runner
+   * older than it (the server then cannot tell whether it is current).
+   */
+  build: RunnerBuild.nullable().optional(),
 });
 export type RunnerHello = z.infer<typeof RunnerHello>;
 
@@ -212,6 +223,7 @@ export const RUNNER_FRAMES = [
   PowerResult,
   TunnelState,
   ...TERMINAL_RUNNER_FRAMES,
+  RunnerUpdateResult,
 ] as const;
 
 /** Any frame a runner sends, told apart by `type`. */

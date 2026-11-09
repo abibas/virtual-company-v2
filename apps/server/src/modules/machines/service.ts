@@ -3,6 +3,7 @@ import { type LogoRef, logoRef } from '@mwc/shared/logos';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { type MachinesRepo, machinesRepo } from './repo.ts';
 import { isPowered } from './rules/power.ts';
+import { type RunnerFacts, runnerFacts } from './rules/runner.ts';
 import {
   CONTROLLER_IS_SELF,
   CONTROLLER_NOT_FOUND,
@@ -11,6 +12,7 @@ import {
   type Refusal,
 } from './rules.ts';
 import type { MachineUpdate, MachineView, TunnelView } from './schemas.ts';
+import { DEFAULT_RUNNER_BUNDLE, servedBuild } from './service/download.ts';
 import { machineLogoHashes } from './service/logo.ts';
 import { agentCounts, removeMachinePlacements } from './service/placement.ts';
 import { type ControlDeps, controlOf, type PowerControl } from './service/power/control.ts';
@@ -19,13 +21,15 @@ const iso = (at: Date | null) => at?.toISOString() ?? null;
 
 /**
  * A machine as the API shows it, with how many agents not archived run on it by default (`agentCount`), for a devbox
- * its tunnel as its controller reported it (the power control's `tunnelOf`), and its logo's version (null without one).
+ * its tunnel as its controller reported it (the power control's `tunnelOf`), its logo's version (null without one) and
+ * its runner as the hub knows it (`runner`: its build against the served one).
  */
 export function machineView(
   row: Machine,
   agentCount: number,
   tunnel: TunnelView | null,
   logo: LogoRef | null,
+  runner: RunnerFacts,
 ): MachineView {
   return {
     id: row.id,
@@ -46,6 +50,7 @@ export function machineView(
     hourlyCost: row.hourlyCost,
     agentCount,
     tunnel,
+    runner,
     logo,
     createdAt: row.createdAt.toISOString(),
   };
@@ -82,13 +87,29 @@ async function controllerRefusal(
   return (await repo.get(t, controllerId)) === undefined ? CONTROLLER_NOT_FOUND : undefined;
 }
 
-/** A machine's view with its agent count and logo, read in the caller's transaction when it is one, and its tunnel. */
-const viewOf = async (control: PowerControl, t: TenantDb, row: Machine) =>
+/** What a machine's view reads besides its rows: who drives the devboxes, the hub, the served build. */
+interface Views {
+  readonly control: PowerControl;
+  readonly hub: ControlDeps['hub'];
+  /** The build this server hands out now (the bundle's SHA-256, null unbuilt). */
+  served(): Promise<string | null>;
+}
+
+/** A machine's runner as the hub knows it, against the served build. */
+const runnerOf = (views: Views, row: Machine, served: string | null) =>
+  runnerFacts(views.hub.connected(row.id), served);
+
+/**
+ * A machine's view with its agent count and logo, read in the caller's transaction when it is one, its tunnel and its
+ * runner.
+ */
+const viewOf = async (views: Views, t: TenantDb, row: Machine) =>
   machineView(
     row,
     (await agentCounts(t)).get(row.id) ?? 0,
-    control.tunnelOf(row),
+    views.control.tunnelOf(row),
     logoRef((await machineLogoHashes(t)).get(row.id)),
+    runnerOf(views, row, await views.served()),
   );
 
 /**
@@ -97,7 +118,7 @@ const viewOf = async (control: PowerControl, t: TenantDb, row: Machine) =>
  */
 async function update(
   repo: MachinesRepo,
-  control: PowerControl,
+  views: Views,
   t: TenantDb,
   caller: Caller,
   id: string,
@@ -125,9 +146,9 @@ async function update(
     if (row.controllerMachineId !== before.controllerMachineId) {
       moved = [before.controllerMachineId, row.controllerMachineId];
     }
-    return { ok: true as const, machine: await viewOf(control, tx, row) };
+    return { ok: true as const, machine: await viewOf(views, tx, row) };
   });
-  for (const controllerId of moved) await control.syncTunnels(t, controllerId);
+  for (const controllerId of moved) await views.control.syncTunnels(t, controllerId);
   return result;
 }
 
@@ -165,27 +186,39 @@ async function remove(
   return { ok: true };
 }
 
-/** The machines module's reads and changes of machines (the enrollment, stats and hub are in `service/`). */
-export function machinesService(deps: ControlDeps) {
+/**
+ * The machines module's reads and changes of machines (the enrollment, stats and hub are in `service/`); the runner
+ * bundle it compares the runners' builds with is the one this server hands out (`runnerBundle`).
+ */
+export function machinesService(deps: ControlDeps & { readonly runnerBundle?: string | undefined }) {
   const repo = machinesRepo();
   const control = controlOf(deps);
+  const bundle = deps.runnerBundle ?? DEFAULT_RUNNER_BUNDLE;
+  const views: Views = { control, hub: deps.hub, served: () => servedBuild(bundle) };
   return {
     async list(t: TenantDb): Promise<MachineView[]> {
       const rows = await repo.list(t);
       const counts = await agentCounts(t);
       const logos = await machineLogoHashes(t);
+      const served = await views.served();
       return rows.map((row) =>
-        machineView(row, counts.get(row.id) ?? 0, control.tunnelOf(row), logoRef(logos.get(row.id))),
+        machineView(
+          row,
+          counts.get(row.id) ?? 0,
+          control.tunnelOf(row),
+          logoRef(logos.get(row.id)),
+          runnerOf(views, row, served),
+        ),
       );
     },
 
     async get(t: TenantDb, id: string): Promise<Viewed> {
       const row = await repo.get(t, id);
-      return row === undefined ? MACHINE_NOT_FOUND : { ok: true, machine: await viewOf(control, t, row) };
+      return row === undefined ? MACHINE_NOT_FOUND : { ok: true, machine: await viewOf(views, t, row) };
     },
 
     update: (t: TenantDb, caller: Caller, id: string, change: MachineUpdate) =>
-      update(repo, control, t, caller, id, change),
+      update(repo, views, t, caller, id, change),
 
     remove: (t: TenantDb, caller: Caller, id: string) => remove(repo, control, deps.hub, t, caller, id),
   };

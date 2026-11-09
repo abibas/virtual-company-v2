@@ -164,6 +164,31 @@ describe('the scheduler on it', () => {
   });
 });
 
+describe('a start the schedule makes on a box already on', () => {
+  it('logs that the box was already on (the driver ran no airia CLI)', async () => {
+    w.clock.set('2026-11-06T06:59:00Z');
+    const { company, box, driver } = await boxOnly();
+    await putPolicy(w, company, box.machineId, { keepOn: { enabled: true }, autoStartAtKeepOn: true });
+    const scheduler = powerScheduler({
+      db: w.t.db,
+      hub: w.hub,
+      logger: w.deps.logger,
+      clock: w.clock,
+      control: w.control,
+    });
+    await scheduler.step(w.clock());
+    await scheduler.idle();
+    // Someone started it meanwhile; the stored reading still says stopped.
+    driver.setStatus('dev-ihorherasko', 'running');
+    w.clock.set('2026-11-06T07:00:00Z');
+    await scheduler.step(w.clock());
+    await scheduler.idle();
+    expect((await eventsOf(w.t.db, box.machineId)).filter((event) => event.startsWith('started'))).toEqual([
+      'started schedule: Keep-on hours started (Mon–Fri 09:00–19:00 Europe/Kyiv): the box was already on',
+    ]);
+  });
+});
+
 describe('its commands', () => {
   /** A driver like `boxDriver()` whose `status` is this one. */
   const statusOnly = (status: MachinePowerDriver['status']): MachinePowerDriver => {

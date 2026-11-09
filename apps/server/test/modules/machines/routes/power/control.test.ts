@@ -76,6 +76,22 @@ describe('POST .../power/start and /stop', () => {
     ]);
   });
 
+  it('says in the log when a start or a stop found the box already there', async () => {
+    const company = await membersCompany(w);
+    const { mac, box } = await macAndBox(w, company);
+    const driver = boxDriver('running');
+    await connectController(w, mac.runnerKey, driver);
+    expect((await as(w, company.owner)('POST', powerPath(company, box.machineId, '/start'))).status).toBe(
+      202,
+    );
+    driver.setStatus('dev-ihorherasko', 'stopped');
+    expect((await as(w, company.owner)('POST', powerPath(company, box.machineId, '/stop'))).status).toBe(202);
+    expect(await eventsOf(w.t.db, box.machineId)).toEqual([
+      `started user:${company.owner.userId}: Started by hand: the box was already on`,
+      `stopped user:${company.owner.userId}: Stopped by hand: the box was already off`,
+    ]);
+  });
+
   it('answers a failed command with 502 power_failed, the driver code and plain words, and logs it', async () => {
     const company = await membersCompany(w);
     const { mac, box } = await macAndBox(w, company);

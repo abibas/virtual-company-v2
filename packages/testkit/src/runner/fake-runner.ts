@@ -26,15 +26,20 @@ export interface FakeRunnerOptions {
   readonly version?: string;
   /** `runner.hello`'s protocol; `RUNNER_PROTOCOL_VERSION` by default. */
   readonly protocol?: number;
-  /** `runner.hello`'s caps over the defaults: Claude Code, one slot, no hold, no power, no terminal. */
+  /** `runner.hello`'s caps over the defaults: Claude Code, one slot, no hold, no power, no terminal, no self-update. */
   readonly caps?: Partial<RunnerCaps>;
+  /** `runner.hello`'s build (a SHA-256, or null from the sources); left out by default, as an older runner does. */
+  readonly build?: string | null;
   /** The runs `runner.resync` reports on every connect; none by default. */
   readonly runs?: readonly ResyncRun[];
   /** The hold `hold.state` reports after each resync; not held by default. */
   readonly hold?: Omit<HoldState, 'type'>;
   /** The samples heartbeats carry, one each, in order; heartbeats after the last carry none. */
   readonly samples?: readonly MachineSample[];
-  /** Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok); `[]` answers nothing. */
+  /**
+   * Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok, `runner.update.result` ok);
+   * `[]` answers nothing.
+   */
   readonly respond?: (frame: ServerFrame) => readonly RunnerFrame[];
 }
 
@@ -89,10 +94,13 @@ export class FakeRunner {
       hold: 'none',
       power: [],
       terminal: false,
+      selfUpdate: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;
-    return { type: 'runner.hello', protocol, version: this.#options.version ?? '1.0.0', caps };
+    const { build } = this.#options;
+    const version = this.#options.version ?? '1.0.0';
+    return { type: 'runner.hello', protocol, version, caps, ...(build === undefined ? {} : { build }) };
   }
 
   /**
@@ -188,6 +196,8 @@ export class FakeRunner {
   #answer(frame: ServerFrame): readonly RunnerFrame[] {
     if (this.#options.respond) return this.#options.respond(frame);
     if (frame.type === 'power.command') return [{ type: 'power.result', cmdId: frame.cmdId, ok: true }];
+    if (frame.type === 'runner.update')
+      return [{ type: 'runner.update.result', cmdId: frame.cmdId, ok: true }];
     return 'cmdId' in frame ? [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }] : [];
   }
 }

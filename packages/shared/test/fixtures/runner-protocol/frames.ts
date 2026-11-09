@@ -26,6 +26,9 @@ export const IDS = {
 
 export const NOW = Date.UTC(2026, 10, 6, 12, 0, 0);
 
+/** A runner build: the SHA-256 of a bundle. */
+export const BUILD = 'ab'.repeat(32);
+
 export const SAMPLE: MachineSample = {
   load1: 0.42,
   load5: 0.3,
@@ -69,7 +72,9 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       hold: 'caffeinate',
       power: ['airia_devbox'],
       terminal: true,
+      selfUpdate: true,
     },
+    build: BUILD,
   },
   'runner.heartbeat': {
     type: 'runner.heartbeat',
@@ -118,6 +123,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
   'terminal.opened': { type: 'terminal.opened', sessionId: IDS.session, shell: '/bin/zsh' },
   'terminal.output': { type: 'terminal.output', sessionId: IDS.session, data: 'aGVsbG8NCg==' },
   'terminal.exit': { type: 'terminal.exit', sessionId: IDS.session, code: null, signal: 'SIGHUP' },
+  'runner.update.result': { type: 'runner.update.result', cmdId: IDS.cmd, ok: true, build: BUILD },
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
@@ -174,4 +180,5 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
   'terminal.input': { type: 'terminal.input', sessionId: IDS.session, data: 'bHMgLWxhDQ==' },
   'terminal.resize': { type: 'terminal.resize', sessionId: IDS.session, cols: 80, rows: 24 },
   'terminal.close': { type: 'terminal.close', sessionId: IDS.session },
+  'runner.update': { type: 'runner.update', cmdId: IDS.cmd },
 };

@@ -47,10 +47,13 @@ export interface MachinesWorld extends AuthWorld {
   close(): Promise<void>;
 }
 
-/** The world, with `hub` options over `TEST_HUB`, and this server's own power driver when `local` is given. */
+/**
+ * The world, with `hub` options over `TEST_HUB`, this server's own power driver when `local` is given, and the runner
+ * bundle it hands out at `runnerBundle` (the repository's otherwise).
+ */
 export async function machinesWorld(
   hubOptions: HubOptions = {},
-  options: { readonly local?: LocalPower } = {},
+  options: { readonly local?: LocalPower; readonly runnerBundle?: string } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
@@ -67,6 +70,7 @@ export async function machinesWorld(
     logger,
     runnerHub: hub,
     powerControl: control,
+    ...(options.runnerBundle === undefined ? {} : { runnerBundle: options.runnerBundle }),
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

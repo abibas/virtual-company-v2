@@ -38,8 +38,13 @@ export interface PowerFailure extends Refusal<502> {
 
 export type ControlRefusal = Refusal<409> | Refusal<422> | PowerFailure;
 
-/** A command's outcome: the box as read after it, or why it could not run or failed. */
-export type Controlled = { readonly ok: true; readonly reading: BoxReading } | ControlRefusal;
+/**
+ * A command's outcome: the box as read after it (`already` when a start or a stop found it there and ran nothing), or
+ * why it could not run or failed.
+ */
+export type Controlled =
+  | { readonly ok: true; readonly reading: BoxReading; readonly already: boolean }
+  | ControlRefusal;
 
 /** How long the controller has for each action: a start re-pushes the box's scripts first. */
 export const POWER_TIMEOUTS: Readonly<Record<PowerAction, number>> = {
@@ -148,7 +153,8 @@ export async function command(
     const result = await hub.request(controllerId, frame, {
       timeoutMs: options.timeoutMs ?? POWER_TIMEOUTS[action],
     });
-    return result.ok ? { ok: true, reading: readingOf(result) } : powerFailed(failureOf(result.error));
+    if (!result.ok) return powerFailed(failureOf(result.error));
+    return { ok: true, reading: readingOf(result), already: result.metadata?.already === true };
   } catch (error) {
     if (!(error instanceof HubError)) throw error;
     if (error.code === 'timeout') return powerFailed({ code: 'timeout', message: error.message });

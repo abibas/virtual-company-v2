@@ -166,7 +166,9 @@ describe('when the tunnels cannot be sent', () => {
         hold: 'none' as const,
         power: ['airia_devbox' as const],
         terminal: false,
+        selfUpdate: false,
       },
+      build: null,
       connectedAt: TEST_NOW_DATE,
     };
     tunnelsOnConnect(deps)(runner);

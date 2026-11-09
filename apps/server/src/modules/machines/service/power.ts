@@ -7,6 +7,7 @@ import type { Logger } from 'pino';
 import { profilesOf } from '../../identity/service.ts';
 import { powerRepo } from '../repo/power.ts';
 import { machinesRepo } from '../repo.ts';
+import { alreadyText } from '../rules/power/text.ts';
 import { isPowered, type PowerActor, policyText } from '../rules/power.ts';
 import { MACHINE_NOT_FOUND, type Refusal } from '../rules.ts';
 import type { MachinePowerView, PowerEventView } from '../schemas/power.ts';
@@ -141,7 +142,8 @@ async function power(
     return result;
   }
   if (action === 'stop') await saveState(t, machine.id, { manualStopAt: at.toISOString() });
-  await logPower(t, machine.id, { action: TEXT[action].done, reason: TEXT[action].reason, actor, at });
+  const reason = result.already ? alreadyText(TEXT[action].reason, action) : TEXT[action].reason;
+  await logPower(t, machine.id, { action: TEXT[action].done, reason, actor, at });
   return { ok: true, power: await viewOf(deps.control, t, machine.id, caller.role) };
 }
 

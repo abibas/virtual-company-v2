@@ -38,24 +38,27 @@ async function failure(promise: Promise<unknown>): Promise<HubError> {
 }
 
 describe('which runners the hub has', () => {
-  it('knows a runner from its server.hello to its close: version, caps and since when', async () => {
+  it('knows a runner from its server.hello to its close: version, build, caps and since when', async () => {
     const { machineId, runnerKey } = await enroll(w, company);
     expect([w.hub.isOnline(machineId), w.hub.connected(machineId)]).toEqual([false, undefined]);
     const runner = await w.connect(runnerKey, {
       version: '0.7.0',
-      caps: { power: ['airia_devbox'], hold: 'caffeinate' },
+      build: 'ab'.repeat(32),
+      caps: { power: ['airia_devbox'], hold: 'caffeinate', selfUpdate: true },
     });
     expect(w.hub.isOnline(machineId)).toBe(true);
     expect(w.hub.connected(machineId)).toEqual({
       companyId: company.companyId,
       machineId,
       version: '0.7.0',
+      build: 'ab'.repeat(32),
       caps: {
         harnesses: ['claude_code'],
         slots: 1,
         hold: 'caffeinate',
         power: ['airia_devbox'],
         terminal: false,
+        selfUpdate: true,
       },
       connectedAt: w.clock(),
     });

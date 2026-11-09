@@ -10,7 +10,7 @@ import { tempDir } from '../fixtures/runner.ts';
 const mode = (path: string) => statSync(path).mode & 0o777;
 
 describe('the real machine behind the commands', () => {
-  it('reads, writes, copies and removes files with the modes asked for', () => {
+  it('reads, writes, copies, renames and removes files with the modes asked for', () => {
     const dir = tempDir();
     const folder = join(dir, 'a', 'b');
     nodeFs.mkdir(folder, 0o700);
@@ -25,6 +25,15 @@ describe('the real machine behind the commands', () => {
     nodeFs.copyFile(file, copy);
     expect([readFileSync(copy, 'utf8'), mode(copy)]).toEqual(['two', 0o644]);
     expect(nodeFs.exists(copy)).toBe(true);
+    const bytes = join(dir, 'new.tmp');
+    nodeFs.writeBytes(bytes, new Uint8Array([1, 2, 3]), 0o644);
+    expect(() => nodeFs.writeBytes(bytes, new Uint8Array([4]), 0o644)).toThrow(/EEXIST/);
+    nodeFs.rename(bytes, copy);
+    expect([[...nodeFs.readBytes(copy)], mode(copy), nodeFs.exists(bytes)]).toEqual([
+      [1, 2, 3],
+      0o644,
+      false,
+    ]);
     nodeFs.remove(join(dir, 'a'));
     nodeFs.remove(join(dir, 'a'));
     expect(nodeFs.exists(file)).toBe(false);

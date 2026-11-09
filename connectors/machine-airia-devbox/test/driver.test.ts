@@ -127,7 +127,9 @@ describe('AiriaDevboxDriver: power', () => {
       'TERMINATED',
       'STAGING',
     ]);
-    expect((await driver.start(REF)).status).toBe('starting');
+    const reading = await driver.start(REF);
+    expect(reading.status).toBe('starting');
+    expect(reading).not.toHaveProperty('already');
     expect(lines()).toEqual([DESCRIBE, GET_ACCOUNT, UP, DESCRIBE]);
     expect(calls[2]?.timeoutMs).toBe(POWER_TIMEOUT_MS);
   });
@@ -138,15 +140,15 @@ describe('AiriaDevboxDriver: power', () => {
     expect(lines()).toEqual([DESCRIBE, GET_ACCOUNT, STOP, DESCRIBE]);
   });
 
-  it('runs nothing for a box already up or down', async () => {
+  it('runs nothing for a box already up or down, and says so in its reading', async () => {
     for (const status of ['RUNNING', 'PROVISIONING']) {
       const { driver, lines } = world({}, [status]);
-      await driver.start(REF);
+      expect(await driver.start(REF)).toMatchObject({ already: true });
       expect(lines()).toEqual([DESCRIBE]);
     }
     for (const status of ['TERMINATED', 'STOPPING']) {
       const { driver, lines } = world({}, [status]);
-      await driver.stop(REF);
+      expect(await driver.stop(REF)).toMatchObject({ already: true });
       expect(lines()).toEqual([DESCRIBE]);
     }
   });
@@ -268,5 +270,45 @@ describe('AiriaDevboxDriver: tunnelCommand', () => {
     expect(tunnel.args.at(-1)).toBe('127.0.0.1:9963:127.0.0.1:9960');
     expect(tunnel.args.some((arg) => /\s|'|"/.test(arg))).toBe(false);
     expect(tunnel.env).toBe(env);
+  });
+});
+
+describe('AiriaDevboxDriver: updateCommand', () => {
+  it("is plain gcloud compute ssh over IAP with the install's forward and install.sh without a token", () => {
+    const fake = fakeRun(() => undefined);
+    const env = { PATH: '/g:/usr/bin' };
+    const driver = new AiriaDevboxDriver({ run: fake.run, gcloud: '/opt/homebrew/bin/gcloud', env });
+    expect(driver.updateCommand(REF, { apiPort: 9950, installPort: 9954 })).toEqual({
+      command: '/opt/homebrew/bin/gcloud',
+      args: [
+        'compute',
+        'ssh',
+        BOX,
+        '--project',
+        'airia-devbox',
+        '--zone',
+        ZONE,
+        '--tunnel-through-iap',
+        '--quiet',
+        '--',
+        '-o',
+        'ExitOnForwardFailure=yes',
+        '-R',
+        '127.0.0.1:9954:127.0.0.1:9950',
+        'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --via http://127.0.0.1:9954',
+      ],
+      env,
+    });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('uses the ports and project it is given, and the runner environment without one', () => {
+    const driver = new AiriaDevboxDriver({ run: fakeRun(() => undefined).run, project: 'other' });
+    const update = driver.updateCommand(REF, { apiPort: 9960, installPort: 9954 });
+    expect(update.command).toBe('gcloud');
+    expect(update.args.slice(3, 5)).toEqual(['--project', 'other']);
+    expect(update.args.at(-2)).toBe('127.0.0.1:9954:127.0.0.1:9960');
+    expect(update.args.at(-1)).toContain('--server http://127.0.0.1:9960 --via http://127.0.0.1:9954');
+    expect(update).not.toHaveProperty('env');
   });
 });

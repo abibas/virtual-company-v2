@@ -33,7 +33,7 @@ describe('the frame lists', () => {
     expect(SERVER_FRAMES.map((schema) => schema.shape.type.value)).toEqual(Object.keys(SERVER_EXAMPLES));
   });
 
-  it('leave out the self-update frames, moved to S8', () => {
+  it("leave out the signed self-update (its releases and the hello's update), moved to S8", () => {
     const types = [...RUNNER_FRAMES, ...SERVER_FRAMES].map((schema) => schema.shape.type.value);
     expect(types).not.toContain('runner_releases');
     expect(SERVER_EXAMPLES['server.hello']).not.toHaveProperty('update');

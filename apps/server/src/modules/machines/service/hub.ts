@@ -8,6 +8,8 @@ import {
   RUNNER_PING_MS,
   type RunnerCaps,
   type RunnerHello,
+  type RunnerUpdate,
+  type RunnerUpdateResult,
   type ServerFrame,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
@@ -15,6 +17,7 @@ import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
 import type { SocketHandlers, SocketLink } from '../../../platform/realtime/sockets.ts';
 import { MIN_RUNNER_VERSION } from '../rules.ts';
 import { type ConnectionContext, HubError, RunnerConnection } from './connection.ts';
+import { closeAll, connections, GOING_AWAY, machineQueues } from './hub/sockets.ts';
 import {
   type TerminalChannel,
   type TerminalRequest,
@@ -26,15 +29,24 @@ import { type HubTunnels, tunnelBoard } from './hub/tunnels.ts';
 export { HubError, type HubErrorCode } from './connection.ts';
 export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } from './hub/terminals.ts';
 
-/** A server frame that is a command (it has a `cmdId`), and what answers it. */
+/**
+ * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update` acks it
+ * as a command it does not know).
+ */
 export type CommandFrame = Extract<ServerFrame, { cmdId: string }>;
-export type ReplyTo<F extends CommandFrame> = F extends PowerCommand ? PowerResult : CmdAck;
+export type ReplyTo<F extends CommandFrame> = F extends PowerCommand
+  ? PowerResult
+  : F extends RunnerUpdate
+    ? RunnerUpdateResult | CmdAck
+    : CmdAck;
 
 /** A machine's runner as the hub knows it, once it answered `server.hello`. */
 export interface ConnectedRunner {
   readonly companyId: string;
   readonly machineId: string;
   readonly version: string;
+  /** The build it runs (its bundle's SHA-256); null from its sources or when its hello did not say. */
+  readonly build: string | null;
   readonly caps: RunnerCaps;
   readonly connectedAt: Date;
 }
@@ -95,79 +107,12 @@ export interface RunnerHub {
   close(): Promise<void>;
 }
 
-const GOING_AWAY = 1001;
-
-/** One promise chain per machine, so a machine's writes run in the order its frames came. */
-function machineQueues(logger: Logger) {
-  const queues = new Map<string, Promise<void>>();
-  return {
-    enqueue(machineId: string, work: () => Promise<void>): void {
-      const next = (queues.get(machineId) ?? Promise.resolve()).then(work).catch((error: unknown) => {
-        logger.error({ err: error, machineId }, 'runner hub: queued work failed');
-      });
-      queues.set(machineId, next);
-      void next.then(() => {
-        if (queues.get(machineId) === next) queues.delete(machineId);
-      });
-    },
-    async idle(): Promise<void> {
-      while (queues.size > 0) await Promise.all(queues.values());
-    },
-  };
-}
-
-/** The hub's sockets: every one, and each machine's current one (the one that said hello last). */
-function connections() {
-  const current = new Map<string, RunnerConnection>();
-  const all = new Set<RunnerConnection>();
-  return {
-    all,
-    /** Makes it its machine's current connection, closing the one it replaces with 4004. */
-    claim(connection: RunnerConnection): void {
-      const previous = current.get(connection.machineId);
-      if (previous !== undefined) {
-        previous.replaced = true;
-        previous.link.close(4004, 'A newer connection of this machine took over');
-      }
-      current.set(connection.machineId, connection);
-    },
-    /** Forgets it; true when it was its machine's current connection. */
-    release(connection: RunnerConnection): boolean {
-      all.delete(connection);
-      if (current.get(connection.machineId) !== connection) return false;
-      current.delete(connection.machineId);
-      return true;
-    },
-    /** The machine's current connection once it answered `server.hello`. */
-    ready(machineId: string): RunnerConnection | undefined {
-      const connection = current.get(machineId);
-      return connection?.readyAt === undefined ? undefined : connection;
-    },
-  };
-}
-
-/** Closes every socket with 1001, waits for their closes (cutting the ones still open after `timeoutMs`), then writes. */
-async function closeAll(all: ReadonlySet<RunnerConnection>, timeoutMs: number, idle: () => Promise<void>) {
-  const open = [...all];
-  for (const connection of open) connection.link.close(GOING_AWAY, 'The server is shutting down');
-  const closed = Promise.all(open.map((connection) => connection.done));
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), timeoutMs);
-  });
-  if ((await Promise.race([closed, timeout])) === 'timeout') {
-    for (const connection of all) connection.link.terminate();
-    await closed;
-  }
-  clearTimeout(timer);
-  await idle();
-}
-
 /** A ready connection as the hub shows it. */
 function runnerOf(connection: RunnerConnection): ConnectedRunner {
-  const { version, caps } = connection.hello as RunnerHello;
+  const { version, caps, build } = connection.hello as RunnerHello;
   const { machineId, runner } = connection;
-  return { companyId: runner.companyId, machineId, version, caps, connectedAt: connection.readyAt as Date };
+  const connectedAt = connection.readyAt as Date;
+  return { companyId: runner.companyId, machineId, version, build: build ?? null, caps, connectedAt };
 }
 
 /** The connect listeners, each called in turn; one that throws is logged. */

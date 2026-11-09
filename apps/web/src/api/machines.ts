@@ -131,8 +131,8 @@ export function usePowerControl(companyId: string, machineId: string): PowerCont
 }
 
 /**
- * The calls on the machines: the list, a token to enroll one, a rename, a removal, the power policy and commands, and
- * an owner's one-time terminal ticket.
+ * The calls on the machines: the list, a token to enroll one, a rename, a removal, the power policy and commands, an
+ * owner's one-time terminal ticket, and the update of a machine's runner.
  */
 export function machineCalls(api: Api, companyId: string) {
   const machines = api.api.companies[':companyId'].machines;
@@ -151,6 +151,7 @@ export function machineCalls(api: Api, companyId: string) {
     setTimezone: (machineId: string, timezone: string) =>
       call(one.power.timezone.$post({ ...param(machineId), json: { timezone } })),
     terminalTicket: (machineId: string) => call(one['terminal-tickets'].$post(param(machineId))),
+    updateRunner: (machineId: string) => call(one['runner-update'].$post(param(machineId))),
   };
 }
 

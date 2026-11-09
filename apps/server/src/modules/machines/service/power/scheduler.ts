@@ -1,6 +1,7 @@
 import { type DbHandle, type Machine, type TenantDb, tenant } from '@mwc/db';
 import type { Logger } from 'pino';
 import { presentMachines } from '../../repo/upkeep.ts';
+import { alreadyText } from '../../rules/power/text.ts';
 import { type BoxState, decide, isPowered, type PowerDecision, type PowerState } from '../../rules/power.ts';
 import type { RunnerHub } from '../hub.ts';
 import { type Controller, controlOf, type PowerControl } from './control.ts';
@@ -68,7 +69,7 @@ function powerWork(deps: Deps, action: 'start' | 'stop', reason: string): Work {
       await deps.control.syncTunnels(t, controller.machineId);
       await logPower(t, machine.id, {
         action: action === 'start' ? 'started' : 'stopped',
-        reason,
+        reason: result.already ? alreadyText(reason, action) : reason,
         actor: 'schedule',
         at,
       });

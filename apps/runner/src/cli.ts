@@ -10,6 +10,8 @@ import { PERMANENT_EXIT_CODES } from './install/systemd.ts';
 import { uninstallCommand } from './install/uninstall.ts';
 import { createLog, type Log } from './log.ts';
 import { EXIT, type MainDeps, main } from './start.ts';
+import { runnerBuild, updateTarget } from './update/build.ts';
+import { selfUpdater } from './update/self-update.ts';
 
 /**
  * `mwc-runner <command>` (`node runner.mjs <command>`): the daemon (`run`, what the service starts) and the commands a
@@ -89,7 +91,17 @@ export function serviceExit(env: Env, exit: (code: number) => void, log: Log): (
   };
 }
 
-/** `run`: a container enrolls itself on its first start; then the daemon, with Claude Code's version for its hello. */
+/** What the daemon learns about itself once, at start: the build it runs and, for an installed copy, its self-update. */
+export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'update'> {
+  const target = updateTarget(host);
+  const update = target === undefined ? undefined : selfUpdater({ target, fetch: host.fetch, fs: host.fs });
+  return { build: runnerBuild(host), ...(update ? { update } : {}) };
+}
+
+/**
+ * `run`: a container enrolls itself on its first start; then the daemon, with Claude Code's version, its build and its
+ * self-update for its hello.
+ */
 async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
   const daemon = deps.daemon();
   if (argv.length !== 1) return main(argv, daemon);
@@ -104,7 +116,7 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
     exit(failed);
     return failed;
   }
-  return main(argv, { ...daemon, claudeVersion: await claudeVersion(host), exit });
+  return main(argv, { ...daemon, claudeVersion: await claudeVersion(host), ...selfFacts(host), exit });
 }
 
 /** One of the commands a person runs; its message on stderr and its exit code when it fails. */

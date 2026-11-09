@@ -143,6 +143,14 @@ export {
   TunnelSet,
   TunnelSpec,
 } from './runner-protocol/server-frames.ts';
+export {
+  RUNNER_UPDATE_ERRORS,
+  RunnerBuild,
+  RunnerUpdate,
+  type RunnerUpdateError,
+  RunnerUpdateResult,
+  updateErrorCode,
+} from './runner-protocol/update.ts';
 
 const RUNNER_TABLE = frameTable<RunnerFrame>(RUNNER_FRAMES);
 const SERVER_TABLE = frameTable<ServerFrame>(SERVER_FRAMES);

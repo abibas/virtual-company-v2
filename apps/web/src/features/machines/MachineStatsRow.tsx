@@ -56,12 +56,15 @@ export function MachineIdentity({
   now,
   mark,
   name,
+  badges,
   aside,
 }: {
   readonly stats: IdentityFacts;
   readonly now: number;
   readonly mark: ReactNode;
   readonly name?: ReactNode;
+  /** More badges on the name's line (the card's "Runner out of date"). */
+  readonly badges?: ReactNode;
   readonly aside?: ReactNode;
 }) {
   return (
@@ -76,6 +79,7 @@ export function MachineIdentity({
               Overloaded
             </Badge>
           )}
+          {badges}
         </h3>
         <MachineStatus stats={stats} now={now} agents={stats.agentCount} />
       </div>

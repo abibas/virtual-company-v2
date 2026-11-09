@@ -12,6 +12,7 @@ import { accountFrom, boxNameOf, ownerSlug } from './account.ts';
 import { errorOf, spawnErrorOf } from './errors.ts';
 import { parseInstance, parseInstances, readingOf, refOf } from './instance.ts';
 import type { CommandRun, RunResult } from './run.ts';
+import { type RunnerUpdatePorts, tunnelArgs, updateArgs } from './ssh.ts';
 
 /** The airia CLI's GCP project. */
 export const DEVBOX_PROJECT = 'airia-devbox';
@@ -19,22 +20,6 @@ export const DEVBOX_PROJECT = 'airia-devbox';
 export const POWER_TIMEOUT_MS = 180_000;
 /** How long every other command may take. */
 export const QUERY_TIMEOUT_MS = 30_000;
-
-/**
- * The ssh options of the standing tunnel: no shell on the box (`-N`), an exit when the box's port is taken
- * (`ExitOnForwardFailure`, so the runner retries), a dead link noticed within 45 s, and never a prompt (`BatchMode`).
- */
-export const TUNNEL_SSH_ARGS: readonly string[] = [
-  '-N',
-  '-o',
-  'ExitOnForwardFailure=yes',
-  '-o',
-  'ServerAliveInterval=15',
-  '-o',
-  'ServerAliveCountMax=3',
-  '-o',
-  'BatchMode=yes',
-];
 
 export interface AiriaDevboxDriverOptions {
   /** Runs the commands; `processRun()` on a controller, a fake in tests. */
@@ -135,27 +120,26 @@ export class AiriaDevboxDriver implements MachinePowerDriver {
    * `127.0.0.1:remotePort` forwarded to this machine's `127.0.0.1:localPort`. Nothing runs here.
    */
   tunnelCommand(ref: PowerRef, ports: TunnelPorts): ProcessCommand {
-    const forward = `127.0.0.1:${ports.remotePort}:127.0.0.1:${ports.localPort}`;
-    const args = [
-      'compute',
-      'ssh',
-      ref.instance,
-      '--project',
-      this.#project,
-      '--zone',
-      ref.zone,
-      '--tunnel-through-iap',
-      '--quiet',
-      '--strict-host-key-checking=no',
-      '--',
-      ...TUNNEL_SSH_ARGS,
-      '-R',
-      forward,
-    ];
+    return this.#gcloudCommand(tunnelArgs(ref, this.#project, ports));
+  }
+
+  /**
+   * The reinstall of the box's runner, for a runner too old to update itself (docs/machines.md, "Updating a runner"):
+   * plain `gcloud compute ssh` over IAP (it never starts a stopped box), whose reverse forward makes the box's
+   * `127.0.0.1:installPort` this server's `127.0.0.1:apiPort` while `install.sh` runs there without a token, so the
+   * runner keeps its enrollment and `--server http://127.0.0.1:apiPort`, the address the standing tunnel serves. Nothing
+   * runs here.
+   */
+  updateCommand(ref: PowerRef, ports: RunnerUpdatePorts): ProcessCommand {
+    return this.#gcloudCommand(updateArgs(ref, this.#project, ports));
+  }
+
+  /** A long-lived gcloud process: by its path, with the commands' environment when the driver was given one. */
+  #gcloudCommand(args: string[]): ProcessCommand {
     return { command: this.#gcloud, args, ...(this.#env === undefined ? {} : { env: this.#env }) };
   }
 
-  /** Runs the airia CLI for the box unless it is already `there`, then reads it again. */
+  /** Runs the airia CLI for the box unless it is already `there` (the reading then says `already`), then reads it again. */
   async #power(
     ref: PowerRef,
     there: readonly PowerStatus[],
@@ -169,7 +153,7 @@ export class AiriaDevboxDriver implements MachinePowerDriver {
         `There is no devbox named ${ref.instance} in ${ref.zone}. Create it yourself with \`airia devbox up\`.`,
       );
     }
-    if (there.includes(before.status)) return before;
+    if (there.includes(before.status)) return { ...before, already: true };
     const own = boxNameOf(await this.#account());
     if (own !== ref.instance) {
       throw new MachinePowerError(

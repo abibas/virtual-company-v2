@@ -27,12 +27,16 @@ function run(driver: MachinePowerDriver, command: PowerCommand): Promise<PowerRe
   }
 }
 
-/** A reading as a `power.result`'s status and metadata (facts the driver does not know are null). */
+/**
+ * A reading as a `power.result`'s status and metadata (facts the driver does not know are null; `already` when a start
+ * or a stop found the box already there and ran nothing).
+ */
 export function outcomeOf(reading: PowerReading): PowerOutcome {
   const metadata = {
     size: reading.size ?? null,
     hourlyCost: reading.hourlyCost ?? null,
     rules: reading.rules,
+    ...(reading.already ? { already: true } : {}),
   };
   return { ok: true, status: reading.status, metadata };
 }

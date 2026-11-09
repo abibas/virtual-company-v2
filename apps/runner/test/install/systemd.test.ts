@@ -76,6 +76,8 @@ describe('installing and removing the systemd unit', () => {
     expect(await manager.install()).toEqual([]);
     expect(statSync(unit).mode & 0o777).toBe(0o644);
     expect(readFileSync(unit, 'utf8')).toContain('ExecStart="/opt/node/bin/node"');
+    // It tells the runner systemd restarts it, so it can update itself.
+    expect(readFileSync(unit, 'utf8')).toContain('Environment="MWC_RUNNER_SERVICE=systemd"');
     expect(execs.map(commandLine)).toEqual([
       'loginctl enable-linger ihor',
       'systemctl --user daemon-reload',

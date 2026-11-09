@@ -2,7 +2,8 @@ import { type DbHandle, type Machine, type TenantDb, tenant } from '@mwc/db';
 import type { PowerAction } from '@mwc/shared/machines';
 import type { PowerArgs } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
-import type { LocalPower } from '../../../../platform/power/local.ts';
+import type { LocalPower, ReinstallPorts } from '../../../../platform/power/local.ts';
+import type { RunOutcome } from '../../../../platform/power/reinstall.ts';
 import { machinesRepo } from '../../repo.ts';
 import { isPowered } from '../../rules/power.ts';
 import type { Refusal } from '../../rules.ts';
@@ -48,6 +49,11 @@ export interface PowerControl {
   tunnelOf(row: Machine): TunnelView | null;
   /** Stops what it holds (this server's tunnels): the server's shutdown. */
   close(): Promise<void>;
+  /**
+   * Reinstalls a devbox's runner over SSH (its install without a token), when this server drives the boxes itself; the
+   * runner controllers' control has none.
+   */
+  readonly reinstall?: (machine: Machine, ports: ReinstallPorts) => Promise<RunOutcome>;
 }
 
 /** The control's needs: the hub, the server's port (both ends of every tunnel), the logger and its own driver, if any. */

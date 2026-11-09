@@ -69,7 +69,9 @@ later). Never both:
   and `set_timezone` run in-process through `AiriaDevboxDriver` (`processRun`, the tools by their full paths), with a
   runner controller's timeouts (200 s start and stop, 75 s the others), its answer read the same way (`<code>: <message>`
   → 502 `power_failed` with `driverCode`) and the same power events. No runner is ever sent `power.command`, and a
-  box's saved `controller_machine_id` is not used.
+  box's saved `controller_machine_id` is not used. A start or a stop that finds the box already there runs no airia
+  CLI (the driver's reading says `already`; a runner controller passes it as `metadata.already`), and its event says so:
+  "Keep-on hours started (…): the box was already on", "Stopped by hand: the box was already off".
 - **The tunnel.** The server holds each box's reverse tunnel itself with the same wanted set (a devbox not removed
   whose last power status is running, starting or not known), the same gcloud command (the driver's `tunnelCommand`)
   and the same supervisor (`@mwc/machines-core/tunnels`, shared with the runner: detached, process-group kill, 5 s to
@@ -114,6 +116,8 @@ later). Never both:
   → `tunnel.state {machineId, state connecting|up|down, error?}` per change (2026-11-07, "Installing a runner").
 - `runner.hello.caps.terminal`; server → runner `terminal.open|input|resize|close`, runner → server
   `terminal.opened|output|exit` (2026-11-09, "Terminal").
+- `runner.hello.build` (the SHA-256 of its bundle) and `runner.hello.caps.selfUpdate`; server → runner
+  `runner.update {cmdId}` → `runner.update.result {cmdId, ok, build?, error?}` (2026-11-09, "Updating a runner").
 
 ## Code placement (per the keep-structure skill)
 
@@ -127,6 +131,12 @@ later). Never both:
 - The terminal: the runner's `terminal/` (the PTY loader, the shell and its environment, the batched output, the
   sessions); the server's `routes/terminal.ts` (the owner's ticket, the browser's socket), `service/terminal.ts` with
   `service/terminal/{tickets,relay}.ts`, and `service/hub/terminals.ts` (the sessions of each runner connection).
+- Updating a runner: the runner's `update/` (`build.ts` the build and the update target, `self-update.ts` the download,
+  check and swap, `untar.ts` the PTY archive in memory, `updates.ts` the `runner.update` answer and the restart); the
+  server's `routes/update.ts`, `service/update.ts`, `rules/runner.ts` (the runner's facts, the commands by hand),
+  `service/download.ts`'s `servedBuild`, and the SSH reinstall in `platform/power/reinstall.ts` with the connector's
+  `updateCommand` (`connectors/machine-airia-devbox/src/ssh.ts` builds both gcloud ssh commands); the web's
+  `features/machines/runner/`.
 - The server's side of the power and the tunnels: `service/power/control.ts` (who drives the devboxes:
   `control/server.ts` this server, `control/runners.ts` the runner controllers), `service/power/tunnels.ts` (the wanted
   sets), `service/hub/tunnels.ts` (the set last sent per connection and the reported states, the server's own too, in
@@ -139,7 +149,8 @@ later). Never both:
   v1's power and load-stats services as design, rewritten with tests.
 - API under `/api/companies/:companyId/`: `machines` (list/get/rename/remove), `machines/enrollment-tokens`,
   `machines/:id/power` (GET/PUT policy, POST start|stop|timezone — admins and owners; viewers read only),
-  `machines/:id/events`, `machines/stats` (the board); `POST /api/runner/enroll`, `GET /api/runner/ws`.
+  `machines/:id/events`, `machines/stats` (the board), `machines/:id/runner-update` (admins and owners); `POST
+  /api/runner/enroll`, `GET /api/runner/ws`.
 - Web: `/:slug/machines` (`pages/company/MachinesPage.tsx`, `features/machines/`): a card per machine — status,
   agents on it, the stats row, Start/Stop with the hourly cost (devbox), the Power form (keep-on hours, days, from/to,
   time zone, start when hours begin, stop when they end, hold minutes, keep This Mac awake, start on message / on work
@@ -280,7 +291,8 @@ is not `--server`, the address the runner keeps; without it everything uses `--s
      `systemctl --user daemon-reload` and `enable --now`; its log is `journalctl --user -u mwc-runner.service`.
 
 Run again without `--token`, `install` keeps the enrollment and reinstalls the service on the new bundle (a restart).
-That is also how a runner is updated: the machine's install command without `--token`
+That is how a runner is updated by hand (since 2026-11-09 the card's **Update runner** does it: "Updating a runner"
+below): the machine's install command without `--token`
 (`curl -fsSL <url>/api/runner/install.sh | sh -s -- --server <url>`, the devbox's through `airia devbox ssh` as above,
 with `--via http://127.0.0.1:9954` and no `--token`)
 downloads the new bundle and PTY and reinstalls them on the enrollment it has; `--server` alone must name the server the
@@ -338,8 +350,9 @@ wakes a box (a stopped box or a sleeping Mac has no connected runner, so it is o
   and `install` copies it beside the installed bundle. The daemon loads it when it starts (`createRequire` from its own
   file: `node_modules/` beside `runner.mjs`, or the package's own from the sources); when it cannot, it logs `no terminal
   on this machine` with the reason, announces `caps.terminal: false` and answers every `terminal.open` with
-  `terminal_unavailable`. A runner installed before this gets its terminal by being updated (its install command
-  without `--token`, "Installing a runner" above; a container by rebuilding its image).
+  `terminal_unavailable`. A runner installed before this gets its terminal by being updated (the card's **Update
+  runner**, "Updating a runner" below; a container by rebuilding its image); until then the card's Terminal button is
+  disabled with "Update the runner to use the terminal".
 
 **The browser's socket** (the contract the web's xterm.js panel builds on):
 
@@ -364,6 +377,64 @@ wakes a box (a stopped box or a sleeping Mac has no connected runner, so it is o
    ticket, then the close (1000, "No terminal").
 5. Closing the socket ends the terminal. Types and schemas: `TerminalToServer`, `TerminalToBrowser`, `TERMINAL_WS_PATH`
    and the limits in `@mwc/shared/runner-protocol`.
+
+## Updating a runner
+
+Built 2026-11-09 (Ihor: one click, never an install command again to update a runner). Every bundle says version
+0.1.0, so the version cannot tell an old runner from a new one; the build can:
+
+- **Which build a runner runs.** At start the runner hashes the `runner.mjs` it was started from, once (SHA-256, the
+  same hash `install.sh` checks), and says it in `runner.hello` as `build` (null from its sources), with
+  `caps.selfUpdate`: true only for the installed copy (`~/.local/share/mwc-runner/runner.mjs`) run by launchd or systemd,
+  whose service files say which in `MWC_RUNNER_SERVICE` (the systemd unit says it since this change; launchd's plist
+  did already); false in a container and from the sources. The server knows the build it hands out (the bundle's SHA-256,
+  hashed again only when the file's time or size changes) and `GET machines` answers each machine's
+  `runner: {build, current, terminal, selfUpdate}` from what its connected runner said (memory, no migration):
+  `current` is true or false when both builds are known, null otherwise (an offline machine, a runner older than
+  `build`, an unbuilt bundle). The home board's stats rows do not carry it.
+- **On the card.** For admins and owners, while the machine is online and its runner is out of date (`current` false)
+  or has no terminal, the header line shows a small **Runner out of date** badge and the action row an **Update runner**
+  button: a spinner while the server works, then what it did; the card loads again 15 s later, when the runner is back
+  on its new build. A refusal shows its message, and for `update_unsupported` the command in a box with Copy.
+- **The API.** `POST /api/companies/{companyId}/machines/{machineId}/runner-update` (admins and owners; another
+  company's machine is the module's 404) picks the first path that applies and answers 202 `{path, build}`:
+  1. **`self_update`**: a connected runner with `caps.selfUpdate` is sent `runner.update` and its answer awaited
+     (3 minutes at most). The runner refuses with `busy` while runs are live (S5; it never ends one for an update),
+     otherwise downloads `GET /api/runner/runner.mjs` and its system's `GET /api/runner/pty/<target>.tgz` from the server
+     it is linked to (the devbox through its standing tunnel), checks each against its `x-mwc-runner-sha256` header,
+     and only then puts them in place beside the installed copy: the bundle to a temporary file, the PTY unpacked in
+     memory into a staging folder, the old `node_modules/` moved aside, the new one moved in, the temporary bundle
+     renamed over `runner.mjs`; any failure puts the old copy back. A server without a PTY for its system leaves the
+     one there. Its open terminals end with a notice line (`runner_updating`), it answers `runner.update.result` with
+     the new build, and 250 ms later stops and exits **75** (EX_TEMPFAIL): systemd's `Restart=always` restarts any exit
+     but 76–78 (after its 10 s), and launchd's `KeepAlive {SuccessfulExit: false}` restarts any exit but 0 (after its
+     ThrottleInterval, 10 s). It then reconnects as usual and says its new build.
+  2. **`ssh_reinstall`**: an Airia devbox whose runner cannot update itself (no `selfUpdate`, like a box installed
+     before this, or one that answers `unsupported`), when this server drives the airia CLI itself (MWC_LOCAL_POWER),
+     and only while the box runs (its connected runner says so; otherwise one `gcloud … describe`; a stopped box is never
+     started: 409 `machine_offline`). The server runs, as Ihor approved, `gcloud compute ssh <instance> --project
+     <project> --zone <zone> --tunnel-through-iap --quiet -- -o ExitOnForwardFailure=yes -R
+     127.0.0.1:9954:127.0.0.1:<apiPort> 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server
+     http://127.0.0.1:<apiPort> --via http://127.0.0.1:9954'` (the connector's `updateCommand`, gcloud by its full path,
+     its own process group, 3 minutes at most, its last stderr line as the error): the install keeps the enrollment,
+     writes the systemd unit again and restarts the runner on the new bundle, which then updates itself next time.
+  3. Otherwise 409 `update_unsupported` with `command`, the one to run by hand (no token in it): a container's
+     `docker compose -f deploy/compose.yml --profile runner up -d --build runner-local` in the repository folder; This
+     Mac's (or any other machine's) `curl -fsSL <apiUrl>/api/runner/install.sh | sh -s -- --server <apiUrl>` there;
+     the devbox's `airia devbox ssh` install without a token from This Mac when the server has no airia CLI of its own.
+  Refusals: 409 `machine_offline` (no connected runner and no reinstall possible), 409 `runner_busy`, 502
+  `update_failed` (the runner's or the reinstall's words; the runner goes on as it was). Each update carried out is an
+  `audit_log` row: entity `machine`, action `runner_update`, fields `runnerUpdate` (the path) and `runnerBuild` (the new
+  build, when said), the person as the actor.
+- **Trust.** It trusts the server over the runner's authenticated link and checks SHA-256 only; the signed self-update
+  (Ed25519, release channels) stays in S8. Nothing updates without the click, and containers are rebuilt, never updated
+  in place.
+
+**A runner installed before this** says no build and no `selfUpdate`: `current` is null, so its card shows **Runner
+out of date** and **Update runner** only while it has no terminal (the box's runner, installed before the terminal).
+With the server driving the airia CLI, the box's button reinstalls it over SSH (`ssh_reinstall`); from then on it says
+its build and updates itself over its link. The server hands out the bundle in `apps/runner/dist/` as it was last built
+(`pnpm --filter @mwc/runner build`), so build it after pulling a runner change, or the update installs the old one.
 
 ## Placements
 

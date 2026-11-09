@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { apiKeys, machineSamples, machines, runnerSessions, tenant } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
@@ -19,9 +23,14 @@ import {
 import { type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
 import { addMember, as, membersCompany } from '../../../fixtures/members/members.ts';
 
+/** The bundle this server hands out in these tests, and its build. */
+const BUNDLE = join(mkdtempSync(join(tmpdir(), 'mwc-served-')), 'runner.mjs');
+writeFileSync(BUNDLE, '// the served runner\n');
+const SERVED = createHash('sha256').update('// the served runner\n').digest('hex');
+
 let w: MachinesWorld;
 beforeAll(async () => {
-  w = await machinesWorld();
+  w = await machinesWorld({}, { runnerBundle: BUNDLE });
 });
 afterEach(async () => {
   await w.disconnectAll();
@@ -31,6 +40,30 @@ afterAll(() => w.close());
 
 const MINUTE = 60_000;
 const listed = (body: unknown) => (body as { machines: MachineView[] }).machines;
+
+describe("GET machines: each machine's runner", () => {
+  it('says the build each runner runs, whether it is the one this server hands out, and what it can do', async () => {
+    const company = await membersCompany(w);
+    await enroll(w, company, { name: 'Offline' });
+    const current = await enroll(w, company, { name: 'Current' });
+    const old = await enroll(w, company, { name: 'Old' });
+    const older = await enroll(w, company, { name: 'Older' });
+    await w.connect(current.runnerKey, { build: SERVED, caps: { terminal: true, selfUpdate: true } });
+    await w.connect(old.runnerKey, { build: 'ab'.repeat(32) });
+    await w.connect(older.runnerKey);
+    const res = await as(w, company.owner)('GET', machinesPath(company));
+    const runners = Object.fromEntries(listed(res.body).map((one) => [one.name, one.runner]));
+    const none = { build: null, current: null, terminal: false, selfUpdate: false };
+    expect(runners).toEqual({
+      Offline: none,
+      Current: { build: SERVED, current: true, terminal: true, selfUpdate: true },
+      Old: { build: 'ab'.repeat(32), current: false, terminal: false, selfUpdate: false },
+      Older: none,
+    });
+    const one = await as(w, company.owner)('GET', machinesPath(company, `/${old.machineId}`));
+    expect((one.body as MachineView).runner.current).toBe(false);
+  });
+});
 
 describe('GET /api/companies/:companyId/machines and /:machineId', () => {
   it('lists the machines by name and shows one, to viewers too', async () => {

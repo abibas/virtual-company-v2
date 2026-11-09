@@ -5,15 +5,18 @@ import { type LocalDevboxDeps, localDevbox, POWER_TOOL_DIRS } from '@mwc/machine
 import type { MachinePowerDriver } from '@mwc/machines-core';
 import { type TunnelDeps, type TunnelKill, type TunnelSpawn, Tunnels } from '@mwc/machines-core/tunnels';
 import { type Config, ConfigError } from '@mwc/shared/config';
+import type { AiriaDevboxRef } from '@mwc/shared/machines';
 import type { TunnelSpec, TunnelState } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
+import { type RunOutcome, runToEnd } from './reinstall.ts';
 
 /**
  * The server's own power driver (MWC_LOCAL_POWER, docs/machines.md "The choice"): when the API runs on a computer with
  * the airia CLI and gcloud (Ihor's Mac in development, as him, with his gcloud sign-in), it starts and stops the Airia
  * devboxes with them and holds their reverse tunnels itself, so no runner on that computer is needed. The tools are
  * found the way a runner finds them (no process started to look); the connector is wired here, and the machines module
- * only sees `LocalPower`. Nothing runs until the machines module asks: a command, or a tunnel to hold.
+ * only sees `LocalPower`. Nothing runs until the machines module asks: a command, a tunnel to hold, or the reinstall of
+ * a box's runner too old to update itself.
  */
 
 /** How the API names this server as the devboxes' controller. */
@@ -25,12 +28,23 @@ export interface TunnelHolder {
   close(): Promise<void>;
 }
 
+/** The ports of a runner's reinstall: this server's own, and the install's forward on the box (9954). */
+export interface ReinstallPorts {
+  readonly apiPort: number;
+  readonly installPort: number;
+}
+
 /** This server's power driver, through which the machines module drives every devbox, and its tunnels. */
 export interface LocalPower {
   readonly name: string;
   readonly driver: MachinePowerDriver;
   /** Starts holding tunnels (called once): each change of a tunnel's state goes to `report`. */
   tunnels(report: (state: TunnelState) => void): TunnelHolder;
+  /**
+   * Runs the box's install again over SSH, without a token (the driver's `updateCommand`), to its end or for 3 minutes
+   * at most; never starts a stopped box.
+   */
+  reinstallRunner(ref: AiriaDevboxRef, ports: ReinstallPorts): Promise<RunOutcome>;
 }
 
 /** Where the tools are looked for and how their tunnels start: this computer's, or fakes. */
@@ -127,5 +141,12 @@ export function localPowerFromConfig(
         log: logOf(logger),
         report,
       }),
+    reinstallRunner: (ref, ports) => {
+      const timers = host.timers ?? NODE_TIMERS;
+      return runToEnd(
+        { spawn: host.spawn, killGroup: host.killGroup, timers },
+        driver.updateCommand(ref, ports),
+      );
+    },
   };
 }

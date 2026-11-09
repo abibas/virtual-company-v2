@@ -1,7 +1,8 @@
 import { dirname } from 'node:path';
 import { EXIT } from '../start.ts';
 import { CommandError, type ExecResult, failure, type Host, homeOf, unixUser } from './host.ts';
-import { type ServiceSpec, SYSTEMD_UNIT, serviceSpec, systemdUnitPath } from './paths.ts';
+import { SERVICE_MANAGER_ENV } from './launchd.ts';
+import { type EnvEntry, type ServiceSpec, SYSTEMD_UNIT, serviceSpec, systemdUnitPath } from './paths.ts';
 import type { ServiceManager } from './service.ts';
 
 /**
@@ -10,6 +11,9 @@ import type { ServiceManager } from './service.ts';
  * refused, 78 configuration), with lingering so it runs while nobody is logged in (the devbox is reached by SSH only).
  * Its log is the user journal.
  */
+
+/** The environment systemd gives the runner besides its PATH: which service manager runs it (its self-update). */
+export const SYSTEMD_ENV: readonly EnvEntry[] = [[SERVICE_MANAGER_ENV, 'systemd']];
 
 /** Restarted after any stop but these exit codes (`start.ts`'s `EXIT`), which need a person. */
 export const PERMANENT_EXIT_CODES: readonly number[] = [EXIT.tooOld, EXIT.unauthorized, EXIT.config];
@@ -96,7 +100,7 @@ export function systemdManager(host: Host): ServiceManager {
     async install() {
       const replaced = host.fs.exists(file);
       host.fs.mkdir(dirname(file), 0o755);
-      host.fs.writeFile(file, renderUnit(serviceSpec(host)), 0o644);
+      host.fs.writeFile(file, renderUnit(serviceSpec(host, SYSTEMD_ENV)), 0o644);
       const warnings = await linger();
       await must(commands.reload);
       await must(commands.enable);

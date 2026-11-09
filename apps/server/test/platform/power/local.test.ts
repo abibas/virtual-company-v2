@@ -145,6 +145,38 @@ describe('localPowerFromConfig', () => {
   });
 });
 
+describe("the reinstall of a box's runner", () => {
+  it("runs the driver's update command with gcloud by its full path, detached, to its end", async () => {
+    const computer = host(AIRIA, GCLOUD);
+    const local = localPowerFromConfig(config(), captureLogger().logger, computer.fake);
+    const ref = { instance: 'dev-ihorherasko', zone: 'europe-west1-b' };
+    const done = local?.reinstallRunner(ref, { apiPort: 9950, installPort: 9954 });
+    expect(computer.spawned[0]).toMatchObject({
+      file: GCLOUD,
+      args: [
+        'compute',
+        'ssh',
+        'dev-ihorherasko',
+        '--project',
+        'airia-devbox',
+        '--zone',
+        'europe-west1-b',
+        '--tunnel-through-iap',
+        '--quiet',
+        '--',
+        '-o',
+        'ExitOnForwardFailure=yes',
+        '-R',
+        '127.0.0.1:9954:127.0.0.1:9950',
+        'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --via http://127.0.0.1:9954',
+      ],
+      options: { stdio: ['ignore', 'ignore', 'pipe'], detached: true },
+    });
+    computer.children[0]?.emit('close', 0, null);
+    expect(await done).toEqual({ ok: true });
+  });
+});
+
 describe("this computer's host", () => {
   it('signals a whole process group, and is quiet once it is gone', () => {
     const sent: [number, string][] = [];

@@ -11,22 +11,19 @@ import { caffeinateDriver } from './hold/caffeinate.ts';
 import { devboxDriver } from './hold/devbox.ts';
 import { detectHoldDriver, type HoldDriver, type HoldDriverKind, noneDriver } from './hold/driver.ts';
 import type { LinkEnd } from './link/link.ts';
-import type { WebSocketCtor } from './link/socket.ts';
 import { createLog, type Log } from './log.ts';
-import type { PowerExecutor } from './power.ts';
 import { createRunner, type Runner, type RunnerOptions } from './runner.ts';
 import { machineSampler } from './stats/machine.ts';
-import type { MemoryDeps } from './stats/memory.ts';
-import type { DiskStats, SamplerOs } from './stats/sampler.ts';
-import type { KillGroup, Spawn } from './system/process.ts';
-import type { Clock, Timers } from './system/time.ts';
-import type { PtyLoad } from './terminal/loader.ts';
+import type { MainDeps } from './system/deps.ts';
+
+export type { MainDeps } from './system/deps.ts';
 
 /**
  * `mwc-runner run` (`@mwc/runner/start`): reads the configuration, makes the state folder, picks the hold driver,
  * starts the runner and the health endpoint, and stops gracefully on SIGTERM or SIGINT (the socket closed, the hold
  * released). A refused key and a runner too old stop the process with their own exit codes, so the service manager
- * shows why; a replaced connection keeps it idle. `main.ts` calls it with the real process (`system/node.ts`).
+ * shows why; a replaced connection keeps it idle; an update in place stops it with the code its service manager restarts
+ * it after. `main.ts` calls it with the real process (`system/node.ts`, the shape in `system/deps.ts`).
  */
 
 /** The exit codes (sysexits where one fits). */
@@ -39,42 +36,12 @@ export const EXIT = {
   unauthorized: 77,
   /** The configuration file or an environment variable is wrong (EX_CONFIG). */
   config: 78,
+  /**
+   * The runner updated itself and stops to start again on the new build (EX_TEMPFAIL): systemd's `Restart=always`
+   * restarts any exit but 76–78, and launchd's `KeepAlive {SuccessfulExit: false}` restarts any exit but 0.
+   */
+  restart: 75,
 } as const;
-
-export interface MainDeps {
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly platform: NodeJS.Platform;
-  /** The runner's process id (`caffeinate -w`). */
-  readonly pid: number;
-  readonly os: SamplerOs & MemoryDeps['os'] & { homedir(): string };
-  readonly fs: {
-    exists(path: string): boolean;
-    readFile(path: string): Promise<string>;
-    statfs(path: string): Promise<DiskStats>;
-    /** Makes a folder and its parents, new ones 0700. */
-    mkdir(path: string): void;
-  };
-  readonly spawn: Spawn;
-  /** Signals a detached child's process group (a power controller's tunnels). */
-  readonly killGroup: KillGroup;
-  readonly WebSocket: WebSocketCtor;
-  readonly clock: Clock;
-  readonly timers: Timers;
-  readonly random: () => number;
-  /** One log line to standard output. */
-  write(line: string): void;
-  onSignal(signal: 'SIGTERM' | 'SIGINT', handler: () => void): void;
-  exit(code: number): void;
-  /** Keeps the process alive with nothing else to do (a replaced link); returns the release. */
-  keepAlive(): () => void;
-  readonly version: string;
-  /** Claude Code's version (`cli.ts` asks `claude --version` once), sent in the hello; left out when unknown. */
-  readonly claudeVersion?: string | null;
-  /** The power controller (S4.4b); none by default. */
-  readonly power?: PowerExecutor;
-  /** Loads the terminal's PTY (`terminal/loader.ts`), once, when the daemon starts. */
-  loadPty(): PtyLoad;
-}
 
 interface Setup {
   readonly config: RunnerConfig;
@@ -134,6 +101,8 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     config: setup.config,
     version: deps.version,
     ...(deps.claudeVersion === undefined ? {} : { claudeVersion: deps.claudeVersion }),
+    ...(deps.build === undefined ? {} : { build: deps.build }),
+    ...(deps.update ? { update: deps.update } : {}),
     log,
     hold: holdDriverFor(setup.hold, deps, log),
     sampler: machineSampler(deps, home, log),
@@ -184,8 +153,9 @@ async function startHealth(runner: Runner, port: number, log: Log): Promise<Heal
 }
 
 /**
- * Waits for SIGTERM or SIGINT (exit 0) or a link that ends for good (its exit code), then stops the runner and the
- * health endpoint once, however many of those come. A replaced link keeps the process alive until a signal.
+ * Waits for SIGTERM or SIGINT (exit 0), a link that ends for good (its exit code) or an update in place (`EXIT.restart`),
+ * then stops the runner and the health endpoint once, however many of those come. A replaced link keeps the process
+ * alive until a signal.
  */
 function untilStopped(
   runner: Runner,
@@ -218,6 +188,11 @@ function untilStopped(
       if (exitCode !== undefined) resolve(shutdown(exitCode));
       else if (end.reason === 'replaced') release = deps.keepAlive();
     });
+    void runner.restart.then(() => {
+      if (stopping) return;
+      log.info('restarting on the updated runner', { code: EXIT.restart });
+      resolve(shutdown(EXIT.restart));
+    });
   });
 }
 
@@ -244,7 +219,12 @@ export async function main(argv: readonly string[], deps: MainDeps): Promise<num
   }
   const { config, configPath, stateDir, hold } = setup;
   const { machineId, name, serverUrl: server } = config;
-  log.info('starting', { version: deps.version, machineId, name, server, hold, configPath, stateDir });
+  const self = {
+    version: deps.version,
+    build: deps.build ?? null,
+    selfUpdate: deps.update?.manager ?? false,
+  };
+  log.info('starting', { ...self, machineId, name, server, hold, configPath, stateDir });
   const runner = makeRunner(deps, setup, log);
   runner.start();
   const health = await startHealth(runner, setup.port, log);

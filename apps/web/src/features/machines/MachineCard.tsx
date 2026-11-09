@@ -1,21 +1,17 @@
-import { MACHINE_NAME } from '@mwc/shared/machines';
 import type { ReactNode } from 'react';
 import { type MachineCalls, type PowerControl, usePowerControl } from '../../api/machines.ts';
-import type { Machine, MachinePower, MachineStats, PowerEvent } from '../../api/types.ts';
+import type { Machine, MachineStats, PowerEvent } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { formatDateTime } from '../../components/data/format.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
-import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
-import { Badge } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { DevboxPower } from './DevboxPower.tsx';
 import { MachineActions } from './MachineActions.tsx';
-import { EditableMachineLogo, MachineLogo } from './MachineLogo.tsx';
+import { MachineHeader } from './MachineHeader.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
-import { MachineIdentity } from './MachineStatsRow.tsx';
 import { agoText } from './machine-text.ts';
 import { PowerSettings } from './PowerSettings.tsx';
-import { actorText, holdText, tunnelText } from './power-text.ts';
+import { actorText } from './power-text.ts';
 
 /** A part of the card under its small heading. */
 function Part({ title, children }: { readonly title: string; readonly children: ReactNode }) {
@@ -57,101 +53,6 @@ function PowerLog({
   );
 }
 
-/** Versions, where it runs and its hold, in one quiet line. */
-function FactsLine({
-  machine,
-  power,
-  now,
-}: {
-  readonly machine: Machine;
-  readonly power: MachinePower | undefined;
-  readonly now: number;
-}) {
-  const claude = machine.versions.claude
-    ? ` · Claude Code ${machine.versions.claude.replace(/ \(Claude Code\)$/, '')}`
-    : '';
-  const hold = holdText(machine, power, now);
-  return (
-    <p className="text-xs text-dim">
-      Runner {machine.versions.runner}
-      {claude} · {machine.os} {machine.arch} · {machine.unixUser}@{machine.hostname}
-      {hold && <span className="font-medium text-ink-2"> · {hold}</span>}
-    </p>
-  );
-}
-
-/** A devbox's link to the server through its controller's SSH tunnel, in one short line; nothing without a report. */
-function TunnelLine({
-  machine,
-  power,
-}: {
-  readonly machine: Machine;
-  readonly power: MachinePower | undefined;
-}) {
-  const tunnel = tunnelText(machine, power);
-  if (tunnel === undefined) return null;
-  return (
-    <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
-      <Badge tone={tunnel.tone} size="sm" dot>
-        {tunnel.label}
-      </Badge>
-      {tunnel.detail && <span className="min-w-0 break-words">{tunnel.detail}</span>}
-    </p>
-  );
-}
-
-/** Who and how it is: its logo and name (changed in place by admins), status, facts and tunnel. */
-function Header({
-  machine,
-  stats,
-  power,
-  now,
-  admin,
-  companyId,
-  onRename,
-  onChanged,
-}: {
-  readonly machine: Machine;
-  readonly stats: MachineStats | undefined;
-  readonly power: MachinePower | undefined;
-  readonly now: number;
-  readonly admin: boolean;
-  readonly companyId: string;
-  readonly onRename: (name: string) => Promise<void>;
-  readonly onChanged: () => void;
-}) {
-  // The stats refresh every minute, so their status is the fresher one; the name and logo are the machine's.
-  const facts = stats ? { ...stats, name: machine.name } : { ...machine, upSince: null };
-  const mark = {
-    companyId,
-    machineId: machine.id,
-    name: machine.name,
-    kind: machine.kind,
-    online: facts.status === 'online',
-    logoVersion: machine.logo?.version,
-  };
-  return (
-    <div className="flex flex-col gap-2">
-      <MachineIdentity
-        stats={facts}
-        now={now}
-        mark={admin ? <EditableMachineLogo mark={mark} onChanged={onChanged} /> : <MachineLogo mark={mark} />}
-        name={
-          <InlineEdit
-            value={machine.name}
-            label={`Rename ${machine.name}`}
-            maxLength={MACHINE_NAME.max}
-            disabled={!admin}
-            onSave={onRename}
-          />
-        }
-      />
-      <FactsLine machine={machine} power={power} now={now} />
-      <TunnelLine machine={machine} power={power} />
-    </div>
-  );
-}
-
 /** The power parts: the devbox's controls and the power settings (the log is behind the actions' Log button). */
 function PowerParts({ machine, control }: { readonly machine: Machine; readonly control: PowerControl }) {
   const power = control.power.data;
@@ -182,8 +83,8 @@ function PowerParts({ machine, control }: { readonly machine: Machine; readonly 
 }
 
 /**
- * A machine on the Machines page: who and how it is, its numbers, its power, its log, and its actions (Connect,
- * Terminal for owners, Remove for admins).
+ * A machine on the Machines page: who and how it is (`MachineHeader`), its numbers, its power, its log, and its actions
+ * (Connect, Terminal for owners, Update runner and Remove for admins).
  */
 export function MachineCard({
   machine,
@@ -213,14 +114,16 @@ export function MachineCard({
     await calls.remove(machine.id);
     onChanged();
   };
+  const online = (stats?.status ?? machine.status) === 'online';
   return (
     <Card as="article" aria-label={machine.name} className="flex flex-col gap-5">
-      <Header
+      <MachineHeader
         machine={machine}
         stats={stats}
         power={control.power.data}
         now={now}
         admin={admin}
+        online={online}
         companyId={companyId}
         onRename={rename}
         onChanged={onChanged}
@@ -232,9 +135,11 @@ export function MachineCard({
         companyId={companyId}
         admin={admin}
         owner={owner}
-        online={(stats?.status ?? machine.status) === 'online'}
+        online={online}
+        calls={calls}
         log={<PowerLog events={control.events} now={now} />}
         onRemove={remove}
+        onChanged={onChanged}
       />
     </Card>
   );

@@ -1,5 +1,11 @@
 import { newId } from '@mwc/shared/ids';
-import type { PowerCommand, ServerFrame, TerminalServerFrame, TunnelSpec } from '@mwc/shared/runner-protocol';
+import type {
+  PowerCommand,
+  RunnerUpdate,
+  ServerFrame,
+  TerminalServerFrame,
+  TunnelSpec,
+} from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { Commands, NO_RUNS, REMEMBERED_COMMANDS } from '../../src/link/commands.ts';
 import { NO_POWER, type PowerExecutor } from '../../src/power.ts';
@@ -11,6 +17,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
   const keys: string[] = [];
   const tunnelSets: (readonly TunnelSpec[])[] = [];
   const terminals: TerminalServerFrame[] = [];
+  const updates: RunnerUpdate[] = [];
   let drained = 0;
   const logs = memoryLog();
   const handler = new Commands({
@@ -24,9 +31,13 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
     },
     setTunnels: (tunnels) => void tunnelSets.push(tunnels),
     terminal: (frame) => void terminals.push(frame),
+    update: async (frame) => {
+      updates.push(frame);
+      return { type: 'runner.update.result', cmdId: frame.cmdId, ok: true, build: 'cd'.repeat(32) };
+    },
     log: logs.log,
   });
-  return { handler, holds, keys, tunnelSets, terminals, logs, drained: () => drained };
+  return { handler, holds, keys, tunnelSets, terminals, updates, logs, drained: () => drained };
 }
 
 const powerCommand = (): PowerCommand => ({
@@ -149,6 +160,9 @@ describe('the commands', () => {
       drain: () => {},
       setTunnels: () => {},
       terminal: () => {},
+      update: async () => {
+        throw new Error('no update in this test');
+      },
       log: memoryLog().log,
     });
     const frame: ServerFrame = { type: 'machine.hold', cmdId: newId(), until: 5 };
@@ -158,6 +172,15 @@ describe('the commands', () => {
     expect(await first).toEqual([{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }]);
     expect(await handler.handle(frame)).toEqual([{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }]);
     expect(holds).toEqual([5]);
+  });
+
+  it("answers runner.update with the self-update's result, once per cmdId", async () => {
+    const { handler, updates } = commands();
+    const frame: RunnerUpdate = { type: 'runner.update', cmdId: newId() };
+    const answer = { type: 'runner.update.result', cmdId: frame.cmdId, ok: true, build: 'cd'.repeat(32) };
+    expect(await handler.handle(frame)).toEqual([answer]);
+    expect(await handler.handle(frame)).toEqual([answer]);
+    expect(updates).toEqual([frame]);
   });
 
   it(`remembers the last ${REMEMBERED_COMMANDS} answers`, async () => {
@@ -180,6 +203,10 @@ describe('frames the runner cannot read', () => {
     ).toEqual([{ type: 'cmd.ack', cmdId, ok: false, error: 'unknown command run.future' }]);
     expect(handler.refuse(JSON.stringify({ type: 'power.command', cmdId }), 'x'.repeat(3000))).toEqual([
       { type: 'power.result', cmdId, ok: false, error: 'x'.repeat(2000) },
+    ]);
+    expect(handler.refuse(JSON.stringify({ type: 'runner.update', cmdId: 7 }), 'invalid')).toEqual([]);
+    expect(handler.refuse(JSON.stringify({ type: 'runner.update', cmdId, extra: 1 }), 'invalid')).toEqual([
+      { type: 'runner.update.result', cmdId, ok: false, error: 'invalid' },
     ]);
   });
 

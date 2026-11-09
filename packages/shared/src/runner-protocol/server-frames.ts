@@ -6,11 +6,12 @@ import { frame, protocolObject, RunnerVersion, Uuid } from './common.ts';
 import { RunSpec } from './run-spec.ts';
 import { ATTENTION_OPTIONS_MAX } from './runner-frames.ts';
 import { TERMINAL_SERVER_FRAMES } from './terminal.ts';
+import { RunnerUpdate } from './update.ts';
 
 /**
  * The frames the server sends to a runner (docs/runner-protocol.md, "Server to runner"). Every one with a `cmdId` is
- * a command: the runner answers it once with `cmd.ack` (`power.command` with `power.result`), and acks a repeat of a
- * `cmdId` it already ran without running it again.
+ * a command: the runner answers it once with `cmd.ack` (`power.command` with `power.result`, `runner.update` with
+ * `runner.update.result`), and acks a repeat of a `cmdId` it already ran without running it again.
  */
 
 /** The answer to `runner.hello`: the server's protocol, the lowest runner version it takes, the runner's machine. */
@@ -182,6 +183,7 @@ export const SERVER_FRAMES = [
   PowerCommand,
   TunnelSet,
   ...TERMINAL_SERVER_FRAMES,
+  RunnerUpdate,
 ] as const;
 
 /** Any frame the server sends, told apart by `type`. */

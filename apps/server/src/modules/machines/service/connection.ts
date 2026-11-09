@@ -1,9 +1,7 @@
 import { type DbHandle, type TenantDb, tenant } from '@mwc/db';
 import {
-  type CmdAck,
   encodeFrame,
   isTerminalFrame,
-  type PowerResult,
   parseRunnerFrame,
   RUNNER_CLOSE,
   RUNNER_PROTOCOL_VERSION,
@@ -17,22 +15,10 @@ import type { Logger } from 'pino';
 import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
 import type { SocketLink } from '../../../platform/realtime/sockets.ts';
 import { isTooOld } from '../rules.ts';
+import { type CommandReply, HubError, isReply } from './hub/replies.ts';
 import { heartbeat, hold, type OpenSession, offline, online, tooOld } from './presence.ts';
 
-/** Why a request to a runner failed: no ready connection, no answer in time, or the socket closed first. */
-export type HubErrorCode = 'offline' | 'timeout' | 'disconnected';
-
-export class HubError extends Error {
-  readonly code: HubErrorCode;
-  readonly machineId: string;
-
-  constructor(code: HubErrorCode, machineId: string, message: string) {
-    super(message);
-    this.name = 'HubError';
-    this.code = code;
-    this.machineId = machineId;
-  }
-}
+export { HubError, type HubErrorCode } from './hub/replies.ts';
 
 /** What a connection needs from its hub. */
 export interface ConnectionContext {
@@ -56,7 +42,7 @@ export interface ConnectionContext {
 }
 
 interface Pending {
-  readonly resolve: (reply: CmdAck | PowerResult) => void;
+  readonly resolve: (reply: CommandReply) => void;
   readonly reject: (error: HubError) => void;
   readonly timer: ReturnType<typeof setTimeout>;
 }
@@ -117,8 +103,11 @@ export class RunnerConnection {
     }
   }
 
-  /** Sends a command and resolves with its reply (`cmd.ack`, or `power.result`), or rejects after `timeoutMs`. */
-  request(frame: Extract<ServerFrame, { cmdId: string }>, timeoutMs: number): Promise<CmdAck | PowerResult> {
+  /**
+   * Sends a command and resolves with its reply (`cmd.ack`, `power.result`, `runner.update.result`), or rejects after
+   * `timeoutMs`.
+   */
+  request(frame: Extract<ServerFrame, { cmdId: string }>, timeoutMs: number): Promise<CommandReply> {
     return new Promise((resolve, reject) => {
       const text = encodeFrame(frame);
       const timer = setTimeout(() => {
@@ -153,7 +142,7 @@ export class RunnerConnection {
 
   #dispatch(frame: RunnerFrame): void {
     if (frame.type === 'runner.hello') this.#onHello(frame);
-    else if (frame.type === 'cmd.ack' || frame.type === 'power.result') this.#onReply(frame);
+    else if (isReply(frame)) this.#onReply(frame);
     else if (this.hello === undefined || this.replaced) {
       this.#log('debug', { type: frame.type }, 'runner: ignored a frame outside its accepted hello');
     } else if (frame.type === 'runner.heartbeat') {
@@ -212,7 +201,7 @@ export class RunnerConnection {
     );
   }
 
-  #onReply(reply: CmdAck | PowerResult): void {
+  #onReply(reply: CommandReply): void {
     const pending = this.#pending.get(reply.cmdId);
     if (pending === undefined) {
       this.#log('debug', { cmdId: reply.cmdId }, 'runner: a reply nobody waits for');

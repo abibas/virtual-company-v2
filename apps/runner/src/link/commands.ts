@@ -3,6 +3,8 @@ import {
   isTerminalFrame,
   type PowerResult,
   type RunnerFrame,
+  type RunnerUpdate,
+  type RunnerUpdateResult,
   type ServerFrame,
   type TerminalServerFrame,
   type TunnelSpec,
@@ -13,9 +15,10 @@ import { type PowerExecutor, runPowerCommand } from '../power.ts';
 
 /**
  * The server's commands (docs/runner-protocol.md, "Semantics"): every frame with a `cmdId` is answered once, with
- * `cmd.ack` (`power.command` with `power.result`), and a repeat of a `cmdId` already run gets the same answer again
- * without running it again. S4.3 carries out `machine.hold`, `power.command` (through the injected executor),
- * `key.rotate` and `runner.drain`; the run commands are refused until S5, and offers are declined. `tunnel.set` is no
+ * `cmd.ack` (`power.command` with `power.result`, `runner.update` with `runner.update.result`), and a repeat of a
+ * `cmdId` already run gets the same answer again without running it again. S4.3 carries out `machine.hold`,
+ * `power.command` (through the injected executor), `key.rotate` and `runner.drain`, and the self-update its
+ * `runner.update`; the run commands are refused until S5, and offers are declined. `tunnel.set` is no
  * command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal frames, which go to
  * the terminals, whose answers are their own frames.
  */
@@ -38,10 +41,12 @@ export interface CommandDeps {
   setTunnels(tunnels: readonly TunnelSpec[]): void;
   /** `terminal.*`: for the machine's terminals. */
   terminal(frame: TerminalServerFrame): void;
+  /** `runner.update`: the self-update's answer (it never throws). */
+  update(frame: RunnerUpdate): Promise<RunnerUpdateResult>;
   readonly log: Log;
 }
 
-type Answer = CmdAck | PowerResult;
+type Answer = CmdAck | PowerResult | RunnerUpdateResult;
 
 const isUuid = (value: unknown): value is string => z.uuid().safeParse(value).success;
 
@@ -103,6 +108,7 @@ export class Commands {
     if (!isUuid(cmdId)) return [];
     const error = why.slice(0, 2000);
     if (type === 'power.command') return [{ type: 'power.result', cmdId, ok: false, error }];
+    if (type === 'runner.update') return [{ type: 'runner.update.result', cmdId, ok: false, error }];
     return [ack(cmdId, error)];
   }
 
@@ -114,6 +120,8 @@ export class Commands {
           return ack(frame.cmdId);
         case 'power.command':
           return await runPowerCommand(this.#deps.power, frame);
+        case 'runner.update':
+          return await this.#deps.update(frame);
         case 'key.rotate':
           await this.#deps.saveKey(frame.runnerKey);
           this.#deps.log.info('saved the rotated runner key');
@@ -125,7 +133,7 @@ export class Commands {
           return ack(frame.cmdId, NO_RUNS);
       }
     } catch (error) {
-      // `runPowerCommand` never throws, so this is never a power command.
+      // `runPowerCommand` and `update` never throw, so this is never a power command or an update.
       this.#deps.log.error('a command failed', { type: frame.type, error });
       return ack(frame.cmdId, messageOf(error));
     }
