@@ -79,7 +79,7 @@ describe('streamChat', () => {
     manual.tick();
     close.resolve();
     await done;
-    expect(got).toEqual([': heartbeat', ': heartbeat']);
+    expect(got).toEqual([': open', ': heartbeat', ': heartbeat']);
     expect(manual.cleared()).toBe(1);
     expect(bus.count(s.chat.id)).toBe(0);
   });
@@ -108,6 +108,6 @@ describe('streamChat', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     close.resolve();
     await done;
-    expect(got).toEqual(['turn', 'event 1.3', 'event 1.4', 'turn']);
+    expect(got).toEqual([': open', 'turn', 'event 1.3', 'event 1.4', 'turn']);
   });
 });

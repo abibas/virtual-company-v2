@@ -65,7 +65,8 @@ describe('GET chats/:chatId/stream', () => {
       'event 1.4 result',
       'turn done',
     ]);
-    expect(stream.messages[2]?.data).toEqual({
+    expect(stream.messages[0]?.comment).toBe('open');
+    expect(stream.messages.filter((message) => message.comment === undefined)[2]?.data).toEqual({
       turnId: start.turnId,
       turnSeq: 1,
       seq: 2,

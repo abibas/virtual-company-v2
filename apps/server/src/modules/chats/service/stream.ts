@@ -52,7 +52,8 @@ export async function streamChat(
 ): Promise<void> {
   const timers = deps.timers ?? SYSTEM_TIMERS;
   let last = after;
-  let chain = Promise.resolve();
+  // A first comment at once, so the response starts flowing (proxies and fetch see it open) before any heartbeat.
+  let chain = sink.comment('open');
   let buffered: ChatMessage[] | undefined = [];
   const write = (message: ChatMessage) => {
     if (message.kind === 'turn') {
