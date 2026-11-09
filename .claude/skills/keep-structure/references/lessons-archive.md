@@ -2,6 +2,56 @@
 
 Settled lessons, moved out of [lessons.md](lessons.md) so agents do not read them before every change. Their outcomes are in SKILL.md's placement table, the module template and `packages/cli/src/structure/rules.ts`. Read an entry here only to learn why a rule is the way it is. Newest first.
 
+### 2026-11-09: Update runner grows four big folders while splitting five near-limit files
+
+- **What happened:** the runner's self-update needed its own `apps/runner/src/update/` (4 files), and the near-limit
+  files it had to grow were split along their seams: `runner.ts` (249) into its contract and `runner/daemon.ts`,
+  `start.ts` (252) by moving `MainDeps` to `system/deps.ts`, the hub (262) into `hub/sockets.ts` and `hub/replies.ts`,
+  the connector's `driver.ts` into `ssh.ts`, `MachineCard.tsx` (241) into `MachineHeader.tsx`. Near-limit warnings went
+  from 9 to 4, but `apps/runner/src/` went from 16 to 18 entries, `features/machines/` from 18 to 20, the machines
+  `service/` from 15 to 16 and `apps/runner/test/` from 17 to 18 (the report went from 41 to 38).
+- **What was done:** the machines `service/`: its runner side (connection, presence, enroll, download,
+  install-script, update, `hub.ts` + `hub/`) moved under `service/runner/`, 16 to 9 entries (39186cb). The rest:
+  nothing yet.
+- **Suggested change:** at the S4 review, group the runner's top level (`runner.ts`, `runner/`, `start.ts`, `cli.ts`,
+  `power.ts`, `health.ts`) or give `apps/runner/src/` a limit of its own; split `features/machines/` into `card/`,
+  `power/` and `add/`.
+- **Status:** `adopted` (2026-11-09, S4 review commits 1, 2a and 3a: `features/machines/` from 23 entries to 6, `apps/runner/src/`
+  and `test/` from 18 to 12, the machines `service/` from 16 to 9).
+
+### 2026-11-09: The server's own airia CLI driver pushes `platform/` to 13 entries
+
+- **What happened:** MWC_LOCAL_POWER's driver runs local processes for the server, so it went to
+  `apps/server/src/platform/power/local.ts` as the table says (`<area>/`, spawn injected); `platform/` went from 12 to
+  13 entries (`big-folder`, the report from 39 to 40). The tunnels' supervisor both the runner and the server run moved
+  to `packages/machines-core/src/tunnels.ts` (`@mwc/machines-core/tunnels`, spawn, kill and timers injected).
+- **What was done:** `platform/login-helper/` and `platform/power/` moved under `platform/processes/`, 13 to 12
+  entries, with their tests (`Structure (S4 review 3b)`, the commit after 39186cb).
+- **Suggested change:** at the S4 review, group the folders that run local processes for the server (`login-helper/`,
+  `power/`) under one `platform/processes/`, or give `platform/` a limit of its own.
+- **Status:** `adopted` (2026-11-09, S4 review, `Structure (S4 review 3b)`).
+
+### 2026-11-06: The runner app has no rows in the placement table
+
+- **What happened:** S4.3 built `apps/runner` with `link/`, `hold/`, `stats/` and `system/` (the real Node deps in
+  `system/node.ts`, injected everywhere else); the placement table covers the server, the tests and the web only.
+- **Suggested change:** at the S4 review, a short "Runner" block in the table (link, hold drivers, sampler, power
+  executor, the real deps in `system/`), kept within SKILL.md's 150 lines.
+- **Status:** `adopted` (2026-11-09, "Structure (S4 review 2b)": a Runner block in SKILL.md's table, on the layout of
+  3ae3a6e).
+
+### 2026-11-06: S4.1's contracts push shared's `src/` and `test/` and testkit's `src/` past 12 entries
+
+- **What happened:** the brief fixed the public paths (`@mwc/shared/machines`, `@mwc/shared/runner-protocol` as
+  `runner-protocol.ts` + `runner-protocol/`, `@mwc/testkit/runner` as `runner.ts` + `runner/`). `packages/shared/src/`
+  went from 12 to 15 entries, `packages/shared/test/` from 11 to 15 (with its first `fixtures/`), `packages/testkit/src/`
+  from 12 to 14: three `big-folder` warnings, the report from 19 to 21.
+- **What was done:** nothing; S4.2–S4.4 cite these import paths.
+- **Suggested change:** give `packages/shared/src/` (one contract file per domain, growing by design) a limit of its own
+  in `folderEntriesFor`, or group it by domain behind the same subpath exports when S4.2 or S5 adds the next contract.
+- **Status:** `adopted` (S4 structure review, 2026-11-09: shared's `src/` and `test/` warn at 20, mirrored test folders
+  as their source, in the commit "Structure (S4 review 4)"; testkit's `src/` keeps 12).
+
 ### 2026-11-05: The subscriptions web: a 15th entry in components/, a 13th in forms/, and a page group held at 12
 
 - **What happened:** S3.5 added the Subscriptions page, the add sheet with its sign-in and paste flows, access profiles
