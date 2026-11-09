@@ -131,9 +131,11 @@ function ProfileBody({
   meUserId,
   onChanged,
   machinesHref,
+  chatsHref,
 }: Omit<AgentProfileProps, 'agent' | 'links'> & {
   readonly agent: AgentDetail;
   readonly machinesHref: string;
+  readonly chatsHref: string;
 }) {
   const form = useProfileForm(agent, companyId, onChanged);
   const manager = agent.reportsTo ? nodesById(chart.data?.nodes ?? []).get(agent.reportsTo) : undefined;
@@ -146,7 +148,14 @@ function ProfileBody({
   );
   return (
     <div className="grid gap-4 md:gap-5">
-      <AgentHeader agent={agent} manager={manager} admin={admin} calls={form.org} onChanged={onChanged} />
+      <AgentHeader
+        agent={agent}
+        manager={manager}
+        admin={admin}
+        chatsHref={chatsHref}
+        calls={form.org}
+        onChanged={onChanged}
+      />
       <form onSubmit={submit} className="grid gap-4 md:gap-5">
         <AgentForm
           draft={form.draft}
@@ -173,7 +182,15 @@ export function AgentProfile({ agent, links, ...rest }: AgentProfileProps) {
         Agents
       </ButtonLink>
       <LoadState loaded={agent} label="Loading the agent…">
-        {(data) => <ProfileBody key={formKey(data)} agent={data} machinesHref={links.machines} {...rest} />}
+        {(data) => (
+          <ProfileBody
+            key={formKey(data)}
+            agent={data}
+            machinesHref={links.machines}
+            chatsHref={links.chats(data)}
+            {...rest}
+          />
+        )}
       </LoadState>
     </>
   );

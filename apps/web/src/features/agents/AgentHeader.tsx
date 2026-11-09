@@ -12,6 +12,7 @@ import { AgentAvatar } from '../../components/org/OrgNodeCard.tsx';
 import { StatusPill } from '../../components/ui/Badge.tsx';
 import { Button, type ButtonTone } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
+import { ChatButton } from '../chats/ChatButton.tsx';
 import { placementLine } from '../placements/placement-draft.ts';
 
 interface StatusProps {
@@ -117,12 +118,20 @@ function AgentFacts({
   );
 }
 
-/** The top of an agent's page: its face, status, name and role, its facts, and (admins) its status actions. */
+/**
+ * The top of an agent's page: its face, status, name and role, its facts, its Chat button (to its chats, S5.1c) and
+ * (admins) its status actions.
+ */
 export function AgentHeader({
   manager,
   admin,
+  chatsHref,
   ...status
-}: StatusProps & { readonly manager: ChartNode | undefined; readonly admin: boolean }) {
+}: StatusProps & {
+  readonly manager: ChartNode | undefined;
+  readonly admin: boolean;
+  readonly chatsHref: string;
+}) {
   const { agent } = status;
   return (
     <Card as="section" aria-label={agent.name} padding="lg" className="ring-1 ring-teal/25">
@@ -136,7 +145,10 @@ export function AgentHeader({
           </h2>
           <p className="mt-0.5 text-md text-ink-2">{agent.roleTitle}</p>
         </div>
-        {admin && <StatusActions {...status} />}
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <ChatButton href={chatsHref} placed={agent.placement !== null} tone="soft" />
+          {admin && <StatusActions {...status} />}
+        </div>
       </div>
       <AgentFacts agent={agent} manager={manager} />
     </Card>

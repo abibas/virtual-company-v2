@@ -5,15 +5,23 @@ import {
   type TerminalToServer,
 } from '@mwc/shared/runner-protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useApi } from '../../../api/context.ts';
-import { machineCalls } from '../../../api/machines.ts';
 import { closedText, exitText, reasonText, ticketErrorText } from './terminal-text.ts';
 
 /**
- * A machine's terminal session (docs/machines.md, "Terminal"): an owner's one-time ticket, then the browser socket on
- * this page's own origin (`ws(s)://<host>/api/terminal/ws`; Vite's `/api` proxy forwards WebSockets in development, the
- * server serves the page in production), so the `Origin` is the web origin the server checks.
+ * A terminal session (docs/machines.md, "Terminal"): an owner's one-time ticket (a machine's shell, or a chat's harness
+ * TUI, S5.1c), then the browser socket on this page's own origin (`ws(s)://<host>/api/terminal/ws`; Vite's `/api` proxy
+ * forwards WebSockets in development, the server serves the page in production), so the `Origin` is the web origin the
+ * server checks.
  */
+
+/** A one-time ticket for the terminal socket, as `POST …/terminal-tickets` answers it. */
+export interface TerminalTicket {
+  readonly ticket: string;
+  readonly wsPath: string;
+}
+
+/** Asks for a new ticket: the machine's (`machineCalls().terminalTicket`) or a chat's (`chatCalls().terminalTicket`). */
+export type TicketSource = () => Promise<TerminalTicket>;
 
 export type TerminalStatus =
   | { readonly kind: 'idle' }
@@ -108,15 +116,19 @@ function listen(ws: WebSocket, to: Listener) {
   };
 }
 
-/** The ticket and the socket of one terminal at a time; `onOutput` gets the shell's bytes. */
+/**
+ * The ticket and the socket of one terminal at a time; `getTicket` asks for each new ticket, `onOutput` gets the shell's
+ * bytes, and `describeError` words a refused ticket (the machine terminal's words by default).
+ */
 export function useTerminalSession(
-  companyId: string,
-  machineId: string,
+  getTicket: TicketSource,
   onOutput: (bytes: Uint8Array) => void,
+  describeError: (error: unknown) => string = ticketErrorText,
 ): TerminalSession {
-  const api = useApi();
-  const calls = useRef(machineCalls(api, companyId));
-  calls.current = machineCalls(api, companyId);
+  const tickets = useRef(getTicket);
+  tickets.current = getTicket;
+  const describe = useRef(describeError);
+  describe.current = describeError;
   const output = useRef(onOutput);
   output.current = onOutput;
   const socket = useRef<WebSocket | null>(null);
@@ -138,7 +150,7 @@ export function useTerminalSession(
       setStatus({ kind: 'connecting' });
       void (async () => {
         try {
-          const { ticket, wsPath } = await calls.current.terminalTicket(machineId);
+          const { ticket, wsPath } = await tickets.current();
           if (!current()) return;
           const ws = new WebSocket(socketUrl(wsPath, ticket, clampSize(size)));
           socket.current = ws;
@@ -151,11 +163,11 @@ export function useTerminalSession(
             },
           });
         } catch (error) {
-          if (current()) setStatus({ kind: 'ended', reason: ticketErrorText(error), failed: true });
+          if (current()) setStatus({ kind: 'ended', reason: describe.current(error), failed: true });
         }
       })();
     },
-    [close, machineId],
+    [close],
   );
 
   const sendMessage = useCallback((message: TerminalToServer) => {

@@ -16,6 +16,7 @@ import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { AgentsPage } from '../pages/company/AgentsPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
+import { ChatPage } from '../pages/company/ChatPage.tsx';
 import { MachinesPage } from '../pages/company/MachinesPage.tsx';
 import { MembersPage } from '../pages/company/MembersPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
@@ -82,11 +83,12 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
-/** The page at `section` (the path after `/:slug/`): a company page, an agent's page, or not found. */
+/** The page at `section` (the path after `/:slug/`): a company page, an agent's page or chats, or not found. */
 function pageAt(section: string): ReactNode {
   const [head = '', ...rest] = section.split('/');
   const address = rest.length === 1 ? rest[0] : undefined;
   if (head === 'agents' && address) return <AgentPage address={address} />;
+  if (head === 'chats' && address) return <ChatPage key={address} agentId={address} />;
   const Page = rest.length === 0 ? SECTIONS[head] : undefined;
   if (Page) return <Page />;
   return (
@@ -113,7 +115,9 @@ function CompanyFrame({
   const attention = useAttention();
   const pendingLogo = usePendingLogo(membership.companyId);
   const agents = useAgentList(membership.companyId);
-  const head = section.split('/')[0] ?? '';
+  // An agent's chats belong to the Agents section (the rail, and the switcher's section in another company).
+  const first = section.split('/')[0] ?? '';
+  const head = first === 'chats' ? 'agents' : first;
   return (
     <CompanyContext value={{ ...view, agents }}>
       <AppShell

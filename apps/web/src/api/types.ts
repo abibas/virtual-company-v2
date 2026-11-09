@@ -73,3 +73,16 @@ export type MachinePower = InferResponseType<OneMachineRoutes['power']['$get'], 
 export type PowerPolicy = MachinePower['policy'];
 export type PowerBox = NonNullable<MachinePower['box']>;
 export type PowerEvent = InferResponseType<OneMachineRoutes['events']['$get'], 200>['events'][number];
+
+/** Chats with an agent on its machine (S5.1b), their turns and events (`/api/companies/:companyId/.../chats`). */
+type ChatRoutes = CompanyRoutes['chats'][':chatId'];
+
+export type Chat = InferResponseType<AgentRoutes[':agentId']['chats']['$get'], 200>['chats'][number];
+export type ChatDetail = InferResponseType<ChatRoutes['$get'], 200>;
+export type ChatTurnWithEvents = ChatDetail['turns'][number];
+export type ChatTurn = InferResponseType<ChatRoutes['turns']['$post'], 202>;
+export type ChatEvent = ChatTurnWithEvents['events'][number];
+export type TurnEvent = ChatEvent['event'];
+export type ChatChanges = InferRequestType<ChatRoutes['$patch']>['json'];
+/** An `event:` message of a chat's stream: one event with its turn's id and number (its `id:` is `<turnSeq>.<seq>`). */
+export type ChatStreamEvent = ChatEvent & { readonly turnId: string; readonly turnSeq: number };

@@ -13,6 +13,7 @@ import { ButtonLink } from '../../components/ui/Button.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import { SkeletonRows } from '../../components/ui/Skeleton.tsx';
+import { ChatButton } from '../chats/ChatButton.tsx';
 import { placementLine } from '../placements/placement-draft.ts';
 import type { AgentLinks } from './links.ts';
 
@@ -49,7 +50,8 @@ function MachineCell({ placement }: { readonly placement: Agent['placement'] }) 
 }
 
 /**
- * The columns: the agent (face, name, slug), its role, status, model, effort, access profile, machine and manager.
+ * The columns: the agent (face, name, slug), its role, status, model, effort, access profile, machine and manager, and
+ * its Chat button.
  */
 function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): readonly Column<Agent>[] {
   return [
@@ -98,6 +100,13 @@ function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): r
       cell: (agent) => <MachineCell placement={agent.placement} />,
     },
     { key: 'manager', header: 'Reports to', hide: 'lg', cell: managerOf },
+    {
+      key: 'actions',
+      header: 'Actions',
+      srOnly: true,
+      align: 'right',
+      cell: (agent) => <ChatButton href={links.chats(agent)} placed={agent.placement !== null} />,
+    },
   ];
 }
 
