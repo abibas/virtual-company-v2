@@ -1,8 +1,12 @@
 import type { TunnelSpec, TunnelState, TunnelStatus } from '@mwc/shared/runner-protocol';
+import { type Clearing, clearPort } from './tunnels/clear.ts';
 import {
   endText,
+  forwardFailure,
   lastLine,
   retryDelay,
+  TUNNEL_CLEAR_EVERY_MS,
+  TUNNEL_CLEAR_RETRY_MS,
   TUNNEL_KILL_GRACE_MS,
   TUNNEL_STABLE_MS,
   TUNNEL_UP_AFTER_MS,
@@ -18,12 +22,19 @@ import {
  * `gcloud compute ssh` over IAP). Each runs `detached` and is stopped as a process group (gcloud's ssh and IAP helper are
  * its children): SIGTERM, then SIGKILL after 5 s. One that ends while wanted starts again after 5 s, doubling to
  * 5 minutes, from 5 s again after one that stayed up a minute (the Mac bills each process start). Its states
- * (`connecting`, `up` after 10 s alive, `down` with the last line it printed) go to `report`.
+ * (`connecting`, `up` after 10 s alive, `down` with the line that says why: ssh's forward failure, else the last line it
+ * printed) go to `report`. A forward failure (the machine's port still held, by a stale session of an earlier tunnel
+ * whose end the machine never noticed) runs the driver's `clearPortCommand` once, then tries again after 2 s instead
+ * of the backoff; at most once in 5 minutes per tunnel, so a port that stays taken falls back to the backoff.
  */
 
 export {
+  forwardFailure,
   lastLine,
   retryDelay,
+  TUNNEL_CLEAR_EVERY_MS,
+  TUNNEL_CLEAR_RETRY_MS,
+  TUNNEL_CLEAR_TIMEOUT_MS,
   TUNNEL_KILL_GRACE_MS,
   TUNNEL_RETRY_INITIAL_MS,
   TUNNEL_RETRY_MAX_MS,
@@ -37,7 +48,7 @@ export {
   type TunnelSpawnOptions,
 } from './tunnels/process.ts';
 
-/** How much of a tunnel's output is kept for its last line. */
+/** How much of a tunnel's output is kept (an attempt's standard error) for why it ended. */
 const OUTPUT_KEPT = 4096;
 
 interface Held {
@@ -52,6 +63,10 @@ interface Held {
   failures: number;
   /** The up timer while starting, the retry timer while down. */
   timer?: unknown;
+  /** The clearing of the machine's port, while it runs. */
+  clearing?: Clearing | undefined;
+  /** When it last cleared the machine's port (monotonic). */
+  clearedAt?: number | undefined;
   stopped: boolean;
   /** Called once its process ended after a stop. */
   ended?: () => void;
@@ -145,7 +160,7 @@ export class Tunnels {
     const gone = (why: string) => {
       if (held.child !== child) return;
       held.child = undefined;
-      this.#ended(held, lastLine(held.output) ?? why);
+      this.#ended(held, why);
     };
     // `close` comes once its output is read to the end, so the last line is in.
     child.once('close', (code, signal) =>
@@ -162,24 +177,64 @@ export class Tunnels {
       held.ended?.();
       return;
     }
-    if (this.#deps.clock.monotonic() - held.startedAt >= TUNNEL_STABLE_MS) held.failures = 0;
+    const now = this.#deps.clock.monotonic();
+    if (now - held.startedAt >= TUNNEL_STABLE_MS) held.failures = 0;
+    const forward = forwardFailure(held.output);
+    const error = endText(forward ?? lastLine(held.output) ?? why);
+    const { machineId } = held.tunnel;
+    const clear = forward === undefined ? undefined : this.#clearCommand(held, now);
+    if (clear !== undefined) {
+      held.failures++;
+      held.clearedAt = now;
+      this.#deps.log.warn("a tunnel's port on the machine is taken; clearing it", { machineId, error });
+      this.#set(held, 'down', endText(`${error} (clearing a stale holder of the box's port, then retrying)`));
+      held.clearing = clearPort(this.#deps, clear, () => {
+        held.clearing = undefined;
+        this.#deps.log.info("cleared a stale holder of the box's port", { machineId });
+        held.timer = this.#deps.timers.setTimeout(() => this.#start(held), TUNNEL_CLEAR_RETRY_MS);
+      });
+      return;
+    }
     const delay = retryDelay(held.failures);
     held.failures++;
-    const error = endText(why);
-    const { machineId } = held.tunnel;
     this.#deps.log.warn('a tunnel ended; starting it again later', { machineId, error, retryInMs: delay });
     this.#set(held, 'down', error);
     held.timer = this.#deps.timers.setTimeout(() => this.#start(held), delay);
   }
 
-  /** Stops a tunnel: its group gets SIGTERM, then SIGKILL after the grace; tracked until its process is gone. */
+  /** The clearing of its machine's port, when the driver has one and it has not cleared it in the last 5 minutes. */
+  #clearCommand(held: Held, now: number) {
+    if (held.clearedAt !== undefined && now - held.clearedAt < TUNNEL_CLEAR_EVERY_MS) return undefined;
+    return this.#deps.clearPortCommand?.(held.tunnel);
+  }
+
+  /**
+   * Stops a tunnel: its group gets SIGTERM, then SIGKILL after the grace; tracked until its process (and a clearing
+   * of its port) is gone.
+   */
   #stop(held: Held): void {
     held.stopped = true;
     this.#deps.timers.clearTimeout(held.timer);
+    const waits: Promise<void>[] = [];
+    if (held.clearing !== undefined) {
+      held.clearing.stop();
+      waits.push(held.clearing.ended);
+    }
     const pid = held.child?.pid;
-    if (pid === undefined) return;
+    if (pid !== undefined) waits.push(this.#kill(held, pid));
+    if (waits.length === 0) return;
     const { machineId } = held.tunnel;
-    const done = new Promise<void>((resolve) => {
+    const done = Promise.all(waits).then(() => undefined);
+    this.#stopping.set(machineId, done);
+    void done.then(() => {
+      if (this.#stopping.get(machineId) === done) this.#stopping.delete(machineId);
+    });
+  }
+
+  /** SIGTERM to its group, SIGKILL after the grace; resolves once its process is gone. */
+  #kill(held: Held, pid: number): Promise<void> {
+    const { machineId } = held.tunnel;
+    return new Promise<void>((resolve) => {
       const kill = this.#deps.timers.setTimeout(() => {
         this.#deps.log.warn('a tunnel did not stop in time; killing it', { machineId, pid });
         this.#deps.killGroup(pid, 'SIGKILL');
@@ -190,10 +245,6 @@ export class Tunnels {
         resolve();
       };
       this.#deps.killGroup(pid, 'SIGTERM');
-    });
-    this.#stopping.set(machineId, done);
-    void done.then(() => {
-      if (this.#stopping.get(machineId) === done) this.#stopping.delete(machineId);
     });
   }
 

@@ -19,6 +19,8 @@ export interface PowerExecutor {
   execute(command: PowerCommand): Promise<PowerOutcome>;
   /** The process of a reverse tunnel to a machine it powers (`tunnel.set`); undefined when it holds none for it. */
   tunnelCommand?(tunnel: TunnelSpec): ProcessCommand | undefined;
+  /** The clearing of a tunnel's port on the machine, after a forward failure; undefined when it has none. */
+  clearPortCommand?(tunnel: TunnelSpec): ProcessCommand | undefined;
 }
 
 /** The answer of a runner without a power driver. */

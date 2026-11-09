@@ -54,6 +54,22 @@ describe('the tunnels of a driver', () => {
     expect(driverExecutor(driver()).tunnelCommand?.(tunnel)).toBeUndefined();
     expect(seen).toHaveLength(1);
   });
+  it("are the driver's port clearings with the machine's port, none for another provider or a driver without them", () => {
+    const withClear = Object.assign(driver(), {
+      clearPortCommand: (ref: typeof REF, remotePort: number) => ({
+        command: '/g/gcloud',
+        args: ['compute', 'ssh', ref.instance, '--command', `fuser ${remotePort}`],
+      }),
+    });
+    const executor = driverExecutor(withClear);
+    expect(executor.clearPortCommand?.(tunnel)).toEqual({
+      command: '/g/gcloud',
+      args: ['compute', 'ssh', 'dev-ihor', '--command', 'fuser 9963'],
+    });
+    const other = { ...tunnel, target: { ...tunnel.target, provider: 'other' } } as unknown as typeof tunnel;
+    expect(executor.clearPortCommand?.(other)).toBeUndefined();
+    expect(driverExecutor(driver()).clearPortCommand?.(tunnel)).toBeUndefined();
+  });
 });
 
 describe('the power executor of a driver', () => {

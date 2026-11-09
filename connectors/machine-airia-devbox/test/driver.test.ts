@@ -273,6 +273,43 @@ describe('AiriaDevboxDriver: tunnelCommand', () => {
   });
 });
 
+describe('AiriaDevboxDriver: clearPortCommand', () => {
+  it("is a one-off gcloud compute ssh over IAP that ends what listens on the box's port, and runs nothing", () => {
+    const fake = fakeRun(() => undefined);
+    const env = { PATH: '/g:/usr/bin' };
+    const driver = new AiriaDevboxDriver({ run: fake.run, gcloud: '/opt/homebrew/bin/gcloud', env });
+    expect(driver.clearPortCommand(REF, 9950)).toEqual({
+      command: '/opt/homebrew/bin/gcloud',
+      args: [
+        'compute',
+        'ssh',
+        BOX,
+        '--project',
+        'airia-devbox',
+        '--zone',
+        ZONE,
+        '--tunnel-through-iap',
+        '--quiet',
+        '--command',
+        'sudo -n fuser -k -TERM -n tcp 9950 2>/dev/null || fuser -k -TERM -n tcp 9950 2>/dev/null; true',
+      ],
+      env,
+    });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('uses the port and project it is given, and the runner environment without one', () => {
+    const driver = new AiriaDevboxDriver({ run: fakeRun(() => undefined).run, project: 'other' });
+    const clear = driver.clearPortCommand(REF, 9963);
+    expect(clear.command).toBe('gcloud');
+    expect(clear.args.slice(3, 5)).toEqual(['--project', 'other']);
+    expect(clear.args.at(-1)).toBe(
+      'sudo -n fuser -k -TERM -n tcp 9963 2>/dev/null || fuser -k -TERM -n tcp 9963 2>/dev/null; true',
+    );
+    expect(clear).not.toHaveProperty('env');
+  });
+});
+
 describe('AiriaDevboxDriver: updateCommand', () => {
   it("is plain gcloud compute ssh over IAP with the install's forward and install.sh without a token", () => {
     const fake = fakeRun(() => undefined);

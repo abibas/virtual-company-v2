@@ -60,4 +60,10 @@ export interface MachinePowerDriver {
    * server only through one; the controller's runner starts and supervises it. It never starts a stopped machine.
    */
   tunnelCommand?(ref: PowerRef, ports: TunnelPorts): ProcessCommand;
+  /**
+   * The one-off command that ends whatever listens on the machine's `127.0.0.1:remotePort` (pure: nothing runs): a
+   * stale session of an earlier tunnel that the machine never saw end. The supervisor runs it only after a tunnel
+   * failed because that port was taken, so never while one of its tunnels holds it. Optional like `tunnelCommand`.
+   */
+  clearPortCommand?(ref: PowerRef, remotePort: number): ProcessCommand;
 }

@@ -17,6 +17,12 @@ export const TUNNEL_RETRY_MAX_MS = 5 * 60_000;
 export const TUNNEL_STABLE_MS = 60_000;
 /** How long a stopped tunnel has after SIGTERM before its group gets SIGKILL. */
 export const TUNNEL_KILL_GRACE_MS = 5_000;
+/** The wait before the try that follows the clearing of the machine's port. */
+export const TUNNEL_CLEAR_RETRY_MS = 2_000;
+/** A tunnel clears its machine's port at most once in this long, so a port that stays taken falls back to the backoff. */
+export const TUNNEL_CLEAR_EVERY_MS = 5 * 60_000;
+/** How long the clearing may take before its group gets SIGKILL. */
+export const TUNNEL_CLEAR_TIMEOUT_MS = 60_000;
 
 /** What the supervisor uses of a child process: its pid, its standard error, how it ends. */
 export interface TunnelChild {
@@ -49,6 +55,11 @@ export interface TunnelLog {
 export interface TunnelDeps {
   /** The process of a tunnel (the driver's `tunnelCommand`); undefined when this holder cannot hold it. */
   readonly command: (tunnel: TunnelSpec) => ProcessCommand | undefined;
+  /**
+   * The one-off process that ends whatever still listens on the machine's end of the tunnel (the driver's
+   * `clearPortCommand`: a stale session of an earlier tunnel), run after a forward failure; without it, none is run.
+   */
+  readonly clearPortCommand?: ((tunnel: TunnelSpec) => ProcessCommand | undefined) | undefined;
   readonly spawn: TunnelSpawn;
   readonly killGroup: TunnelKill;
   /** Monotonic milliseconds: awake time, as the timers count it. */
@@ -73,6 +84,18 @@ export function lastLine(output: string): string | undefined {
   return lines
     .filter((line) => line !== '')
     .at(-1)
+    ?.slice(0, TUNNEL_ERROR_MAX);
+}
+
+/** What ssh prints when the machine's port of a reverse forward is taken. */
+const FORWARD_FAILURE = /remote port forwarding failed/i;
+
+/** The first line that says the machine's port was taken, trimmed and cut to the protocol's limit; else undefined. */
+export function forwardFailure(output: string): string | undefined {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => FORWARD_FAILURE.test(line))
     ?.slice(0, TUNNEL_ERROR_MAX);
 }
 

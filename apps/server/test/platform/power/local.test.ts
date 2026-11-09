@@ -23,7 +23,7 @@ function host(...files: string[]) {
   const looked: string[] = [];
   const spawned: { file: string; args: readonly string[]; options: TunnelSpawnOptions }[] = [];
   const kills: { pid: number; signal: string }[] = [];
-  const children: EventEmitter[] = [];
+  const children: (EventEmitter & { stderr: EventEmitter })[] = [];
   const fake: PowerHost = {
     env: { PATH: '/usr/bin', HOME },
     home: HOME,
@@ -33,7 +33,10 @@ function host(...files: string[]) {
     },
     spawn: (file, args, options) => {
       spawned.push({ file, args, options });
-      const child = Object.assign(new EventEmitter(), { pid: 7000 + children.length, stderr: null });
+      const child = Object.assign(new EventEmitter(), {
+        pid: 7000 + children.length,
+        stderr: new EventEmitter(),
+      });
       children.push(child);
       return child as unknown as TunnelChild;
     },
@@ -142,6 +145,36 @@ describe('localPowerFromConfig', () => {
     });
     await tunnels?.close();
     expect(computer.spawned).toHaveLength(1);
+  });
+});
+
+describe("a stale holder of a box's tunnel port", () => {
+  it("is cleared once with the driver's command when the box's port is taken", async () => {
+    const { logger, lines } = captureLogger();
+    const computer = host(AIRIA, GCLOUD);
+    const reports: TunnelState[] = [];
+    const tunnels = localPowerFromConfig(config(), logger, computer.fake)?.tunnels((state) =>
+      reports.push(state),
+    );
+    const ref = { instance: 'dev-ihorherasko', zone: 'europe-west1-b' };
+    const machineId = '019a0000-0000-7000-8000-0000000000b2';
+    tunnels?.set([
+      { machineId, target: { provider: 'airia_devbox', ref }, remotePort: 9950, localPort: 9950 },
+    ]);
+    const failed = 'Error: remote port forwarding failed for listen port 9950';
+    computer.children[0]?.stderr.emit(
+      'data',
+      `${failed}\nERROR: (gcloud.compute.ssh) exited with return code [255].\n`,
+    );
+    computer.children[0]?.emit('close', 255, null);
+    expect(reports.at(-1)?.error).toMatch(new RegExp(`^${failed} \\(clearing`));
+    expect(computer.spawned[1]).toMatchObject({ file: GCLOUD, options: { detached: true } });
+    expect(computer.spawned[1]?.args.slice(0, 3)).toEqual(['compute', 'ssh', 'dev-ihorherasko']);
+    expect(computer.spawned[1]?.args.at(-1)).toContain('fuser -k -TERM -n tcp 9950');
+    computer.children[1]?.emit('close', 0, null);
+    expect(linesOf(lines)).toContain("power: cleared a stale holder of the box's port");
+    await tunnels?.close();
+    expect(computer.spawned).toHaveLength(2);
   });
 });
 

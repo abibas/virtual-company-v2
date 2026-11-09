@@ -252,7 +252,13 @@ through a reverse SSH forward, and no public URL is needed:
   in its own process group (gcloud starts ssh and an IAP helper) and is stopped as one: SIGTERM, then SIGKILL after
   5 s. One that ends is started again after 5 s, doubling up to 5 minutes, back to 5 s after one that stayed up a
   minute (the Mac bills each process start). The card of the box says "Linked through this server's SSH tunnel" (or
-  This Mac's), or "Tunnel reconnecting" with the last line gcloud printed. Without the server's own driver, This Mac's
+  This Mac's), or "Tunnel reconnecting" with ssh's "remote port forwarding failed" line, else the last line gcloud
+  printed. Since 2026-11-09 (Ihor's approval) a forward failure, which means a stale session of an earlier tunnel still
+  holds the box's port (a killed tunnel's end goes unnoticed by the box's sshd behind IAP, sometimes for over an hour),
+  makes the holder run the driver's `clearPortCommand` once (`gcloud compute ssh <box> … --command 'sudo -n fuser -k
+  -TERM -n tcp <port> || fuser -k -TERM -n tcp <port>; true'`, ending only what listens on that port, and only after
+  a failed try, so never one of its own live tunnels) and try again after 2 s; at most once in 5 minutes per tunnel,
+  after which the backoff applies (`power: cleared a stale holder of the box's port` in the log). Without the server's own driver, This Mac's
   runner must be installed (and connected) first, since it keeps the box linked.
 - **When the Mac sleeps.** The dev server lives on the Mac anyway, so nothing is lost: while the Mac sleeps there is
   no server to reach; the box's runs keep going (their journals are on the box), its runner reconnects with its usual

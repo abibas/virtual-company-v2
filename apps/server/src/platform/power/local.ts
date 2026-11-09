@@ -134,6 +134,7 @@ export function localPowerFromConfig(
         // Every tunnel this server is given is a devbox's (`airia_devbox`, the driver's provider).
         command: ({ target, remotePort, localPort }) =>
           driver.tunnelCommand(target.ref, { remotePort, localPort }),
+        clearPortCommand: ({ target, remotePort }) => driver.clearPortCommand(target.ref, remotePort),
         spawn: host.spawn,
         killGroup: host.killGroup,
         clock: host.clock ?? NODE_CLOCK,

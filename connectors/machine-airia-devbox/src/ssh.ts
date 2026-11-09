@@ -49,6 +49,17 @@ export function tunnelArgs(ref: PowerRef, project: string, ports: TunnelPorts): 
 }
 
 /**
+ * The clearing of the box's end of the tunnel: ends, over a one-off session, whatever listens on the box's
+ * `remotePort` (`fuser -k -TERM`, with sudo when it may run without a password, else as the user): the stale sshd
+ * session of an earlier tunnel whose end the box never noticed. It always succeeds, so the tunnel's next try tells.
+ */
+export function clearPortArgs(ref: PowerRef, project: string, remotePort: number): string[] {
+  const port = String(Math.trunc(remotePort));
+  const kill = `fuser -k -TERM -n tcp ${port} 2>/dev/null`;
+  return [...sshTo(ref, project), '--command', `sudo -n ${kill} || ${kill}; true`];
+}
+
+/**
  * The runner's reinstall: the box's `127.0.0.1:installPort` forwarded to this server's `127.0.0.1:apiPort` while
  * `install.sh` runs there without a token, downloading through it (`--via`) and keeping the enrollment and
  * `--server http://127.0.0.1:apiPort`, the address the standing tunnel serves; the session ends with the install.

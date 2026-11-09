@@ -94,6 +94,7 @@ export class RunnerDaemon implements Runner {
     if (this.#power.providers.length === 0 || processes === undefined) return undefined;
     return new Tunnels({
       command: (tunnel) => this.#power.tunnelCommand?.(tunnel),
+      clearPortCommand: this.#power.clearPortCommand?.bind(this.#power),
       ...processes,
       clock,
       timers,

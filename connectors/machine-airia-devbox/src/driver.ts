@@ -12,7 +12,7 @@ import { accountFrom, boxNameOf, ownerSlug } from './account.ts';
 import { errorOf, spawnErrorOf } from './errors.ts';
 import { parseInstance, parseInstances, readingOf, refOf } from './instance.ts';
 import type { CommandRun, RunResult } from './run.ts';
-import { type RunnerUpdatePorts, tunnelArgs, updateArgs } from './ssh.ts';
+import { clearPortArgs, type RunnerUpdatePorts, tunnelArgs, updateArgs } from './ssh.ts';
 
 /** The airia CLI's GCP project. */
 export const DEVBOX_PROJECT = 'airia-devbox';
@@ -121,6 +121,15 @@ export class AiriaDevboxDriver implements MachinePowerDriver {
    */
   tunnelCommand(ref: PowerRef, ports: TunnelPorts): ProcessCommand {
     return this.#gcloudCommand(tunnelArgs(ref, this.#project, ports));
+  }
+
+  /**
+   * The clearing of the box's `127.0.0.1:remotePort` (docs/machines.md, "Installing a runner"): a one-off
+   * `gcloud compute ssh --command` over IAP that ends whatever listens there, a stale session of an earlier tunnel. The
+   * tunnel supervisor runs it only after a forward failure. Nothing runs here.
+   */
+  clearPortCommand(ref: PowerRef, remotePort: number): ProcessCommand {
+    return this.#gcloudCommand(clearPortArgs(ref, this.#project, remotePort));
   }
 
   /**

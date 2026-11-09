@@ -53,6 +53,10 @@ export function driverExecutor(driver: MachinePowerDriver): PowerExecutor {
       const { remotePort, localPort } = tunnel;
       return driver.tunnelCommand?.(tunnel.target.ref, { remotePort, localPort });
     },
+    clearPortCommand(tunnel) {
+      if (tunnel.target.provider !== driver.provider) return undefined;
+      return driver.clearPortCommand?.(tunnel.target.ref, tunnel.remotePort);
+    },
     async execute(command) {
       if (command.target.provider !== driver.provider) {
         return { ok: false, error: `failed: this runner powers ${driver.provider} machines only` };
