@@ -13,9 +13,9 @@ import {
   type ServerFrame,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
-import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
-import type { SocketHandlers, SocketLink } from '../../../platform/realtime/sockets.ts';
-import { MIN_RUNNER_VERSION } from '../rules.ts';
+import type { RunnerCredential } from '../../../../platform/auth/api-keys.ts';
+import type { SocketHandlers, SocketLink } from '../../../../platform/realtime/sockets.ts';
+import { MIN_RUNNER_VERSION } from '../../rules.ts';
 import { type ConnectionContext, HubError, RunnerConnection } from './connection.ts';
 import { closeAll, connections, GOING_AWAY, machineQueues } from './hub/sockets.ts';
 import {

@@ -5,7 +5,7 @@ import { machinesRepo } from '../../repo.ts';
 import { isPowered } from '../../rules/power.ts';
 import { isTunnelWanted } from '../../rules/tunnels.ts';
 import type { TunnelView } from '../../schemas.ts';
-import type { RunnerHub } from '../hub.ts';
+import type { RunnerHub } from '../runner/hub.ts';
 import { readPower } from './store.ts';
 
 /**

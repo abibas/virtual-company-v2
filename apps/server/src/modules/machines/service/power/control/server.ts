@@ -5,7 +5,7 @@ import type { PowerArgs, TunnelSpec } from '@mwc/shared/runner-protocol';
 import type { LocalPower } from '../../../../../platform/power/local.ts';
 import { isPowered } from '../../../rules/power.ts';
 import { NOT_A_VM } from '../../../rules.ts';
-import type { RunnerHub } from '../../hub.ts';
+import type { RunnerHub } from '../../runner/hub.ts';
 import type { PowerControl } from '../control.ts';
 import {
   type Controlled,

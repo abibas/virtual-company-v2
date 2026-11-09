@@ -9,7 +9,7 @@ import { isPowered } from '../../rules/power.ts';
 import type { Refusal } from '../../rules.ts';
 import type { PowerControllerView } from '../../schemas/power.ts';
 import type { TunnelView } from '../../schemas.ts';
-import type { ConnectedRunner, RunnerHub } from '../hub.ts';
+import type { ConnectedRunner, RunnerHub } from '../runner/hub.ts';
 import { runnerControl } from './control/runners.ts';
 import { serverControl } from './control/server.ts';
 import type { Controlled } from './controller.ts';

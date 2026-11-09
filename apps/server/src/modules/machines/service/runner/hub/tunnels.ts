@@ -4,7 +4,7 @@ import {
   type TunnelState,
   type TunnelStatus,
 } from '@mwc/shared/runner-protocol';
-import { tunnelSetKey } from '../../rules/tunnels.ts';
+import { tunnelSetKey } from '../../../rules/tunnels.ts';
 import type { RunnerConnection } from '../connection.ts';
 
 /**

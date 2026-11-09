@@ -6,9 +6,9 @@ import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { RunnerUpdateRefusalSchema, RunnerUpdateSchema } from '../schemas/update.ts';
 import { MachineParamsSchema } from '../schemas.ts';
-import type { RunnerHub } from '../service/hub.ts';
 import type { PowerControl } from '../service/power/control.ts';
-import { updateRunner } from '../service/update.ts';
+import type { RunnerHub } from '../service/runner/hub.ts';
+import { updateRunner } from '../service/runner/update.ts';
 
 /**
  * `POST /api/companies/{companyId}/machines/{machineId}/runner-update` (docs/machines.md, "Updating a runner"): the

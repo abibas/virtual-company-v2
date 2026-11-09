@@ -3,7 +3,7 @@ import type { Logger } from 'pino';
 import { presentMachines } from '../../repo/upkeep.ts';
 import { alreadyText } from '../../rules/power/text.ts';
 import { type BoxState, decide, isPowered, type PowerDecision, type PowerState } from '../../rules/power.ts';
-import type { RunnerHub } from '../hub.ts';
+import type { RunnerHub } from '../runner/hub.ts';
 import { type Controller, controlOf, type PowerControl } from './control.ts';
 import { applyHold } from './hold.ts';
 import { logPower, readPower, saveFailure, saveReading, saveState } from './store.ts';

@@ -12,9 +12,9 @@ import {
   type TunnelState,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
-import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
-import type { SocketLink } from '../../../platform/realtime/sockets.ts';
-import { isTooOld } from '../rules.ts';
+import type { RunnerCredential } from '../../../../platform/auth/api-keys.ts';
+import type { SocketLink } from '../../../../platform/realtime/sockets.ts';
+import { isTooOld } from '../../rules.ts';
 import { type CommandReply, HubError, isReply } from './hub/replies.ts';
 import { heartbeat, hold, type OpenSession, offline, online, tooOld } from './presence.ts';
 

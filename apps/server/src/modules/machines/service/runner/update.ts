@@ -2,19 +2,19 @@ import { diffFields, type Machine, type TenantDb } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
 import { INSTALL_PORT } from '@mwc/shared/ports';
 import { type RunnerUpdate, updateErrorCode } from '@mwc/shared/runner-protocol';
-import { machinesRepo } from '../repo.ts';
-import { isPowered } from '../rules/power.ts';
+import { machinesRepo } from '../../repo.ts';
+import { isPowered } from '../../rules/power.ts';
 import {
   manualUpdate,
   runnerBusy,
   type UnsupportedUpdate,
   updateFailed,
   updateUnsupported,
-} from '../rules/runner.ts';
-import { MACHINE_NOT_FOUND, MACHINE_OFFLINE, type Refusal } from '../rules.ts';
-import type { RunnerUpdatePath } from '../schemas/update.ts';
+} from '../../rules/runner.ts';
+import { MACHINE_NOT_FOUND, MACHINE_OFFLINE, type Refusal } from '../../rules.ts';
+import type { RunnerUpdatePath } from '../../schemas/update.ts';
+import type { PowerControl } from '../power/control.ts';
 import { HubError, type ReplyTo, type RunnerHub } from './hub.ts';
-import type { PowerControl } from './power/control.ts';
 
 /**
  * Updating a machine's runner with one click (docs/machines.md, "Updating a runner"): a connected runner that updates

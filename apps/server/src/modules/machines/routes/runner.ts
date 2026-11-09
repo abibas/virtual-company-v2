@@ -5,7 +5,7 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { errorJson } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { upgradeSocket } from '../../../platform/realtime/sockets.ts';
-import type { RunnerHub } from '../service/hub.ts';
+import type { RunnerHub } from '../service/runner/hub.ts';
 
 /**
  * `GET /api/runner/ws`: a runner's one WebSocket (docs/runner-protocol.md). Its runner key is checked before the

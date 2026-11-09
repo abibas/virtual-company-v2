@@ -9,10 +9,10 @@ import { powerRoutes } from './routes/power.ts';
 import { runnerSocketRoutes } from './routes/runner.ts';
 import { terminalRoutes } from './routes/terminal.ts';
 import { runnerUpdateRoutes } from './routes/update.ts';
-import type { RunnerHub } from './service/hub.ts';
 import { type PowerControl, tunnelsOnConnect } from './service/power/control.ts';
 import { holdOnConnect } from './service/power/hold.ts';
 import { powerService } from './service/power.ts';
+import type { RunnerHub } from './service/runner/hub.ts';
 import { machinesService } from './service.ts';
 
 /**

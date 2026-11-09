@@ -8,8 +8,8 @@ import {
 import type { ServerDeps } from '../../../platform/env.ts';
 import { errorJson } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
-import { DEFAULT_RUNNER_BUNDLE, ptyArchivePath, readRunnerBundle } from '../service/download.ts';
-import { INSTALL_SCRIPT } from '../service/install-script.ts';
+import { DEFAULT_RUNNER_BUNDLE, ptyArchivePath, readRunnerBundle } from '../service/runner/download.ts';
+import { INSTALL_SCRIPT } from '../service/runner/install-script.ts';
 
 /**
  * Installing a runner (S4.5, docs/machines.md "Installing a runner"): `GET /api/runner/install.sh`, the installer a

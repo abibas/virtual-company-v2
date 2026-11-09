@@ -2,11 +2,11 @@ import { newId } from '@mwc/shared/ids';
 import { TEST_NOW } from '@mwc/testkit';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import type { MachineView } from '../../../../../src/modules/machines/schemas.ts';
-import { DEVBOX, enroll, MAC, machinesPath } from '../../../../fixtures/machines/machines.ts';
-import { BOX_REF, boxDriver, connectController } from '../../../../fixtures/machines/power.ts';
-import { eventually, type MachinesWorld, machinesWorld } from '../../../../fixtures/machines/world.ts';
-import { as, type MembersCompany, membersCompany } from '../../../../fixtures/members/members.ts';
+import type { MachineView } from '../../../../../../src/modules/machines/schemas.ts';
+import { DEVBOX, enroll, MAC, machinesPath } from '../../../../../fixtures/machines/machines.ts';
+import { BOX_REF, boxDriver, connectController } from '../../../../../fixtures/machines/power.ts';
+import { eventually, type MachinesWorld, machinesWorld } from '../../../../../fixtures/machines/world.ts';
+import { as, type MembersCompany, membersCompany } from '../../../../../fixtures/members/members.ts';
 
 let w: MachinesWorld;
 beforeAll(async () => {

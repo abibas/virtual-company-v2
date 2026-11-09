@@ -4,7 +4,7 @@ import type { RunnerFrame, ServerFrame } from '@mwc/shared/runner-protocol';
 import { TEST_NOW } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { updateRunner } from '../../../../src/modules/machines/service/update.ts';
+import { updateRunner } from '../../../../src/modules/machines/service/runner/update.ts';
 import { auditOf, DEVBOX, enroll, MAC, machinesPath } from '../../../fixtures/machines/machines.ts';
 import { type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
 import { addMember, as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';

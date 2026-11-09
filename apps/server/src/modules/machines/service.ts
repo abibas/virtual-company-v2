@@ -12,10 +12,10 @@ import {
   type Refusal,
 } from './rules.ts';
 import type { MachineUpdate, MachineView, TunnelView } from './schemas.ts';
-import { DEFAULT_RUNNER_BUNDLE, servedBuild } from './service/download.ts';
 import { machineLogoHashes } from './service/logo.ts';
 import { agentCounts, removeMachinePlacements } from './service/placement.ts';
 import { type ControlDeps, controlOf, type PowerControl } from './service/power/control.ts';
+import { DEFAULT_RUNNER_BUNDLE, servedBuild } from './service/runner/download.ts';
 
 const iso = (at: Date | null) => at?.toISOString() ?? null;
 

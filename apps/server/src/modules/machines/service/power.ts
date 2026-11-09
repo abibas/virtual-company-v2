@@ -11,11 +11,11 @@ import { alreadyText } from '../rules/power/text.ts';
 import { isPowered, type PowerActor, policyText } from '../rules/power.ts';
 import { MACHINE_NOT_FOUND, type Refusal } from '../rules.ts';
 import type { MachinePowerView, PowerEventView } from '../schemas/power.ts';
-import type { RunnerHub } from './hub.ts';
 import type { PowerControl } from './power/control.ts';
 import type { Controlled, ControlRefusal } from './power/controller.ts';
 import { refreshHold } from './power/hold.ts';
 import { logPower, nextBox, readPower, saveFailure, saveReading, saveState } from './power/store.ts';
+import type { RunnerHub } from './runner/hub.ts';
 
 /**
  * The power API's logic (docs/machines.md, S4.4b): a machine's power view, its policy, Start and Stop of a devbox

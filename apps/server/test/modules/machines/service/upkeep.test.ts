@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRunnerHub, machineUpkeep } from '../../../../src/modules/machines/index.ts';
 import { MACHINE_LEASE_MS, PRUNE_INTERVAL_MS } from '../../../../src/modules/machines/rules.ts';
-import { lapsed } from '../../../../src/modules/machines/service/presence.ts';
+import { lapsed } from '../../../../src/modules/machines/service/runner/presence.ts';
 import { POWER_STEP_MS } from '../../../../src/modules/machines/service/upkeep.ts';
 import { enroll, machineRow, sampleAt, samplesOf, sessionsOf } from '../../../fixtures/machines/machines.ts';
 import { type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { RUNNER_BUNDLE_PATH, RUNNER_PTY_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
-import { INSTALL_SCRIPT } from '../../../../src/modules/machines/service/install-script.ts';
+import { INSTALL_SCRIPT } from '../../../../../src/modules/machines/service/runner/install-script.ts';
 
 /**
  * The installer is checked by reading it, never by running it here (it would enroll and install a service). These

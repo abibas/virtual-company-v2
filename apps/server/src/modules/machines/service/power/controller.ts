@@ -16,7 +16,7 @@ import {
   type Refusal,
   SEVERAL_CONTROLLERS,
 } from '../../rules.ts';
-import { HubError, type RunnerHub } from '../hub.ts';
+import { HubError, type RunnerHub } from '../runner/hub.ts';
 import { type BoxReading, StoredBox } from './store.ts';
 
 /**

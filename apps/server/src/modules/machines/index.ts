@@ -3,6 +3,8 @@
 // createApp mounts its router and makes the hub and the power control (who drives the devboxes); moduleJobs runs its
 // upkeep; the org module shows each agent's placement (placementsOf).
 export { machinesRoutes } from './routes.ts';
+export { type PlacementSummary, placementsOf } from './service/placement.ts';
+export { createPowerControl, type PowerControl } from './service/power/control.ts';
 export {
   type CommandFrame,
   type ConnectedRunner,
@@ -16,7 +18,5 @@ export {
   type TerminalEnding,
   type TerminalRequest,
   type TerminalSink,
-} from './service/hub.ts';
-export { type PlacementSummary, placementsOf } from './service/placement.ts';
-export { createPowerControl, type PowerControl } from './service/power/control.ts';
+} from './service/runner/hub.ts';
 export { machineUpkeep } from './service/upkeep.ts';

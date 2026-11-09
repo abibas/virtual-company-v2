@@ -130,16 +130,16 @@ later). Never both:
   executing `power.command` through the connector and holding the devboxes' tunnels with the shared supervisor.
 - The terminal: the runner's `terminal/` (the PTY loader, the shell and its environment, the batched output, the
   sessions); the server's `routes/terminal.ts` (the owner's ticket, the browser's socket), `service/terminal.ts` with
-  `service/terminal/{tickets,relay}.ts`, and `service/hub/terminals.ts` (the sessions of each runner connection).
+  `service/terminal/{tickets,relay}.ts`, and `service/runner/hub/terminals.ts` (the sessions of each runner connection).
 - Updating a runner: the runner's `update/` (`build.ts` the build and the update target, `self-update.ts` the download,
   check and swap, `untar.ts` the PTY archive in memory, `updates.ts` the `runner.update` answer and the restart); the
-  server's `routes/update.ts`, `service/update.ts`, `rules/runner.ts` (the runner's facts, the commands by hand),
-  `service/download.ts`'s `servedBuild`, and the SSH reinstall in `platform/power/reinstall.ts` with the connector's
+  server's `routes/update.ts`, `service/runner/update.ts`, `rules/runner.ts` (the runner's facts, the commands by hand),
+  `service/runner/download.ts`'s `servedBuild`, and the SSH reinstall in `platform/power/reinstall.ts` with the connector's
   `updateCommand` (`connectors/machine-airia-devbox/src/ssh.ts` builds both gcloud ssh commands); the web's
   `features/machines/runner/`.
 - The server's side of the power and the tunnels: `service/power/control.ts` (who drives the devboxes:
   `control/server.ts` this server, `control/runners.ts` the runner controllers), `service/power/tunnels.ts` (the wanted
-  sets), `service/hub/tunnels.ts` (the set last sent per connection and the reported states, the server's own too, in
+  sets), `service/runner/hub/tunnels.ts` (the set last sent per connection and the reported states, the server's own too, in
   memory), `rules/tunnels.ts`.
 - `apps/server/src/modules/machines/`: routes, service, repo, `rules/power.ts` (pure: keep-on window incl. overnight
   and TZ, hold-until, once-per-window auto-start where a manual Stop sticks, stop at the end only without live work),

@@ -6,7 +6,7 @@ import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { EnrollmentTokenSchema, MachinesParamsSchema } from '../schemas.ts';
-import { createEnrollmentToken, type EnrollDeps, enrollMachine } from '../service/enroll.ts';
+import { createEnrollmentToken, type EnrollDeps, enrollMachine } from '../service/runner/enroll.ts';
 
 /**
  * Enrolling a machine (docs/runner-protocol.md, "Enrollment"): an admin makes a one-time token

@@ -9,7 +9,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { upgradeSocket } from '../../../platform/realtime/sockets.ts';
 import { TerminalSocketQuery, TerminalTicketSchema } from '../schemas/terminal.ts';
 import { MachineParamsSchema } from '../schemas.ts';
-import type { RunnerHub } from '../service/hub.ts';
+import type { RunnerHub } from '../service/runner/hub.ts';
 import { terminalTickets } from '../service/terminal/tickets.ts';
 import { type OpenTerminal, type TerminalService, terminalService } from '../service/terminal.ts';
 

@@ -1,12 +1,12 @@
 import { newId } from '@mwc/shared/ids';
 import { parseServerFrame, type ServerFrame } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
-import type { RunnerConnection } from '../../../../../src/modules/machines/service/connection.ts';
+import type { RunnerConnection } from '../../../../../../src/modules/machines/service/runner/connection.ts';
 import {
   MACHINE_DISCONNECTED,
   type TerminalEnding,
   terminalBoard,
-} from '../../../../../src/modules/machines/service/hub/terminals.ts';
+} from '../../../../../../src/modules/machines/service/runner/hub/terminals.ts';
 
 /** A connection that only records what is sent on it. */
 function connection() {

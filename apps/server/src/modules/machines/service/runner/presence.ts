@@ -1,10 +1,10 @@
 import type { TenantDb } from '@mwc/db';
 import type { HoldSource } from '@mwc/shared/enums';
 import type { MachineSample } from '@mwc/shared/machines';
-import { samplesRepo } from '../repo/samples.ts';
-import { sessionsRepo } from '../repo/sessions.ts';
-import { machinesRepo } from '../repo.ts';
-import { endOfLostSession, sampleMinute } from '../rules.ts';
+import { samplesRepo } from '../../repo/samples.ts';
+import { sessionsRepo } from '../../repo/sessions.ts';
+import { machinesRepo } from '../../repo.ts';
+import { endOfLostSession, sampleMinute } from '../../rules.ts';
 
 /**
  * What a runner's connection writes about its machine (S4.2), each in the machine's company: online with a new

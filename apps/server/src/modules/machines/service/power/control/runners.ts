@@ -1,7 +1,7 @@
 import type { TenantDb } from '@mwc/db';
 import { machinesRepo } from '../../../repo.ts';
 import { isPowered } from '../../../rules/power.ts';
-import type { RunnerHub } from '../../hub.ts';
+import type { RunnerHub } from '../../runner/hub.ts';
 import type { PowerControl } from '../control.ts';
 import { command, resolveController } from '../controller.ts';
 import { reportedTunnel, wantedTunnels } from '../tunnels.ts';

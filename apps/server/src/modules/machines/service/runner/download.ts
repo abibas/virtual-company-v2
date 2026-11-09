@@ -14,7 +14,7 @@ import type { RunnerPtyTarget } from '@mwc/shared/runner-protocol';
 
 /** The repository's bundle, apps/runner/dist/runner.mjs; the server image copies it to the same place. */
 export const DEFAULT_RUNNER_BUNDLE = fileURLToPath(
-  new URL('../../../../../runner/dist/runner.mjs', import.meta.url),
+  new URL('../../../../../../runner/dist/runner.mjs', import.meta.url),
 );
 
 export type RunnerBundle =

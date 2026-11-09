@@ -5,10 +5,16 @@ import { encodeFrame, RUNNER_CLOSE, RUNNER_PROTOCOL_VERSION } from '@mwc/shared/
 import { LEVEL, TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { enroll, machineRow, sampleAt, samplesOf, sessionsOf } from '../../../fixtures/machines/machines.ts';
-import { eventually, type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
-import { type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
-import { rawClient } from '../../../fixtures/platform/realtime.ts';
+import {
+  enroll,
+  machineRow,
+  sampleAt,
+  samplesOf,
+  sessionsOf,
+} from '../../../../fixtures/machines/machines.ts';
+import { eventually, type MachinesWorld, machinesWorld } from '../../../../fixtures/machines/world.ts';
+import { type MembersCompany, membersCompany } from '../../../../fixtures/members/members.ts';
+import { rawClient } from '../../../../fixtures/platform/realtime.ts';
 
 let w: MachinesWorld;
 let company: MembersCompany;

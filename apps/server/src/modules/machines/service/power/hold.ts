@@ -3,7 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import type { Logger } from 'pino';
 import { machinesRepo } from '../../repo.ts';
 import { type Hold, holdEvent, holdOf, type PowerState } from '../../rules/power.ts';
-import type { ConnectedRunner, RunnerHub } from '../hub.ts';
+import type { ConnectedRunner, RunnerHub } from '../runner/hub.ts';
 import { logPower, readPower, saveState } from './store.ts';
 
 /**

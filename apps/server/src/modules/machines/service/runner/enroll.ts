@@ -5,14 +5,14 @@ import {
   type RunnerEnrollResponse,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
-import { generateApiKey } from '../../../platform/auth/api-keys.ts';
-import { findEnrollmentToken, generateEnrollmentToken } from '../../../platform/auth/enrollment.ts';
-import { enrollmentRepo } from '../repo/enrollment.ts';
-import { machinesRepo } from '../repo.ts';
-import { type Refusal, TOKEN_UNKNOWN, tokenRefusal } from '../rules.ts';
-import type { EnrollmentTokenView } from '../schemas.ts';
-import type { Caller } from '../service.ts';
-import { type ControlDeps, linkEnrolledBox } from './power/control.ts';
+import { generateApiKey } from '../../../../platform/auth/api-keys.ts';
+import { findEnrollmentToken, generateEnrollmentToken } from '../../../../platform/auth/enrollment.ts';
+import { enrollmentRepo } from '../../repo/enrollment.ts';
+import { machinesRepo } from '../../repo.ts';
+import { type Refusal, TOKEN_UNKNOWN, tokenRefusal } from '../../rules.ts';
+import type { EnrollmentTokenView } from '../../schemas.ts';
+import type { Caller } from '../../service.ts';
+import { type ControlDeps, linkEnrolledBox } from '../power/control.ts';
 
 const repo = machinesRepo();
 

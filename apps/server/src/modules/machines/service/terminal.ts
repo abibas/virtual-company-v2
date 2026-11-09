@@ -3,7 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import type { SocketHandlers, SocketLink } from '../../../platform/realtime/sockets.ts';
 import { machinesRepo } from '../repo.ts';
 import { MACHINE_NOT_FOUND, MACHINE_OFFLINE, type Refusal, TERMINAL_UNAVAILABLE } from '../rules.ts';
-import type { RunnerHub } from './hub.ts';
+import type { RunnerHub } from './runner/hub.ts';
 import { openRelay, type RelayTarget } from './terminal/relay.ts';
 import type { IssuedTicket, TerminalTickets, TicketBinding } from './terminal/tickets.ts';
 

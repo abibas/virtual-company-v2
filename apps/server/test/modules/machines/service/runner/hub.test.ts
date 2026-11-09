@@ -2,11 +2,11 @@ import { newId } from '@mwc/shared/ids';
 import { type PowerCommand, RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { TEST_NOW } from '@mwc/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { HubError } from '../../../../src/modules/machines/index.ts';
-import { enroll, machineRow } from '../../../fixtures/machines/machines.ts';
-import { eventually, type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
-import { type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
-import { rawClient } from '../../../fixtures/platform/realtime.ts';
+import { HubError } from '../../../../../src/modules/machines/index.ts';
+import { enroll, machineRow } from '../../../../fixtures/machines/machines.ts';
+import { eventually, type MachinesWorld, machinesWorld } from '../../../../fixtures/machines/world.ts';
+import { type MembersCompany, membersCompany } from '../../../../fixtures/members/members.ts';
+import { rawClient } from '../../../../fixtures/platform/realtime.ts';
 
 let w: MachinesWorld;
 let company: MembersCompany;

@@ -4,7 +4,7 @@ import {
   TerminalToServer,
 } from '@mwc/shared/runner-protocol';
 import type { SocketHandlers, SocketLink } from '../../../../platform/realtime/sockets.ts';
-import type { RunnerHub, TerminalRequest } from '../hub.ts';
+import type { RunnerHub, TerminalRequest } from '../runner/hub.ts';
 
 /**
  * The browser's terminal socket, relayed to the machine's runner through the hub (docs/machines.md, "Terminal"). On

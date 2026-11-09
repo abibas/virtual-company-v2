@@ -3,10 +3,10 @@ import type { Logger } from 'pino';
 import type { MachineUpkeep } from '../../../platform/jobs/run.ts';
 import { pruneSamples, staleMachines } from '../repo/upkeep.ts';
 import { MACHINE_LEASE_MS, PRUNE_INTERVAL_MS, SAMPLE_RETENTION_MS } from '../rules.ts';
-import type { RunnerHub } from './hub.ts';
 import type { PowerControl } from './power/control.ts';
 import { powerScheduler } from './power/scheduler.ts';
-import { lapsed } from './presence.ts';
+import type { RunnerHub } from './runner/hub.ts';
+import { lapsed } from './runner/presence.ts';
 
 /** How often the power scheduler decides. */
 export const POWER_STEP_MS = 60_000;

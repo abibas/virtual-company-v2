@@ -11,8 +11,11 @@ import {
 } from '@mwc/shared/runner-protocol';
 import { brokenDb, createTestApp, getJson } from '@mwc/testkit';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RUNNER_BUNDLE, servedBuild } from '../../../../src/modules/machines/service/download.ts';
-import { INSTALL_SCRIPT } from '../../../../src/modules/machines/service/install-script.ts';
+import {
+  DEFAULT_RUNNER_BUNDLE,
+  servedBuild,
+} from '../../../../src/modules/machines/service/runner/download.ts';
+import { INSTALL_SCRIPT } from '../../../../src/modules/machines/service/runner/install-script.ts';
 
 /** A test app (no database needed: these routes read none) serving the bundle at `runnerBundle`. */
 const appWith = (runnerBundle: string) => createTestApp({ db: brokenDb(), runnerBundle });
