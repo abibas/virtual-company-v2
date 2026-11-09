@@ -1,7 +1,11 @@
 import { EventEmitter } from 'node:events';
 import type { TunnelChild, TunnelSpawnOptions } from '@mwc/machines-core/tunnels';
 import { describe, expect, it } from 'vitest';
-import { KILL_GRACE_MS, REINSTALL_TIMEOUT_MS, runToEnd } from '../../../src/platform/power/reinstall.ts';
+import {
+  KILL_GRACE_MS,
+  REINSTALL_TIMEOUT_MS,
+  runToEnd,
+} from '../../../../src/platform/processes/power/reinstall.ts';
 
 /** Timers the test fires by hand. */
 function manualTimers() {

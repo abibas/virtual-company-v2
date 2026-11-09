@@ -9,7 +9,7 @@ import {
   LoginHelperError,
   type LoginSandbox,
   type SandboxExit,
-} from '../../../../src/platform/login-helper/port.ts';
+} from '../../../../src/platform/processes/login-helper/port.ts';
 import { CLAUDE_FILES, CLAUDE_OUTPUT, CODEX_FILES, CODEX_OUTPUT } from './cli.ts';
 
 /** A sandbox a test drives: it emits output and exits when told, and records what was typed and read. */

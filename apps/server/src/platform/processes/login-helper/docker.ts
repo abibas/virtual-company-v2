@@ -29,8 +29,8 @@ export const SANDBOX_HOME = '/home/node';
 /** The container ends itself after this many seconds: longer than a sign-in's 10 minutes. */
 export const SANDBOX_LIFETIME_S = 720;
 
-/** `deploy/Dockerfile.login`, from this file in apps/server/src/platform/login-helper/. */
-export const LOGIN_DOCKERFILE = new URL('../../../../../deploy/Dockerfile.login', import.meta.url);
+/** `deploy/Dockerfile.login`, from this file in apps/server/src/platform/processes/login-helper/. */
+export const LOGIN_DOCKERFILE = new URL('../../../../../../deploy/Dockerfile.login', import.meta.url);
 
 /** The sign-in image's Dockerfile, as text. */
 export const readLoginDockerfile = (): Promise<string> => readFile(LOGIN_DOCKERFILE, 'utf8');

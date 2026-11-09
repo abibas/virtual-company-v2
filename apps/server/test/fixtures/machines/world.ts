@@ -23,7 +23,7 @@ import {
   type PowerControl,
   type RunnerHub,
 } from '../../../src/modules/machines/index.ts';
-import type { LocalPower } from '../../../src/platform/power/local.ts';
+import type { LocalPower } from '../../../src/platform/processes/power/local.ts';
 import type { AuthWorld } from '../platform/auth.ts';
 import { eventually, listen } from '../platform/realtime.ts';
 

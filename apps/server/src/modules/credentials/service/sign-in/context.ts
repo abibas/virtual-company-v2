@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import type { LoginHelper } from '../../../../platform/login-helper/port.ts';
+import type { LoginHelper } from '../../../../platform/processes/login-helper/port.ts';
 import type { SignInLimits } from '../../rules/sign-in.ts';
 import type { CredentialSecrets } from '../secrets.ts';
 

@@ -12,15 +12,15 @@ import { advisoryJobsLock } from './jobs/lock.ts';
 import { createJobsRunner, type JobsRunner, SYSTEM_TIMERS, type Timers } from './jobs/runner.ts';
 import { JOBS_OFF } from './jobs/status.ts';
 import { createLogger } from './logger.ts';
-import { loginHelperFromConfig } from './login-helper/select.ts';
-import { type LocalPower, localPowerFromConfig } from './power/local.ts';
+import { loginHelperFromConfig } from './processes/login-helper/select.ts';
+import { type LocalPower, localPowerFromConfig } from './processes/power/local.ts';
 import { createSocketServer } from './realtime/sockets.ts';
 import type { Keyring } from './secrets/keyring.ts';
 import { DEV_DATA_DIR, loadKeyring } from './secrets/master-key.ts';
 import { gracefulShutdown } from './shutdown.ts';
 import { readServerVersion } from './version.ts';
 
-/** The sign-in helper MWC_LOGIN_HELPER names (`login-helper/port.ts`). */
+/** The sign-in helper MWC_LOGIN_HELPER names (`processes/login-helper/port.ts`). */
 type LoginHelper = NonNullable<ReturnType<typeof loginHelperFromConfig>>;
 
 /** `serve()` of `@hono/node-server`, narrowed to what `start` uses. */

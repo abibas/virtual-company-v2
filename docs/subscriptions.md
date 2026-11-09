@@ -52,7 +52,7 @@ deleted. Only Ihor completes a sign-in; nothing signs in for him.
 
 As built in S3.2:
 
-- **The port.** `LoginHelper` (`apps/server/src/platform/login-helper/port.ts`) starts one login in a sandbox and gives
+- **The port.** `LoginHelper` (`apps/server/src/platform/processes/login-helper/port.ts`) starts one login in a sandbox and gives
   its output as it comes, typing into its terminal, reading a file of its home and killing it. `MWC_LOGIN_HELPER`
   chooses it: `docker` (the development default), `local`, or `none` (production and tests by default, until the
   server image carries the CLIs: `POST /api/me/subscriptions/sign-in` answers 503 `sign_in_unavailable`; tests pass a

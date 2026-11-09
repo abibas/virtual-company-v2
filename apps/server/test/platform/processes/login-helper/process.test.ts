@@ -1,9 +1,13 @@
 import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import type { SandboxExit } from '../../../src/platform/login-helper/port.ts';
-import { childSandbox, runCommand, spawnFailure } from '../../../src/platform/login-helper/process.ts';
-import { FakeChild, fakeSpawn } from '../../fixtures/credentials/sign-in/child.ts';
-import { settle } from '../../fixtures/credentials/sign-in/helper.ts';
+import type { SandboxExit } from '../../../../src/platform/processes/login-helper/port.ts';
+import {
+  childSandbox,
+  runCommand,
+  spawnFailure,
+} from '../../../../src/platform/processes/login-helper/process.ts';
+import { FakeChild, fakeSpawn } from '../../../fixtures/credentials/sign-in/child.ts';
+import { settle } from '../../../fixtures/credentials/sign-in/helper.ts';
 
 const parts = (files: Record<string, string> = {}) => ({
   readFile: vi.fn(async (path: string) => files[path]),

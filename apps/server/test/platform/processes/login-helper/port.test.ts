@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { homePath, LoginHelperError } from '../../../src/platform/login-helper/port.ts';
+import { homePath, LoginHelperError } from '../../../../src/platform/processes/login-helper/port.ts';
 
 describe('homePath', () => {
   it("takes plain paths under the sandbox's home, dot files included", () => {

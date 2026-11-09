@@ -3,7 +3,7 @@ import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { JobsView } from './jobs/status.ts';
-import type { LoginHelper } from './login-helper/port.ts';
+import type { LoginHelper } from './processes/login-helper/port.ts';
 import type { Keyring } from './secrets/keyring.ts';
 
 /** What `createApp` needs from the outside world; tests pass PGlite, a capture logger and a fixed clock. */
@@ -46,8 +46,8 @@ export interface AppDeps {
   readonly providerFetch?: typeof fetch;
   /**
    * Where Sign in with Claude and Sign in with OpenAI run the CLIs' logins (tests pass a fake; `platform/start.ts` the
-   * one it sweeps; undefined: none). Omitted, the helper MWC_LOGIN_HELPER names (`login-helper/select.ts`): Docker, a
-   * local temporary folder, or none (those sign-ins 503).
+   * one it sweeps; undefined: none). Omitted, the helper MWC_LOGIN_HELPER names (`processes/login-helper/select.ts`):
+   * Docker, a local temporary folder, or none (those sign-ins 503).
    */
   readonly loginHelper?: LoginHelper | undefined;
   /**

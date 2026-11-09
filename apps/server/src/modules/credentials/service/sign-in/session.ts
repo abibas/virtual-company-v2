@@ -3,7 +3,7 @@ import {
   LoginHelperError,
   type LoginSandbox,
   type SandboxExit,
-} from '../../../../platform/login-helper/port.ts';
+} from '../../../../platform/processes/login-helper/port.ts';
 import type { LoginResult } from '../../rules/login-files.ts';
 import {
   accountChanged,

@@ -1,7 +1,10 @@
 import type { LoginHelperMode } from '@mwc/shared/config';
 import { captureLogger } from '@mwc/testkit';
 import { describe, expect, it } from 'vitest';
-import { loginHelperFromConfig, loginInstance } from '../../../src/platform/login-helper/select.ts';
+import {
+  loginHelperFromConfig,
+  loginInstance,
+} from '../../../../src/platform/processes/login-helper/select.ts';
 
 const { logger } = captureLogger();
 const config = (mode: LoginHelperMode) => ({ MWC_LOGIN_HELPER: mode, MWC_PORT: 9950 });

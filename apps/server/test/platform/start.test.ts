@@ -13,7 +13,7 @@ import { RUNNER_FRAME_MAX_BYTES } from '@mwc/shared/runner-protocol';
 import { captureLogger, getJson, LEVEL } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketServer } from 'ws';
-import { localPowerFromConfig, type PowerHost } from '../../src/platform/power/local.ts';
+import { localPowerFromConfig, type PowerHost } from '../../src/platform/processes/power/local.ts';
 import { ephemeralKeyring } from '../../src/platform/secrets/keyring.ts';
 import { MasterKeyError } from '../../src/platform/secrets/master-key.ts';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';

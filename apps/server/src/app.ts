@@ -24,8 +24,8 @@ import { mountWeb } from './platform/http/web.ts';
 import { identityFromConfig } from './platform/identity.ts';
 import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
-import { loginHelperFromConfig } from './platform/login-helper/select.ts';
-import type { LocalPower } from './platform/power/local.ts';
+import { loginHelperFromConfig } from './platform/processes/login-helper/select.ts';
+import type { LocalPower } from './platform/processes/power/local.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 

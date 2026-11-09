@@ -36,13 +36,14 @@ Newest first, one entry per lesson:
   the connector's `driver.ts` into `ssh.ts`, `MachineCard.tsx` (241) into `MachineHeader.tsx`. Near-limit warnings went
   from 9 to 4, but `apps/runner/src/` went from 16 to 18 entries, `features/machines/` from 18 to 20, the machines
   `service/` from 15 to 16 and `apps/runner/test/` from 17 to 18 (the report went from 41 to 38).
-- **What was done:** nothing yet.
+- **What was done:** the machines `service/`: its runner side (connection, presence, enroll, download,
+  install-script, update, `hub.ts` + `hub/`) moved under `service/runner/`, 16 to 9 entries (39186cb). The rest:
+  nothing yet.
 - **Suggested change:** at the S4 review, group the runner's top level (`runner.ts`, `runner/`, `start.ts`, `cli.ts`,
   `power.ts`, `health.ts`) or give `apps/runner/src/` a limit of its own; split `features/machines/` into `card/`,
   `power/` and `add/`.
-- **Status:** the runner half `adopted` (2026-11-09, 3ae3a6e: `apps/runner/src/` and `test/` from 18 entries to 12,
-  grouped into `daemon/`, `power/executor.ts`, `install/enroll/` and `system/log.ts`); `features/machines/` and the
-  machines `service/` still `open`.
+- **Status:** `adopted` (2026-11-09, S4 review commits 1, 2a and 3a: `features/machines/` from 23 entries to 6, `apps/runner/src/`
+  and `test/` from 18 to 12, the machines `service/` from 16 to 9).
 
 ### 2026-11-09: The server's own airia CLI driver pushes `platform/` to 13 entries
 
@@ -50,10 +51,11 @@ Newest first, one entry per lesson:
   `apps/server/src/platform/power/local.ts` as the table says (`<area>/`, spawn injected); `platform/` went from 12 to
   13 entries (`big-folder`, the report from 39 to 40). The tunnels' supervisor both the runner and the server run moved
   to `packages/machines-core/src/tunnels.ts` (`@mwc/machines-core/tunnels`, spawn, kill and timers injected).
-- **What was done:** nothing yet.
+- **What was done:** `platform/login-helper/` and `platform/power/` moved under `platform/processes/`, 13 to 12
+  entries, with their tests (`Structure (S4 review 3b)`, the commit after 39186cb).
 - **Suggested change:** at the S4 review, group the folders that run local processes for the server (`login-helper/`,
   `power/`) under one `platform/processes/`, or give `platform/` a limit of its own.
-- **Status:** `open`.
+- **Status:** `adopted` (2026-11-09, S4 review, `Structure (S4 review 3b)`).
 
 ### 2026-11-06: Socket routes, and a hub injected into the test app
 

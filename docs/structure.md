@@ -20,8 +20,9 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── http/           router, request id, logging, errors, API docs, static UI, throttle
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
 │   │   │   │   ├── secrets/        master keyring: seal, open (built)          S3.1
-│   │   │   │   ├── login-helper/   the CLIs' logins in a sandbox (built)       S3.2
-│   │   │   │   ├── power/          the server's own airia CLI driver and tunnels (built) S4
+│   │   │   │   ├── processes/      code that runs local processes for the server (built) S3.2/S4
+│   │   │   │   │   ├── login-helper/ the CLIs' logins in a sandbox             S3.2
+│   │   │   │   │   └── power/      the server's own airia CLI driver and tunnels S4
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S5
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S4/S5
 │   │   │   ├── modules/            one folder per business area
@@ -128,15 +129,16 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   403 `session_required`), which puts `c.var.userId` on the context. `secrets/` (S3.1) is the master keyring:
   `keyring.ts` (`Keyring`: seal and open with AES-256-GCM and additional data, key versions) and `master-key.ts`
   (`loadKeyring`: MWC_MASTER_KEY, the development `.data/master.key`, or a test key in memory), which `start.ts`
-  loads and `createApp` hands the credentials module. `login-helper/` (S3.2) is the sign-in helper: `port.ts` (the
+  loads and `createApp` hands the credentials module. `processes/` holds the code that runs local processes for the
+  server. `processes/login-helper/` (S3.2) is the sign-in helper: `port.ts` (the
   `LoginHelper` port: one official CLI login in a throwaway sandbox, its output, input, home files and kill), `docker.ts`
   (development: a locked-down container of the image built from `deploy/Dockerfile.login`), `local.ts` (a Linux server
   with the CLIs: a private temporary home), `process.ts` and `tty.ts` (the child process plumbing and the pseudo-terminal
   command both share, with node's `spawn` injected so tests use a fake child) and `select.ts` (`loginHelperFromConfig`:
   MWC_LOGIN_HELPER, which `createApp` hands the credentials module's sign-in routes unless a test passes a fake).
-  `power/local.ts` (S4) is the server's own power driver (MWC_LOCAL_POWER): it finds this computer's `airia` and
-  `gcloud`, wires the `@mwc/machine-airia-devbox` connector and the shared tunnel supervisor with node's `spawn`
-  injected, and `start.ts` hands it to the machines module's power control (`machinesRuntime` in `app.ts`).
+  `processes/power/local.ts` (S4) is the server's own power driver (MWC_LOCAL_POWER): it finds this computer's
+  `airia` and `gcloud`, wires the `@mwc/machine-airia-devbox` connector and the shared tunnel supervisor with node's
+  `spawn` injected, and `start.ts` hands it to the machines module's power control (`machinesRuntime` in `app.ts`).
   `jobs/outbox.ts` (S1.5) is the identity outbox:
   `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
   handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after

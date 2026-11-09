@@ -2,7 +2,7 @@ import type { Machine } from '@mwc/db';
 import { isMachinePowerError, type MachinePowerDriver, type PowerReading } from '@mwc/machines-core';
 import { AiriaDevboxRef, type PowerAction } from '@mwc/shared/machines';
 import type { PowerArgs, TunnelSpec } from '@mwc/shared/runner-protocol';
-import type { LocalPower } from '../../../../../platform/power/local.ts';
+import type { LocalPower } from '../../../../../platform/processes/power/local.ts';
 import { isPowered } from '../../../rules/power.ts';
 import { NOT_A_VM } from '../../../rules.ts';
 import type { RunnerHub } from '../../runner/hub.ts';

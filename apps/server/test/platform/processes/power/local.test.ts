@@ -10,7 +10,7 @@ import {
   localPowerFromConfig,
   nodePowerHost,
   type PowerHost,
-} from '../../../src/platform/power/local.ts';
+} from '../../../../src/platform/processes/power/local.ts';
 
 const HOME = '/Users/ihor';
 const AIRIA = '/opt/homebrew/bin/airia';

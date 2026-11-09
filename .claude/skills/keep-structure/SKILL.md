@@ -23,7 +23,7 @@ Read the `open` lessons in [references/lessons.md](references/lessons.md) first 
 | A read across the caller's companies, or of a person's profile         | the identity module's service (`companiesOf`, `profileOf`); never a new raw-access exemption |
 | A store that must see every company (the identity store, the runner hub) | `modules/<area>/repo.ts` with raw access (`@mwc/db/system`), listed in the `biome.json` exemption |
 | Module A acting on a change module B makes, in B's transaction         | a port B defines, implemented by A's service and passed in by `app.ts` (as `withMemberChart`); never an import that closes a module cycle |
-| Cross-cutting code without business rules (http, auth, jobs, realtime); code that runs local processes or containers for the server (the sign-in helper) | `apps/server/src/platform/`; those processes in `platform/<area>/`, with `spawn` injected |
+| Cross-cutting code without business rules (http, auth, jobs, realtime); code that runs local processes or containers for the server (the sign-in helper) | `apps/server/src/platform/`; those processes in `platform/processes/<area>/`, with `spawn` injected |
 | A WebSocket route                                                      | its module's routes (auth as middleware); the transport in `platform/realtime/` |
 | Anything that talks to an outside system (Clerk, Claude Code, Jira)    | a connector `connectors/<name>/` implementing a `packages/*-core` port |
 | A small read-only call to an outside system that one module owns (a usage check) | that module's `service/<provider>.ts` behind the injected `providerFetch`; a connector once a second module or the runner needs it |

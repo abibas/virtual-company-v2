@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shellQuote, TERMINAL, ttyArgv } from '../../../src/platform/login-helper/tty.ts';
+import { shellQuote, TERMINAL, ttyArgv } from '../../../../src/platform/processes/login-helper/tty.ts';
 
 describe('shellQuote', () => {
   it('keeps plain arguments and single-quotes the rest', () => {

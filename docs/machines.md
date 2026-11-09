@@ -60,7 +60,7 @@ later). Never both:
 | `on` | always; the start fails with a `ConfigError` naming the missing tool |
 | `off` | never: runner controllers do it, as before |
 
-- **Finding the tools.** At start (`apps/server/src/platform/power/local.ts`, where the connector is wired) the server
+- **Finding the tools.** At start (`apps/server/src/platform/processes/power/local.ts`, where the connector is wired) the server
   looks for them the way a runner does (`localDevbox` of `@mwc/machine-airia-devbox`: the PATH's folders, then
   `/opt/homebrew/bin`, `/usr/local/bin`, `~/google-cloud-sdk/bin`; no process started to look) and logs one line: the
   two paths it uses (`power: this server starts and stops the devboxes with the airia CLI and holds their tunnels with
@@ -125,7 +125,7 @@ later). Never both:
   the optional pure `tunnelCommand`), a fake, and the reverse tunnels' supervisor (`@mwc/machines-core/tunnels`, spawn,
   kill and timers injected) shared by the runner and the server. `connectors/machine-airia-devbox`: implements it by
   spawning `airia` / `gcloud` (spawn injected; tests with recorded JSON and a fake spawn), and finds the two tools
-  (`localDevbox`). Loaded by a runner controller, or by the server's `platform/power/local.ts` (MWC_LOCAL_POWER).
+  (`localDevbox`). Loaded by a runner controller, or by the server's `platform/processes/power/local.ts` (MWC_LOCAL_POWER).
 - `apps/runner`: link, heartbeat + sampler, hold drivers (`hold/devbox.ts`, `hold/caffeinate.ts`), controller
   executing `power.command` through the connector and holding the devboxes' tunnels with the shared supervisor.
 - The terminal: the runner's `terminal/` (the PTY loader, the shell and its environment, the batched output, the
@@ -134,7 +134,7 @@ later). Never both:
 - Updating a runner: the runner's `update/` (`build.ts` the build and the update target, `self-update.ts` the download,
   check and swap, `untar.ts` the PTY archive in memory, `updates.ts` the `runner.update` answer and the restart); the
   server's `routes/update.ts`, `service/runner/update.ts`, `rules/runner.ts` (the runner's facts, the commands by hand),
-  `service/runner/download.ts`'s `servedBuild`, and the SSH reinstall in `platform/power/reinstall.ts` with the connector's
+  `service/runner/download.ts`'s `servedBuild`, and the SSH reinstall in `platform/processes/power/reinstall.ts` with the connector's
   `updateCommand` (`connectors/machine-airia-devbox/src/ssh.ts` builds both gcloud ssh commands); the web's
   `features/machines/runner/`.
 - The server's side of the power and the tunnels: `service/power/control.ts` (who drives the devboxes:

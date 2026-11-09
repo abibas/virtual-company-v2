@@ -5,7 +5,7 @@
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import type { Spawn } from '../../../../src/platform/login-helper/process.ts';
+import type { Spawn } from '../../../../src/platform/processes/login-helper/process.ts';
 
 export class FakeChild extends EventEmitter {
   readonly stdout = new PassThrough();

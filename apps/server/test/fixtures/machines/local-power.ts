@@ -7,8 +7,12 @@
 import type { MachinePowerDriver } from '@mwc/machines-core';
 import type { AiriaDevboxRef } from '@mwc/shared/machines';
 import type { TunnelSpec, TunnelState, TunnelStatus } from '@mwc/shared/runner-protocol';
-import { LOCAL_POWER_NAME, type LocalPower, type ReinstallPorts } from '../../../src/platform/power/local.ts';
-import type { RunOutcome } from '../../../src/platform/power/reinstall.ts';
+import {
+  LOCAL_POWER_NAME,
+  type LocalPower,
+  type ReinstallPorts,
+} from '../../../src/platform/processes/power/local.ts';
+import type { RunOutcome } from '../../../src/platform/processes/power/reinstall.ts';
 
 export interface FakeLocalPower {
   readonly local: LocalPower;

@@ -3,7 +3,7 @@
 # server builds it on first use (MWC_LOGIN_HELPER=docker, the development default) from this file alone, with no build
 # context, and tags it mwc-login:<the first 12 hex digits of this file's SHA-256>, so any change here builds a new
 # image. A sign-in runs it with no mounts, no capabilities, a read-only root, a tmpfs home and the non-root `node`
-# user (apps/server/src/platform/login-helper/docker.ts); `script` (util-linux, in the base image) gives the CLIs
+# user (apps/server/src/platform/processes/login-helper/docker.ts); `script` (util-linux, in the base image) gives the CLIs
 # the terminal they need.
 #
 #   claude-code 2.1.308 (published 2026-10-22), codex 0.163.0 (published 2026-10-15); pinned 2026-11-05.

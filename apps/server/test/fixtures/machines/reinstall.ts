@@ -5,7 +5,7 @@
  */
 import { EventEmitter } from 'node:events';
 import type { TunnelChild, TunnelSpawnOptions } from '@mwc/machines-core/tunnels';
-import type { PowerHost } from '../../../src/platform/power/local.ts';
+import type { PowerHost } from '../../../src/platform/processes/power/local.ts';
 
 export const AIRIA = '/opt/homebrew/bin/airia';
 export const GCLOUD = '/opt/homebrew/bin/gcloud';

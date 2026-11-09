@@ -3,7 +3,7 @@ import { rawDb } from '@mwc/db/system';
 import { captureLogger, TEST_NOW, testConfig } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { localPowerFromConfig } from '../../../../../src/platform/power/local.ts';
+import { localPowerFromConfig } from '../../../../../src/platform/processes/power/local.ts';
 import { DEVBOX, enroll, MAC, machinesPath } from '../../../../fixtures/machines/machines.ts';
 import { GCLOUD, reinstallComputer } from '../../../../fixtures/machines/reinstall.ts';
 import { type MachinesWorld, machinesWorld } from '../../../../fixtures/machines/world.ts';
