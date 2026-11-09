@@ -11,7 +11,8 @@ import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import { AddMachineSheet } from '../../features/machines/AddMachineSheet.tsx';
 import { useAddMachine } from '../../features/machines/add-machine.ts';
-import { MachineCard } from '../../features/machines/MachineCard.tsx';
+import { MachineFold } from '../../features/machines/MachineFold.tsx';
+import { useOpenMachines } from '../../features/machines/open-machines.ts';
 import { useNow } from '../../features/subscriptions/limits.ts';
 
 /** None yet: the invitation to add one (admins), or who does. */
@@ -39,8 +40,8 @@ function NoMachines({ onAdd }: { readonly onAdd: (() => void) | undefined }) {
 }
 
 /**
- * `/:slug/machines`: the machines agents run on (This Mac, a Docker container, the Airia devbox), a card each with its
- * status, numbers, power and log; admins add, rename and remove them, start and stop the devbox and set the power.
+ * `/:slug/machines`: the machines agents run on (This Mac, a Docker container, the Airia devbox), each folded to its
+ * status and numbers until opened (remembered per viewer), then its card with power and log; admins add, rename and remove them, start and stop the devbox and set the power.
  */
 export function MachinesPage() {
   const { membership } = useCompany();
@@ -55,6 +56,7 @@ export function MachinesPage() {
   };
   const adding = useAddMachine(companyId, reload);
   const now = useNow();
+  const folds = useOpenMachines(companyId);
   return (
     <>
       <PageHeader
@@ -83,8 +85,10 @@ export function MachinesPage() {
           ) : (
             <div className="grid gap-4 md:gap-5">
               {data.machines.map((machine) => (
-                <MachineCard
+                <MachineFold
                   key={machine.id}
+                  open={folds.isOpen(machine.id)}
+                  onToggle={() => folds.toggle(machine.id)}
                   machine={machine}
                   stats={stats.data?.machines.find((item) => item.machineId === machine.id)}
                   now={now}
