@@ -17,7 +17,7 @@ describe('the credential store contract', () => {
   it('holds the limits the credentials and credential_uses CHECKs hold', () => {
     expect(CREDENTIAL_LABEL).toEqual({ min: 1, max: 80 });
     expect(CREDENTIAL_PURPOSE).toEqual({ min: 1, max: 80 });
-    expect(GATEWAY_HEADERS).toEqual({ min: 1, max: 20 });
+    expect(GATEWAY_HEADERS).toEqual({ min: 0, max: 20 });
     expect(SECRET_MAX).toBe(4096);
   });
 

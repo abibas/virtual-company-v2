@@ -28,7 +28,7 @@ export const OpenAiApiKey = pastedSecret(SECRET_PREFIXES.openai_api_key, 'An Ope
 /** An HTTP header's name: the token characters of RFC 9110, at most 100 of them. */
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,100}$/;
 
-/** The headers a gateway is sent with each request (an API key, a team id): 1 to 20, names and values checked. */
+/** The headers a gateway is sent with each request (an API key, a team id): none to 20, names and values checked. */
 export const GatewayHeaders = z
   .record(
     z.string(),
@@ -41,10 +41,6 @@ export const GatewayHeaders = z
   .refine(
     (headers) => Object.keys(headers).every((name) => HEADER_NAME.test(name)),
     'A header name is letters, digits and - _ . only',
-  )
-  .refine(
-    (headers) => Object.keys(headers).length >= GATEWAY_HEADERS.min,
-    'A gateway needs at least one header',
   )
   .refine(
     (headers) => Object.keys(headers).length <= GATEWAY_HEADERS.max,

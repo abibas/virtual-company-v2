@@ -31,8 +31,8 @@ export const SECRET_PREFIXES = {
 /** The longest pasted token or API key taken, in characters. */
 export const SECRET_MAX = 4096;
 
-/** How many headers a gateway sends with each request: 1 to 20. */
-export const GATEWAY_HEADERS = { min: 1, max: 20 } as const;
+/** How many headers a gateway sends with each request: none (a local proxy needs none) to 20. */
+export const GATEWAY_HEADERS = { min: 0, max: 20 } as const;
 
 /** An access profile's name ("Work"), after trimming: 1 to 80 characters, unique per owner (`access_profiles_name_check`). */
 export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;

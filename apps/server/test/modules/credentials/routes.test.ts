@@ -123,6 +123,12 @@ describe('POST /api/me/subscriptions', () => {
     noSecret(rows);
   });
 
+  it('adds a gateway without headers (a local proxy that needs none)', async () => {
+    const res = await as(ihor)('POST', PATH, { ...gateway, label: 'Memory gateway', headers: {} });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ kind: 'gateway', label: 'Memory gateway' });
+  });
+
   it.each([
     [
       'a setup-token of another shape',
@@ -141,7 +147,6 @@ describe('POST /api/me/subscriptions', () => {
       'starts with sk-',
     ],
     ['a gateway that is not http(s)', { ...gateway, baseUrl: 'ftp://gateway.test' }, 'http or https URL'],
-    ['a gateway without headers', { ...gateway, headers: {} }, 'at least one header'],
     [
       'a gateway with 21 headers',
       {

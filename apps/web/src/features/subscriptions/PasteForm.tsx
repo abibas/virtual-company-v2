@@ -88,7 +88,8 @@ function bodyOf(kind: PastedCredentialKind, values: PasteValues): NewSubscriptio
 const isReady = (kind: PastedCredentialKind, values: PasteValues): boolean =>
   values.label.trim() !== '' &&
   (kind === 'gateway'
-    ? values.baseUrl.trim() !== '' && values.headers.some((row) => row.name.trim() !== '' && row.value !== '')
+    ? values.baseUrl.trim() !== '' &&
+      values.headers.every((row) => (row.name.trim() === '') === (row.value === ''))
     : values.secret.trim() !== '');
 
 /** The form's fields and its save: the secret is sent once, then cleared from the page's memory. */
@@ -120,7 +121,7 @@ function usePasteForm(kind: PastedCredentialKind, onAdded: (subscription: Subscr
   return { values, set, busy, error, ready: isReady(kind, values), save };
 }
 
-/** A gateway's headers: name and value rows (values as secrets), one at least and 20 at most. */
+/** A gateway's headers: name and value rows (values as secrets), none to 20; an empty row is left out. */
 function HeaderRows({
   rows,
   onChange,
@@ -134,7 +135,7 @@ function HeaderRows({
   const add = () => onChange([...rows, { id: nextId.current++, name: '', value: '' }]);
   return (
     <fieldset className="flex min-w-0 flex-col gap-2">
-      <legend className="mb-1.5 text-sm font-semibold text-ink-2">Headers</legend>
+      <legend className="mb-1.5 text-sm font-semibold text-ink-2">Headers (optional)</legend>
       {rows.map((row, index) => (
         <div key={row.id} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-2">
           <Input
@@ -156,7 +157,6 @@ function HeaderRows({
             label={`Remove header ${index + 1}`}
             icon={X}
             size="sm"
-            disabled={rows.length === 1}
             onClick={() => onChange(rows.filter((other) => other.id !== row.id))}
           />
         </div>

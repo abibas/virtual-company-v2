@@ -53,7 +53,7 @@ const addRoute = (deps: ServerDeps) => {
     summary: 'Add a pasted subscription: a setup-token, an Anthropic or OpenAI API key, or a gateway',
     description:
       'The secret is checked for its format only (a setup-token starts with `sk-ant-oat01-`, an Anthropic key with ' +
-      '`sk-ant-api`, an OpenAI key with `sk-`; a gateway has an http(s) address and 1 to 20 headers), sealed with ' +
+      '`sk-ant-api`, an OpenAI key with `sk-`; a gateway has an http(s) address and up to 20 headers), sealed with ' +
       'AES-256-GCM and never shown again. No provider is called. The two logins are added by signing in.',
     request: { body: jsonBody(AddSubscriptionSchema) },
     responses: {
