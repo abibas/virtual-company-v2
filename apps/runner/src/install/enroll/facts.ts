@@ -1,13 +1,13 @@
 import { Harness, type MachineKind } from '@mwc/shared/enums';
 import { MACHINE_NAME } from '@mwc/shared/machines';
+import { findCli, pathWithCliDir } from '../../system/find-cli.ts';
 import { HARNESS_COMMANDS, type HarnessCli, type HarnessClis } from '../../turns/drivers.ts';
-import { type Host, unixUser } from '../host.ts';
-import { findOnPath } from '../paths.ts';
+import { type Host, homeOf, unixUser } from '../host.ts';
 
 /**
  * What a machine says about itself when it enrolls (docs/runner-protocol.md, "Enrollment"): its kind, system, CPU
  * architecture, host name, the runner's Unix user, and Claude Code's version from one `claude --version` when Claude
- * Code is on the PATH (no process start otherwise).
+ * Code is found (on the PATH or in the usual folders; no process start otherwise).
  */
 
 /** The file Docker puts in every container. */
@@ -23,29 +23,32 @@ export function machineKind(host: Host): MachineKind {
 /** The longest Claude Code version the protocol takes (`ClaudeVersion`). */
 const CLAUDE_VERSION_MAX = 100;
 
-/** A CLI on the PATH and the first line its `--version` prints, or undefined when it is missing or does not answer. */
-async function cliOnPath(host: Host, name: string): Promise<HarnessCli | undefined> {
-  const path = findOnPath(name, host.env.PATH, host.fs.isExecutable);
+/**
+ * A harness's CLI where its installer put it (`system/find-cli.ts`: the PATH, then the usual folders, no process for
+ * that) and the first line its `--version` prints, asked by its full path with its folder first on the PATH; undefined
+ * when it is missing or does not answer.
+ */
+export async function harnessCli(host: Host, harness: Harness): Promise<HarnessCli | undefined> {
+  const path = findCli(HARNESS_COMMANDS[harness], { path: host.env.PATH, home: homeOf(host), fs: host.fs });
   if (path === undefined) return undefined;
-  const result = await host.exec(path, ['--version']);
+  const env = { ...host.env, PATH: pathWithCliDir(path, host.env.PATH) };
+  const result = await host.exec(path, ['--version'], { env });
   const line = result.code === 0 ? result.stdout.trim().split('\n')[0]?.trim() : undefined;
   return line ? { path, version: line.slice(0, CLAUDE_VERSION_MAX) } : undefined;
 }
 
 /** The first line `claude --version` prints (`2.1.3 (Claude Code)`), or null without Claude Code or an answer. */
 export async function claudeVersion(host: Host): Promise<string | null> {
-  return (await cliOnPath(host, HARNESS_COMMANDS.claude_code))?.version ?? null;
+  return (await harnessCli(host, 'claude_code'))?.version ?? null;
 }
 
 /**
- * The harnesses' CLIs on the PATH (`claude`, `codex`), each asked `--version` once, side by side, when the daemon
- * starts; nothing is started for a CLI that is not there.
+ * The harnesses' CLIs (`claude`, `codex`), each asked `--version` once, side by side, when the daemon starts; nothing
+ * is started for a CLI that is not there.
  */
 export async function harnessClis(host: Host): Promise<HarnessClis> {
   const found = await Promise.all(
-    Harness.options.map(
-      async (harness) => [harness, await cliOnPath(host, HARNESS_COMMANDS[harness])] as const,
-    ),
+    Harness.options.map(async (harness) => [harness, await harnessCli(host, harness)] as const),
   );
   return Object.fromEntries(found.filter(([, cli]) => cli !== undefined));
 }

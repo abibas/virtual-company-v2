@@ -4,7 +4,7 @@ import type { PowerExecutor } from '../power/executor.ts';
 import type { MemoryDeps } from '../stats/memory.ts';
 import type { DiskStats, SamplerOs } from '../stats/sampler.ts';
 import type { PtyLoad } from '../terminal/loader.ts';
-import type { HarnessClis } from '../turns/drivers.ts';
+import type { FindHarness, HarnessClis } from '../turns/drivers.ts';
 import type { PrivateFs } from '../turns/private-dir.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
 import type { KillGroup, Spawn } from './process.ts';
@@ -52,10 +52,12 @@ export interface MainDeps {
   /** Claude Code's version (`cli.ts` asks `claude --version` once), sent in the hello; left out when unknown. */
   readonly claudeVersion?: string | null;
   /**
-   * The harnesses' CLIs found on the PATH with their versions (`cli.ts` asks each `--version` once): the daemon runs
-   * turns and harness terminals with them. None when left out.
+   * The harnesses' CLIs found (on the PATH or in the usual folders) with their versions (`cli.ts` asks each `--version`
+   * once): the daemon runs turns and harness terminals with them. None when left out.
    */
   readonly harnesses?: HarnessClis;
+  /** Finds a missing harness's CLI again when a turn or a terminal needs it (`cli.ts`); left out, it stays missing. */
+  readonly findHarness?: FindHarness;
   /** The build it runs (`cli.ts` hashes the bundle once), sent in the hello; left out when unknown. */
   readonly build?: string | null;
   /** How it updates itself, for an installed copy under launchd or systemd (`cli.ts`); none otherwise. */

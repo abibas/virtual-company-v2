@@ -115,7 +115,13 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     // In a container its folders are only those of its work volume.
     folders: { fs: deps.foldersFs, home, root: inContainer(deps) ? CONTAINER_WORK_ROOT : null },
     harness: harnessHost(
-      { clis: deps.harnesses ?? {}, env: deps.env, fs: deps.privateFs, stateDir: setup.stateDir },
+      {
+        clis: deps.harnesses ?? {},
+        env: deps.env,
+        fs: deps.privateFs,
+        stateDir: setup.stateDir,
+        find: deps.findHarness,
+      },
       log,
     ),
     saveConfig: (next) => writeRunnerConfig(setup.configPath, next),

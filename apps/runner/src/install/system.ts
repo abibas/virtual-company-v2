@@ -7,6 +7,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -32,6 +33,13 @@ export const nodeFs: HostFs = {
       return statSync(path).isFile();
     } catch {
       return false;
+    }
+  },
+  listDir: (path) => {
+    try {
+      return readdirSync(path);
+    } catch {
+      return [];
     }
   },
   readFile: (path) => readFileSync(path, 'utf8'),

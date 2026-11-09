@@ -1,4 +1,5 @@
 import { dirname, isAbsolute, join } from 'node:path';
+import { usualCliDirs } from '../system/find-cli.ts';
 import { type Env, type Host, homeOf } from './host.ts';
 
 /**
@@ -61,14 +62,19 @@ export function findOnPath(
   return undefined;
 }
 
-/** The service's short PATH: Node's folder, the folders of the tools found on the installer's PATH, the system's. */
+/**
+ * The service's short PATH: Node's folder, the folders of the tools found on the installer's PATH, the usual install
+ * folders that exist here (`system/find-cli.ts`: `~/.local/bin`, the newest nvm Node's `bin`, Homebrew's …, so an
+ * install over a non-interactive SSH session gets what a Terminal's PATH has), then the system's.
+ */
 export function servicePath(host: Host): string {
   const dirs = [dirname(host.execPath)];
   for (const tool of SERVICE_TOOLS) {
     const found = findOnPath(tool, host.env.PATH, host.fs.isExecutable);
     if (found) dirs.push(dirname(found));
   }
-  return [...new Set([...dirs, ...SYSTEM_PATH])].join(':');
+  const usual = usualCliDirs(homeOf(host), host.fs).filter((dir) => host.fs.exists(dir));
+  return [...new Set([...dirs, ...usual, ...SYSTEM_PATH])].join(':');
 }
 
 /** One variable of the service's environment. */

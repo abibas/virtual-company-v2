@@ -192,7 +192,9 @@ export class RunnerDaemon implements Runner {
       selfUpdate: this.#updates.available,
       folders: this.#options.folders !== undefined,
     };
-    return helloOf({ version, builtAt: builtAt ?? null, caps, claudeVersion, build });
+    // A Claude Code found after the start (a turn looked again) is in the next hello.
+    const claude = harness?.versions.claude_code ?? claudeVersion;
+    return helloOf({ version, builtAt: builtAt ?? null, caps, claudeVersion: claude, build });
   }
 
   #afterHello(hello: ServerHello): RunnerFrame[] {

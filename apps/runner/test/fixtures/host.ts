@@ -61,6 +61,7 @@ export function testHost(options: HostOptions = {}) {
       ...nodeFs,
       exists: (path) => (mine(path) ? nodeFs.exists(path) : files.has(path)),
       isExecutable: (path) => mine(path) && nodeFs.isExecutable(path),
+      listDir: (path) => (mine(path) ? nodeFs.listDir(path) : []),
     },
     exec: async (file, args, execOptions) => {
       execs.push({ file, args: [...args], env: execOptions?.env });

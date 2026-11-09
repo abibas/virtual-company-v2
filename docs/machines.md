@@ -288,7 +288,8 @@ is not `--server`, the address the runner keeps; without it everything uses `--s
    sources instead of `runner.mjs`, a machine already enrolled (`--force` enrolls it again as a new machine).
 2. Enrolls (`POST /api/runner/enroll`): the kind (macOS `laptop`; `/.dockerenv` or `MWC_RUNNER_IN_CONTAINER=1`
    `container`; else `vm`), the system, architecture, host name, Unix user, the runner's version, Claude Code's
-   version (one `claude --version`, only when `claude` is on the PATH) and the provider: a machine with
+   version (one `claude --version`, only when `claude` is found: on the PATH or in the usual folders of
+   docs/harness.md, "Where the runner finds the CLIs") and the provider: a machine with
    `/usr/local/bin/devbox-keepalive` whose GCE metadata server names its instance, zone and project (1 s at most) is
    `airia_devbox`. The name is `--name`, else `Airia devbox`, else the short host name. 2 slots unless `--slots`.
    The id and the runner key go to `~/.config/mwc/runner.json` (0600 in a 0700 folder).
@@ -296,7 +297,9 @@ is not `--server`, the address the runner keeps; without it everything uses `--s
    (`node_modules/@lydell/node-pty-<target>/`, replacing the one there; a reinstall from the installed copy keeps its
    own; without one it warns that the machine has no terminal), and starts it as a service with the Node that installed it
    and a short PATH (Node's folder, the folders of `claude`, `git`, `gh`, `docker`, `airia` and `gcloud` found on the
-   installer's PATH, the system's):
+   installer's PATH, the usual install folders that exist here (`~/.local/bin`, `~/.claude/local`, `~/.npm-global/bin`,
+   `~/.bun/bin`, `~/.volta/bin`, `/opt/homebrew/bin`, the newest nvm Node's `bin` …, so an install over a
+   non-interactive SSH command gets what a Terminal's PATH has), the system's):
    - **macOS:** `~/Library/LaunchAgents/com.mwc.runner.plist` (RunAtLoad, KeepAlive while it fails, ThrottleInterval
      10, its log `~/.local/state/mwc-runner/runner.log`), loaded with `launchctl bootstrap gui/<uid>` (from a Terminal
      of the desktop session). launchd cannot leave a service stopped after chosen exit codes, so under launchd the

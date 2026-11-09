@@ -166,7 +166,7 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    80 characters), its sink is put in place, and `turn.start {turnId, spec}` goes to the runner. The answer is 202 with
    the turn.
 5. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
-   what it cannot run: `unsupported` (no such CLI, or no way to start processes), `busy` (all `slots` live), `home_missing`
+   what it cannot run: `unsupported` (no such CLI, even after searching again, or no way to start processes), `busy` (all `slots` live), `home_missing`
    (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
    `runner_stopping`. Otherwise it starts the driver's command with no shell, detached (its own process group), in the
    agent's folder, with its own environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the private folder's
@@ -198,6 +198,26 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    in the PTY (the TUI resuming the chat's session) instead of a login shell, with the same environment rules and
    private folder; the driver's notices are printed above it. A runner without the CLI answers `terminal.exit` with
    `unsupported`.
+
+### Where the runner finds the CLIs
+
+`apps/runner/src/system/find-cli.ts` (2026-11-09, after a devbox whose runner was installed over a non-interactive SSH
+command reported no Claude Code while `claude` worked in its login shell): `claude` and `codex` are looked for without
+starting a process, on the PATH's absolute folders first, then in the folders their installers use: `~/.local/bin`
+(Claude Code's native installer), `~/.claude/local`, `~/.npm-global/bin`, `~/.bun/bin`, `~/.volta/bin`,
+`/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin` and the `bin` of the newest Node under `~/.nvm/versions/node` (by
+version). Only an executable file counts. The power tools' search (`localDevbox`, docs/machines.md) works the same way
+with its own folders.
+
+- At start the runner asks each CLI found `--version` once, by its full path (`caps.harnesses`; Claude Code's is also
+  the hello's `claudeVersion`).
+- Turns and chat terminals start the CLI by that full path, with its folder first on the child's PATH, so its own
+  helpers resolve (the `node` beside an npm-installed `claude` in an nvm `bin`).
+- A turn or a chat terminal for a harness that was missing at start searches again first (no process unless it is found
+  now, then one `--version`). When found, the turn runs it and the next hello carries its version. There is no frame
+  that updates `caps` on a live link, and the server refuses a harness the last hello said is missing
+  (`harness_missing`), so a CLI installed later counts once the runner reconnects.
+- `install` puts the usual folders that exist on the service's PATH too (docs/machines.md, "Install").
 
 `ask` in chat mode refuses a tool that needs approval (Claude Code's denials and Codex's declined commands become `warn`
 notices) until S6 brings the permission round trip; the terminal asks the person on the TUI. No test runs a real

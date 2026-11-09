@@ -57,6 +57,28 @@ describe("the service's environment", () => {
     );
   });
 
+  it('adds the usual install folders that exist (an install over SSH gets what a Terminal has), not missing ones', () => {
+    const { host, home } = testHost({ files: ['/opt/homebrew/bin'] });
+    const local = join(home, '.local', 'bin');
+    const nvm = join(home, '.nvm', 'versions', 'node', 'v24.21.0', 'bin');
+    executable(local, 'claude');
+    executable(nvm, 'codex');
+    executable(join(home, '.nvm', 'versions', 'node', 'v22.1.0', 'bin'), 'node');
+    expect(servicePath(host)).toBe(
+      [
+        '/opt/node/bin',
+        local,
+        '/opt/homebrew/bin',
+        nvm,
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+      ].join(':'),
+    );
+  });
+
   it("passes on where the files are when the installer was told, and the service manager's own variables", () => {
     const { host } = testHost({
       env: { MWC_RUNNER_CONFIG: '/etc/mwc/runner.json', MWC_RUNNER_HOLD: '', XDG_STATE_HOME: '/state' },

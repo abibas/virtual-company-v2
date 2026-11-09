@@ -15,10 +15,18 @@ describe("a harness process's environment", () => {
     expect(
       processEnv(
         own,
-        { env: { CLAUDE_CODE_OAUTH_TOKEN: 't' }, unsetEnv: ['ANTHROPIC_API_KEY'] },
+        { command: 'claude', env: { CLAUDE_CODE_OAUTH_TOKEN: 't' }, unsetEnv: ['ANTHROPIC_API_KEY'] },
         { CODEX_HOME: '/s' },
       ),
     ).toEqual({ PATH: '/usr/bin', HOME: '/home/runner', CLAUDE_CODE_OAUTH_TOKEN: 't', CODEX_HOME: '/s' });
-    expect(processEnv({ A: '1' }, { env: {}, unsetEnv: [] })).toEqual({ A: '1' });
+    expect(processEnv({ A: '1' }, { command: 'codex', env: {}, unsetEnv: [] })).toEqual({ A: '1' });
+  });
+
+  it('puts the folder of a CLI started by its full path first on the PATH, once, so its helpers resolve', () => {
+    const spec = { command: '/home/u/.nvm/versions/node/v24.1.0/bin/claude', env: {}, unsetEnv: [] };
+    expect(processEnv({ PATH: '/usr/bin:/home/u/.nvm/versions/node/v24.1.0/bin' }, spec)).toEqual({
+      PATH: '/home/u/.nvm/versions/node/v24.1.0/bin:/usr/bin',
+    });
+    expect(processEnv({}, spec)).toEqual({ PATH: '/home/u/.nvm/versions/node/v24.1.0/bin' });
   });
 });

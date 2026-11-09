@@ -54,6 +54,8 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 export class TerminalSessions {
   readonly #deps: TerminalSessionsDeps;
   readonly #sessions = new Map<string, TerminalSession>();
+  /** Chat terminals waiting for their harness to be looked for again, with why they were closed meanwhile. */
+  readonly #searching = new Map<string, { readonly closed: string | undefined } | undefined>();
   #stopping = false;
 
   constructor(deps: TerminalSessionsDeps) {
@@ -77,7 +79,9 @@ export class TerminalSessions {
       return;
     }
     const session = this.#sessions.get(frame.sessionId);
-    if (session === undefined) {
+    if (this.#searching.has(frame.sessionId)) {
+      if (frame.type === 'terminal.close') this.#searching.set(frame.sessionId, { closed: undefined });
+    } else if (session === undefined) {
       this.#deps.log.info('a terminal frame for no open terminal; ignored', {
         type: frame.type,
         sessionId: frame.sessionId,
@@ -92,6 +96,8 @@ export class TerminalSessions {
    * it first; resolves once ended.
    */
   async closeAll(reason: string, notice?: string): Promise<void> {
+    for (const [sessionId, closed] of this.#searching)
+      this.#searching.set(sessionId, closed ?? { closed: reason });
     await Promise.all([...this.#sessions.values()].map((session) => session.close(reason, notice)));
   }
 
@@ -103,11 +109,39 @@ export class TerminalSessions {
 
   #open(frame: TerminalOpen): void {
     const { sessionId } = frame;
-    const { host } = this.#deps;
-    if (this.#sessions.has(sessionId)) {
+    const { host, harness } = this.#deps;
+    if (this.#sessions.has(sessionId) || this.#searching.has(sessionId)) {
       this.#deps.log.warn('a second terminal.open for an open terminal; ignored', { sessionId });
       return;
     }
+    const wanted = frame.harness?.harness;
+    if (host && !this.#stopping && wanted && harness?.findAgain && harness.drivers[wanted] === undefined) {
+      // A harness missing at start may have been installed since: look again before refusing it.
+      this.#searching.set(sessionId, undefined);
+      void harness.findAgain(wanted).then(() => this.#searched(frame));
+      return;
+    }
+    this.#checkAndStart(frame);
+  }
+
+  /** The search for a chat terminal's harness ended: it opens now, unless it was closed meanwhile. */
+  #searched(frame: TerminalOpen): void {
+    const { sessionId } = frame;
+    const closed = this.#searching.get(sessionId);
+    this.#searching.delete(sessionId);
+    if (closed === undefined) this.#checkAndStart(frame);
+    else
+      this.#deps.send({
+        type: 'terminal.exit',
+        sessionId,
+        code: null,
+        ...(closed.closed === undefined ? {} : { error: closed.closed }),
+      });
+  }
+
+  #checkAndStart(frame: TerminalOpen): void {
+    const { sessionId } = frame;
+    const { host } = this.#deps;
     if (host === undefined) this.#refuse(sessionId, 'terminal_unavailable');
     else if (this.#stopping) this.#refuse(sessionId, 'runner_stopping');
     else if (this.#sessions.size >= TERMINAL_SESSIONS_MAX) this.#refuse(sessionId, 'too_many_sessions');

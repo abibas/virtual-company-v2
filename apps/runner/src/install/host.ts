@@ -26,6 +26,8 @@ export interface HostFs {
   exists(path: string): boolean;
   /** A file the user may execute (a program on `PATH`). */
   isExecutable(path: string): boolean;
+  /** A folder's entries' names; none when it is missing or unreadable (the newest nvm Node's folder). */
+  listDir(path: string): readonly string[];
   readFile(path: string): string;
   /** A file's bytes (the runner hashes its own bundle). */
   readBytes(path: string): Uint8Array;

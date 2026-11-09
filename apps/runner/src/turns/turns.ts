@@ -35,6 +35,11 @@ export interface HarnessHost {
   readonly dirs: PrivateDirs;
   /** Whether the agent's folder is there. */
   isDirectory(path: string): boolean;
+  /**
+   * Looks for a harness that has no driver again (no process unless its CLI is found now, then its `--version`); true
+   * once it has one. Left out: a missing harness stays missing.
+   */
+  findAgain?(harness: Harness): Promise<boolean>;
 }
 
 export interface TurnsDeps {
@@ -61,6 +66,8 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 export class Turns {
   readonly #deps: TurnsDeps;
   readonly #live = new Map<string, TurnProcess>();
+  /** Turns waiting for their harness to be looked for again, with why they were stopped meanwhile. */
+  readonly #searching = new Map<string, StopReason | undefined>();
   #stopping = false;
 
   constructor(deps: TurnsDeps) {
@@ -78,13 +85,15 @@ export class Turns {
       return;
     }
     const turn = this.#live.get(frame.turnId);
-    if (turn === undefined)
+    if (this.#searching.has(frame.turnId)) this.#searching.set(frame.turnId, 'stopped');
+    else if (turn === undefined)
       this.#deps.log.info('turn.stop for no live turn; ignored', { turnId: frame.turnId });
     else void turn.stop('stopped');
   }
 
   /** Ends every live turn by the stop ladder, `reason` in each `turn.end`; resolves once they ended. */
   async stopAll(reason: StopReason): Promise<void> {
+    for (const [turnId, stopped] of this.#searching) this.#searching.set(turnId, stopped ?? reason);
     await Promise.all([...this.#live.values()].map((turn) => turn.stop(reason)));
   }
 
@@ -96,10 +105,28 @@ export class Turns {
 
   #start(frame: TurnStart): void {
     const { turnId } = frame;
-    if (this.#live.has(turnId)) {
+    if (this.#live.has(turnId) || this.#searching.has(turnId)) {
       this.#deps.log.warn('a second turn.start for a live turn; ignored', { turnId });
       return;
     }
+    const { host, processes } = this.#deps;
+    const { harness } = frame.spec;
+    if (host?.findAgain && processes && !this.#stopping && host.drivers[harness] === undefined) {
+      // A harness missing at start may have been installed since: look again before refusing it.
+      this.#searching.set(turnId, undefined);
+      void host.findAgain(harness).then(() => {
+        const stopped = this.#searching.get(turnId);
+        this.#searching.delete(turnId);
+        if (stopped === undefined) this.#launch(frame);
+        else this.#refuse(turnId, stopped);
+      });
+      return;
+    }
+    this.#launch(frame);
+  }
+
+  #launch(frame: TurnStart): void {
+    const { turnId } = frame;
     const prepared = this.#prepare(frame);
     if ('refused' in prepared) {
       this.#refuse(turnId, prepared.refused);

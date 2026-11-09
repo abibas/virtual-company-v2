@@ -1,8 +1,9 @@
 import { parseArgs } from 'node:util';
+import type { Harness } from '@mwc/shared/enums';
 import { runnerConfigPath } from './config.ts';
 import { EXIT, type MainDeps, main } from './daemon/start.ts';
 import { enrollCommand, enrollOnFirstBoot } from './install/enroll/commands.ts';
-import { harnessClis } from './install/enroll/facts.ts';
+import { harnessCli, harnessClis } from './install/enroll/facts.ts';
 import { CommandError, type Env, type Host } from './install/host.ts';
 import { installCommand } from './install/install.ts';
 import { SERVICE_MANAGER_ENV } from './install/launchd.ts';
@@ -123,7 +124,8 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
   }
   const harnesses = await harnessClis(host);
   const claudeVersion = harnesses.claude_code?.version ?? null;
-  return main(argv, { ...daemon, harnesses, claudeVersion, ...selfFacts(host), exit });
+  const findHarness = (harness: Harness) => harnessCli(host, harness);
+  return main(argv, { ...daemon, harnesses, findHarness, claudeVersion, ...selfFacts(host), exit });
 }
 
 /** One of the commands a person runs; its message on stderr and its exit code when it fails. */

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   claudeVersion,
   defaultName,
+  harnessCli,
   harnessClis,
   machineFacts,
   machineKind,
@@ -27,7 +28,27 @@ describe('what a machine says about itself', () => {
     });
     const claude = executable(join(home, 'bin'), 'claude');
     expect(await claudeVersion(host)).toBe('2.1.3 (Claude Code)');
-    expect(execs).toEqual([{ file: claude, args: ['--version'], env: undefined }]);
+    expect(execs).toEqual([
+      { file: claude, args: ['--version'], env: { HOME: home, PATH: join(home, 'bin') } },
+    ]);
+  });
+
+  it('finds a CLI its installer put outside the PATH (~/.local/bin) and asks it by its full path, its folder first', async () => {
+    const { host, home, execs } = testHost({
+      env: { PATH: '/usr/sbin' },
+      exec: () => ({ code: 0, stdout: '2.1.400 (Claude Code)\n', stderr: '' }),
+    });
+    const claude = executable(join(home, '.local', 'bin'), 'claude');
+    expect(await harnessCli(host, 'claude_code')).toEqual({ path: claude, version: '2.1.400 (Claude Code)' });
+    expect(execs).toEqual([
+      {
+        file: claude,
+        args: ['--version'],
+        env: { HOME: home, PATH: `${join(home, '.local', 'bin')}:/usr/sbin` },
+      },
+    ]);
+    expect(await harnessCli(host, 'codex')).toBeUndefined();
+    expect(execs).toHaveLength(1);
   });
 
   it('has no version when claude fails, prints nothing, or prints too much (cut to 100)', async () => {
