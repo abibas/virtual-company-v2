@@ -18,6 +18,7 @@ import {
 } from './modules/machines/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
+import { speechRoutes } from './modules/speech/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
@@ -28,6 +29,7 @@ import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
 import { loginHelperFromConfig } from './platform/processes/login-helper/select.ts';
 import type { LocalPower } from './platform/processes/power/local.ts';
+import { speechFromConfig } from './platform/processes/speech/select.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 
@@ -69,7 +71,8 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * the runners' sockets (`platform/realtime/sockets.ts`, whose server `start.ts` gives to `serve()`). The power control
  * is the one passed in (`start.ts`: this server's own driver when MWC_LOCAL_POWER finds the airia CLI), else the runner
  * controllers'; `/api/config` says which (`localPower`). The chats (S5.1b) start their turns through the same hub and
- * share the machines' terminal tickets.
+ * share the machines' terminal tickets. Dictation transcribes through the speech passed in (tests: a fake; undefined:
+ * off), else this computer's whisper.cpp when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
  */
 export function createApp(deps: AppOptions) {
   const clock = deps.clock ?? (() => new Date());
@@ -78,6 +81,8 @@ export function createApp(deps: AppOptions) {
   const keyring = deps.keyring ?? envKeyring(deps.config) ?? ephemeralKeyring();
   const loginHelper =
     'loginHelper' in deps ? deps.loginHelper : loginHelperFromConfig(deps.config, deps.logger);
+  const speech = 'speech' in deps ? deps.speech : speechFromConfig(deps.config, deps.logger);
+  if (speech) server.onShutdown?.(() => speech.close());
   const hub = deps.runnerHub ?? ownHub(server);
   const control =
     deps.powerControl ?? createPowerControl({ hub, port: deps.config.MWC_PORT, logger: deps.logger });
@@ -95,7 +100,10 @@ export function createApp(deps: AppOptions) {
   app.notFound(notFoundHandler);
 
   const routes = app
-    .route('/', healthRoutes({ ...deps, localPower: control.kind === 'server' }))
+    .route(
+      '/',
+      healthRoutes({ ...deps, localPower: control.kind === 'server', dictation: speech !== undefined }),
+    )
     .route('/', identityRoutes(withChart))
     .route('/', companiesRoutes(server))
     .route('/', membersRoutes(withChart))
@@ -104,7 +112,8 @@ export function createApp(deps: AppOptions) {
     .route('/', credentialsRoutes({ ...server, keyring }))
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
     .route('/', machinesRoutes({ ...server, hub, control, tickets }))
-    .route('/', chatsRoutes({ ...server, hub, tickets, keyring }));
+    .route('/', chatsRoutes({ ...server, hub, tickets, keyring }))
+    .route('/', speechRoutes({ ...server, speech }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

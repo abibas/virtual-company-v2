@@ -4,6 +4,7 @@ import { type FormEvent, type KeyboardEvent, useState } from 'react';
 import { cx } from '../../components/cx.ts';
 import { CONTROL } from '../../components/forms/Input.tsx';
 import { Button } from '../../components/ui/Button.tsx';
+import { DictationButton } from './dictation/DictationButton.tsx';
 import { useAction } from './use-action.ts';
 
 /** Enter sends; Shift+Enter, and Enter while an input method composes a character, make a new line. */
@@ -60,6 +61,7 @@ export function Composer({
           placeholder={running ? 'The agent is working…' : placeholder}
           className={cx(CONTROL, 'h-auto max-h-48 min-h-11 flex-1 resize-none py-2.5 text-sm')}
         />
+        <DictationButton value={text} onChange={setText} />
         {running ? (
           <Button tone="danger" icon={Square} busy={busy} onClick={() => void run(onStop)}>
             Stop

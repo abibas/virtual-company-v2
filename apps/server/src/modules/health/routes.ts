@@ -61,11 +61,12 @@ const configRoute = createRoute({
 
 /**
  * Liveness (`/healthz`), readiness (`/readyz`), the versions (`/api/version`) and the public configuration
- * (`/api/config`, with `localPower`: whether this server drives the devboxes itself).
+ * (`/api/config`, with `localPower`: whether this server drives the devboxes itself, and `speech`: whether it transcribes
+ * dictation).
  */
-export function healthRoutes(deps: AppDeps & { readonly localPower: boolean }) {
+export function healthRoutes(deps: AppDeps & { readonly localPower: boolean; readonly dictation: boolean }) {
   const health = healthService(deps);
-  const config = publicConfig(deps.config, deps.localPower);
+  const config = publicConfig(deps.config, { localPower: deps.localPower, speech: deps.dictation });
   return newRouter()
     .openapi(healthzRoute, (c) => c.json({ status: 'ok' as const, version: deps.version }, 200))
     .openapi(readyzRoute, async (c) => {

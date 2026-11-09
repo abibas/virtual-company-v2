@@ -88,6 +88,11 @@ export const PublicConfigSchema = z
         "True when this server starts and stops the Airia devboxes itself with its computer's airia CLI and holds " +
         'their tunnels (MWC_LOCAL_POWER); false when a runner controller does',
     }),
+    speech: z.boolean().openapi({
+      description:
+        "True when this server transcribes dictation with its computer's whisper.cpp (MWC_WHISPER): the composer then " +
+        'shows its microphone button (`POST /api/me/speech/transcribe`)',
+    }),
     composeFile: z
       .string()
       .nullable()

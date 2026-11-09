@@ -4,6 +4,7 @@ import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { JobsView } from './jobs/status.ts';
 import type { LoginHelper } from './processes/login-helper/port.ts';
+import type { Speech } from './processes/speech/whisper.ts';
 import type { Keyring } from './secrets/keyring.ts';
 
 /** What `createApp` needs from the outside world; tests pass PGlite, a capture logger and a fixed clock. */
@@ -50,6 +51,11 @@ export interface AppDeps {
    * Docker, a local temporary folder, or none (those sign-ins 503).
    */
   readonly loginHelper?: LoginHelper | undefined;
+  /**
+   * How dictation transcribes (`POST /api/me/speech/transcribe`; tests pass a fake; undefined: off, 503). Omitted, this
+   * computer's whisper.cpp when MWC_WHISPER finds it (`processes/speech/select.ts`), stopped with the server.
+   */
+  readonly speech?: Speech | undefined;
   /**
    * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
    * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.

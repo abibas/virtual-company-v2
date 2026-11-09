@@ -186,6 +186,19 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    listings and mkdir on a fake file system and on Node's, the commands and the daemon on the wire, the routes on PGlite
    with `FakeRunner` (roles, offline, outdated, refusals, timeout), the compose and Dockerfile assertions. Runners need an
    update to browse; a Docker runner a rebuild (`up --build`) for its work volume.
+   **S5.2 dictation: done 2026-11-09** (docs/speech.md). A microphone button in the chat composer: raw PCM through Web
+   Audio (not MediaRecorder, which stops when AirPods switch profile), a 16 kHz mono WAV, a level meter and an m:ss
+   timer, Esc or a second click stops, Alt+Shift+V toggles, two-minute clips, a microphone picker remembered in the
+   browser, the text inserted at the cursor and not sent; hidden unless `GET /api/config` says `speech: true`. Server:
+   `POST /api/me/speech/transcribe` (a session or a personal API key; `audio/wav` up to two minutes and 8 MB; 413, 415,
+   422, 502, 503 `speech_unavailable`) through `platform/processes/speech/`: whisper.cpp on the server's own computer, a
+   warm `whisper-server` on 127.0.0.1:9957 started on the first clip and stopped on shutdown, `whisper-cli` on a private
+   temporary file as the fallback, clips with under 300 ms of voice skipped, `[BLANK_AUDIO]` dropped, word timings, the
+   audio never logged or kept. Config: `MWC_WHISPER` (auto|off), `MWC_WHISPER_MODEL`, `MWC_WHISPER_LANGUAGE`,
+   `MWC_WHISPER_PROMPT`, `MWC_WHISPER_PORT`. Tests: the WAV checks, both JSON answers, the warm server, the CLI and their
+   orchestration on a fake spawn, fetch and clock (lazy start, warm reuse, restart, fallback, retry pause, shutdown,
+   short and blank clips), the selection on a fake host, the route on PGlite (auth, sizes, types, refusals, nothing
+   kept), the config keys; no real whisper run, no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

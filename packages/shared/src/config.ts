@@ -36,6 +36,12 @@ export const LoginHelperMode = z.enum(['docker', 'local', 'none']);
  */
 export const LocalPowerMode = z.enum(['auto', 'on', 'off']);
 
+/**
+ * Whether dictation transcribes with whisper.cpp on the server's own computer (MWC_WHISPER, docs/speech.md): `auto` when
+ * its binaries and a model are found, outside production and tests; `off` never (`POST /api/me/speech/transcribe` 503s).
+ */
+export const WhisperMode = z.enum(['auto', 'off']);
+
 /** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
 export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
@@ -122,12 +128,32 @@ const EnvSchema = z.object({
   MWC_LOGIN_HELPER: z.preprocess(emptyAsUnset, LoginHelperMode.optional()),
   /** `auto` (the default), `on` or `off`: whether this server drives the airia CLI itself (LocalPowerMode). */
   MWC_LOCAL_POWER: z.preprocess(emptyAsUnset, LocalPowerMode.default('auto')),
+  /** `auto` (the default) or `off`: dictation with this computer's whisper.cpp (WhisperMode). */
+  MWC_WHISPER: z.preprocess(emptyAsUnset, WhisperMode.default('auto')),
+  /** The whisper.cpp model (a ggml-*.bin file; `~/` is the home folder). Unset: the first known one that exists. */
+  MWC_WHISPER_MODEL: z.preprocess(emptyAsUnset, z.string().min(1).optional()),
+  /** The language Whisper hears (`en`, `uk`, ...), or `auto` (the default) to detect it per clip. */
+  MWC_WHISPER_LANGUAGE: z.preprocess(
+    emptyAsUnset,
+    z
+      .string()
+      .regex(/^[a-z]{2,3}$|^auto$/)
+      .default('auto'),
+  ),
+  /** Words Whisper should spell this way (names, products), sent as its prompt. Optional. */
+  MWC_WHISPER_PROMPT: z.preprocess(emptyAsUnset, z.string().max(1000).optional()),
+  /** The port of the warm whisper-server, on 127.0.0.1 only. Default 9957 (docs/ports.md). */
+  MWC_WHISPER_PORT: z.preprocess(
+    emptyAsUnset,
+    z.coerce.number().int().min(1).max(65535).default(PORTS.whisper),
+  ),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
 export type CompanyCreation = z.infer<typeof CompanyCreation>;
 export type LoginHelperMode = z.infer<typeof LoginHelperMode>;
 export type LocalPowerMode = z.infer<typeof LocalPowerMode>;
+export type WhisperMode = z.infer<typeof WhisperMode>;
 
 /** MWC_IDENTITY when it is set, else clerk for a well-formed Clerk secret key, else none. */
 function identityMode(env: z.infer<typeof EnvSchema>): IdentityMode {

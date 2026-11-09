@@ -27,6 +27,9 @@ describe('loadConfig', () => {
       MWC_RECONCILE_MINUTES: 10,
       MWC_LOGIN_HELPER: 'docker',
       MWC_LOCAL_POWER: 'auto',
+      MWC_WHISPER: 'auto',
+      MWC_WHISPER_LANGUAGE: 'auto',
+      MWC_WHISPER_PORT: 9957,
     });
   });
 
@@ -314,6 +317,43 @@ describe('loadConfig MWC_LOCAL_POWER', () => {
     expect(loadConfig({ ...valid, MWC_LOCAL_POWER: 'on' }).MWC_LOCAL_POWER).toBe('on');
     expect(loadConfig({ ...valid, ...PRODUCTION, MWC_LOCAL_POWER: 'off' }).MWC_LOCAL_POWER).toBe('off');
     expect(() => loadConfig({ ...valid, MWC_LOCAL_POWER: 'yes' })).toThrow(/MWC_LOCAL_POWER/);
+  });
+});
+
+describe('loadConfig MWC_WHISPER', () => {
+  it('is auto with the language detected and the warm server on 9957 unless told otherwise', () => {
+    const config = loadConfig({ ...valid, MWC_WHISPER: '', MWC_WHISPER_MODEL: '', MWC_WHISPER_PROMPT: '' });
+    expect(config).toMatchObject({
+      MWC_WHISPER: 'auto',
+      MWC_WHISPER_LANGUAGE: 'auto',
+      MWC_WHISPER_PORT: 9957,
+    });
+    expect(config.MWC_WHISPER_MODEL).toBeUndefined();
+    expect(config.MWC_WHISPER_PROMPT).toBeUndefined();
+  });
+
+  it('keeps off, a model path, a language, a prompt and a port as given', () => {
+    const config = loadConfig({
+      ...valid,
+      MWC_WHISPER: 'off',
+      MWC_WHISPER_MODEL: '~/models/ggml-base.en.bin',
+      MWC_WHISPER_LANGUAGE: 'uk',
+      MWC_WHISPER_PROMPT: 'Kyiv, devbox, pull request.',
+      MWC_WHISPER_PORT: '9958',
+    });
+    expect(config).toMatchObject({
+      MWC_WHISPER: 'off',
+      MWC_WHISPER_MODEL: '~/models/ggml-base.en.bin',
+      MWC_WHISPER_LANGUAGE: 'uk',
+      MWC_WHISPER_PROMPT: 'Kyiv, devbox, pull request.',
+      MWC_WHISPER_PORT: 9958,
+    });
+  });
+
+  it('refuses another mode, a language that is not a code and a port out of range, naming each', () => {
+    expect(() => loadConfig({ ...valid, MWC_WHISPER: 'on' })).toThrow(/MWC_WHISPER:/);
+    expect(() => loadConfig({ ...valid, MWC_WHISPER_LANGUAGE: 'English' })).toThrow(/MWC_WHISPER_LANGUAGE/);
+    expect(() => loadConfig({ ...valid, MWC_WHISPER_PORT: '70000' })).toThrow(/MWC_WHISPER_PORT/);
   });
 });
 

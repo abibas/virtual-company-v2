@@ -22,7 +22,8 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── secrets/        master keyring: seal, open (built)          S3.1
 │   │   │   │   ├── processes/      code that runs local processes for the server (built) S3.2/S4
 │   │   │   │   │   ├── login-helper/ the CLIs' logins in a sandbox             S3.2
-│   │   │   │   │   └── power/      the server's own airia CLI driver and tunnels S4
+│   │   │   │   │   ├── power/      the server's own airia CLI driver and tunnels S4
+│   │   │   │   │   └── speech/     dictation's whisper.cpp: warm server, CLI fallback (built) S5.2
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S5
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S4/S5
 │   │   │   ├── modules/            one folder per business area
@@ -34,6 +35,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── org/            agents, reporting chain, org chart (built)  S2
 │   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
 │   │   │   │   ├── chats/          chats with an agent: turns, events, stream, terminal (built) S5.1b
+│   │   │   │   ├── speech/         dictation: POST /api/me/speech/transcribe (built) S5.2
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
@@ -143,6 +145,12 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   `processes/power/local.ts` (S4) is the server's own power driver (MWC_LOCAL_POWER): it finds this computer's
   `airia` and `gcloud`, wires the `@mwc/machine-airia-devbox` connector and the shared tunnel supervisor with node's
   `spawn` injected, and `start.ts` hands it to the machines module's power control (`machinesRuntime` in `app.ts`).
+  `processes/speech/` (S5.2, docs/speech.md) is dictation's transcription on the server's own computer: `wav.ts` (the
+  clip's checks and its voice), `transcript.ts` (whisper.cpp's two JSON answers as text and words), `server.ts` (the warm
+  `whisper-server` on 127.0.0.1, started on the first clip, stopped on shutdown), `cli.ts` (`whisper-cli` on a temporary
+  file, the fallback), `whisper.ts` (`createWhisper`, the `Speech` the speech module calls) and `select.ts`
+  (`speechFromConfig`: MWC_WHISPER, the binaries and the model found without starting anything), with node's `spawn` and
+  `fetch` injected; `createApp` builds it unless a test passes a fake, and the speech module's one route uses it.
   `jobs/outbox.ts` (S1.5) is the identity outbox:
   `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
   handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after

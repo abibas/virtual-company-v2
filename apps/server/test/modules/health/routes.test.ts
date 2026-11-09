@@ -212,6 +212,7 @@ describe('GET /api/config', () => {
       apiUrl: 'http://localhost:9950',
       publicUrl: null,
       localPower: false,
+      speech: false,
       composeFile: COMPOSE_FILE,
     });
   });
@@ -234,6 +235,7 @@ describe('GET /api/config', () => {
       apiUrl: 'https://corp.example.com',
       publicUrl: 'https://corp.example.com',
       localPower: false,
+      speech: false,
       composeFile: null,
     });
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);

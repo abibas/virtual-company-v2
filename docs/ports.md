@@ -13,7 +13,8 @@ Everything v2 listens on lives in 9950–9999 so it never collides with v1 (3200
 | 9954      | ngrok inspect UI (webhook tunnel forwards to 9950; dev only). On the Airia devbox (not this machine): the devbox install forward, the box's `127.0.0.1:9954` that the install command's `-R` makes the API while it runs (`INSTALL_PORT`; docs/machines.md, "Installing a runner") |
 | 9955      | Web preview (`vite preview` of the production build)                                                                                         |
 | 9956      | Drizzle Studio                                                                                                                               |
-| 9957–9959 | spare                                                                                                                                        |
+| 9957      | The warm whisper-server dictation keeps on 127.0.0.1, started on the first clip and stopped with the API (`MWC_WHISPER_PORT`, docs/speech.md) |
+| 9958–9959 | spare                                                                                                                                        |
 | 9960–9989 | Worktree triplets, slot k = 0..9: API `9960+3k`, web `9961+3k`, PG `9962+3k` (`MWC_PORT_SLOT`, or derived from the worktree path and probed) |
 | 9990–9992 | Compose "prod-like" stack (`deploy/compose.prod.yml`): 9990 server (API and the built UI), 9991 reserved (the server serves the UI), 9992 PG |
 | 9993      | Remote debugging port (Chrome DevTools Protocol) of the visible test browser on the developer's machine, for checks in a real browser (the Clerk flows); no repo code starts it |

@@ -12,6 +12,8 @@ export const PORTS = {
   /** `vite preview` of the production web build. */
   webPreview: 9955,
   drizzleStudio: 9956,
+  /** The warm whisper-server dictation keeps on 127.0.0.1 (MWC_WHISPER_PORT, docs/speech.md). */
+  whisper: 9957,
   prodLike: { api: 9990, web: 9991, postgres: 9992 },
   /**
    * The remote-debugging port (Chrome DevTools Protocol) of the visible test browser on the developer's
