@@ -113,8 +113,9 @@ function SubscriptionList({ list, limits, now, calls, onChanged, onSignIn, onAdd
 }
 
 /**
- * The Subscriptions tab: one card per subscription with its kind, state, account and limits; rename, remove and Sign
- * in again on each, and Add a subscription in a sheet beside the page.
+ * The Subscriptions tab (logins, setup-tokens and API keys; gateways have their own tab): one card per subscription
+ * with its kind, state, account and limits; rename, remove and Sign in again on each, and Add a subscription in a
+ * sheet beside the page.
  */
 export function SubscriptionsTab() {
   const api = useApi();
@@ -151,7 +152,7 @@ export function SubscriptionsTab() {
       <LoadState loaded={subscriptions} label="Loading your subscriptions…" skeleton={SKELETON}>
         {(data) => (
           <SubscriptionList
-            list={data.subscriptions}
+            list={data.subscriptions.filter((subscription) => subscription.kind !== 'gateway')}
             limits={limits.data}
             now={now}
             calls={calls}

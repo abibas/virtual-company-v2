@@ -9,6 +9,7 @@ import { type FormEvent, useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import type { AccessProfile, AccessProfileChanges, Subscription } from '../../api/types.ts';
 import { Link } from '../../app/router.tsx';
+import { ADD_GATEWAY_PATH } from '../../components/auth/AccountMenu.tsx';
 import { count } from '../../components/data/format.ts';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { SelectField, TextField } from '../../components/forms/Field.tsx';
@@ -135,10 +136,23 @@ function SlotSelect({
       setBusy(false);
     }
   };
+  const noGateway =
+    slot === 'gateway' && !subscriptions.some((s) => s.kind === 'gateway' && s.status !== 'revoked');
   return (
     <SelectField
       label={SLOTS[slot].label}
-      hint={SLOTS[slot].hint}
+      hint={
+        noGateway ? (
+          <>
+            You have none yet.{' '}
+            <Link to={ADD_GATEWAY_PATH} className="font-semibold text-blue hover:underline">
+              Add a gateway
+            </Link>
+          </>
+        ) : (
+          SLOTS[slot].hint
+        )
+      }
       error={error}
       value={current?.id ?? ''}
       disabled={busy}

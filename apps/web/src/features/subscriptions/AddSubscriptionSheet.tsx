@@ -94,11 +94,11 @@ const SIGN_INS: readonly (Choice & { readonly provider: SignInProvider })[] = [
   },
 ];
 
-const PASTES: readonly (Choice & { readonly kind: PastedCredentialKind })[] = [
+/** The pasted subscriptions; gateways have their own tab and sheet (`GatewaysTab.tsx`). */
+const PASTES: readonly (Choice & { readonly kind: Exclude<PastedCredentialKind, 'gateway'> })[] = [
   { kind: 'claude_setup_token', title: 'Paste a Claude setup-token', subtitle: 'Inference only, for a year' },
   { kind: 'anthropic_api_key', title: 'Anthropic API key', subtitle: 'Pay as you go' },
   { kind: 'openai_api_key', title: 'OpenAI API key', subtitle: 'Pay as you go' },
-  { kind: 'gateway', title: 'AI gateway', subtitle: 'An address and its headers' },
 ];
 
 const SIGN_IN_NAMES: Readonly<Record<SignInProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
