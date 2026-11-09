@@ -5,11 +5,11 @@ import type { Machine, MachinePower, MachineStats, PowerEvent } from '../../api/
 import type { Loaded } from '../../api/use-load.ts';
 import { formatDateTime } from '../../components/data/format.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
-import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { DevboxPower } from './DevboxPower.tsx';
+import { MachineActions } from './MachineActions.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
 import { MachineIdentity } from './MachineStatsRow.tsx';
 import { agoText } from './machine-text.ts';
@@ -180,7 +180,7 @@ function PowerParts({
   );
 }
 
-/** A machine on the Machines page: who and how it is, its numbers, its power, its log, and Remove for admins. */
+/** A machine on the Machines page: who and how it is, its numbers, its power, its log, and its actions (Connect, Remove for admins). */
 export function MachineCard({
   machine,
   stats,
@@ -219,16 +219,7 @@ export function MachineCard({
       />
       {stats && <MachineMetrics stats={stats} />}
       <PowerParts machine={machine} control={control} now={now} />
-      {admin && (
-        <div className="flex justify-end">
-          <ConfirmInline
-            label="Remove"
-            question={`Remove ${machine.name}? Its runner is refused from then on; its history stays. Enroll it again to bring it back.`}
-            confirmLabel="Remove"
-            onConfirm={remove}
-          />
-        </div>
-      )}
+      <MachineActions machine={machine} admin={admin} onRemove={remove} />
     </Card>
   );
 }

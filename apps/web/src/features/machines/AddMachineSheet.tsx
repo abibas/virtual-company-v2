@@ -3,13 +3,13 @@ import { usePublicConfig } from '../../api/config.ts';
 import type { EnrollmentToken, Machine, PublicConfig } from '../../api/types.ts';
 import { List, ListRow } from '../../components/data/List.tsx';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
-import { CopyButton } from '../../components/forms/CopyButton.tsx';
 import { Sheet } from '../../components/layout/Drawer.tsx';
 import type { Tone } from '../../components/ui/Badge.tsx';
 import { Button, Spinner } from '../../components/ui/Button.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
 import { useNow } from '../subscriptions/limits.ts';
 import type { AddMachine } from './add-machine.ts';
+import { CommandBox } from './CommandBox.tsx';
 import { COMMAND_HINTS, installCommand, type NewMachineKind } from './install-commands.ts';
 
 interface Choice {
@@ -110,13 +110,7 @@ function EnrollCommand({
   const command = installCommand(kind, token.token, config);
   return (
     <div className="flex flex-col gap-3">
-      <pre className="overflow-x-auto rounded-xl bg-surface-2 px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-ink-2">
-        <code>{command}</code>
-      </pre>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Countdown expiresAt={token.expiresAt} onAgain={onAgain} />
-        <CopyButton text={command} label="Copy command" />
-      </div>
+      <CommandBox command={command} aside={<Countdown expiresAt={token.expiresAt} onAgain={onAgain} />} />
       <p className="text-xs text-dim">{COMMAND_HINTS[kind]}</p>
       {connected ? (
         <Notice tone="success">Connected: {connected.name}</Notice>
