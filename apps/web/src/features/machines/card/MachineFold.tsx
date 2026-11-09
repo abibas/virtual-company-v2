@@ -1,7 +1,9 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentProps } from 'react';
+import { usePowerControl } from '../../../api/machines.ts';
 import { Button } from '../../../components/ui/Button.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
+import { DevboxQuickPower } from '../power/DevboxPower.tsx';
 import { MachineCard } from './MachineCard.tsx';
 import { MachineLogo } from './MachineLogo.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
@@ -53,12 +55,23 @@ export function MachineFold({
         now={now}
         mark={<MachineLogo mark={mark} />}
         aside={
-          <Button size="sm" tone="secondary" icon={ChevronDown} aria-expanded={false} onClick={onToggle}>
-            Details
-          </Button>
+          <span className="flex items-center gap-2">
+            {machine.provider === 'airia_devbox' && (
+              <FoldedPower companyId={companyId} machineId={machine.id} />
+            )}
+            <Button size="sm" tone="secondary" icon={ChevronDown} aria-expanded={false} onClick={onToggle}>
+              Details
+            </Button>
+          </span>
         }
       />
       {stats && <MachineMetrics stats={stats} />}
     </Card>
   );
+}
+
+/** A folded devbox's Start or Stop, so it needs no opening. */
+function FoldedPower({ companyId, machineId }: { readonly companyId: string; readonly machineId: string }) {
+  const control = usePowerControl(companyId, machineId);
+  return <DevboxQuickPower control={control} />;
 }

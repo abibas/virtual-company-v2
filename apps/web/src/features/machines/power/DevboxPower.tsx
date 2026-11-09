@@ -193,3 +193,15 @@ export function DevboxPower({
     </section>
   );
 }
+
+/** Start or Stop alone, for a folded devbox card: nothing until its power is loaded or for a viewer; a refusal as a tooltip. */
+export function DevboxQuickPower({ control }: { readonly control: PowerControl }) {
+  const power = control.power.data;
+  const { busy, error, run } = useAction(power?.controller ?? null);
+  if (!power?.box || !power.canControl) return null;
+  return (
+    <span title={error} className="contents">
+      <StartStop box={power.box} control={control} busy={busy} run={run} />
+    </span>
+  );
+}
