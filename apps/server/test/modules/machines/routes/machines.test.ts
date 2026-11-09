@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { apiKeys, machineSamples, machines, runnerSessions, tenant } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
@@ -27,6 +27,7 @@ import { addMember, as, membersCompany } from '../../../fixtures/members/members
 const BUNDLE = join(mkdtempSync(join(tmpdir(), 'mwc-served-')), 'runner.mjs');
 writeFileSync(BUNDLE, '// the served runner\n');
 const SERVED = createHash('sha256').update('// the served runner\n').digest('hex');
+const BUILT_AT = '2026-11-09T16:40:00.000Z';
 
 let w: MachinesWorld;
 beforeAll(async () => {
@@ -48,20 +49,38 @@ describe("GET machines: each machine's runner", () => {
     const current = await enroll(w, company, { name: 'Current' });
     const old = await enroll(w, company, { name: 'Old' });
     const older = await enroll(w, company, { name: 'Older' });
-    await w.connect(current.runnerKey, { build: SERVED, caps: { terminal: true, selfUpdate: true } });
+    const caps = { terminal: true, selfUpdate: true };
+    await w.connect(current.runnerKey, { build: SERVED, builtAt: BUILT_AT, version: '0.5.0', caps });
     await w.connect(old.runnerKey, { build: 'ab'.repeat(32) });
     await w.connect(older.runnerKey);
     const res = await as(w, company.owner)('GET', machinesPath(company));
     const runners = Object.fromEntries(listed(res.body).map((one) => [one.name, one.runner]));
-    const none = { build: null, current: null, terminal: false, selfUpdate: false };
+    const none = { builtAt: null, build: null, current: null, terminal: false, selfUpdate: false };
     expect(runners).toEqual({
-      Offline: none,
-      Current: { build: SERVED, current: true, terminal: true, selfUpdate: true },
-      Old: { build: 'ab'.repeat(32), current: false, terminal: false, selfUpdate: false },
-      Older: none,
+      // Offline: the version on record from its enrollment.
+      Offline: { version: '0.5.0', ...none },
+      Current: { version: '0.5.0', builtAt: BUILT_AT, build: SERVED, current: true, ...caps },
+      Old: { version: '1.0.0', ...none, build: 'ab'.repeat(32), current: false },
+      Older: { version: '1.0.0', ...none },
     });
     const one = await as(w, company.owner)('GET', machinesPath(company, `/${old.machineId}`));
     expect((one.body as MachineView).runner.current).toBe(false);
+  });
+});
+
+describe('GET machines: the latest runner', () => {
+  it('is null until the build wrote runner.json beside the bundle, then its version, build time and SHA-256', async () => {
+    const company = await membersCompany(w);
+    const before = await as(w, company.owner)('GET', machinesPath(company));
+    expect(before).toMatchObject({ status: 200, body: { latestRunner: null } });
+    const manifest = { version: '0.5.0', builtAt: BUILT_AT, sha256: SERVED };
+    writeFileSync(join(dirname(BUNDLE), 'runner.json'), JSON.stringify(manifest));
+    const after = await as(w, company.owner)('GET', machinesPath(company));
+    expect((after.body as { latestRunner: unknown }).latestRunner).toEqual({
+      version: '0.5.0',
+      builtAt: BUILT_AT,
+      build: SERVED,
+    });
   });
 });
 

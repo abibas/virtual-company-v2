@@ -398,10 +398,32 @@ browser.
 5. Closing the socket ends the terminal. Types and schemas: `TerminalToServer`, `TerminalToBrowser`, `TERMINAL_WS_PATH`
    and the limits in `@mwc/shared/runner-protocol`.
 
+## Runner versions
+
+Added 2026-11-09 (Ihor: "what is the version of the runner running on an agent machine, and what is defined by the
+system as the last one"). A runner's version is its package's semver plus its build time:
+
+- **The semver** is `apps/runner/package.json`'s `version`, bumped with each stage's release tag (0.5.0 from S4 on).
+- **The build time.** `pnpm --filter @mwc/runner build` stamps the bundle with `{ version, builtAt }` (esbuild `define`,
+  `builtAt` in UTC ISO 8601) and writes `dist/runner.json` `{ version, builtAt, sha256 }` beside `runner.mjs` (the PTY
+  archives keep their own hashes). The build time tells builds of one version apart. Run from its sources, the runner
+  says its package's version and `builtAt: null`.
+- **The hello.** `runner.hello` carries `version` (the stamped one) and `builtAt` (null from the sources; a runner older
+  than this leaves it out, which parses as null).
+- **The server.** It reads `dist/runner.json` beside the bundle it hands out (again only when the file's time or size
+  changes; null while the bundle or the manifest is missing or the manifest does not parse). `GET machines` answers
+  `latestRunner: { version, builtAt, build } | null` beside the machines, and each machine's `runner` carries `version`
+  (its connected runner's, else the one on record from its last hello) and `builtAt` (null offline). `current` still
+  compares the bundle hash only; versions are never compared.
+- **On the page.** The card's facts line reads "Runner 0.5.0 · built 9 Nov 16:40" (local time; "build unknown" without
+  a build time); an out-of-date runner's badge reads "Runner out of date · latest 0.5.0 · built 9 Nov 17:05" next to
+  Update runner; the Machines page header shows a quiet "Latest runner 0.5.0 · built …".
+
 ## Updating a runner
 
-Built 2026-11-09 (Ihor: one click, never an install command again to update a runner). Every bundle says version
-0.1.0, so the version cannot tell an old runner from a new one; the build can:
+Built 2026-11-09 (Ihor: one click, never an install command again to update a runner). Before versioned runners every
+bundle said version 0.1.0, and two builds of one version still say the same version, so the build tells an old runner
+from a new one:
 
 - **Which build a runner runs.** At start the runner hashes the `runner.mjs` it was started from, once (SHA-256, the
   same hash `install.sh` checks), and says it in `runner.hello` as `build` (null from its sources), with
@@ -409,7 +431,7 @@ Built 2026-11-09 (Ihor: one click, never an install command again to update a ru
   whose service files say which in `MWC_RUNNER_SERVICE` (the systemd unit says it since this change; launchd's plist
   did already); false in a container and from the sources. The server knows the build it hands out (the bundle's SHA-256,
   hashed again only when the file's time or size changes) and `GET machines` answers each machine's
-  `runner: {build, current, terminal, selfUpdate}` from what its connected runner said (memory, no migration):
+  `runner: {version, builtAt, build, current, terminal, selfUpdate}` from what its connected runner said (memory, no migration):
   `current` is true or false when both builds are known, null otherwise (an offline machine, a runner older than
   `build`, an unbuilt bundle). The home board's stats rows do not carry it.
 - **On the card.** For admins and owners, while the machine is online and its runner is out of date (`current` false)

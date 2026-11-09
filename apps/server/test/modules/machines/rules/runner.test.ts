@@ -10,17 +10,27 @@ import {
 
 const OLD = 'ab'.repeat(32);
 const NEW = 'cd'.repeat(32);
-const connected = (build: string | null, caps = { terminal: true, selfUpdate: true }) => ({ build, caps });
+const BUILT_AT = '2026-11-09T16:40:00.000Z';
+const connected = (build: string | null, caps = { terminal: true, selfUpdate: true }) => ({
+  version: '0.5.0',
+  builtAt: BUILT_AT,
+  build,
+  caps,
+});
 
 describe("a machine's runner facts", () => {
   it('is current when its build is the served one, out of date when another', () => {
-    expect(runnerFacts(connected(NEW), NEW)).toEqual({
+    expect(runnerFacts(connected(NEW), NEW, '0.1.0')).toEqual({
+      version: '0.5.0',
+      builtAt: BUILT_AT,
       build: NEW,
       current: true,
       terminal: true,
       selfUpdate: true,
     });
-    expect(runnerFacts(connected(OLD, { terminal: false, selfUpdate: false }), NEW)).toEqual({
+    expect(runnerFacts(connected(OLD, { terminal: false, selfUpdate: false }), NEW, '0.1.0')).toEqual({
+      version: '0.5.0',
+      builtAt: BUILT_AT,
       build: OLD,
       current: false,
       terminal: false,
@@ -29,9 +39,11 @@ describe("a machine's runner facts", () => {
   });
 
   it('does not know when either side is unknown: an old or source runner, nothing served, or offline', () => {
-    expect(runnerFacts(connected(null), NEW).current).toBeNull();
-    expect(runnerFacts(connected(OLD), null).current).toBeNull();
-    expect(runnerFacts(undefined, NEW)).toEqual({
+    expect(runnerFacts(connected(null), NEW, '0.1.0').current).toBeNull();
+    expect(runnerFacts(connected(OLD), null, '0.1.0').current).toBeNull();
+    expect(runnerFacts(undefined, NEW, '0.1.0')).toEqual({
+      version: '0.1.0',
+      builtAt: null,
       build: null,
       current: null,
       terminal: false,

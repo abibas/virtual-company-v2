@@ -35,6 +35,25 @@ describe('runner.hello build and caps.selfUpdate', () => {
   });
 });
 
+describe('runner.hello builtAt', () => {
+  const hello = RUNNER_EXAMPLES['runner.hello'];
+
+  it('reads a runner older than versioned runners, which leaves it out, as null', () => {
+    expect(RunnerHello.parse(without(hello, 'builtAt')).builtAt).toBeNull();
+  });
+
+  it('takes the build time stamped into the bundle, or null from the sources', () => {
+    expect(RunnerHello.parse({ ...hello, builtAt: '2026-11-09T16:40:00.000Z' }).builtAt).toBe(
+      '2026-11-09T16:40:00.000Z',
+    );
+    expect(RunnerHello.parse({ ...hello, builtAt: null }).builtAt).toBeNull();
+  });
+
+  it('refuses a time that is not an ISO 8601 UTC time', () => {
+    expect(issuesOf(RunnerHello, { ...hello, builtAt: '9 Nov 16:40' })).toEqual(['builtAt']);
+  });
+});
+
 describe('runner.update and runner.update.result', () => {
   it('needs a command id', () => {
     expect(issuesOf(RunnerUpdate, SERVER_EXAMPLES['runner.update'])).toEqual([]);

@@ -58,6 +58,7 @@ describe('FakeRunner: connecting', () => {
       type: 'runner.hello',
       protocol: 1,
       version: '1.0.0',
+      builtAt: null,
       caps: {
         harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
         slots: 1,

@@ -2,6 +2,8 @@
 
 Stages of the rebuild, each a sprint that ends in a tagged release and a review with Ihor. Extracted from `plan-2026-11-03.md`; tick items off here as they land.
 
+With each release tag, bump `apps/runner/package.json`'s `version` to the tag (0.5.0 at S4; docs/machines.md, "Runner versions").
+
 ## 1. Context
 
 Ihor (2026-11-03) wants to stop growing v1 and re-implement the product from scratch, stage by stage, reviewing each stage and covering it with unit tests, so the result is clean, cloud-deployable as a container stack, and multi-tenant-ready. The new project lives in `/Users/abibas/PERSONAL/Most_Wanted_corp_v2` (created empty today) on ports 9950–9999 (verified free). This supersedes the v2 epic parked in v1's task tracker (it named another folder and ports 4100–4199; the PM updates it when v2 starts).

@@ -169,6 +169,7 @@ describe('when the tunnels cannot be sent', () => {
         selfUpdate: false,
         folders: false,
       },
+      builtAt: null,
       build: null,
       connectedAt: TEST_NOW_DATE,
     };

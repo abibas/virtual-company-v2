@@ -13,6 +13,7 @@ import { AddMachineSheet } from '../../features/machines/add/AddMachineSheet.tsx
 import { useAddMachine } from '../../features/machines/add/add-machine.ts';
 import { MachineFold } from '../../features/machines/card/MachineFold.tsx';
 import { useOpenMachines } from '../../features/machines/card/open-machines.ts';
+import { versionText } from '../../features/machines/runner/runner-text.ts';
 import { useNow } from '../../features/subscriptions/limits.ts';
 
 /** None yet: the invitation to add one (admins), or who does. */
@@ -57,6 +58,8 @@ export function MachinesPage() {
   const adding = useAddMachine(companyId, reload);
   const now = useNow();
   const folds = useOpenMachines(companyId);
+  // The runner the server hands out, in a quiet line under the header (none while it is not built).
+  const latest = machines.data?.latestRunner;
   return (
     <>
       <PageHeader
@@ -73,6 +76,9 @@ export function MachinesPage() {
           Where {membership.name}’s agents run, kept awake while they work and started or stopped by its
           rules.
         </p>
+        {latest && (
+          <p className="text-xs text-dim">Latest runner {versionText(latest.version, latest.builtAt)}</p>
+        )}
       </PageHeader>
       <LoadState
         loaded={machines}
@@ -90,6 +96,7 @@ export function MachinesPage() {
                   open={folds.isOpen(machine.id)}
                   onToggle={() => folds.toggle(machine.id)}
                   machine={machine}
+                  latestRunner={data.latestRunner}
                   stats={stats.data?.machines.find((item) => item.machineId === machine.id)}
                   now={now}
                   admin={admin}

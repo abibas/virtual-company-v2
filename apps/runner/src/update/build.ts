@@ -10,7 +10,7 @@ import { ptyTarget } from '../terminal/loader.ts';
 /**
  * Which build a runner runs, and whether it can update itself (docs/machines.md, "Updating a runner"): the build is the
  * SHA-256 of the `runner.mjs` it was started from, hashed once at start and said in `runner.hello`, so the server tells
- * an old runner from a current one (every bundle says version 0.1.0). Only an installed copy that its service manager
+ * an old runner from a current one (two builds of one version say the same version). Only an installed copy that its service manager
  * restarts updates itself (`caps.selfUpdate`).
  */
 

@@ -52,6 +52,8 @@ export interface ConnectedRunner {
   readonly companyId: string;
   readonly machineId: string;
   readonly version: string;
+  /** When its bundle was built (UTC, ISO 8601); null from its sources or from a runner older than versioned runners. */
+  readonly builtAt: string | null;
   /** The build it runs (its bundle's SHA-256); null from its sources or when its hello did not say. */
   readonly build: string | null;
   readonly caps: RunnerCaps;
@@ -122,10 +124,18 @@ export interface RunnerHub {
 
 /** A ready connection as the hub shows it. */
 function runnerOf(connection: RunnerConnection): ConnectedRunner {
-  const { version, caps, build } = connection.hello as RunnerHello;
+  const { version, builtAt, caps, build } = connection.hello as RunnerHello;
   const { machineId, runner } = connection;
   const connectedAt = connection.readyAt as Date;
-  return { companyId: runner.companyId, machineId, version, build: build ?? null, caps, connectedAt };
+  return {
+    companyId: runner.companyId,
+    machineId,
+    version,
+    builtAt: builtAt ?? null,
+    build: build ?? null,
+    caps,
+    connectedAt,
+  };
 }
 
 /** The connect listeners, each called in turn; one that throws is logged. */

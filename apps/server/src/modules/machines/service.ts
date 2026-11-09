@@ -16,6 +16,7 @@ import { machineLogoHashes } from './service/logo.ts';
 import { agentCounts, removeMachinePlacements } from './service/placement.ts';
 import { type ControlDeps, controlOf, type PowerControl } from './service/power/control.ts';
 import { DEFAULT_RUNNER_BUNDLE, servedBuild } from './service/runner/download.ts';
+import { type LatestRunner, latestRunner } from './service/runner/latest.ts';
 
 const iso = (at: Date | null) => at?.toISOString() ?? null;
 
@@ -97,7 +98,7 @@ interface Views {
 
 /** A machine's runner as the hub knows it, against the served build. */
 const runnerOf = (views: Views, row: Machine, served: string | null) =>
-  runnerFacts(views.hub.connected(row.id), served);
+  runnerFacts(views.hub.connected(row.id), served, row.runnerVersion);
 
 /**
  * A machine's view with its agent count and logo, read in the caller's transaction when it is one, its tunnel and its
@@ -211,6 +212,9 @@ export function machinesService(deps: ControlDeps & { readonly runnerBundle?: st
         ),
       );
     },
+
+    /** The runner this server hands out (`dist/runner.json` beside the bundle), null while it is not built. */
+    latestRunner: (): Promise<LatestRunner | null> => latestRunner(bundle),
 
     async get(t: TenantDb, id: string): Promise<Viewed> {
       const row = await repo.get(t, id);

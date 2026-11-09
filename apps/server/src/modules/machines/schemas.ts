@@ -38,6 +38,13 @@ export const TunnelSchema = z
 /** A machine's runner: the build it runs, whether that is the one this server hands out, and what it can do. */
 export const MachineRunnerSchema = z
   .object({
+    version: z.string().openapi({
+      example: '0.5.0',
+      description: "The version it runs: its connection's, else the one on record from its last hello",
+    }),
+    builtAt: dateTime.nullable().openapi({
+      description: 'When its bundle was built (UTC); null offline, from its sources or from an older runner',
+    }),
     build: z.string().nullable().openapi({
       description:
         'The SHA-256 of the bundle it runs; null when it is offline, runs from its sources or did not say',
@@ -88,7 +95,20 @@ export const MachineSchema = z
   })
   .openapi('Machine');
 
-export const MachineListSchema = z.object({ machines: z.array(MachineSchema) }).openapi('MachineList');
+/** The runner this server hands out (`dist/runner.json` beside the bundle); null while it is not built. */
+export const LatestRunnerSchema = z
+  .object({
+    version: z.string().openapi({ example: '0.5.0' }),
+    builtAt: dateTime.openapi({ description: 'When the bundle was built (UTC)' }),
+    build: z
+      .string()
+      .openapi({ description: "The bundle's SHA-256, which a current runner's `build` matches" }),
+  })
+  .openapi('LatestRunner');
+
+export const MachineListSchema = z
+  .object({ machines: z.array(MachineSchema), latestRunner: LatestRunnerSchema.nullable() })
+  .openapi('MachineList');
 
 /** A machine's change: its name, and for a devbox the machine whose runner powers it (null clears it). */
 export const UpdateMachineSchema = z

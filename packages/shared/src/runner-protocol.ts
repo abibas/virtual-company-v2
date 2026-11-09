@@ -184,6 +184,7 @@ export {
 export {
   RUNNER_UPDATE_ERRORS,
   RunnerBuild,
+  RunnerBuiltAt,
   RunnerUpdate,
   type RunnerUpdateError,
   RunnerUpdateResult,

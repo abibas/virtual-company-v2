@@ -39,11 +39,12 @@ async function failure(promise: Promise<unknown>): Promise<HubError> {
 }
 
 describe('which runners the hub has', () => {
-  it('knows a runner from its server.hello to its close: version, build, caps and since when', async () => {
+  it('knows a runner from its server.hello to its close: version, build time, build, caps and since when', async () => {
     const { machineId, runnerKey } = await enroll(w, company);
     expect([w.hub.isOnline(machineId), w.hub.connected(machineId)]).toEqual([false, undefined]);
     const runner = await w.connect(runnerKey, {
       version: '0.7.0',
+      builtAt: '2026-11-09T16:40:00.000Z',
       build: 'ab'.repeat(32),
       caps: { power: ['airia_devbox'], hold: 'caffeinate', selfUpdate: true },
     });
@@ -52,6 +53,7 @@ describe('which runners the hub has', () => {
       companyId: company.companyId,
       machineId,
       version: '0.7.0',
+      builtAt: '2026-11-09T16:40:00.000Z',
       build: 'ab'.repeat(32),
       caps: {
         harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },

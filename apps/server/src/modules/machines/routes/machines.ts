@@ -35,10 +35,13 @@ const listRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'get',
-    summary: 'The machines (viewer and above), by name',
+    summary: 'The machines (viewer and above), by name, and the latest runner this server hands out',
     request: { params: MachinesParamsSchema },
     responses: {
-      200: jsonResponse('The machines', MachineListSchema),
+      200: jsonResponse(
+        'The machines and `latestRunner` (null while the runner is not built)',
+        MachineListSchema,
+      ),
       401: refusals[401],
       404: refusals[404],
     },
@@ -125,7 +128,10 @@ const callerOf = (v: {
 export function machineRoutes(deps: ServerDeps, machines: MachinesService) {
   // `stats` before `{machineId}`, so it is not taken for a machine's id.
   return newRouter()
-    .openapi(listRoute(deps), async (c) => c.json({ machines: await machines.list(c.var.tenant) }, 200))
+    .openapi(listRoute(deps), async (c) => {
+      const [list, latestRunner] = await Promise.all([machines.list(c.var.tenant), machines.latestRunner()]);
+      return c.json({ machines: list, latestRunner }, 200);
+    })
     .openapi(statsRoute(deps), async (c) => c.json(await machineStatsList(c.var.tenant, c.var.clock()), 200))
     .openapi(getRoute(deps), async (c) => {
       const result = await machines.get(c.var.tenant, c.req.valid('param').machineId);

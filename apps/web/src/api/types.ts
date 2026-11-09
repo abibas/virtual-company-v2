@@ -62,7 +62,10 @@ export type AccessProfileChanges = InferRequestType<ProfileRoutes[':profileId'][
 type MachineRoutes = CompanyRoutes['machines'];
 type OneMachineRoutes = MachineRoutes[':machineId'];
 
-export type Machine = InferResponseType<MachineRoutes['$get'], 200>['machines'][number];
+export type MachineList = InferResponseType<MachineRoutes['$get'], 200>;
+export type Machine = MachineList['machines'][number];
+/** The runner the server hands out, or null while it is not built. */
+export type LatestRunner = MachineList['latestRunner'];
 export type MachineKind = Machine['kind'];
 export type MachineChanges = InferRequestType<OneMachineRoutes['$patch']>['json'];
 export type MachineStatsList = InferResponseType<MachineRoutes['stats']['$get'], 200>;

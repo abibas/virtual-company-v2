@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,7 @@ import {
   BUNDLE_FILE,
   buildBundle,
   bundleOptions,
+  MANIFEST_FILE,
   nodePackFs,
   PTY_DIR,
   packPtys,
@@ -21,7 +23,10 @@ const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
 
 describe('the runner bundle', () => {
   it('is one ES module for Node 22 with every dependency inside but the native add-ons and the PTY', () => {
-    const options = bundleOptions('/repo/apps/runner', '0.1.0');
+    const options = bundleOptions('/repo/apps/runner', {
+      version: '0.1.0',
+      builtAt: '2026-11-09T16:40:00.000Z',
+    });
     expect(options).toMatchObject({
       entryPoints: ['/repo/apps/runner/src/main.ts'],
       outfile: '/repo/apps/runner/dist/runner.mjs',
@@ -30,7 +35,7 @@ describe('the runner bundle', () => {
       format: 'esm',
       target: 'node22',
       external: ['bufferutil', 'utf-8-validate', '@lydell/node-pty-*'],
-      define: { MWC_RUNNER_VERSION: '"0.1.0"' },
+      define: { MWC_RUNNER_VERSION: '"0.1.0"', MWC_RUNNER_BUILT_AT: '"2026-11-09T16:40:00.000Z"' },
       minify: false,
     });
     expect(options.packages).toBeUndefined();
@@ -40,16 +45,39 @@ describe('the runner bundle', () => {
     expect(BUNDLE_BANNER).toContain('const require = createRunnerRequire(import.meta.url);');
   });
 
-  it("builds with esbuild from the package's version and says where the file is", async () => {
+  it("builds with esbuild, stamped with the package's version and the build time, and writes runner.json", async () => {
     const built: BuildOptions[] = [];
+    const written: Record<string, string> = {};
+    const fakes = {
+      readBytes: (path: string) => new TextEncoder().encode(`bundle at ${path}`),
+      writeFile: (path: string, text: string) => {
+        written[path] = text;
+      },
+      now: () => new Date('2026-11-09T16:40:00.000Z'),
+    };
     const out = await buildBundle('/repo/apps/runner', {
       build: async (options) => built.push(options),
       readFile: () => '{"name":"@mwc/runner","version":"0.4.2"}',
+      ...fakes,
     });
     expect(out).toBe(`/repo/apps/runner/${BUNDLE_FILE}`);
-    expect(built[0]?.define).toEqual({ MWC_RUNNER_VERSION: '"0.4.2"' });
-    const noVersion = { build: async () => {}, readFile: () => '{"name":"x"}' };
+    expect(built[0]?.define).toEqual({
+      MWC_RUNNER_VERSION: '"0.4.2"',
+      MWC_RUNNER_BUILT_AT: '"2026-11-09T16:40:00.000Z"',
+    });
+    expect(JSON.parse(written[`/repo/apps/runner/${MANIFEST_FILE}`] as string)).toEqual({
+      version: '0.4.2',
+      builtAt: '2026-11-09T16:40:00.000Z',
+      sha256: createHash('sha256').update(`bundle at /repo/apps/runner/${BUNDLE_FILE}`).digest('hex'),
+    });
+    const noVersion = { build: async () => {}, readFile: () => '{"name":"x"}', ...fakes };
     await expect(buildBundle('/repo/apps/runner', noVersion)).rejects.toThrow('has no version');
+  });
+
+  it('is versioned 0.5.0 or later in its package.json', () => {
+    const { version } = JSON.parse(read('package.json')) as { version: string };
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(version).not.toBe('0.1.0');
   });
 
   it('is what `pnpm --filter @mwc/runner build` runs, through scripts/build.ts, from the dist/ git ignores', () => {

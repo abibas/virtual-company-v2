@@ -1,15 +1,16 @@
 import { MACHINE_NAME } from '@mwc/shared/machines';
-import type { Machine, MachinePower, MachineStats } from '../../../api/types.ts';
+import type { LatestRunner, Machine, MachinePower, MachineStats } from '../../../api/types.ts';
 import { InlineEdit } from '../../../components/forms/InlineEdit.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { holdText, tunnelText } from '../power/power-text.ts';
-import { runnerOutOfDate } from '../runner/runner-text.ts';
+import { outOfDateText, runnerOutOfDate, versionText } from '../runner/runner-text.ts';
 import { EditableMachineLogo, MachineLogo } from './MachineLogo.tsx';
 import { MachineIdentity } from './MachineStatsRow.tsx';
 
 /**
- * The top of a machine card: its logo and name (changed in place by admins), its status, "Runner out of date" when its
- * runner runs another build than the server hands out (or has no terminal), its versions, hold and tunnel.
+ * The top of a machine card: its logo and name (changed in place by admins), its status, "Runner out of date" with the
+ * latest version when its runner runs another build than the server hands out (or has no terminal), its versions (the
+ * runner's with its build time), hold and tunnel.
  */
 
 /** Versions, where it runs and its hold, in one quiet line. */
@@ -28,7 +29,7 @@ function FactsLine({
   const hold = holdText(machine, power, now);
   return (
     <p className="text-xs text-dim">
-      Runner {machine.versions.runner}
+      Runner {versionText(machine.runner.version, machine.runner.builtAt)}
       {claude} · {machine.os} {machine.arch} · {machine.unixUser}@{machine.hostname}
       {hold && <span className="font-medium text-ink-2"> · {hold}</span>}
     </p>
@@ -58,6 +59,7 @@ function TunnelLine({
 /** Who and how it is: its logo and name (changed in place by admins), status, facts and tunnel. */
 export function MachineHeader({
   machine,
+  latestRunner,
   stats,
   power,
   now,
@@ -68,6 +70,8 @@ export function MachineHeader({
   onChanged,
 }: {
   readonly machine: Machine;
+  /** The runner the server hands out, named in the out-of-date badge; null while it is not built. */
+  readonly latestRunner: LatestRunner;
   readonly stats: MachineStats | undefined;
   readonly power: MachinePower | undefined;
   readonly now: number;
@@ -105,7 +109,7 @@ export function MachineHeader({
         badges={
           runnerOutOfDate(machine, online) && (
             <Badge tone="input" size="sm" dot>
-              Runner out of date
+              {outOfDateText(latestRunner)}
             </Badge>
           )
         }

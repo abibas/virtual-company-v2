@@ -3,6 +3,7 @@ import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
 import type {
+  LatestRunner,
   Machine,
   MachineChanges,
   MachinePower,
@@ -48,8 +49,10 @@ export function useVisibleInterval(tick: () => void, everyMs: number, enabled = 
   }, [everyMs, enabled]);
 }
 
-/** The machines, by name. */
-export function useMachines(companyId: string): Loaded<{ readonly machines: readonly Machine[] }> {
+/** The machines, by name, and the latest runner the server hands out. */
+export function useMachines(
+  companyId: string,
+): Loaded<{ readonly machines: readonly Machine[]; readonly latestRunner: LatestRunner }> {
   const api = useApi();
   return useLoad(`machines:${companyId}`, () => machineCalls(api, companyId).list());
 }

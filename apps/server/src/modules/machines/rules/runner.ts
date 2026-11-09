@@ -8,8 +8,12 @@ import { type Refusal, refuse } from '../rules.ts';
  * cannot reinstall, the command a person runs instead.
  */
 
-/** The runner of a machine: its build, whether that is the served one, and what it can do. */
+/** The runner of a machine: its version, its build, whether that is the served one, and what it can do. */
 export interface RunnerFacts {
+  /** The version it runs: its connection's, else the one on record from its last hello. */
+  readonly version: string;
+  /** When its bundle was built (UTC, ISO 8601); null offline, from its sources or from an older runner. */
+  readonly builtAt: string | null;
   /** The SHA-256 of the bundle it runs; null when it is not connected, runs from its sources or did not say. */
   readonly build: string | null;
   /** True when it runs the served bundle, false when another; null when either side is unknown. */
@@ -22,14 +26,25 @@ export interface RunnerFacts {
 
 /** What the hub knows of a connected runner, as far as these facts go. */
 export interface ConnectedFacts {
+  readonly version: string;
+  readonly builtAt: string | null;
   readonly build: string | null;
   readonly caps: { readonly terminal: boolean; readonly selfUpdate: boolean };
 }
 
-/** The runner's facts from its connection (none while offline) and the build this server hands out (null unbuilt). */
-export function runnerFacts(connected: ConnectedFacts | undefined, served: string | null): RunnerFacts {
+/**
+ * The runner's facts from its connection (none while offline), the build this server hands out (null unbuilt) and the
+ * version on record (`recorded`, from its last hello). `current` compares builds only, never versions.
+ */
+export function runnerFacts(
+  connected: ConnectedFacts | undefined,
+  served: string | null,
+  recorded: string,
+): RunnerFacts {
   const build = connected?.build ?? null;
   return {
+    version: connected?.version ?? recorded,
+    builtAt: connected?.builtAt ?? null,
     build,
     current: build === null || served === null ? null : build === served,
     terminal: connected?.caps.terminal ?? false,

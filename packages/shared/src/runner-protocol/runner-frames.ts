@@ -15,7 +15,7 @@ import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 import { FOLDER_RUNNER_FRAMES } from './folders.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
 import { RunnerHarnesses, TURN_RUNNER_FRAMES } from './turns.ts';
-import { RunnerBuild, RunnerUpdateResult } from './update.ts';
+import { RunnerBuild, RunnerBuiltAt, RunnerUpdateResult } from './update.ts';
 
 /** The frames a runner sends to the server (docs/runner-protocol.md, "Runner to server"). */
 
@@ -69,6 +69,11 @@ export const RunnerHello = frame('runner.hello', {
    * older than it (the server then cannot tell whether it is current).
    */
   build: RunnerBuild.nullable().optional(),
+  /**
+   * When its bundle was built (UTC, ISO 8601), stamped in by the build; null from its sources and from a runner older
+   * than versioned runners (which leaves it out).
+   */
+  builtAt: RunnerBuiltAt.nullable().default(null),
 });
 export type RunnerHello = z.infer<typeof RunnerHello>;
 

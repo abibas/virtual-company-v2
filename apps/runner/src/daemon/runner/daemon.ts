@@ -182,7 +182,7 @@ export class RunnerDaemon implements Runner {
   }
 
   #hello(): RunnerHello {
-    const { harness, processes, version, claudeVersion, build } = this.#options;
+    const { harness, processes, version, builtAt, claudeVersion, build } = this.#options;
     const caps = {
       harnesses: harness && processes ? harness.versions : NO_HARNESSES,
       slots: this.#config.slots,
@@ -192,7 +192,7 @@ export class RunnerDaemon implements Runner {
       selfUpdate: this.#updates.available,
       folders: this.#options.folders !== undefined,
     };
-    return helloOf({ version, caps, claudeVersion, build });
+    return helloOf({ version, builtAt: builtAt ?? null, caps, claudeVersion, build });
   }
 
   #afterHello(hello: ServerHello): RunnerFrame[] {

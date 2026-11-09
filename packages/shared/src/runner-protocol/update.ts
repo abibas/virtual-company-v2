@@ -13,6 +13,9 @@ import { ErrorText, frame, Uuid } from './common.ts';
 export const RunnerBuild = z.string().regex(/^[0-9a-f]{64}$/, 'a SHA-256 in lower-case hex');
 export type RunnerBuild = z.infer<typeof RunnerBuild>;
 
+/** When a runner bundle was built: a UTC ISO 8601 time, stamped in by the build next to its version. */
+export const RunnerBuiltAt = z.iso.datetime();
+
 /**
  * Why a runner did not update, the code before `: ` in `runner.update.result.error`: it cannot (`unsupported`: run from
  * its sources, in a container, or not under launchd or systemd), it has live work (`busy`), a download failed

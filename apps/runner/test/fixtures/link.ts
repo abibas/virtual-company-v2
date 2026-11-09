@@ -13,6 +13,7 @@ export const HELLO: RunnerHello = {
   type: 'runner.hello',
   protocol: 1,
   version: '0.1.0',
+  builtAt: null,
   caps: {
     harnesses: { claude_code: null, codex: null },
     slots: 1,

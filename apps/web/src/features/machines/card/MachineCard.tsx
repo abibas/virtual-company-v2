@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { type MachineCalls, type PowerControl, usePowerControl } from '../../../api/machines.ts';
-import type { Machine, MachineStats, PowerEvent } from '../../../api/types.ts';
+import type { LatestRunner, Machine, MachineStats, PowerEvent } from '../../../api/types.ts';
 import type { Loaded } from '../../../api/use-load.ts';
 import { formatDateTime } from '../../../components/data/format.ts';
 import { LoadState } from '../../../components/data/LoadState.tsx';
@@ -88,6 +88,7 @@ function PowerParts({ machine, control }: { readonly machine: Machine; readonly 
  */
 export function MachineCard({
   machine,
+  latestRunner,
   stats,
   now,
   admin,
@@ -97,6 +98,8 @@ export function MachineCard({
   onChanged,
 }: {
   readonly machine: Machine;
+  /** The runner the server hands out (null while it is not built), which an out-of-date runner's badge names. */
+  readonly latestRunner: LatestRunner;
   readonly stats: MachineStats | undefined;
   readonly now: number;
   readonly admin: boolean;
@@ -119,6 +122,7 @@ export function MachineCard({
     <Card as="article" aria-label={machine.name} className="flex flex-col gap-5">
       <MachineHeader
         machine={machine}
+        latestRunner={latestRunner}
         stats={stats}
         power={control.power.data}
         now={now}

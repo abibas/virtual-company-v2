@@ -243,10 +243,11 @@ describe('after an update', () => {
       manager: 'systemd' as const,
       apply: async () => ({ build: 'cd'.repeat(32), pty: true }),
     };
-    const running = main(['run'], { ...deps, build, update });
+    const builtAt = '2026-11-09T16:40:00.000Z';
+    const running = main(['run'], { ...deps, build, builtAt, update });
     const hello = await server.frames.next('runner.hello');
-    expect([hello.build, hello.caps.selfUpdate]).toEqual([build, true]);
-    expect(entries()[0]).toMatchObject({ msg: 'starting', build, selfUpdate: 'systemd' });
+    expect([hello.build, hello.builtAt, hello.caps.selfUpdate]).toEqual([build, builtAt, true]);
+    expect(entries()[0]).toMatchObject({ msg: 'starting', builtAt, build, selfUpdate: 'systemd' });
     await server.frames.next('runner.heartbeat');
     const cmdId = newId();
     server.send({ type: 'runner.update', cmdId });
@@ -267,8 +268,8 @@ describe('after an update', () => {
     const { deps, entries, signals } = world({ server });
     const running = main(['run'], deps);
     const hello = await server.frames.next('runner.hello');
-    expect([hello.build, hello.caps.selfUpdate]).toEqual([undefined, false]);
-    expect(entries()[0]).toMatchObject({ build: null, selfUpdate: false });
+    expect([hello.build, hello.builtAt, hello.caps.selfUpdate]).toEqual([undefined, null, false]);
+    expect(entries()[0]).toMatchObject({ builtAt: null, build: null, selfUpdate: false });
     signals.get('SIGTERM')?.();
     expect(await running).toBe(EXIT.ok);
   });

@@ -104,6 +104,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     version: deps.version,
     ...(deps.claudeVersion === undefined ? {} : { claudeVersion: deps.claudeVersion }),
     ...(deps.build === undefined ? {} : { build: deps.build }),
+    builtAt: deps.builtAt ?? null,
     ...(deps.update ? { update: deps.update } : {}),
     log,
     hold: holdDriverFor(setup.hold, deps, log),
@@ -229,6 +230,7 @@ export async function main(argv: readonly string[], deps: MainDeps): Promise<num
   const { machineId, name, serverUrl: server } = config;
   const self = {
     version: deps.version,
+    builtAt: deps.builtAt ?? null,
     build: deps.build ?? null,
     selfUpdate: deps.update?.manager ?? false,
   };

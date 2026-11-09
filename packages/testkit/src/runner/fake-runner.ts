@@ -49,6 +49,8 @@ export interface FakeRunnerOptions {
   readonly caps?: Partial<RunnerCaps>;
   /** `runner.hello`'s build (a SHA-256, or null from the sources); left out by default, as an older runner does. */
   readonly build?: string | null;
+  /** `runner.hello`'s build time (UTC, ISO 8601); null by default, as a runner from its sources or an older one says. */
+  readonly builtAt?: string | null;
   /** The runs `runner.resync` reports on every connect; none by default. */
   readonly runs?: readonly ResyncRun[];
   /** The hold `hold.state` reports after each resync; not held by default. */
@@ -120,7 +122,15 @@ export class FakeRunner {
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;
     const { build } = this.#options;
     const version = this.#options.version ?? '1.0.0';
-    return { type: 'runner.hello', protocol, version, caps, ...(build === undefined ? {} : { build }) };
+    const builtAt = this.#options.builtAt ?? null;
+    return {
+      type: 'runner.hello',
+      protocol,
+      version,
+      builtAt,
+      caps,
+      ...(build === undefined ? {} : { build }),
+    };
   }
 
   /**

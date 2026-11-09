@@ -32,6 +32,8 @@ export interface RunnerOptions {
   readonly claudeVersion?: string | null;
   /** The build it runs (its bundle's SHA-256, null from the sources); left out of the hello unset. */
   readonly build?: string | null;
+  /** When its bundle was built (UTC, ISO 8601), null from the sources or unset (`runner.hello.builtAt`). */
+  readonly builtAt?: string | null;
   /** How it updates itself (`runner.update`); without it the runner answers `unsupported` (`caps.selfUpdate` false). */
   readonly update?: SelfUpdate;
   readonly log: Log;

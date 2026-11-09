@@ -92,6 +92,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       folders: true,
     },
     build: BUILD,
+    builtAt: '2026-11-09T16:40:00.000Z',
   },
   'runner.heartbeat': {
     type: 'runner.heartbeat',
