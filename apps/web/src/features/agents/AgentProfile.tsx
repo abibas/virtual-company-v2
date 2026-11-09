@@ -184,7 +184,7 @@ const formKey = (agent: AgentDetail) => `${agent.id}:${agent.reportsTo ?? ''}`;
 export function AgentProfile({ agent, links, ...rest }: AgentProfileProps) {
   return (
     <>
-      <ButtonLink href={links.chart} tone="quiet" size="sm" icon={ArrowLeft} className="mb-3 -ml-2">
+      <ButtonLink href={links.list} tone="quiet" size="sm" icon={ArrowLeft} className="mb-3 -ml-2">
         Agents
       </ButtonLink>
       <LoadState loaded={agent} label="Loading the agent…">

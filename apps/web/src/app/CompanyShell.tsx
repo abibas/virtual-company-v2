@@ -13,26 +13,25 @@ import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
+import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
-import { AgentsPage } from '../pages/company/AgentsPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { ChatPage } from '../pages/company/ChatPage.tsx';
 import { MachinesPage } from '../pages/company/MachinesPage.tsx';
-import { MembersPage } from '../pages/company/MembersPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
 import { SettingsPage } from '../pages/company/SettingsPage.tsx';
+import { StructurePage } from '../pages/company/StructurePage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { CompanySwitcher } from './CompanySwitcher.tsx';
 import { CompanyContext, type CompanyView } from './company.ts';
-import { companyHrefs, companyNav } from './nav.ts';
+import { companyHrefs, companyNav, companyPath, movedSection, railSection } from './nav.ts';
+import { Redirect, useLocation } from './router.tsx';
 import { rememberCompany, useSession } from './session.tsx';
 
 /** The pages of a company, by the path after `/:slug/`. */
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
-  agents: AgentsPage,
   machines: MachinesPage,
-  members: MembersPage,
   'api-keys': ApiKeysPage,
   settings: SettingsPage,
 };
@@ -83,10 +82,15 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
-/** The page at `section` (the path after `/:slug/`): a company page, an agent's page or chats, or not found. */
+/**
+ * The page at `section` (the path after `/:slug/`): a company page, a Company structure tab, an agent's page or chats,
+ * or not found.
+ */
 function pageAt(section: string): ReactNode {
   const [head = '', ...rest] = section.split('/');
   const address = rest.length === 1 ? rest[0] : undefined;
+  const tab = head === 'structure' && rest.length <= 1 ? structureTabAt(rest[0] ?? '') : undefined;
+  if (tab) return <StructurePage tab={tab} />;
   if (head === 'agents' && address) return <AgentPage address={address} />;
   if (head === 'chats' && address) return <ChatPage key={address} agentId={address} />;
   const Page = rest.length === 0 ? SECTIONS[head] : undefined;
@@ -115,9 +119,8 @@ function CompanyFrame({
   const attention = useAttention();
   const pendingLogo = usePendingLogo(membership.companyId);
   const agents = useAgentList(membership.companyId);
-  // An agent's chats belong to the Agents section (the rail, and the switcher's section in another company).
-  const first = section.split('/')[0] ?? '';
-  const head = first === 'chats' ? 'agents' : first;
+  // An agent's page and chats belong to Company structure (the rail, and the switcher's section in another company).
+  const head = railSection(section.split('/')[0] ?? '');
   return (
     <CompanyContext value={{ ...view, agents }}>
       <AppShell
@@ -151,10 +154,12 @@ function CompanyFrame({
 
 /**
  * `/:slug/...`: a company the person is an active member of, in the app shell, with its page; the not-found page for
- * a first segment that is no company of theirs.
+ * a first segment that is no company of theirs. A page that moved (`agents`, `members`) is replaced by its new address.
  */
 export function CompanyShell({ slug, section }: { readonly slug: string; readonly section: string }) {
   const { view, provisioning, checked } = useCompanyMembership(slug);
+  const moved = movedSection(section, useLocation().search);
+  if (moved !== undefined) return <Redirect to={companyPath(slug, moved)} />;
   if (view === null && !checked) {
     return (
       <CenteredState>

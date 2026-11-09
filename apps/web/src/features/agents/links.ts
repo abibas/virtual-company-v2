@@ -1,11 +1,17 @@
 import { companyPath } from '../../app/nav.ts';
 
-/** Where the Agents pages link to, so the same parts serve the company's routes and the design gallery. */
-export interface AgentLinks {
-  /** The org chart (the Agents page's first tab). */
+/** Where the Company structure tabs link to, so the same parts serve the company's routes and the design gallery. */
+export interface StructureLinks {
+  /** The org chart (the first tab). */
   readonly chart: string;
-  /** The list of agents (its second tab). */
+  /** The list of agents (the Agents tab). */
   readonly list: string;
+  /** The people of the company, their roles and invitations (the People tab). */
+  readonly people: string;
+}
+
+/** Where the agents' pages link to: the Company structure tabs, the hire form, an agent and its chats. */
+export interface AgentLinks extends StructureLinks {
   /** The form that hires a new agent. */
   readonly hire: string;
   /** One agent's page. */
@@ -16,6 +22,9 @@ export interface AgentLinks {
   chats(agent: { readonly id: string }): string;
 }
 
+/** The section of the Company structure page, `/:slug/structure`, with its tabs below it. */
+export const STRUCTURE = 'structure';
+
 /** The word of `/agents/new`; an agent with this slug is reached by its id instead. */
 const HIRE = 'new';
 
@@ -24,14 +33,16 @@ export const agentAddress = (agent: { readonly slug: string; readonly id: string
   agent.slug === HIRE ? agent.id : agent.slug;
 
 /**
- * The links of a company's Agents pages: `/:slug/agents`, `?view=list`, `/new` and `/:agent`, its machines, and an
- * agent's chats.
+ * The links of a company's agents: the Company structure tabs (`/:slug/structure`, `/agents`, `/people`), the hire
+ * form and an agent's page under `/:slug/agents/` (`/new`, `/:agent`), its machines, and an agent's chats.
  */
 export function companyAgentLinks(companySlug: string): AgentLinks {
   const base = companyPath(companySlug, 'agents');
+  const structure = companyPath(companySlug, STRUCTURE);
   return {
-    chart: base,
-    list: `${base}?view=list`,
+    chart: structure,
+    list: `${structure}/agents`,
+    people: `${structure}/people`,
     hire: `${base}/${HIRE}`,
     agent: (agent) => `${base}/${agentAddress(agent)}`,
     machines: companyPath(companySlug, 'machines'),

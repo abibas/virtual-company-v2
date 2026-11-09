@@ -6,16 +6,21 @@ import { AgentProfile } from '../../features/agents/AgentProfile.tsx';
 import { AgentsView } from '../../features/agents/AgentsView.tsx';
 import { HireAgent } from '../../features/agents/HireAgent.tsx';
 import type { AgentLinks } from '../../features/agents/links.ts';
+import { StructureView } from '../../features/structure/StructureView.tsx';
 import { MockShell } from './MockShell.tsx';
 import { SAMPLE_CHART, sampleAgent, sampleAgentList } from './org-sample.ts';
 import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from './records.ts';
 
 const HERE = '/design/org';
 
-/** The Agents pages' links inside the gallery: the tabs and the agents are query strings of this one mock. */
+/**
+ * The Company structure links inside the gallery: the chart and agents tabs and the agents are query strings of this
+ * one mock; People is the Members mock.
+ */
 const LINKS: AgentLinks = {
   chart: HERE,
   list: `${HERE}?view=list`,
+  people: '/design/members',
   hire: `${HERE}?agent=new`,
   agent: (agent) => `${HERE}?agent=${agent.slug}`,
   machines: HERE,
@@ -24,22 +29,24 @@ const LINKS: AgentLinks = {
 
 const none = () => undefined;
 
-/** The Agents page on the sample chart, as the owner sees it, with the list filtered in memory. */
+/** The Company structure page on the sample chart, as the owner sees it, with the list filtered in memory. */
 function AgentsBody({ list }: { readonly list: boolean }) {
   const [status, setStatus] = useState<AgentFilter>('active');
   return (
-    <AgentsView
-      companyId={SAMPLE_COMPANY.id}
-      tab={list ? 'list' : 'chart'}
-      links={LINKS}
-      chart={loaded(SAMPLE_CHART)}
-      agents={loaded(sampleAgentList(status))}
-      status={status}
-      onStatus={setStatus}
-      admin
-      meUserId={SAMPLE_ME.id}
-      onChanged={none}
-    />
+    <StructureView tab={list ? 'agents' : 'chart'} links={LINKS} hireHref={LINKS.hire} admin>
+      <AgentsView
+        companyId={SAMPLE_COMPANY.id}
+        tab={list ? 'list' : 'chart'}
+        links={LINKS}
+        chart={loaded(SAMPLE_CHART)}
+        agents={loaded(sampleAgentList(status))}
+        status={status}
+        onStatus={setStatus}
+        admin
+        meUserId={SAMPLE_ME.id}
+        onChanged={none}
+      />
+    </StructureView>
   );
 }
 

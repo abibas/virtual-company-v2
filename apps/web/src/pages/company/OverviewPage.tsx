@@ -52,11 +52,12 @@ function countOf<T>(loaded: Loaded<T>, pick: (data: T) => number) {
 
 /** The two tiles, side by side from small screens up. */
 function Tiles({
-  base,
+  peopleHref,
   admin,
   data,
 }: {
-  readonly base: string;
+  /** The People tab of Company structure, where the members and the invitations are. */
+  readonly peopleHref: string;
   readonly admin: boolean;
   readonly data: ReturnType<typeof useOverviewData>;
 }) {
@@ -67,7 +68,7 @@ function Tiles({
       <StatTile
         label="Members"
         icon={Users}
-        href={`${base}/members`}
+        href={peopleHref}
         {...members}
         hint={members.hint ?? 'Active in the company'}
       />
@@ -76,7 +77,7 @@ function Tiles({
           label="Pending invitations"
           icon={Mail}
           tone="input"
-          href={`${base}/members`}
+          href={peopleHref}
           {...invitations}
           hint={invitations.hint ?? 'Expire 14 days after they are sent'}
         />
@@ -112,12 +113,12 @@ export function OverviewPage() {
         logoSrc={logoSrc}
         summary={ROLE_SUMMARY[membership.role]}
         actions={
-          <ButtonLink href={`${base}/members`} tone="inverse" icon={admin ? Plus : Users}>
+          <ButtonLink href={links.people} tone="inverse" icon={admin ? Plus : Users}>
             {admin ? 'Invite a teammate' : 'See the members'}
           </ButtonLink>
         }
       />
-      <Tiles base={base} admin={admin} data={data} />
+      <Tiles peopleHref={links.people} admin={admin} data={data} />
       <SubscriptionLimitsWidget />
       <MachinesBoard companyId={membership.companyId} machinesHref={`${base}/machines`} admin={admin} />
       <div className="grid gap-4 lg:grid-cols-2">

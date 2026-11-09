@@ -194,7 +194,7 @@ export function HireAgent({ chart, links, defaultProfileId = null, ...rest }: Hi
       <PageHeader
         title="Hire an agent"
         actions={
-          <ButtonLink href={links.chart} tone="quiet" icon={ArrowLeft}>
+          <ButtonLink href={links.list} tone="quiet" icon={ArrowLeft}>
             Back to agents
           </ButtonLink>
         }

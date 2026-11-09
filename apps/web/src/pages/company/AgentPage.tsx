@@ -18,7 +18,7 @@ function HiringIsForAdmins({ links }: { readonly links: AgentLinks }) {
       <PageHeader title="Hire an agent">
         <p>Admins and owners hire agents. Ask one of them, or look at the team on the chart.</p>
       </PageHeader>
-      <ButtonLink href={links.chart} icon={ArrowLeft}>
+      <ButtonLink href={links.list} icon={ArrowLeft}>
         Back to agents
       </ButtonLink>
     </>

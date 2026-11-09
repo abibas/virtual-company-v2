@@ -3,25 +3,23 @@ import { useState } from 'react';
 import { useAgentList, useOrgChart } from '../../api/org.ts';
 import type { AgentFilter } from '../../api/types.ts';
 import { useCompany } from '../../app/company.ts';
-import { useLocation } from '../../app/router.tsx';
-import { AgentsView } from '../../features/agents/AgentsView.tsx';
+import { AgentsView, type AgentsTab as Tab } from '../../features/agents/AgentsView.tsx';
 import { companyAgentLinks } from '../../features/agents/links.ts';
 
 /**
- * `/:slug/agents`: the org chart (people and agents, moved and titled from their cards) and, with `?view=list`, the
- * list of agents by status. Admins and owners hire agents from here.
+ * The Org chart (`/:slug/structure`: people and agents, moved and titled from their cards) and Agents
+ * (`/:slug/structure/agents`: the agents by status) tabs of the Company structure page.
  */
-export function AgentsPage() {
+export function AgentsTab({ tab }: { readonly tab: Tab }) {
   const { membership, me, agents: team } = useCompany();
   const { companyId } = membership;
-  const { search } = useLocation();
   const [status, setStatus] = useState<AgentFilter>('active');
   const chart = useOrgChart(companyId);
   const agents = useAgentList(companyId, status);
   return (
     <AgentsView
       companyId={companyId}
-      tab={search.get('view') === 'list' ? 'list' : 'chart'}
+      tab={tab}
       links={companyAgentLinks(membership.slug)}
       chart={chart}
       agents={agents}

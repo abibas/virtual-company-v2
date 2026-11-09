@@ -20,8 +20,8 @@ import { SubscriptionsMock } from './SubscriptionsMock.tsx';
 const VIEWS = [
   { href: '/design', label: 'Components' },
   { href: '/design/dashboard', label: 'Dashboard' },
-  { href: '/design/org', label: 'Org chart' },
-  { href: '/design/members', label: 'Members' },
+  { href: '/design/org', label: 'Company structure' },
+  { href: '/design/members', label: 'People' },
   { href: '/design/api-keys', label: 'API keys' },
   { href: '/design/settings', label: 'Settings' },
   { href: '/design/subscriptions', label: 'Subscriptions' },

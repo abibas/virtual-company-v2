@@ -20,8 +20,7 @@ export type MockPage = 'dashboard' | 'org' | 'members' | 'api-keys' | 'settings'
 /** The mock page of each section of the real company pages, so the rail is the company's own, pointing here. */
 const MOCK_PATHS: Readonly<Record<string, string>> = {
   '': '/design/dashboard',
-  agents: '/design/org',
-  members: '/design/members',
+  structure: '/design/org',
   'api-keys': '/design/api-keys',
   settings: '/design/settings',
 };
@@ -29,8 +28,8 @@ const MOCK_PATHS: Readonly<Record<string, string>> = {
 /** The section of the real company pages each mock page stands for (the switcher keeps it across companies). */
 const SECTIONS: Readonly<Record<MockPage, string>> = {
   dashboard: '',
-  org: 'agents',
-  members: 'members',
+  org: 'structure',
+  members: 'structure',
   'api-keys': 'api-keys',
   settings: 'settings',
 };

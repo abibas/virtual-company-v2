@@ -1,4 +1,4 @@
-import { Check, KeyRound, LayoutGrid, type LucideIcon, Plus, Settings, Users } from 'lucide-react';
+import { Check, KeyRound, LayoutGrid, type LucideIcon, Network, Plus, Settings } from 'lucide-react';
 import { cx } from '../../components/cx.ts';
 import { Button } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
@@ -7,7 +7,7 @@ import { CompanyHero } from '../overview/CompanyHero.tsx';
 
 const PAGES: readonly { readonly key: string; readonly icon: LucideIcon }[] = [
   { key: 'overview', icon: LayoutGrid },
-  { key: 'members', icon: Users },
+  { key: 'structure', icon: Network },
   { key: 'api-keys', icon: KeyRound },
   { key: 'settings', icon: Settings },
 ];

@@ -13,6 +13,7 @@ import { PeoplePanel } from '../../features/members/PeoplePanel.tsx';
 import { CompanyDetailsForm } from '../../features/settings/CompanyDetailsForm.tsx';
 import { CompanyLogoPanel } from '../../features/settings/CompanyLogoPanel.tsx';
 import { DeleteCompany } from '../../features/settings/DeleteCompany.tsx';
+import { StructureView } from '../../features/structure/StructureView.tsx';
 import { type MockPage, MockShell } from './MockShell.tsx';
 import {
   loaded,
@@ -28,14 +29,21 @@ import { SAMPLE_LOGO_SRC, sampleLogoFile } from './sample.ts';
 
 const none = () => undefined;
 
-/** The Members page's parts with sample people, as an owner sees them. */
+/** The Company structure tabs inside the gallery: the chart and the agents are the org mock, People is this one. */
+const STRUCTURE_LINKS = {
+  chart: '/design/org',
+  list: '/design/org?view=list',
+  people: '/design/members',
+} as const;
+
+/** The Company structure page's People tab with sample people, as an owner sees it. */
 function MembersBody() {
   return (
-    <>
-      <PageHeader title="Members">
-        <p>Invite people, set their roles and remove them. Changes take effect at once.</p>
-      </PageHeader>
+    <StructureView tab="people" links={STRUCTURE_LINKS} hireHref="/design/org?agent=new" admin>
       <div className="grid gap-4 md:gap-5">
+        <p className="text-sm text-dim">
+          Invite people, set their roles and remove them. Changes take effect at once.
+        </p>
         <InvitePanel companyId={SAMPLE_COMPANY.id} myRole="owner" onInvited={none} />
         <PeoplePanel
           companyId={SAMPLE_COMPANY.id}
@@ -56,7 +64,7 @@ function MembersBody() {
           onChanged={none}
         />
       </div>
-    </>
+    </StructureView>
   );
 }
 

@@ -5,7 +5,6 @@ import { call } from '../../api/errors.ts';
 import { useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
 import { navigate } from '../../app/router.tsx';
-import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { Notice, type NoticeTone } from '../../components/ui/Notice.tsx';
 import { InvitationsPanel } from '../../features/members/InvitationsPanel.tsx';
 import { InvitePanel } from '../../features/members/InviteForm.tsx';
@@ -36,10 +35,11 @@ function useMembersData(companyId: string, admin: boolean) {
 }
 
 /**
- * `/:slug/members`: the people of the company with their roles; for admins and owners also the invitation form,
- * the pending invitations and Sync now. Viewers and members see the list, and may leave.
+ * The People tab of the Company structure page (`/:slug/structure/people`): the people of the company with their
+ * roles; for admins and owners also the invitation form, the pending invitations and Sync now. Viewers and members
+ * see the list, and may leave.
  */
-export function MembersPage() {
+export function PeopleTab() {
   const { membership, me, reload } = useCompany();
   const { companyId, role } = membership;
   const admin = roleAtLeast(role, 'admin');
@@ -49,53 +49,49 @@ export function MembersPage() {
   const reloadMe = () => reload().catch(() => undefined);
 
   return (
-    <>
-      <PageHeader title="Members">
-        <p>{admin ? LEDE.admin : LEDE.other}</p>
-      </PageHeader>
-      <div className="grid gap-4 md:gap-5">
-        {notice && (
-          <Notice tone={notice.tone} onDismiss={() => setNotice(undefined)}>
-            {notice.text}
-          </Notice>
-        )}
-        {admin && (
-          <InvitePanel
-            companyId={companyId}
-            myRole={role}
-            onInvited={(invitation) => {
-              say('success', `An invitation is on its way to ${invitation.email}.`);
-              invitations.reload();
-            }}
-          />
-        )}
-        <PeoplePanel
+    <div className="grid gap-4 md:gap-5">
+      <p className="text-sm text-dim">{admin ? LEDE.admin : LEDE.other}</p>
+      {notice && (
+        <Notice tone={notice.tone} onDismiss={() => setNotice(undefined)}>
+          {notice.text}
+        </Notice>
+      )}
+      {admin && (
+        <InvitePanel
           companyId={companyId}
-          companyName={membership.name}
-          members={members}
           myRole={role}
-          myUserId={me.user.id}
-          admin={admin}
-          onNotice={say}
-          onSynced={() => {
+          onInvited={(invitation) => {
+            say('success', `An invitation is on its way to ${invitation.email}.`);
             invitations.reload();
-            void reloadMe();
           }}
-          onChanged={(self) => {
-            members.reload();
-            if (self) void reloadMe();
-          }}
-          onLeft={() => void reloadMe().then(() => navigate('/', { replace: true }))}
         />
-        {admin && (
-          <InvitationsPanel
-            companyId={companyId}
-            invitations={invitations}
-            myRole={role}
-            onChanged={(text) => say('success', text)}
-          />
-        )}
-      </div>
-    </>
+      )}
+      <PeoplePanel
+        companyId={companyId}
+        companyName={membership.name}
+        members={members}
+        myRole={role}
+        myUserId={me.user.id}
+        admin={admin}
+        onNotice={say}
+        onSynced={() => {
+          invitations.reload();
+          void reloadMe();
+        }}
+        onChanged={(self) => {
+          members.reload();
+          if (self) void reloadMe();
+        }}
+        onLeft={() => void reloadMe().then(() => navigate('/', { replace: true }))}
+      />
+      {admin && (
+        <InvitationsPanel
+          companyId={companyId}
+          invitations={invitations}
+          myRole={role}
+          onChanged={(text) => say('success', text)}
+        />
+      )}
+    </div>
   );
 }
