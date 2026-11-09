@@ -117,11 +117,14 @@ export function TerminalPanel({
   return (
     <div className={cx('flex flex-col gap-3', className ?? 'h-[70dvh] sm:h-full')}>
       <StatusRow status={status} onReconnect={reconnect} />
+      {/* The terminal sits absolutely inside its box, so its rows can never push the box taller than the space it
+          was given: fit then always sizes it to what is visible, the last line included. */}
       <div
-        ref={host}
-        className="min-h-0 flex-1 overflow-hidden rounded-xl p-2"
+        className="relative min-h-48 flex-1 overflow-hidden rounded-xl"
         style={{ backgroundColor: TERMINAL_BACKGROUND }}
-      />
+      >
+        <div ref={host} className="absolute inset-2" />
+      </div>
     </div>
   );
 }
