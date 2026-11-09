@@ -40,7 +40,9 @@ Newest first, one entry per lesson:
 - **Suggested change:** at the S4 review, group the runner's top level (`runner.ts`, `runner/`, `start.ts`, `cli.ts`,
   `power.ts`, `health.ts`) or give `apps/runner/src/` a limit of its own; split `features/machines/` into `card/`,
   `power/` and `add/`.
-- **Status:** `open`.
+- **Status:** the runner half `adopted` (2026-11-09, 3ae3a6e: `apps/runner/src/` and `test/` from 18 entries to 12,
+  grouped into `daemon/`, `power/executor.ts`, `install/enroll/` and `system/log.ts`); `features/machines/` and the
+  machines `service/` still `open`.
 
 ### 2026-11-09: The server's own airia CLI driver pushes `platform/` to 13 entries
 
@@ -61,7 +63,8 @@ Newest first, one entry per lesson:
   `platform/http/router.ts` is now imported by 8 modules (`fan-in`).
 - **Suggested change:** at the S4 review, a row "a WebSocket route → its module's routes; the transport in
   `platform/realtime/`", and a testkit helper that builds the app with a hub.
-- **Status:** `open`.
+- **Status:** the row `adopted` (2026-11-09, "Structure (S4 review 2b)", SKILL.md's server table); the testkit helper
+  still `open`.
 
 ### 2026-11-06: The runner app has no rows in the placement table
 
@@ -69,7 +72,8 @@ Newest first, one entry per lesson:
   `system/node.ts`, injected everywhere else); the placement table covers the server, the tests and the web only.
 - **Suggested change:** at the S4 review, a short "Runner" block in the table (link, hold drivers, sampler, power
   executor, the real deps in `system/`), kept within SKILL.md's 150 lines.
-- **Status:** `open`.
+- **Status:** `adopted` (2026-11-09, "Structure (S4 review 2b)": a Runner block in SKILL.md's table, on the layout of
+  3ae3a6e).
 
 ### 2026-11-06: S4.1's contracts push shared's `src/` and `test/` and testkit's `src/` past 12 entries
 
