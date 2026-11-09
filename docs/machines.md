@@ -132,7 +132,7 @@ pnpm mwc machine enroll-token [--company <slug>]
 | Machine | Command | What it installs |
 |---|---|---|
 | This Mac | `curl -fsSL <url>/api/runner/install.sh \| sh -s -- --server <url> --token mwc_et_…` | a launchd agent |
-| Airia devbox | `airia devbox ssh -- -R 127.0.0.1:<port>:127.0.0.1:<port> 'curl -fsSL http://127.0.0.1:<port>/api/runner/install.sh \| sh -s -- --server http://127.0.0.1:<port> --token mwc_et_…'`, run on This Mac after This Mac's runner is installed (`<port>`: the port of the API's own address, `apiUrl` in `GET /api/config`, 9950 or a slot's; it starts a stopped box, which costs its hourly rate while up) | a systemd user unit |
+| Airia devbox | `airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:<port> 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh \| sh -s -- --server http://127.0.0.1:<port> --via http://127.0.0.1:9954 --token mwc_et_…'`, run on This Mac after This Mac's runner is installed (`<port>`: the port of the API's own address, `apiUrl` in `GET /api/config`, 9950 or a slot's; 9954: the install's own forward on the box, docs/ports.md; it starts a stopped box, which costs its hourly rate while up; the box connects once This Mac's runner holds its tunnel) | a systemd user unit |
 | Docker container | `MWC_ENROLL_TOKEN=mwc_et_… docker compose -f deploy/compose.yml --profile runner up -d runner-local` (from the repository folder) | the `runner-local` service |
 
 **How the devbox reaches the server** (2026-11-07). The box has no public address: its only way in is SSH on port 22
@@ -140,9 +140,16 @@ through Google IAP, the way the airia CLI connects (`airia devbox ssh` is `gclou
 --tunnel-through-iap`). The dev server lives on This Mac and listens on `127.0.0.1:<port>` only, so the box reaches it
 through a reverse SSH forward, and no public URL is needed:
 
-- **The install.** The command above runs on This Mac. Its `-R` makes the box's `127.0.0.1:<port>` This Mac's API
-  while the install runs, so `install.sh` and the bundle download from it, and the box's runner is enrolled with
-  `--server http://127.0.0.1:<port>`. `airia devbox ssh` starts the box first when it is stopped.
+- **The install.** The command above runs on This Mac. Its `-R` makes the box's `127.0.0.1:9954` (the install's own
+  port) This Mac's API while the install runs, so `install.sh`, the bundle, the PTY and the enroll go through it
+  (`--via http://127.0.0.1:9954`), while the box's runner keeps `--server http://127.0.0.1:<port>` in `runner.json`,
+  the port only the standing tunnel below serves. `airia devbox ssh` starts the box first when it is stopped.
+  **Why its own port** (2026-11-09): when the install forwarded the API's own port, the installed runner connected
+  through the install's forward, and OpenSSH does not exit while a forwarded connection is open, so the install's
+  session never ended; after an API restart that session (already exiting) still held the box's `127.0.0.1:<port>`
+  but opened no new channels, so the runner's reconnects timed out and the standing tunnel (with
+  `ExitOnForwardFailure`) could never bind the port. With its own port nothing holds the install's session open: it
+  ends when `install.sh` ends, and the box connects once This Mac's runner holds its tunnel.
 - **The standing tunnel.** After the enrollment the server tells the box's controller (This Mac's runner, the one
   that powers it, saved on the box when it is the company's only connected one) to hold the box's tunnel:
   `tunnel.set` (docs/runner-protocol.md, "Hold and power"). That runner starts one long-lived
@@ -153,8 +160,7 @@ through a reverse SSH forward, and no public URL is needed:
   last known power status is running, starting or not known yet; a stopped or missing box's tunnel is stopped. It runs
   in its own process group (gcloud starts ssh and an IAP helper) and is stopped as one: SIGTERM, then SIGKILL after
   5 s. One that ends is started again after 5 s, doubling up to 5 minutes, back to 5 s after one that stayed up a
-  minute (the Mac bills each process start); its first tries can fail while the install's own session still holds the
-  box's port. The card of the box says "Linked through This Mac's SSH tunnel", or "Tunnel reconnecting" with the last
+  minute (the Mac bills each process start). The card of the box says "Linked through This Mac's SSH tunnel", or "Tunnel reconnecting" with the last
   line gcloud printed. This Mac's runner must be installed (and connected) first, since it keeps the box linked.
 - **When the Mac sleeps.** The dev server lives on the Mac anyway, so nothing is lost: while the Mac sleeps there is
   no server to reach; the box's runs keep going (their journals are on the box), its runner reconnects with its usual
@@ -166,7 +172,9 @@ while it is unset); the devbox's command does not use it. Leave it unset in deve
 box needs Node 22 on the PATH of a non-interactive SSH command; a Node from nvm needs `. ~/.nvm/nvm.sh &&` in front of
 `curl`.
 
-**What `install` does.** `install --server <url> --token <mwc_et_…> [--name <name>] [--slots <n>] [--force]`:
+**What `install` does.** `install --server <url> [--via <url>] --token <mwc_et_…> [--name <name>] [--slots <n>] [--force]`
+(`--via`, in install.sh too: the address this install reaches the server at, for the downloads and the enroll, when it
+is not `--server`, the address the runner keeps; without it everything uses `--server`):
 
 1. Refuses first, before the token is used: a system other than macOS or Linux, a container, a runner run from its
    sources instead of `runner.mjs`, a machine already enrolled (`--force` enrolls it again as a new machine).
@@ -192,7 +200,8 @@ box needs Node 22 on the PATH of a non-interactive SSH command; a Node from nvm 
 
 Run again without `--token`, `install` keeps the enrollment and reinstalls the service on the new bundle (a restart).
 That is also how a runner is updated: the machine's install command without `--token`
-(`curl -fsSL <url>/api/runner/install.sh | sh -s -- --server <url>`, the devbox's through `airia devbox ssh` as above)
+(`curl -fsSL <url>/api/runner/install.sh | sh -s -- --server <url>`, the devbox's through `airia devbox ssh` as above,
+with `--via http://127.0.0.1:9954` and no `--token`)
 downloads the new bundle and PTY and reinstalls them on the enrollment it has; `--server` alone must name the server the
 machine is enrolled on (another is refused with 64). A container is updated by rebuilding its image (the same `up` with
 `--build`, no token: its enrollment is in the state volume).

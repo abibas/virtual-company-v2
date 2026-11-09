@@ -10,7 +10,7 @@ Everything v2 listens on lives in 9950–9999 so it never collides with v1 (3200
 | 9951      | Web dev server (Vite, proxies `/api`)                                                                                                        |
 | 9952      | Postgres (dev compose, `deploy/compose.yml`; `mwc dev` and the `mwc check --full` Postgres lane)                                             |
 | 9953      | Local runner health (`/healthz`)                                                                                                             |
-| 9954      | ngrok inspect UI (webhook tunnel forwards to 9950; dev only)                                                                                 |
+| 9954      | ngrok inspect UI (webhook tunnel forwards to 9950; dev only). On the Airia devbox (not this machine): the devbox install forward, the box's `127.0.0.1:9954` that the install command's `-R` makes the API while it runs (`INSTALL_PORT`; docs/machines.md, "Installing a runner") |
 | 9955      | Web preview (`vite preview` of the production build)                                                                                         |
 | 9956      | Drizzle Studio                                                                                                                               |
 | 9957–9959 | spare                                                                                                                                        |

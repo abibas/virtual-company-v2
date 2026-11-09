@@ -21,6 +21,14 @@ export const PORTS = {
   testBrowserDebug: 9993,
 } as const;
 
+/**
+ * The devbox install forward: the Airia devbox's `127.0.0.1:9954` while its install command runs (docs/machines.md,
+ * "Installing a runner"). It is a port on the box, not on this machine (where 9954 is ngrok's inspect UI): the install
+ * downloads and enrolls through it, so its SSH session ends with the install, and the box's `127.0.0.1:<api port>`
+ * stays free for This Mac's standing tunnel, which the installed runner uses.
+ */
+export const INSTALL_PORT = 9954;
+
 /** First port of the per-worktree slots: slot k uses 9960+3k (API), +1 (web), +2 (Postgres). */
 export const SLOT_BASE = 9960;
 export const SLOT_COUNT = 10;

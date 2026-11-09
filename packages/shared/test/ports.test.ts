@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PORTS, SLOT_BASE, SLOT_COUNT, slotFromPath, slotPorts } from '../src/ports.ts';
+import { INSTALL_PORT, PORTS, SLOT_BASE, SLOT_COUNT, slotFromPath, slotPorts } from '../src/ports.ts';
 
 describe('port map', () => {
   it('keeps every fixed port inside 9950–9999 and unique', () => {
@@ -21,6 +21,12 @@ describe('port map', () => {
       expect(port).toBeLessThanOrEqual(9999);
     }
     expect(new Set(fixed).size).toBe(fixed.length);
+  });
+
+  it("keeps the devbox install forward on 9954, apart from the API's port the box's tunnel takes", () => {
+    expect(INSTALL_PORT).toBe(9954);
+    expect(INSTALL_PORT).not.toBe(PORTS.api);
+    expect(INSTALL_PORT).toBeLessThan(SLOT_BASE);
   });
 
   it('keeps 9993 for the visible test browser, after the prod-like stack and outside the slots', () => {

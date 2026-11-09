@@ -38,10 +38,15 @@ describe('mwc-runner', () => {
       token: 't',
       force: true,
     });
+    expect(parseOptions('install', ['--server', SERVER, '--via=http://127.0.0.1:9954'])).toEqual({
+      server: SERVER,
+      via: 'http://127.0.0.1:9954',
+    });
     expect(parseOptions('uninstall', ['--purge'])).toEqual({ purge: true });
     for (const [command, args] of [
       ['status', ['--purge']],
       ['enroll', ['--server']],
+      ['enroll', ['--via', SERVER]],
       ['uninstall', ['now']],
     ] as const) {
       expect(() => parseOptions(command, args)).toThrow(expect.objectContaining({ code: 64 }));

@@ -20,12 +20,18 @@ describe('the install commands', () => {
     );
   });
 
-  it("runs it on the Airia devbox through airia devbox ssh, the box's port forwarded back to the API, quoted as one command", () => {
+  it('downloads and enrolls through --via when given, keeping --server for the runner', () => {
+    expect(installCommand('http://127.0.0.1:9950', TOKEN, 'http://127.0.0.1:9954')).toBe(
+      `curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --via http://127.0.0.1:9954 --token ${TOKEN}`,
+    );
+  });
+
+  it("runs it on the Airia devbox through airia devbox ssh, the box's install port (9954) forwarded back to the API, quoted as one command", () => {
     expect(devboxCommand(9950, TOKEN)).toBe(
-      `airia devbox ssh -- -R 127.0.0.1:9950:127.0.0.1:9950 'curl -fsSL http://127.0.0.1:9950/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --token ${TOKEN}'`,
+      `airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:9950 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --via http://127.0.0.1:9954 --token ${TOKEN}'`,
     );
     expect(devboxCommand(9963, TOKEN)).toContain(
-      "-R 127.0.0.1:9963:127.0.0.1:9963 'curl -fsSL http://127.0.0.1:9963/api/runner/install.sh",
+      "-R 127.0.0.1:9954:127.0.0.1:9963 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9963 --via",
     );
   });
 
@@ -83,7 +89,7 @@ describe('what mwc machine enroll-token prints', () => {
         'This Mac:',
         `  ${installCommand('http://localhost:9950', TOKEN)}`,
         '',
-        "The Airia devbox (run it on This Mac, after This Mac's runner is installed: that runner keeps the box connected afterwards; it starts the box if it is stopped, and the box costs its hourly rate while it is up):",
+        "The Airia devbox (run it on This Mac, after This Mac's runner is installed: that runner keeps the box connected afterwards; it starts the box if it is stopped, and the box costs its hourly rate while it is up; the box connects once This Mac's runner holds its tunnel):",
         `  ${devboxCommand(9963, TOKEN)}`,
         '',
         'A Docker container on This Mac (from the repository folder):',

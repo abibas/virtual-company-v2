@@ -36,6 +36,51 @@ describe('mwc-runner install on macOS', () => {
   });
 });
 
+describe('mwc-runner install --via', () => {
+  /** The fetch of the test app, with the addresses it was called with. */
+  function recording() {
+    const urls: string[] = [];
+    const fetch: typeof w.fetch = (url, init) => {
+      urls.push(String(url));
+      return w.fetch(url, init);
+    };
+    return { urls, fetch };
+  }
+  const VIA = 'http://127.0.0.1:9954';
+
+  it('enrolls through --via and saves --server for the runner', async () => {
+    const { urls, fetch } = recording();
+    const { host, home, out } = testHost({ fetch, files: ['/var/lib/systemd/linger/ihor'] });
+    downloadedBundle(host);
+    const input = { server: 'http://127.0.0.1:9950', via: `${VIA}/`, token: await w.token() };
+    expect(await installCommand(host, input)).toBe(0);
+    expect(urls).toEqual([`${VIA}/api/runner/enroll`]);
+    expect(readRunnerConfig(join(home, '.config/mwc/runner.json')).serverUrl).toBe('http://127.0.0.1:9950');
+    expect(out()).toContain('on http://127.0.0.1:9950.');
+  });
+
+  it('enrolls through --server without --via, as before', async () => {
+    const { urls, fetch } = recording();
+    const { host, home } = testHost({ fetch, files: ['/var/lib/systemd/linger/ihor'] });
+    downloadedBundle(host);
+    expect(await installCommand(host, { server: SERVER, token: await w.token() })).toBe(0);
+    expect(urls).toEqual([`${SERVER}/api/runner/enroll`]);
+    expect(readRunnerConfig(join(home, '.config/mwc/runner.json')).serverUrl).toBe(SERVER);
+  });
+
+  it("takes --via on a reinstall without a token (the downloads are install.sh's), and refuses a bad one", async () => {
+    const { host, home, out } = testHost({ fetch: noFetch, files: ['/var/lib/systemd/linger/ihor'] });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    downloadedBundle(host);
+    await expect(installCommand(host, { server: SERVER, via: 'ftp://x' })).rejects.toThrow(
+      expect.objectContaining({ code: 64, message: expect.stringContaining('--via needs') }),
+    );
+    expect(await installCommand(host, { server: SERVER, via: VIA })).toBe(0);
+    expect(out()).toContain('Keeping the enrollment as');
+    expect(readRunnerConfig(join(home, '.config/mwc/runner.json')).serverUrl).toBe(SERVER);
+  });
+});
+
 describe('mwc-runner install on Linux', () => {
   it('keeps the enrollment it has without a token, and runs from the installed copy without copying it', async () => {
     const { host, home, execs, out } = testHost({ fetch: noFetch, files: ['/var/lib/systemd/linger/ihor'] });

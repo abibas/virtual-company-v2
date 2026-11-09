@@ -1,5 +1,7 @@
 /** The commands that install a runner with an enrollment token (docs/machines.md, "Installing a runner"; pure). */
 
+import { INSTALL_PORT } from '@mwc/shared/ports';
+
 /** The machines the add sheet offers. */
 export type NewMachineKind = 'mac' | 'devbox' | 'container';
 
@@ -9,18 +11,20 @@ export function portOf(url: string): number {
   return Number(port || (protocol === 'https:' ? 443 : 80));
 }
 
-/** The installer run on a machine that reaches the server at `url`. */
-const curlInstall = (url: string, token: string) =>
-  `curl -fsSL ${url}/api/runner/install.sh | sh -s -- --server ${url} --token ${token}`;
+/** The installer run on a machine that reaches the server at `url` (downloading and enrolling through `via`). */
+function curlInstall(url: string, token: string, via?: string): string {
+  const through = via === undefined ? '' : ` --via ${via}`;
+  return `curl -fsSL ${via ?? url}/api/runner/install.sh | sh -s -- --server ${url}${through} --token ${token}`;
+}
 
 /**
  * The devbox's installer, run on this Mac: `airia devbox ssh` with a reverse forward that makes the box's
- * `127.0.0.1:<port>` this Mac's API for the install, and the box's runner enrolled with that address (afterwards This
- * Mac's runner holds the same forward over IAP).
+ * `127.0.0.1:9954` (INSTALL_PORT) this Mac's API for the install's downloads and enroll (`--via`); the box's runner
+ * keeps `127.0.0.1:<port>`, which This Mac's runner's standing tunnel serves, so the install's session ends with it.
  */
 export function devboxCommand(port: number, token: string): string {
-  const local = `http://127.0.0.1:${port}`;
-  return `airia devbox ssh -- -R 127.0.0.1:${port}:127.0.0.1:${port} '${curlInstall(local, token)}'`;
+  const install = curlInstall(`http://127.0.0.1:${port}`, token, `http://127.0.0.1:${INSTALL_PORT}`);
+  return `airia devbox ssh -- -R 127.0.0.1:${INSTALL_PORT}:127.0.0.1:${port} '${install}'`;
 }
 
 /**
@@ -43,6 +47,6 @@ export const COMMAND_HINTS: Readonly<Record<NewMachineKind, string>> = {
   devbox:
     "Run it on this Mac, after This Mac's runner is installed: that runner keeps the box connected afterwards. It " +
     'installs the runner on the box as a systemd user service. It starts the box if it is stopped, and the box costs ' +
-    'its hourly rate while it is up.',
+    "its hourly rate while it is up. The box connects once This Mac's runner holds its tunnel.",
   container: 'Run it in the repository folder. It starts the runner-local service from deploy/compose.yml.',
 };

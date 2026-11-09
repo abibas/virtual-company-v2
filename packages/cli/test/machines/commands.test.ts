@@ -36,7 +36,7 @@ describe('mwc machine enroll-token', () => {
     );
     // The devbox's command forwards the port of the API's own address (the test server's 9950) to the box.
     expect(r.out()).toContain(
-      `  airia devbox ssh -- -R 127.0.0.1:9950:127.0.0.1:9950 'curl -fsSL http://127.0.0.1:9950/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --token ${token}'\n`,
+      `  airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:9950 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --via http://127.0.0.1:9954 --token ${token}'\n`,
     );
     expect(r.out()).toContain(`MWC_SERVER_URL=${ORG_SERVER} MWC_ENROLL_TOKEN=${token} docker compose`);
     // The token works: the runner's installer would trade it for a machine.
@@ -49,7 +49,7 @@ describe('mwc machine enroll-token', () => {
       url.endsWith('/api/config') ? new Response('', { status: 502 }) : w.fetch(url, init);
     const r = await machine(['enroll-token'], {}, noConfig);
     expect(r.code).toBe(0);
-    expect(r.out()).toContain(`airia devbox ssh -- -R 127.0.0.1:${portOf(ORG_SERVER)}:127.0.0.1:`);
+    expect(r.out()).toContain(`airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:${portOf(ORG_SERVER)} `);
   });
 
   it("passes on the server's refusal for a member who may not make one", async () => {

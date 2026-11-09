@@ -2,7 +2,7 @@ import { dirname, join, resolve } from 'node:path';
 import type { RunnerPtyTarget } from '@mwc/shared/runner-protocol';
 import { readRunnerConfig, runnerConfigPath } from '../config.ts';
 import { enrolledText } from '../enroll/commands.ts';
-import { type EnrollInput, enrollMachine, httpBase } from '../enroll/enroll.ts';
+import { type EnrollInput, enrollMachine, httpBase, viaOf } from '../enroll/enroll.ts';
 import { machineKind } from '../enroll/facts.ts';
 import { EXIT } from '../start.ts';
 import { ptyPackage, ptyTarget } from '../terminal/loader.ts';
@@ -12,7 +12,9 @@ import { serviceManager } from './service.ts';
 
 /**
  * `mwc-runner install`: enrolls the machine when given a token (else keeps the enrollment it has: a reinstall, which
- * install.sh runs with `--server` alone, the server the machine is enrolled on), copies the runner it runs from (the downloaded `runner.mjs`) to `~/.local/share/mwc-runner/runner.mjs` with the terminal's PTY that
+ * install.sh runs with `--server` alone, the server the machine is enrolled on; `--via`, when given, is the address
+ * this install reaches the server at, for install.sh's downloads and the enroll, while `--server` is the one saved for
+ * the runner), copies the runner it runs from (the downloaded `runner.mjs`) to `~/.local/share/mwc-runner/runner.mjs` with the terminal's PTY that
  * install.sh unpacked beside it (`node_modules/`), and runs that as a service: a launchd agent on macOS, a systemd user
  * unit on Linux. Everything that can refuse is checked before the token is used.
  */
@@ -37,6 +39,7 @@ function checkFirst(host: Host): void {
  */
 async function enrollment(host: Host, input: EnrollInput): Promise<string> {
   if (input.token !== undefined) return enrolledText(await enrollMachine(host, input));
+  viaOf(input.via);
   const configPath = runnerConfigPath(host.env);
   let config: ReturnType<typeof readRunnerConfig>;
   try {
@@ -81,7 +84,7 @@ function installPty(host: Host, bundle: string): string {
   return "warning: the terminal's PTY did not come with this runner (install.sh downloads it); no terminal here\n";
 }
 
-/** `mwc-runner install [--server <url> --token <mwc_et_…> [--name <name>] [--slots <n>] [--force]]`. */
+/** `mwc-runner install [--server <url> [--via <url>] --token <mwc_et_…> [--name <name>] [--slots <n>] [--force]]`. */
 export async function installCommand(host: Host, input: EnrollInput): Promise<number> {
   const manager = serviceManager(host);
   checkFirst(host);

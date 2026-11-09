@@ -27,6 +27,11 @@ export const ENROLL_TIMEOUT_MS = 15_000;
 
 export interface EnrollInput {
   readonly server?: string | undefined;
+  /**
+   * The address this enrollment reaches the server at, when it is not `server` (install's `--via`: the devbox's own
+   * install forward); `server` stays the address saved for the runner.
+   */
+  readonly via?: string | undefined;
   readonly token?: string | undefined;
   readonly name?: string | undefined;
   /** Text, as the command line or the environment gives it. */
@@ -49,11 +54,24 @@ export function httpBase(serverUrl: string): string {
   return serverUrl.replace(/^ws(s?):/, 'http$1:').replace(/\/+$/, '');
 }
 
-/** The checked input: a server address, an enrollment token, a name of 1–80 characters, a slot count. */
+/** `--via` checked, without a trailing slash; undefined without it. */
+export function viaOf(via: string | undefined): string | undefined {
+  if (via === undefined) return undefined;
+  if (!isServerUrl(via)) {
+    throw usage('--via needs the address this install reaches the server at (https://… or http://…)');
+  }
+  return via.replace(/\/+$/, '');
+}
+
+/**
+ * The checked input: a server address, the address to enroll through (`--via`, else the server), an enrollment
+ * token, a name of 1–80 characters, a slot count.
+ */
 export function checkInput(input: EnrollInput) {
   const { server, token, name } = input;
   if (!server || !isServerUrl(server))
     throw usage('--server needs the server address (https://… or http://…)');
+  const via = viaOf(input.via);
   if (!token || !ENROLLMENT_TOKEN_PATTERN.test(token)) {
     throw usage('--token needs an enrollment token (mwc_et_…; mwc machine enroll-token makes one)');
   }
@@ -65,7 +83,8 @@ export function checkInput(input: EnrollInput) {
   if (!Number.isInteger(slots) || slots < 0 || slots > RUNNER_SLOTS_MAX) {
     throw usage(`--slots needs a whole number from 0 to ${RUNNER_SLOTS_MAX}`);
   }
-  return { server: server.replace(/\/+$/, ''), token, name: trimmed, slots };
+  const base = server.replace(/\/+$/, '');
+  return { server: base, via: via ?? base, token, name: trimmed, slots };
 }
 
 /** What this machine sends with the token. */
@@ -125,7 +144,7 @@ export async function postEnroll(host: Host, server: string, request: RunnerEnro
 
 /** Enrolls this machine and writes the runner's configuration; a CommandError (with its exit code) when it cannot. */
 export async function enrollMachine(host: Host, input: EnrollInput): Promise<Enrolled> {
-  const { server, token, name, slots } = checkInput(input);
+  const { server, via, token, name, slots } = checkInput(input);
   const configPath = runnerConfigPath(host.env);
   if (host.fs.exists(configPath) && !input.force) {
     throw new CommandError(
@@ -136,7 +155,7 @@ export async function enrollMachine(host: Host, input: EnrollInput): Promise<Enr
   // The folder first: a configuration that cannot be written would lose the key the token is traded for.
   host.fs.mkdir(dirname(configPath), 0o700);
   const request = await enrollRequest(host, token, name);
-  const enrolled = await postEnroll(host, server, request);
+  const enrolled = await postEnroll(host, via, request);
   const config: RunnerConfig = { serverUrl: server, ...enrolled, name: request.name, slots };
   try {
     writeRunnerConfig(configPath, config);

@@ -2,6 +2,7 @@
  * What `mwc machine enroll-token` prints: the token and, for each kind of machine, the one command that installs a
  * runner with it (docs/machines.md, "Installing a runner"). Pure text from the server's addresses and the token.
  */
+import { INSTALL_PORT } from '@mwc/shared/ports';
 import { RUNNER_INSTALL_SCRIPT_PATH } from '@mwc/shared/runner-protocol';
 import type { MeMembership } from '../api/session.ts';
 
@@ -17,9 +18,11 @@ export function isLoopback(url: string): boolean {
   return LOOPBACK.has(hostname) || hostname.startsWith('127.');
 }
 
-/** The installer, piped into sh, for a server. */
-export function installCommand(server: string, token: string): string {
-  return `curl -fsSL ${server}${RUNNER_INSTALL_SCRIPT_PATH} | sh -s -- --server ${server} --token ${token}`;
+/** The installer, piped into sh, for a server (downloaded and enrolled through `via` when given). */
+export function installCommand(server: string, token: string, via?: string): string {
+  const from = via ?? server;
+  const through = via === undefined ? '' : ` --via ${via}`;
+  return `curl -fsSL ${from}${RUNNER_INSTALL_SCRIPT_PATH} | sh -s -- --server ${server}${through} --token ${token}`;
 }
 
 /** The port of an address: its own, else its protocol's (443 for https, 80 for http). */
@@ -30,12 +33,14 @@ export function portOf(url: string): number {
 
 /**
  * The installer run on the Airia devbox through the company's CLI, from This Mac: `-R` makes the box's
- * `127.0.0.1:<port>` This Mac's API for the install, and the box's runner is enrolled with that address (afterwards
- * This Mac's runner holds the same forward over IAP). No public address is needed.
+ * `127.0.0.1:9954` (INSTALL_PORT) This Mac's API for the install's downloads and enroll (`--via`), and the box's runner
+ * keeps `--server http://127.0.0.1:<port>`, which only This Mac's runner's standing tunnel serves. Nothing then holds
+ * the install's session open, so it ends with the install. No public address is needed.
  */
 export function devboxCommand(port: number, token: string): string {
-  const forward = `127.0.0.1:${port}:127.0.0.1:${port}`;
-  return `airia devbox ssh -- -R ${forward} '${installCommand(`http://127.0.0.1:${port}`, token)}'`;
+  const forward = `127.0.0.1:${INSTALL_PORT}:127.0.0.1:${port}`;
+  const install = installCommand(`http://127.0.0.1:${port}`, token, `http://127.0.0.1:${INSTALL_PORT}`);
+  return `airia devbox ssh -- -R ${forward} '${install}'`;
 }
 
 /** The address a container on this machine reaches the server at: a loopback host becomes host.docker.internal. */
@@ -66,7 +71,8 @@ export interface EnrollTokenText {
 /** What the devbox's command needs first, and what it does. */
 export const DEVBOX_HINT =
   "The Airia devbox (run it on This Mac, after This Mac's runner is installed: that runner keeps the box connected " +
-  'afterwards; it starts the box if it is stopped, and the box costs its hourly rate while it is up):';
+  'afterwards; it starts the box if it is stopped, and the box costs its hourly rate while it is up; the box connects ' +
+  "once This Mac's runner holds its tunnel):";
 
 /** The token, then the command for This Mac, the Airia devbox and a container. */
 export function enrollTokenText(t: EnrollTokenText): string {

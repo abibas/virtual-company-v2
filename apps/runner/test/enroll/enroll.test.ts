@@ -25,6 +25,7 @@ describe('the input', () => {
   it('needs a server address, an enrollment token, a name of 1–80 characters and 0–64 slots', () => {
     expect(checkInput({ server: `${SERVER}/`, token: TOKEN })).toEqual({
       server: SERVER,
+      via: SERVER,
       token: TOKEN,
       name: undefined,
       slots: DEFAULT_SLOTS,
@@ -33,10 +34,15 @@ describe('the input', () => {
       name: 'Mac',
       slots: 4,
     });
+    expect(checkInput({ server: SERVER, via: 'http://127.0.0.1:9954/', token: TOKEN })).toMatchObject({
+      server: SERVER,
+      via: 'http://127.0.0.1:9954',
+    });
     const refused = [
       [{ token: TOKEN }, '--server needs the server address'],
       [{ server: 'ftp://x', token: TOKEN }, '--server needs the server address'],
       [{ server: SERVER }, '--token needs an enrollment token'],
+      [{ server: SERVER, via: 'nowhere', token: TOKEN }, '--via needs the address this install reaches'],
       [{ server: SERVER, token: 'mwc_pk_x' }, '--token needs an enrollment token'],
       [{ server: SERVER, token: TOKEN, name: ' ' }, '--name needs 1 to 80 characters'],
       [{ server: SERVER, token: TOKEN, name: 'n'.repeat(81) }, '--name needs 1 to 80 characters'],

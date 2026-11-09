@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { RUNNER_BUNDLE_PATH, RUNNER_PTY_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { INSTALL_SCRIPT } from '../../../../src/modules/machines/service/install-script.ts';
@@ -36,7 +37,7 @@ describe('the runner installer', () => {
     expect(code).toMatch(/^main\(\) \{$/m);
     expect(code.match(/^[a-z_]+\(\) \{$/gm)).toEqual([
       'fail() {',
-      'server_of() {',
+      'option_of() {',
       'verify() {',
       'fetch_pty() {',
       'main() {',
@@ -44,13 +45,32 @@ describe('the runner installer', () => {
   });
 
   it('takes the server from --server URL or --server=URL, and needs it', () => {
-    expect(code).toContain('--server=*)');
-    expect(code).toContain(`printf '%s' "\${argument#--server=}"`);
-    expect(code).toContain('if [ "$previous" = \'--server\' ]; then');
-    expect(code).toContain(
-      '[ -n "$server" ] || fail \'usage: sh install.sh --server <url> --token <mwc_et_...>',
-    );
+    expect(code).toContain('server=$(option_of server "$@")');
+    expect(code).toContain('"$option"=*)');
+    expect(code).toContain(`printf '%s' "\${argument#"$option"=}"`);
+    expect(code).toContain('if [ "$previous" = "$option" ]; then');
+    expect(code).toContain("fail 'usage: sh install.sh --server <url> [--via <url>] --token <mwc_et_...>");
     expect(code).toContain(`server=\${server%/}`);
+  });
+
+  it('downloads from --via when given (its trailing slash dropped), else from --server', () => {
+    expect(code).toContain('via=$(option_of via "$@")');
+    expect(code).toContain(`from=\${via%/}\n  from=\${from:-$server}`);
+    expect(code).not.toContain('"$server/');
+    expect(code.match(/"\$from\//g)).toHaveLength(2);
+    expect(code).toContain('fail "cannot download the runner from $from"');
+  });
+
+  it('finds an option by name in either form, and nothing for an absent one (option_of run in sh)', () => {
+    const start = code.indexOf('option_of() {');
+    const fn = code.slice(start, code.indexOf('\n}\n', start) + 2);
+    const optionOf = (name: string, ...args: string[]) =>
+      execFileSync('sh', ['-eu', '-c', `${fn}\noption_of "$@"`, 'sh', name, ...args], { encoding: 'utf8' });
+    const args = ['--server', 'http://127.0.0.1:9950', '--via=http://127.0.0.1:9954/', '--token', 'mwc_et_x'];
+    expect(optionOf('server', ...args)).toBe('http://127.0.0.1:9950');
+    expect(optionOf('via', ...args)).toBe('http://127.0.0.1:9954/');
+    expect(optionOf('via', '--server=http://a.test', '--via', 'http://b.test')).toBe('http://b.test');
+    expect(optionOf('via', '--server', 'http://a.test', '--token', 'mwc_et_x')).toBe('');
   });
 
   it('needs Node 22 or newer and curl', () => {
@@ -65,7 +85,7 @@ describe('the runner installer', () => {
     expect(code).toContain('dir=$(mktemp -d)');
     expect(code).toContain(`trap 'rm -rf "$dir"' EXIT`);
     expect(code).toContain(
-      `curl -fsSL -D "$dir/headers" -o "$dir/runner.mjs" "$server${RUNNER_BUNDLE_PATH}" ||`,
+      `curl -fsSL -D "$dir/headers" -o "$dir/runner.mjs" "$from${RUNNER_BUNDLE_PATH}" ||`,
     );
   });
 
@@ -89,7 +109,7 @@ describe("the installer and the terminal's PTY", () => {
   it("downloads this system's PTY, checks it like the runner and unpacks it beside it, before the install", () => {
     expect(code).toContain(`target=$(node -p 'process.platform + "-" + process.arch')`);
     expect(code).toContain(
-      `if ! curl -fsSL -D "$dir/pty-headers" -o "$dir/pty.tgz" "$server${RUNNER_PTY_PATH}/$target.tgz"; then`,
+      `if ! curl -fsSL -D "$dir/pty-headers" -o "$dir/pty.tgz" "$from${RUNNER_PTY_PATH}/$target.tgz"; then`,
     );
     const verify = code.indexOf('verify "$dir/pty.tgz" "$dir/pty-headers"');
     const unpack = code.indexOf('tar -xzf "$dir/pty.tgz" -C "$dir" || fail');
