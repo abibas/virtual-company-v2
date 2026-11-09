@@ -179,6 +179,23 @@ describe('structureWarnings', () => {
     expect(structureWarnings(treeOf(files), undefined)).toEqual([]);
   });
 
+  it("never lists the server's http helpers or the db schema's building blocks, but their neighbours", () => {
+    const files: Record<string, string> = {
+      'apps/server/src/platform/http/errors.ts': '',
+      'apps/server/src/platform/env.ts': '',
+      'packages/db/src/schema/columns.ts': '',
+      'packages/db/src/tenant.ts': '',
+    };
+    for (let i = 0; i < 8; i++) {
+      files[`apps/server/src/s${i}.ts`] = imports('./platform/http/errors.ts') + imports('./platform/env.ts');
+      files[`packages/db/src/schema/t${i}.ts`] = imports('./columns.ts') + imports('../tenant.ts');
+    }
+    expect(structureWarnings(treeOf(files), undefined)).toEqual([
+      { kind: 'fan-in', path: 'apps/server/src/platform/env.ts', message: 'imported by 8 files' },
+      { kind: 'fan-in', path: 'packages/db/src/tenant.ts', message: 'imported by 8 files' },
+    ]);
+  });
+
   it('adds the weakest-covered files of the last coverage run, and lists every kind in order', () => {
     const tree = cleanWith({ 'packages/db/src/schema/users.ts': fn('big', 70) });
     const found = structureWarnings(tree, [

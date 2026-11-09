@@ -25,7 +25,13 @@ describe('STRUCTURE_RULES', () => {
       },
       fanIn: 8,
       fanInGroups: ['apps/server/src/modules/*/'],
-      fanInExempt: ['apps/web/src/components/', 'apps/web/src/api/', 'apps/web/src/app/'],
+      fanInExempt: [
+        'apps/web/src/components/',
+        'apps/web/src/api/',
+        'apps/web/src/app/',
+        'apps/server/src/platform/http/',
+        'packages/db/src/schema/',
+      ],
       coverage: { lines: 95, branches: 90 },
       coverageSummary: '.cache/coverage/coverage-summary.json',
     });

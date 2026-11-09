@@ -119,9 +119,9 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
 - `pnpm mwc structure --report` lists the hot spots before anything fails: files above 80% of their limit,
   functions over 60 lines, folders over 12 entries (20: each web `components/` folder, web `api/`, db schema,
   shared `src/` and `test/`; a mirrored test folder gets its source's), files that 8 or more files of their
-  package import for their values (type-only imports left out, a server module counted once, the web's
-  `components/`, `api/` and `app/` never listed), and the weakest-covered files. `mwc check` ends with a
-  summary of it. When the file you are changing is listed, split it then; the other hot spots wait for review.
+  package import for their values (not type-only; a server module counts once; never the web's `components/`,
+  `api/`, `app/`, the server's `platform/http/` or the db schema), and the weakest-covered files. `mwc check`
+  ends with a summary. When the file you are changing is listed, split it then; the rest waits for review.
 - Worked example: [references/splitting.md](references/splitting.md).
 
 ## Tests
