@@ -1,13 +1,15 @@
 import type { MachineSample } from '@mwc/shared/machines';
 import type { Log } from '../log.ts';
 import type { Clock } from '../system/time.ts';
+import type { CgroupStats } from './cgroup.ts';
 import { type CpuTimes, type CpuTotals, cpuPercent, cpuTotals } from './cpu.ts';
 import { percent } from './memory.ts';
 
 /**
  * The machine's sample, taken once a minute and sent in the next heartbeat (`MachineSample`): loads, CPU use since the
  * last sample, cores, memory, the disk of the home folder, uptime and live runs. Everything comes from Node's `os` and
- * `fs.statfs`; only macOS's memory reading starts a process (`memory.ts`).
+ * `fs.statfs`; only macOS's memory reading starts a process (`memory.ts`). In a container its cgroup's limits, when it
+ * has them, replace the CPUs, the CPU use and the memory (`cgroup.ts`).
  */
 
 /** What the sampler reads of Node's `os`. */
@@ -31,6 +33,8 @@ export interface SamplerDeps {
   readonly home: string;
   /** Memory in use, a percentage (`createMemoryReader`). */
   readonly memory: () => Promise<number>;
+  /** The container's own limits and use (only in a container). */
+  readonly cgroup?: CgroupStats;
   readonly clock: Clock;
   readonly log: Log;
 }
@@ -47,6 +51,7 @@ export class Sampler {
   constructor(deps: SamplerDeps) {
     this.#deps = deps;
     this.#cpu = cpuTotals(deps.os.cpus());
+    void deps.cgroup?.prime();
   }
 
   /** The 1-minute load average, for every heartbeat. */
@@ -62,13 +67,18 @@ export class Sampler {
     const cpu = cpuTotals(cores);
     const cpuPct = cpuPercent(this.#cpu, cpu);
     this.#cpu = cpu;
-    const [memPct, disk] = await Promise.all([this.#deps.memory(), this.#disk()]);
+    const [memPct, disk, limited] = await Promise.all([
+      this.#memory(),
+      this.#disk(),
+      this.#deps.cgroup?.cpu(),
+    ]);
     return {
       load1: load(load1),
       load5: load(load5),
       load15: load(load15),
-      cpus: Math.max(1, cores.length),
-      cpuPct,
+      // The sample's CPUs are a whole number (machine_samples.cpus): a container's limit is rounded, at least 1.
+      cpus: Math.max(1, limited ? Math.round(limited.cpus) : cores.length),
+      cpuPct: limited?.cpuPct ?? cpuPct,
       memPct: percent(memPct, 100),
       diskUsed: disk.used,
       diskTotal: disk.total,
@@ -76,6 +86,11 @@ export class Sampler {
       liveRuns: Math.max(0, Math.floor(liveRuns)),
       at: this.#deps.clock.now(),
     };
+  }
+
+  /** Memory in use: against the container's limit when it has one, else the machine's. */
+  async #memory(): Promise<number> {
+    return (await this.#deps.cgroup?.memory()) ?? (await this.#deps.memory());
   }
 
   /** The home folder's disk in bytes: used is total less free blocks (as `df` counts it); zeros when unreadable. */

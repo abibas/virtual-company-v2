@@ -75,6 +75,11 @@ describe('the container that enrolls on its first start', () => {
     expect(service).toContain('- runner-state:/var/lib/mwc-runner');
     expect(service).toContain("fetch('http://127.0.0.1:9953/healthz')");
     expect(service).toContain('stop_grace_period: 90s');
+    // The limits the add sheet chooses (2 CPUs, 4 GB and 2 runs at once by default), and a cap on processes.
+    expect(service).toContain(`MWC_RUNNER_SLOTS: \${MWC_RUNNER_SLOTS:-2}`);
+    expect(service).toContain(`cpus: \${MWC_RUNNER_CPUS:-2}`);
+    expect(service).toContain(`mem_limit: \${MWC_RUNNER_MEMORY:-4g}`);
+    expect(service).toMatch(/^ {4}pids_limit: \d+$/m);
     expect(compose).toMatch(/^ {2}runner-state:$/m);
     // The dev Postgres is the only service without a profile: plain `docker compose up` starts just it.
     expect(compose.match(/^ {2}[a-z-]+:$/gm)?.slice(0, 2)).toEqual(['  postgres:', '  runner-local:']);

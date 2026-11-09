@@ -18,8 +18,10 @@ export interface AddMachine {
   readonly connected: Machine | undefined;
   /** Opens the sheet at its choices. */
   choose(): void;
-  /** Makes a token for this kind of machine and shows its command. */
+  /** Chooses a kind: a token and its command at once, or for a container its form first (`mint` then). */
   pick(kind: NewMachineKind): void;
+  /** Makes a one-time token for the chosen kind (again, when one expired or failed). */
+  mint(): void;
   back(): void;
   close(): void;
 }
@@ -45,29 +47,19 @@ function useWatchForNew(
   );
 }
 
-/**
- * The add sheet's state: a one-time token for the chosen kind, then a look at the machines every 3 seconds while the
- * sheet is open, until one that was not there before appears (`onConnected` hears of it).
- */
-export function useAddMachine(companyId: string, onConnected: (machine: Machine) => void): AddMachine {
-  const calls = machineCalls(useApi(), companyId);
-  const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<NewMachineKind>();
+/** A one-time token and the machines known when it was made (to spot the new one), with its busy and error states. */
+function useOneTimeToken(calls: MachineCalls) {
   const [token, setToken] = useState<EnrollmentToken>();
   const [known, setKnown] = useState<ReadonlySet<string>>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
-  const [connected, setConnected] = useState<Machine>();
-  const reset = () => {
-    setKind(undefined);
+  const clear = () => {
     setToken(undefined);
     setKnown(undefined);
     setError(undefined);
-    setConnected(undefined);
   };
-  const pick = async (next: NewMachineKind) => {
-    reset();
-    setKind(next);
+  const mint = async () => {
+    clear();
     setBusy(true);
     try {
       const [list, created] = await Promise.all([calls.list(), calls.createToken()]);
@@ -78,6 +70,29 @@ export function useAddMachine(companyId: string, onConnected: (machine: Machine)
     } finally {
       setBusy(false);
     }
+  };
+  return { token, known, busy, error, clear, mint };
+}
+
+/**
+ * The add sheet's state: a one-time token for the chosen kind (for a container once its form is filled), then a look
+ * at the machines every 3 seconds while the sheet is open, until one that was not there before appears (`onConnected`
+ * hears of it).
+ */
+export function useAddMachine(companyId: string, onConnected: (machine: Machine) => void): AddMachine {
+  const calls = machineCalls(useApi(), companyId);
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<NewMachineKind>();
+  const [connected, setConnected] = useState<Machine>();
+  const { token, known, busy, error, ...minting } = useOneTimeToken(calls);
+  const mint = () => {
+    setConnected(undefined);
+    void minting.mint();
+  };
+  const reset = () => {
+    setKind(undefined);
+    setConnected(undefined);
+    minting.clear();
   };
   useWatchForNew(calls, open && connected === undefined ? known : undefined, (fresh) => {
     setConnected(fresh);
@@ -94,7 +109,13 @@ export function useAddMachine(companyId: string, onConnected: (machine: Machine)
       reset();
       setOpen(true);
     },
-    pick: (next) => void pick(next),
+    pick: (next) => {
+      reset();
+      setKind(next);
+      // A container's limits are chosen first; its token comes with "Create command".
+      if (next !== 'container') mint();
+    },
+    mint,
     back: reset,
     close: () => {
       setOpen(false);

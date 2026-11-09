@@ -38,7 +38,11 @@ describe('mwc machine enroll-token', () => {
     expect(r.out()).toContain(
       `  airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:9950 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9950 --via http://127.0.0.1:9954 --token ${token}'\n`,
     );
-    expect(r.out()).toContain(`MWC_SERVER_URL=${ORG_SERVER} MWC_ENROLL_TOKEN=${token} docker compose`);
+    expect(r.out()).toContain(`MWC_SERVER_URL=${ORG_SERVER} MWC_ENROLL_TOKEN=${token} MWC_RUNNER_NAME=`);
+    // Outside production the server names its compose file by its absolute path (`/api/config`'s `composeFile`).
+    expect(r.out()).toMatch(
+      / -p mwc-runner-docker-runner -f \/\S+\/deploy\/compose\.yml --profile runner up -d runner-local\n/,
+    );
     // The token works: the runner's installer would trade it for a machine.
     const second = await machine(['enroll-token', '--company', 'acme']);
     expect(second.out().split('\n')[2]?.trim()).not.toBe(token);

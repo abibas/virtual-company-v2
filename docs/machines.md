@@ -40,7 +40,7 @@ controller, below: in development the server itself). Everything v1 pulled over 
 | Policy (keep-on hours, hold after a turn, auto-start rules, stop at the hours' end) | server | per-machine policy rows + a 60 s scheduler job; every decision logged with its reason |
 | Keep the machine awake | the runner **on that machine** | server sends `hold until T`; the runner also holds by itself while any run is live (survives a server outage). Devbox: `devbox-keepalive '20 minutes'` every 5 min, only when the current hold is shorter. Mac: one `caffeinate -i -w <runner pid>` child while held (Ihor: while runs or a hold), killed on release. Container: nothing. When the hold ends the runner stops refreshing and the box's own idle policy takes over (company policy stays the backstop). |
 | Start / stop a stopped box (it can't start itself) | a **power controller**: in development **the server itself** (MWC_LOCAL_POWER, below); a runner controller (the runner on This Mac) only for a server without the tools | it has Ihor's own gcloud sign-in and the `airia` CLI (no credentials copied into the app, v1's trust model): `airia devbox up --no-wait`, `airia devbox stop`, status/metadata via `gcloud ... describe --format=json`, time-zone fix via `gcloud ... add-metadata devbox-tz=`. In the cloud later the controller is a container runner with a service account — same protocol. |
-| Stats | the runner on that machine | a sample every 60 s in the heartbeat (Node `os`: loadavg, CPU % from `os.cpus()` deltas, uptime; `fs.statfs` for disk; memory on macOS `sysctl kern.memorystatus_level`, on Linux `/proc/meminfo` MemAvailable); no SSH, one `sysctl` start per minute at most on the Mac |
+| Stats | the runner on that machine | a sample every 60 s in the heartbeat (Node `os`: loadavg, CPU % from `os.cpus()` deltas, uptime; `fs.statfs` for disk; memory on macOS `sysctl kern.memorystatus_level`, on Linux `/proc/meminfo` MemAvailable; in a container its cgroup v2 limits, "A runner in a Docker container"); no SSH, one `sysctl` start per minute at most on the Mac |
 | Reaching the server from the box | the power controller (the server in development, else This Mac's runner) | the box has no public address and its only ingress is SSH through Google IAP, so the controller holds one reverse tunnel per running box: `gcloud compute ssh <box> --tunnel-through-iap -- -N -R 127.0.0.1:<port>:127.0.0.1:<port>`, which makes the box's `127.0.0.1:<port>` the server's own port; the box's runner dials `ws://127.0.0.1:<port>/api/runner/ws` (since 2026-11-07, replacing the ngrok domain; the real domain after S8) |
 
 Machine kinds: `laptop` (This Mac: no remote power; shows "asleep · last seen" when heartbeats stop), `container`
@@ -176,7 +176,42 @@ pnpm mwc machine enroll-token [--company <slug>]
 |---|---|---|
 | This Mac | `curl -fsSL <url>/api/runner/install.sh \| sh -s -- --server <url> --token mwc_et_…` | a launchd agent |
 | Airia devbox | `airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:<port> 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh \| sh -s -- --server http://127.0.0.1:<port> --via http://127.0.0.1:9954 --token mwc_et_…'`, run on This Mac (after This Mac's runner is installed, unless the server drives the airia CLI itself) (`<port>`: the port of the API's own address, `apiUrl` in `GET /api/config`, 9950 or a slot's; 9954: the install's own forward on the box, docs/ports.md; it starts a stopped box, which costs its hourly rate while up; the box connects once its controller holds its tunnel: the server, or This Mac's runner) | a systemd user unit |
-| Docker container | `MWC_ENROLL_TOKEN=mwc_et_… docker compose -f deploy/compose.yml --profile runner up -d runner-local` (from the repository folder) | the `runner-local` service |
+| Docker container | `MWC_ENROLL_TOKEN=mwc_et_… MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 docker compose -p mwc-runner-docker-runner -f <repo>/deploy/compose.yml --profile runner up -d runner-local` (from any folder; below) | the `runner-local` service, in its own compose project |
+
+**A runner in a Docker container** (2026-11-09, Ihor: "when we are enrolling CONTAINER, shouldn't we have some
+guidelines for memory/CPU LIMITS for it???"). The add sheet's Docker container asks first for a **Name** (default
+"Docker runner"), **CPUs** (0.5–16, default 2), **Memory** in GB (1–64, default 4) and **Runs at once** (1–8, default
+2), with one line of guidance: leave room for Docker's other containers, since the Docker Desktop VM's own limit caps
+these, and a Claude Code run needs about 1 CPU and 2 GB. **Create command** then makes the token and shows the command
+with those values (`containerRunnerCommand` in `@mwc/shared/container-runner`, which `mwc machine enroll-token` prints
+too, with the defaults):
+
+```sh
+MWC_ENROLL_TOKEN=mwc_et_… MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
+  docker compose -p mwc-runner-docker-runner -f /path/to/repo/deploy/compose.yml --profile runner up -d runner-local
+```
+
+- **Limits.** `runner-local` in `deploy/compose.yml` has `cpus: ${MWC_RUNNER_CPUS:-2}`, `mem_limit` and
+  `memswap_limit: ${MWC_RUNNER_MEMORY:-4g}` (no swap beyond it) and `pids_limit: 1024`; Docker enforces them. Runs at once
+  is `MWC_RUNNER_SLOTS` (default 2), read once by the container's first-start enrollment into `runner.json`'s `slots`;
+  changing it later means enrolling again (a new token and `down -v`, below).
+- **Any folder.** `GET /api/config` has `composeFile`: the absolute path of the repository's `deploy/compose.yml`, from
+  the server's own file (never its working folder), outside production; null in production, where the command keeps
+  `-f deploy/compose.yml` and the sheet says to run it in the repository folder. The container reaches the server at
+  `host.docker.internal:<the API's port>`; `MWC_SERVER_URL` is added only when that is not compose's default (9950).
+- **One project per container.** `-p mwc-runner-<slug>` (the slug from the name: lowercase a-z, 0-9 and dashes, at most
+  40 characters; the name in single quotes) gives each container its own compose project, so its own container and
+  `runner-state` volume: a second runner with another name runs beside the first instead of replacing it. Two runners
+  with names of the same slug share a project; the second start would only restart the first.
+- **Removing one.** `docker compose -p mwc-runner-<slug> -f <repo>/deploy/compose.yml --profile runner down -v` stops and
+  removes that container and its state volume (its runner key with it); remove the machine on the Machines page too.
+- **Stats inside the container.** `os.cpus()` and `/proc/meminfo` describe the Docker VM, so a runner that knows it is
+  in a container (Linux, with `MWC_RUNNER_IN_CONTAINER=1` as the image sets, or `/.dockerenv`) reads its cgroup v2 files
+  (`apps/runner/src/stats/cgroup.ts`): CPUs from `cpu.max` (quota over period, to a tenth), CPU use from `cpu.stat`'s
+  `usage_usec` between two samples against that limit, memory from `memory.current` less `memory.stat`'s
+  `inactive_file` (as `docker stats` counts it) over `memory.max`. A part that is unlimited (`max`) or unreadable
+  (cgroup v1) keeps the VM's numbers. The sample's `cpus` column is a whole number, so the card shows the limit rounded
+  (at least 1); the memory limit itself is not on the card yet (it needs a new sample column).
 
 **How the devbox reaches the server** (2026-11-07). The box has no public address: its only way in is SSH on port 22
 through Google IAP, the way the airia CLI connects (`airia devbox ssh` is `gcloud compute ssh <box>

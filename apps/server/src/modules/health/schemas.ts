@@ -88,6 +88,15 @@ export const PublicConfigSchema = z
         "True when this server starts and stops the Airia devboxes itself with its computer's airia CLI and holds " +
         'their tunnels (MWC_LOCAL_POWER); false when a runner controller does',
     }),
+    composeFile: z
+      .string()
+      .nullable()
+      .openapi({
+        example: '/Users/ihor/Most_Wanted_corp_v2/deploy/compose.yml',
+        description:
+          "The absolute path of the repository's deploy/compose.yml outside production (from the server's own " +
+          "location), so the container runner's command works from any folder; null in production",
+      }),
   })
   .openapi('PublicConfig');
 

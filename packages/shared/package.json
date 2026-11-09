@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./api-keys": "./src/api-keys.ts",
     "./config": "./src/config.ts",
+    "./container-runner": "./src/container-runner.ts",
     "./credentials": "./src/credentials.ts",
     "./enums": "./src/enums.ts",
     "./identity": "./src/identity.ts",

@@ -2,21 +2,12 @@
  * What `mwc machine enroll-token` prints: the token and, for each kind of machine, the one command that installs a
  * runner with it (docs/machines.md, "Installing a runner"). Pure text from the server's addresses and the token.
  */
+import { containerRunnerCommand, DEFAULT_CONTAINER_RUNNER } from '@mwc/shared/container-runner';
 import { INSTALL_PORT } from '@mwc/shared/ports';
 import { RUNNER_INSTALL_SCRIPT_PATH } from '@mwc/shared/runner-protocol';
 import type { MeMembership } from '../api/session.ts';
 
-/** The compose service of the container runner, and the server address it has unless told another. */
-export const COMPOSE_COMMAND = 'docker compose -f deploy/compose.yml --profile runner up -d runner-local';
-export const COMPOSE_SERVER_URL = 'http://host.docker.internal:9950';
-
-const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0']);
-
-/** True for an address only this machine reaches (localhost, 127.x, ::1). */
-export function isLoopback(url: string): boolean {
-  const { hostname } = new URL(url);
-  return LOOPBACK.has(hostname) || hostname.startsWith('127.');
-}
+export { containerServerUrl, isLoopback } from '@mwc/shared/container-runner';
 
 /** The installer, piped into sh, for a server (downloaded and enrolled through `via` when given). */
 export function installCommand(server: string, token: string, via?: string): string {
@@ -44,19 +35,12 @@ export function devboxCommand(port: number, token: string): string {
   return `airia devbox ssh -- -R ${forward} '${install}'`;
 }
 
-/** The address a container on this machine reaches the server at: a loopback host becomes host.docker.internal. */
-export function containerServerUrl(server: string): string {
-  if (!isLoopback(server)) return server;
-  const url = new URL(server);
-  url.hostname = 'host.docker.internal';
-  return url.origin + url.pathname.replace(/\/+$/, '');
-}
-
-/** The compose command that enrolls and starts the container runner (the server's address only when not its own). */
-export function containerCommand(server: string, token: string): string {
-  const url = containerServerUrl(server);
-  const serverUrl = url === COMPOSE_SERVER_URL ? '' : `MWC_SERVER_URL=${url} `;
-  return `${serverUrl}MWC_ENROLL_TOKEN=${token} ${COMPOSE_COMMAND}`;
+/**
+ * The compose command that enrolls and starts a container runner with the defaults ("Docker runner", 2 CPUs, 4 GB, 2
+ * runs at once) in its own compose project; the server's address only when compose's default does not reach it.
+ */
+export function containerCommand(server: string, token: string, composeFile: string | null = null): string {
+  return containerRunnerCommand({ ...DEFAULT_CONTAINER_RUNNER, token, composeFile, server });
 }
 
 export interface EnrollTokenText {
@@ -69,6 +53,8 @@ export interface EnrollTokenText {
   readonly apiUrl: string | null;
   /** The server drives the devboxes itself (`/api/config`'s `localPower`): it holds the box's tunnel, not This Mac's runner. */
   readonly localPower?: boolean;
+  /** The absolute path of the server's deploy/compose.yml (`/api/config`'s `composeFile`); null in production or unknown. */
+  readonly composeFile?: string | null;
 }
 
 /** What the devbox's command needs first, and what it does. */
@@ -97,8 +83,10 @@ export function enrollTokenText(t: EnrollTokenText): string {
     t.localPower === true ? DEVBOX_HINT_SERVER : DEVBOX_HINT,
     `  ${devboxCommand(portOf(t.apiUrl ?? t.server), t.token)}`,
     '',
-    'A Docker container on This Mac (from the repository folder):',
-    `  ${containerCommand(t.server, t.token)}`,
+    t.composeFile
+      ? 'A Docker container on This Mac (2 CPUs, 4 GB, 2 runs at once; change MWC_RUNNER_* to taste):'
+      : 'A Docker container on This Mac (from the repository folder; 2 CPUs, 4 GB, 2 runs at once):',
+    `  ${containerCommand(t.server, t.token, t.composeFile ?? null)}`,
     '',
   ].join('\n');
 }

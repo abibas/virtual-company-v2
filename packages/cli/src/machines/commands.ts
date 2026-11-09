@@ -28,7 +28,8 @@ export async function machineCommand(
   const config = await getPublicConfig(deps.fetch, server, key);
   const apiUrl = config.ok ? config.body.apiUrl : null;
   const localPower = config.ok && config.body.localPower;
+  const composeFile = config.ok ? config.body.composeFile : null;
   const { token, expiresAt } = made.body;
-  io.stdout(enrollTokenText({ company, token, expiresAt, server, apiUrl, localPower }));
+  io.stdout(enrollTokenText({ company, token, expiresAt, server, apiUrl, localPower, composeFile }));
   return 0;
 }

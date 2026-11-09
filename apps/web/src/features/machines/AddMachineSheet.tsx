@@ -10,6 +10,7 @@ import { Notice } from '../../components/ui/Notice.tsx';
 import { useNow } from '../subscriptions/limits.ts';
 import type { AddMachine } from './add-machine.ts';
 import { CommandBox } from './CommandBox.tsx';
+import { ContainerRunnerForm, useContainerForm } from './ContainerRunnerForm.tsx';
 import { commandHint, installCommand, type NewMachineKind } from './install-commands.ts';
 
 interface Choice {
@@ -92,25 +93,30 @@ function Countdown({ expiresAt, onAgain }: { readonly expiresAt: string; readonl
 
 /**
  * The install command for the chosen kind with its one-time token, Copy, the hour's countdown, and the machine once
- * it connects.
+ * it connects. A container's command follows its form (null while a value is wrong).
  */
 function EnrollCommand({
   kind,
+  command,
   token,
   config,
   connected,
   onAgain,
 }: {
   readonly kind: NewMachineKind;
+  readonly command: string | null;
   readonly token: EnrollmentToken;
   readonly config: PublicConfig;
   readonly connected: Machine | undefined;
   readonly onAgain: () => void;
 }) {
-  const command = installCommand(kind, token.token, config);
   return (
     <div className="flex flex-col gap-3">
-      <CommandBox command={command} aside={<Countdown expiresAt={token.expiresAt} onAgain={onAgain} />} />
+      {command === null ? (
+        <Notice tone="warning">Fix the values above to see the command.</Notice>
+      ) : (
+        <CommandBox command={command} aside={<Countdown expiresAt={token.expiresAt} onAgain={onAgain} />} />
+      )}
       <p className="text-xs text-dim">{commandHint(kind, config)}</p>
       {connected ? (
         <Notice tone="success">Connected: {connected.name}</Notice>
@@ -130,7 +136,14 @@ const titleOf = (kind: NewMachineKind | undefined) =>
 /** Add a machine (admins): the kind, then its install command with the token, and the machine once it connects. */
 export function AddMachineSheet({ adding }: { readonly adding: AddMachine }) {
   const config = usePublicConfig();
+  const container = useContainerForm();
   const { kind, token } = adding;
+  const isContainer = kind === 'container';
+  const commandFor = (value: string): string | null => {
+    if (kind === undefined) return null;
+    if (kind !== 'container') return installCommand(kind, value, config);
+    return container.settings ? installCommand(kind, value, config, container.settings) : null;
+  };
   return (
     <Sheet
       open={adding.open}
@@ -141,17 +154,28 @@ export function AddMachineSheet({ adding }: { readonly adding: AddMachine }) {
       {kind === undefined && <Choices onPick={adding.pick} />}
       {kind !== undefined && (
         <div className="flex flex-col gap-4">
-          {adding.busy && <LoadingBlock label="Making a one-time token…" />}
-          {adding.error !== undefined && (
-            <ErrorBlock error={adding.error} onRetry={() => adding.pick(kind)} />
+          {isContainer && (
+            <ContainerRunnerForm
+              form={container.form}
+              errors={container.errors}
+              onChange={container.change}
+            />
           )}
+          {isContainer && !token && !adding.busy && adding.error === undefined && (
+            <Button size="sm" tone="primary" disabled={!container.settings} onClick={adding.mint}>
+              Create command
+            </Button>
+          )}
+          {adding.busy && <LoadingBlock label="Making a one-time token…" />}
+          {adding.error !== undefined && <ErrorBlock error={adding.error} onRetry={adding.mint} />}
           {token && (
             <EnrollCommand
               kind={kind}
+              command={commandFor(token.token)}
               token={token}
               config={config}
               connected={adding.connected}
-              onAgain={() => adding.pick(kind)}
+              onAgain={adding.mint}
             />
           )}
           <div className="flex justify-between gap-2">

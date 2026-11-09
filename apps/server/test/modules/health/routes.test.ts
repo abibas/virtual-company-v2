@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { identityOutbox, readJournal } from '@mwc/db';
 import { migrateToLatest, queryRows, rawDb } from '@mwc/db/system';
 import { loadConfig } from '@mwc/shared/config';
@@ -14,7 +16,7 @@ import {
 } from '@mwc/testkit';
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { READY_TIMEOUT_MS } from '../../../src/modules/health/service.ts';
+import { COMPOSE_FILE, READY_TIMEOUT_MS } from '../../../src/modules/health/service.ts';
 import { enqueueOutbox } from '../../../src/platform/jobs/outbox.ts';
 
 // readJournal as a pass-through spy, to see how often the server reads the journal file.
@@ -210,7 +212,14 @@ describe('GET /api/config', () => {
       apiUrl: 'http://localhost:9950',
       publicUrl: null,
       localPower: false,
+      composeFile: COMPOSE_FILE,
     });
+  });
+
+  it("names the repository's deploy/compose.yml by its absolute path outside production, from the server's own place", () => {
+    expect(isAbsolute(COMPOSE_FILE)).toBe(true);
+    expect(COMPOSE_FILE.endsWith('/deploy/compose.yml')).toBe(true);
+    expect(existsSync(COMPOSE_FILE)).toBe(true);
   });
 
   it("gives Clerk's publishable key when Clerk signs people in, and never a secret", async () => {
@@ -225,6 +234,7 @@ describe('GET /api/config', () => {
       apiUrl: 'https://corp.example.com',
       publicUrl: 'https://corp.example.com',
       localPower: false,
+      composeFile: null,
     });
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);
     expect(text).not.toContain('hunter2');

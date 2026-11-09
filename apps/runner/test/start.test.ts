@@ -76,6 +76,23 @@ describe('mwc-runner run', () => {
     expect(caffeinate[0]?.child.signals).toEqual(['SIGTERM']);
   });
 
+  it("measures a container against its cgroup's limits", async () => {
+    const server = await fakeServer();
+    const { deps, signals } = world({ server, env: { MWC_RUNNER_IN_CONTAINER: '1' } });
+    const files: Record<string, string> = {
+      '/sys/fs/cgroup/cpu.max': '300000 100000',
+      '/sys/fs/cgroup/cpu.stat': 'usage_usec 0\n',
+      '/sys/fs/cgroup/memory.max': '1000',
+      '/sys/fs/cgroup/memory.current': '250',
+      '/proc/meminfo': 'MemTotal: 100 kB\nMemAvailable: 50 kB\n',
+    };
+    const readFile = async (path: string) => files[path] ?? Promise.reject(new Error(`ENOENT: ${path}`));
+    const running = main(['run'], { ...deps, fs: { ...deps.fs, readFile } });
+    expect((await server.frames.next('runner.heartbeat')).sample).toMatchObject({ cpus: 3, memPct: 25 });
+    signals.get('SIGTERM')?.();
+    expect(await running).toBe(EXIT.ok);
+  });
+
   it('opens terminals when its PTY loads, in the home folder, and says why there are none when it does not', async () => {
     const server = await fakeServer();
     const spawner = new FakePtySpawner();

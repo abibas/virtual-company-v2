@@ -27,15 +27,19 @@ describe('the machines API', () => {
     });
   });
 
-  it("reads the API's own address and whether it drives the devboxes from /api/config, and nothing else of it", async () => {
+  it("reads the API's own address, whether it drives the devboxes and its compose file from /api/config, and nothing else of it", async () => {
     const api = answering({ apiUrl: 'http://localhost:9950', publicUrl: 'https://corp.example.com' });
     expect(await getPublicConfig(api.fetch, SERVER, KEY)).toEqual({
       ok: true,
-      body: { apiUrl: 'http://localhost:9950', localPower: false },
+      body: { apiUrl: 'http://localhost:9950', localPower: false, composeFile: null },
     });
     expect(api.calls).toEqual([`GET ${SERVER}/api/config`]);
     const driving = answering({ apiUrl: 'http://localhost:9950', localPower: true });
     expect(await getPublicConfig(driving.fetch, SERVER, KEY)).toMatchObject({ body: { localPower: true } });
+    const dev = answering({ apiUrl: 'http://localhost:9950', composeFile: '/r/deploy/compose.yml' });
+    expect(await getPublicConfig(dev.fetch, SERVER, KEY)).toMatchObject({
+      body: { composeFile: '/r/deploy/compose.yml' },
+    });
     expect(await getPublicConfig(answering({}, 503).fetch, SERVER, KEY)).toMatchObject({
       ok: false,
       status: 503,

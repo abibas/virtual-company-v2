@@ -59,7 +59,9 @@ describe('the install commands', () => {
     expect(containerServerUrl('http://localhost:9950')).toBe('http://host.docker.internal:9950');
     expect(containerServerUrl('http://127.0.0.1:9960/')).toBe('http://host.docker.internal:9960');
     expect(containerServerUrl(PUBLIC)).toBe(PUBLIC);
-    const compose = 'docker compose -f deploy/compose.yml --profile runner up -d runner-local';
+    const limits =
+      "MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2";
+    const compose = `${limits} docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d runner-local`;
     expect(containerCommand('http://localhost:9950', TOKEN)).toBe(`MWC_ENROLL_TOKEN=${TOKEN} ${compose}`);
     expect(containerCommand('http://localhost:9963', TOKEN)).toBe(
       `MWC_SERVER_URL=http://host.docker.internal:9963 MWC_ENROLL_TOKEN=${TOKEN} ${compose}`,
@@ -93,10 +95,22 @@ describe('what mwc machine enroll-token prints', () => {
         "The Airia devbox (run it on This Mac, after This Mac's runner is installed: that runner keeps the box connected afterwards; it starts the box if it is stopped, and the box costs its hourly rate while it is up; the box connects once This Mac's runner holds its tunnel):",
         `  ${devboxCommand(9963, TOKEN)}`,
         '',
-        'A Docker container on This Mac (from the repository folder):',
+        'A Docker container on This Mac (from the repository folder; 2 CPUs, 4 GB, 2 runs at once):',
         `  ${containerCommand('http://localhost:9950', TOKEN)}`,
         '',
       ].join('\n'),
+    );
+  });
+
+  it("names the server's compose file by its absolute path when it knows it, so the command works from any folder", () => {
+    const composeFile = '/Users/ihor/v2/deploy/compose.yml';
+    const text = enrollTokenText({ ...base, apiUrl: null, composeFile });
+    expect(text).toContain(
+      'A Docker container on This Mac (2 CPUs, 4 GB, 2 runs at once; change MWC_RUNNER_* to taste):',
+    );
+    expect(text).toContain(
+      `  MWC_ENROLL_TOKEN=${TOKEN} MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g ` +
+        `MWC_RUNNER_SLOTS=2 docker compose -p mwc-runner-docker-runner -f ${composeFile} --profile runner up -d runner-local\n`,
     );
   });
 

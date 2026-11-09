@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { type JournalEntry, type MigrationStatus, migrationStatus, pingDb, readJournal } from '@mwc/db';
 import type { Config } from '@mwc/shared/config';
 import type { AppDeps } from '../../platform/env.ts';
@@ -74,10 +75,13 @@ export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal' | 
   };
 }
 
+/** The repository's deploy/compose.yml, from this file's place (never the working folder). */
+export const COMPOSE_FILE = fileURLToPath(new URL('../../../../../deploy/compose.yml', import.meta.url));
+
 /**
  * The public part of the configuration, for the web (`GET /api/config`): the sign-in mode, Clerk's publishable key
  * when Clerk signs people in, the web origin, the API's public URL and whether this server drives the devboxes itself
- * (`localPower`). Picked field by field, so no secret (the Clerk secret key, the JWT key, the webhook secret, the
+ * (`localPower`), and outside production the absolute path of deploy/compose.yml (`composeFile`). Picked field by field, so no secret (the Clerk secret key, the JWT key, the webhook secret, the
  * database URL) can reach it.
  */
 export function publicConfig(config: Config, localPower: boolean): PublicConfig {
@@ -90,5 +94,6 @@ export function publicConfig(config: Config, localPower: boolean): PublicConfig 
     apiUrl,
     publicUrl: config.MWC_PUBLIC_URL_SET ? apiUrl : null,
     localPower,
+    composeFile: config.NODE_ENV === 'production' ? null : COMPOSE_FILE,
   };
 }

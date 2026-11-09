@@ -3,7 +3,9 @@
 #
 #   docker compose -f deploy/compose.yml up -d --wait postgres
 #   docker compose -f deploy/compose.yml down          # keeps the data volume (down -v drops it)
-#   MWC_ENROLL_TOKEN=mwc_et_... docker compose -f deploy/compose.yml --profile runner up -d runner-local
+#   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
+#     docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d runner-local
+#   docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner down -v   # removes that runner
 #
 # The prod-like stack (server image, migrate step, its own Postgres) is deploy/compose.prod.yml.
 name: mwc-v2
@@ -31,7 +33,9 @@ services:
   # A runner in a container (deploy/Dockerfile.runner; docs/machines.md, "Installing a runner"). On its first start it
   # enrolls with the one-time token (mwc machine enroll-token prints the command) and keeps its runner.json in the
   # runner-state volume, so later starts need no token. It dials out to the API on this machine (MWC_SERVER_URL; the dev
-  # API on 9950 by default) and publishes no port: its health endpoint (9953) is for its own health check.
+  # API on 9950 by default) and publishes no port: its health endpoint (9953) is for its own health check. Each container
+  # runner is its own compose project (-p mwc-runner-<slug>), so each has its own container and state volume; the add
+  # sheet chooses its CPUs, memory (Docker caps it there) and runs at once (MWC_RUNNER_SLOTS, read when it enrolls).
   runner-local:
     profiles: [runner]
     image: mwc-v2/runner:local
@@ -42,6 +46,12 @@ services:
       MWC_SERVER_URL: ${MWC_SERVER_URL:-http://host.docker.internal:9950}
       MWC_ENROLL_TOKEN: ${MWC_ENROLL_TOKEN:-}
       MWC_RUNNER_NAME: ${MWC_RUNNER_NAME:-runner-local}
+      MWC_RUNNER_SLOTS: ${MWC_RUNNER_SLOTS:-2}
+    cpus: ${MWC_RUNNER_CPUS:-2}
+    mem_limit: ${MWC_RUNNER_MEMORY:-4g}
+    # No swap beyond the memory limit, and a cap on processes (a runaway fork stops at the container).
+    memswap_limit: ${MWC_RUNNER_MEMORY:-4g}
+    pids_limit: 1024
     extra_hosts:
       # Docker Desktop has this name; on Linux it points at the host's gateway.
       - "host.docker.internal:host-gateway"

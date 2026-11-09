@@ -8,7 +8,8 @@
 # runs; later starts need no token. Its terminal's shell is /bin/bash as the user runner, in /home/runner.
 #
 #   docker build -f deploy/Dockerfile.runner -t mwc-v2/runner:local .
-#   MWC_ENROLL_TOKEN=mwc_et_... docker compose -f deploy/compose.yml --profile runner up -d runner-local
+#   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
+#     docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d runner-local
 
 ARG NODE_IMAGE=node:24.21.0-slim
 

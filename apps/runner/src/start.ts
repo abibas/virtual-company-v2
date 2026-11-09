@@ -15,8 +15,9 @@ import type { WebSocketCtor } from './link/socket.ts';
 import { createLog, type Log } from './log.ts';
 import type { PowerExecutor } from './power.ts';
 import { createRunner, type Runner, type RunnerOptions } from './runner.ts';
-import { createMemoryReader, type MemoryDeps } from './stats/memory.ts';
-import { type DiskStats, Sampler, type SamplerOs } from './stats/sampler.ts';
+import { machineSampler } from './stats/machine.ts';
+import type { MemoryDeps } from './stats/memory.ts';
+import type { DiskStats, SamplerOs } from './stats/sampler.ts';
 import type { KillGroup, Spawn } from './system/process.ts';
 import type { Clock, Timers } from './system/time.ts';
 import type { PtyLoad } from './terminal/loader.ts';
@@ -127,7 +128,6 @@ function loadTerminal(deps: MainDeps, home: string, log: Log): RunnerOptions['te
 
 function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
   const { clock, timers } = deps;
-  const memory = createMemoryReader({ ...deps, readFile: deps.fs.readFile, log });
   const home = deps.env.HOME || deps.os.homedir();
   const terminal = loadTerminal(deps, home, log);
   return createRunner({
@@ -136,7 +136,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     ...(deps.claudeVersion === undefined ? {} : { claudeVersion: deps.claudeVersion }),
     log,
     hold: holdDriverFor(setup.hold, deps, log),
-    sampler: new Sampler({ os: deps.os, statfs: deps.fs.statfs, home, memory, clock, log }),
+    sampler: machineSampler(deps, home, log),
     ...(deps.power ? { power: deps.power } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     ...(terminal ? { terminal } : {}),
