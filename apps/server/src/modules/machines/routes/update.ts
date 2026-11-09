@@ -4,6 +4,7 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
+import { COMPOSE_FILE } from '../../health/service.ts';
 import { RunnerUpdateRefusalSchema, RunnerUpdateSchema } from '../schemas/update.ts';
 import { MachineParamsSchema } from '../schemas.ts';
 import type { PowerControl } from '../service/power/control.ts';
@@ -54,6 +55,7 @@ export function runnerUpdateRoutes(
     control: deps.control,
     apiUrl: deps.config.MWC_PUBLIC_URL.replace(/\/+$/, ''),
     apiPort: deps.config.MWC_PORT,
+    composeFile: deps.config.NODE_ENV === 'production' ? null : COMPOSE_FILE,
   };
   return newRouter().openapi(updateRoute(deps), async (c) => {
     const { principalId } = c.var.membership;

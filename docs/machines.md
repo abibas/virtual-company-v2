@@ -461,7 +461,9 @@ from a new one:
      its own process group, 3 minutes at most, its last stderr line as the error): the install keeps the enrollment,
      writes the systemd unit again and restarts the runner on the new bundle, which then updates itself next time.
   3. Otherwise 409 `update_unsupported` with `command`, the one to run by hand (no token in it): a container's
-     `docker compose -f deploy/compose.yml --profile runner up -d --build runner-local` in the repository folder; This
+     `docker compose -p mwc-runner-<slug of its name> -f <the compose file's absolute path> --profile runner up -d --build
+     runner-local` (its own project, as the add sheet started it; the relative path in production, run in the repository
+     folder), which keeps its enrollment and volumes; This
      Mac's (or any other machine's) `curl -fsSL <apiUrl>/api/runner/install.sh | sh -s -- --server <apiUrl>` there;
      the devbox's `airia devbox ssh` install without a token from This Mac when the server has no airia CLI of its own.
   Refusals: 409 `machine_offline` (no connected runner and no reinstall possible), 409 `runner_busy`, 502

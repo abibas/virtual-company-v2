@@ -33,6 +33,8 @@ export interface UpdateDeps {
   /** The API's address (the commands a person runs) and this server's own port (the SSH reinstall's forward). */
   readonly apiUrl: string;
   readonly apiPort: number;
+  /** The compose file's absolute path for a container's rebuild command; null in production (run in the repo). */
+  readonly composeFile: string | null;
   /** How long a runner has to answer `runner.update`; `SELF_UPDATE_TIMEOUT_MS` unless a test shortens it. */
   readonly timeoutMs?: number;
 }
@@ -113,8 +115,7 @@ export async function updateRunner(
     if (isPowered(machine) && reinstall !== undefined) {
       outcome = await sshReinstall(deps, reinstall, t, machine, runner !== undefined);
     } else {
-      outcome =
-        runner === undefined ? MACHINE_OFFLINE : updateUnsupported(manualUpdate(machine, deps.apiUrl));
+      outcome = runner === undefined ? MACHINE_OFFLINE : updateUnsupported(manualUpdate(machine, deps));
     }
   }
   if (outcome.ok) {

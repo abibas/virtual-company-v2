@@ -53,28 +53,53 @@ describe("a machine's runner facts", () => {
 });
 
 describe('the command that updates a runner by hand', () => {
-  it("rebuilds a container's image in the repository", () => {
-    expect(manualUpdate({ kind: 'container', provider: 'none' }, 'http://localhost:9950')).toEqual({
-      command: 'docker compose -f deploy/compose.yml --profile runner up -d --build runner-local',
-      where: 'in the repository folder: it rebuilds the container with the new runner',
+  it("rebuilds a container's image in its own compose project, from the compose file's path when known", () => {
+    const container = { kind: 'container', provider: 'none', name: 'Docker runner' } as const;
+    expect(
+      manualUpdate(container, { apiUrl: 'http://localhost:9950', composeFile: '/repo/deploy/compose.yml' }),
+    ).toEqual({
+      command:
+        'docker compose -p mwc-runner-docker-runner -f /repo/deploy/compose.yml --profile runner up -d --build runner-local',
+      where:
+        'in a Terminal on the computer running Docker: it rebuilds the container with the new runner, keeping its enrollment and volumes',
     });
+    const inRepo = manualUpdate(container, { apiUrl: 'http://localhost:9950', composeFile: null });
+    expect(inRepo.command).toBe(
+      'docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d --build runner-local',
+    );
+    expect(inRepo.where).toMatch(/^in the repository folder/);
+    expect(
+      manualUpdate(container, { apiUrl: 'http://localhost:9950', composeFile: '/My Repo/deploy/compose.yml' })
+        .command,
+    ).toContain("-f '/My Repo/deploy/compose.yml'");
   });
 
   it("reinstalls the devbox's runner from This Mac with the install's own forward, without a token", () => {
-    expect(manualUpdate({ kind: 'vm', provider: 'airia_devbox' }, 'http://localhost:9960').command).toBe(
+    expect(
+      manualUpdate(
+        { kind: 'vm', provider: 'airia_devbox', name: 'Airia devbox' },
+        { apiUrl: 'http://localhost:9960', composeFile: null },
+      ).command,
+    ).toBe(
       "airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:9960 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh | sh -s -- --server http://127.0.0.1:9960 --via http://127.0.0.1:9954'",
     );
   });
 
   it('pipes install.sh from the API on This Mac and any other machine, without a token', () => {
-    const mac = manualUpdate({ kind: 'laptop', provider: 'none' }, 'http://localhost:9950');
+    const mac = manualUpdate(
+      { kind: 'laptop', provider: 'none', name: 'Mac' },
+      { apiUrl: 'http://localhost:9950', composeFile: null },
+    );
     expect(mac.command).toBe(
       'curl -fsSL http://localhost:9950/api/runner/install.sh | sh -s -- --server http://localhost:9950',
     );
     expect(mac.where).toMatch(/^in a Terminal on that machine/);
-    expect(manualUpdate({ kind: 'vm', provider: 'none' }, 'https://corp.example.test').command).toContain(
-      '--server https://corp.example.test',
-    );
+    expect(
+      manualUpdate(
+        { kind: 'vm', provider: 'none', name: 'Box' },
+        { apiUrl: 'https://corp.example.test', composeFile: null },
+      ).command,
+    ).toContain('--server https://corp.example.test');
   });
 
   it('reads the port of an address, or its protocol', () => {

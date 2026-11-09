@@ -1,3 +1,4 @@
+import { COMPOSE_FILE_RELATIVE, containerRunnerProject, shellWord } from '@mwc/shared/container-runner';
 import type { MachineKind, MachineProvider } from '@mwc/shared/enums';
 import { INSTALL_PORT } from '@mwc/shared/ports';
 import { type Refusal, refuse } from '../rules.ts';
@@ -66,17 +67,23 @@ export interface ManualUpdate {
 
 /**
  * The command that updates a runner by hand, by machine (its install command without a token, which keeps the
- * enrollment): a container's image rebuilt from the repository; the devbox's install run on This Mac through
- * `airia devbox ssh` with the install's own forward; any other machine's `install.sh` piped from the API's address.
+ * enrollment): a container's image rebuilt in its own compose project (`mwc-runner-<slug of its name>`, as the add
+ * sheet started it) from the compose file's absolute path when the server knows it; the devbox's install run on This
+ * Mac through `airia devbox ssh` with the install's own forward; any other machine's `install.sh` piped from the API.
  */
 export function manualUpdate(
-  machine: { readonly kind: MachineKind; readonly provider: MachineProvider },
-  apiUrl: string,
+  machine: { readonly kind: MachineKind; readonly provider: MachineProvider; readonly name: string },
+  at: { readonly apiUrl: string; readonly composeFile: string | null },
 ): ManualUpdate {
+  const { apiUrl } = at;
   if (machine.kind === 'container') {
+    const file = at.composeFile === null ? COMPOSE_FILE_RELATIVE : shellWord(at.composeFile);
     return {
-      command: 'docker compose -f deploy/compose.yml --profile runner up -d --build runner-local',
-      where: 'in the repository folder: it rebuilds the container with the new runner',
+      command: `docker compose -p ${containerRunnerProject(machine.name)} -f ${file} --profile runner up -d --build runner-local`,
+      where:
+        at.composeFile === null
+          ? 'in the repository folder: it rebuilds the container with the new runner, keeping its enrollment and volumes'
+          : 'in a Terminal on the computer running Docker: it rebuilds the container with the new runner, keeping its enrollment and volumes',
     };
   }
   if (machine.provider === 'airia_devbox') {

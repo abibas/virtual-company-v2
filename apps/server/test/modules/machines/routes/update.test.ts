@@ -4,6 +4,7 @@ import type { RunnerFrame, ServerFrame } from '@mwc/shared/runner-protocol';
 import { TEST_NOW } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { COMPOSE_FILE } from '../../../../src/modules/health/service.ts';
 import { updateRunner } from '../../../../src/modules/machines/service/runner/update.ts';
 import { auditOf, DEVBOX, enroll, MAC, machinesPath } from '../../../fixtures/machines/machines.ts';
 import { type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
@@ -186,7 +187,7 @@ describe('POST machines/:machineId/runner-update: a runner that cannot update it
       ],
       [
         { ...MAC, kind: 'container' as const, name: 'runner-local' },
-        'docker compose -f deploy/compose.yml --profile runner up -d --build runner-local',
+        `docker compose -p mwc-runner-runner-local -f ${COMPOSE_FILE} --profile runner up -d --build runner-local`,
       ],
       [
         DEVBOX,
@@ -225,6 +226,7 @@ describe('the self-update when the runner goes quiet or away', () => {
     control: w.control,
     apiUrl: 'http://localhost:9950',
     apiPort: 9950,
+    composeFile: null,
     timeoutMs,
   });
 
