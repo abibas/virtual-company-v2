@@ -8,9 +8,9 @@ import {
   RunnerEnrollRequest,
   RunnerEnrollResponse,
 } from '@mwc/shared/runner-protocol';
-import { isServerUrl, type RunnerConfig, runnerConfigPath, writeRunnerConfig } from '../config.ts';
-import { CommandError, type Host } from '../install/host.ts';
-import { EXIT } from '../start.ts';
+import { isServerUrl, type RunnerConfig, runnerConfigPath, writeRunnerConfig } from '../../config.ts';
+import { EXIT } from '../../daemon/start.ts';
+import { CommandError, type Host } from '../host.ts';
 import { detectProvider, NO_PROVIDER } from './devbox.ts';
 import { defaultName, machineFacts } from './facts.ts';
 

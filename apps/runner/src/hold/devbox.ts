@@ -1,5 +1,5 @@
 import { DEVBOX_KEEPALIVE_DURATION } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import { runCommand, type Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import { DEVBOX_KEEPALIVE_BIN, DEVBOX_KEEPALIVE_FILE, type HoldDriver } from './driver.ts';

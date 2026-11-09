@@ -8,7 +8,7 @@ import type {
 } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { Commands, NO_RUNS, REMEMBERED_COMMANDS } from '../../src/link/commands.ts';
-import { NO_POWER, type PowerExecutor } from '../../src/power.ts';
+import { NO_POWER, type PowerExecutor } from '../../src/power/executor.ts';
 import { memoryLog } from '../fixtures/log.ts';
 import { ROTATED_KEY } from '../fixtures/runner.ts';
 

@@ -10,8 +10,8 @@ import {
   type TunnelSpec,
 } from '@mwc/shared/runner-protocol';
 import { z } from 'zod';
-import type { Log } from '../log.ts';
-import { type PowerExecutor, runPowerCommand } from '../power.ts';
+import { type PowerExecutor, runPowerCommand } from '../power/executor.ts';
+import type { Log } from '../system/log.ts';
 
 /**
  * The server's commands (docs/runner-protocol.md, "Semantics"): every frame with a `cmdId` is answered once, with

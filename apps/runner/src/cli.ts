@@ -1,15 +1,15 @@
 import { parseArgs } from 'node:util';
 import { runnerConfigPath } from './config.ts';
-import { enrollCommand, enrollOnFirstBoot } from './enroll/commands.ts';
-import { claudeVersion } from './enroll/facts.ts';
+import { EXIT, type MainDeps, main } from './daemon/start.ts';
+import { enrollCommand, enrollOnFirstBoot } from './install/enroll/commands.ts';
+import { claudeVersion } from './install/enroll/facts.ts';
 import { CommandError, type Env, type Host } from './install/host.ts';
 import { installCommand } from './install/install.ts';
 import { SERVICE_MANAGER_ENV } from './install/launchd.ts';
 import { statusCommand } from './install/status.ts';
 import { PERMANENT_EXIT_CODES } from './install/systemd.ts';
 import { uninstallCommand } from './install/uninstall.ts';
-import { createLog, type Log } from './log.ts';
-import { EXIT, type MainDeps, main } from './start.ts';
+import { createLog, type Log } from './system/log.ts';
 import { runnerBuild, updateTarget } from './update/build.ts';
 import { selfUpdater } from './update/self-update.ts';
 

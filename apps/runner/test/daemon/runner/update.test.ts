@@ -1,11 +1,11 @@
 import { newId } from '@mwc/shared/ids';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { TerminalHost } from '../../src/terminal/sessions.ts';
-import type { SelfUpdate } from '../../src/update/self-update.ts';
-import { RESTART_DELAY_MS } from '../../src/update/updates.ts';
-import { cleanUpLinks, fakeServer } from '../fixtures/link.ts';
-import { FakePtySpawner } from '../fixtures/pty.ts';
-import { startRunner, stopRunners } from '../fixtures/runner.ts';
+import type { TerminalHost } from '../../../src/terminal/sessions.ts';
+import type { SelfUpdate } from '../../../src/update/self-update.ts';
+import { RESTART_DELAY_MS } from '../../../src/update/updates.ts';
+import { cleanUpLinks, fakeServer } from '../../fixtures/link.ts';
+import { FakePtySpawner } from '../../fixtures/pty.ts';
+import { startRunner, stopRunners } from '../../fixtures/runner.ts';
 
 afterEach(async () => {
   await stopRunners();

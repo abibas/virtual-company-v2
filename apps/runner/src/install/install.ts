@@ -1,11 +1,11 @@
 import { dirname, join, resolve } from 'node:path';
 import type { RunnerPtyTarget } from '@mwc/shared/runner-protocol';
 import { readRunnerConfig, runnerConfigPath } from '../config.ts';
-import { enrolledText } from '../enroll/commands.ts';
-import { type EnrollInput, enrollMachine, httpBase, viaOf } from '../enroll/enroll.ts';
-import { machineKind } from '../enroll/facts.ts';
-import { EXIT } from '../start.ts';
+import { EXIT } from '../daemon/start.ts';
 import { ptyPackage, ptyTarget } from '../terminal/loader.ts';
+import { enrolledText } from './enroll/commands.ts';
+import { type EnrollInput, enrollMachine, httpBase, viaOf } from './enroll/enroll.ts';
+import { machineKind } from './enroll/facts.ts';
 import { CommandError, type Host, homeOf } from './host.ts';
 import { installedBundle } from './paths.ts';
 import { serviceManager } from './service.ts';

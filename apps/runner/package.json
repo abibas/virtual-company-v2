@@ -6,9 +6,9 @@
   "type": "module",
   "exports": {
     "./config": "./src/config.ts",
-    "./power": "./src/power.ts",
-    "./runner": "./src/runner.ts",
-    "./start": "./src/start.ts"
+    "./power": "./src/power/executor.ts",
+    "./runner": "./src/daemon/runner.ts",
+    "./start": "./src/daemon/start.ts"
   },
   "scripts": {
     "build": "node scripts/build.ts",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { detectProvider, METADATA_BASE, NO_PROVIDER } from '../../src/enroll/devbox.ts';
-import { DEVBOX_KEEPALIVE_BIN } from '../../src/hold/driver.ts';
-import { type Fetch, noFetch, testHost } from '../fixtures/host.ts';
+import { DEVBOX_KEEPALIVE_BIN } from '../../../src/hold/driver.ts';
+import { detectProvider, METADATA_BASE, NO_PROVIDER } from '../../../src/install/enroll/devbox.ts';
+import { type Fetch, noFetch, testHost } from '../../fixtures/host.ts';
 
 const ANSWERS: Record<string, string> = {
   'instance/name': 'dev-ihorherasko\n',

@@ -5,7 +5,7 @@ import {
   type HealthStatus,
   healthPort,
   startHealthServer,
-} from '../src/health.ts';
+} from '../../src/daemon/health.ts';
 
 const servers: HealthServer[] = [];
 afterEach(async () => {

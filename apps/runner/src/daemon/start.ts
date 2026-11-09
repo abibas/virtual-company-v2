@@ -5,18 +5,18 @@ import {
   runnerConfigPath,
   runnerStateDir,
   writeRunnerConfig,
-} from './config.ts';
+} from '../config.ts';
+import { caffeinateDriver } from '../hold/caffeinate.ts';
+import { devboxDriver } from '../hold/devbox.ts';
+import { detectHoldDriver, type HoldDriver, type HoldDriverKind, noneDriver } from '../hold/driver.ts';
+import type { LinkEnd } from '../link/link.ts';
+import { machineSampler } from '../stats/machine.ts';
+import type { MainDeps } from '../system/deps.ts';
+import { createLog, type Log } from '../system/log.ts';
 import { type HealthServer, healthPort, startHealthServer } from './health.ts';
-import { caffeinateDriver } from './hold/caffeinate.ts';
-import { devboxDriver } from './hold/devbox.ts';
-import { detectHoldDriver, type HoldDriver, type HoldDriverKind, noneDriver } from './hold/driver.ts';
-import type { LinkEnd } from './link/link.ts';
-import { createLog, type Log } from './log.ts';
 import { createRunner, type Runner, type RunnerOptions } from './runner.ts';
-import { machineSampler } from './stats/machine.ts';
-import type { MainDeps } from './system/deps.ts';
 
-export type { MainDeps } from './system/deps.ts';
+export type { MainDeps } from '../system/deps.ts';
 
 /**
  * `mwc-runner run` (`@mwc/runner/start`): reads the configuration, makes the state folder, picks the hold driver,

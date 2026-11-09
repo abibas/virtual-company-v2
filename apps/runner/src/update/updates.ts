@@ -1,5 +1,5 @@
 import type { RunnerUpdate, RunnerUpdateResult } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Timers } from '../system/time.ts';
 import { type SelfUpdate, UpdateError } from './self-update.ts';
 
@@ -8,7 +8,7 @@ import { type SelfUpdate, UpdateError } from './self-update.ts';
  * answers `unsupported`, one with live runs `busy` (S5's runs: it never ends one for an update); otherwise it puts the
  * server's runner in place (`self-update.ts`), ends its open terminals with a notice, answers `ok` with the new build
  * and, a moment later (so the answer leaves first), asks to restart: the daemon stops and exits with a code its service
- * manager starts it again after (`start.ts`). A failed update answers why, and the runner goes on as it was.
+ * manager starts it again after (`daemon/start.ts`). A failed update answers why, and the runner goes on as it was.
  */
 
 /** How long after its answer the runner stops for its restart. */

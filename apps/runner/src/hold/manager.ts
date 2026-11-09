@@ -1,5 +1,5 @@
 import { DEVBOX_KEEPALIVE_REFRESH_MS, type HoldSource } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import type { HoldDriver } from './driver.ts';
 

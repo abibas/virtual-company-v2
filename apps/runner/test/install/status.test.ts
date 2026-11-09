@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { writeRunnerConfig } from '../../src/config.ts';
-import type { HealthStatus } from '../../src/health.ts';
+import type { HealthStatus } from '../../src/daemon/health.ts';
 import { healthText, readHealth, statusCommand } from '../../src/install/status.ts';
 import { type Fetch, json, testHost } from '../fixtures/host.ts';
 import { runnerConfig } from '../fixtures/runner.ts';

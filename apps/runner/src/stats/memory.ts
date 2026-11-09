@@ -1,5 +1,5 @@
 import { MACHINE_SAMPLE_MS } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import { runCommand, type Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
 

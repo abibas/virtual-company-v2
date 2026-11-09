@@ -1,7 +1,8 @@
 import { mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readRunnerConfig } from '../../src/config.ts';
+import { readRunnerConfig } from '../../../src/config.ts';
+import { DEVBOX_KEEPALIVE_BIN } from '../../../src/hold/driver.ts';
 import {
   checkInput,
   DEFAULT_SLOTS,
@@ -9,9 +10,8 @@ import {
   enrollRequest,
   httpBase,
   postEnroll,
-} from '../../src/enroll/enroll.ts';
-import { DEVBOX_KEEPALIVE_BIN } from '../../src/hold/driver.ts';
-import { enrollWorld, type Fetch, json, noFetch, SERVER, testHost } from '../fixtures/host.ts';
+} from '../../../src/install/enroll/enroll.ts';
+import { enrollWorld, type Fetch, json, noFetch, SERVER, testHost } from '../../fixtures/host.ts';
 
 let w: Awaited<ReturnType<typeof enrollWorld>>;
 beforeAll(async () => {

@@ -9,17 +9,17 @@ import {
   type TunnelSpec,
 } from '@mwc/shared/runner-protocol';
 import { WebSocket } from 'ws';
-import { type RunnerConfig, runnerWsUrl } from '../config.ts';
+import { type RunnerConfig, runnerWsUrl } from '../../config.ts';
+import { HoldManager, type HoldReport } from '../../hold/manager.ts';
+import { Commands } from '../../link/commands.ts';
+import { Heartbeats } from '../../link/heartbeat.ts';
+import { Link, type LinkEnd } from '../../link/link.ts';
+import { NO_POWER, type PowerExecutor } from '../../power/executor.ts';
+import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from '../../system/time.ts';
+import { TerminalSessions } from '../../terminal/sessions.ts';
+import { Updates } from '../../update/updates.ts';
 import type { HealthStatus } from '../health.ts';
-import { HoldManager, type HoldReport } from '../hold/manager.ts';
-import { Commands } from '../link/commands.ts';
-import { Heartbeats } from '../link/heartbeat.ts';
-import { Link, type LinkEnd } from '../link/link.ts';
-import { NO_POWER, type PowerExecutor } from '../power.ts';
 import type { Runner, RunnerOptions } from '../runner.ts';
-import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from '../system/time.ts';
-import { TerminalSessions } from '../terminal/sessions.ts';
-import { Updates } from '../update/updates.ts';
 
 /**
  * The daemon behind `createRunner` (`../runner.ts`, its contract): it makes the hold manager, the heartbeats, the

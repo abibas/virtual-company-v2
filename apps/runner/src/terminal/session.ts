@@ -1,6 +1,6 @@
 import { constants } from 'node:os';
 import { TERMINAL_IDLE_MS, type TerminalExit, type TerminalRunnerFrame } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Timers } from '../system/time.ts';
 import type { PtyProcess } from './loader.ts';
 import { OutputBatcher } from './output.ts';

@@ -1,5 +1,5 @@
-import { DEVBOX_KEEPALIVE_BIN } from '../hold/driver.ts';
-import type { Host } from '../install/host.ts';
+import { DEVBOX_KEEPALIVE_BIN } from '../../hold/driver.ts';
+import type { Host } from '../host.ts';
 
 /**
  * Whether this machine is an Airia devbox, and which: a box has the company's `devbox-keepalive` and is a Google

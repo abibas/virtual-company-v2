@@ -1,4 +1,4 @@
-import { createLog, type Log, type LogLevel } from '../../src/log.ts';
+import { createLog, type Log, type LogLevel } from '../../src/system/log.ts';
 
 export interface LogEntry {
   readonly time: string;

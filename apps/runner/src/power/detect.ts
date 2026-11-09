@@ -1,6 +1,6 @@
 import { type LocalDevboxDeps, localDevbox } from '@mwc/machine-airia-devbox';
-import { NO_POWER, type PowerExecutor } from '../power.ts';
 import { driverExecutor } from './airia-devbox.ts';
+import { NO_POWER, type PowerExecutor } from './executor.ts';
 
 /**
  * Whether this machine is a power controller (S4.4b): it is when both the airia CLI and gcloud are installed, found

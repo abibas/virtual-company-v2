@@ -1,4 +1,4 @@
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { ChildLike, Spawn } from '../system/process.ts';
 import { CAFFEINATE_BIN, type HoldDriver } from './driver.ts';
 

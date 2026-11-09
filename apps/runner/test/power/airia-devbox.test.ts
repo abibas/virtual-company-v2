@@ -4,7 +4,7 @@ import type { PowerAction } from '@mwc/shared/machines';
 import type { PowerCommand } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { driverExecutor, outcomeOf } from '../../src/power/airia-devbox.ts';
-import { runPowerCommand } from '../../src/power.ts';
+import { runPowerCommand } from '../../src/power/executor.ts';
 
 const REF = { instance: 'dev-ihor', zone: 'europe-west1-b', size: 'm' as const };
 const RULES = {

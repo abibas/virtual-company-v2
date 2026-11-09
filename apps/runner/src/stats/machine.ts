@@ -1,5 +1,5 @@
-import { CONTAINER_MARKER } from '../enroll/facts.ts';
-import type { Log } from '../log.ts';
+import { CONTAINER_MARKER } from '../install/enroll/facts.ts';
+import type { Log } from '../system/log.ts';
 import type { Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import { CgroupStats } from './cgroup.ts';
@@ -7,8 +7,8 @@ import { createMemoryReader, type MemoryDeps } from './memory.ts';
 import { type DiskStats, Sampler, type SamplerOs } from './sampler.ts';
 
 /**
- * The daemon's sampler for this machine (`start.ts`): Node's `os` and `fs`, the memory reading of its system, and in a
- * container its cgroup's limits (`cgroup.ts`).
+ * The daemon's sampler for this machine (`daemon/start.ts`): Node's `os` and `fs`, the memory reading of its system,
+ * and in a container its cgroup's limits (`cgroup.ts`).
  */
 
 export interface MachineSamplerDeps {

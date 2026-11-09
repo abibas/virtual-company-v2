@@ -1,10 +1,10 @@
 import { newId } from '@mwc/shared/ids';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LIVE_RUNS_HOLD_MS } from '../../src/hold/manager.ts';
-import type { TerminalHost } from '../../src/terminal/sessions.ts';
-import { cleanUpLinks, fakeServer } from '../fixtures/link.ts';
-import { FakePtySpawner } from '../fixtures/pty.ts';
-import { startRunner, stopRunners } from '../fixtures/runner.ts';
+import { LIVE_RUNS_HOLD_MS } from '../../../src/hold/manager.ts';
+import type { TerminalHost } from '../../../src/terminal/sessions.ts';
+import { cleanUpLinks, fakeServer } from '../../fixtures/link.ts';
+import { FakePtySpawner } from '../../fixtures/pty.ts';
+import { startRunner, stopRunners } from '../../fixtures/runner.ts';
 
 afterEach(async () => {
   await stopRunners();

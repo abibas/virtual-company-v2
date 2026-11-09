@@ -1,6 +1,6 @@
 import { isMachinePowerError, type MachinePowerDriver, type PowerReading } from '@mwc/machines-core';
 import type { PowerCommand } from '@mwc/shared/runner-protocol';
-import type { PowerExecutor, PowerOutcome } from '../power.ts';
+import type { PowerExecutor, PowerOutcome } from './executor.ts';
 
 /**
  * The power executor of a controller (S4.4b): `power.command`s carried out by a `MachinePowerDriver` (on This Mac,

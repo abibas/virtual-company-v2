@@ -2,7 +2,7 @@ import type { ProcessRunOptions } from '@mwc/machine-airia-devbox';
 import { newId } from '@mwc/shared/ids';
 import { describe, expect, it } from 'vitest';
 import { detectPowerExecutor } from '../../src/power/detect.ts';
-import { NO_POWER } from '../../src/power.ts';
+import { NO_POWER } from '../../src/power/executor.ts';
 
 type ExecFileOptions = Parameters<NonNullable<ProcessRunOptions['execFile']>>[2];
 

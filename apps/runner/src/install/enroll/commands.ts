@@ -1,5 +1,5 @@
-import { CommandError, type Host } from '../install/host.ts';
-import type { Log } from '../log.ts';
+import type { Log } from '../../system/log.ts';
+import { CommandError, type Host } from '../host.ts';
 import { type Enrolled, type EnrollInput, enrollMachine } from './enroll.ts';
 
 /**

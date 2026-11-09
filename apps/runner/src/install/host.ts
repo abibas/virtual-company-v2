@@ -72,7 +72,7 @@ export interface Host {
   err(text: string): void;
 }
 
-/** A command's failure: what to say, and the exit code (sysexits where one fits, as `start.ts`'s `EXIT`). */
+/** A command's failure: what to say, and the exit code (sysexits where one fits, as `daemon/start.ts`'s `EXIT`). */
 export class CommandError extends Error {
   override readonly name = 'CommandError';
   readonly code: number;

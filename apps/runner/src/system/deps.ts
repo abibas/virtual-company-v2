@@ -1,5 +1,5 @@
 import type { WebSocketCtor } from '../link/socket.ts';
-import type { PowerExecutor } from '../power.ts';
+import type { PowerExecutor } from '../power/executor.ts';
 import type { MemoryDeps } from '../stats/memory.ts';
 import type { DiskStats, SamplerOs } from '../stats/sampler.ts';
 import type { PtyLoad } from '../terminal/loader.ts';
@@ -8,9 +8,9 @@ import type { KillGroup, Spawn } from './process.ts';
 import type { Clock, Timers } from './time.ts';
 
 /**
- * The process the daemon runs on (`start.ts`'s `main`): its environment, Node's `os` and files as the runner reads them,
- * process starts, the WebSocket, time, the log's output, signals and its exit, and what `cli.ts` learned at start (Claude
- * Code's version, the build, the self-update). `node.ts` is the real one; tests pass fakes.
+ * The process the daemon runs on (`daemon/start.ts`'s `main`): its environment, Node's `os` and files as the runner
+ * reads them, process starts, the WebSocket, time, the log's output, signals and its exit, and what `cli.ts` learned at
+ * start (Claude Code's version, the build, the self-update). `node.ts` is the real one; tests pass fakes.
  */
 export interface MainDeps {
   readonly env: Readonly<Record<string, string | undefined>>;

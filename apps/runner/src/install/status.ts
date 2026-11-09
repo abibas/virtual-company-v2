@@ -1,6 +1,6 @@
 import { readRunnerConfig, runnerConfigPath } from '../config.ts';
-import { HEALTH_PATH, type HealthStatus, healthPort } from '../health.ts';
-import { EXIT } from '../start.ts';
+import { HEALTH_PATH, type HealthStatus, healthPort } from '../daemon/health.ts';
+import { EXIT } from '../daemon/start.ts';
 import { CommandError, type Host } from './host.ts';
 import { serviceManager } from './service.ts';
 

@@ -3,13 +3,13 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { newId } from '@mwc/shared/ids';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readRunnerConfig } from '../src/config.ts';
-import { CAFFEINATE_BIN, DEVBOX_KEEPALIVE_BIN } from '../src/hold/driver.ts';
-import { EXIT, holdDriverFor, main } from '../src/start.ts';
-import { cleanUpLinks, fakeServer } from './fixtures/link.ts';
-import { FakePtySpawner } from './fixtures/pty.ts';
-import { ROTATED_KEY, RUNNER_KEY } from './fixtures/runner.ts';
-import { world } from './fixtures/start.ts';
+import { readRunnerConfig } from '../../src/config.ts';
+import { EXIT, holdDriverFor, main } from '../../src/daemon/start.ts';
+import { CAFFEINATE_BIN, DEVBOX_KEEPALIVE_BIN } from '../../src/hold/driver.ts';
+import { cleanUpLinks, fakeServer } from '../fixtures/link.ts';
+import { FakePtySpawner } from '../fixtures/pty.ts';
+import { ROTATED_KEY, RUNNER_KEY } from '../fixtures/runner.ts';
+import { world } from '../fixtures/start.ts';
 
 afterEach(cleanUpLinks);
 

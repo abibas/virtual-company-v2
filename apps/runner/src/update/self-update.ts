@@ -6,7 +6,7 @@ import {
   RUNNER_SHA256_HEADER,
   type RunnerUpdateError,
 } from '@mwc/shared/runner-protocol';
-import { httpBase } from '../enroll/enroll.ts';
+import { httpBase } from '../install/enroll/enroll.ts';
 import type { Host, HostFs } from '../install/host.ts';
 import { type ServiceKind, sha256, type UpdateTarget } from './build.ts';
 import { type UntarEntry, untarGz } from './untar.ts';

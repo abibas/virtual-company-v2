@@ -6,8 +6,8 @@ import {
   machineFacts,
   machineKind,
   shortHostname,
-} from '../../src/enroll/facts.ts';
-import { executable, testHost } from '../fixtures/host.ts';
+} from '../../../src/install/enroll/facts.ts';
+import { executable, testHost } from '../../fixtures/host.ts';
 
 describe('what a machine says about itself', () => {
   it('is a laptop on macOS, a container with /.dockerenv or MWC_RUNNER_IN_CONTAINER=1, else a VM', () => {

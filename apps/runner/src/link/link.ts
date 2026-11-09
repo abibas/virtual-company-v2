@@ -7,7 +7,7 @@ import {
   type ServerFrame,
   type ServerHello,
 } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import { backoffDelay, closeDecision, type LinkEndReason } from './reconnect.ts';
 import { openSocket, SOCKET_OPEN, type SocketLike, sendFrame, type WebSocketCtor } from './socket.ts';

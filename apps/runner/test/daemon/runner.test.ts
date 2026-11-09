@@ -1,12 +1,12 @@
 import { newId } from '@mwc/shared/ids';
 import { RUNNER_SUBPROTOCOL } from '@mwc/shared/runner-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LIVE_RUNS_HOLD_MS } from '../src/hold/manager.ts';
-import { NO_RUNS } from '../src/link/commands.ts';
-import type { PowerExecutor } from '../src/power.ts';
-import { createRunner } from '../src/runner.ts';
-import { cleanUpLinks, fakeServer } from './fixtures/link.ts';
-import { memoryLog } from './fixtures/log.ts';
+import { createRunner } from '../../src/daemon/runner.ts';
+import { LIVE_RUNS_HOLD_MS } from '../../src/hold/manager.ts';
+import { NO_RUNS } from '../../src/link/commands.ts';
+import type { PowerExecutor } from '../../src/power/executor.ts';
+import { cleanUpLinks, fakeServer } from '../fixtures/link.ts';
+import { memoryLog } from '../fixtures/log.ts';
 import {
   fakeSampler,
   httpOf,
@@ -16,9 +16,9 @@ import {
   runnerConfig,
   startRunner,
   stopRunners,
-} from './fixtures/runner.ts';
-import { FakeSpawn } from './fixtures/spawn.ts';
-import { FakeTime } from './fixtures/time.ts';
+} from '../fixtures/runner.ts';
+import { FakeSpawn } from '../fixtures/spawn.ts';
+import { FakeTime } from '../fixtures/time.ts';
 
 afterEach(async () => {
   await stopRunners();

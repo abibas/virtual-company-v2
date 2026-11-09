@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import type { RunnerPtyTarget } from '@mwc/shared/runner-protocol';
-import { machineKind } from '../enroll/facts.ts';
+import { machineKind } from '../install/enroll/facts.ts';
 import { type Host, homeOf } from '../install/host.ts';
 import { SERVICE_MANAGER_ENV } from '../install/launchd.ts';
 import { installedBundle } from '../install/paths.ts';

@@ -4,7 +4,7 @@ import {
   type TerminalRunnerFrame,
   type TerminalServerFrame,
 } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Timers } from '../system/time.ts';
 import type { PtyProcess, PtySpawn } from './loader.ts';
 import { TerminalSession } from './session.ts';

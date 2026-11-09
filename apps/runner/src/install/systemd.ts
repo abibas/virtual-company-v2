@@ -1,5 +1,5 @@
 import { dirname } from 'node:path';
-import { EXIT } from '../start.ts';
+import { EXIT } from '../daemon/start.ts';
 import { CommandError, type ExecResult, failure, type Host, homeOf, unixUser } from './host.ts';
 import { SERVICE_MANAGER_ENV } from './launchd.ts';
 import { type EnvEntry, type ServiceSpec, SYSTEMD_UNIT, serviceSpec, systemdUnitPath } from './paths.ts';
@@ -15,7 +15,7 @@ import type { ServiceManager } from './service.ts';
 /** The environment systemd gives the runner besides its PATH: which service manager runs it (its self-update). */
 export const SYSTEMD_ENV: readonly EnvEntry[] = [[SERVICE_MANAGER_ENV, 'systemd']];
 
-/** Restarted after any stop but these exit codes (`start.ts`'s `EXIT`), which need a person. */
+/** Restarted after any stop but these exit codes (`daemon/start.ts`'s `EXIT`), which need a person. */
 export const PERMANENT_EXIT_CODES: readonly number[] = [EXIT.tooOld, EXIT.unauthorized, EXIT.config];
 
 /** One word of `ExecStart=` in double quotes: backslash and quote escaped, `%` and `$` doubled (no expansion). */

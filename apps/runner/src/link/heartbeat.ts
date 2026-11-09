@@ -1,6 +1,6 @@
 import type { MachineSample } from '@mwc/shared/machines';
 import { MACHINE_SAMPLE_MS, RUNNER_HEARTBEAT_MS, type RunnerHeartbeat } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Clock } from '../system/time.ts';
 
 /**

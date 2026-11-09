@@ -1,7 +1,7 @@
 import { newId } from '@mwc/shared/ids';
 import type { PowerCommand } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
-import { NO_POWER, NO_POWER_DRIVER, type PowerExecutor, runPowerCommand } from '../src/power.ts';
+import { NO_POWER, NO_POWER_DRIVER, type PowerExecutor, runPowerCommand } from '../../src/power/executor.ts';
 
 const command = (): PowerCommand => ({
   type: 'power.command',

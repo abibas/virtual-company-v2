@@ -1,7 +1,7 @@
 import type { MachineKind } from '@mwc/shared/enums';
 import { MACHINE_NAME } from '@mwc/shared/machines';
-import { type Host, unixUser } from '../install/host.ts';
-import { findOnPath } from '../install/paths.ts';
+import { type Host, unixUser } from '../host.ts';
+import { findOnPath } from '../paths.ts';
 
 /**
  * What a machine says about itself when it enrolls (docs/runner-protocol.md, "Enrollment"): its kind, system, CPU

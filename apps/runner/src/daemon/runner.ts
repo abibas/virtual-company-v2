@@ -1,16 +1,16 @@
-import type { RunnerConfig } from './config.ts';
+import type { RunnerConfig } from '../config.ts';
+import type { HoldDriver } from '../hold/driver.ts';
+import type { HeartbeatDeps } from '../link/heartbeat.ts';
+import type { LinkEnd } from '../link/link.ts';
+import type { WebSocketCtor } from '../link/socket.ts';
+import type { PowerExecutor } from '../power/executor.ts';
+import type { Log } from '../system/log.ts';
+import type { KillGroup, Spawn } from '../system/process.ts';
+import type { Clock, Timers } from '../system/time.ts';
+import type { TerminalHost } from '../terminal/sessions.ts';
+import type { SelfUpdate } from '../update/self-update.ts';
 import type { HealthStatus } from './health.ts';
-import type { HoldDriver } from './hold/driver.ts';
-import type { HeartbeatDeps } from './link/heartbeat.ts';
-import type { LinkEnd } from './link/link.ts';
-import type { WebSocketCtor } from './link/socket.ts';
-import type { Log } from './log.ts';
-import type { PowerExecutor } from './power.ts';
 import { RunnerDaemon } from './runner/daemon.ts';
-import type { KillGroup, Spawn } from './system/process.ts';
-import type { Clock, Timers } from './system/time.ts';
-import type { TerminalHost } from './terminal/sessions.ts';
-import type { SelfUpdate } from './update/self-update.ts';
 
 /**
  * The runner (`@mwc/runner/runner`): the link to the server, the heartbeats with the machine's samples, the hold and

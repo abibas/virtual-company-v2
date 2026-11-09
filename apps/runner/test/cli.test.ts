@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { HELP, parseOptions, runCli, selfFacts, serviceExit } from '../src/cli.ts';
+import type { MainDeps } from '../src/daemon/start.ts';
+import { EXIT } from '../src/daemon/start.ts';
 import type { Host } from '../src/install/host.ts';
 import { PERMANENT_EXIT_CODES } from '../src/install/systemd.ts';
-import type { MainDeps } from '../src/start.ts';
-import { EXIT } from '../src/start.ts';
 import { downloadedBundle, enrollWorld, executable, json, SERVER, testHost } from './fixtures/host.ts';
 import { cleanUpLinks, fakeServer } from './fixtures/link.ts';
 import { memoryLog } from './fixtures/log.ts';

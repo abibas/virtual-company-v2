@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLog } from '../src/log.ts';
+import { createLog } from '../../src/system/log.ts';
 
 describe('the JSON-lines log', () => {
   it('writes one JSON object per line with the time, the level, the message and the fields', () => {

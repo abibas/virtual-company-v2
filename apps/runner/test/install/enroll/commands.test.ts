@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readRunnerConfig } from '../../src/config.ts';
-import { enrollCommand, enrolledText, enrollOnFirstBoot } from '../../src/enroll/commands.ts';
-import { enrollWorld, NODE, noFetch, SERVER, testHost } from '../fixtures/host.ts';
-import { memoryLog } from '../fixtures/log.ts';
-import { runnerConfig } from '../fixtures/runner.ts';
+import { readRunnerConfig } from '../../../src/config.ts';
+import { enrollCommand, enrolledText, enrollOnFirstBoot } from '../../../src/install/enroll/commands.ts';
+import { enrollWorld, NODE, noFetch, SERVER, testHost } from '../../fixtures/host.ts';
+import { memoryLog } from '../../fixtures/log.ts';
+import { runnerConfig } from '../../fixtures/runner.ts';
 
 let w: Awaited<ReturnType<typeof enrollWorld>>;
 beforeAll(async () => {
@@ -38,7 +38,7 @@ describe('mwc-runner enroll', () => {
 
 describe('the container that enrolls on its first start', () => {
   const read = (path: string) =>
-    readFileSync(fileURLToPath(new URL(`../../../../${path}`, import.meta.url)), 'utf8');
+    readFileSync(fileURLToPath(new URL(`../../../../../${path}`, import.meta.url)), 'utf8');
 
   it('is an image of Node 24 slim with git and tini as PID 1, the bundle, a non-root user and its state volume', () => {
     const dockerfile = read('deploy/Dockerfile.runner');

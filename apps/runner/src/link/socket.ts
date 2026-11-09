@@ -4,7 +4,7 @@ import {
   RUNNER_SUBPROTOCOL,
   type RunnerFrame,
 } from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 
 /** The WebSocket a link opens (`ws`'s client in the daemon, a constructor injected in tests) and how frames go out. */
 

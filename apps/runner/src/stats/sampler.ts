@@ -1,5 +1,5 @@
 import type { MachineSample } from '@mwc/shared/machines';
-import type { Log } from '../log.ts';
+import type { Log } from '../system/log.ts';
 import type { Clock } from '../system/time.ts';
 import type { CgroupStats } from './cgroup.ts';
 import { type CpuTimes, type CpuTotals, cpuPercent, cpuTotals } from './cpu.ts';
