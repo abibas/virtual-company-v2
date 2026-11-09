@@ -27,7 +27,8 @@ export async function machineCommand(
   if (!made.ok) return fail(io, command, refusal(server, made));
   const config = await getPublicConfig(deps.fetch, server, key);
   const apiUrl = config.ok ? config.body.apiUrl : null;
+  const localPower = config.ok && config.body.localPower;
   const { token, expiresAt } = made.body;
-  io.stdout(enrollTokenText({ company, token, expiresAt, server, apiUrl }));
+  io.stdout(enrollTokenText({ company, token, expiresAt, server, apiUrl, localPower }));
   return 0;
 }

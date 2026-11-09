@@ -6,7 +6,7 @@ import type { PowerCommand, PowerResult, TunnelSpec } from '@mwc/shared/runner-p
  * The power controller hook (`@mwc/runner/power`): what the runner does with a `power.command`. S4.3 ships the
  * executor of a runner that drives nothing; S4.4b passes one built on `@mwc/machines-core`'s driver (the Airia
  * devbox connector), whose `providers` the runner announces in `runner.hello.caps.power`, and whose tunnel commands
- * the runner's tunnels run (`power/tunnels.ts`).
+ * the runner's tunnels run (`@mwc/machines-core/tunnels`).
  */
 
 /** A `power.result` without its `type` and `cmdId`. */

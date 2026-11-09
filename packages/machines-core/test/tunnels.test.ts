@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
-import type { ProcessCommand } from '@mwc/machines-core';
 import { newId } from '@mwc/shared/ids';
 import type { TunnelSpec, TunnelState } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
+import type { ProcessCommand } from '../src/driver.ts';
 import {
   lastLine,
   retryDelay,
@@ -10,13 +10,13 @@ import {
   TUNNEL_RETRY_MAX_MS,
   TUNNEL_STABLE_MS,
   TUNNEL_UP_AFTER_MS,
+  type TunnelChild,
   type TunnelDeps,
+  type TunnelSpawn,
   Tunnels,
-} from '../../src/power/tunnels.ts';
-import type { ChildLike, Spawn } from '../../src/system/process.ts';
-import { memoryLog } from '../fixtures/log.ts';
-import { type FakeChild, FakeSpawn } from '../fixtures/spawn.ts';
-import { FakeTime, settle } from '../fixtures/time.ts';
+} from '../src/tunnels.ts';
+import { type FakeChild, FakeSpawn, memoryLog } from './fixtures/spawn.ts';
+import { FakeTime, settle } from './fixtures/time.ts';
 
 const GCLOUD = '/opt/homebrew/bin/gcloud';
 const ENV = { PATH: '/opt/homebrew/bin:/usr/bin', HOME: '/Users/ihor' };
@@ -38,7 +38,7 @@ const commandOf = (tunnel: TunnelSpec): ProcessCommand => ({
 function world(command: (tunnel: TunnelSpec) => ProcessCommand | undefined = commandOf) {
   const time = new FakeTime();
   const spawn = new FakeSpawn();
-  const logs = memoryLog(() => time.now());
+  const logs = memoryLog();
   const reports: TunnelState[] = [];
   const deps: TunnelDeps = {
     command,
@@ -197,6 +197,14 @@ describe('the tunnels', () => {
     expect(w.logs.messages('warn')).toContain('a tunnel ended; starting it again later');
   });
 
+  it('say only that the tunnel ended when its process gives no reason', async () => {
+    const w = world();
+    w.tunnels.set([tunnelOf('dev-a')]);
+    w.last().fail('');
+    await settle();
+    expect(w.reports.at(-1)).toMatchObject({ state: 'down', error: 'the tunnel ended' });
+  });
+
   it('end once when a process both fails and closes, and read no output from one without its standard error', async () => {
     const w = world();
     const box = tunnelOf('dev-a');
@@ -210,7 +218,7 @@ describe('the tunnels', () => {
     // A spawn that gives neither a pid nor a standard error: stopped without a signal, ended by its close alone.
     const bare = Object.assign(new EventEmitter(), { stdout: null, stderr: null, kill: () => true });
     const quiet = world();
-    const spawn: Spawn = () => bare as unknown as ChildLike;
+    const spawn: TunnelSpawn = () => bare as unknown as TunnelChild;
     const tunnels = new Tunnels({ ...quiet.deps, spawn });
     tunnels.set([box]);
     bare.emit('close', null, null);

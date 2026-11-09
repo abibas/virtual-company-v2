@@ -54,7 +54,7 @@ describe('POST .../power/start and /stop', () => {
         checkedAt: TEST_NOW,
         error: null,
       },
-      controller: { machineId: mac.machineId, name: 'This Mac', online: true },
+      controller: { kind: 'machine', machineId: mac.machineId, name: 'This Mac', online: true },
       canControl: true,
     });
     expect(driver.calls.map((entry) => entry.call)).toEqual(['start']);

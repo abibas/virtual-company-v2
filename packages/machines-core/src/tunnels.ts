@@ -1,73 +1,51 @@
-import type { ProcessCommand } from '@mwc/machines-core';
+import type { TunnelSpec, TunnelState, TunnelStatus } from '@mwc/shared/runner-protocol';
 import {
-  TUNNEL_ERROR_MAX,
-  type TunnelSpec,
-  type TunnelState,
-  type TunnelStatus,
-} from '@mwc/shared/runner-protocol';
-import type { Log } from '../log.ts';
-import type { ChildLike, KillGroup, Spawn } from '../system/process.ts';
-import type { Clock, Timers } from '../system/time.ts';
+  endText,
+  lastLine,
+  retryDelay,
+  TUNNEL_KILL_GRACE_MS,
+  TUNNEL_STABLE_MS,
+  TUNNEL_UP_AFTER_MS,
+  type TunnelChild,
+  type TunnelDeps,
+  tunnelKey,
+} from './tunnels/process.ts';
 
 /**
- * A power controller's reverse tunnels (`tunnel.set`, docs/runner-protocol.md "Hold and power"): one long-lived process
- * per machine the server wants linked, from the power executor (the devbox's `gcloud compute ssh` over IAP). Each runs
- * `detached` and is stopped as a process group (gcloud's ssh and IAP helper are its children): SIGTERM, then SIGKILL
- * after 5 s. One that ends while wanted starts again after 5 s, doubling to 5 minutes, from 5 s again after one that
- * stayed up a minute (the Mac bills each process start). Its states go to the server as `tunnel.state`.
+ * The reverse tunnels' supervisor (`@mwc/machines-core/tunnels`, docs/machines.md "Installing a runner"), shared by a
+ * runner that is a power controller (`tunnel.set`) and by the server when it drives the airia CLI itself: one
+ * long-lived process per machine that should be linked, from the driver's `tunnelCommand` (the devbox's
+ * `gcloud compute ssh` over IAP). Each runs `detached` and is stopped as a process group (gcloud's ssh and IAP helper are
+ * its children): SIGTERM, then SIGKILL after 5 s. One that ends while wanted starts again after 5 s, doubling to
+ * 5 minutes, from 5 s again after one that stayed up a minute (the Mac bills each process start). Its states
+ * (`connecting`, `up` after 10 s alive, `down` with the last line it printed) go to `report`.
  */
 
-/** How long a tunnel's process stays alive before it counts as up. */
-export const TUNNEL_UP_AFTER_MS = 10_000;
-/** The first wait before a tunnel that ended starts again; it doubles at each failure in a row. */
-export const TUNNEL_RETRY_INITIAL_MS = 5_000;
-/** The longest wait between two starts. */
-export const TUNNEL_RETRY_MAX_MS = 5 * 60_000;
-/** A tunnel that stayed up this long starts again after the first wait when it ends. */
-export const TUNNEL_STABLE_MS = 60_000;
-/** How long a stopped tunnel has after SIGTERM before its group gets SIGKILL. */
-export const TUNNEL_KILL_GRACE_MS = 5_000;
+export {
+  lastLine,
+  retryDelay,
+  TUNNEL_KILL_GRACE_MS,
+  TUNNEL_RETRY_INITIAL_MS,
+  TUNNEL_RETRY_MAX_MS,
+  TUNNEL_STABLE_MS,
+  TUNNEL_UP_AFTER_MS,
+  type TunnelChild,
+  type TunnelDeps,
+  type TunnelKill,
+  type TunnelLog,
+  type TunnelSpawn,
+  type TunnelSpawnOptions,
+} from './tunnels/process.ts';
+
 /** How much of a tunnel's output is kept for its last line. */
 const OUTPUT_KEPT = 4096;
-
-export interface TunnelDeps {
-  /** The process of a tunnel (the power executor's `tunnelCommand`); undefined when this runner cannot hold it. */
-  readonly command: (tunnel: TunnelSpec) => ProcessCommand | undefined;
-  readonly spawn: Spawn;
-  readonly killGroup: KillGroup;
-  readonly clock: Clock;
-  readonly timers: Timers;
-  readonly log: Log;
-  /** Sends a change to the server (dropped while disconnected: `states()` is sent after each hello). */
-  readonly report: (state: TunnelState) => void;
-}
-
-/** The wait before the start that follows `failures` failures in a row (0 for the first). */
-export function retryDelay(failures: number): number {
-  return Math.min(TUNNEL_RETRY_MAX_MS, TUNNEL_RETRY_INITIAL_MS * 2 ** failures);
-}
-
-/** The last line a process printed, trimmed and cut to the protocol's limit; undefined when it printed none. */
-export function lastLine(output: string): string | undefined {
-  const lines = output.split(/\r?\n/).map((line) => line.trim());
-  return lines
-    .filter((line) => line !== '')
-    .at(-1)
-    ?.slice(0, TUNNEL_ERROR_MAX);
-}
-
-/** What a tunnel forwards where: a change restarts it. */
-const keyOf = ({ target, remotePort, localPort }: TunnelSpec) =>
-  JSON.stringify([target.provider, target.ref.instance, target.ref.zone, remotePort, localPort]);
-
-const errorText = (text: string) => (text.trim() || 'the tunnel ended').slice(0, TUNNEL_ERROR_MAX);
 
 interface Held {
   readonly tunnel: TunnelSpec;
   readonly key: string;
   state: TunnelStatus;
   error?: string | undefined;
-  child?: ChildLike | undefined;
+  child?: TunnelChild | undefined;
   startedAt: number;
   output: string;
   /** Failures in a row, for the wait before the next start. */
@@ -90,13 +68,13 @@ export class Tunnels {
     this.#deps = deps;
   }
 
-  /** Reconciles the full set the server wants: starts the missing, stops the extra, restarts the changed. */
+  /** Reconciles the full set wanted: starts the missing, stops the extra, restarts the changed. */
   set(tunnels: readonly TunnelSpec[]): void {
     if (this.#closed) return;
     const wanted = new Map(tunnels.map((tunnel) => [tunnel.machineId, tunnel]));
     for (const [machineId, held] of this.#held) {
       const next = wanted.get(machineId);
-      if (next !== undefined && keyOf(next) === held.key) continue;
+      if (next !== undefined && tunnelKey(next) === held.key) continue;
       const why = next === undefined ? 'stopping a tunnel' : 'restarting a tunnel for its new target';
       this.#deps.log.info(why, { machineId });
       this.#held.delete(machineId);
@@ -106,7 +84,7 @@ export class Tunnels {
       if (this.#held.has(tunnel.machineId)) continue;
       const held: Held = {
         tunnel,
-        key: keyOf(tunnel),
+        key: tunnelKey(tunnel),
         state: 'connecting',
         startedAt: 0,
         output: '',
@@ -146,7 +124,7 @@ export class Tunnels {
     }
     held.output = '';
     held.startedAt = this.#deps.clock.monotonic();
-    let child: ChildLike;
+    let child: TunnelChild;
     try {
       const env = command.env === undefined ? {} : { env: command.env };
       child = this.#deps.spawn(command.command, command.args, {
@@ -161,7 +139,7 @@ export class Tunnels {
     this.#deps.log.info('starting a tunnel', { machineId, pid: child.pid });
     held.child = child;
     this.#set(held, 'connecting', held.error);
-    child.stderr?.on('data', (chunk: Buffer | string) => {
+    child.stderr?.on('data', (chunk) => {
       held.output = (held.output + String(chunk)).slice(-OUTPUT_KEPT);
     });
     const gone = (why: string) => {
@@ -187,7 +165,7 @@ export class Tunnels {
     if (this.#deps.clock.monotonic() - held.startedAt >= TUNNEL_STABLE_MS) held.failures = 0;
     const delay = retryDelay(held.failures);
     held.failures++;
-    const error = errorText(why);
+    const error = endText(why);
     const { machineId } = held.tunnel;
     this.#deps.log.warn('a tunnel ended; starting it again later', { machineId, error, retryInMs: delay });
     this.#set(held, 'down', error);

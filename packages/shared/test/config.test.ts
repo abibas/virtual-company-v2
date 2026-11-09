@@ -26,6 +26,7 @@ describe('loadConfig', () => {
       MWC_JOBS: true,
       MWC_RECONCILE_MINUTES: 10,
       MWC_LOGIN_HELPER: 'docker',
+      MWC_LOCAL_POWER: 'auto',
     });
   });
 
@@ -302,6 +303,17 @@ describe('loadConfig MWC_LOGIN_HELPER', () => {
     expect(loadConfig({ ...valid, ...PRODUCTION, MWC_LOGIN_HELPER: 'local' }).MWC_LOGIN_HELPER).toBe('local');
     expect(loadConfig({ ...valid, MWC_LOGIN_HELPER: 'none' }).MWC_LOGIN_HELPER).toBe('none');
     expect(() => loadConfig({ ...valid, MWC_LOGIN_HELPER: 'podman' })).toThrow(/MWC_LOGIN_HELPER/);
+  });
+});
+
+describe('loadConfig MWC_LOCAL_POWER', () => {
+  it('is auto unless it says on or off, in every environment, and refuses anything else', () => {
+    expect(loadConfig(valid).MWC_LOCAL_POWER).toBe('auto');
+    expect(loadConfig({ ...valid, MWC_LOCAL_POWER: '' }).MWC_LOCAL_POWER).toBe('auto');
+    expect(loadConfig({ ...valid, ...PRODUCTION }).MWC_LOCAL_POWER).toBe('auto');
+    expect(loadConfig({ ...valid, MWC_LOCAL_POWER: 'on' }).MWC_LOCAL_POWER).toBe('on');
+    expect(loadConfig({ ...valid, ...PRODUCTION, MWC_LOCAL_POWER: 'off' }).MWC_LOCAL_POWER).toBe('off');
+    expect(() => loadConfig({ ...valid, MWC_LOCAL_POWER: 'yes' })).toThrow(/MWC_LOCAL_POWER/);
   });
 });
 

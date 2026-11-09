@@ -1,7 +1,8 @@
 /**
- * The machines tests' world: the API on a test database with the fake identity provider, one fixed clock and a runner
- * hub with short timeouts, served on 127.0.0.1 and an ephemeral port (as `start` serves it, with the socket server),
- * so `FakeRunner` connects over a real WebSocket. Every runner a test connects is disconnected after it.
+ * The machines tests' world: the API on a test database with the fake identity provider, one fixed clock, a runner
+ * hub with short timeouts and its power control (the runner controllers', or this server's own on a `local` driver),
+ * served on 127.0.0.1 and an ephemeral port (as `start` serves it, with the socket server), so `FakeRunner` connects
+ * over a real WebSocket. Every runner a test connects is disconnected after it.
  */
 import type { AddressInfo } from 'node:net';
 import { migrateToLatest } from '@mwc/db/system';
@@ -15,7 +16,14 @@ import {
   testConfig,
 } from '@mwc/testkit';
 import { FakeRunner, type FakeRunnerOptions } from '@mwc/testkit/runner';
-import { createRunnerHub, type HubOptions, type RunnerHub } from '../../../src/modules/machines/index.ts';
+import {
+  createPowerControl,
+  createRunnerHub,
+  type HubOptions,
+  type PowerControl,
+  type RunnerHub,
+} from '../../../src/modules/machines/index.ts';
+import type { LocalPower } from '../../../src/platform/power/local.ts';
 import type { AuthWorld } from '../platform/auth.ts';
 import { eventually, listen } from '../platform/realtime.ts';
 
@@ -26,6 +34,8 @@ export const TEST_HUB: HubOptions = { helloTimeoutMs: 300, requestTimeoutMs: 400
 
 export interface MachinesWorld extends AuthWorld {
   readonly hub: RunnerHub;
+  /** The app's power control: who drives the devboxes. */
+  readonly control: PowerControl;
   /** Every line the app and the hub logged. */
   readonly logs: LogLine[];
   /** The runner socket's address: `ws://127.0.0.1:<port>/api/runner/ws`. */
@@ -37,15 +47,27 @@ export interface MachinesWorld extends AuthWorld {
   close(): Promise<void>;
 }
 
-/** The world, with `hub` options over `TEST_HUB`. */
-export async function machinesWorld(hubOptions: HubOptions = {}): Promise<MachinesWorld> {
+/** The world, with `hub` options over `TEST_HUB`, and this server's own power driver when `local` is given. */
+export async function machinesWorld(
+  hubOptions: HubOptions = {},
+  options: { readonly local?: LocalPower } = {},
+): Promise<MachinesWorld> {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
   const testDb = await createTestDb();
   await migrateToLatest(testDb.handle);
   const { logger, lines } = captureLogger();
   const hub = createRunnerHub({ db: testDb.handle, logger, clock }, { ...TEST_HUB, ...hubOptions });
-  const t = await createTestApp({ db: testDb.handle, clock, identity: fake, logger, runnerHub: hub });
+  const port = testConfig.MWC_PORT;
+  const control = createPowerControl({ hub, port, logger, local: options.local });
+  const t = await createTestApp({
+    db: testDb.handle,
+    clock,
+    identity: fake,
+    logger,
+    runnerHub: hub,
+    powerControl: control,
+  });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;
   const runners: FakeRunner[] = [];
@@ -65,6 +87,7 @@ export async function machinesWorld(hubOptions: HubOptions = {}): Promise<Machin
     clock,
     deps: { db: t.db, config: testConfig, logger, identity: fake },
     hub,
+    control,
     logs: lines,
     url,
     async connect(key, options = {}) {
@@ -76,6 +99,7 @@ export async function machinesWorld(hubOptions: HubOptions = {}): Promise<Machin
     disconnectAll,
     async close() {
       await disconnectAll();
+      await control.close();
       await hub.close();
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));

@@ -12,7 +12,7 @@ import { machinesRepo } from '../repo.ts';
 import { type Refusal, TOKEN_UNKNOWN, tokenRefusal } from '../rules.ts';
 import type { EnrollmentTokenView } from '../schemas.ts';
 import type { Caller } from '../service.ts';
-import { linkEnrolledBox, type TunnelDeps } from './power/tunnels.ts';
+import { type ControlDeps, linkEnrolledBox } from './power/control.ts';
 
 const repo = machinesRepo();
 
@@ -92,13 +92,13 @@ async function makeMachine(
 }
 
 /** What enrolling needs: the database, and for a devbox's tunnel the hub, the server's port and the logger. */
-export type EnrollDeps = TunnelDeps & { readonly db: DbHandle; readonly logger: Logger };
+export type EnrollDeps = ControlDeps & { readonly db: DbHandle; readonly logger: Logger };
 
 /**
  * Enrolls a machine with a one-time token (`POST /api/runner/enroll`): the token is used in the same transaction that
  * makes the machine and its runner key (an `api_keys` row of kind `runner`, owned by whoever made the token), so it
  * works once. An unknown, used or expired token, or one of a deleted company, is refused (401). A devbox then gets its
- * controller when one is clear, and that controller its tunnel (`power/tunnels.ts`).
+ * controller (this server, or a runner when one is clear), and that controller its tunnel (`power/control.ts`).
  */
 export async function enrollMachine(
   deps: EnrollDeps,

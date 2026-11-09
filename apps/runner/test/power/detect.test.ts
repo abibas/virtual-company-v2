@@ -1,7 +1,7 @@
 import type { ProcessRunOptions } from '@mwc/machine-airia-devbox';
 import { newId } from '@mwc/shared/ids';
 import { describe, expect, it } from 'vitest';
-import { detectPowerExecutor, findExecutable, searchDirs } from '../../src/power/detect.ts';
+import { detectPowerExecutor } from '../../src/power/detect.ts';
 import { NO_POWER } from '../../src/power.ts';
 
 type ExecFileOptions = Parameters<NonNullable<ProcessRunOptions['execFile']>>[2];
@@ -12,29 +12,6 @@ const only =
   (...paths: string[]) =>
   (path: string) =>
     paths.includes(path);
-
-describe('finding the tools without starting a process', () => {
-  it("looks in the PATH's absolute folders, then Homebrew's, the classic one and gcloud's own, each once", () => {
-    expect(searchDirs({ path: '/usr/bin:relative/bin::/opt/homebrew/bin', home: HOME })).toEqual([
-      '/usr/bin',
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      '/Users/ihor/google-cloud-sdk/bin',
-    ]);
-    expect(searchDirs({ path: undefined, home: HOME })).toHaveLength(3);
-  });
-
-  it('returns the first match, or nothing', () => {
-    const exists = only(
-      '/usr/local/bin/gcloud',
-      '/Users/ihor/google-cloud-sdk/bin/gcloud',
-      '/opt/tools/airia',
-    );
-    expect(findExecutable('gcloud', { path: '/usr/bin', home: HOME, exists })).toBe('/usr/local/bin/gcloud');
-    expect(findExecutable('airia', { path: '/opt/tools', home: HOME, exists })).toBe('/opt/tools/airia');
-    expect(findExecutable('airia', { path: '/usr/bin', home: HOME, exists })).toBeUndefined();
-  });
-});
 
 describe('detectPowerExecutor', () => {
   it('drives nothing unless both airia and gcloud are there', () => {

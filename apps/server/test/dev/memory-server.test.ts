@@ -13,7 +13,7 @@ describe('startMemoryServer', () => {
     });
     const exit = vi.fn();
     const started = await startMemoryServer(
-      { NODE_ENV: 'test', DATABASE_URL: 'postgres://someone@db.example/elsewhere' },
+      { NODE_ENV: 'test', DATABASE_URL: 'postgres://someone@db.example/elsewhere', MWC_LOCAL_POWER: 'off' },
       {
         createLogger: async () => logger,
         serve: (options, onListening) => {

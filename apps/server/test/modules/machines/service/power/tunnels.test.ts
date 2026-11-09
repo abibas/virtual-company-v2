@@ -4,13 +4,13 @@ import { brokenDb, TEST_NOW } from '@mwc/testkit';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { machineUpkeep } from '../../../../../src/modules/machines/index.ts';
-import { powerScheduler } from '../../../../../src/modules/machines/service/power/scheduler.ts';
-import { saveState } from '../../../../../src/modules/machines/service/power/store.ts';
 import {
   linkEnrolledBox,
   tunnelsOnConnect,
-  wantedTunnels,
-} from '../../../../../src/modules/machines/service/power/tunnels.ts';
+} from '../../../../../src/modules/machines/service/power/control.ts';
+import { powerScheduler } from '../../../../../src/modules/machines/service/power/scheduler.ts';
+import { saveState } from '../../../../../src/modules/machines/service/power/store.ts';
+import { wantedTunnels } from '../../../../../src/modules/machines/service/power/tunnels.ts';
 import { DEVBOX, enroll, MAC, machinesPath } from '../../../../fixtures/machines/machines.ts';
 import {
   BOX_REF,

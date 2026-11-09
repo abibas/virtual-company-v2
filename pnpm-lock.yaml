@@ -242,6 +242,9 @@ importers:
       '@mwc/identity-core':
         specifier: workspace:*
         version: link:../../packages/identity-core
+      '@mwc/machine-airia-devbox':
+        specifier: workspace:*
+        version: link:../../connectors/machine-airia-devbox
       '@mwc/machines-core':
         specifier: workspace:*
         version: link:../../packages/machines-core

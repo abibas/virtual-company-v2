@@ -165,7 +165,8 @@ limit alone.
   5 minutes, from 5 s again after one that stayed up 60 s. A runner without power, or one that cannot start processes,
   ignores `tunnel.set`. The server keeps the latest `tunnel.state` of each box in memory only (not the database) and
   shows it on the machine in `GET machines` as `tunnel{state, error, since}` when its saved controller reported it,
-  null otherwise.
+  null otherwise. When the server drives the airia CLI itself (MWC_LOCAL_POWER, `docs/machines.md`) it holds the
+  tunnels in its own process and every controller's set is empty; no controller is sent `power.command` then.
 
 ## Terminal
 
@@ -204,7 +205,7 @@ buffer is over 1 MB, until it is down to 256 KB.
 | `TERMINAL_DATA_MAX_BYTES`, `TERMINAL_COLS`, `TERMINAL_ROWS` | 64 KB decoded per `terminal.input` / `terminal.output`; cols 2–500, rows 1–300 |
 | `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
 | the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
-| the runner's tunnels (`apps/runner/src/power/tunnels.ts`) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
+| the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | `RUNNER_CLOSE` | 1009 frame too large, 4001 unauthorized (key revoked or machine removed while connected), 4002 unsupported protocol, 4003 runner too old, 4004 replaced, 4008 hello timeout |
 
 ## Reading and writing frames

@@ -13,14 +13,22 @@ import { RUNNER_FRAME_MAX_BYTES } from '@mwc/shared/runner-protocol';
 import { captureLogger, getJson, LEVEL } from '@mwc/testkit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocketServer } from 'ws';
+import { localPowerFromConfig, type PowerHost } from '../../src/platform/power/local.ts';
 import { ephemeralKeyring } from '../../src/platform/secrets/keyring.ts';
 import { MasterKeyError } from '../../src/platform/secrets/master-key.ts';
 import { type Serve, type StartDeps, start } from '../../src/platform/start.ts';
 import { readServerVersion } from '../../src/platform/version.ts';
 import { FakeLoginHelper } from '../fixtures/credentials/sign-in/helper.ts';
+import { fakeLocalPower } from '../fixtures/machines/local-power.ts';
+import { boxDriver } from '../fixtures/machines/power.ts';
 import { manualTimers } from '../fixtures/platform/jobs.ts';
 
-const ENV = { NODE_ENV: 'test', DATABASE_URL: 'postgres://mwc:mwc@127.0.0.1:9999/mwc' };
+// MWC_LOCAL_POWER off: the start never looks for this computer's airia CLI (the tests that want it pass a fake).
+const ENV = {
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgres://mwc:mwc@127.0.0.1:9999/mwc',
+  MWC_LOCAL_POWER: 'off',
+};
 
 /** A server that never listens: it records the options, says it is listening, and closes on request. */
 function fakeServe() {
@@ -201,6 +209,45 @@ describe('start', () => {
     expect(t.exit).toHaveBeenCalledWith(0);
     // The database is closed: a query on it fails now.
     await expect(migrationStatus(started.db)).rejects.toThrow();
+  });
+
+  it('drives the devboxes itself with the power driver it found, says so in /api/config, and stops its tunnels at shutdown', async () => {
+    const power = fakeLocalPower(boxDriver());
+    const localPower = vi.fn(() => power.local);
+    const t = testDeps({ localPower });
+    const started = await start(ENV, t.deps);
+    expect(localPower).toHaveBeenCalledWith(started.config, started.logger);
+    expect((await getJson(started.app, '/api/config')).body).toMatchObject({ localPower: true });
+    await t.signals.get('SIGTERM')?.('SIGTERM');
+    expect(power.closed()).toBe(1);
+    expect(t.exit).toHaveBeenCalledWith(0);
+  });
+
+  it('refuses MWC_LOCAL_POWER=on without the airia CLI before it opens the database, and logs why it drives none', async () => {
+    const bare: PowerHost = {
+      env: {},
+      home: '/nowhere',
+      exists: () => false,
+      spawn: () => {
+        throw new Error('nothing starts');
+      },
+      killGroup: () => {},
+    };
+    const localPower: StartDeps['localPower'] = (config, logger) =>
+      localPowerFromConfig(config, logger, bare);
+    const t = testDeps({ localPower, openDb: vi.fn(() => createPgliteDb()) });
+    const failure = start({ ...ENV, MWC_LOCAL_POWER: 'on' }, t.deps);
+    await expect(failure).rejects.toBeInstanceOf(ConfigError);
+    await expect(failure).rejects.toThrow(/MWC_LOCAL_POWER: is on, but airia and gcloud are not found/);
+    expect(t.deps.openDb).not.toHaveBeenCalled();
+    const auto = testDeps({ localPower });
+    const started = await start({ ...ENV, MWC_LOCAL_POWER: 'auto' }, auto.deps);
+    open.push(started.db);
+    expect(auto.lines.find((line) => line.msg.startsWith('power: no airia and gcloud'))).toMatchObject({
+      level: LEVEL.info,
+      missing: ['airia', 'gcloud'],
+    });
+    expect((await getJson(started.app, '/api/config')).body).toMatchObject({ localPower: false });
   });
 
   it('sweeps the sign-in sandboxes an earlier server on its port left, only once it listens', async () => {

@@ -17,6 +17,8 @@ export interface EnrollmentToken {
 export interface PublicConfig {
   /** The server's own idea of its address (MWC_PUBLIC_URL, else localhost and its port). */
   readonly apiUrl: string;
+  /** True when the server drives the devboxes itself with its computer's airia CLI (false from an older server). */
+  readonly localPower: boolean;
 }
 
 const isToken = (body: unknown): body is EnrollmentToken =>
@@ -25,7 +27,7 @@ const isToken = (body: unknown): body is EnrollmentToken =>
   typeof body.token === 'string' &&
   typeof body.expiresAt === 'string';
 
-const isConfig = (body: unknown): body is { apiUrl: string } =>
+const isConfig = (body: unknown): body is { apiUrl: string; localPower?: unknown } =>
   isObject(body) && typeof body.apiUrl === 'string';
 
 /** `POST /api/companies/:companyId/machines/enrollment-tokens` (admins and owners): a new token. */
@@ -39,7 +41,7 @@ export function createEnrollmentToken(
   return apiCall(fetch, server, key, path, isToken, { method: 'POST', status: 201 });
 }
 
-/** `GET /api/config`: the server's own address. */
+/** `GET /api/config`: the server's own address, and whether it drives the devboxes itself. */
 export async function getPublicConfig(
   fetch: Fetch,
   server: string,
@@ -47,5 +49,5 @@ export async function getPublicConfig(
 ): Promise<ApiResult<PublicConfig>> {
   const result = await apiCall(fetch, server, key, '/api/config', isConfig);
   if (!result.ok) return result;
-  return { ok: true, body: { apiUrl: result.body.apiUrl } };
+  return { ok: true, body: { apiUrl: result.body.apiUrl, localPower: result.body.localPower === true } };
 }

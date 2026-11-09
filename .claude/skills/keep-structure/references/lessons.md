@@ -28,6 +28,17 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-09: The server's own airia CLI driver pushes `platform/` to 13 entries
+
+- **What happened:** MWC_LOCAL_POWER's driver runs local processes for the server, so it went to
+  `apps/server/src/platform/power/local.ts` as the table says (`<area>/`, spawn injected); `platform/` went from 12 to
+  13 entries (`big-folder`, the report from 39 to 40). The tunnels' supervisor both the runner and the server run moved
+  to `packages/machines-core/src/tunnels.ts` (`@mwc/machines-core/tunnels`, spawn, kill and timers injected).
+- **What was done:** nothing yet.
+- **Suggested change:** at the S4 review, group the folders that run local processes for the server (`login-helper/`,
+  `power/`) under one `platform/processes/`, or give `platform/` a limit of its own.
+- **Status:** `open`.
+
 ### 2026-11-06: Socket routes, and a hub injected into the test app
 
 - **What happened:** S4.2's runner socket is an ordinary Hono route through `@hono/node-server`'s upgrade (auth as

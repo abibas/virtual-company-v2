@@ -20,7 +20,8 @@ function curlInstall(url: string, token: string, via?: string): string {
 /**
  * The devbox's installer, run on this Mac: `airia devbox ssh` with a reverse forward that makes the box's
  * `127.0.0.1:9954` (INSTALL_PORT) this Mac's API for the install's downloads and enroll (`--via`); the box's runner
- * keeps `127.0.0.1:<port>`, which This Mac's runner's standing tunnel serves, so the install's session ends with it.
+ * keeps `127.0.0.1:<port>`, which the standing tunnel serves (the server's, or This Mac's runner's), so the install's
+ * session ends with it.
  */
 export function devboxCommand(port: number, token: string): string {
   const install = curlInstall(`http://127.0.0.1:${port}`, token, `http://127.0.0.1:${INSTALL_PORT}`);
@@ -50,3 +51,12 @@ export const COMMAND_HINTS: Readonly<Record<NewMachineKind, string>> = {
     "its hourly rate while it is up. The box connects once This Mac's runner holds its tunnel.",
   container: 'Run it in the repository folder. It starts the runner-local service from deploy/compose.yml.',
 };
+
+/** The devbox's hint when the server drives the airia CLI itself (`localPower`): no runner on this Mac is needed. */
+const DEVBOX_HINT_SERVER =
+  'Run it on this Mac. It installs the runner on the box as a systemd user service. It starts the box if it is ' +
+  'stopped, and the box costs its hourly rate while it is up. The box connects once the server holds its tunnel.';
+
+/** The hint for a kind of machine, as the server powers the devbox (`/api/config`'s `localPower`). */
+export const commandHint = (kind: NewMachineKind, config: { readonly localPower: boolean }): string =>
+  kind === 'devbox' && config.localPower ? DEVBOX_HINT_SERVER : COMMAND_HINTS[kind];

@@ -4,6 +4,7 @@ import type { MachineUpkeep } from '../../../platform/jobs/run.ts';
 import { pruneSamples, staleMachines } from '../repo/upkeep.ts';
 import { MACHINE_LEASE_MS, PRUNE_INTERVAL_MS, SAMPLE_RETENTION_MS } from '../rules.ts';
 import type { RunnerHub } from './hub.ts';
+import type { PowerControl } from './power/control.ts';
 import { powerScheduler } from './power/scheduler.ts';
 import { lapsed } from './presence.ts';
 
@@ -25,8 +26,8 @@ async function sweep(db: DbHandle, now: Date): Promise<number> {
  * marked online whose runner said nothing for 90 s, e.g. after a server crash), the prune of samples older than 7
  * days at most once an hour, and the power scheduler's step at most once a minute (`power/scheduler.ts`; it needs
  * the runner hub and the logger, so without them `power` is always null; with the configuration it also keeps the
- * devboxes' tunnels on the server's port). The first tick of a process prunes and steps; `pruned` and `power` are null
- * on the ticks that do not.
+ * devboxes' tunnels on the server's port, and with the app's power control it drives the devboxes the way the app
+ * does). The first tick of a process prunes and steps; `pruned` and `power` are null on the ticks that do not.
  */
 export function machineUpkeep(deps: {
   readonly db: DbHandle;
@@ -34,6 +35,7 @@ export function machineUpkeep(deps: {
   readonly logger?: Logger;
   readonly hub?: RunnerHub | undefined;
   readonly config?: { readonly MWC_PORT: number };
+  readonly control?: PowerControl | undefined;
 }): () => Promise<MachineUpkeep> {
   let nextPruneMs = Number.NEGATIVE_INFINITY;
   let nextPowerMs = Number.NEGATIVE_INFINITY;

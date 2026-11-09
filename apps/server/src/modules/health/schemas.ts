@@ -83,6 +83,11 @@ export const PublicConfigSchema = z
           'MWC_PUBLIC_URL when it is set (the address other machines reach), null when the server only knows its ' +
           "local address (the Airia devbox's install needs none: it uses the port of `apiUrl`)",
       }),
+    localPower: z.boolean().openapi({
+      description:
+        "True when this server starts and stops the Airia devboxes itself with its computer's airia CLI and holds " +
+        'their tunnels (MWC_LOCAL_POWER); false when a runner controller does',
+    }),
   })
   .openapi('PublicConfig');
 

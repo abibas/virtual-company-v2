@@ -10,7 +10,7 @@ import { Notice } from '../../components/ui/Notice.tsx';
 import { useNow } from '../subscriptions/limits.ts';
 import type { AddMachine } from './add-machine.ts';
 import { CommandBox } from './CommandBox.tsx';
-import { COMMAND_HINTS, installCommand, type NewMachineKind } from './install-commands.ts';
+import { commandHint, installCommand, type NewMachineKind } from './install-commands.ts';
 
 interface Choice {
   readonly kind: NewMachineKind;
@@ -111,7 +111,7 @@ function EnrollCommand({
   return (
     <div className="flex flex-col gap-3">
       <CommandBox command={command} aside={<Countdown expiresAt={token.expiresAt} onAgain={onAgain} />} />
-      <p className="text-xs text-dim">{COMMAND_HINTS[kind]}</p>
+      <p className="text-xs text-dim">{commandHint(kind, config)}</p>
       {connected ? (
         <Notice tone="success">Connected: {connected.name}</Notice>
       ) : (

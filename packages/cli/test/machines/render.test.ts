@@ -3,6 +3,7 @@ import {
   containerCommand,
   containerServerUrl,
   DEVBOX_HINT,
+  DEVBOX_HINT_SERVER,
   devboxCommand,
   enrollTokenText,
   installCommand,
@@ -103,5 +104,11 @@ describe('what mwc machine enroll-token prints', () => {
     const text = enrollTokenText({ ...base, apiUrl: null });
     expect(text).toContain(`${DEVBOX_HINT}\n  ${devboxCommand(9950, TOKEN)}\n`);
     expect(text).not.toContain('MWC_PUBLIC_URL');
+  });
+
+  it("says the server holds the box's tunnel when it drives the airia CLI itself", () => {
+    const text = enrollTokenText({ ...base, apiUrl: null, localPower: true });
+    expect(text).toContain(`${DEVBOX_HINT_SERVER}\n  ${devboxCommand(9950, TOKEN)}\n`);
+    expect(text).not.toContain(DEVBOX_HINT);
   });
 });

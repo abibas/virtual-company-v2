@@ -3,18 +3,18 @@ import type { Logger } from 'pino';
 import { presentMachines } from '../../repo/upkeep.ts';
 import { type BoxState, decide, isPowered, type PowerDecision, type PowerState } from '../../rules/power.ts';
 import type { RunnerHub } from '../hub.ts';
-import { command, resolveController } from './controller.ts';
+import { type Controller, controlOf, type PowerControl } from './control.ts';
 import { applyHold } from './hold.ts';
 import { logPower, readPower, saveFailure, saveReading, saveState } from './store.ts';
-import { syncTunnels } from './tunnels.ts';
 
 /**
  * The power scheduler (docs/machines.md, "The choice"): a step at most once a minute (the machines' jobs) decides
  * every machine's hold and sends it when it changes; for a devbox it starts the box at its keep-on hours, stops it when
- * they end, and reads its status through the controller at most every 5 minutes. Starts, stops and readings take up to
- * minutes, so they run after the step, one at a time per machine; `idle()` waits for them. What it decided is in the
- * rows, so a step after a restart takes up where the last one left off. With the server's port it also keeps every
- * connected controller's tunnels in step with what it read (`tunnels.ts`; the hub sends only a changed set).
+ * they end, and reads its status through its controller (this server's own driver, or a runner controller:
+ * `control.ts`) at most every 5 minutes. Starts, stops and readings take up to minutes, so they run after the step, one
+ * at a time per machine; `idle()` waits for them. What it decided is in the rows, so a step after a restart takes up
+ * where the last one left off. It also keeps the tunnels in step with what it read: this server's own, or every
+ * connected runner controller's (with the server's port; the hub sends only a changed set).
  */
 
 /** How often a box's status is read through its controller. */
@@ -42,13 +42,10 @@ export interface SchedulerDeps {
   readonly hub: RunnerHub;
   readonly logger: Logger;
   readonly clock: () => Date;
-  /** The server's own port, for the devboxes' tunnels; without it the scheduler sends none. */
+  /** The server's own port, for the runner controllers' tunnels; without it (and without `control`) none are sent. */
   readonly port?: number | undefined;
-}
-
-/** Sends the controller its tunnels after a reading, when the scheduler knows the server's port. */
-async function syncAfter(deps: SchedulerDeps, t: TenantDb, controllerId: string): Promise<void> {
-  if (deps.port !== undefined) await syncTunnels({ hub: deps.hub, port: deps.port }, t, controllerId);
+  /** Who drives the devboxes; their runner controllers when left out. */
+  readonly control?: PowerControl | undefined;
 }
 
 /** True when the box was never read, or not for `BOX_CHECK_MS`. */
@@ -57,17 +54,18 @@ export function boxCheckDue(box: BoxState | null, now: Date): boolean {
   return checkedAt === null || now.getTime() - Date.parse(checkedAt) >= BOX_CHECK_MS;
 }
 
-type Work = (t: TenantDb, machine: Machine, controllerId: string) => Promise<void>;
+type Work = (t: TenantDb, machine: Machine, controller: Controller) => Promise<void>;
+type Deps = SchedulerDeps & { readonly control: PowerControl };
 
 /** A start or stop the scheduler decided, run through the controller and logged as the schedule's. */
-function powerWork(deps: SchedulerDeps, action: 'start' | 'stop', reason: string): Work {
-  return async (t, machine, controllerId) => {
-    const result = await command(deps.hub, controllerId, machine, action);
+function powerWork(deps: Deps, action: 'start' | 'stop', reason: string): Work {
+  return async (t, machine, controller) => {
+    const result = await controller.run(action);
     const { state } = await readPower(t, machine.id);
     const at = deps.clock();
     if (result.ok) {
       await saveReading(t, machine, state.box, result.reading, at);
-      await syncAfter(deps, t, controllerId);
+      await deps.control.syncTunnels(t, controller.machineId);
       await logPower(t, machine.id, {
         action: action === 'start' ? 'started' : 'stopped',
         reason,
@@ -90,13 +88,13 @@ function powerWork(deps: SchedulerDeps, action: 'start' | 'stop', reason: string
 }
 
 /** A routine reading of the box: kept in the state, never logged. */
-function checkWork(deps: SchedulerDeps): Work {
-  return async (t, machine, controllerId) => {
-    const result = await command(deps.hub, controllerId, machine, 'status');
+function checkWork(deps: Deps): Work {
+  return async (t, machine, controller) => {
+    const result = await controller.run('status');
     const { state } = await readPower(t, machine.id);
     if (result.ok) {
       await saveReading(t, machine, state.box, result.reading, deps.clock());
-      await syncAfter(deps, t, controllerId);
+      await deps.control.syncTunnels(t, controller.machineId);
     } else if (result.status === 502) {
       await saveFailure(
         t,
@@ -115,7 +113,7 @@ function checkWork(deps: SchedulerDeps): Work {
  * (the window's end comes once).
  */
 async function devboxWork(
-  deps: SchedulerDeps,
+  deps: Deps,
   t: TenantDb,
   machine: Machine,
   state: PowerState,
@@ -125,7 +123,7 @@ async function devboxWork(
   if (decision.start === null && decision.stop === null && !boxCheckDue(state.box, now)) {
     return { work: undefined, patch: {} };
   }
-  const controller = await resolveController(t, deps.hub, machine);
+  const controller = await deps.control.resolve(t, machine);
   if (!controller.ok) {
     if (decision.stop !== null) {
       const reason = `${decision.stop}, but the box could not be stopped: ${controller.message}`;
@@ -133,7 +131,7 @@ async function devboxWork(
     }
     return { work: undefined, patch: {} };
   }
-  const run = (work: Work) => () => work(t, machine, controller.controllerId);
+  const run = (work: Work) => () => work(t, machine, controller);
   if (decision.start !== null) {
     return {
       work: run(powerWork(deps, 'start', decision.start.reason)),
@@ -152,7 +150,7 @@ interface Commands {
 
 /** One machine's decision; while a command of it runs, only its hold is decided. Returns what changed. */
 async function stepOne(
-  deps: SchedulerDeps,
+  deps: Deps,
   commands: Commands,
   t: TenantDb,
   machine: Machine,
@@ -187,7 +185,8 @@ async function stepOne(
   return { held, began: devbox.work !== undefined };
 }
 
-export function powerScheduler(deps: SchedulerDeps): PowerScheduler {
+export function powerScheduler(schedulerDeps: SchedulerDeps): PowerScheduler {
+  const deps: Deps = { ...schedulerDeps, control: controlOf(schedulerDeps) };
   const running = new Map<string, Promise<void>>();
   const commands: Commands = {
     busy: (machineId) => running.has(machineId),
@@ -216,8 +215,8 @@ export function powerScheduler(deps: SchedulerDeps): PowerScheduler {
           machines++;
           if (done.held) holds++;
           if (done.began) began++;
-          // The safety net: a connected controller's tunnels, sent only when they changed.
-          await syncAfter(deps, t, machine.id);
+          // The safety net: the tunnels in step with the rows (a runner's set is sent only when it changed).
+          await deps.control.syncTunnels(t, machine.id);
         } catch (error) {
           deps.logger.error({ err: error, machineId: machine.id }, 'power: could not decide for a machine');
         }

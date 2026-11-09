@@ -61,11 +61,11 @@ const configRoute = createRoute({
 
 /**
  * Liveness (`/healthz`), readiness (`/readyz`), the versions (`/api/version`) and the public configuration
- * (`/api/config`).
+ * (`/api/config`, with `localPower`: whether this server drives the devboxes itself).
  */
-export function healthRoutes(deps: AppDeps) {
+export function healthRoutes(deps: AppDeps & { readonly localPower: boolean }) {
   const health = healthService(deps);
-  const config = publicConfig(deps.config);
+  const config = publicConfig(deps.config, deps.localPower);
   return newRouter()
     .openapi(healthzRoute, (c) => c.json({ status: 'ok' as const, version: deps.version }, 200))
     .openapi(readyzRoute, async (c) => {

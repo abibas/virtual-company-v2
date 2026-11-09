@@ -54,8 +54,18 @@ export const PowerStateSchema = z
   .openapi('MachinePowerState');
 
 export const PowerControllerSchema = z
-  .object({ machineId: z.string(), name: z.string(), online: z.boolean() })
-  .openapi('MachinePowerController', { description: 'The machine whose runner starts and stops this one' });
+  .object({
+    kind: z.enum(['server', 'machine']).openapi({
+      description: "`server`: this server, with its computer's airia CLI; `machine`: a machine's runner",
+    }),
+    /** The controlling machine; null when this server drives the box. */
+    machineId: z.string().nullable(),
+    name: z.string().openapi({ example: 'This server (airia CLI)' }),
+    online: z.boolean(),
+  })
+  .openapi('MachinePowerController', {
+    description: 'Who starts and stops this machine: this server itself, or a machine whose runner does',
+  });
 
 /** What `GET .../power` and every power change answer. */
 export const MachinePowerSchema = z
@@ -111,4 +121,5 @@ export const PowerFailedSchema = z
   .openapi('MachinePowerFailed');
 
 export type MachinePowerView = z.infer<typeof MachinePowerSchema>;
+export type PowerControllerView = z.infer<typeof PowerControllerSchema>;
 export type PowerEventView = z.infer<typeof PowerEventSchema>;

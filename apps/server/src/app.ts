@@ -6,7 +6,14 @@ import { companiesRoutes, companyOutboxHandlers } from './modules/companies/inde
 import { credentialsRoutes, signInRoutes } from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
-import { createRunnerHub, machinesRoutes, machineUpkeep, type RunnerHub } from './modules/machines/index.ts';
+import {
+  createPowerControl,
+  createRunnerHub,
+  machinesRoutes,
+  machineUpkeep,
+  type PowerControl,
+  type RunnerHub,
+} from './modules/machines/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
@@ -18,10 +25,16 @@ import { identityFromConfig } from './platform/identity.ts';
 import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
 import { loginHelperFromConfig } from './platform/login-helper/select.ts';
+import type { LocalPower } from './platform/power/local.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 
-export { createRunnerHub, type RunnerHub } from './modules/machines/index.ts';
+export {
+  createPowerControl,
+  createRunnerHub,
+  type PowerControl,
+  type RunnerHub,
+} from './modules/machines/index.ts';
 export type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 
 /** What `createApp` takes: the app's deps and, from the composition that shares them, the module objects it mounts. */
@@ -31,6 +44,11 @@ export interface AppOptions extends AppDeps {
    * own and closes it on shutdown (`onShutdown`).
    */
   readonly runnerHub?: RunnerHub;
+  /**
+   * Who drives the devboxes (the machines module): this server with its own driver (`platform/start.ts` builds it from
+   * MWC_LOCAL_POWER's `LocalPower`), else their runner controllers. Omitted, the runner controllers' on the app's hub.
+   */
+  readonly powerControl?: PowerControl;
 }
 
 /** An incoming `x-request-id` is kept when it is at most this long and only `[A-Za-z0-9_=-]`. */
@@ -45,7 +63,9 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * connector, or none). The master keyring is the one passed in (`platform/start.ts` loads it), else MWC_MASTER_KEY's,
  * else a key in memory (tests and demos). The sign-in helper is the one passed in (tests: a fake; undefined: none),
  * else the one MWC_LOGIN_HELPER names. The runner hub is the one passed in, else one of its own; the HTTP server hands it
- * the runners' sockets (`platform/realtime/sockets.ts`, whose server `start.ts` gives to `serve()`).
+ * the runners' sockets (`platform/realtime/sockets.ts`, whose server `start.ts` gives to `serve()`). The power control
+ * is the one passed in (`start.ts`: this server's own driver when MWC_LOCAL_POWER finds the airia CLI), else the runner
+ * controllers'; `/api/config` says which (`localPower`).
  */
 export function createApp(deps: AppOptions) {
   const clock = deps.clock ?? (() => new Date());
@@ -55,6 +75,8 @@ export function createApp(deps: AppOptions) {
   const loginHelper =
     'loginHelper' in deps ? deps.loginHelper : loginHelperFromConfig(deps.config, deps.logger);
   const hub = deps.runnerHub ?? ownHub(server);
+  const control =
+    deps.powerControl ?? createPowerControl({ hub, port: deps.config.MWC_PORT, logger: deps.logger });
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -67,7 +89,7 @@ export function createApp(deps: AppOptions) {
   app.notFound(notFoundHandler);
 
   const routes = app
-    .route('/', healthRoutes(deps))
+    .route('/', healthRoutes({ ...deps, localPower: control.kind === 'server' }))
     .route('/', identityRoutes(withChart))
     .route('/', companiesRoutes(server))
     .route('/', membersRoutes(withChart))
@@ -75,7 +97,7 @@ export function createApp(deps: AppOptions) {
     .route('/', orgRoutes(server))
     .route('/', credentialsRoutes({ ...server, keyring }))
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
-    .route('/', machinesRoutes({ ...server, hub }));
+    .route('/', machinesRoutes({ ...server, hub, control }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
@@ -87,6 +109,23 @@ function ownHub(server: ServerDeps): RunnerHub {
   const hub = createRunnerHub(server);
   server.onShutdown?.(() => hub.close());
   return hub;
+}
+
+/**
+ * The machines module's share of a server process, for the app and the jobs loop to share (`platform/start.ts`): one
+ * runner hub and one power control (this server's own driver when MWC_LOCAL_POWER found one, holding the devboxes'
+ * tunnels), both closed with the server.
+ */
+export function machinesRuntime(server: ServerDeps, local: LocalPower | undefined) {
+  const runnerHub = ownHub(server);
+  const powerControl = createPowerControl({
+    hub: runnerHub,
+    port: server.config.MWC_PORT,
+    logger: server.logger,
+    local,
+  });
+  server.onShutdown?.(() => powerControl.close());
+  return { runnerHub, powerControl };
 }
 
 /** The app's type, for the web's typed client: `hc<AppType>(baseUrl)` (a type-only import). */
@@ -103,13 +142,15 @@ export function withMemberChart(deps: ServerDeps) {
 
 /**
  * What the jobs loop (`platform/jobs/`, started by `platform/start.ts`) runs from the modules: the machines' upkeep
- * (the offline sweep, the hourly prune of samples and, with the app's runner hub, the power scheduler), their outbox
- * handlers in one registry (companies: create_org,
+ * (the offline sweep, the hourly prune of samples and, with the app's runner hub and power control, the power
+ * scheduler), their outbox handlers in one registry (companies: create_org,
  * delete_org; members: update_role, remove_member; invitations: invite, revoke_invite), the retry of webhook events and
  * the company reconcile (identity), both with the org chart a membership that starts or ends moves its person on. The modules export them and only this file composes them, so no
  * module imports the loop and the loop imports no module.
  */
-export function moduleJobs(deps: ServerDeps & { readonly hub?: RunnerHub }): ModuleJobs {
+export function moduleJobs(
+  deps: ServerDeps & { readonly hub?: RunnerHub; readonly control?: PowerControl },
+): ModuleJobs {
   const identity = withMemberChart(deps);
   return {
     machines: machineUpkeep(deps),

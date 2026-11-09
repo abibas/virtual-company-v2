@@ -76,10 +76,11 @@ export function healthService(deps: Pick<AppDeps, 'db' | 'logger' | 'journal' | 
 
 /**
  * The public part of the configuration, for the web (`GET /api/config`): the sign-in mode, Clerk's publishable key
- * when Clerk signs people in, the web origin and the API's public URL. Picked field by field, so no secret (the Clerk
- * secret key, the JWT key, the webhook secret, the database URL) can reach it.
+ * when Clerk signs people in, the web origin, the API's public URL and whether this server drives the devboxes itself
+ * (`localPower`). Picked field by field, so no secret (the Clerk secret key, the JWT key, the webhook secret, the
+ * database URL) can reach it.
  */
-export function publicConfig(config: Config): PublicConfig {
+export function publicConfig(config: Config, localPower: boolean): PublicConfig {
   const clerk = config.MWC_IDENTITY === 'clerk' && config.CLERK_PUBLISHABLE_KEY !== undefined;
   const apiUrl = config.MWC_PUBLIC_URL.replace(/\/+$/, '');
   return {
@@ -88,5 +89,6 @@ export function publicConfig(config: Config): PublicConfig {
     webOrigin: config.MWC_WEB_ORIGIN,
     apiUrl,
     publicUrl: config.MWC_PUBLIC_URL_SET ? apiUrl : null,
+    localPower,
   };
 }

@@ -11,23 +11,16 @@ import { isPowered, type PowerActor, policyText } from '../rules/power.ts';
 import { MACHINE_NOT_FOUND, type Refusal } from '../rules.ts';
 import type { MachinePowerView, PowerEventView } from '../schemas/power.ts';
 import type { RunnerHub } from './hub.ts';
-import { type ControlRefusal, command, resolveController } from './power/controller.ts';
+import type { PowerControl } from './power/control.ts';
+import type { Controlled, ControlRefusal } from './power/controller.ts';
 import { refreshHold } from './power/hold.ts';
-import {
-  type BoxReading,
-  logPower,
-  nextBox,
-  readPower,
-  saveFailure,
-  saveReading,
-  saveState,
-} from './power/store.ts';
-import { syncTunnels } from './power/tunnels.ts';
+import { logPower, nextBox, readPower, saveFailure, saveReading, saveState } from './power/store.ts';
 
 /**
  * The power API's logic (docs/machines.md, S4.4b): a machine's power view, its policy, Start and Stop of a devbox
- * through its controller, the box's time zone, and the power log. Every change is a `machine_power_events` row
- * naming the person (`user:<user id>`). The scheduler is `power/scheduler.ts`.
+ * through its controller (this server's own driver or a runner controller: `power/control.ts`), the box's time zone,
+ * and the power log. Every change is a `machine_power_events` row naming the person (`user:<user id>`). The scheduler
+ * is `power/scheduler.ts`.
  */
 
 export interface PowerDeps {
@@ -35,8 +28,8 @@ export interface PowerDeps {
   readonly hub: RunnerHub;
   readonly logger: Logger;
   readonly clock: () => Date;
-  /** The server's own port, for the devboxes' tunnels. */
-  readonly port: number;
+  /** Who drives the devboxes: this server, or their runner controllers. */
+  readonly control: PowerControl;
 }
 
 /** Who acts: their principal and user, their role here. */
@@ -47,7 +40,6 @@ export interface PowerCaller {
 }
 
 type Done = { readonly ok: true; readonly power: MachinePowerView };
-type Controlled = { readonly ok: true; readonly reading: BoxReading } | ControlRefusal;
 
 const repo = machinesRepo();
 const userActor = (caller: PowerCaller): PowerActor => `user:${caller.userId}`;
@@ -59,24 +51,19 @@ const TEXT = {
 
 /** The machine's power as the API shows it, read again (a command may have saved its controller). */
 async function viewOf(
-  hub: RunnerHub,
+  control: PowerControl,
   t: TenantDb,
   machineId: string,
   role: MembershipRole,
 ): Promise<MachinePowerView> {
   const machine = (await repo.get(t, machineId)) as Machine;
   const { policy, state } = await readPower(t, machineId);
-  const controller =
-    machine.controllerMachineId === null ? undefined : await repo.get(t, machine.controllerMachineId);
   const { holdUntil, holdReason, autoStartedWindow, manualStopAt, lastTurnAt } = state;
   return {
     policy,
     state: { holdUntil, holdReason, autoStartedWindow, manualStopAt, lastTurnAt },
     box: isPowered(machine) ? nextBox(state.box) : null,
-    controller:
-      controller === undefined
-        ? null
-        : { machineId: controller.id, name: controller.name, online: hub.isOnline(controller.id) },
+    controller: await control.describe(t, machine),
     canControl: roleAtLeast(role, 'admin'),
   };
 }
@@ -89,13 +76,13 @@ async function control(
   action: PowerAction,
   args?: PowerArgs,
 ): Promise<Controlled> {
-  const controller = await resolveController(t, deps.hub, machine);
+  const controller = await deps.control.resolve(t, machine);
   if (!controller.ok) return controller;
-  const result = await command(deps.hub, controller.controllerId, machine, action, args ? { args } : {});
+  const result = await controller.run(action, args);
   const { state } = await readPower(t, machine.id);
   if (result.ok) {
     await saveReading(t, machine, state.box, result.reading, deps.clock());
-    await syncTunnels(deps, t, controller.controllerId);
+    await deps.control.syncTunnels(t, controller.machineId);
   } else if (result.status === 502) {
     await saveFailure(
       t,
@@ -126,7 +113,7 @@ async function setPolicy(
     at,
   });
   await refreshHold(deps, t, machine, at);
-  return { ok: true, power: await viewOf(deps.hub, t, machine.id, caller.role) };
+  return { ok: true, power: await viewOf(deps.control, t, machine.id, caller.role) };
 }
 
 /** Start or Stop by hand: a Stop is remembered, so auto-start leaves the box off for the rest of its window. */
@@ -155,7 +142,7 @@ async function power(
   }
   if (action === 'stop') await saveState(t, machine.id, { manualStopAt: at.toISOString() });
   await logPower(t, machine.id, { action: TEXT[action].done, reason: TEXT[action].reason, actor, at });
-  return { ok: true, power: await viewOf(deps.hub, t, machine.id, caller.role) };
+  return { ok: true, power: await viewOf(deps.control, t, machine.id, caller.role) };
 }
 
 /** Sets the box's own time zone (`devbox-tz`), which its idle and nightly rules use. */
@@ -184,7 +171,7 @@ async function setTimezone(
     actor,
     at,
   });
-  return { ok: true, power: await viewOf(deps.hub, t, machine.id, caller.role) };
+  return { ok: true, power: await viewOf(deps.control, t, machine.id, caller.role) };
 }
 
 /** The machine's last `limit` power events, newest first, each person named from their profile. */
@@ -223,7 +210,7 @@ export function powerService(deps: PowerDeps) {
     async view(t: TenantDb, machineId: string, role: MembershipRole): Promise<Done | Refusal<404>> {
       const machine = await repo.get(t, machineId);
       if (machine === undefined) return MACHINE_NOT_FOUND;
-      return { ok: true, power: await viewOf(deps.hub, t, machine.id, role) };
+      return { ok: true, power: await viewOf(deps.control, t, machine.id, role) };
     },
     setPolicy: (t: TenantDb, caller: PowerCaller, machineId: string, policy: MachinePowerPolicy) =>
       setPolicy(deps, t, caller, machineId, policy),

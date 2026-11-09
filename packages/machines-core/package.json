@@ -2,11 +2,12 @@
   "name": "@mwc/machines-core",
   "version": "0.0.0",
   "private": true,
-  "description": "Provider-agnostic machine power: the MachinePowerDriver port, a box's own stop rules, the power error type and a fake driver.",
+  "description": "Provider-agnostic machine power: the MachinePowerDriver port, a box's own stop rules, the power error type, a fake driver and the reverse tunnels' supervisor shared by a runner and the server.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./fake": "./src/fake.ts"
+    "./fake": "./src/fake.ts",
+    "./tunnels": "./src/tunnels.ts"
   },
   "scripts": {
     "test": "vitest run"

@@ -2,7 +2,7 @@
   "name": "@mwc/machine-airia-devbox",
   "version": "0.0.0",
   "private": true,
-  "description": "The Airia devbox power connector: implements @mwc/machines-core's MachinePowerDriver with the airia CLI and gcloud, run by a power controller.",
+  "description": "The Airia devbox power connector: implements @mwc/machines-core's MachinePowerDriver with the airia CLI and gcloud, run by a power controller: a runner, or the server itself when it has them.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

@@ -34,7 +34,8 @@ export function portOf(url: string): number {
 /**
  * The installer run on the Airia devbox through the company's CLI, from This Mac: `-R` makes the box's
  * `127.0.0.1:9954` (INSTALL_PORT) This Mac's API for the install's downloads and enroll (`--via`), and the box's runner
- * keeps `--server http://127.0.0.1:<port>`, which only This Mac's runner's standing tunnel serves. Nothing then holds
+ * keeps `--server http://127.0.0.1:<port>`, which only the standing tunnel serves (the server's, or This Mac's
+ * runner's). Nothing then holds
  * the install's session open, so it ends with the install. No public address is needed.
  */
 export function devboxCommand(port: number, token: string): string {
@@ -66,6 +67,8 @@ export interface EnrollTokenText {
   readonly server: string;
   /** The API's own address (`/api/config`'s `apiUrl`), whose port the devbox reaches; the server's when unknown. */
   readonly apiUrl: string | null;
+  /** The server drives the devboxes itself (`/api/config`'s `localPower`): it holds the box's tunnel, not This Mac's runner. */
+  readonly localPower?: boolean;
 }
 
 /** What the devbox's command needs first, and what it does. */
@@ -73,6 +76,11 @@ export const DEVBOX_HINT =
   "The Airia devbox (run it on This Mac, after This Mac's runner is installed: that runner keeps the box connected " +
   'afterwards; it starts the box if it is stopped, and the box costs its hourly rate while it is up; the box connects ' +
   "once This Mac's runner holds its tunnel):";
+
+/** The devbox's hint when the server drives the airia CLI itself: no runner on This Mac is needed. */
+export const DEVBOX_HINT_SERVER =
+  'The Airia devbox (run it on This Mac; it starts the box if it is stopped, and the box costs its hourly rate while ' +
+  'it is up; the box connects once the server holds its tunnel):';
 
 /** The token, then the command for This Mac, the Airia devbox and a container. */
 export function enrollTokenText(t: EnrollTokenText): string {
@@ -86,7 +94,7 @@ export function enrollTokenText(t: EnrollTokenText): string {
     'This Mac:',
     `  ${installCommand(t.server, t.token)}`,
     '',
-    DEVBOX_HINT,
+    t.localPower === true ? DEVBOX_HINT_SERVER : DEVBOX_HINT,
     `  ${devboxCommand(portOf(t.apiUrl ?? t.server), t.token)}`,
     '',
     'A Docker container on This Mac (from the repository folder):',

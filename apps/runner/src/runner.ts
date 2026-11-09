@@ -1,3 +1,4 @@
+import { Tunnels } from '@mwc/machines-core/tunnels';
 import {
   type HoldState,
   RUNNER_PROTOCOL_VERSION,
@@ -17,7 +18,6 @@ import { type HeartbeatDeps, Heartbeats } from './link/heartbeat.ts';
 import { Link, type LinkEnd } from './link/link.ts';
 import type { WebSocketCtor } from './link/socket.ts';
 import type { Log } from './log.ts';
-import { Tunnels } from './power/tunnels.ts';
 import { NO_POWER, type PowerExecutor } from './power.ts';
 import type { KillGroup, Spawn } from './system/process.ts';
 import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from './system/time.ts';

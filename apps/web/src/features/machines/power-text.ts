@@ -40,8 +40,9 @@ export function holdText(machine: Machine, power: MachinePower | undefined, now:
 }
 
 /**
- * A devbox's link through its controller's SSH tunnel: "Linked" through This Mac's SSH tunnel, "Tunnel reconnecting"
- * with why it dropped, or "Tunnel connecting" the first time; undefined without a report (and on other machines).
+ * A devbox's link through its controller's SSH tunnel: "Linked" through this server's SSH tunnel (when the server drives
+ * the airia CLI itself) or its controlling Mac's, "Tunnel reconnecting" with why it dropped, or "Tunnel connecting" the
+ * first time; undefined without a report (and on other machines).
  */
 export function tunnelText(
   machine: Machine,
@@ -50,8 +51,9 @@ export function tunnelText(
   const { tunnel } = machine;
   if (tunnel === null) return undefined;
   if (tunnel.state === 'up') {
-    const controller = power?.controller?.name ?? 'This Mac';
-    return { label: 'Linked', detail: `through ${controller}'s SSH tunnel`, tone: 'done' };
+    const controller = power?.controller;
+    const holder = controller?.kind === 'server' ? 'this server' : (controller?.name ?? 'This Mac');
+    return { label: 'Linked', detail: `through ${holder}'s SSH tunnel`, tone: 'done' };
   }
   if (tunnel.state === 'connecting' && tunnel.error === null) {
     return { label: 'Tunnel connecting', detail: undefined, tone: 'pending' };

@@ -108,8 +108,10 @@ function StartStop({
   );
 }
 
-/** Who starts and stops the box, and whether it is connected. */
+/** Who starts and stops the box (this server with the airia CLI, or a Mac's runner), and whether it is connected. */
 function ControllerLine({ controller }: { readonly controller: MachinePower['controller'] }) {
+  if (controller?.kind === 'server')
+    return <p className="text-xs text-dim">Started and stopped by this server with your airia CLI</p>;
   if (controller === null)
     return (
       <p className="text-xs text-dim">

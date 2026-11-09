@@ -29,6 +29,13 @@ export function decodeMasterKey(value: string): Uint8Array | undefined {
  */
 export const LoginHelperMode = z.enum(['docker', 'local', 'none']);
 
+/**
+ * Whether the server starts and stops the Airia devboxes itself with this computer's airia CLI and gcloud, and holds
+ * their tunnels (MWC_LOCAL_POWER, docs/machines.md): `auto` when both are found outside production, `on` always (the
+ * start fails without them), `off` never (runner controllers do it).
+ */
+export const LocalPowerMode = z.enum(['auto', 'on', 'off']);
+
 /** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
 export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
@@ -113,11 +120,14 @@ const EnvSchema = z.object({
    * (whose image does not carry the CLIs yet) and in tests (which pass a fake).
    */
   MWC_LOGIN_HELPER: z.preprocess(emptyAsUnset, LoginHelperMode.optional()),
+  /** `auto` (the default), `on` or `off`: whether this server drives the airia CLI itself (LocalPowerMode). */
+  MWC_LOCAL_POWER: z.preprocess(emptyAsUnset, LocalPowerMode.default('auto')),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
 export type CompanyCreation = z.infer<typeof CompanyCreation>;
 export type LoginHelperMode = z.infer<typeof LoginHelperMode>;
+export type LocalPowerMode = z.infer<typeof LocalPowerMode>;
 
 /** MWC_IDENTITY when it is set, else clerk for a well-formed Clerk secret key, else none. */
 function identityMode(env: z.infer<typeof EnvSchema>): IdentityMode {

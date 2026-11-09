@@ -209,6 +209,7 @@ describe('GET /api/config', () => {
       webOrigin: 'http://localhost:9951',
       apiUrl: 'http://localhost:9950',
       publicUrl: null,
+      localPower: false,
     });
   });
 
@@ -223,6 +224,7 @@ describe('GET /api/config', () => {
       webOrigin: 'https://corp.example.com',
       apiUrl: 'https://corp.example.com',
       publicUrl: 'https://corp.example.com',
+      localPower: false,
     });
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret);
     expect(text).not.toContain('hunter2');

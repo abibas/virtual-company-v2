@@ -1,6 +1,6 @@
 # Machines: where agents live, keeping them alive, and their stats
 
-Design approved by Ihor on 2026-11-06 (S4). Decisions he made: the devbox runner reaches the server through an ngrok static domain in development (replaced on 2026-11-07, at his pointer to the airia CLI, by a reverse SSH tunnel over Google IAP that This Mac's runner holds: "Installing a runner"); This Mac is kept from idle-sleeping while runs are live or held. Auto-start switches are off until he turns them on.
+Design approved by Ihor on 2026-11-06 (S4). Decisions he made: the devbox runner reaches the server through an ngrok static domain in development (replaced on 2026-11-07, at his pointer to the airia CLI, by a reverse SSH tunnel over Google IAP that This Mac's runner holds: "Installing a runner"); This Mac is kept from idle-sleeping while runs are live or held. Auto-start switches are off until he turns them on. On 2026-11-09 he decided that the devbox page is driven by the airia CLI and that the server uses it directly when it runs on a Mac that has `airia` and `gcloud` (his development setup), so no runner on This Mac is needed to power the box or hold its tunnel ("The server as the power controller").
 
 ## Context
 
@@ -32,20 +32,59 @@ How it is done today (research, 2026-11-06):
 
 The "script pushed like MDM" is the planned **runner daemon**, installed once per machine as a service (launchd on
 the Mac, `systemd --user` + linger on the box, PID 1 in a container). It dials **out** to the server (WSS), so the
-server never SSHes and holds no tunnels or stand-in processes (the devbox's one tunnel is held by This Mac's runner,
-below). Everything v1 pulled over SSH, the runner does locally:
+server never SSHes into a machine and holds no stand-in processes (the devbox's one tunnel is held by its power
+controller, below: in development the server itself). Everything v1 pulled over SSH, the runner does locally:
 
 | Job | Who | How |
 |---|---|---|
 | Policy (keep-on hours, hold after a turn, auto-start rules, stop at the hours' end) | server | per-machine policy rows + a 60 s scheduler job; every decision logged with its reason |
 | Keep the machine awake | the runner **on that machine** | server sends `hold until T`; the runner also holds by itself while any run is live (survives a server outage). Devbox: `devbox-keepalive '20 minutes'` every 5 min, only when the current hold is shorter. Mac: one `caffeinate -i -w <runner pid>` child while held (Ihor: while runs or a hold), killed on release. Container: nothing. When the hold ends the runner stops refreshing and the box's own idle policy takes over (company policy stays the backstop). |
-| Start / stop a stopped box (it can't start itself) | a **power controller**: the runner on This Mac | it has Ihor's own gcloud sign-in and the `airia` CLI (no credentials copied into the app, v1's trust model): `airia devbox up --no-wait`, `airia devbox stop`, status/metadata via `gcloud ... describe --format=json`, time-zone fix via `gcloud ... add-metadata devbox-tz=`. In the cloud later the controller is a container runner with a service account — same protocol. |
+| Start / stop a stopped box (it can't start itself) | a **power controller**: in development **the server itself** (MWC_LOCAL_POWER, below); a runner controller (the runner on This Mac) only for a server without the tools | it has Ihor's own gcloud sign-in and the `airia` CLI (no credentials copied into the app, v1's trust model): `airia devbox up --no-wait`, `airia devbox stop`, status/metadata via `gcloud ... describe --format=json`, time-zone fix via `gcloud ... add-metadata devbox-tz=`. In the cloud later the controller is a container runner with a service account — same protocol. |
 | Stats | the runner on that machine | a sample every 60 s in the heartbeat (Node `os`: loadavg, CPU % from `os.cpus()` deltas, uptime; `fs.statfs` for disk; memory on macOS `sysctl kern.memorystatus_level`, on Linux `/proc/meminfo` MemAvailable); no SSH, one `sysctl` start per minute at most on the Mac |
-| Reaching the server from the box | the controller's runner (This Mac) | the box has no public address and its only ingress is SSH through Google IAP, so This Mac's runner holds one reverse tunnel per running box: `gcloud compute ssh <box> --tunnel-through-iap -- -N -R 127.0.0.1:<port>:127.0.0.1:<port>`, which makes the box's `127.0.0.1:<port>` the server's own port; the box's runner dials `ws://127.0.0.1:<port>/api/runner/ws` (since 2026-11-07, replacing the ngrok domain; the real domain after S8) |
+| Reaching the server from the box | the power controller (the server in development, else This Mac's runner) | the box has no public address and its only ingress is SSH through Google IAP, so the controller holds one reverse tunnel per running box: `gcloud compute ssh <box> --tunnel-through-iap -- -N -R 127.0.0.1:<port>:127.0.0.1:<port>`, which makes the box's `127.0.0.1:<port>` the server's own port; the box's runner dials `ws://127.0.0.1:<port>/api/runner/ws` (since 2026-11-07, replacing the ngrok domain; the real domain after S8) |
 
 Machine kinds: `laptop` (This Mac: no remote power; shows "asleep · last seen" when heartbeats stop), `container`
 (Docker, always on while its host is), `vm` with provider `airia_devbox` (power through the controller). Defaults
 never start a machine: auto-start switches are off until Ihor turns them on (v1 rule: starting costs money).
+
+### The server as the power controller (MWC_LOCAL_POWER)
+
+Since 2026-11-09 (Ihor's decision) the server drives the airia CLI itself when it runs on a computer that has `airia`
+and `gcloud`: in development the API runs on his Mac as him, with his gcloud sign-in, so the devbox needs no runner on
+This Mac to be started, stopped or linked. A runner controller is for a server without the tools (the hosted case
+later). Never both:
+
+| MWC_LOCAL_POWER | The server drives the devboxes |
+|---|---|
+| `auto` (default) | when `airia` and `gcloud` are both found and NODE_ENV is not `production` |
+| `on` | always; the start fails with a `ConfigError` naming the missing tool |
+| `off` | never: runner controllers do it, as before |
+
+- **Finding the tools.** At start (`apps/server/src/platform/power/local.ts`, where the connector is wired) the server
+  looks for them the way a runner does (`localDevbox` of `@mwc/machine-airia-devbox`: the PATH's folders, then
+  `/opt/homebrew/bin`, `/usr/local/bin`, `~/google-cloud-sdk/bin`; no process started to look) and logs one line: the
+  two paths it uses (`power: this server starts and stops the devboxes with the airia CLI and holds their tunnels with
+  gcloud`), or why not. Whether gcloud is signed in shows on the first command (`needs_gcloud_login`).
+- **Commands.** The server is then the controller of every devbox of every company it serves: `status`, `start`, `stop`
+  and `set_timezone` run in-process through `AiriaDevboxDriver` (`processRun`, the tools by their full paths), with a
+  runner controller's timeouts (200 s start and stop, 75 s the others), its answer read the same way (`<code>: <message>`
+  → 502 `power_failed` with `driverCode`) and the same power events. No runner is ever sent `power.command`, and a
+  box's saved `controller_machine_id` is not used.
+- **The tunnel.** The server holds each box's reverse tunnel itself with the same wanted set (a devbox not removed
+  whose last power status is running, starting or not known), the same gcloud command (the driver's `tunnelCommand`)
+  and the same supervisor (`@mwc/machines-core/tunnels`, shared with the runner: detached, process-group kill, 5 s to
+  5 min backoff, reset after a minute up, `connecting`/`up`/`down` with the last stderr line). Its states go to the same
+  memory `GET machines` reads (`tunnel`). Every runner controller gets an empty `tunnel.set`, so two tunnels never
+  fight for the box's port. The graceful shutdown stops every tunnel.
+- **The seam.** `modules/machines/service/power/control.ts`: the power service, the scheduler, the machines' views and
+  the tunnels ask one `PowerControl` (`control/server.ts` this server, `control/runners.ts` the runner controllers
+  through the hub), built once per process in `app.ts` (`machinesRuntime`).
+- **On the page.** `GET machines/:id/power` answers `controller: {kind: 'server', machineId: null, name: 'This server
+  (airia CLI)', online: true}` (a runner controller: `kind: 'machine'` with its id; none: null). The card says "Started
+  and stopped by this server with your airia CLI" and "Linked through this server's SSH tunnel"; `GET /api/config` says
+  `localPower: true`, and the devbox's install hint (the sheet and `mwc machine enroll-token`) says the box connects
+  once the server holds its tunnel.
+- **Not here.** Keeping This Mac awake (`caffeinate`) stays a runner's job, as do placements and the terminal.
 
 ## Data model (migration 0009_machines, tenant tables)
 
@@ -79,15 +118,19 @@ never start a machine: auto-start switches are off until Ihor turns them on (v1 
 ## Code placement (per the keep-structure skill)
 
 - `packages/machines-core`: the `MachinePowerDriver` port (`discover`, `status`, `start`, `stop`, `setTimezone`, and
-  the optional pure `tunnelCommand`) and a fake. `connectors/machine-airia-devbox`: implements it by spawning `airia` /
-  `gcloud` (spawn injected; tests with recorded JSON and a fake spawn). Loaded by the runner, never by the server.
+  the optional pure `tunnelCommand`), a fake, and the reverse tunnels' supervisor (`@mwc/machines-core/tunnels`, spawn,
+  kill and timers injected) shared by the runner and the server. `connectors/machine-airia-devbox`: implements it by
+  spawning `airia` / `gcloud` (spawn injected; tests with recorded JSON and a fake spawn), and finds the two tools
+  (`localDevbox`). Loaded by a runner controller, or by the server's `platform/power/local.ts` (MWC_LOCAL_POWER).
 - `apps/runner`: link, heartbeat + sampler, hold drivers (`hold/devbox.ts`, `hold/caffeinate.ts`), controller
-  executing `power.command` through the connector and holding the devboxes' tunnels (`power/tunnels.ts`).
+  executing `power.command` through the connector and holding the devboxes' tunnels with the shared supervisor.
 - The terminal: the runner's `terminal/` (the PTY loader, the shell and its environment, the batched output, the
   sessions); the server's `routes/terminal.ts` (the owner's ticket, the browser's socket), `service/terminal.ts` with
   `service/terminal/{tickets,relay}.ts`, and `service/hub/terminals.ts` (the sessions of each runner connection).
-- The server's side of the tunnels: `service/power/tunnels.ts` (the wanted set and when it is sent),
-  `service/hub/tunnels.ts` (the set last sent per connection and the reported states, in memory), `rules/tunnels.ts`.
+- The server's side of the power and the tunnels: `service/power/control.ts` (who drives the devboxes:
+  `control/server.ts` this server, `control/runners.ts` the runner controllers), `service/power/tunnels.ts` (the wanted
+  sets), `service/hub/tunnels.ts` (the set last sent per connection and the reported states, the server's own too, in
+  memory), `rules/tunnels.ts`.
 - `apps/server/src/modules/machines/`: routes, service, repo, `rules/power.ts` (pure: keep-on window incl. overnight
   and TZ, hold-until, once-per-window auto-start where a manual Stop sticks, stop at the end only without live work),
   `rules/stats.ts` (overloaded = load1/cpus > 1.0 or CPU > 85 %; badge when overloaded now or > 50 % of 24 h; 5-min
@@ -132,7 +175,7 @@ pnpm mwc machine enroll-token [--company <slug>]
 | Machine | Command | What it installs |
 |---|---|---|
 | This Mac | `curl -fsSL <url>/api/runner/install.sh \| sh -s -- --server <url> --token mwc_et_…` | a launchd agent |
-| Airia devbox | `airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:<port> 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh \| sh -s -- --server http://127.0.0.1:<port> --via http://127.0.0.1:9954 --token mwc_et_…'`, run on This Mac after This Mac's runner is installed (`<port>`: the port of the API's own address, `apiUrl` in `GET /api/config`, 9950 or a slot's; 9954: the install's own forward on the box, docs/ports.md; it starts a stopped box, which costs its hourly rate while up; the box connects once This Mac's runner holds its tunnel) | a systemd user unit |
+| Airia devbox | `airia devbox ssh -- -R 127.0.0.1:9954:127.0.0.1:<port> 'curl -fsSL http://127.0.0.1:9954/api/runner/install.sh \| sh -s -- --server http://127.0.0.1:<port> --via http://127.0.0.1:9954 --token mwc_et_…'`, run on This Mac (after This Mac's runner is installed, unless the server drives the airia CLI itself) (`<port>`: the port of the API's own address, `apiUrl` in `GET /api/config`, 9950 or a slot's; 9954: the install's own forward on the box, docs/ports.md; it starts a stopped box, which costs its hourly rate while up; the box connects once its controller holds its tunnel: the server, or This Mac's runner) | a systemd user unit |
 | Docker container | `MWC_ENROLL_TOKEN=mwc_et_… docker compose -f deploy/compose.yml --profile runner up -d runner-local` (from the repository folder) | the `runner-local` service |
 
 **How the devbox reaches the server** (2026-11-07). The box has no public address: its only way in is SSH on port 22
@@ -149,10 +192,12 @@ through a reverse SSH forward, and no public URL is needed:
   session never ended; after an API restart that session (already exiting) still held the box's `127.0.0.1:<port>`
   but opened no new channels, so the runner's reconnects timed out and the standing tunnel (with
   `ExitOnForwardFailure`) could never bind the port. With its own port nothing holds the install's session open: it
-  ends when `install.sh` ends, and the box connects once This Mac's runner holds its tunnel.
-- **The standing tunnel.** After the enrollment the server tells the box's controller (This Mac's runner, the one
-  that powers it, saved on the box when it is the company's only connected one) to hold the box's tunnel:
-  `tunnel.set` (docs/runner-protocol.md, "Hold and power"). That runner starts one long-lived
+  ends when `install.sh` ends, and the box connects once its controller holds its tunnel.
+- **The standing tunnel.** When the server drives the airia CLI itself ("The server as the power controller") it holds
+  the box's tunnel in its own process from the enrollment on, as below. Otherwise, after the enrollment the server
+  tells the box's controller (This Mac's runner, the one that powers it, saved on the box when it is the company's only
+  connected one) to hold the box's tunnel: `tunnel.set` (docs/runner-protocol.md, "Hold and power"). The holder starts
+  one long-lived
   `gcloud compute ssh <box> --project airia-devbox --zone <zone> --tunnel-through-iap --quiet
   --strict-host-key-checking=no -- -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3
   -o BatchMode=yes -R 127.0.0.1:<port>:127.0.0.1:<port>` per box, with gcloud's full path. Plain `gcloud compute ssh`
@@ -160,8 +205,9 @@ through a reverse SSH forward, and no public URL is needed:
   last known power status is running, starting or not known yet; a stopped or missing box's tunnel is stopped. It runs
   in its own process group (gcloud starts ssh and an IAP helper) and is stopped as one: SIGTERM, then SIGKILL after
   5 s. One that ends is started again after 5 s, doubling up to 5 minutes, back to 5 s after one that stayed up a
-  minute (the Mac bills each process start). The card of the box says "Linked through This Mac's SSH tunnel", or "Tunnel reconnecting" with the last
-  line gcloud printed. This Mac's runner must be installed (and connected) first, since it keeps the box linked.
+  minute (the Mac bills each process start). The card of the box says "Linked through this server's SSH tunnel" (or
+  This Mac's), or "Tunnel reconnecting" with the last line gcloud printed. Without the server's own driver, This Mac's
+  runner must be installed (and connected) first, since it keeps the box linked.
 - **When the Mac sleeps.** The dev server lives on the Mac anyway, so nothing is lost: while the Mac sleeps there is
   no server to reach; the box's runs keep going (their journals are on the box), its runner reconnects with its usual
   backoff, and the tunnel comes back with the Mac.

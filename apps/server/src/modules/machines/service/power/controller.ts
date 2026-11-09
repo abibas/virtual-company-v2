@@ -20,9 +20,11 @@ import { HubError, type RunnerHub } from '../hub.ts';
 import { type BoxReading, StoredBox } from './store.ts';
 
 /**
- * Powering a devbox through its controller (docs/machines.md, "The choice"): a box cannot start itself, so its
- * `power.command`s go to the runner of `machines.controller_machine_id` (This Mac, with the airia CLI and gcloud). A box
- * with none gets the one connected machine of its company whose runner can power it, saved as its controller.
+ * Powering a devbox through a runner controller (docs/machines.md, "The choice"), when this server has no airia CLI of
+ * its own (`control/runners.ts`): a box cannot start itself, so its `power.command`s go to the runner of
+ * `machines.controller_machine_id` (a Mac with the airia CLI and gcloud). A box with none gets the one connected machine
+ * of its company whose runner can power it, saved as its controller. The answer's mapping (`failureOf`, `powerFailed`,
+ * `readingOf`) is the server's own driver's too (`control/server.ts`).
  */
 
 const repo = machinesRepo();
@@ -35,6 +37,9 @@ export interface PowerFailure extends Refusal<502> {
 }
 
 export type ControlRefusal = Refusal<409> | Refusal<422> | PowerFailure;
+
+/** A command's outcome: the box as read after it, or why it could not run or failed. */
+export type Controlled = { readonly ok: true; readonly reading: BoxReading } | ControlRefusal;
 
 /** How long the controller has for each action: a start re-pushes the box's scripts first. */
 export const POWER_TIMEOUTS: Readonly<Record<PowerAction, number>> = {
@@ -74,13 +79,13 @@ export function powerFailed(failure: { code: MachinePowerErrorCode; message: str
 const ReadingMetadata = StoredBox.pick({ size: true, hourlyCost: true, rules: true });
 
 /** The box as a successful `power.result` reads it; facts it lacks or garbles are null. */
-export function readingOf(result: PowerResult): BoxReading {
+export function readingOf(result: Pick<PowerResult, 'ok' | 'status' | 'metadata'>): BoxReading {
   const status: PowerStatus = result.status ?? 'unknown';
   return { status, ...ReadingMetadata.parse(result.metadata ?? {}) };
 }
 
 /** True when the machine is a devbox with a readable reference. */
-const powerable = (machine: Machine) =>
+export const powerable = (machine: Machine) =>
   isPowered(machine) && AiriaDevboxRef.safeParse(machine.providerRef).success;
 
 /** The company's one connected machine (besides this one) whose runner can power a devbox; saved as its controller. */
@@ -131,7 +136,7 @@ export async function command(
   machine: Machine,
   action: PowerAction,
   options: { readonly args?: PowerArgs; readonly timeoutMs?: number } = {},
-): Promise<{ readonly ok: true; readonly reading: BoxReading } | ControlRefusal> {
+): Promise<Controlled> {
   const frame: PowerCommand = {
     type: 'power.command',
     cmdId: newId(),

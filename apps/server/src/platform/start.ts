@@ -5,7 +5,7 @@ import { createDb, type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { WebSocketServer } from 'ws';
-import { createApp, createRunnerHub, moduleJobs, type RunnerHub } from '../app.ts';
+import { createApp, machinesRuntime, moduleJobs } from '../app.ts';
 import type { ServerDeps } from './env.ts';
 import { identityFromConfig } from './identity.ts';
 import { advisoryJobsLock } from './jobs/lock.ts';
@@ -13,6 +13,7 @@ import { createJobsRunner, type JobsRunner, SYSTEM_TIMERS, type Timers } from '.
 import { JOBS_OFF } from './jobs/status.ts';
 import { createLogger } from './logger.ts';
 import { loginHelperFromConfig } from './login-helper/select.ts';
+import { type LocalPower, localPowerFromConfig } from './power/local.ts';
 import { createSocketServer } from './realtime/sockets.ts';
 import type { Keyring } from './secrets/keyring.ts';
 import { DEV_DATA_DIR, loadKeyring } from './secrets/master-key.ts';
@@ -48,6 +49,8 @@ export interface StartDeps {
   readVersion(): string;
   /** The sign-in helper MWC_LOGIN_HELPER names (`loginHelperFromConfig`); swept once the server listens. */
   loginHelper(config: Config, logger: Logger): LoginHelper | undefined;
+  /** The server's own power driver MWC_LOCAL_POWER asks for (`localPowerFromConfig`), or none; it logs one line. */
+  localPower(config: Config, logger: Logger): LocalPower | undefined;
   serve: Serve;
   /** Registers a signal handler: `process.on`. */
   onSignal(signal: 'SIGTERM' | 'SIGINT', handler: (signal: string) => void): void;
@@ -68,6 +71,7 @@ const SYSTEM: StartDeps = {
   loadKeyring: (config, logger) => loadKeyring(config, { dataDir: DEV_DATA_DIR, logger }),
   readVersion: () => readServerVersion(),
   loginHelper: (config, logger) => loginHelperFromConfig(config, logger),
+  localPower: (config, logger) => localPowerFromConfig(config, logger),
   serve: (options, onListening) =>
     nodeServe(options as Parameters<typeof nodeServe>[0], onListening) as Server,
   onSignal: (signal, handler) => {
@@ -87,24 +91,24 @@ export interface Started {
   /** The jobs loop, running from the moment the server listens; undefined with MWC_JOBS=off. */
   readonly jobs: JobsRunner | undefined;
   /**
-   * The SIGTERM/SIGINT handler: stop listening, the jobs and the sign-ins in progress (their sandboxes killed), let
-   * requests finish, close the database, exit.
+   * The SIGTERM/SIGINT handler: stop listening, the jobs, the sign-ins in progress (their sandboxes killed) and the
+   * devboxes' tunnels this server holds, let requests finish, close the database, exit.
    */
   readonly shutdown: (signal: string) => Promise<void>;
 }
 
 /**
- * The jobs loop on the app's database, provider, clock and runner hub (the power scheduler commands runners through
- * it), with the advisory lock; undefined when MWC_JOBS=off.
+ * The jobs loop on the app's database, provider, clock, runner hub and power control (the power scheduler drives the
+ * devboxes through it), with the advisory lock; undefined when MWC_JOBS=off.
  */
-function jobsRunner(server: ServerDeps, hub: RunnerHub, timers: Timers): JobsRunner | undefined {
+function jobsRunner(server: Parameters<typeof moduleJobs>[0], timers: Timers): JobsRunner | undefined {
   if (!server.config.MWC_JOBS) return undefined;
   return createJobsRunner({
     db: server.db,
     clock: server.clock,
     logger: server.logger,
     identity: server.identity,
-    work: moduleJobs({ ...server, hub }),
+    work: moduleJobs(server),
     reconcileIntervalMs: server.config.MWC_RECONCILE_MINUTES * 60_000,
     lock: advisoryJobsLock(server.db),
     timers,
@@ -112,17 +116,20 @@ function jobsRunner(server: ServerDeps, hub: RunnerHub, timers: Timers): JobsRun
 }
 
 /**
- * The app and the jobs loop on one runner hub (the runners' sockets and the power scheduler), and what the shutdown
- * stops before the database closes: the hub and the sign-ins in progress.
+ * The app and the jobs loop on one runner hub and one power control (`machinesRuntime`: this server's own driver when
+ * it has one), and what the shutdown stops before the database closes: the hub, the devboxes' tunnels and the sign-ins
+ * in progress.
  */
-function compose(server: ServerDeps, deps: StartDeps, keyring: Keyring) {
+function compose(server: ServerDeps, deps: StartDeps, keyring: Keyring, local: LocalPower | undefined) {
   const stops: (() => Promise<void>)[] = [];
   const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
-  const runnerHub = createRunnerHub(server);
-  onShutdown(() => runnerHub.close());
-  const jobs = jobsRunner(server, runnerHub, deps.timers);
+  const machines = machinesRuntime({ ...server, onShutdown }, local);
+  const jobs = jobsRunner(
+    { ...server, hub: machines.runnerHub, control: machines.powerControl },
+    deps.timers,
+  );
   const loginHelper = deps.loginHelper(server.config, server.logger);
-  const app = createApp({ ...server, keyring, jobs: jobs ?? JOBS_OFF, loginHelper, onShutdown, runnerHub });
+  const app = createApp({ ...server, keyring, jobs: jobs ?? JOBS_OFF, loginHelper, onShutdown, ...machines });
   return { app, jobs, loginHelper, stops };
 }
 
@@ -167,11 +174,12 @@ function warnIgnoredSecretKey(
 }
 
 /**
- * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError`
- * listing every problem when it is invalid, before anything is opened), the logger, the master keyring, the database, the
- * migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the listening server, the jobs loop
- * (MWC_JOBS), the sweep of the sign-in sandboxes a stopped server left, and the graceful shutdown on SIGTERM and SIGINT,
- * which ends the sign-ins in progress. A server error (the port is taken) exits 1.
+ * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError` listing every
+ * problem when it is invalid, before anything is opened), the logger, the master keyring, the server's own power driver
+ * (MWC_LOCAL_POWER), the database, the migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the
+ * listening server, the jobs loop (MWC_JOBS), the sweep of the sign-in sandboxes a stopped server left, and the graceful
+ * shutdown on SIGTERM and SIGINT, which ends the sign-ins in progress and the devboxes' tunnels. A server error (the
+ * port is taken) exits 1.
  */
 export async function start(
   env: Readonly<Record<string, string | undefined>>,
@@ -183,6 +191,7 @@ export async function start(
   warnIgnoredSecretKey(env, config, logger);
   // Before the database: a key file that is not a key stops the start with nothing opened.
   const keyring = await deps.loadKeyring(config, logger);
+  const local = deps.localPower(config, logger); // MWC_LOCAL_POWER=on without the tools stops here too
   const version = deps.readVersion();
   const db = await openDatabase(deps, config, logger);
 
@@ -198,7 +207,7 @@ export async function start(
     identity,
     ...webDist,
   };
-  const { app, jobs, loginHelper, stops } = compose(serverDeps, deps, keyring);
+  const { app, jobs, loginHelper, stops } = compose(serverDeps, deps, keyring, local);
   const websocket = { server: createSocketServer() };
   const server = deps.serve(
     { fetch: app.fetch, port: config.MWC_PORT, hostname: config.MWC_HOST, websocket },

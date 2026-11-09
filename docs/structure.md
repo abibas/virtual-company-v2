@@ -21,6 +21,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── auth/           who is calling, role checks (built)         S1.4
 │   │   │   │   ├── secrets/        master keyring: seal, open (built)          S3.1
 │   │   │   │   ├── login-helper/   the CLIs' logins in a sandbox (built)       S3.2
+│   │   │   │   ├── power/          the server's own airia CLI driver and tunnels (built) S4
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S5
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S4/S5
 │   │   │   ├── modules/            one folder per business area
@@ -46,7 +47,7 @@ Most_Wanted_corp_v2/
 │   ├── shared/                     contracts: config, ports, ids, enums, protocols
 │   ├── db/                         schema, migrations, tenant layer
 │   ├── identity-core/              identity model and projector                S1
-│   ├── machines-core/              the machine power driver port and its fake  S4
+│   ├── machines-core/              the machine power driver port, its fake, the tunnels' supervisor S4
 │   ├── harness-core/               harness driver interface                    S5
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
@@ -55,7 +56,7 @@ Most_Wanted_corp_v2/
 ├── connectors/                     adapters to outside systems
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
 │   ├── identity-oidc/              other identity providers, user sync         later
-│   ├── machine-airia-devbox/       the Airia devbox's power (airia CLI, gcloud), run by a runner S4
+│   ├── machine-airia-devbox/       the Airia devbox's power (airia CLI, gcloud), run by a runner or the server S4
 │   ├── harness-claude-code/                                                    S5
 │   ├── harness-codex/                                                          S7
 │   └── jira/ github/ gateway/                                                  S7
@@ -132,6 +133,9 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   with the CLIs: a private temporary home), `process.ts` and `tty.ts` (the child process plumbing and the pseudo-terminal
   command both share, with node's `spawn` injected so tests use a fake child) and `select.ts` (`loginHelperFromConfig`:
   MWC_LOGIN_HELPER, which `createApp` hands the credentials module's sign-in routes unless a test passes a fake).
+  `power/local.ts` (S4) is the server's own power driver (MWC_LOCAL_POWER): it finds this computer's `airia` and
+  `gcloud`, wires the `@mwc/machine-airia-devbox` connector and the shared tunnel supervisor with node's `spawn`
+  injected, and `start.ts` hands it to the machines module's power control (`machinesRuntime` in `app.ts`).
   `jobs/outbox.ts` (S1.5) is the identity outbox:
   `enqueueOutbox(t, entry)` in the caller's transaction, `processOutboxRow(deps, row, handler)` recording a
   handler's outcome on the row (done, or pending with `attempts`, `last_error` and `next_attempt_at`, failed after
