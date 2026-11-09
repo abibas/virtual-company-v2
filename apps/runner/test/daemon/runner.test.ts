@@ -49,6 +49,7 @@ describe('the runner on the wire', () => {
         power: [],
         terminal: false,
         selfUpdate: false,
+        folders: false,
       },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });

@@ -1,4 +1,5 @@
 import type { RunnerConfig } from '../config.ts';
+import type { FolderHost } from '../folders/browse.ts';
 import type { HoldDriver } from '../hold/driver.ts';
 import type { HeartbeatDeps } from '../link/heartbeat.ts';
 import type { LinkEnd } from '../link/link.ts';
@@ -49,6 +50,11 @@ export interface RunnerOptions {
    * chats' terminals (`caps.harnesses` their versions); without them it has none and every `turn.start` is `unsupported`.
    */
   readonly harness?: HarnessHost;
+  /**
+   * The folder browser's file system, home and root (`/work` in a container): with it the runner answers `fs.list` and
+   * `fs.mkdir` (`caps.folders`); without it every one is `unsupported`.
+   */
+  readonly folders?: FolderHost;
   /** Saves the configuration after `key.rotate`; without it the new key lives in memory only. */
   readonly saveConfig?: (config: RunnerConfig) => void | Promise<void>;
   readonly clock?: Clock;

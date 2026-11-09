@@ -1,5 +1,8 @@
 import {
   type CmdAck,
+  type FsList,
+  type FsMkdir,
+  type FsResult,
   isTerminalFrame,
   isTurnFrame,
   type PowerResult,
@@ -17,12 +20,13 @@ import type { Log } from '../system/log.ts';
 
 /**
  * The server's commands (docs/runner-protocol.md, "Semantics"): every frame with a `cmdId` is answered once, with
- * `cmd.ack` (`power.command` with `power.result`, `runner.update` with `runner.update.result`), and a repeat of a
- * `cmdId` already run gets the same answer again without running it again. S4.3 carries out `machine.hold`,
- * `power.command` (through the injected executor), `key.rotate` and `runner.drain`, and the self-update its
- * `runner.update`; the run commands are refused until S5, and offers are declined. `tunnel.set` is no
- * command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal and turn frames,
- * which go to the terminals and the turns, whose answers are their own frames.
+ * `cmd.ack` (`power.command` with `power.result`, `runner.update` with `runner.update.result`, `fs.list` and `fs.mkdir`
+ * with `fs.result`), and a repeat of a `cmdId` already run gets the same answer again without running it again (a
+ * folder listing, which may be large, is read again instead of kept). S4.3 carries out `machine.hold`, `power.command`
+ * (through the injected executor), `key.rotate` and `runner.drain`, the self-update its `runner.update` and the folder
+ * browser `fs.list` and `fs.mkdir` (S5.1d); the run commands are refused until S5, and offers are declined.
+ * `tunnel.set` is no command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal and
+ * turn frames, which go to the terminals and the turns, whose answers are their own frames.
  */
 
 /** How many answered commands are remembered for repeats. */
@@ -47,10 +51,12 @@ export interface CommandDeps {
   turn(frame: TurnServerFrame): void;
   /** `runner.update`: the self-update's answer (it never throws). */
   update(frame: RunnerUpdate): Promise<RunnerUpdateResult>;
+  /** `fs.list` and `fs.mkdir`: the folder browser's answer (it never throws). */
+  folders(frame: FsList | FsMkdir): Promise<FsResult>;
   readonly log: Log;
 }
 
-type Answer = CmdAck | PowerResult | RunnerUpdateResult;
+type Answer = CmdAck | PowerResult | RunnerUpdateResult | FsResult;
 
 const isUuid = (value: unknown): value is string => z.uuid().safeParse(value).success;
 
@@ -117,6 +123,9 @@ export class Commands {
     const error = why.slice(0, 2000);
     if (type === 'power.command') return [{ type: 'power.result', cmdId, ok: false, error }];
     if (type === 'runner.update') return [{ type: 'runner.update.result', cmdId, ok: false, error }];
+    if (type === 'fs.list' || type === 'fs.mkdir') {
+      return [{ type: 'fs.result', cmdId, ok: false, error: `invalid_path: ${why}`.slice(0, 2000) }];
+    }
     return [ack(cmdId, error)];
   }
 
@@ -130,6 +139,9 @@ export class Commands {
           return await runPowerCommand(this.#deps.power, frame);
         case 'runner.update':
           return await this.#deps.update(frame);
+        case 'fs.list':
+        case 'fs.mkdir':
+          return await this.#deps.folders(frame);
         case 'key.rotate':
           await this.#deps.saveKey(frame.runnerKey);
           this.#deps.log.info('saved the rotated runner key');
@@ -141,13 +153,14 @@ export class Commands {
           return ack(frame.cmdId, NO_RUNS);
       }
     } catch (error) {
-      // `runPowerCommand` and `update` never throw, so this is never a power command or an update.
+      // `runPowerCommand`, `update` and `folders` never throw: this is none of their frames.
       this.#deps.log.error('a command failed', { type: frame.type, error });
       return ack(frame.cmdId, messageOf(error));
     }
   }
 
   #remember(cmdId: string, answer: Answer): void {
+    if (answer.type === 'fs.result' && answer.entries !== undefined) return;
     this.#answered.set(cmdId, answer);
     if (this.#answered.size <= REMEMBERED_COMMANDS) return;
     const oldest = this.#answered.keys().next().value as string;

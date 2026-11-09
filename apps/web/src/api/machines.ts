@@ -132,7 +132,8 @@ export function usePowerControl(companyId: string, machineId: string): PowerCont
 
 /**
  * The calls on the machines: the list, a token to enroll one, a rename, a removal, the power policy and commands, an
- * owner's one-time terminal ticket, and the update of a machine's runner.
+ * owner's one-time terminal ticket, the update of a machine's runner, and its folders (a listing and a new folder, read
+ * and made by its runner).
  */
 export function machineCalls(api: Api, companyId: string) {
   const machines = api.api.companies[':companyId'].machines;
@@ -152,6 +153,11 @@ export function machineCalls(api: Api, companyId: string) {
       call(one.power.timezone.$post({ ...param(machineId), json: { timezone } })),
     terminalTicket: (machineId: string) => call(one['terminal-tickets'].$post(param(machineId))),
     updateRunner: (machineId: string) => call(one['runner-update'].$post(param(machineId))),
+    /** The folders in `path` (the runner's default start when left out). */
+    folders: (machineId: string, path?: string) =>
+      call(one.folders.$get({ ...param(machineId), query: path === undefined ? {} : { path } })),
+    makeFolder: (machineId: string, path: string) =>
+      call(one.folders.$post({ ...param(machineId), json: { path } })),
   };
 }
 

@@ -1,14 +1,26 @@
-import type { CmdAck, PowerResult, RunnerFrame, RunnerUpdateResult } from '@mwc/shared/runner-protocol';
+import type {
+  CmdAck,
+  FsResult,
+  PowerResult,
+  RunnerFrame,
+  RunnerUpdateResult,
+} from '@mwc/shared/runner-protocol';
 
 /**
  * How a runner answers the hub's commands (docs/runner-protocol.md, "Semantics"): `cmd.ack`, `power.result` for
- * `power.command` and `runner.update.result` for `runner.update`, matched by `cmdId`; and why a request failed.
+ * `power.command`, `runner.update.result` for `runner.update` and `fs.result` for `fs.list` and `fs.mkdir`, matched by
+ * `cmdId`; and why a request failed.
  */
 
 /** A runner's answer to a command. */
-export type CommandReply = CmdAck | PowerResult | RunnerUpdateResult;
+export type CommandReply = CmdAck | PowerResult | RunnerUpdateResult | FsResult;
 
-const REPLIES: ReadonlySet<string> = new Set(['cmd.ack', 'power.result', 'runner.update.result']);
+const REPLIES: ReadonlySet<string> = new Set([
+  'cmd.ack',
+  'power.result',
+  'runner.update.result',
+  'fs.result',
+]);
 
 /** True for a frame that answers a command. */
 export const isReply = (frame: RunnerFrame): frame is CommandReply => REPLIES.has(frame.type);

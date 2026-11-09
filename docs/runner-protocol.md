@@ -66,7 +66,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it), folders (boolean: it answers `fs.list` and `fs.mkdir`, S5.1d; false when left out)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |
@@ -82,6 +82,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `authJson?` (a harness terminal's rewritten Codex login, never relayed to the browser), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `runner_updating`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
 | `runner.update.result` | `cmdId`, `ok`, `build?` (the new build, when `ok`), `error?` (`<code>: <words>`, the code one of `RUNNER_UPDATE_ERRORS`: `unsupported`, `busy`, `download_failed`, `hash_mismatch`, `write_failed`) | the answer to `runner.update` (instead of `cmd.ack`); after an `ok` the runner restarts |
 | `turn.events` | `turnId`, `events[1–100]{seq ≥ 1, event}` (`event` a `TurnEvent` of `@mwc/shared/harness`) | a chat turn's next events, in order (S5.1b, "Chat turns" below); no answer |
+| `fs.result` | `cmdId`, `ok`, `error?` (`<code>: <words>`, the code one of `FOLDER_ERRORS`), `path?` (resolved, absolute), and for a listing `parent?` (null at `/` and at the container's root), `entries?[≤ 500]{name, git, claudeMd}`, `truncated?`, `home?` (the runner user's home), `root?` (`/work` in a container, else null) | the answer to `fs.list` and `fs.mkdir` (instead of `cmd.ack`; "Folders" below) |
 | `turn.end` | `turnId`, `ok`, `exitCode` (int\|null), `error?` (a `TURN_ERRORS` code, optionally `: ` and words), `authJson?` (a Codex login the process rewrote, a JSON object of at most 64 KB) | once per turn, after its last events; no answer |
 
 ## Server → runner
@@ -106,6 +107,8 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
 | `runner.update` | `cmdId` | update yourself from the server you are linked to and restart; answered by `runner.update.result` ("Updating a runner") |
 | `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
+| `fs.list` | `cmdId`, `path` (absolute or `~/…`, 1–1024 characters; null for the default start) | the folders in a folder; answered by `fs.result` (S5.1d) |
+| `fs.mkdir` | `cmdId`, `path` (absolute or `~/…`) | make one folder whose parent exists; answered by `fs.result` |
 | `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT; its `turn.end` says `stopped` |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
@@ -121,9 +124,10 @@ limit alone.
   reconnect is a duplicate: the server inserts `ON CONFLICT DO NOTHING` and answers `run.ack` with the highest
   contiguous seq it holds; the runner forgets events up to it. At most 500 unacked events in flight over all runs; then
   the runner stops reading (its disk keeps everything).
-- **Commands.** Every server frame with a `cmdId` is answered once, `cmd.ack` (or `power.result`, `runner.update.result`);
-  duplicates after a reconnect are normal, and the runner remembers the `cmdId`s it ran. A runner older than a command
-  acks it as unknown (`cmd.ack`, `ok: false`), which the server reads for `runner.update` as `unsupported`.
+- **Commands.** Every server frame with a `cmdId` is answered once, `cmd.ack` (or `power.result`, `runner.update.result`,
+  `fs.result`); duplicates after a reconnect are normal, and the runner remembers the `cmdId`s it ran (a folder listing
+  is read again instead of kept). A runner older than a command acks it as unknown (`cmd.ack`, `ok: false`), which the
+  server reads for `runner.update` as `unsupported` and for the folder frames as `runner_outdated`.
 - **Leases.** Each heartbeat sets `runs.lease_expires_at = now + 90 s` for the runs it lists. A lapse makes the run
   `lost` (never failed or cancelled) and the machine offline; the next resync reconciles: `running` stays running,
   `exited` is finalized from the journal, `gone` fails with `runner_lost_process` and is re-run in the same
@@ -245,6 +249,30 @@ click, and waits up to 3 minutes for `runner.update.result`. The runner:
 
 It trusts the server over its authenticated link and checks SHA-256 only; the signed self-update (Ed25519) is S8.
 
+## Folders
+
+Added 2026-11-09 for S5.1d (`runner-protocol/folders.ts`, the runner's `apps/runner/src/folders/`; what Ihor sees is in
+docs/machines.md, "The folder browser"). The server reads a machine's folders through its runner to choose an agent's
+home folder; folders only, never a file's contents, and nothing is deleted or renamed. A runner says `caps.folders: true`
+when it has the browser; the server sends `fs.list` and `fs.mkdir` only to such a runner and waits 10 s
+(`FOLDERS_TIMEOUT_MS`) for `fs.result`.
+
+- **Paths.** `~` and `~/…` are the runner user's home; any other path must start with `/` (else `invalid_path`). `.`,
+  `..`, repeated and trailing slashes are normalized away; a `..` that climbs above `/` is `invalid_path`. `fs.list`
+  with `path: null` starts at the home, or at `/work` in a container.
+- **A container** (`MWC_RUNNER_IN_CONTAINER=1` or `/.dockerenv`, on Linux) has one allowed root, `CONTAINER_WORK_ROOT`
+  `/work`, its work volume: every path must be `/work` or under it, and the real path of the folder (links followed)
+  must stay under the real `/work` (`outside_volume`). The home is outside it, so `~` is refused there.
+- **`fs.list`** answers the folder's folders (links to folders count; dot-folders and files left out), sorted by name
+  (case and numbers in human order), at most `FOLDERS_MAX` 500 with `truncated: true` past it, each with `git` (a `.git`
+  folder or file in it) and `claudeMd` (a `CLAUDE.md` in it), plus `parent`, `home` and `root`.
+- **`fs.mkdir`** makes one folder (mode 0755, less the umask) whose parent exists, never `/` or the root itself, and
+  answers its resolved `path`.
+- **Errors** (`FOLDER_ERRORS`): `not_found` (no folder, or for `fs.mkdir` no parent), `not_a_directory`,
+  `permission_denied` (EACCES, EPERM), `outside_volume`, `exists`, `invalid_path`, `unsupported` (a runner without the
+  browser), `failed` (any other file system error, with its words). The server answers them as 422s in plain words,
+  `not_found` as `folder_not_found` and `exists` as `folder_exists` (docs/machines.md).
+
 ## Limits and timers
 
 | Constant | Value |
@@ -268,6 +296,7 @@ It trusts the server over its authenticated link and checks SHA-256 only; the si
 | the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
 | the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | the self-update (`apps/runner/src/update/`, the server's `service/runner/update.ts`) | 3 minutes for the runner's answer, 2 minutes per download, the restart 250 ms after the answer, exit code 75 |
+| `FOLDERS_MAX`, `FOLDERS_TIMEOUT_MS` | 500 folders in one `fs.result`, 10 s for the runner's answer |
 | `RUNNER_CLOSE` | 1009 frame too large, 4001 unauthorized (key revoked or machine removed while connected), 4002 unsupported protocol, 4003 runner too old, 4004 replaced, 4008 hello timeout |
 
 ## Reading and writing frames

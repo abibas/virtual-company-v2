@@ -6,6 +6,7 @@
 #   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
 #     docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d runner-local
 #   docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner down -v   # removes that runner
+#   (-v also drops its volumes: its runner key and its agents' home folders in /work)
 #
 # The prod-like stack (server image, migrate step, its own Postgres) is deploy/compose.prod.yml.
 name: mwc-v2
@@ -36,6 +37,8 @@ services:
   # API on 9950 by default) and publishes no port: its health endpoint (9953) is for its own health check. Each container
   # runner is its own compose project (-p mwc-runner-<slug>), so each has its own container and state volume; the add
   # sheet chooses its CPUs, memory (Docker caps it there) and runs at once (MWC_RUNNER_SLOTS, read when it enrolls).
+  # Its agents' home folders live in the runner-work volume at /work, the only folders it browses and makes, so they
+  # survive restarts and image rebuilds (down -v removes them with the runner).
   runner-local:
     profiles: [runner]
     image: mwc-v2/runner:local
@@ -57,6 +60,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - runner-state:/var/lib/mwc-runner
+      - runner-work:/work
     healthcheck:
       test:
         [
@@ -76,3 +80,4 @@ services:
 volumes:
   pgdata:
   runner-state:
+  runner-work:

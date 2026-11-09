@@ -1,13 +1,14 @@
-import { PLACEMENT_PATH } from '@mwc/shared/machines';
 import { useId } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import { useMachineChoices } from '../../api/org.ts';
 import type { MachineChoice } from '../../api/types.ts';
+import type { Loaded } from '../../api/use-load.ts';
 import { Link } from '../../app/router.tsx';
-import { ChoiceField, Field, TextField } from '../../components/forms/Field.tsx';
+import { ChoiceField, Field } from '../../components/forms/Field.tsx';
 import { Select } from '../../components/forms/Input.tsx';
 import { SegmentedControl } from '../../components/forms/Segmented.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
+import { HomeFolderField } from './HomeFolderField.tsx';
 import { MODE_OPTIONS, type PlacementDraft, POLICY_OPTIONS } from './placement-draft.ts';
 
 type Status = MachineChoice['status'];
@@ -53,12 +54,20 @@ export interface WhereItRunsProps {
   /** The Machines page, where machines are enrolled. */
   readonly machinesHref: string;
   readonly readOnly: boolean;
+  /** The agent's slug: the suggested home folder's name (`~/agents/<slug>`). */
+  readonly agentSlug: string;
 }
 
 /** The machine select, with the chosen machine's status beside it. */
-function MachineSelect({ draft, companyId, machinesHref, readOnly }: WhereItRunsProps) {
+function MachineSelect({
+  draft,
+  machines,
+  machinesHref,
+  readOnly,
+}: Pick<WhereItRunsProps, 'draft' | 'machinesHref' | 'readOnly'> & {
+  readonly machines: Loaded<readonly MachineChoice[]>;
+}) {
   const id = useId();
-  const machines = useMachineChoices(companyId);
   const chosen = machines.data?.find((m) => m.id === draft.values.machineId);
   const status = chosen?.status ?? draft.saved?.machineStatus;
   const hint = <MachineHint count={machines.data?.length} error={machines.error} href={machinesHref} />;
@@ -84,31 +93,33 @@ function MachineSelect({ draft, companyId, machinesHref, readOnly }: WhereItRuns
 }
 
 /**
- * "Where it runs", in How it works: a machine (or nowhere), the mode, its home folder there and its permissions. The
- * placement is saved with the agent; members and viewers read it.
+ * "Where it runs", in How it works: a machine (or nowhere), the mode, its home folder there (typed, or chosen with
+ * Browse… from the machine's folders) and its permissions. The placement is saved with the agent; members and viewers
+ * read it.
  */
 export function WhereItRuns(props: WhereItRunsProps) {
-  const { draft, readOnly } = props;
+  const { draft, readOnly, companyId, agentSlug } = props;
   const { values, set } = draft;
+  const machines = useMachineChoices(companyId);
+  const chosen = machines.data?.find((m) => m.id === values.machineId);
   const placed = values.machineId !== '';
-  const badHome = placed && values.home.trim() !== '' && !draft.valid;
   return (
     <section aria-label="Where it runs" className="flex flex-col gap-5 border-t border-line pt-5">
       <h3 className="text-sm font-bold text-ink">Where it runs</h3>
       <div className="grid gap-4 sm:grid-cols-2">
-        <MachineSelect {...props} />
+        <MachineSelect
+          draft={draft}
+          machines={machines}
+          machinesHref={props.machinesHref}
+          readOnly={readOnly}
+        />
         {placed && (
-          <TextField
-            label="Home folder"
-            value={values.home}
-            onChange={(event) => set('home', event.target.value)}
+          <HomeFolderField
+            draft={draft}
+            companyId={companyId}
+            machine={chosen}
+            agentSlug={agentSlug}
             readOnly={readOnly}
-            required
-            maxLength={PLACEMENT_PATH.max}
-            spellCheck={false}
-            placeholder="/Users/you/agents/scout"
-            hint="An absolute path on the machine. Its CLAUDE.md, skills and memory load from there."
-            error={badHome ? 'Give an absolute path, starting with /.' : undefined}
           />
         )}
       </div>

@@ -171,6 +171,19 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    CLIs at the sign-in helper's pins. Tests on PGlite with `FakeRunner` and in the runner with `FakeHarnessDriver` and a
    fake spawn; no real turn. Runners need an update to chat (an old one is refused as `runner_outdated`). Next: the web
    (S5.1c) on this API.
+   **S5.1d, the folder browser and the work volume: done 2026-11-09** (docs/machines.md "The folder browser", Ihor: the
+   home folder "from the FOLDER selector considering a type of the device; for a container, for sure from a persistent
+   volume"). Protocol: `fs.list`, `fs.mkdir` and their `fs.result` (`runner-protocol/folders.ts`), `caps.folders`.
+   Runner (`apps/runner/src/folders/`): absolute or `~/` paths normalized, a `..` above `/` refused, `/work` the only
+   root in a container (links followed), folders sorted without dot-folders, at most 500 with git and CLAUDE.md marks,
+   one new folder 0755. Server: `GET` and `POST machines/:machineId/folders` (admins and owners; 409 `machine_offline`
+   and `runner_outdated`, the runner's refusals as 422s in plain words, 504 after 10 s; the new folder audited), with
+   the runner's home and `agentsRoot` for the default home. Compose: the `runner-work` volume at `/work`, owned by the
+   image's `runner` user. Web: **Browse…** beside the home folder on Where it runs (breadcrumbs, Up, New folder, Choose
+   this folder) and the suggested `~/agents/<slug>` or `/work/<slug>` with Use suggested. Tests: the path rules,
+   listings and mkdir on a fake file system and on Node's, the commands and the daemon on the wire, the routes on PGlite
+   with `FakeRunner` (roles, offline, outdated, refusals, timeout), the compose and Dockerfile assertions. Runners need an
+   update to browse; a Docker runner a rebuild (`up --build`) for its work volume.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

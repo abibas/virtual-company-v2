@@ -89,6 +89,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       power: ['airia_devbox'],
       terminal: true,
       selfUpdate: true,
+      folders: true,
     },
     build: BUILD,
   },
@@ -149,6 +150,20 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
     ],
   },
   'turn.end': { type: 'turn.end', turnId: IDS.turn, ok: true, exitCode: 0 },
+  'fs.result': {
+    type: 'fs.result',
+    cmdId: IDS.cmd,
+    ok: true,
+    path: '/Users/ihor/agents',
+    parent: '/Users/ihor',
+    entries: [
+      { name: 'scout', git: false, claudeMd: true },
+      { name: 'slop-box', git: true, claudeMd: true },
+    ],
+    truncated: false,
+    home: '/Users/ihor',
+    root: null,
+  },
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
@@ -208,4 +223,6 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
   'runner.update': { type: 'runner.update', cmdId: IDS.cmd },
   'turn.start': { type: 'turn.start', turnId: IDS.turn, spec: TURN_SPEC },
   'turn.stop': { type: 'turn.stop', turnId: IDS.turn },
+  'fs.list': { type: 'fs.list', cmdId: IDS.cmd, path: '~/agents' },
+  'fs.mkdir': { type: 'fs.mkdir', cmdId: IDS.cmd, path: '/Users/ihor/agents/scout' },
 };

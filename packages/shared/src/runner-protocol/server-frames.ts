@@ -3,6 +3,7 @@ import { apiKeyKind } from '../api-keys.ts';
 import { EpochMs } from '../identity.ts';
 import { AiriaDevboxRef, PowerAction, TimeZone } from '../machines.ts';
 import { frame, protocolObject, RunnerVersion, Uuid } from './common.ts';
+import { FOLDER_SERVER_FRAMES } from './folders.ts';
 import { RunSpec } from './run-spec.ts';
 import { ATTENTION_OPTIONS_MAX } from './runner-frames.ts';
 import { TERMINAL_SERVER_FRAMES } from './terminal.ts';
@@ -12,7 +13,7 @@ import { RunnerUpdate } from './update.ts';
 /**
  * The frames the server sends to a runner (docs/runner-protocol.md, "Server to runner"). Every one with a `cmdId` is
  * a command: the runner answers it once with `cmd.ack` (`power.command` with `power.result`, `runner.update` with
- * `runner.update.result`), and acks a repeat of a `cmdId` it already ran without running it again.
+ * `runner.update.result`, `fs.list` and `fs.mkdir` with `fs.result`), and acks a repeat of a `cmdId` it already ran without running it again.
  */
 
 /** The answer to `runner.hello`: the server's protocol, the lowest runner version it takes, the runner's machine. */
@@ -186,6 +187,7 @@ export const SERVER_FRAMES = [
   ...TERMINAL_SERVER_FRAMES,
   RunnerUpdate,
   ...TURN_SERVER_FRAMES,
+  ...FOLDER_SERVER_FRAMES,
 ] as const;
 
 /** Any frame the server sends, told apart by `type`. */

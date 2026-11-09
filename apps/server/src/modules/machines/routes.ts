@@ -2,6 +2,7 @@ import type { ServerDeps } from '../../platform/env.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import { runnerDownloadRoutes } from './routes/download.ts';
 import { enrollmentRoutes } from './routes/enrollment.ts';
+import { folderRoutes } from './routes/folders.ts';
 import { machineLogoRoutes } from './routes/logo.ts';
 import { machineRoutes } from './routes/machines.ts';
 import { placementRoutes } from './routes/placement.ts';
@@ -20,10 +21,10 @@ import { machinesService } from './service.ts';
  * The machines module's routes (docs/machines.md): the machines and their stats, enrolling a machine, the runner's
  * installer and bundle (S4.5), the runners' socket, which the hub serves (S4.2), each machine's power (S4.4b), the
  * agents' placements on the machines (S4.7), each machine's logo, a machine's terminal for its owners (tickets and the
- * browser's socket) and the update of its runner. A runner that connects gets its machine's hold at once, and a power
- * controller its devboxes' tunnels, an empty set while this server drives them (the hub's connect listeners, registered
- * here once per app). The power control (`control`) says who drives the devboxes; both ends of every tunnel are this
- * server's own port.
+ * browser's socket), the update of its runner, and its folders read and made through its runner (S5.1d). A runner that
+ * connects gets its machine's hold at once, and a power controller its devboxes' tunnels, an empty set while this server
+ * drives them (the hub's connect listeners, registered here once per app). The power control (`control`) says who
+ * drives the devboxes; both ends of every tunnel are this server's own port.
  */
 export function machinesRoutes(
   deps: ServerDeps & {
@@ -46,5 +47,6 @@ export function machinesRoutes(
     .route('/', placementRoutes(deps))
     .route('/', runnerSocketRoutes(deps, deps.hub))
     .route('/', terminalRoutes(deps))
-    .route('/', runnerUpdateRoutes(deps));
+    .route('/', runnerUpdateRoutes(deps))
+    .route('/', folderRoutes(deps));
 }

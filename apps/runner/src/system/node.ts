@@ -4,6 +4,7 @@ import { readFile, statfs } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import { WebSocket } from 'ws';
+import { nodeFoldersFs } from '../folders/files.ts';
 import { detectPowerExecutor } from '../power/detect.ts';
 import { loadPty } from '../terminal/loader.ts';
 import { nodePrivateFs } from '../turns/files.ts';
@@ -36,6 +37,7 @@ export function nodeDeps(): MainDeps {
       },
     },
     privateFs: nodePrivateFs(),
+    foldersFs: nodeFoldersFs(),
     spawn,
     killGroup: (pid, signal) => {
       try {

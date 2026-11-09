@@ -6,7 +6,9 @@
 # run by a non-root user. Its
 # state, runner.json with the runner key included, is the volume /var/lib/mwc-runner. On its first start, without a
 # runner.json and with MWC_ENROLL_TOKEN and MWC_SERVER_URL, the runner enrolls the container (kind container), then
-# runs; later starts need no token. Its terminal's shell is /bin/bash as the user runner, in /home/runner.
+# runs; later starts need no token. Its terminal's shell is /bin/bash as the user runner, in /home/runner. Its agents'
+# home folders live in the volume /work, owned by runner: the only folders its folder browser reads and makes (a named
+# volume copies this ownership when it is first mounted), so they survive restarts and image rebuilds.
 #
 #   docker build -f deploy/Dockerfile.runner -t mwc-v2/runner:local .
 #   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
@@ -45,9 +47,10 @@ RUN apt-get update \
  && npm cache clean --force \
  && command -v claude codex \
  && useradd --create-home --uid 10001 --user-group runner \
- && mkdir -p /opt/mwc-runner /var/lib/mwc-runner \
- && chown runner:runner /var/lib/mwc-runner \
- && chmod 0700 /var/lib/mwc-runner
+ && mkdir -p /opt/mwc-runner /var/lib/mwc-runner /work \
+ && chown runner:runner /var/lib/mwc-runner /work \
+ && chmod 0700 /var/lib/mwc-runner \
+ && chmod 0755 /work
 # The container is the machine (kind container); its configuration lives in the state volume; nothing holds it awake.
 ENV NODE_ENV=production \
     DISABLE_AUTOUPDATER=1 \
@@ -60,7 +63,7 @@ COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs
 COPY --from=bundle /out/node_modules /opt/mwc-runner/node_modules
 USER runner
 WORKDIR /home/runner
-VOLUME /var/lib/mwc-runner
+VOLUME /var/lib/mwc-runner /work
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:9953/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 # tini forwards SIGTERM to the runner (which stops its runs and releases its hold) and reaps what it leaves.

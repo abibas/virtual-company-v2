@@ -110,6 +110,8 @@ const FRIENDLY: Readonly<Record<string, string>> = {
   access_profile_name_taken: 'You already have an access profile with this name. Choose another one.',
   profile_not_yours: 'Only the owner of an access profile can give it to an agent.',
   profile_not_found: 'That access profile no longer exists. Choose another one.',
+  runner_outdated: "Update this machine's runner on the Machines page to browse its folders.",
+  runner_timeout: "The machine's runner did not answer in time. Check that it is running and try again.",
   network: 'The server could not be reached. Check that it is running and try again.',
   bad_response: 'The server sent an unexpected answer. Try again in a moment.',
   internal: 'The server ran into a problem. Try again in a moment.',

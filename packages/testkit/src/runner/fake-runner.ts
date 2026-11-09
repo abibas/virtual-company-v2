@@ -2,6 +2,7 @@ import type { MachineSample } from '@mwc/shared/machines';
 import {
   encodeFrame,
   type FrameError,
+  type FsResult,
   type HoldState,
   parseServerFrame,
   type ResyncRun,
@@ -20,6 +21,18 @@ import { FrameLog } from './frame-log.ts';
 /** The Claude Code version a fake runner says it has, unless its caps say otherwise. */
 export const FAKE_CLAUDE_VERSION = '2.1.319 (Claude Code)';
 
+/** A fake runner's default answer to `fs.list`: an empty work volume (its `cmdId` set per frame). */
+export const FAKE_FOLDER_LIST = {
+  type: 'fs.result',
+  ok: true,
+  path: '/work',
+  parent: null,
+  entries: [],
+  truncated: false,
+  home: '/home/runner',
+  root: '/work',
+} as const satisfies Omit<FsResult, 'cmdId'>;
+
 export interface FakeRunnerOptions {
   /** The server's runner address (`ws://…/api/runner/ws`). */
   readonly url: string;
@@ -31,7 +44,7 @@ export interface FakeRunnerOptions {
   readonly protocol?: number;
   /**
    * `runner.hello`'s caps over the defaults: Claude Code (`FAKE_CLAUDE_VERSION`, no Codex), one slot, no hold, no power,
-   * no terminal, no self-update.
+   * no terminal, no self-update, no folders.
    */
   readonly caps?: Partial<RunnerCaps>;
   /** `runner.hello`'s build (a SHA-256, or null from the sources); left out by default, as an older runner does. */
@@ -43,8 +56,8 @@ export interface FakeRunnerOptions {
   /** The samples heartbeats carry, one each, in order; heartbeats after the last carry none. */
   readonly samples?: readonly MachineSample[];
   /**
-   * Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok, `runner.update.result` ok);
-   * `[]` answers nothing.
+   * Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok, `runner.update.result` ok, and
+   * `fs.result` ok: an empty `/work` for `fs.list`, the path for `fs.mkdir`); `[]` answers nothing.
    */
   readonly respond?: (frame: ServerFrame) => readonly RunnerFrame[];
 }
@@ -101,6 +114,7 @@ export class FakeRunner {
       power: [],
       terminal: false,
       selfUpdate: false,
+      folders: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;
@@ -204,6 +218,9 @@ export class FakeRunner {
     if (frame.type === 'power.command') return [{ type: 'power.result', cmdId: frame.cmdId, ok: true }];
     if (frame.type === 'runner.update')
       return [{ type: 'runner.update.result', cmdId: frame.cmdId, ok: true }];
+    if (frame.type === 'fs.list') return [{ ...FAKE_FOLDER_LIST, cmdId: frame.cmdId }];
+    if (frame.type === 'fs.mkdir')
+      return [{ type: 'fs.result', cmdId: frame.cmdId, ok: true, path: frame.path }];
     return 'cmdId' in frame ? [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }] : [];
   }
 }

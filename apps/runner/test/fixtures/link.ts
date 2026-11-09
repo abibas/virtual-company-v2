@@ -20,6 +20,7 @@ export const HELLO: RunnerHello = {
     power: [],
     terminal: false,
     selfUpdate: false,
+    folders: false,
   },
 };
 

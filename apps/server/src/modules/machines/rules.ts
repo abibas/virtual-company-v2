@@ -6,7 +6,7 @@ import { compareRunnerVersions, RUN_LEASE_MS } from '@mwc/shared/runner-protocol
  */
 
 /** The statuses a refusal of this module has. */
-export type RefusalStatus = 401 | 404 | 409 | 422 | 502;
+export type RefusalStatus = 401 | 404 | 409 | 422 | 502 | 504;
 
 /** A refusal the routes answer in the common error shape; `S` narrows its status to what a route declares. */
 export interface Refusal<S extends RefusalStatus = 401 | 404> {

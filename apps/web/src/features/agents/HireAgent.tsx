@@ -132,7 +132,13 @@ function useHire(companyId: string, drafts: Pick<HireFormProps, 'draft' | 'place
 function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired }: HireFormProps) {
   const { busy, error, submit } = useHire(companyId, { draft, placement, onHired });
   const where = (
-    <WhereItRuns draft={placement} companyId={companyId} machinesHref={links.machines} readOnly={false} />
+    <WhereItRuns
+      draft={placement}
+      companyId={companyId}
+      machinesHref={links.machines}
+      readOnly={false}
+      agentSlug={draft.slug}
+    />
   );
   return (
     <form

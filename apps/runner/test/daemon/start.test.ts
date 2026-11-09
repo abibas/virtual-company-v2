@@ -44,9 +44,14 @@ describe('mwc-runner run', () => {
     const server = await fakeServer();
     const { deps, lines, entries, logged, signals, dir, mkdirs } = world({ server });
     const running = main(['run'], deps);
+    expect((await server.frames.next('runner.hello')).caps.folders).toBe(true);
     await server.frames.next('runner.heartbeat');
     await logged('health endpoint listening');
     expect(mkdirs).toEqual([join(dir, 'state')]);
+    // It browses its machine's folders, from its home.
+    const cmdId = newId();
+    server.send({ type: 'fs.list', cmdId, path: null });
+    expect(await server.frames.next('fs.result')).toMatchObject({ cmdId, ok: true, path: dir, root: null });
     const url = entries().find((entry) => entry.msg === 'health endpoint listening')?.url as string;
     await vi.waitFor(async () => expect(await (await fetch(url)).json()).toMatchObject({ connected: true }));
     expect(entries()[0]).toMatchObject({ msg: 'starting', version: '0.1.0', hold: 'none', name: 'This Mac' });
@@ -90,6 +95,14 @@ describe('mwc-runner run', () => {
     const readFile = async (path: string) => files[path] ?? Promise.reject(new Error(`ENOENT: ${path}`));
     const running = main(['run'], { ...deps, fs: { ...deps.fs, readFile } });
     expect((await server.frames.next('runner.heartbeat')).sample).toMatchObject({ cpus: 3, memPct: 25 });
+    // Its folders are only those of its work volume.
+    const cmdId = newId();
+    server.send({ type: 'fs.list', cmdId, path: '/etc' });
+    expect(await server.frames.next('fs.result')).toMatchObject({
+      cmdId,
+      ok: false,
+      error: 'outside_volume: /etc is outside /work',
+    });
     signals.get('SIGTERM')?.();
     expect(await running).toBe(EXIT.ok);
   });

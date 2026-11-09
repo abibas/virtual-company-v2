@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocketServer } from 'ws';
 import {
   FAKE_CLAUDE_VERSION,
+  FAKE_FOLDER_LIST,
   FakeRunner,
   type FakeRunnerOptions,
   FakeRunnerServer,
@@ -64,6 +65,7 @@ describe('FakeRunner: connecting', () => {
         power: [],
         terminal: false,
         selfUpdate: false,
+        folders: false,
       },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });
@@ -183,6 +185,22 @@ describe('FakeRunner: commands', () => {
       'power.result',
       'runner.update.result',
     ]);
+  });
+
+  it('answers fs.list with an empty work volume and fs.mkdir with its path', async () => {
+    const { server, runner } = await setUp();
+    await runner.connect();
+    const list = newId();
+    const made = newId();
+    server.send({ type: 'fs.list', cmdId: list, path: null });
+    expect(await server.frames.next('fs.result')).toEqual({ ...FAKE_FOLDER_LIST, cmdId: list });
+    server.send({ type: 'fs.mkdir', cmdId: made, path: '/work/scout' });
+    expect(await server.frames.next('fs.result')).toEqual({
+      type: 'fs.result',
+      cmdId: made,
+      ok: true,
+      path: '/work/scout',
+    });
   });
 
   it('answers as a test scripts it, and acks by hand', async () => {

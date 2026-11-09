@@ -1,3 +1,4 @@
+import type { FoldersFs } from '../folders/browse.ts';
 import type { WebSocketCtor } from '../link/socket.ts';
 import type { PowerExecutor } from '../power/executor.ts';
 import type { MemoryDeps } from '../stats/memory.ts';
@@ -30,6 +31,8 @@ export interface MainDeps {
   };
   /** The harnesses' private folders' files (a Codex login while its process runs), and the agent folder's check. */
   readonly privateFs: PrivateFs;
+  /** The folder browser's reads and its one write, a new folder (`fs.list`, `fs.mkdir`). */
+  readonly foldersFs: FoldersFs;
   readonly spawn: Spawn;
   /** Signals a detached child's process group (a power controller's tunnels). */
   readonly killGroup: KillGroup;

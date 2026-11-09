@@ -2,6 +2,9 @@ import type { DbHandle } from '@mwc/db';
 import {
   type CmdAck,
   encodeFrame,
+  type FsList,
+  type FsMkdir,
+  type FsResult,
   type PowerCommand,
   type PowerResult,
   RUNNER_HELLO_TIMEOUT_MS,
@@ -32,15 +35,17 @@ export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } f
 export type { TurnChannel, TurnEnding, TurnRequest, TurnSink } from './hub/turns.ts';
 
 /**
- * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update` acks it
- * as a command it does not know).
+ * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update` or the
+ * folder frames acks them as commands it does not know).
  */
 export type CommandFrame = Extract<ServerFrame, { cmdId: string }>;
 export type ReplyTo<F extends CommandFrame> = F extends PowerCommand
   ? PowerResult
   : F extends RunnerUpdate
     ? RunnerUpdateResult | CmdAck
-    : CmdAck;
+    : F extends FsList | FsMkdir
+      ? FsResult | CmdAck
+      : CmdAck;
 
 /** A machine's runner as the hub knows it, once it answered `server.hello`. */
 export interface ConnectedRunner {
@@ -82,8 +87,8 @@ export interface RunnerHub {
   /** Sends a frame to the machine's runner; false when it is not connected. */
   send(machineId: string, frame: ServerFrame): boolean;
   /**
-   * Sends a command and resolves with its answer, matched by `cmdId`: `power.result` for `power.command`, `cmd.ack`
-   * for the others. Rejects with a `HubError`: `offline` (not connected), `timeout`, `disconnected` (closed first).
+   * Sends a command and resolves with its answer, matched by `cmdId`: `power.result` for `power.command`, `fs.result`
+   * for the folder frames, `cmd.ack` for the others. Rejects with a `HubError`: `offline` (not connected), `timeout`, `disconnected` (closed first).
    */
   request<F extends CommandFrame>(
     machineId: string,

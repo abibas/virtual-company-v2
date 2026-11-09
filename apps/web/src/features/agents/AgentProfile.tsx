@@ -144,7 +144,13 @@ function ProfileBody({
     void form.save();
   };
   const where = (
-    <WhereItRuns draft={form.placement} companyId={companyId} machinesHref={machinesHref} readOnly={!admin} />
+    <WhereItRuns
+      draft={form.placement}
+      companyId={companyId}
+      machinesHref={machinesHref}
+      readOnly={!admin}
+      agentSlug={agent.slug}
+    />
   );
   return (
     <div className="grid gap-4 md:gap-5">

@@ -1,3 +1,4 @@
+import { CONTAINER_WORK_ROOT } from '@mwc/shared/runner-protocol';
 import {
   isShared,
   type RunnerConfig,
@@ -10,7 +11,7 @@ import { caffeinateDriver } from '../hold/caffeinate.ts';
 import { devboxDriver } from '../hold/devbox.ts';
 import { detectHoldDriver, type HoldDriver, type HoldDriverKind, noneDriver } from '../hold/driver.ts';
 import type { LinkEnd } from '../link/link.ts';
-import { machineSampler } from '../stats/machine.ts';
+import { inContainer, machineSampler } from '../stats/machine.ts';
 import type { MainDeps } from '../system/deps.ts';
 import { createLog, type Log } from '../system/log.ts';
 import { harnessHost } from '../turns/drivers.ts';
@@ -110,6 +111,8 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     ...(deps.power ? { power: deps.power } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     ...(terminal ? { terminal } : {}),
+    // In a container its folders are only those of its work volume.
+    folders: { fs: deps.foldersFs, home, root: inContainer(deps) ? CONTAINER_WORK_ROOT : null },
     harness: harnessHost(
       { clis: deps.harnesses ?? {}, env: deps.env, fs: deps.privateFs, stateDir: setup.stateDir },
       log,

@@ -28,6 +28,20 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-09: S5.1d's runner `folders/`, and the web's folder browser hook in `api/`
+
+- **What happened:** the folder browser's runner side (path rules, `fs.list`/`fs.mkdir`, Node's calls: 3 files) went to
+  a new `apps/runner/src/folders/`, which the runner table of SKILL.md has no row for; `apps/runner/src/` and its
+  mirrored `test/` now have 14 entries (`big-folder`, was 13). The browser's state hook calls the API, so it went to
+  `apps/web/src/api/folders.ts` (the "hook that calls the API" row), its sheet and field to `features/placements/`.
+  `packages/shared/src/runner-protocol/runner-frames.ts` grew to 245 lines with `caps.folders`; the frames themselves
+  are their own `runner-protocol/folders.ts`, as `turns.ts` and `update.ts`.
+- **Where:** the S5.1d commit.
+- **What was done:** as above; `docs/structure.md`'s map lists `folders/`.
+- **Suggested change:** a runner row "the machine's folders read and made for the server (the folder browser) →
+  `folders/`"; the S5 review's grouping of the runner's `src/` (see the S5.1b entry) should take it in.
+- **Status:** `open`.
+
 ### 2026-11-09: S5.1b's runner `turns/`, a second raw-access file, and a personal table naming a company
 
 - **What happened:** the runner's chat turns went to a new `apps/runner/src/turns/` (8 files): the runner table of

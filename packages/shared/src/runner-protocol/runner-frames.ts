@@ -12,6 +12,7 @@ import {
   Uuid,
 } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
+import { FOLDER_RUNNER_FRAMES } from './folders.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
 import { RunnerHarnesses, TURN_RUNNER_FRAMES } from './turns.ts';
 import { RunnerBuild, RunnerUpdateResult } from './update.ts';
@@ -29,7 +30,7 @@ export const ATTENTION_OPTIONS_MAX = 32;
 
 /**
  * What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power, whether
- * it opens terminals, and whether it updates itself.
+ * it opens terminals, whether it updates itself, and whether it browses its folders.
  */
 export const RunnerCaps = protocolObject({
   /**
@@ -48,6 +49,8 @@ export const RunnerCaps = protocolObject({
    * in a container, from the sources, and from a runner older than the self-update.
    */
   selfUpdate: z.boolean().default(false),
+  /** True when it answers `fs.list` and `fs.mkdir` (S5.1d); false from a runner older than the folder browser. */
+  folders: z.boolean().default(false),
 });
 export type RunnerCaps = z.infer<typeof RunnerCaps>;
 
@@ -162,7 +165,10 @@ export const AttentionCreate = frame('attention.create', {
 });
 export type AttentionCreate = z.infer<typeof AttentionCreate>;
 
-/** The answer to every server frame that has a `cmdId`, except `power.command` (answered by `power.result`). */
+/**
+ * The answer to every server frame that has a `cmdId`, except `power.command`, `runner.update`, `fs.list` and `fs.mkdir`
+ * (each answered by its own result frame).
+ */
 export const CmdAck = frame('cmd.ack', {
   cmdId: Uuid,
   ok: z.boolean(),
@@ -230,6 +236,7 @@ export const RUNNER_FRAMES = [
   ...TERMINAL_RUNNER_FRAMES,
   RunnerUpdateResult,
   ...TURN_RUNNER_FRAMES,
+  ...FOLDER_RUNNER_FRAMES,
 ] as const;
 
 /** Any frame a runner sends, told apart by `type`. */

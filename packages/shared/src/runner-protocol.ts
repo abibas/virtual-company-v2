@@ -76,6 +76,22 @@ export {
   RunnerEnrollResponse,
   RunnerPtyTarget,
 } from './runner-protocol/enroll.ts';
+export {
+  CONTAINER_WORK_ROOT,
+  FOLDER_ERRORS,
+  FOLDER_RUNNER_FRAMES,
+  FOLDER_SERVER_FRAMES,
+  FOLDERS_MAX,
+  FOLDERS_TIMEOUT_MS,
+  FolderEntry,
+  type FolderError,
+  FolderName,
+  FsList,
+  FsMkdir,
+  FsResult,
+  folderErrorCode,
+  ResolvedPath,
+} from './runner-protocol/folders.ts';
 export { FrameError, type FrameErrorCode, type FrameParse, utf8Bytes } from './runner-protocol/frame.ts';
 export {
   EnvName,

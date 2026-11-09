@@ -167,6 +167,7 @@ describe('when the tunnels cannot be sent', () => {
         power: ['airia_devbox' as const],
         terminal: false,
         selfUpdate: false,
+        folders: false,
       },
       build: null,
       connectedAt: TEST_NOW_DATE,

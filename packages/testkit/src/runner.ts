@@ -6,6 +6,7 @@
 export {
   type CloseInfo,
   FAKE_CLAUDE_VERSION,
+  FAKE_FOLDER_LIST,
   FakeRunner,
   type FakeRunnerOptions,
 } from './runner/fake-runner.ts';

@@ -1,6 +1,8 @@
 import { fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import type {
+  FsList,
+  FsMkdir,
   PowerCommand,
   RunnerUpdate,
   ServerFrame,
@@ -21,6 +23,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
   const terminals: TerminalServerFrame[] = [];
   const turns: TurnServerFrame[] = [];
   const updates: RunnerUpdate[] = [];
+  const browsed: (FsList | FsMkdir)[] = [];
   let drained = 0;
   const logs = memoryLog();
   const handler = new Commands({
@@ -39,9 +42,25 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
       updates.push(frame);
       return { type: 'runner.update.result', cmdId: frame.cmdId, ok: true, build: 'cd'.repeat(32) };
     },
+    folders: async (frame) => {
+      browsed.push(frame);
+      const listing = frame.type === 'fs.list' ? { entries: [], truncated: false } : {};
+      return { type: 'fs.result', cmdId: frame.cmdId, ok: true, path: '/w', ...listing };
+    },
     log: logs.log,
   });
-  return { handler, holds, keys, tunnelSets, terminals, turns, updates, logs, drained: () => drained };
+  return {
+    handler,
+    holds,
+    keys,
+    tunnelSets,
+    terminals,
+    turns,
+    updates,
+    browsed,
+    logs,
+    drained: () => drained,
+  };
 }
 
 const powerCommand = (): PowerCommand => ({
@@ -179,6 +198,9 @@ describe('the commands', () => {
       update: async () => {
         throw new Error('no update in this test');
       },
+      folders: async () => {
+        throw new Error('no folders in this test');
+      },
       log: memoryLog().log,
     });
     const frame: ServerFrame = { type: 'machine.hold', cmdId: newId(), until: 5 };
@@ -232,5 +254,38 @@ describe('frames the runner cannot read', () => {
     expect(handler.refuse('{"type":"run.future","cmdId":"abc"}', 'unknown')).toEqual([]);
     expect(handler.refuse('null', 'not an object')).toEqual([]);
     expect(handler.refuse('not json', 'not json')).toEqual([]);
+  });
+});
+
+describe('the folder commands', () => {
+  it('answers fs.list and fs.mkdir with the browser’s fs.result', async () => {
+    const { handler, browsed } = commands();
+    const list: FsList = { type: 'fs.list', cmdId: newId(), path: null };
+    const made: FsMkdir = { type: 'fs.mkdir', cmdId: newId(), path: '/w/a' };
+    expect(await handler.handle(list)).toEqual([
+      { type: 'fs.result', cmdId: list.cmdId, ok: true, path: '/w', entries: [], truncated: false },
+    ]);
+    expect(await handler.handle(made)).toEqual([
+      { type: 'fs.result', cmdId: made.cmdId, ok: true, path: '/w' },
+    ]);
+    expect(browsed).toEqual([list, made]);
+  });
+
+  it('reads a repeated listing again instead of keeping it, and answers a repeated mkdir from memory', async () => {
+    const { handler, browsed } = commands();
+    const list: FsList = { type: 'fs.list', cmdId: newId(), path: '/w' };
+    const made: FsMkdir = { type: 'fs.mkdir', cmdId: newId(), path: '/w/a' };
+    for (const frame of [list, list, made, made]) await handler.handle(frame);
+    expect(browsed).toEqual([list, list, made]);
+  });
+
+  it('refuses a folder frame it cannot read with fs.result invalid_path', () => {
+    const { handler } = commands();
+    const cmdId = newId();
+    for (const type of ['fs.list', 'fs.mkdir']) {
+      expect(handler.refuse(JSON.stringify({ type, cmdId, path: 'x' }), 'path: an absolute path')).toEqual([
+        { type: 'fs.result', cmdId, ok: false, error: 'invalid_path: path: an absolute path' },
+      ]);
+    }
   });
 });

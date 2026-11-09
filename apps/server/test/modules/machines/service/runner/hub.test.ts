@@ -60,6 +60,7 @@ describe('which runners the hub has', () => {
         power: ['airia_devbox'],
         terminal: false,
         selfUpdate: true,
+        folders: false,
       },
       connectedAt: w.clock(),
     });

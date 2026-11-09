@@ -60,7 +60,10 @@ describe('the container that enrolls on its first start', () => {
     ]) {
       expect(dockerfile).toContain(env);
     }
-    expect(dockerfile).toContain('VOLUME /var/lib/mwc-runner');
+    expect(dockerfile).toContain('VOLUME /var/lib/mwc-runner /work');
+    // The work volume's folder, owned by the runner user, so a new named volume starts writable by it.
+    expect(dockerfile).toContain('mkdir -p /opt/mwc-runner /var/lib/mwc-runner /work');
+    expect(dockerfile).toContain('chown runner:runner /var/lib/mwc-runner /work');
     // Claude Code and Codex for chat turns, at the exact versions the sign-in helper's image pins.
     const pins = /@anthropic-ai\/claude-code@\d+\.\d+\.\d+ @openai\/codex@\d+\.\d+\.\d+/;
     expect(dockerfile.match(pins)?.[0]).toBe(read('deploy/Dockerfile.login').match(pins)?.[0]);
@@ -77,6 +80,8 @@ describe('the container that enrolls on its first start', () => {
     expect(service).toContain(`MWC_SERVER_URL: \${MWC_SERVER_URL:-http://host.docker.internal:9950}`);
     expect(service).toContain(`MWC_ENROLL_TOKEN: \${MWC_ENROLL_TOKEN:-}`);
     expect(service).toContain('- runner-state:/var/lib/mwc-runner');
+    // Agents' home folders survive restarts and rebuilds in the work volume.
+    expect(service).toContain('- runner-work:/work');
     expect(service).toContain("fetch('http://127.0.0.1:9953/healthz')");
     expect(service).toContain('stop_grace_period: 90s');
     // The limits the add sheet chooses (2 CPUs, 4 GB and 2 runs at once by default), and a cap on processes.
@@ -85,6 +90,7 @@ describe('the container that enrolls on its first start', () => {
     expect(service).toContain(`mem_limit: \${MWC_RUNNER_MEMORY:-4g}`);
     expect(service).toMatch(/^ {4}pids_limit: \d+$/m);
     expect(compose).toMatch(/^ {2}runner-state:$/m);
+    expect(compose).toMatch(/^ {2}runner-work:$/m);
     // The dev Postgres is the only service without a profile: plain `docker compose up` starts just it.
     expect(compose.match(/^ {2}[a-z-]+:$/gm)?.slice(0, 2)).toEqual(['  postgres:', '  runner-local:']);
     expect(compose.slice(0, compose.indexOf('  runner-local:'))).not.toContain('profiles:');

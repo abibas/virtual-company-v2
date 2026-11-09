@@ -45,7 +45,7 @@ Most_Wanted_corp_v2/
 │   ├── web/                        React UI, no tests for now (identity pages built) S1.11
 │   │   └── src/ app/ pages/ components/ features/ api/ styles/
 │   └── runner/                     machine daemon                              S4
-│       └── src/ daemon/ link/ hold/ stats/ power/ terminal/ turns/ update/ install/ system/ (cli.ts, config.ts, main.ts)
+│       └── src/ daemon/ link/ hold/ stats/ power/ terminal/ turns/ folders/ update/ install/ system/ (cli.ts, config.ts, main.ts)
 ├── packages/                       libraries, pure where possible
 │   ├── shared/                     contracts: config, ports, ids, enums, protocols
 │   ├── db/                         schema, migrations, tenant layer

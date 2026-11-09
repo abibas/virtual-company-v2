@@ -1,5 +1,8 @@
 import { Tunnels } from '@mwc/machines-core/tunnels';
 import type {
+  FsList,
+  FsMkdir,
+  FsResult,
   HoldState,
   RunnerFrame,
   RunnerHello,
@@ -9,6 +12,7 @@ import type {
 } from '@mwc/shared/runner-protocol';
 import { WebSocket } from 'ws';
 import { type RunnerConfig, runnerWsUrl } from '../../config.ts';
+import { browse } from '../../folders/browse.ts';
 import { HoldManager, type HoldReport } from '../../hold/manager.ts';
 import { Commands } from '../../link/commands.ts';
 import { Heartbeats } from '../../link/heartbeat.ts';
@@ -25,7 +29,7 @@ import { helloOf, NO_HARNESSES } from './hello.ts';
 /**
  * The daemon behind `createRunner` (`../runner.ts`, its contract): it makes the hold manager, the heartbeats, the
  * commands, the chat turns, the terminals, the self-update, a power controller's tunnels and the link, and wires each to
- * the others. Live turns and the runs `setLiveRuns` reports count together as live work.
+ * the others (and the commands to the folder browser). Live turns and the runs `setLiveRuns` reports count together as live work.
  */
 
 const holdState = (state: HoldReport): HoldState => ({ type: 'hold.state', ...state });
@@ -69,6 +73,7 @@ export class RunnerDaemon implements Runner {
       terminal: (frame) => this.#terminals.handle(frame),
       turn: (frame) => this.#turns.handle(frame),
       update: (frame) => this.#updates.handle(frame),
+      folders: (frame) => this.#browse(frame),
       log,
     });
     this.#turns = new Turns({
@@ -185,6 +190,7 @@ export class RunnerDaemon implements Runner {
       power: [...this.#power.providers],
       terminal: this.#terminals.available,
       selfUpdate: this.#updates.available,
+      folders: this.#options.folders !== undefined,
     };
     return helloOf({ version, caps, claudeVersion, build });
   }
@@ -229,6 +235,14 @@ export class RunnerDaemon implements Runner {
       return;
     }
     this.#tunnels.set(tunnels);
+  }
+
+  /** `fs.list` and `fs.mkdir` through the folder browser; `unsupported` without one. */
+  #browse(frame: FsList | FsMkdir): Promise<FsResult> {
+    const host = this.#options.folders;
+    if (host !== undefined) return browse(host, frame);
+    const error = 'unsupported: this runner does not browse folders';
+    return Promise.resolve({ type: 'fs.result', cmdId: frame.cmdId, ok: false, error });
   }
 
   #drain(): void {

@@ -4,6 +4,7 @@ import { expect, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { writeRunnerConfig } from '../../src/config.ts';
 import type { MainDeps } from '../../src/daemon/start.ts';
+import { nodeFoldersFs } from '../../src/folders/files.ts';
 import { CAFFEINATE_BIN } from '../../src/hold/driver.ts';
 import { nodePrivateFs } from '../../src/turns/files.ts';
 import type { LogEntry } from './log.ts';
@@ -92,6 +93,7 @@ export function world(options: WorldOptions = {}) {
     os: machine.os,
     fs: machine.fs,
     privateFs: nodePrivateFs(),
+    foldersFs: nodeFoldersFs(),
     spawn: spawn.spawn,
     killGroup: spawn.killGroup,
     WebSocket,

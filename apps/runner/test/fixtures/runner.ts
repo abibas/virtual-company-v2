@@ -6,6 +6,7 @@ import type { MachineSample } from '@mwc/shared/machines';
 import type { FakeRunnerServer } from '@mwc/testkit/runner';
 import type { RunnerConfig } from '../../src/config.ts';
 import { createRunner, type Runner } from '../../src/daemon/runner.ts';
+import type { FolderHost } from '../../src/folders/browse.ts';
 import type { HoldDriver, HoldDriverKind } from '../../src/hold/driver.ts';
 import type { PowerExecutor } from '../../src/power/executor.ts';
 import type { TerminalHost } from '../../src/terminal/sessions.ts';
@@ -108,6 +109,8 @@ export function startRunner(
     /** The build it says it runs, and how it updates itself. */
     build?: string | null;
     update?: SelfUpdate;
+    /** Browses folders through this host. */
+    folders?: FolderHost;
   } = {},
 ): StartedRunner {
   const time = new FakeTime();
@@ -130,6 +133,7 @@ export function startRunner(
     ...(options.harness ? { harness: options.harness } : {}),
     ...(options.build === undefined ? {} : { build: options.build }),
     ...(options.update ? { update: options.update } : {}),
+    ...(options.folders ? { folders: options.folders } : {}),
     saveConfig: (next) => {
       if (options.saveFails) throw new Error('disk full');
       saved.push(next);

@@ -215,7 +215,15 @@ MWC_ENROLL_TOKEN=mwc_et_… MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MW
   `runner-state` volume: a second runner with another name runs beside the first instead of replacing it. Two runners
   with names of the same slug share a project; the second start would only restart the first.
 - **Removing one.** `docker compose -p mwc-runner-<slug> -f <repo>/deploy/compose.yml --profile runner down -v` stops and
-  removes that container and its state volume (its runner key with it); remove the machine on the Machines page too.
+  removes that container, its state volume (its runner key with it) and its work volume (its agents' home folders);
+  remove the machine on the Machines page too.
+- **The work volume** (S5.1d, 2026-11-09, Ihor: home folders "for a container, for sure from a persistent volume"). Each
+  container runner has a named volume `runner-work` mounted at `/work` (one per compose project, like its state), so its
+  agents' home folders survive restarts and image rebuilds. The image makes `/work` owned by the user `runner` (0755),
+  which a new named volume copies when it is first mounted, so the runner can write it. Inside the container `/work` is
+  the only folder the runner browses or makes ("The folder browser"), and agents' home folders default to
+  `/work/<slug>`. A container added before S5.1d gets it with the same `up` command plus `--build` (no token): the
+  rebuilt image has `/work`, and compose creates the volume.
 - **Stats inside the container.** `os.cpus()` and `/proc/meminfo` describe the Docker VM, so a runner that knows it is
   in a container (Linux, with `MWC_RUNNER_IN_CONTAINER=1` as the image sets, or `/.dockerenv`) reads its cgroup v2 files
   (`apps/runner/src/stats/cgroup.ts`): CPUs from `cpu.max` (quota over period, to a tenth), CPU use from `cpu.stat`'s
@@ -310,7 +318,7 @@ installed copy and keeps `runner.json` (`--purge` removes it and the state folde
 it is removed on the Machines page.
 
 **The container** (`deploy/Dockerfile.runner`): Node 24 slim, git, tini as PID 1, the bundle, the user `runner`, its
-state and `runner.json` in the volume `/var/lib/mwc-runner`. Started without a `runner.json` and with
+state and `runner.json` in the volume `/var/lib/mwc-runner`, its agents' home folders in the volume `/work`. Started without a `runner.json` and with
 `MWC_ENROLL_TOKEN` and `MWC_SERVER_URL`, the runner enrolls itself (kind `container`, named by `MWC_RUNNER_NAME`,
 `runner-local` in compose), then runs; later starts reuse the enrollment. The `runner-local` service is behind the
 compose profile `runner` (plain `docker compose up` still starts the dev Postgres only), reaches the dev API at
@@ -472,8 +480,36 @@ archived agent keeps its placement and is left out of the counts.
   `GET machines`, a machine and `GET machines/stats` rows carry `agentCount` (agents not archived whose default
   placement is on it).
 - Web: **Where it runs** at the end of the agent form's How it works (a machine with its status, the mode, the home
-  folder, the permissions; saved with the agent, read-only below admin), "Runs on <machine> · <mode>" in the agent's
-  facts, and a Machine column in the agents table.
+  folder with **Browse…**, the permissions; saved with the agent, read-only below admin), "Runs on <machine> · <mode>"
+  in the agent's facts, and a Machine column in the agents table.
+
+### The folder browser
+
+Built in S5.1d (2026-11-09, Ihor: when hiring an agent he picks the machine and its home folder "from the FOLDER selector
+considering a type of the device; for a container, for sure from a persistent volume"). The server reads a machine's
+folders through its runner (`fs.list`, `fs.mkdir`: docs/runner-protocol.md, "Folders"); folders only, never a file's
+contents, and nothing is deleted or renamed.
+
+- `GET /api/companies/:companyId/machines/:machineId/folders?path=` (admin and above) → `{ path, parent, entries[{name,
+  git, claudeMd}], truncated, home, root, agentsRoot }`: the folder (the runner's default start without `path`: its
+  user's home, or `/work` in a container), its folders sorted without dot-folders (at most 500), the runner user's home,
+  the only allowed root (`/work` in a container, else null) and where agents' home folders go by default (`root`, else
+  `<home>/agents`).
+- `POST` the same `{ path }` (admin and above) → 201 `{ path }`: one new folder (0755) whose parent exists, audited on
+  the machine (`folder_create`, field `folder`).
+- Refusals: 400 `invalid_request` (a path that is neither absolute nor `~/…`), 403 below admin, 404 another company's or
+  an unknown machine, 409 `machine_offline` (no connected runner) and `runner_outdated` (a runner without
+  `caps.folders`), 422 for the runner's refusals in plain words (`folder_not_found`, `not_a_directory`,
+  `permission_denied`, `outside_volume`, `folder_exists`, `invalid_path`, `folder_failed`), 504 `runner_timeout` after
+  10 s.
+- Web (`features/placements/`): **Browse…** beside the home folder opens a sheet on the chosen machine: breadcrumbs (from
+  `/`, or from `/work` in a container), the folders with their git and CLAUDE.md marks, **Up**, **New folder** (a name,
+  then it is made and opened) and **Choose this folder**. It starts at the field's folder, else its parent, else the
+  default start. While the field is empty it suggests the agent's default home (`<home>/agents/<slug>` from the runner,
+  or `/work/<slug>` for a container) with **Use suggested**. `runner_outdated` reads "Update this machine's runner on the
+  Machines page to browse its folders".
+- Runners need an update for it (an older one is refused as `runner_outdated`); a Docker runner needs the rebuild that
+  brings its work volume ("A runner in a Docker container").
 
 ## Logos
 
