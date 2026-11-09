@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readRunnerConfig, writeRunnerConfig } from '../../src/config.ts';
@@ -134,6 +134,23 @@ describe("mwc-runner install and the terminal's PTY", () => {
     expect(statSync(join(installed, 'prebuilds/linux-arm64/pty.node')).mode & 0o777).toBe(0o755);
     expect(existsSync(stale)).toBe(false);
     expect(out()).toContain(`The terminal's PTY (linux-arm64) is in ${installed}.\n`);
+  });
+
+  it('copies the runner.json install.sh put beside the downloaded runner (its build time), and drops a stale one', async () => {
+    const { host, home } = testHost({ files: ['/var/lib/systemd/linger/ihor'] });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    downloadedBundle(host);
+    const manifest = '{"version":"0.5.0","builtAt":"2026-11-09T16:56:00.000Z","sha256":"ab"}\n';
+    writeFileSync(join(dirname(host.selfPath), 'runner.json'), manifest);
+    await installCommand(host, {});
+    const installed = join(home, '.local/share/mwc-runner/runner.json');
+    expect(readFileSync(installed, 'utf8')).toBe(manifest);
+    // Reinstalled from its installed copy, it keeps it; from a download without one, none is left.
+    await installCommand({ ...host, selfPath: join(home, '.local/share/mwc-runner/runner.mjs') }, {});
+    expect(readFileSync(installed, 'utf8')).toBe(manifest);
+    rmSync(join(dirname(host.selfPath), 'runner.json'));
+    await installCommand(host, {});
+    expect(existsSync(installed)).toBe(false);
   });
 
   it('keeps the PTY beside the installed runner when reinstalled from it, and warns without one', async () => {

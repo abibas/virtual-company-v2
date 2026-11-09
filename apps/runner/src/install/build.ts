@@ -9,7 +9,9 @@ import { tarGz } from './tar.ts';
 /**
  * The runner bundle (`pnpm --filter @mwc/runner build`, which runs `scripts/build.ts`; `mwc check --full` too): one ES
  * module, `dist/runner.mjs`, for Node 22 and later, with every dependency inside (`@mwc/shared`, zod, ws), so a machine
- * needs only Node and this file. The server serves it at `GET /api/runner/runner.mjs`; `install` copies it to
+ * needs only Node and this file. It is reproducible: the same sources build the same bytes (it carries its version but
+ * no build time), so a runner built anywhere from one commit is current against the one the server serves; the build
+ * time is only in `dist/runner.json` beside it, which travels with it. The server serves it at `GET /api/runner/runner.mjs`; `install` copies it to
  * `~/.local/share/mwc-runner/runner.mjs`, and the container image carries it. The terminal's PTY is native, so it stays
  * out of the bundle: the build packs each system's prebuilt node-pty package as `dist/pty/<target>.tgz` (laid out as
  * `node_modules/@lydell/node-pty-<target>/`), which the server serves at `GET /api/runner/pty/<target>.tgz` and the
@@ -30,17 +32,23 @@ export const BUNDLE_BANNER =
   "import { createRequire as createRunnerRequire } from 'node:module';\n" +
   'const require = createRunnerRequire(import.meta.url);';
 
-/** The runner's stamp: its package's version and when the bundle was built (UTC, ISO 8601). */
+/** The runner's manifest stamp: its package's version and when the bundle was built (UTC, ISO 8601). */
 export interface RunnerStamp {
   readonly version: string;
   readonly builtAt: string;
 }
 
-/** Beside the bundle: its stamp and SHA-256, which the server reads as the latest runner (`latestRunner`). */
+/**
+ * Beside the bundle: its stamp and SHA-256, which the server reads as the latest runner (`latestRunner`) and serves at
+ * `GET /api/runner/runner.json`, and a runner reads its build time from (`system/version.ts`).
+ */
 export const MANIFEST_FILE = 'dist/runner.json';
 
-/** The esbuild options for the runner package at `root`, carrying its stamp (`system/version.ts` reads it). */
-export function bundleOptions(root: string, stamp: RunnerStamp): BuildOptions {
+/**
+ * The esbuild options for the runner package at `root`, carrying its version (`system/version.ts` reads it) and nothing
+ * that changes from one build to the next.
+ */
+export function bundleOptions(root: string, version: string): BuildOptions {
   return {
     entryPoints: [join(root, 'src/main.ts')],
     outfile: join(root, BUNDLE_FILE),
@@ -51,10 +59,7 @@ export function bundleOptions(root: string, stamp: RunnerStamp): BuildOptions {
     // ws asks for these optional native add-ons inside a try and works without them; the PTY is loaded from next to
     // the bundle (terminal/loader.ts).
     external: ['bufferutil', 'utf-8-validate', '@lydell/node-pty-*'],
-    define: {
-      MWC_RUNNER_VERSION: JSON.stringify(stamp.version),
-      MWC_RUNNER_BUILT_AT: JSON.stringify(stamp.builtAt),
-    },
+    define: { MWC_RUNNER_VERSION: JSON.stringify(version) },
     banner: { js: BUNDLE_BANNER },
     // Readable on the machine that runs it, and small enough as it is.
     minify: false,
@@ -69,19 +74,19 @@ export interface BuildDeps {
   readFile(path: string): string;
   readBytes(path: string): Uint8Array;
   writeFile(path: string, text: string): void;
-  /** The build time. */
+  /** The build time, for runner.json only. */
   now(): Date;
 }
 
 /**
- * Builds the bundle of the runner package at `root`, stamped with its package's version and the build time, and writes
- * `dist/runner.json` (`{ version, builtAt, sha256 }`) beside it; returns the bundle's path.
+ * Builds the bundle of the runner package at `root`, stamped with its package's version, and writes `dist/runner.json`
+ * (`{ version, builtAt, sha256 }`, the build time) beside it; returns the bundle's path.
  */
 export async function buildBundle(root: string, deps: BuildDeps): Promise<string> {
   const { version } = JSON.parse(deps.readFile(join(root, 'package.json'))) as { version?: unknown };
   if (typeof version !== 'string' || version === '') throw new Error(`${root}/package.json has no version`);
   const stamp: RunnerStamp = { version, builtAt: deps.now().toISOString() };
-  await deps.build(bundleOptions(root, stamp));
+  await deps.build(bundleOptions(root, version));
   const bundle = join(root, BUNDLE_FILE);
   const sha256 = createHash('sha256').update(deps.readBytes(bundle)).digest('hex');
   deps.writeFile(join(root, MANIFEST_FILE), `${JSON.stringify({ ...stamp, sha256 }, null, 2)}\n`);

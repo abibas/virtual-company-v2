@@ -2,6 +2,7 @@ import { dirname, join, resolve } from 'node:path';
 import type { RunnerPtyTarget } from '@mwc/shared/runner-protocol';
 import { readRunnerConfig, runnerConfigPath } from '../config.ts';
 import { EXIT } from '../daemon/start.ts';
+import { RUNNER_MANIFEST_FILE } from '../system/version.ts';
 import { ptyPackage, ptyTarget } from '../terminal/loader.ts';
 import { enrolledText } from './enroll/commands.ts';
 import { type EnrollInput, enrollMachine, httpBase, viaOf } from './enroll/enroll.ts';
@@ -14,9 +15,9 @@ import { serviceManager } from './service.ts';
  * `mwc-runner install`: enrolls the machine when given a token (else keeps the enrollment it has: a reinstall, which
  * install.sh runs with `--server` alone, the server the machine is enrolled on; `--via`, when given, is the address
  * this install reaches the server at, for install.sh's downloads and the enroll, while `--server` is the one saved for
- * the runner), copies the runner it runs from (the downloaded `runner.mjs`) to `~/.local/share/mwc-runner/runner.mjs` with the terminal's PTY that
- * install.sh unpacked beside it (`node_modules/`), and runs that as a service: a launchd agent on macOS, a systemd user
- * unit on Linux. Everything that can refuse is checked before the token is used.
+ * the runner), copies the runner it runs from (the downloaded `runner.mjs`) to `~/.local/share/mwc-runner/runner.mjs`
+ * with its manifest (`runner.json`, its build time) and the terminal's PTY that install.sh put beside it
+ * (`node_modules/`), and runs that as a service: a launchd agent on macOS, a systemd user unit on Linux. Everything that can refuse is checked before the token is used.
  */
 
 /** Refusals that need no enrollment: the system, a container, a runner run from its sources. */
@@ -84,6 +85,17 @@ function installPty(host: Host, bundle: string): string {
   return "warning: the terminal's PTY did not come with this runner (install.sh downloads it); no terminal here\n";
 }
 
+/**
+ * The bundle's manifest (`runner.json`, its build time) goes beside the installed runner: the one install.sh downloaded
+ * beside the runner it runs from, else none (an old one there would tell a wrong build time).
+ */
+function installManifest(host: Host, bundle: string): void {
+  const from = join(dirname(resolve(host.selfPath)), RUNNER_MANIFEST_FILE);
+  const to = join(dirname(bundle), RUNNER_MANIFEST_FILE);
+  if (host.fs.exists(from)) host.fs.copyFile(from, to);
+  else host.fs.remove(to);
+}
+
 /** `mwc-runner install [--server <url> [--via <url>] --token <mwc_et_…> [--name <name>] [--slots <n>] [--force]]`. */
 export async function installCommand(host: Host, input: EnrollInput): Promise<number> {
   const manager = serviceManager(host);
@@ -91,7 +103,10 @@ export async function installCommand(host: Host, input: EnrollInput): Promise<nu
   host.out(await enrollment(host, input));
   const bundle = installedBundle(host.env, homeOf(host));
   host.fs.mkdir(dirname(bundle), 0o755);
-  if (resolve(host.selfPath) !== bundle) host.fs.copyFile(host.selfPath, bundle);
+  if (resolve(host.selfPath) !== bundle) {
+    host.fs.copyFile(host.selfPath, bundle);
+    installManifest(host, bundle);
+  }
   const pty = installPty(host, bundle);
   const warnings = await manager.install();
   host.out(`Installed the runner in ${bundle} and started it as a ${manager.name} (${manager.file}).\n`);

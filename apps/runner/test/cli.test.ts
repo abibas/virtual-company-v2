@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { HELP, parseOptions, runCli, selfFacts, serviceExit } from '../src/cli.ts';
 import type { MainDeps } from '../src/daemon/start.ts';
@@ -142,10 +143,22 @@ describe('what the daemon learns about itself at start', () => {
     const facts = selfFacts(host);
     expect(facts.build).toMatch(/^[0-9a-f]{64}$/);
     expect(facts.update?.manager).toBe('systemd');
+    expect(facts.builtAt).toBeNull();
   });
 
-  it('is no build and no self-update from the sources', () => {
-    expect(selfFacts(testHost({ selfPath: '/repo/apps/runner/src/main.ts' }).host)).toEqual({ build: null });
+  it('is its build time from the runner.json beside its bundle, which the hello then says', () => {
+    const { host } = testHost();
+    downloadedBundle(host, '// bundle\n');
+    const manifest = { version: '0.5.0', builtAt: '2026-11-09T16:56:00.000Z', sha256: 'ab'.repeat(32) };
+    writeFileSync(join(dirname(host.selfPath), 'runner.json'), JSON.stringify(manifest));
+    expect(selfFacts(host).builtAt).toBe('2026-11-09T16:56:00.000Z');
+  });
+
+  it('is no build, no build time and no self-update from the sources', () => {
+    expect(selfFacts(testHost({ selfPath: '/repo/apps/runner/src/main.ts' }).host)).toEqual({
+      build: null,
+      builtAt: null,
+    });
   });
 });
 

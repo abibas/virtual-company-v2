@@ -2,22 +2,26 @@ import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import {
   RUNNER_BUNDLE_PATH,
+  RUNNER_MANIFEST_PATH,
   RUNNER_PTY_PATH,
   RUNNER_SHA256_HEADER,
   type RunnerUpdateError,
 } from '@mwc/shared/runner-protocol';
 import { httpBase } from '../install/enroll/enroll.ts';
 import type { Host, HostFs } from '../install/host.ts';
+import { RUNNER_MANIFEST_FILE } from '../system/version.ts';
 import { type ServiceKind, sha256, type UpdateTarget } from './build.ts';
 import { type UntarEntry, untarGz } from './untar.ts';
 
 /**
- * A runner updating itself (docs/machines.md, "Updating a runner"): it downloads the bundle and its system's PTY archive
- * from the server it is linked to (`GET /api/runner/runner.mjs` and `/api/runner/pty/<target>.tgz`, the files
- * `install.sh` takes), checks each against its SHA-256 header, and only then puts them next to the installed copy: the
- * bundle written to a temporary file, the PTY unpacked in a staging folder, the old `node_modules/` moved aside, the
- * new one moved in, then the temporary bundle renamed over `runner.mjs`. A failure at any step leaves the old copy as it
- * was. A server without a PTY for this system keeps the one there. It trusts the server over its authenticated link and
+ * A runner updating itself (docs/machines.md, "Updating a runner"): it downloads the bundle, its manifest and its
+ * system's PTY archive from the server it is linked to (`GET /api/runner/runner.mjs`, `/api/runner/runner.json` and
+ * `/api/runner/pty/<target>.tgz`, the files `install.sh` takes), checks each against its SHA-256 header, and only then
+ * puts them next to the installed copy: the bundle and the manifest written to temporary files, the PTY unpacked in a
+ * staging folder, the old `node_modules/` moved aside, the new one moved in, the old `runner.json` moved aside, the new
+ * one moved in, then the temporary bundle renamed over `runner.mjs`. A failure at any step leaves the old copy as it
+ * was. A server without a PTY for this system keeps the one there; one without a manifest leaves none (the runner then
+ * says no build time). It trusts the server over its authenticated link and
  * checks SHA-256 only (the signed self-update is S8).
  */
 
@@ -105,21 +109,32 @@ function tidy(fs: SelfUpdateDeps['fs'], ...paths: string[]): void {
   }
 }
 
+/** What an update puts in place: the bundle, its manifest (none from a server without one) and the PTY's files. */
+interface NewFiles {
+  readonly bundle: Uint8Array;
+  readonly manifest: Uint8Array | undefined;
+  readonly pty: UntarEntry[] | undefined;
+}
+
 /** Writes the new files beside the installed copy, then swaps them in; the old copy stays on any failure. */
-function putInPlace(deps: SelfUpdateDeps, bundle: Uint8Array, pty: UntarEntry[] | undefined): void {
+function putInPlace(deps: SelfUpdateDeps, { bundle, manifest, pty }: NewFiles): void {
   const { fs, target } = deps;
   const dir = dirname(target.bundle);
   const tag = (deps.tag ?? (() => randomBytes(6).toString('hex')))();
   const tmp = join(dir, `.runner.${tag}.tmp`);
+  const tmpManifest = join(dir, `.runner-json.${tag}.tmp`);
   const staging = join(dir, `.update.${tag}`);
   const modules = join(dir, 'node_modules');
   const old = join(dir, `.node_modules.${tag}.old`);
+  const manifestPath = join(dir, RUNNER_MANIFEST_FILE);
+  const oldManifest = join(dir, `.runner-json.${tag}.old`);
   const failed = (error: unknown): never => {
-    tidy(fs, tmp, staging);
+    tidy(fs, tmp, tmpManifest, staging);
     throw new UpdateError('write_failed', `cannot put the new runner in ${dir}: ${messageOf(error)}`);
   };
   try {
     fs.writeBytes(tmp, bundle, 0o644);
+    if (manifest !== undefined) fs.writeBytes(tmpManifest, manifest, 0o644);
     for (const file of pty ?? []) {
       const path = join(staging, file.path);
       fs.mkdir(dirname(path), 0o755);
@@ -130,6 +145,8 @@ function putInPlace(deps: SelfUpdateDeps, bundle: Uint8Array, pty: UntarEntry[] 
   }
   let movedOld = false;
   let movedNew = false;
+  let movedOldManifest = false;
+  let movedNewManifest = false;
   try {
     if (pty !== undefined) {
       if (fs.exists(modules)) {
@@ -139,17 +156,27 @@ function putInPlace(deps: SelfUpdateDeps, bundle: Uint8Array, pty: UntarEntry[] 
       fs.rename(join(staging, 'node_modules'), modules);
       movedNew = true;
     }
+    if (fs.exists(manifestPath)) {
+      fs.rename(manifestPath, oldManifest);
+      movedOldManifest = true;
+    }
+    if (manifest !== undefined) {
+      fs.rename(tmpManifest, manifestPath);
+      movedNewManifest = true;
+    }
     fs.rename(tmp, target.bundle);
   } catch (error) {
     if (movedNew) tidy(fs, modules);
+    if (movedNewManifest) tidy(fs, manifestPath);
     try {
       if (movedOld) fs.rename(old, modules);
+      if (movedOldManifest) fs.rename(oldManifest, manifestPath);
     } catch {
-      // The old PTY stays at `old`; the next install puts one in place.
+      // The old PTY or manifest stays aside; the next install puts one in place.
     }
     failed(error);
   }
-  tidy(fs, staging, old);
+  tidy(fs, staging, old, oldManifest);
 }
 
 /** The self-update of an installed runner (`build.ts`'s `updateTarget`). */
@@ -160,11 +187,12 @@ export function selfUpdater(deps: SelfUpdateDeps): SelfUpdate {
     async apply(serverUrl) {
       const base = httpBase(serverUrl);
       const bundle = (await download(deps, `${base}${RUNNER_BUNDLE_PATH}`, 'the runner')) as Uint8Array;
+      const manifest = await download(deps, `${base}${RUNNER_MANIFEST_PATH}`, "the runner's manifest", true);
       const ptyUrl = target.pty === undefined ? undefined : `${base}${RUNNER_PTY_PATH}/${target.pty}.tgz`;
       const archive =
         ptyUrl === undefined ? undefined : await download(deps, ptyUrl, "the terminal's PTY", true);
       const pty = archive === undefined ? undefined : ptyFiles(archive);
-      putInPlace(deps, bundle, pty);
+      putInPlace(deps, { bundle, manifest, pty });
       return { build: sha256(bundle), pty: pty !== undefined };
     },
   };

@@ -1,5 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { RUNNER_BUNDLE_PATH, RUNNER_PTY_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
+import {
+  RUNNER_BUNDLE_PATH,
+  RUNNER_MANIFEST_PATH,
+  RUNNER_PTY_PATH,
+  RUNNER_SHA256_HEADER,
+} from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { INSTALL_SCRIPT } from '../../../../../src/modules/machines/service/runner/install-script.ts';
 
@@ -39,6 +44,7 @@ describe('the runner installer', () => {
       'fail() {',
       'option_of() {',
       'verify() {',
+      'fetch_manifest() {',
       'fetch_pty() {',
       'main() {',
     ]);
@@ -57,7 +63,7 @@ describe('the runner installer', () => {
     expect(code).toContain('via=$(option_of via "$@")');
     expect(code).toContain(`from=\${via%/}\n  from=\${from:-$server}`);
     expect(code).not.toContain('"$server/');
-    expect(code.match(/"\$from\//g)).toHaveLength(2);
+    expect(code.match(/"\$from\//g)).toHaveLength(3);
     expect(code).toContain('fail "cannot download the runner from $from"');
   });
 
@@ -116,7 +122,7 @@ describe("the installer and the terminal's PTY", () => {
     expect(verify).toBeGreaterThan(0);
     expect(unpack).toBeGreaterThan(verify);
     const runnerChecked = code.indexOf(
-      'verify "$dir/runner.mjs" "$dir/headers"\n  fetch_pty\n  node "$dir/runner.mjs"',
+      'verify "$dir/runner.mjs" "$dir/headers"\n  fetch_manifest\n  fetch_pty\n  node "$dir/runner.mjs"',
     );
     expect(runnerChecked).toBeGreaterThan(0);
     // The check names the file it refused.
@@ -128,6 +134,23 @@ describe("the installer and the terminal's PTY", () => {
       "printf 'mwc-runner install: no terminal for %s from %s; installing without it\\n'",
     );
     expect(code).toContain('if ! command -v tar >/dev/null 2>&1; then');
-    expect(code.match(/return 0/g)).toHaveLength(2);
+    expect(code.match(/return 0/g)).toHaveLength(3);
+  });
+});
+
+describe("the installer and the runner's manifest", () => {
+  it('downloads runner.json beside the runner, checked like it, before the install', () => {
+    expect(code).toContain(
+      `if ! curl -fsSL -D "$dir/manifest-headers" -o "$dir/runner.json" "$from${RUNNER_MANIFEST_PATH}"; then`,
+    );
+    expect(code).toContain('verify "$dir/runner.json" "$dir/manifest-headers"');
+    expect(code.indexOf('fetch_manifest\n')).toBeGreaterThan(code.indexOf('verify "$dir/runner.mjs"'));
+  });
+
+  it('installs without it (a missing one is no error), leaving no partial file', () => {
+    expect(code).toContain(
+      "printf 'mwc-runner install: no runner.json from %s; installing without its build time\\n'",
+    );
+    expect(code).toContain('rm -f "$dir/runner.json"');
   });
 });

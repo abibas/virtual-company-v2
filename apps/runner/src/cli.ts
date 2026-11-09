@@ -10,6 +10,7 @@ import { statusCommand } from './install/status.ts';
 import { PERMANENT_EXIT_CODES } from './install/systemd.ts';
 import { uninstallCommand } from './install/uninstall.ts';
 import { createLog, type Log } from './system/log.ts';
+import { runnerBuiltAt } from './system/version.ts';
 import { runnerBuild, updateTarget } from './update/build.ts';
 import { selfUpdater } from './update/self-update.ts';
 
@@ -91,11 +92,15 @@ export function serviceExit(env: Env, exit: (code: number) => void, log: Log): (
   };
 }
 
-/** What the daemon learns about itself once, at start: the build it runs and, for an installed copy, its self-update. */
-export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'update'> {
+/**
+ * What the daemon learns about itself once, at start: the build it runs, when that was built (the `runner.json` beside
+ * it) and, for an installed copy, its self-update.
+ */
+export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'builtAt' | 'update'> {
   const target = updateTarget(host);
   const update = target === undefined ? undefined : selfUpdater({ target, fetch: host.fetch, fs: host.fs });
-  return { build: runnerBuild(host), ...(update ? { update } : {}) };
+  const builtAt = runnerBuiltAt(host.selfPath, (path) => host.fs.readFile(path));
+  return { build: runnerBuild(host), builtAt, ...(update ? { update } : {}) };
 }
 
 /**

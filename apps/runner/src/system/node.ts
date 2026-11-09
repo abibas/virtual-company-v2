@@ -10,7 +10,7 @@ import { loadPty } from '../terminal/loader.ts';
 import { nodePrivateFs } from '../turns/files.ts';
 import type { MainDeps } from './deps.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
-import { runnerBuiltAt, runnerVersion } from './version.ts';
+import { runnerVersion } from './version.ts';
 
 /** The real process behind `main` (`main.ts`): Node's own modules, `ws`, the environment and the signals. */
 
@@ -62,7 +62,6 @@ export function nodeDeps(): MainDeps {
       return () => clearInterval(timer);
     },
     version: runnerVersion(readRunnerVersion),
-    builtAt: runnerBuiltAt(),
     // A power controller when the airia CLI and gcloud are installed here (found without starting a process).
     power: detectPowerExecutor({ env: process.env, home: os.homedir(), exists: existsSync }),
     // The PTY next to the bundle (node_modules/ beside runner.mjs), or the package's own from the sources.

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   RUNNER_BUNDLE_PATH,
   RUNNER_INSTALL_SCRIPT_PATH,
+  RUNNER_MANIFEST_PATH,
   RUNNER_PTY_PATH,
   RUNNER_SHA256_HEADER,
 } from '@mwc/shared/runner-protocol';
@@ -56,6 +57,29 @@ describe('GET /api/runner/runner.mjs', () => {
   });
 });
 
+describe('GET /api/runner/runner.json', () => {
+  it('serves the manifest beside the bundle (its build time) to anyone, uncached, with its SHA-256', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mwc-bundle-'));
+    const manifest = '{"version":"0.5.0","builtAt":"2026-11-09T16:56:00.000Z","sha256":"ab"}\n';
+    writeFileSync(join(dir, 'runner.json'), manifest);
+    const t = await appWith(join(dir, 'runner.mjs'));
+    const res = await t.app.request(RUNNER_MANIFEST_PATH);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.text()).toBe(manifest);
+    expect(res.headers.get(RUNNER_SHA256_HEADER)).toBe(createHash('sha256').update(manifest).digest('hex'));
+  });
+
+  it('is a 404 runner_bundle_missing until the runner is built', async () => {
+    const t = await appWith(join(tmpdir(), 'mwc-no-such-folder', 'runner.mjs'));
+    expect(await getJson(t.app, RUNNER_MANIFEST_PATH)).toMatchObject({
+      status: 404,
+      body: { error: { code: 'runner_bundle_missing', message: expect.stringContaining('manifest') } },
+    });
+  });
+});
+
 describe('GET /api/runner/install.sh', () => {
   it('serves the installer to anyone, uncached, as a shell script', async () => {
     const t = await appWith('/nowhere/runner.mjs');
@@ -71,6 +95,7 @@ describe('GET /api/runner/install.sh', () => {
     const doc = (await getJson(t.app, '/api/openapi.json')).body as { paths: Record<string, unknown> };
     expect(Object.keys(doc.paths)).not.toContain(RUNNER_INSTALL_SCRIPT_PATH);
     expect(Object.keys(doc.paths)).not.toContain(RUNNER_BUNDLE_PATH);
+    expect(Object.keys(doc.paths)).not.toContain(RUNNER_MANIFEST_PATH);
   });
 });
 

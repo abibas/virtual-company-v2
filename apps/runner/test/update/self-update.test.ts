@@ -11,9 +11,13 @@ const TARGET: UpdateTarget = { manager: 'systemd', bundle: BUNDLE, pty: 'linux-a
 const SERVER = 'http://127.0.0.1:9950';
 const RUNNER = '/api/runner/runner.mjs';
 const PTY = '/api/runner/pty/linux-arm64.tgz';
+const MANIFEST = '/api/runner/runner.json';
+const SIDECAR = `${DIR}/runner.json`;
+const OLD_JSON = '{"builtAt":"2026-11-09T16:56:00.000Z"}';
+const NEW_JSON = '{"builtAt":"2026-11-09T17:21:00.000Z"}';
 
-/** The installed copy: the old bundle and the old PTY. */
-const installed = () => memoryFs({ [BUNDLE]: '// old', [OLD_PTY]: '{"version":"old"}' });
+/** The installed copy: the old bundle, its manifest and the old PTY. */
+const installed = () => memoryFs({ [BUNDLE]: '// old', [SIDECAR]: OLD_JSON, [OLD_PTY]: '{"version":"old"}' });
 
 function updater(downloads: Record<string, Download>, files = installed(), target = TARGET) {
   const server = fakeDownloads(downloads);
@@ -33,36 +37,75 @@ async function refusal(promise: Promise<unknown>) {
 
 /** The old copy, untouched, and nothing left over. */
 function expectOldCopy(files: ReturnType<typeof installed>) {
-  expect(files.paths()).toEqual([BUNDLE, OLD_PTY].sort());
-  expect([files.text(BUNDLE), files.text(OLD_PTY)]).toEqual(['// old', '{"version":"old"}']);
+  expect(files.paths()).toEqual([BUNDLE, SIDECAR, OLD_PTY].sort());
+  expect([files.text(BUNDLE), files.text(SIDECAR), files.text(OLD_PTY)]).toEqual([
+    '// old',
+    OLD_JSON,
+    '{"version":"old"}',
+  ]);
 }
 
 describe('the self-update', () => {
-  it('downloads the runner and its PTY from its server, checks them and puts them in place', async () => {
-    const { update, files, urls } = updater({ [RUNNER]: { body: '// new' }, [PTY]: { body: ptyArchive() } });
+  it('downloads the runner, its manifest and its PTY from its server, checks them and puts them in place', async () => {
+    const { update, files, urls } = updater({
+      [RUNNER]: { body: '// new' },
+      [MANIFEST]: { body: NEW_JSON },
+      [PTY]: { body: ptyArchive() },
+    });
     expect(update.manager).toBe('systemd');
     expect(await update.apply(`${SERVER}/`)).toEqual({ build: sha('// new'), pty: true });
-    expect(urls).toEqual([`${SERVER}${RUNNER}`, `${SERVER}${PTY}`]);
+    expect(urls).toEqual([`${SERVER}${RUNNER}`, `${SERVER}${MANIFEST}`, `${SERVER}${PTY}`]);
     expect(files.text(BUNDLE)).toBe('// new');
+    expect(files.text(SIDECAR)).toBe(NEW_JSON);
+    expect(files.mode(SIDECAR)).toBe(0o644);
     expect(files.text(OLD_PTY)).toBe('{"version":"new"}');
     expect(files.mode(NEW_PTY)).toBe(0o755);
     expect(files.mode(BUNDLE)).toBe(0o644);
-    expect(files.paths()).toEqual([OLD_PTY, NEW_PTY, BUNDLE].sort());
+    expect(files.paths()).toEqual([OLD_PTY, NEW_PTY, SIDECAR, BUNDLE].sort());
   });
 
-  it('replaces atomically: everything written aside first, the old PTY moved away, the new one in, then the bundle', async () => {
-    const { update, files } = updater({ [RUNNER]: { body: '// new' }, [PTY]: { body: ptyArchive() } });
+  it('replaces atomically: everything written aside first, the old PTY and manifest moved away, the new ones in, then the bundle', async () => {
+    const { update, files } = updater({
+      [RUNNER]: { body: '// new' },
+      [MANIFEST]: { body: NEW_JSON },
+      [PTY]: { body: ptyArchive() },
+    });
     await update.apply(SERVER);
     expect(files.ops.filter((op) => !op.startsWith('mkdir'))).toEqual([
       `writeBytes ${DIR}/.runner.t1.tmp`,
+      `writeBytes ${DIR}/.runner-json.t1.tmp`,
       `writeBytes ${DIR}/.update.t1/node_modules/@lydell/node-pty-linux-arm64/package.json`,
       `writeBytes ${DIR}/.update.t1/node_modules/@lydell/node-pty-linux-arm64/prebuilds/spawn-helper`,
       `rename ${DIR}/node_modules`,
       `rename ${DIR}/.update.t1/node_modules`,
+      `rename ${DIR}/runner.json`,
+      `rename ${DIR}/.runner-json.t1.tmp`,
       `rename ${DIR}/.runner.t1.tmp`,
       `remove ${DIR}/.update.t1`,
       `remove ${DIR}/.node_modules.t1.old`,
+      `remove ${DIR}/.runner-json.t1.old`,
     ]);
+  });
+
+  it('leaves no manifest from a server without one (an old one would tell a wrong build time)', async () => {
+    const { update, files, urls } = updater({ [RUNNER]: { body: '// new' } });
+    await update.apply(SERVER);
+    expect(urls).toContain(`${SERVER}${MANIFEST}`);
+    expect(files.text(BUNDLE)).toBe('// new');
+    expect(files.text(SIDECAR)).toBeUndefined();
+    expect(files.paths()).toEqual([BUNDLE, OLD_PTY].sort());
+  });
+
+  it('refuses a manifest that does not match its SHA-256, and keeps the old copy', async () => {
+    const { update, files } = updater({
+      [RUNNER]: { body: '// new' },
+      [MANIFEST]: { body: NEW_JSON, sha: sha(OLD_JSON) },
+    });
+    expect(await refusal(update.apply(SERVER))).toMatchObject({
+      code: 'hash_mismatch',
+      message: expect.stringContaining("the runner's manifest does not match its SHA-256"),
+    });
+    expectOldCopy(files);
   });
 
   it('reads a ws server address as http, and a ws one with TLS as https', async () => {
@@ -71,7 +114,7 @@ describe('the self-update', () => {
       pty: undefined,
     });
     await update.apply('wss://corp.example.test');
-    expect(urls).toEqual([`https://corp.example.test${RUNNER}`]);
+    expect(urls).toEqual([`https://corp.example.test${RUNNER}`, `https://corp.example.test${MANIFEST}`]);
   });
 
   it('refuses a runner that does not match its SHA-256, or comes without one, and keeps the old copy', async () => {
@@ -126,7 +169,7 @@ describe('the self-update', () => {
     ]);
     const other = updater({ [RUNNER]: { body: '// new' } }, installed(), { ...TARGET, pty: undefined });
     expect((await other.update.apply(SERVER)).pty).toBe(false);
-    expect(other.urls).toEqual([`${SERVER}${RUNNER}`]);
+    expect(other.urls).toEqual([`${SERVER}${RUNNER}`, `${SERVER}${MANIFEST}`]);
   });
 
   it('puts a PTY in place where there was none', async () => {
@@ -163,10 +206,15 @@ describe('the self-update', () => {
     expectOldCopy(files);
   });
 
-  it('puts the old PTY back when the bundle cannot be renamed into place', async () => {
+  it('puts the old PTY and manifest back when the bundle cannot be renamed into place', async () => {
     const files = installed();
     files.failWhen((op, path) => op === 'rename' && path.endsWith('.runner.t1.tmp'));
-    const { update } = updater({ [RUNNER]: { body: '// new' }, [PTY]: { body: ptyArchive() } }, files);
+    const downloads = {
+      [RUNNER]: { body: '// new' },
+      [MANIFEST]: { body: NEW_JSON },
+      [PTY]: { body: ptyArchive() },
+    };
+    const { update } = updater(downloads, files);
     expect((await refusal(update.apply(SERVER))).code).toBe('write_failed');
     expectOldCopy(files);
   });

@@ -167,9 +167,11 @@ later). Never both:
 Built in S4.5. A runner is one JavaScript file, `apps/runner/dist/runner.mjs` (`pnpm --filter @mwc/runner build`,
 esbuild, Node 22 or newer, every dependency inside; `mwc check --full` builds it too), that runs the daemon (`run`) and
 installs itself (`enroll`, `install`, `status`, `uninstall`; `node runner.mjs help`). The server hands it out:
-`GET /api/runner/runner.mjs` (404 `runner_bundle_missing` until it is built; its SHA-256 in `x-mwc-runner-sha256`) and
+`GET /api/runner/runner.mjs` (404 `runner_bundle_missing` until it is built; its SHA-256 in `x-mwc-runner-sha256`),
+`GET /api/runner/runner.json` (the manifest beside it, its build time; the same 404 and header) and
 `GET /api/runner/install.sh`, a POSIX script that checks for Node 22 and curl, downloads the bundle to a temporary
-folder, checks its SHA-256, downloads the terminal's PTY for the machine's system (`GET /api/runner/pty/<target>.tgz`,
+folder, checks its SHA-256, downloads `runner.json` beside it (checked the same way; a server without one is no error,
+the runner then says no build time), downloads the terminal's PTY for the machine's system (`GET /api/runner/pty/<target>.tgz`,
 checked the same way and unpacked beside the bundle with `tar`; "Terminal" below) and runs `node runner.mjs install`
 with its own arguments. All are public: the enrollment token is the secret. Nothing is installed by the repository's
 tooling; each install is a person's own step.
@@ -404,11 +406,18 @@ Added 2026-11-09 (Ihor: "what is the version of the runner running on an agent m
 system as the last one"). A runner's version is its package's semver plus its build time:
 
 - **The semver** is `apps/runner/package.json`'s `version`, bumped with each stage's release tag (0.5.0 from S4 on).
-- **The build time.** `pnpm --filter @mwc/runner build` stamps the bundle with `{ version, builtAt }` (esbuild `define`,
-  `builtAt` in UTC ISO 8601) and writes `dist/runner.json` `{ version, builtAt, sha256 }` beside `runner.mjs` (the PTY
-  archives keep their own hashes). The build time tells builds of one version apart. Run from its sources, the runner
-  says its package's version and `builtAt: null`.
-- **The hello.** `runner.hello` carries `version` (the stamped one) and `builtAt` (null from the sources; a runner older
+- **The build time.** `pnpm --filter @mwc/runner build` stamps the bundle with its version only (esbuild `define`) and
+  writes `dist/runner.json` `{ version, builtAt, sha256 }` beside `runner.mjs` (`builtAt` in UTC ISO 8601; the PTY
+  archives keep their own hashes). The bundle is reproducible: it carries no build time, so the same sources build the
+  same bytes, and a runner built elsewhere from the same commit (the Docker image builds its own) has the hash the
+  server serves and counts as current (2026-11-09: a stamped build time once made every rebuilt container "out of date"
+  forever). The build time lives only in `runner.json`, which goes wherever the bundle goes: the server serves it,
+  `install.sh` downloads it, `install` copies it beside the installed `runner.mjs`, the self-update writes it with the
+  bundle, and the image has it at `/opt/mwc-runner/runner.json`. The runner reads `builtAt` from the `runner.json`
+  beside the file it runs, once at start (null when missing or garbled). Run from its sources, the runner says its
+  package's version and `builtAt: null`.
+- **The hello.** `runner.hello` carries `version` (the stamped one) and `builtAt` (from `runner.json`; null from the
+  sources or without one; a runner older
   than this leaves it out, which parses as null).
 - **The server.** It reads `dist/runner.json` beside the bundle it hands out (again only when the file's time or size
   changes; null while the bundle or the manifest is missing or the manifest does not parse). `GET machines` answers

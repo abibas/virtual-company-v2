@@ -1,6 +1,7 @@
 import {
   RUNNER_BUNDLE_PATH,
   RUNNER_INSTALL_SCRIPT_PATH,
+  RUNNER_MANIFEST_PATH,
   RUNNER_PTY_PATH,
   RUNNER_SHA256_HEADER,
   RunnerPtyTarget,
@@ -10,11 +11,14 @@ import { errorJson } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { DEFAULT_RUNNER_BUNDLE, ptyArchivePath, readRunnerBundle } from '../service/runner/download.ts';
 import { INSTALL_SCRIPT } from '../service/runner/install-script.ts';
+import { manifestPath } from '../service/runner/latest.ts';
 
 /**
  * Installing a runner (S4.5, docs/machines.md "Installing a runner"): `GET /api/runner/install.sh`, the installer a
  * machine pipes into `sh`, and `GET /api/runner/runner.mjs`, the runner it downloads, with its SHA-256 in a header
- * (404 `runner_bundle_missing` until `pnpm --filter @mwc/runner build` made it), and `GET /api/runner/pty/<target>.tgz`,
+ * (404 `runner_bundle_missing` until `pnpm --filter @mwc/runner build` made it), `GET /api/runner/runner.json`, the
+ * manifest beside it (`{ version, builtAt, sha256 }`, where the build time lives: the bundle carries none), with its own
+ * SHA-256 (the same 404 without it), and `GET /api/runner/pty/<target>.tgz`,
  * the terminal's PTY for a system, also with its SHA-256 (404 `runner_pty_missing` for a system none is built for, or
  * until the build). All public: the enrollment token the script is given is the secret. Not in the OpenAPI document:
  * none is JSON.
@@ -42,6 +46,22 @@ export function runnerDownloadRoutes(deps: ServerDeps) {
         'content-type': 'text/javascript; charset=utf-8',
         'cache-control': 'no-store',
         [RUNNER_SHA256_HEADER]: bundle.sha256,
+      });
+    })
+    .get(RUNNER_MANIFEST_PATH, async (c) => {
+      const manifest = await readRunnerBundle(manifestPath(bundlePath));
+      if (!manifest.ok) {
+        return errorJson(
+          c,
+          404,
+          'runner_bundle_missing',
+          "The runner's manifest is not built on this server (pnpm --filter @mwc/runner build)",
+        );
+      }
+      return c.body(manifest.body, 200, {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+        [RUNNER_SHA256_HEADER]: manifest.sha256,
       });
     })
     .get(`${RUNNER_PTY_PATH}/:file`, async (c) => {

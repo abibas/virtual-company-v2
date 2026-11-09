@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 #
 # The runner in a container (docs/machines.md, "Installing a runner"): Node 24, git, Claude Code and Codex (pinned, for
-# chat turns) and tini as PID 1, with the runner bundle (apps/runner/dist/runner.mjs, built here) and the terminal's PTY
+# chat turns) and tini as PID 1, with the runner bundle (apps/runner/dist/runner.mjs, built here; reproducible, so it is
+# the same bytes the server serves from the same commit), its manifest runner.json (its build time) and the terminal's PTY
 # for the image's system beside it (node_modules/@lydell/node-pty-linux-<arch>, unpacked from the build's dist/pty/),
 # run by a non-root user. Its
 # state, runner.json with the runner key included, is the volume /var/lib/mwc-runner. On its first start, without a
@@ -60,6 +61,7 @@ ENV NODE_ENV=production \
     MWC_RUNNER_CONFIG=/var/lib/mwc-runner/runner.json \
     MWC_RUNNER_HOLD=none
 COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs
+COPY --from=bundle /app/apps/runner/dist/runner.json /opt/mwc-runner/runner.json
 COPY --from=bundle /out/node_modules /opt/mwc-runner/node_modules
 USER runner
 WORKDIR /home/runner

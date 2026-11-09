@@ -1,14 +1,21 @@
-import { RUNNER_BUNDLE_PATH, RUNNER_PTY_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
+import {
+  RUNNER_BUNDLE_PATH,
+  RUNNER_MANIFEST_PATH,
+  RUNNER_PTY_PATH,
+  RUNNER_SHA256_HEADER,
+} from '@mwc/shared/runner-protocol';
 
 /**
  * The installer a machine runs (`GET /api/runner/install.sh`, docs/machines.md "Installing a runner"), a POSIX shell
  * script: Node 22 or newer, the runner bundle downloaded to a temporary folder, its SHA-256 checked against the
- * server's header (by Node, so macOS and Linux check alike), the terminal's PTY for this system downloaded, checked the
- * same way and unpacked beside it (without it, or without `tar`, the runner installs with no terminal; one that does not
- * match its SHA-256 stops the install), then `node runner.mjs install` with the script's own arguments. Everything is in functions called on the last line, so nothing runs before `curl … | sh` has delivered the
- * whole script, and nothing reads the script's standard input. The same text for every machine: the server and the
- * token come as arguments, and `--via`, when given, is the address the downloads (and the runner's enroll) use instead
- * of `--server`, which stays the address the runner keeps.
+ * server's header (by Node, so macOS and Linux check alike), its manifest `runner.json` downloaded beside it (its build
+ * time; checked the same way; a server without one is no error, the runner then says no build time), the terminal's
+ * PTY for this system downloaded, checked the same way and unpacked beside it (without it, or without `tar`, the runner
+ * installs with no terminal; a file that does not match its SHA-256 stops the install), then `node runner.mjs install`
+ * with the script's own arguments. Everything is in functions called on the last line, so nothing runs before
+ * `curl … | sh` has delivered the whole script, and nothing reads the script's standard input. The same text for every
+ * machine: the server and the token come as arguments, and `--via`, when given, is the address the downloads (and the
+ * runner's enroll) use instead of `--server`, which stays the address the runner keeps.
  */
 
 /** Node's check of the bundle against the SHA-256 header (`node -e`; no single quotes, the shell quotes it). */
@@ -77,6 +84,17 @@ verify() {
   node -e '${VERIFY_JS}' "$1" "$2"
 }
 
+# The runner's manifest (runner.json: its version, build time and SHA-256), checked like the runner and put beside it;
+# without one the runner installs and works, saying no build time.
+fetch_manifest() {
+  if ! curl -fsSL -D "$dir/manifest-headers" -o "$dir/runner.json" "$from${RUNNER_MANIFEST_PATH}"; then
+    rm -f "$dir/runner.json"
+    printf 'mwc-runner install: no runner.json from %s; installing without its build time\\n' "$from" >&2
+    return 0
+  fi
+  verify "$dir/runner.json" "$dir/manifest-headers"
+}
+
 # The terminal's PTY for this system (prebuilt node-pty), checked like the runner and unpacked beside it as
 # node_modules/; without it the runner installs and works, with no terminal.
 fetch_pty() {
@@ -110,6 +128,7 @@ main() {
   curl -fsSL -D "$dir/headers" -o "$dir/runner.mjs" "$from${RUNNER_BUNDLE_PATH}" ||
     fail "cannot download the runner from $from"
   verify "$dir/runner.mjs" "$dir/headers"
+  fetch_manifest
   fetch_pty
   node "$dir/runner.mjs" install "$@" </dev/null
 }

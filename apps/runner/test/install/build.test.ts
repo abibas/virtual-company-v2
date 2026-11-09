@@ -23,10 +23,7 @@ const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
 
 describe('the runner bundle', () => {
   it('is one ES module for Node 22 with every dependency inside but the native add-ons and the PTY', () => {
-    const options = bundleOptions('/repo/apps/runner', {
-      version: '0.1.0',
-      builtAt: '2026-11-09T16:40:00.000Z',
-    });
+    const options = bundleOptions('/repo/apps/runner', '0.1.0');
     expect(options).toMatchObject({
       entryPoints: ['/repo/apps/runner/src/main.ts'],
       outfile: '/repo/apps/runner/dist/runner.mjs',
@@ -35,7 +32,7 @@ describe('the runner bundle', () => {
       format: 'esm',
       target: 'node22',
       external: ['bufferutil', 'utf-8-validate', '@lydell/node-pty-*'],
-      define: { MWC_RUNNER_VERSION: '"0.1.0"', MWC_RUNNER_BUILT_AT: '"2026-11-09T16:40:00.000Z"' },
+      define: { MWC_RUNNER_VERSION: '"0.1.0"' },
       minify: false,
     });
     expect(options.packages).toBeUndefined();
@@ -45,7 +42,7 @@ describe('the runner bundle', () => {
     expect(BUNDLE_BANNER).toContain('const require = createRunnerRequire(import.meta.url);');
   });
 
-  it("builds with esbuild, stamped with the package's version and the build time, and writes runner.json", async () => {
+  it("builds with esbuild, stamped with the package's version only, and writes the build time in runner.json", async () => {
     const built: BuildOptions[] = [];
     const written: Record<string, string> = {};
     const fakes = {
@@ -61,10 +58,7 @@ describe('the runner bundle', () => {
       ...fakes,
     });
     expect(out).toBe(`/repo/apps/runner/${BUNDLE_FILE}`);
-    expect(built[0]?.define).toEqual({
-      MWC_RUNNER_VERSION: '"0.4.2"',
-      MWC_RUNNER_BUILT_AT: '"2026-11-09T16:40:00.000Z"',
-    });
+    expect(built[0]?.define).toEqual({ MWC_RUNNER_VERSION: '"0.4.2"' });
     expect(JSON.parse(written[`/repo/apps/runner/${MANIFEST_FILE}`] as string)).toEqual({
       version: '0.4.2',
       builtAt: '2026-11-09T16:40:00.000Z',
@@ -72,6 +66,28 @@ describe('the runner bundle', () => {
     });
     const noVersion = { build: async () => {}, readFile: () => '{"name":"x"}', ...fakes };
     await expect(buildBundle('/repo/apps/runner', noVersion)).rejects.toThrow('has no version');
+  });
+
+  it('is reproducible: two builds at different times get the same options, with nothing time-dependent defined', async () => {
+    const built: BuildOptions[] = [];
+    const written: string[] = [];
+    for (const at of ['2026-11-09T16:56:00.000Z', '2026-11-09T17:21:00.000Z']) {
+      await buildBundle('/repo/apps/runner', {
+        build: async (options) => built.push(options),
+        readFile: () => '{"name":"@mwc/runner","version":"0.5.0"}',
+        readBytes: () => new TextEncoder().encode('the same bundle'),
+        writeFile: (_path, text) => written.push(text),
+        now: () => new Date(at),
+      });
+    }
+    expect(built[1]).toEqual(built[0]);
+    const values = Object.values(built[0]?.define ?? {});
+    expect(values).toEqual(['"0.5.0"']);
+    for (const value of values) expect(value).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    // The build times differ only in runner.json, whose SHA-256 is the same.
+    const [first, second] = written.map((text) => JSON.parse(text) as { builtAt: string; sha256: string });
+    expect(first?.builtAt).not.toBe(second?.builtAt);
+    expect(first?.sha256).toBe(second?.sha256);
   });
 
   it('is versioned 0.5.0 or later in its package.json', () => {

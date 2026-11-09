@@ -48,6 +48,10 @@ describe('the container that enrolls on its first start', () => {
     expect(dockerfile).toContain(
       'COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs',
     );
+    // Its manifest beside it: the build time the runner says (the bundle carries none).
+    expect(dockerfile).toContain(
+      'COPY --from=bundle /app/apps/runner/dist/runner.json /opt/mwc-runner/runner.json',
+    );
     // The terminal's PTY of the image's own system, beside the bundle.
     expect(dockerfile).toContain('tar -xzf "apps/runner/dist/pty/linux-$(node -p process.arch).tgz" -C /out');
     expect(dockerfile).toContain('COPY --from=bundle /out/node_modules /opt/mwc-runner/node_modules');

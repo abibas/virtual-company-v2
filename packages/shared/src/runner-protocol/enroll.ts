@@ -27,6 +27,12 @@ export const RUNNER_ENROLL_PATH = '/api/runner/enroll';
 export const RUNNER_INSTALL_SCRIPT_PATH = '/api/runner/install.sh';
 export const RUNNER_BUNDLE_PATH = '/api/runner/runner.mjs';
 export const RUNNER_SHA256_HEADER = 'x-mwc-runner-sha256';
+/**
+ * The bundle's manifest, `runner.json` (`{ version, builtAt, sha256 }`, with its own SHA-256 in `RUNNER_SHA256_HEADER`):
+ * the bundle carries no build time, so the installer and the self-update put this beside it and the runner reads its
+ * build time from there.
+ */
+export const RUNNER_MANIFEST_PATH = '/api/runner/runner.json';
 
 /**
  * The systems whose terminal PTY the server hands out (`<platform>-<arch>`, as Node names them): the prebuilt node-pty

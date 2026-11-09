@@ -47,7 +47,7 @@ export interface MainDeps {
   /** Keeps the process alive with nothing else to do (a replaced link); returns the release. */
   keepAlive(): () => void;
   readonly version: string;
-  /** When its bundle was built (`system/version.ts`), sent in the hello; null from the sources. */
+  /** When its bundle was built (the `runner.json` beside it, `system/version.ts`), sent in the hello; null from the sources. */
   readonly builtAt?: string | null;
   /** Claude Code's version (`cli.ts` asks `claude --version` once), sent in the hello; left out when unknown. */
   readonly claudeVersion?: string | null;
