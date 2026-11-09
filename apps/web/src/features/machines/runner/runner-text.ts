@@ -3,11 +3,13 @@ import type { Machine } from '../../../api/types.ts';
 /** When a machine card offers to update its runner, and what it says while it does (pure). */
 
 /**
- * True when the runner needs the update: it is connected and runs another build than the one the server hands out, or
- * it has no terminal (a runner older than the terminal). An offline machine says nothing: its runner is unknown.
+ * True when the runner needs the update: it is connected and runs another build than the one the server hands out,
+ * says no build at all (a runner older than build reporting; one run from its sources says none either, and its update
+ * is refused with the command to run), or has no terminal. An offline machine says nothing: its runner is unknown.
  */
 export function runnerOutOfDate(machine: Pick<Machine, 'runner'>, online: boolean): boolean {
-  return online && (machine.runner.current === false || !machine.runner.terminal);
+  const { current, build, terminal } = machine.runner;
+  return online && (current === false || build === null || !terminal);
 }
 
 /** How long after an update the card loads again: the runner restarts about 10 s after it (its service's wait). */
