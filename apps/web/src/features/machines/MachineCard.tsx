@@ -138,30 +138,17 @@ function Header({
   );
 }
 
-/** The power parts: the devbox's controls, the log, and the power settings. */
-function PowerParts({
-  machine,
-  control,
-  now,
-}: {
-  readonly machine: Machine;
-  readonly control: PowerControl;
-  readonly now: number;
-}) {
+/** The power parts: the devbox's controls and the power settings (the log is behind the actions' Log button). */
+function PowerParts({ machine, control }: { readonly machine: Machine; readonly control: PowerControl }) {
   const power = control.power.data;
   const devbox = machine.provider === 'airia_devbox';
   return (
     <div className="grid gap-6 border-t border-line pt-5 lg:grid-cols-2">
-      <div className="flex min-w-0 flex-col gap-6">
-        {devbox && power && (
-          <Part title="Power">
-            <DevboxPower power={power} control={control} />
-          </Part>
-        )}
-        <Part title="Log">
-          <PowerLog events={control.events} now={now} />
+      {devbox && power && (
+        <Part title="Power">
+          <DevboxPower power={power} control={control} />
         </Part>
-      </div>
+      )}
       <Part title="Power settings">
         <LoadState loaded={control.power} label="Loading the power settings…">
           {(data) => (
@@ -223,13 +210,14 @@ export function MachineCard({
         onRename={rename}
       />
       {stats && <MachineMetrics stats={stats} />}
-      <PowerParts machine={machine} control={control} now={now} />
+      <PowerParts machine={machine} control={control} />
       <MachineActions
         machine={machine}
         companyId={companyId}
         admin={admin}
         owner={owner}
         online={(stats?.status ?? machine.status) === 'online'}
+        log={<PowerLog events={control.events} now={now} />}
         onRemove={remove}
       />
     </Card>

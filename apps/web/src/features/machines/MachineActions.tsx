@@ -1,5 +1,5 @@
-import { SquareTerminal } from 'lucide-react';
-import { useState } from 'react';
+import { History, SquareTerminal } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 import type { Machine } from '../../api/types.ts';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { Button } from '../../components/ui/Button.tsx';
@@ -18,8 +18,8 @@ function ConnectPanel({ command, hint }: { readonly command: string; readonly hi
 }
 
 /**
- * The card's action row: tools on the left (Connect, and Terminal for owners while the machine is online), Remove for
- * admins on the right, and the open tool's panel under the row (the terminal in its own sheet).
+ * The card's action row: tools on the left (Connect, Terminal for owners while the machine is online, and the power
+ * Log), Remove for admins on the right, and the open tool's panel under the row (the terminal in its own sheet).
  */
 export function MachineActions({
   machine,
@@ -27,6 +27,7 @@ export function MachineActions({
   admin,
   owner,
   online,
+  log,
   onRemove,
 }: {
   readonly machine: Machine;
@@ -34,11 +35,13 @@ export function MachineActions({
   readonly admin: boolean;
   readonly owner: boolean;
   readonly online: boolean;
+  /** The power log, shown under the row while Log is open. */
+  readonly log: ReactNode;
   readonly onRemove: () => Promise<void>;
 }) {
   const connect = connectCommand(machine);
-  const [open, setOpen] = useState(false);
-  if (!connect && !admin && !owner) return null;
+  const [panel, setPanel] = useState<'connect' | 'log' | null>(null);
+  const toggle = (which: 'connect' | 'log') => setPanel((was) => (was === which ? null : which));
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -46,15 +49,24 @@ export function MachineActions({
           {connect && (
             <Button
               size="sm"
-              tone={open ? 'soft' : 'secondary'}
+              tone={panel === 'connect' ? 'soft' : 'secondary'}
               icon={SquareTerminal}
-              aria-expanded={open}
-              onClick={() => setOpen((was) => !was)}
+              aria-expanded={panel === 'connect'}
+              onClick={() => toggle('connect')}
             >
               Connect
             </Button>
           )}
           {owner && <TerminalButton companyId={companyId} machine={machine} online={online} />}
+          <Button
+            size="sm"
+            tone={panel === 'log' ? 'soft' : 'secondary'}
+            icon={History}
+            aria-expanded={panel === 'log'}
+            onClick={() => toggle('log')}
+          >
+            Log
+          </Button>
         </div>
         {admin && (
           <ConfirmInline
@@ -65,7 +77,12 @@ export function MachineActions({
           />
         )}
       </div>
-      {connect && open && <ConnectPanel command={connect.command} hint={connect.hint} />}
+      {connect && panel === 'connect' && <ConnectPanel command={connect.command} hint={connect.hint} />}
+      {panel === 'log' && (
+        <section aria-label="Log" className="flex flex-col gap-3">
+          {log}
+        </section>
+      )}
     </div>
   );
 }
