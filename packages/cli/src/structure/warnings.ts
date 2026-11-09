@@ -119,6 +119,13 @@ function glob(pattern: string, whole = false): RegExp {
   return new RegExp(`^${parts.join('[^/]+')}${whole ? '$' : ''}`);
 }
 
+/** The source folder a test folder mirrors (`<pkg>/test/<path>/` → `<pkg>/src/<path>/`), or '' for none. */
+function mirroredSource(folder: string, rules: StructureRules): string {
+  const where = packageOf(folder, rules);
+  if (!where?.inner.startsWith('test/') || where.inner === 'test/') return '';
+  return `${where.pkg}/src/${where.inner.slice('test/'.length)}`;
+}
+
 /** Who imports, for `fan-in`: the folder of the `fanInGroups` pattern the file is in, or the file. */
 function importerOf(path: string, groups: readonly RegExp[]): string {
   for (const group of groups) {
@@ -202,8 +209,9 @@ export function structureWarnings(
       importers.set(target, (importers.get(target) ?? new Set()).add(importer));
     }
   }
+  const ownLimit = (folder: string) => limits.find(({ folder: own }) => own.test(folder))?.limit;
   for (const [folder, inside] of entries) {
-    const limit = limits.find(({ folder: own }) => own.test(folder))?.limit ?? rules.warn.folderEntries;
+    const limit = ownLimit(folder) ?? ownLimit(mirroredSource(folder, rules)) ?? rules.warn.folderEntries;
     if (inside.size <= limit) continue;
     found.push({ kind: 'big-folder', path: folder, message: `${inside.size} entries`, weight: inside.size });
   }

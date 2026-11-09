@@ -92,6 +92,27 @@ describe('structureWarnings', () => {
     ]);
   });
 
+  it('gives shared and the web api their own limit, and a test folder the limit of the source folder it mirrors', () => {
+    const files: Record<string, string> = {};
+    const fill = (folder: string, n: number) => {
+      for (let i = 0; i < n; i++) files[`${folder}f${i}.ts`] = '';
+    };
+    fill('packages/shared/src/', 20);
+    fill('packages/shared/test/', 20);
+    fill('apps/web/src/api/', 20);
+    fill('packages/db/test/schema/', 20);
+    fill('apps/web/test/components/ui/', 20);
+    fill('packages/db/test/diagram/', 13);
+    fill('packages/db/test/', 11);
+    fill('apps/web/src/api/deep/', 13);
+    expect(structureWarnings(treeOf(files), undefined)).toEqual([
+      { kind: 'big-folder', path: 'apps/web/src/api/', message: '21 entries' },
+      { kind: 'big-folder', path: 'apps/web/src/api/deep/', message: '13 entries' },
+      { kind: 'big-folder', path: 'packages/db/test/', message: '13 entries' },
+      { kind: 'big-folder', path: 'packages/db/test/diagram/', message: '13 entries' },
+    ]);
+  });
+
   it('warns on files that 8 or more files of their package import, counting each importer once', () => {
     const files: Record<string, string> = { 'packages/db/src/rules.ts': '', 'packages/db/src/tree.ts': '' };
     for (let i = 0; i < 7; i++)

@@ -80,7 +80,8 @@ Newest first, one entry per lesson:
 - **What was done:** nothing; S4.2–S4.4 cite these import paths.
 - **Suggested change:** give `packages/shared/src/` (one contract file per domain, growing by design) a limit of its own
   in `folderEntriesFor`, or group it by domain behind the same subpath exports when S4.2 or S5 adds the next contract.
-- **Status:** `open`.
+- **Status:** `adopted` (S4 structure review, 2026-11-09: shared's `src/` and `test/` warn at 20, mirrored test folders
+  as their source, in the commit "Structure (S4 review 4)"; testkit's `src/` keeps 12).
 
 ### 2026-11-06: The db package's `src/` is back to 12 by moving the diagram, not by grouping the access layers
 

@@ -117,11 +117,11 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
   and keep every test body as it was: the test count is the same before and after.
 - A function over about 60 lines is a smell: split it into named steps when you change it.
 - `pnpm mwc structure --report` lists the hot spots before anything fails: files above 80% of their limit,
-  functions over 60 lines, folders with more than 12 entries (20 for each folder of the web's `components/`
-  and for the db schema), files that 8 or more files of their package import for their values (type-only
-  imports left out, a server module counted once, the web's `components/`, `api/` and `app/` never listed),
-  and the weakest-covered files. `mwc check` ends with a summary of it. When the file you are changing is
-  listed, split it as part of your change. The other hot spots wait for the review.
+  functions over 60 lines, folders over 12 entries (20: each web `components/` folder, web `api/`, db schema,
+  shared `src/` and `test/`; a mirrored test folder gets its source's), files that 8 or more files of their
+  package import for their values (type-only imports left out, a server module counted once, the web's
+  `components/`, `api/` and `app/` never listed), and the weakest-covered files. `mwc check` ends with a
+  summary of it. When the file you are changing is listed, split it then; the other hot spots wait for review.
 - Worked example: [references/splitting.md](references/splitting.md).
 
 ## Tests
