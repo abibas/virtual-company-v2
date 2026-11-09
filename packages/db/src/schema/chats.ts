@@ -1,5 +1,5 @@
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import {
@@ -76,7 +76,9 @@ export const chats = pgTable(
 /**
  * A chat's turns, numbered from 1 (`seq`): the prompt, how far it got, the profile and credential it actually ran on
  * (plain ids, kept after either goes, like `credential_uses`), its reply, error and token usage. At most one turn of a
- * chat is queued or running at a time.
+ * chat is queued or running at a time. Its `kind` (S5.2): a person's prompt, the harness's own `/compact`, or a Clear,
+ * which runs no process (always `done`, on no credential) and marks where the chat's next turn starts a new
+ * conversation.
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -85,6 +87,7 @@ export const chatTurns = pgTable(
     companyId: companyIdColumn(),
     chatId: uuid('chat_id').notNull(),
     seq: integer('seq').notNull(),
+    kind: text('kind').$type<ChatTurnKind>().notNull().default('message'),
     prompt: text('prompt').notNull(),
     status: text('status').$type<ChatTurnStatus>().notNull().default('queued'),
     profileId: uuid('profile_id'),
@@ -105,6 +108,11 @@ export const chatTurns = pgTable(
     tenantForeignKey('chat_turns_chat_fk', t.companyId, t.chatId, chats),
     tenantForeignKey('chat_turns_created_by_fk', t.companyId, t.createdBy, principals),
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
+    check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),
+    check(
+      'chat_turns_clear_check',
+      sql`${t.kind} <> 'clear' or (${t.status} = 'done' and ${t.credentialId} is null)`,
+    ),
     check('chat_turns_seq_check', sql`${t.seq} >= 1`),
     check(
       'chat_turns_prompt_check',

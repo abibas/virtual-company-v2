@@ -10,7 +10,17 @@ export {
   TURN_ARGS,
   unsetFor,
 } from './args.ts';
+export { contextEvents, forgetContext, resultContext } from './context.ts';
 export { ClaudeCodeDriver, type ClaudeCodeDriverOptions } from './driver.ts';
-export { assistantEvents, resultEvents, systemEvents, userEvents } from './messages.ts';
+export { assistantEvents, resultEvents, todoEvent, userEvents } from './messages.ts';
 export { ClaudeLineParser } from './parser.ts';
+export { type ClaudeState, newClaudeState, parentOf, type SubagentState } from './state.ts';
+export {
+  interruptedSubagents,
+  SUBAGENT_TOOLS,
+  subagentAnswered,
+  subagentStarted,
+  taskEvents,
+} from './subagents.ts';
 export { denialNotice, resultSummary, resultText, toolSummary } from './summary.ts';
+export { systemEvents } from './system.ts';

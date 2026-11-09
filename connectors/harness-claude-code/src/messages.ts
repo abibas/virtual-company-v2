@@ -1,61 +1,96 @@
-import { clipHead, clipLine, countOf, isRecord, type JsonRecord, stringOf } from '@mwc/harness-core';
-import { NOTICE_MAX, RESULT_ERROR_MAX, type TurnEvent, type TurnEventOf } from '@mwc/shared/harness';
+import {
+  clipHead,
+  clipLine,
+  clipMarked,
+  countOf,
+  isRecord,
+  type JsonRecord,
+  stringOf,
+} from '@mwc/harness-core';
+import {
+  RESULT_ERROR_MAX,
+  THINKING_MAX,
+  TODO_ITEMS_MAX,
+  TODO_TEXT_MAX,
+  TodoStatus,
+  type TurnEvent,
+  type TurnEventOf,
+} from '@mwc/shared/harness';
+import { contextEvents, resultContext } from './context.ts';
+import { bodyOf, type ClaudeState, newClaudeState, parentOf } from './state.ts';
+import { interruptedSubagents, subagentAnswered, subagentStarted } from './subagents.ts';
 import { denialNotice, resultSummary, toolSummary } from './summary.ts';
 
 /**
- * Claude Code's stream-json messages, one type each, as turn events. A subagent's own messages (those with a
- * `parent_tool_use_id`) give nothing: its call shows as the `Task` tool and its answer as that tool's result.
+ * Claude Code's `assistant`, `user` and `result` messages as turn events (`system` ones are `system.ts`'s). A subagent's
+ * own messages (with a `parent_tool_use_id`) give the same events with that id as their `parentId`; its call is the
+ * Agent tool, its state the `subagent` events (`subagents.ts`).
  */
 
-/** The content blocks of an assistant or user message from the main agent; none for a subagent's. */
+type Belongs = { parentId?: string };
+
+/** The content blocks of an assistant or user message. */
 function blocksOf(message: JsonRecord): readonly unknown[] {
-  if (stringOf(message.parent_tool_use_id) !== undefined) return [];
-  const body = isRecord(message.message) ? message.message : {};
-  return Array.isArray(body.content) ? body.content : [];
+  const content = bodyOf(message).content;
+  return Array.isArray(content) ? content : [];
 }
 
-/** `system`: `api_retry` becomes a notice; `init` gives the session (the parser's own) and the rest nothing. */
-export function systemEvents(message: JsonRecord): TurnEvent[] {
-  if (message.subtype !== 'api_retry') return [];
-  const attempt = countOf(message.attempt);
-  const max = countOf(message.max_retries);
-  const status = countOf(message.error_status);
-  const why = stringOf(message.error) ?? (status === undefined ? undefined : `HTTP ${status}`);
-  const count = attempt === undefined || max === undefined ? '' : ` (attempt ${attempt} of ${max})`;
-  const text = `The request to the model failed and is retried${count}${why === undefined ? '' : `: ${why}`}`;
-  return [{ type: 'notice', level: 'info', message: clipHead(text, NOTICE_MAX) }];
+/** A `TodoWrite` call's list: each item's text and status (an unknown status is pending). */
+export function todoEvent(input: unknown, belongs: Belongs): TurnEventOf<'todo'>[] {
+  const todos = isRecord(input) && Array.isArray(input.todos) ? input.todos : undefined;
+  if (todos === undefined) return [];
+  const items = todos
+    .filter(isRecord)
+    .map((todo) => ({
+      text: clipLine(stringOf(todo.content) ?? '', TODO_TEXT_MAX),
+      status: TodoStatus.safeParse(todo.status).data ?? 'pending',
+    }))
+    .filter((todo) => todo.text !== '')
+    .slice(0, TODO_ITEMS_MAX);
+  return [{ type: 'todo', items, ...belongs }];
 }
 
-/** `assistant`: its text blocks and tool calls (thinking gives nothing). */
-export function assistantEvents(message: JsonRecord): TurnEvent[] {
+/** A tool call block: the tool, and its to-do list or its subagent when it is one. */
+function toolEvents(block: JsonRecord, belongs: Belongs, state: ClaudeState): TurnEvent[] {
+  const id = stringOf(block.id);
+  if (id === undefined || id === '') return [];
+  const name = clipLine(stringOf(block.name) ?? '', 200) || 'tool';
+  const call = { id: id.slice(0, 200), name, input: block.input };
+  const tool: TurnEvent = { type: 'tool', id: call.id, name, summary: toolSummary(block.input), ...belongs };
+  if (name === 'TodoWrite') return [tool, ...todoEvent(block.input, belongs)];
+  return [tool, ...subagentStarted(call, belongs, state)];
+}
+
+/** `assistant`: its text, thinking and tool calls in order, then how full the context is (the main agent's only). */
+export function assistantEvents(message: JsonRecord, state: ClaudeState = newClaudeState()): TurnEvent[] {
+  const belongs = parentOf(message);
   const events: TurnEvent[] = [];
   for (const block of blocksOf(message)) {
     if (!isRecord(block)) continue;
     const text = stringOf(block.text);
     if (block.type === 'text' && text !== undefined && text.trim() !== '')
-      events.push({ type: 'text', text });
-    const id = stringOf(block.id);
-    if ((block.type === 'tool_use' || block.type === 'server_tool_use') && id !== undefined && id !== '') {
-      const name = clipLine(stringOf(block.name) ?? '', 200) || 'tool';
-      events.push({ type: 'tool', id: id.slice(0, 200), name, summary: toolSummary(block.input) });
-    }
+      events.push({ type: 'text', text, ...belongs });
+    const thinking = stringOf(block.thinking);
+    if (block.type === 'thinking' && thinking !== undefined && thinking.trim() !== '')
+      events.push({ type: 'thinking', text: clipMarked(thinking, THINKING_MAX), ...belongs });
+    if (block.type === 'tool_use' || block.type === 'server_tool_use')
+      events.push(...toolEvents(block, belongs, state));
   }
+  events.push(...contextEvents(message, state));
   return events;
 }
 
-/** `user`: the results of the tool calls. */
-export function userEvents(message: JsonRecord): TurnEvent[] {
+/** `user`: the results of the tool calls, each ending the subagent its call started. */
+export function userEvents(message: JsonRecord, state: ClaudeState = newClaudeState()): TurnEvent[] {
+  const belongs = parentOf(message);
   const events: TurnEvent[] = [];
   for (const block of blocksOf(message)) {
     if (!isRecord(block) || block.type !== 'tool_result') continue;
-    const id = stringOf(block.tool_use_id);
+    const id = stringOf(block.tool_use_id)?.slice(0, 200);
     if (id === undefined || id === '') continue;
-    events.push({
-      type: 'tool_result',
-      id: id.slice(0, 200),
-      ok: block.is_error !== true,
-      summary: resultSummary(block.content),
-    });
+    const ok = block.is_error !== true;
+    events.push({ type: 'tool_result', id, ok, summary: resultSummary(block.content), ...belongs });
+    events.push(...subagentAnswered(id, block.content, !ok, state));
   }
   return events;
 }
@@ -93,14 +128,18 @@ function errorOf(message: JsonRecord, subtype: string | undefined): string {
   return SUBTYPE_ERRORS[subtype] ?? `Claude Code ended the turn with ${subtype}.`;
 }
 
-/** `result`: a notice per refused tool, the usage, then the turn's end. */
-export function resultEvents(message: JsonRecord): TurnEvent[] {
+/**
+ * `result`: a notice per refused tool, the subagents still running as interrupted, the context with the window Claude
+ * Code reported, the usage, then the turn's end.
+ */
+export function resultEvents(message: JsonRecord, state: ClaudeState = newClaudeState()): TurnEvent[] {
   const events: TurnEvent[] = [];
   const denials = Array.isArray(message.permission_denials) ? message.permission_denials : [];
   for (const denial of denials) {
     const notice = denialNotice(denial);
     if (notice) events.push(notice);
   }
+  events.push(...interruptedSubagents(state), ...resultContext(message, state));
   const usage = usageEvent(message);
   if (usage) events.push(usage);
   const subtype = stringOf(message.subtype);

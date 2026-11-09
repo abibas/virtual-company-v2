@@ -22,9 +22,10 @@ describe('the Codex fixtures', () => {
     }
   });
 
-  it('answer: the session, the text, the usage, and the reply at the clean exit', () => {
+  it('answer: the session, the reasoning, the text, the usage, and the reply at the clean exit', () => {
     expect(play(CODEX_SCENARIOS.answer)).toEqual([
       session,
+      { type: 'thinking', text: '**Adding two numbers**' },
       { type: 'text', text: '2 + 2 = 4.' },
       { type: 'usage', inputTokens: 12034, outputTokens: 42, cachedInputTokens: 11008 },
       { type: 'result', ok: true, text: '2 + 2 = 4.' },
@@ -75,5 +76,28 @@ describe('the Codex fixtures', () => {
     const events = play(CODEX_SCENARIOS.resume);
     expect(events[0]).toEqual(session);
     expect(events.at(-1)).toEqual({ type: 'result', ok: true, text: 'Doubled, that is 8.' });
+  });
+
+  it('plan: the to-do list as it is made and changes, the reasoning, the command, the answer', () => {
+    const list = (done: number) => ({
+      type: 'todo',
+      items: [
+        { text: 'Read the parser', status: done >= 1 ? 'completed' : 'pending' },
+        { text: 'Add the reasoning event', status: done >= 2 ? 'completed' : 'pending' },
+      ],
+    });
+    const cat = "/bin/zsh -lc 'cat src/parser.ts'";
+    expect(play(CODEX_SCENARIOS.plan)).toEqual([
+      session,
+      list(0),
+      { type: 'thinking', text: '**Reading the parser first**' },
+      { type: 'tool', id: 'item_2', name: 'command', summary: cat },
+      { type: 'tool_result', id: 'item_2', ok: true, summary: 'exit 0: export class CodexLineParser {' },
+      list(1),
+      { type: 'text', text: 'The parser reads reasoning items now.' },
+      list(2),
+      { type: 'usage', inputTokens: 30412, outputTokens: 512, cachedInputTokens: 28800 },
+      { type: 'result', ok: true, text: 'The parser reads reasoning items now.' },
+    ]);
   });
 });

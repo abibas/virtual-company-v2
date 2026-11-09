@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CredentialKind, Harness } from '../src/enums.ts';
+import { CredentialKind, Harness } from '../../src/enums.ts';
 import {
   CODEX_AUTH_JSON_MAX,
   credentialFits,
@@ -9,10 +9,8 @@ import {
   HarnessGateway,
   SESSION_ID_PATTERN,
   TerminalSpec,
-  TURN_EVENT_TYPES,
-  TurnEvent,
   TurnSpec,
-} from '../src/harness.ts';
+} from '../../src/harness/specs.ts';
 
 const turn = {
   harness: 'claude_code',
@@ -152,42 +150,5 @@ describe('TurnSpec and TerminalSpec', () => {
     const { prompt: _, ...terminal } = turn;
     expect(TurnSpec.safeParse(terminal).success).toBe(false);
     expect(TerminalSpec.safeParse(terminal).success).toBe(true);
-  });
-});
-
-describe('TurnEvent', () => {
-  const events = [
-    { type: 'session', sessionId: 's-1' },
-    { type: 'text', text: 'Hi' },
-    { type: 'tool', id: 't1', name: 'Bash', summary: 'ls' },
-    { type: 'tool_result', id: 't1', ok: true, summary: 'a\nb' },
-    { type: 'usage', inputTokens: 10, outputTokens: 2, cachedInputTokens: 8, costUsd: 0.01 },
-    { type: 'usage', inputTokens: 0, outputTokens: 0 },
-    { type: 'notice', level: 'warn', message: 'Refused for permission: Bash' },
-    { type: 'result', ok: true, text: 'Hi', durationMs: 12 },
-    { type: 'result', ok: false, error: 'Claude Code exited with code 1' },
-  ];
-
-  it('takes every event type, one of each listed in order', () => {
-    for (const event of events) expect(TurnEvent.parse(event)).toEqual(event);
-    expect(new Set(events.map((event) => event.type))).toEqual(new Set(TURN_EVENT_TYPES));
-  });
-
-  it('refuses summaries over their limits, negative counts, unknown levels and types', () => {
-    for (const bad of [
-      { type: 'tool', id: 't', name: 'Bash', summary: 'x'.repeat(201) },
-      { type: 'tool', id: '', name: 'Bash', summary: '' },
-      { type: 'tool_result', id: 't', ok: true, summary: 'x'.repeat(501) },
-      { type: 'usage', inputTokens: -1, outputTokens: 0 },
-      { type: 'usage', inputTokens: 1.5, outputTokens: 0 },
-      { type: 'notice', level: 'error', message: 'x' },
-      { type: 'notice', level: 'info', message: 'x'.repeat(2001) },
-      { type: 'result', ok: false, error: 'x'.repeat(2001) },
-      { type: 'text', text: '' },
-      { type: 'session', sessionId: '-x' },
-      { type: 'thinking', text: 'x' },
-    ]) {
-      expect(TurnEvent.safeParse(bad).success).toBe(false);
-    }
   });
 });

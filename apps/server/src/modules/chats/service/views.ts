@@ -28,6 +28,7 @@ export function turnView(row: ChatTurn): ChatTurnView {
     id: row.id,
     chatId: row.chatId,
     seq: row.seq,
+    kind: row.kind,
     prompt: row.prompt,
     status: row.status,
     profileId: row.profileId,

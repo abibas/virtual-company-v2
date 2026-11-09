@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 13, the last is `0012_chats`.
+Tables: 29. Migrations: 14, the last is `0013_chat_turn_kind`.
 
 ```mermaid
 erDiagram
@@ -93,6 +93,7 @@ erDiagram
     uuid company_id FK "not null"
     uuid chat_id FK "not null"
     integer seq "not null"
+    text kind "not null, default 'message', message|compact|clear"
     text prompt "not null"
     text status "not null, default 'queued', queued|running|done|failed|stopped"
     uuid profile_id "nullable"
@@ -625,6 +626,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `company_id` | `uuid` | no |  | FK |  |
 | `chat_id` | `uuid` | no |  | FK |  |
 | `seq` | `integer` | no |  |  |  |
+| `kind` | `text` | no | `'message'` |  | `message`, `compact`, `clear` |
 | `prompt` | `text` | no |  |  |  |
 | `status` | `text` | no | `'queued'` |  | `queued`, `running`, `done`, `failed`, `stopped` |
 | `profile_id` | `uuid` | yes |  |  |  |
@@ -647,6 +649,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_chat_seq_unique` (`company_id`, `chat_id`, `seq`)
 - **Checks:**
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
+  - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
+  - `chat_turns_clear_check`: `"kind" <> 'clear' or ("status" = 'done' and "credential_id" is null)`
   - `chat_turns_seq_check`: `"seq" >= 1`
   - `chat_turns_prompt_check`: `char_length("prompt") between 1 and 20000`
   - `chat_turns_usage_check`: `"usage" is null or jsonb_typeof("usage") = 'object'`

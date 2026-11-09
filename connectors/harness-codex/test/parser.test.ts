@@ -41,18 +41,29 @@ describe('CodexLineParser.feed', () => {
     expect(parser.feed(line({ type: 'item.completed' }))).toEqual([]);
   });
 
-  it('gives nothing for blank, partial and garbled lines, turn.started, item.updated and unknown types', () => {
+  it('gives nothing for blank, partial and garbled lines, turn.started and unknown types', () => {
     const parser = new CodexLineParser();
     for (const text of [
       '',
       '{"type":"item.completed","item":{"id"',
       'Reading prompt from stdin...',
       line({ type: 'turn.started' }),
-      line({ type: 'item.updated', item: { id: 't', type: 'todo_list', items: [] } }),
+      line({ type: 'item.updated', item: { id: 'c', type: 'command_execution', status: 'in_progress' } }),
+      line({ type: 'item.updated', item: 'x' }),
       line({ type: 'thread.compacted' }),
     ]) {
       expect(parser.feed(text)).toEqual([]);
     }
+  });
+
+  it('gives the to-do list of item.updated when it changed', () => {
+    const parser = new CodexLineParser();
+    const updated = line({
+      type: 'item.updated',
+      item: { id: 't', type: 'todo_list', items: [{ text: 'A' }] },
+    });
+    expect(parser.feed(updated)).toEqual([{ type: 'todo', items: [{ text: 'A', status: 'pending' }] }]);
+    expect(parser.feed(updated)).toEqual([]);
   });
 
   it('makes an error event a notice, and fails the turn on turn.failed', () => {

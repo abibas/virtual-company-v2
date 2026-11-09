@@ -58,7 +58,7 @@ describe('the turn frames', () => {
     const item = { seq: 1, event: { type: 'text', text: 'x' } };
     expect(issuesOf(TurnEvents, { ...events, events: Array(101).fill(item) })).toEqual(['events']);
     expect(issuesOf(TurnEvents, { ...events, events: [{ ...item, seq: 0 }] })).toEqual(['events.0.seq']);
-    expect(issuesOf(TurnEvents, { ...events, events: [{ seq: 1, event: { type: 'thinking' } }] })).toEqual([
+    expect(issuesOf(TurnEvents, { ...events, events: [{ seq: 1, event: { type: 'reasoning' } }] })).toEqual([
       'events.0.event.type',
     ]);
   });

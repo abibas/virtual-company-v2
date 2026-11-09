@@ -30,6 +30,7 @@ export {
   PrincipalKind,
   UserStatus,
 } from './enums.ts';
+export { CONTEXT_WINDOWS, contextWindowOf } from './harness/context.ts';
 export {
   EpochMs,
   ExternalInvitation,

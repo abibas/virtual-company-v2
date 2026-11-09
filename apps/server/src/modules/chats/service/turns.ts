@@ -1,4 +1,5 @@
 import { type Chat, type ChatTurn, isUniqueViolation, type TenantDb } from '@mwc/db';
+import type { ChatTurnKind } from '@mwc/shared/enums';
 import { TurnSpec } from '@mwc/shared/harness';
 import { newId } from '@mwc/shared/ids';
 import { turnsRepo } from '../repo/turns.ts';
@@ -23,7 +24,8 @@ import { turnView } from './views.ts';
  * A chat's turns (S5.1b, docs/harness.md "How a turn runs"): a prompt starts one on the agent's machine (resolved by
  * `target.ts`, refused with what to fix), recorded as running with the profile and credential it runs on, then sent to
  * the runner (`turn.start`) with its sink in place, so its events and end land in the database and the chat's stream;
- * the first prompt is the chat's title. A stop asks the runner to stop it; its end says `stopped`.
+ * the first prompt is the chat's title. A stop asks the runner to stop it; its end says `stopped`. A Compact is such a
+ * turn too, of kind `compact` (`conversation.ts`).
  */
 
 export interface TurnsDeps extends TargetDeps {
@@ -62,6 +64,12 @@ async function record(
   }
 }
 
+/** What kind of turn to start (a prompt, a `/compact`), and why this chat may not have one, beyond a turn's checks. */
+export interface TurnKindOptions {
+  readonly kind: ChatTurnKind;
+  readonly refuse?: (chat: Chat) => Refusal | undefined;
+}
+
 /** Starts a turn of the chat with this prompt (see above); 202 with the turn, or why not. */
 export async function startTurn(
   deps: TurnsDeps,
@@ -69,11 +77,14 @@ export async function startTurn(
   caller: TurnCaller,
   chatId: string,
   prompt: string,
+  how: TurnKindOptions = { kind: 'message' },
 ): Promise<Started> {
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
   if (chat.archivedAt !== null) return CHAT_ARCHIVED;
   if ((await turnsRepo.liveOf(t, chat.id)) !== undefined) return TURN_RUNNING;
+  const refused = how.refuse?.(chat);
+  if (refused !== undefined) return refused;
   const target = await resolveTarget(deps, t, chat, {
     principalId: caller.principalId,
     purpose: 'chat_turn',
@@ -86,6 +97,7 @@ export async function startTurn(
   const turn = await record(t, chat.id, {
     id: newId(),
     chatId: chat.id,
+    kind: how.kind,
     prompt,
     status: 'running',
     profileId: target.profileId,

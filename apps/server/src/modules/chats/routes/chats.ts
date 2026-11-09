@@ -94,6 +94,10 @@ const getChatRoute = (deps: ServerDeps) => {
     ...base,
     method: 'get',
     summary: 'A chat with its turns and their events (member and above)',
+    description:
+      'Each turn says its `kind` (a `clear` turn is the marker of a Clear). `init` is the last `init` event since the ' +
+      "chat's last Clear (model, effort, folder, slash commands) and `context` how full its conversation is " +
+      '(`usedTokens`, `window`, `model`, `at`); both null before anything said so since then.',
     request: { params: ChatParamsSchema },
     responses: { 200: jsonResponse('The chat', ChatDetailSchema), ...refusals, 404: NO_CHAT },
   });

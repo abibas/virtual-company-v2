@@ -3,6 +3,7 @@ import {
   ActorKind,
   AgentStatus,
   ApiKeyKind,
+  ChatTurnKind,
   ChatTurnStatus,
   CompanyStatus,
   CredentialKind,
@@ -67,6 +68,7 @@ describe('enums', () => {
     expect(PlacementMode.options).toEqual(['host', 'container']);
     expect(PermissionPolicy.options).toEqual(['ask', 'bypass']);
     expect(ChatTurnStatus.options).toEqual(['queued', 'running', 'done', 'failed', 'stopped']);
+    expect(ChatTurnKind.options).toEqual(['message', 'compact', 'clear']);
     expect(HoldSource.options).toEqual(['server', 'live_runs']);
     expect(PowerEventAction.options).toEqual([
       'started',

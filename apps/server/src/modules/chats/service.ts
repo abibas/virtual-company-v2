@@ -4,7 +4,14 @@ import { giveRefusal } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
 import { turnsRepo } from './repo/turns.ts';
 import { chatsRepo } from './repo.ts';
-import { AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal, refuse } from './rules.ts';
+import {
+  AGENT_NOT_FOUND,
+  CHAT_NOT_FOUND,
+  conversationState,
+  PLACEMENT_MISSING,
+  type Refusal,
+  refuse,
+} from './rules.ts';
 import type { ChatDetailView, ChatView, CreateChat, UpdateChat } from './schemas.ts';
 import { chatView, eventView, turnView } from './service/views.ts';
 
@@ -95,7 +102,10 @@ export async function createChat(
   return { ok: true, chat: chatView(chat) };
 }
 
-/** One chat with its turns and their events, in order (archived ones too); 404 for an unknown one. */
+/**
+ * One chat with its turns and their events, in order (archived ones too), and its conversation since its last Clear:
+ * the last `init` and how full it is; 404 for an unknown one.
+ */
 export async function getChat(
   t: TenantDb,
   chatId: string,
@@ -111,7 +121,7 @@ export async function getChat(
     ...turnView(turn),
     events: events.filter((event) => event.turnId === turn.id).map(eventView),
   }));
-  return { ok: true, chat: { ...chatView(chat), turns: shown } };
+  return { ok: true, chat: { ...chatView(chat), turns: shown, ...conversationState(shown) } };
 }
 
 /** Renames a chat and chooses its profile (see above); an unchanged field writes nothing. */

@@ -1,10 +1,12 @@
 import { CHAT_TITLE } from '@mwc/shared/chats';
-import type { ChatTurnStatus, Harness } from '@mwc/shared/enums';
-import type { TurnEvent } from '@mwc/shared/harness';
+import type { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { contextWindowOf, type InitEvent, type TurnEvent } from '@mwc/shared/harness';
+import type { ChatContextView } from './schemas.ts';
 
 /**
  * The chats' own rules (S5.1b, docs/harness.md "How a turn runs"): their refusals, a chat's title from its first prompt,
- * the access profile slot each harness runs on, and how a turn's end becomes its status, reply and usage. Pure.
+ * the access profile slot each harness runs on, how a turn's end becomes its status, reply and usage, and (S5.2) what
+ * the chat's conversation runs on and how full it is since its last Clear. Pure.
  */
 
 export type RefusalStatus = 403 | 404 | 409 | 422 | 503;
@@ -34,6 +36,17 @@ export const TURN_RUNNING = refuse(
   'A turn of this chat is running; wait for it or stop it',
 );
 export const TURN_NOT_RUNNING = refuse(409, 'turn_not_running', 'This turn is not running');
+export const NOTHING_TO_COMPACT = refuse(
+  409,
+  'nothing_to_compact',
+  'This chat has no conversation yet: send a prompt first',
+);
+export const NOTHING_TO_CLEAR = refuse(409, 'nothing_to_clear', 'This chat has no conversation to clear');
+export const COMPACT_UNSUPPORTED = refuse(
+  409,
+  'compact_unsupported',
+  'Codex compacts its conversation by itself and runs no /compact in a turn: use Clear to start over',
+);
 export const PLACEMENT_MISSING = refuse(
   409,
   'placement_missing',
@@ -149,3 +162,42 @@ export function endedTurn(end: TurnEnd, outcome: TurnOutcome, stopRequested: boo
 
 /** A turn that runs or waits for its machine. */
 export const isLive = (status: ChatTurnStatus): boolean => status === 'queued' || status === 'running';
+
+/** A turn with its events, in order, as the chat's detail reads them. */
+export interface TurnWithEvents {
+  readonly kind: ChatTurnKind;
+  readonly events: readonly { readonly event: TurnEvent; readonly at: string }[];
+}
+
+/** What the chat's conversation runs on and how full it is (docs/harness.md, "Compact and Clear"). */
+export interface ConversationState {
+  readonly init: InitEvent | null;
+  readonly context: ChatContextView | null;
+}
+
+/**
+ * The chat's conversation since its last Clear (a `clear` turn forgets everything before it): its last `init`, and its
+ * size, from the last `context` (input, cache reads and cache writes of the last request) or a later `compact` that
+ * says its size after; the window is the `context`'s, else the model table's for the last `init`'s model.
+ */
+export function conversationState(turns: readonly TurnWithEvents[]): ConversationState {
+  const state: { init: InitEvent | null; context: ChatContextView | null } = { init: null, context: null };
+  for (const turn of turns) {
+    if (turn.kind === 'clear') {
+      state.init = null;
+      state.context = null;
+    }
+    for (const { event, at } of turn.events) {
+      const model = state.init?.model ?? null;
+      if (event.type === 'init') state.init = event;
+      else if (event.type === 'context') {
+        const usedTokens = event.inputTokens + event.cacheReadTokens + event.cacheCreationTokens;
+        state.context = { usedTokens, window: event.window ?? contextWindowOf(model), model, at };
+      } else if (event.type === 'compact' && event.postTokens !== null) {
+        const window = state.context?.window ?? contextWindowOf(model);
+        state.context = { usedTokens: event.postTokens, window, model, at };
+      }
+    }
+  }
+  return state;
+}

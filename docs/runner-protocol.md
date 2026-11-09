@@ -219,8 +219,9 @@ environment values or `auth.json`.
   closes). `authJson` comes when a Codex process rewrote its `auth.json` (its own token refresh); the server seals it
   into the credential again.
 - **Batching.** Events go about 100 ms after the first of a batch (`TURN_EVENTS_BATCH_MS`), or at once from 32 KB
-  (`TURN_EVENTS_BATCH_BYTES`) or 100 events; a text event over 16 KB is split into several and a result's text is cut, so
-  every frame fits the 256 KB frame limit.
+  (`TURN_EVENTS_BATCH_BYTES`) or 100 events; a text event over 16 KB is split into several (each keeping its
+  `parentId`) and a result's text is cut, so every frame fits the 256 KB frame limit (the other events are small by
+  their limits: a thinking text at most 20 000 characters, a to-do list 100 items of 300).
 - **The link.** A turn belongs to the connection that carried its `turn.start`: when the link drops the runner ends its
   processes by the stop ladder (nothing can reach the server then), and the server fails the turns of that connection
   (`machine_disconnected`). Nothing is re-attached after a reconnect yet (S5 proper). Live turns count for the runner's

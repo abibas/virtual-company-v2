@@ -35,4 +35,4 @@ export {
   parseJsonLine,
   stringOf,
 } from './lines.ts';
-export { clipHead, clipLine, clipTail } from './text.ts';
+export { clipHead, clipLine, clipMarked, clipTail } from './text.ts';

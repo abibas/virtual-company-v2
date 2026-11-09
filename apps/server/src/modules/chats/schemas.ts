@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnStatus, Harness } from '@mwc/shared/enums';
-import { TurnEvent } from '@mwc/shared/harness';
+import { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { InitEvent, TurnEvent } from '@mwc/shared/harness';
 
 /**
  * The chats' shapes (S5.1b, docs/harness.md "How a turn runs"): a chat with an agent, its turns and their events, the
@@ -73,6 +73,11 @@ export const ChatTurnSchema = z
     id: z.string(),
     chatId: z.string(),
     seq: z.number().int().min(1),
+    kind: z.enum(ChatTurnKind.options).openapi({
+      description:
+        "`message` (a person's prompt), `compact` (the harness's own `/compact`) or `clear` (no process: the chat's " +
+        'next turn starts a new conversation; the thread shows it as a marker)',
+    }),
     prompt: z.string(),
     status: ChatTurnStatus,
     profileId: z.string().nullable(),
@@ -97,9 +102,37 @@ export const ChatTurnWithEventsSchema = ChatTurnSchema.extend({ events: z.array(
   'ChatTurnWithEvents',
 );
 
-export const ChatDetailSchema = ChatSchema.extend({ turns: z.array(ChatTurnWithEventsSchema) }).openapi(
-  'ChatDetail',
-);
+/** How full the chat's conversation is, for its context meter (`rules.ts`, `chatContext`). */
+export const ChatContextSchema = z
+  .object({
+    usedTokens: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({
+        description:
+          "The conversation's size: the last request's input, cache reads and cache writes, or the size after a later " +
+          'compaction',
+      }),
+    window: z
+      .number()
+      .int()
+      .min(1)
+      .nullable()
+      .openapi({ description: "The model's context window; null: unknown" }),
+    model: z.string().nullable().openapi({ description: 'The model the last `init` named' }),
+    at: dateTime.openapi({ description: 'When it was measured: the time of the event it comes from' }),
+  })
+  .openapi('ChatContext');
+
+export const ChatDetailSchema = ChatSchema.extend({
+  turns: z.array(ChatTurnWithEventsSchema),
+  /** The last `init` event since the chat's last Clear (model, effort, folder, slash commands); null before one. */
+  init: InitEvent.nullable(),
+  context: ChatContextSchema.nullable().openapi({
+    description: "How full the conversation is since the chat's last Clear; null before anything measured it",
+  }),
+}).openapi('ChatDetail');
 
 export const ChatListSchema = z.object({ chats: z.array(ChatSchema) }).openapi('ChatList');
 
@@ -124,6 +157,7 @@ export type ChatView = z.infer<typeof ChatSchema>;
 export type ChatTurnView = z.infer<typeof ChatTurnSchema>;
 export type ChatEventView = z.infer<typeof ChatEventSchema>;
 export type ChatDetailView = z.infer<typeof ChatDetailSchema>;
+export type ChatContextView = z.infer<typeof ChatContextSchema>;
 export type CreateChat = z.infer<typeof CreateChatSchema>;
 export type UpdateChat = z.infer<typeof UpdateChatSchema>;
 

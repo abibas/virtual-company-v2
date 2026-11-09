@@ -40,13 +40,30 @@ function command(id: string, line: string, status: string, exitCode: number | nu
 
 const lines = (...events: readonly object[]) => events.map((event) => JSON.stringify(event));
 
+/** The to-do list Codex keeps as an item: started, updated as it goes, completed with the turn. */
+const todoList = (type: string, done: number) => ({
+  type,
+  item: {
+    id: 'item_0',
+    type: 'todo_list',
+    items: [
+      { text: 'Read the parser', completed: done >= 1 },
+      { text: 'Add the reasoning event', completed: done >= 2 },
+    ],
+  },
+});
+
 const LS = "/bin/zsh -lc 'ls src'";
 const RM = "/bin/zsh -lc 'rm -rf build'";
 const TOUCH = "/bin/zsh -lc 'touch /etc/hosts'";
+const CAT = "/bin/zsh -lc 'cat src/parser.ts'";
 const AUTH_ERROR =
   'unexpected status 401 Unauthorized: Your access token could not be refreshed. Please log out and sign in again.';
 
-/** The five turns: an answer, a tool call, a refused command, an error, and a resume of the first. */
+/**
+ * The turns: an answer, a tool call, a refused command, an error, a resume of the first, and one that plans with its
+ * to-do list.
+ */
 export const CODEX_SCENARIOS = {
   answer: {
     lines: lines(
@@ -99,6 +116,22 @@ export const CODEX_SCENARIOS = {
   },
   resume: {
     lines: lines(started, turnStarted, message('item_0', 'Doubled, that is 8.'), usage(12210, 12032, 18, 0)),
+    exitCode: 0,
+  },
+  plan: {
+    lines: lines(
+      started,
+      turnStarted,
+      todoList('item.started', 0),
+      reasoning('item_1', '**Reading the parser first**'),
+      { type: 'item.started', item: command('item_2', CAT, 'in_progress', null, '') },
+      completed(command('item_2', CAT, 'completed', 0, 'export class CodexLineParser {\n')),
+      todoList('item.updated', 1),
+      todoList('item.updated', 1),
+      message('item_3', 'The parser reads reasoning items now.'),
+      todoList('item.completed', 2),
+      usage(30412, 28800, 512, 220),
+    ),
     exitCode: 0,
   },
 } as const satisfies Record<string, FakeScenario>;

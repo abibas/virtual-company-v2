@@ -9,11 +9,11 @@ conversation.
 
 | Package                       | What                                                                                          |
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `@mwc/shared/harness`         | the wire contracts (zod): `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway`, `TurnEvent`, the limits |
-| `@mwc/harness-core`           | the port: `HarnessDriver`, `ProcessSpec`, `PrivateDir`, `LineParser`, `HarnessError`, the shared checks and text helpers |
+| `@mwc/shared/harness`         | the wire contracts (zod): `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway` (`harness/specs.ts`), `TurnEvent` and its limits (`harness/events.ts`), `contextWindowOf` (`harness/context.ts`) |
+| `@mwc/harness-core`           | the port: `HarnessDriver`, `ProcessSpec`, `PrivateDir`, `LineParser`, `HarnessError`, the shared checks and text helpers (`clipMarked` for long texts) |
 | `@mwc/harness-core/fake`      | `FakeHarnessDriver`, the fake binary (`FAKE_HARNESS_BIN`, `runFakeHarness`), fake specs and credentials |
-| `@mwc/harness-claude-code`    | `ClaudeCodeDriver` (`claude`), its parser; `/fixtures`: five recorded-style turns              |
-| `@mwc/harness-codex`          | `CodexDriver` (`codex`), its parser; `/fixtures`: five recorded-style turns                   |
+| `@mwc/harness-claude-code`    | `ClaudeCodeDriver` (`claude`), its parser; `/fixtures`: seven recorded-style turns             |
+| `@mwc/harness-codex`          | `CodexDriver` (`codex`), its parser; `/fixtures`: six recorded-style turns                    |
 
 The server reads only `@mwc/shared/harness`; it never imports a harness package.
 
@@ -57,14 +57,32 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `type`        | Fields                                                    | Notes                                                       |
 | ------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
 | `session`     | `sessionId`                                               | the conversation to resume next time (Claude's session, Codex's thread) |
-| `text`        | `text`                                                    | the assistant's text, as it comes                           |
-| `tool`        | `id`, `name`, `summary` (one line, ≤ 200)                 | the input in one line: the command, file, pattern, address  |
-| `tool_result` | `id`, `ok`, `summary` (≤ 500)                             | the start of the result (Claude), the exit code and the end of the output (Codex commands) |
-| `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | input counts cached tokens too; Claude adds its cache writes and reads |
-| `notice`      | `level` (`info`, `warn`), `message` (≤ 2000)              | a tool refused for permission, a retried request, a gateway not used |
+| `init`        | `model` (string or null, ≤ 200), `effort?` (≤ 50), `cwd?` (≤ 4096), `slashCommands?` (≤ 200 of ≤ 100, no slash) | what the turn runs on: Claude's `system/init`; Codex says nothing of it, so none |
+| `text`        | `text`, `parentId?`                                       | the assistant's text, as it comes                           |
+| `thinking`    | `text` (≤ 20 000), `parentId?`                            | Claude's `thinking` blocks with text, Codex's `reasoning` items; a longer one is cut, ending in `TRUNCATED_MARKER` (`\n… [truncated]`) |
+| `tool`        | `id`, `name`, `summary` (one line, ≤ 200), `parentId?`    | the input in one line: the command, file, pattern, address  |
+| `tool_result` | `id`, `ok`, `summary` (≤ 500), `parentId?`                | the start of the result (Claude), the exit code and the end of the output (Codex commands) |
+| `todo`        | `items` (≤ 100: `text` ≤ 300, `status` `pending` \| `in_progress` \| `completed`), `parentId?` | the whole to-do list as it is now (the latest replaces the one before): Claude's `TodoWrite` input (its `tool` event comes too), Codex's `todo_list` item (done or not: `completed` or `pending`) |
+| `subagent`    | `id` (its Agent call's id), `agentType` (≤ 100), `description` (≤ 200), `model?`, `background?`, `status` (`running` \| `done` \| `failed` \| `interrupted`), `summary?` (≤ 4000, cut with the marker), `lastStep?` (≤ 200), `parentId?` | a subagent's whole state, each time it changes (the latest per `id` counts); Claude only |
+| `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | the turn's sum; input counts cached tokens too; Claude adds its cache writes and reads |
+| `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude only |
+| `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
+| `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request, a gateway not used |
 | `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | always the last event of a turn                             |
 
-A runner sends them as `turn.events`, each with its `seq` from 1 (docs/runner-protocol.md, "Chat turns").
+A runner sends them as `turn.events`, each with its `seq` from 1 (docs/runner-protocol.md, "Chat turns"); a long text is
+split into several `text` events, each keeping its `parentId`.
+
+- **`parentId`** (S5.2) is the id of the Agent (or Task) call that started the subagent the event belongs to (Claude's
+  `parent_tool_use_id`, the direct parent: a subagent's own subagent names it); the main agent's events have none. A
+  reader that shows the main reply skips events with a `parentId` and folds them under that subagent instead.
+- **The context window** is `contextWindowOf(model)` of `@mwc/shared/harness` (`harness/context.ts`): the longest
+  matching prefix of a table of the Claude models (the 5 family and Opus/Sonnet 4.6+ at 1M, the older 4.x at 200k,
+  Claude Code's aliases `opus`, `sonnet`, `haiku`, `fable` at 1M, an id with `[1m]` at 1M, Bedrock and router prefixes
+  stripped) and the OpenAI ones as Codex sizes them (the GPT-5 family 272k, `gpt-4.1` 1 047 576, `o3`, `o4-mini` and
+  `codex-mini` 200k, `gpt-oss` 131 072); unknown models are null. Claude's `result.modelUsage[].contextWindow`, when it
+  differs and is not smaller than what the conversation already holds, gives the last `context` again with it.
+- **Old events stay valid**: every field added in S5.2 is optional, and the new types are new.
 
 ## Credentials
 
@@ -96,13 +114,34 @@ env:       the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; wi
 - **Permissions.** `bypass` adds `--dangerously-skip-permissions`. `ask` adds nothing: in `-p` there is no one to ask,
   so a tool that needs approval is refused, the model is told, and the `result`'s `permission_denials` become `warn`
   notices (`Refused for permission: Bash (rm -rf build)`). In the terminal Claude Code asks the person on the TUI.
-- **Parsing** (`stream-json`): the first message with a `session_id` (`system/init`) gives `session`; `assistant`
-  text blocks give `text`, `tool_use` and `server_tool_use` give `tool`; `user` `tool_result` blocks give
-  `tool_result` (`is_error` → not ok); `system/api_retry` gives an `info` notice; `result` gives the denials' notices,
-  `usage` (`usage`, `total_cost_usd`) and `result` (`is_error` or a subtype other than `success` → not ok, with the
-  `result` text, the `errors` or the subtype in words; `duration_ms`). Thinking blocks give nothing; a subagent's own
-  messages (with a `parent_tool_use_id`) give nothing, since its call is the `Task` tool and its answer that tool's
-  result.
+- **Parsing** (`stream-json`, `connectors/harness-claude-code/src/`): the first message with a `session_id`
+  (`system/init`) gives `session`, and `system/init` gives `init` (`model`, `effort` when it says one, `cwd`,
+  `slash_commands`; `system.ts`); `assistant` text blocks give `text`, `thinking` blocks with text give `thinking`
+  (Claude Opus 5.5 sends them empty unless asked to show them: nothing then), `tool_use` and `server_tool_use` give
+  `tool`; `user` `tool_result` blocks give `tool_result` (`is_error` → not ok); `system/api_retry` gives an `info`
+  notice; `system/compact_boundary` gives `compact` (`compact_metadata.pre_tokens`, `post_tokens`, `trigger`); `result`
+  gives the denials' notices, `usage` (`usage`, `total_cost_usd`) and `result` (`is_error` or a subtype other than
+  `success` → not ok, with the `result` text, the `errors` or the subtype in words; `duration_ms`). The result is the
+  last event: lines after it give nothing (`parser.ts`).
+- **Context** (`context.ts`): after each `assistant` message of the main agent with a `usage`, `context` with that
+  request's tokens and `contextWindowOf` of `init`'s model (else the first message's). Claude Code writes one line per
+  content block, each with the same message id and usage: a message gives one event. Its own messages (model
+  `<synthetic>`, an API error shown as a reply) give none. A compaction forgets the last one (the next message measures
+  again); at the `result`, the window `modelUsage` reports for the main model (or its only model) gives the last
+  `context` again when it differs and is not smaller than the conversation's size.
+- **To-dos**: a `TodoWrite` call gives its `tool` and a `todo` with its `todos` (`content`, `status`; an unknown status
+  is `pending`).
+- **Subagents** (`subagents.ts`): an `Agent` call (`Task` before 2.1, or any call naming a `subagent_type`) gives its
+  `tool` and a `subagent` `running` (`subagent_type`, else `general-purpose`; `description`; `model`;
+  `run_in_background`). Its own messages carry its call's id as `parent_tool_use_id`, so their events carry it as
+  `parentId` (no `context`). `system/task_started` ties Claude Code's `task_id` to the call (`is_backgrounded`),
+  `task_progress` gives its `description` as `lastStep`, `task_updated` its `patch` (`status`, `is_backgrounded`,
+  `description`). It ends with its call's `tool_result` (`done`, or `failed` on an error; `summary` its text without
+  the `agentId: …` and `<usage>…</usage>` trailer) or `task_notification` (`completed` → `done`, `failed`, `killed`,
+  `stopped` or `cancelled` → `interrupted`; `summary` its summary). A background subagent's call answers at once
+  (`Async agent launched successfully`): it stays `running` until its notification. One still running at the `result`,
+  or when the process ends without one, becomes `interrupted` before the turn's last event. Task messages of anything
+  else (a background command) give nothing.
 
 ## Codex
 
@@ -131,8 +170,12 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
   shown yet and `tool_result` (a command: `exit <code>: <the end of its output>`; a file change: applied or failed; an
   MCP call: its text or its error), a `warn` notice for an `error` item; `turn.completed` gives `usage`; `turn.failed`
   gives a failing `result`; an `error` event gives a `warn` notice (Codex also reports retries it recovers from this
-  way) and is the failure's detail when the turn does not complete. Reasoning and the to-do list give nothing. Codex
-  has no result event: a clean exit (0) after `turn.completed` gives `result` ok with the last agent message.
+  way) and is the failure's detail when the turn does not complete. A completed `reasoning` item with text gives
+  `thinking`; the `todo_list` item gives `todo` when it starts, on each `item.updated` that changes it and when it
+  completes (its `items`' `text`, `completed` → `completed`, else `pending`). Codex has no result event: a clean exit
+  (0) after `turn.completed` gives `result` ok with the last agent message. Codex says nothing of its model, and its
+  usage is the turn's sum rather than the last request's, so a Codex turn gives no `init` and no `context`; it has no
+  subagents and no `parentId`.
 
 ## How a turn runs
 
@@ -223,12 +266,39 @@ with its own folders.
 notices) until S6 brings the permission round trip; the terminal asks the person on the TUI. No test runs a real
 `claude` or `codex` turn: that spends Ihor's subscription.
 
+## Compact and Clear
+
+Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat's turns have a `kind`
+(`chat_turns.kind`, migration `0013_chat_turn_kind`, `message` by default):
+
+- **Compact** (`POST …/chats/{chatId}/compact`, admins and owners): a turn of kind `compact` with the prompt
+  `/compact`, which Claude Code runs as its own command in `-p` on the chat's session. It is refused as any turn is
+  (`chat_archived`, `turn_running`, the placement, the machine, the profile…), and with 409 `nothing_to_compact` when
+  the chat has no session yet, `compact_unsupported` for a Codex chat (`codex exec` runs no slash command; Codex
+  compacts by itself). 202 with the turn; its events come on the stream: `compact` (the sizes before and after), the
+  usage and an empty `result`.
+- **Clear** (`POST …/chats/{chatId}/clear`, admins and owners): runs nothing. In one transaction it records a turn of
+  kind `clear` (prompt `/clear`, `done` at once, `started_at` = `ended_at`, on no profile or credential; a CHECK holds a
+  `clear` turn to `done` and no credential) and sets the chat's `session_id` to null, so its next turn starts a new
+  conversation; the old one stays on the machine, unused. 409 `chat_archived`, `turn_running` (checked in the
+  transaction) or `nothing_to_clear` (no session). 200 with the turn, which the stream also sends as a `turn` message.
+  A Clear is a turn rather than a table of markers of its own: it takes its place in the chat's order (`seq`), the
+  detail, the stream and its `Last-Event-ID` replay carry it with no new message type, and the thread draws it as a
+  divider. It is not audited: the turn row names who cleared and when, as a prompt's turn does.
+- **The detail** (`GET …/chats/{chatId}`) adds `init` (the last `init` event since the chat's last Clear) and `context`
+  (`{usedTokens, window, model, at}`: the last `context` event's input + cache reads + cache writes, or a later
+  `compact`'s `postTokens`; the window from the event, else `contextWindowOf` of `init`'s model; null before anything
+  measured the conversation since the last Clear), from the chat's events (the chats module's `conversationState`). A
+  page following the stream applies the same rule to the events it gets.
+
 ## Tests
 
-- Each connector's tests run every argument and environment combination and parse its five fixtures (`answer`,
-  `tool`, `denied`, `error`, `resume`), written from the documented formats, never recorded from a real turn (that would
-  spend a subscription). The runner's tests reuse them from `@mwc/harness-claude-code/fixtures` and
-  `@mwc/harness-codex/fixtures`.
+- Each connector's tests run every argument and environment combination and parse its fixtures, written from the
+  documented formats, never recorded from a real turn (that would spend a subscription): Claude Code's `answer`, `tool`,
+  `denied`, `error`, `resume`, `subagent` (a plan with `TodoWrite`, an Explore subagent with its own steps and `task_*`
+  messages, one in the background ended by `task_notification`) and `compact`; Codex's `answer`, `tool`, `denied`,
+  `error`, `resume` and `plan` (its to-do list started, updated and completed, reasoning). The runner's tests reuse them
+  from `@mwc/harness-claude-code/fixtures` and `@mwc/harness-codex/fixtures`.
 - The fake binary, `node FAKE_HARNESS_BIN`, plays a `FakeScenario` JSON file named by `FAKE_HARNESS_SCENARIO`: it reads
   stdin, writes what it got (argv, cwd, stdin, only the variables `recordEnv` names) to `record`, prints `lines` (after
   `delayMs` each), then `stderr`, waits `holdMs` and exits with `exitCode`. A runner test points `FakeHarnessDriver` at it

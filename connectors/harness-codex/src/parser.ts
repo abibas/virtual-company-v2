@@ -8,11 +8,13 @@ import {
   stringOf,
 } from '@mwc/harness-core';
 import { NOTICE_MAX, RESULT_ERROR_MAX, SESSION_ID_PATTERN, type TurnEvent } from '@mwc/shared/harness';
-import { completedEvents, newItemState, startedEvents } from './items.ts';
+import { completedEvents, newItemState, startedEvents, todoEvents } from './items.ts';
 
 /**
  * Reads `codex exec --json`: one thread event per line. `thread.started` gives the session (the thread id), the items
- * the text and the tools (`items.ts`), `turn.completed` the usage, `turn.failed` the failing end. Codex has no result
+ * the text, thinking, tools and to-do list (`items.ts`), `turn.completed` the usage, `turn.failed` the failing end.
+ * Codex says nothing of its model or how full its context is (its usage is the turn's sum, not the last request's), so
+ * a Codex turn gives no `init` and no `context`. Codex has no result
  * event of its own: a clean exit after `turn.completed` ends the turn with the last agent message as the reply. An
  * `error` event is a notice (Codex also reports the retries it recovers from this way); the turn fails only when it
  * did not complete. Anything else, and any line that is not a JSON object, gives nothing.
@@ -38,6 +40,8 @@ export class CodexLineParser implements LineParser {
       }
       case 'item.started':
         return isRecord(event.item) ? startedEvents(event.item, this.#items) : [];
+      case 'item.updated':
+        return isRecord(event.item) ? todoEvents(event.item, this.#items) : [];
       case 'item.completed':
         return isRecord(event.item) ? completedEvents(event.item, this.#items) : [];
       case 'turn.completed':

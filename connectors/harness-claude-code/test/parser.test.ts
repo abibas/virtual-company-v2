@@ -4,6 +4,7 @@ import { ClaudeLineParser } from '../src/parser.ts';
 const SESSION = '7f3c9a2e-4b1d-4e8a-9c6f-2d5e8b1a3c47';
 const line = (message: object) => JSON.stringify(message);
 const init = line({ type: 'system', subtype: 'init', session_id: SESSION, model: 'claude-opus-5-5' });
+const INIT = { type: 'init', model: 'claude-opus-5-5' };
 const result = line({
   type: 'result',
   subtype: 'success',
@@ -15,8 +16,8 @@ const result = line({
 describe('ClaudeLineParser.feed', () => {
   it('gives the session once, from the first message that has one', () => {
     const parser = new ClaudeLineParser();
-    expect(parser.feed(init)).toEqual([{ type: 'session', sessionId: SESSION }]);
-    expect(parser.feed(init)).toEqual([]);
+    expect(parser.feed(init)).toEqual([{ type: 'session', sessionId: SESSION }, INIT]);
+    expect(parser.feed(init)).toEqual([INIT]);
     const late = new ClaudeLineParser();
     expect(late.feed(line({ type: 'assistant', session_id: SESSION, message: { content: [] } }))).toEqual([
       { type: 'session', sessionId: SESSION },
@@ -25,9 +26,10 @@ describe('ClaudeLineParser.feed', () => {
 
   it('ignores a session id that could not go back on a command line', () => {
     const parser = new ClaudeLineParser();
-    expect(parser.feed(line({ type: 'system', subtype: 'init', session_id: '--resume' }))).toEqual([]);
-    expect(parser.feed(line({ type: 'system', subtype: 'init', session_id: 7 }))).toEqual([]);
-    expect(parser.feed(init)).toEqual([{ type: 'session', sessionId: SESSION }]);
+    const noModel = { type: 'init', model: null };
+    expect(parser.feed(line({ type: 'system', subtype: 'init', session_id: '--resume' }))).toEqual([noModel]);
+    expect(parser.feed(line({ type: 'system', subtype: 'init', session_id: 7 }))).toEqual([noModel]);
+    expect(parser.feed(init)).toEqual([{ type: 'session', sessionId: SESSION }, INIT]);
   });
 
   it('gives nothing for blank, partial and garbled lines, and for unknown types', () => {
@@ -65,6 +67,17 @@ describe('ClaudeLineParser.feed', () => {
   });
 });
 
+describe('ClaudeLineParser after the result', () => {
+  it('gives nothing more: the result stays the last event', () => {
+    const parser = new ClaudeLineParser();
+    parser.feed(init);
+    parser.feed(result);
+    expect(
+      parser.feed(line({ type: 'assistant', message: { content: [{ type: 'text', text: 'late' }] } })),
+    ).toEqual([]);
+  });
+});
+
 describe('ClaudeLineParser.end', () => {
   it('gives nothing once a result came, whatever the exit code', () => {
     const parser = new ClaudeLineParser();
@@ -95,5 +108,15 @@ describe('ClaudeLineParser.end', () => {
     expect(new ClaudeLineParser().end(0, '')[0]).toMatchObject({
       error: 'Claude Code ended without finishing the turn',
     });
+  });
+
+  it('ends the subagents still running as interrupted before the failing result', () => {
+    const parser = new ClaudeLineParser();
+    const call = { type: 'tool_use', id: 'toolu_a', name: 'Agent', input: { description: 'Look' } };
+    parser.feed(line({ type: 'assistant', message: { content: [call] } }));
+    expect(parser.end(null, '')).toMatchObject([
+      { type: 'subagent', id: 'toolu_a', status: 'interrupted' },
+      { type: 'result', ok: false },
+    ]);
   });
 });

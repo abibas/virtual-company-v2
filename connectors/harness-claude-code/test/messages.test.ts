@@ -1,5 +1,7 @@
+import { THINKING_MAX, TRUNCATED_MARKER } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { assistantEvents, resultEvents, systemEvents, userEvents } from '../src/messages.ts';
+import { assistantEvents, resultEvents, todoEvent, userEvents } from '../src/messages.ts';
+import { newClaudeState } from '../src/state.ts';
 
 const assistant = (content: unknown, parent: string | null = null) => ({
   type: 'assistant',
@@ -12,32 +14,8 @@ const user = (content: unknown, parent: string | null = null) => ({
   parent_tool_use_id: parent,
 });
 
-describe('systemEvents', () => {
-  it('turns an API retry into an info notice', () => {
-    const retry = { type: 'system', subtype: 'api_retry', attempt: 2, max_retries: 10, error_status: 529 };
-    expect(systemEvents(retry)).toEqual([
-      {
-        type: 'notice',
-        level: 'info',
-        message: 'The request to the model failed and is retried (attempt 2 of 10): HTTP 529',
-      },
-    ]);
-    expect(systemEvents({ subtype: 'api_retry', error: 'overloaded_error' })[0]).toMatchObject({
-      message: 'The request to the model failed and is retried: overloaded_error',
-    });
-    expect(systemEvents({ subtype: 'api_retry' })[0]).toMatchObject({
-      message: 'The request to the model failed and is retried',
-    });
-  });
-
-  it('gives nothing for init and the other system messages', () => {
-    expect(systemEvents({ type: 'system', subtype: 'init', session_id: 's' })).toEqual([]);
-    expect(systemEvents({ type: 'system', subtype: 'compact_boundary' })).toEqual([]);
-  });
-});
-
 describe('assistantEvents', () => {
-  it('gives the text blocks and the tool calls, in order, and nothing for thinking', () => {
+  it('gives the text and thinking blocks and the tool calls, in order', () => {
     const events = assistantEvents(
       assistant([
         { type: 'thinking', thinking: 'hmm', signature: 's' },
@@ -47,17 +25,20 @@ describe('assistantEvents', () => {
       ]),
     );
     expect(events).toEqual([
+      { type: 'thinking', text: 'hmm' },
       { type: 'text', text: 'Let me look.' },
       { type: 'tool', id: 'toolu_1', name: 'Read', summary: '/w/a.ts' },
       { type: 'tool', id: 'srvtoolu_1', name: 'web_search', summary: 'zod' },
     ]);
   });
 
-  it('skips blank text, calls without an id, odd blocks and a subagent’s messages', () => {
+  it('skips blank text and thinking, calls without an id and odd blocks, and marks a subagent’s', () => {
     expect(
       assistantEvents(
         assistant([
           { type: 'text', text: '  \n' },
+          { type: 'thinking', thinking: '', signature: 's' },
+          { type: 'redacted_thinking', data: 'x' },
           { type: 'tool_use', name: 'Bash' },
           { type: 'tool_use', id: '' },
           'x',
@@ -65,7 +46,9 @@ describe('assistantEvents', () => {
         ]),
       ),
     ).toEqual([]);
-    expect(assistantEvents(assistant([{ type: 'text', text: 'inner' }], 'toolu_task'))).toEqual([]);
+    expect(assistantEvents(assistant([{ type: 'text', text: 'inner' }], 'toolu_task'))).toEqual([
+      { type: 'text', text: 'inner', parentId: 'toolu_task' },
+    ]);
     expect(assistantEvents({ type: 'assistant' })).toEqual([]);
     expect(assistantEvents({ type: 'assistant', message: { content: 'text' } })).toEqual([]);
   });
@@ -98,9 +81,9 @@ describe('userEvents', () => {
     ]);
   });
 
-  it('gives nothing for a subagent’s results or a plain user message', () => {
+  it('marks a subagent’s results, and gives nothing for a plain user message', () => {
     expect(userEvents(user([{ type: 'tool_result', tool_use_id: 't', content: 'x' }], 'toolu_task'))).toEqual(
-      [],
+      [{ type: 'tool_result', id: 't', ok: true, summary: 'x', parentId: 'toolu_task' }],
     );
     expect(userEvents(user('a plain message'))).toEqual([]);
   });
@@ -189,5 +172,124 @@ describe('resultEvents', () => {
       outputTokens: 0,
       cachedInputTokens: 0,
     });
+  });
+});
+
+describe('the richer events of messages', () => {
+  it('cuts a long thinking text to its limit, ending in the marker', () => {
+    const [event] = assistantEvents(
+      assistant([{ type: 'thinking', thinking: 'x'.repeat(THINKING_MAX + 5) }]),
+    );
+    const text = (event as { text: string }).text;
+    expect(text).toHaveLength(THINKING_MAX);
+    expect(text.endsWith(TRUNCATED_MARKER)).toBe(true);
+  });
+
+  it('gives a TodoWrite call as the tool and its list, a subagent’s with its parentId', () => {
+    const input = {
+      todos: [
+        { content: 'Read the spec', status: 'completed', activeForm: 'Reading' },
+        { content: '  Write\nthe parser ', status: 'in_progress' },
+        { content: 'Ship', status: 'later' },
+        { content: ' ', status: 'pending' },
+        'odd',
+      ],
+    };
+    const call = { type: 'tool_use', id: 't', name: 'TodoWrite', input };
+    expect(assistantEvents(assistant([call], 'toolu_a'))).toEqual([
+      { type: 'tool', id: 't', name: 'TodoWrite', summary: '5 to-dos', parentId: 'toolu_a' },
+      {
+        type: 'todo',
+        items: [
+          { text: 'Read the spec', status: 'completed' },
+          { text: 'Write the parser', status: 'in_progress' },
+          { text: 'Ship', status: 'pending' },
+        ],
+        parentId: 'toolu_a',
+      },
+    ]);
+  });
+
+  it('keeps a to-do list to 100 items of 300 characters, and gives none for a call without a list', () => {
+    const todos = Array.from({ length: 120 }, (_, i) => ({
+      content: `${i} ${'y'.repeat(400)}`,
+      status: 'pending',
+    }));
+    const [event] = todoEvent({ todos }, {});
+    expect(event?.items).toHaveLength(100);
+    expect(event?.items[0]?.text).toHaveLength(300);
+    expect(todoEvent({ todos: 'no' }, {})).toEqual([]);
+    expect(todoEvent(null, {})).toEqual([]);
+    expect(todoEvent({ todos: [] }, {})).toEqual([{ type: 'todo', items: [] }]);
+  });
+
+  it('starts a subagent on an Agent call and ends it with the call’s result', () => {
+    const state = newClaudeState();
+    const call = {
+      type: 'tool_use',
+      id: 'toolu_a',
+      name: 'Agent',
+      input: { description: 'Look', prompt: 'p' },
+    };
+    const subagent = {
+      type: 'subagent',
+      id: 'toolu_a',
+      agentType: 'general-purpose',
+      description: 'Look',
+      background: false,
+    };
+    expect(assistantEvents(assistant([call]), state)).toEqual([
+      { type: 'tool', id: 'toolu_a', name: 'Agent', summary: 'Look' },
+      { ...subagent, status: 'running' },
+    ]);
+    const answer = user([{ type: 'tool_result', tool_use_id: 'toolu_a', content: 'Found it.' }]);
+    expect(userEvents(answer, state)).toEqual([
+      { type: 'tool_result', id: 'toolu_a', ok: true, summary: 'Found it.' },
+      { ...subagent, status: 'done', summary: 'Found it.' },
+    ]);
+  });
+
+  it('says how full the context is after a message with its usage', () => {
+    const usage = {
+      input_tokens: 3,
+      cache_read_input_tokens: 14000,
+      cache_creation_input_tokens: 0,
+      output_tokens: 9,
+    };
+    const message = {
+      type: 'assistant',
+      message: { id: 'msg_1', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Hi' }], usage },
+    };
+    expect(assistantEvents(message).at(-1)).toEqual({
+      type: 'context',
+      inputTokens: 3,
+      cacheReadTokens: 14000,
+      cacheCreationTokens: 0,
+      outputTokens: 9,
+      window: 1_000_000,
+    });
+  });
+
+  it('ends the turn with the subagents still running as interrupted, then the context and the result', () => {
+    const state = newClaudeState();
+    assistantEvents(assistant([{ type: 'tool_use', id: 'toolu_a', name: 'Task', input: {} }]), state);
+    state.context = {
+      type: 'context',
+      inputTokens: 3,
+      cacheReadTokens: 100,
+      cacheCreationTokens: 0,
+      outputTokens: 1,
+      window: null,
+    };
+    const result = {
+      type: 'result',
+      subtype: 'success',
+      result: 'ok',
+      modelUsage: { m: { contextWindow: 200_000 } },
+    };
+    const events = resultEvents(result, state);
+    expect(events.map((event) => event.type)).toEqual(['subagent', 'context', 'result']);
+    expect(events[0]).toMatchObject({ id: 'toolu_a', status: 'interrupted' });
+    expect(events[1]).toMatchObject({ window: 200_000 });
   });
 });

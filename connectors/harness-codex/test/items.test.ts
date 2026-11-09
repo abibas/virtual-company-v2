@@ -1,5 +1,6 @@
+import { THINKING_MAX, TRUNCATED_MARKER } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { completedEvents, newItemState, startedEvents } from '../src/items.ts';
+import { completedEvents, newItemState, startedEvents, todoEvents } from '../src/items.ts';
 
 const cmd = (status: string, exit: number | null, output = '') => ({
   id: 'item_1',
@@ -32,10 +33,9 @@ describe('startedEvents', () => {
     ]);
   });
 
-  it('gives nothing for reasoning, the to-do list, unknown items and items without an id', () => {
+  it('gives nothing for reasoning until it completes, unknown items and items without an id', () => {
     const state = newItemState();
     expect(startedEvents({ id: 'r', type: 'reasoning', text: 'x' }, state)).toEqual([]);
-    expect(startedEvents({ id: 't', type: 'todo_list', items: [] }, state)).toEqual([]);
     expect(startedEvents({ id: 'c', type: 'collab_tool_call' }, state)).toEqual([]);
     expect(startedEvents({ type: 'command_execution', command: 'ls' }, state)).toEqual([]);
     expect(startedEvents({ id: '', type: 'web_search' }, state)).toEqual([]);
@@ -150,12 +150,59 @@ describe('completedEvents', () => {
     ]);
   });
 
-  it('turns an error item into a notice and gives nothing for reasoning or unknown items', () => {
+  it('turns an error item into a notice and gives nothing for blank reasoning or unknown items', () => {
     expect(
       completedEvents({ id: 'e', type: 'error', message: ' model at capacity ' }, newItemState()),
     ).toEqual([{ type: 'notice', level: 'warn', message: 'model at capacity' }]);
     expect(completedEvents({ id: 'e', type: 'error' }, newItemState())).toEqual([]);
-    expect(completedEvents({ id: 'r', type: 'reasoning', text: 'x' }, newItemState())).toEqual([]);
+    expect(completedEvents({ id: 'r', type: 'reasoning', text: ' ' }, newItemState())).toEqual([]);
+    expect(completedEvents({ id: 'r', type: 'reasoning' }, newItemState())).toEqual([]);
     expect(completedEvents({ id: 'u', type: 'image_generation' }, newItemState())).toEqual([]);
+  });
+
+  it('gives a completed reasoning item as thinking, cut to its limit with the marker', () => {
+    expect(completedEvents({ id: 'r', type: 'reasoning', text: '**Reading**' }, newItemState())).toEqual([
+      { type: 'thinking', text: '**Reading**' },
+    ]);
+    const [long] = completedEvents(
+      { id: 'r', type: 'reasoning', text: 'r'.repeat(THINKING_MAX + 1) },
+      newItemState(),
+    );
+    expect((long as { text: string }).text).toHaveLength(THINKING_MAX);
+    expect((long as { text: string }).text.endsWith(TRUNCATED_MARKER)).toBe(true);
+  });
+});
+
+describe('todoEvents', () => {
+  const list = (items: unknown) => ({ id: 't', type: 'todo_list', items });
+
+  it('gives the to-do list when it is made, changes or completes, done items as completed', () => {
+    const state = newItemState();
+    const items = [
+      { text: 'Read', completed: true },
+      { text: ' Write\nit ', completed: false },
+    ];
+    const todo = {
+      type: 'todo',
+      items: [
+        { text: 'Read', status: 'completed' },
+        { text: 'Write it', status: 'pending' },
+      ],
+    };
+    expect(startedEvents(list(items), state)).toEqual([todo]);
+    expect(todoEvents(list(items), state)).toEqual([]);
+    expect(completedEvents(list([{ text: 'Read', completed: true }]), state)).toEqual([
+      { type: 'todo', items: [{ text: 'Read', status: 'completed' }] },
+    ]);
+  });
+
+  it('keeps 100 items of 300 characters, skips odd ones, and gives nothing for another item', () => {
+    const state = newItemState();
+    const many = Array.from({ length: 120 }, (_, i) => ({ text: `${i}${'t'.repeat(400)}` }));
+    const [event] = todoEvents(list([...many, 'odd', { text: ' ' }]), state);
+    expect((event as { items: unknown[] }).items).toHaveLength(100);
+    expect((event as { items: { text: string }[] }).items[0]?.text).toHaveLength(300);
+    expect(todoEvents(list('none'), newItemState())).toEqual([]);
+    expect(todoEvents({ id: 'c', type: 'command_execution' }, newItemState())).toEqual([]);
   });
 });

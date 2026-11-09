@@ -1,5 +1,5 @@
 import { clipHead } from '@mwc/harness-core';
-import type { TurnEvent } from '@mwc/shared/harness';
+import type { TurnEvent, TurnEventOf } from '@mwc/shared/harness';
 import {
   EVENT_BATCH_MAX_EVENTS,
   TURN_EVENTS_BATCH_BYTES,
@@ -13,7 +13,8 @@ import type { Timers } from '../system/time.ts';
  * A turn's events on their way to the link (docs/runner-protocol.md, "Chat turns"): numbered from 1 in the order they
  * came, gathered and sent `TURN_EVENTS_BATCH_MS` after the first one, or at once from `TURN_EVENTS_BATCH_BYTES` or
  * `EVENT_BATCH_MAX_EVENTS`. Every frame stays far below the frame limit: a text longer than a batch is split into
- * several text events, and a result's text is cut to `RESULT_EVENT_MAX_BYTES` (its full reply is in the text events).
+ * several text events (each keeping its `parentId`), and a result's text is cut to `RESULT_EVENT_MAX_BYTES` (its full
+ * reply is in the text events).
  */
 
 /** The largest text event: a longer text is split into pieces of at most this size. */
@@ -30,14 +31,14 @@ function headOf(text: string, n: number): string {
 
 const sizeOf = (value: unknown) => utf8Bytes(JSON.stringify(value));
 
-/** A text in pieces whose events are each at most `TEXT_EVENT_MAX_BYTES`. */
-function textPieces(text: string): string[] {
+/** A text event's text in pieces whose events are each at most `TEXT_EVENT_MAX_BYTES`. */
+function textPieces(event: TurnEventOf<'text'>): string[] {
   const pieces: string[] = [];
-  let rest = text;
+  let rest = event.text;
   while (rest !== '') {
     let n = Math.min(rest.length, TEXT_EVENT_MAX_BYTES / 2);
     let piece = headOf(rest, n);
-    while (n > 1 && sizeOf({ type: 'text', text: piece }) > TEXT_EVENT_MAX_BYTES) {
+    while (n > 1 && sizeOf({ ...event, text: piece }) > TEXT_EVENT_MAX_BYTES) {
       n = Math.floor(n / 2);
       piece = headOf(rest, n) || rest.slice(0, 2);
     }
@@ -50,7 +51,7 @@ function textPieces(text: string): string[] {
 /** An event as it travels: a long text split, a long result's text cut. */
 export function fitEvent(event: TurnEvent): TurnEvent[] {
   if (event.type === 'text' && sizeOf(event) > TEXT_EVENT_MAX_BYTES) {
-    return textPieces(event.text).map((text) => ({ type: 'text', text }));
+    return textPieces(event).map((text) => ({ ...event, text }));
   }
   if (event.type === 'result' && event.text !== undefined && sizeOf(event) > RESULT_EVENT_MAX_BYTES) {
     let text = event.text;

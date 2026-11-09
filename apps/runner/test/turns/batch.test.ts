@@ -73,6 +73,16 @@ describe("a turn's events on their way", () => {
     expect(fitEvent(text('short'))).toEqual([text('short')]);
   });
 
+  it("keep a subagent's parentId on each piece of its long text, within the size", () => {
+    const parentId = `toolu_${'p'.repeat(190)}`;
+    const pieces = fitEvent({ type: 'text', text: 'w'.repeat(TEXT_EVENT_MAX_BYTES * 2), parentId });
+    expect(pieces.length).toBeGreaterThan(2);
+    for (const piece of pieces) {
+      expect(piece).toMatchObject({ type: 'text', parentId });
+      expect(utf8Bytes(JSON.stringify(piece))).toBeLessThanOrEqual(TEXT_EVENT_MAX_BYTES);
+    }
+  });
+
   it("cut a result's text to fit one frame, and leave the other events as they are", () => {
     const result: TurnEvent = { type: 'result', ok: true, text: 'z'.repeat(RESULT_EVENT_MAX_BYTES * 2) };
     const [cut] = fitEvent(result);

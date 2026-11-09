@@ -1,6 +1,17 @@
-import { clipHead, clipLine, clipTail, isRecord, type JsonRecord, stringOf } from '@mwc/harness-core';
+import {
+  clipHead,
+  clipLine,
+  clipMarked,
+  clipTail,
+  isRecord,
+  type JsonRecord,
+  stringOf,
+} from '@mwc/harness-core';
 import {
   NOTICE_MAX,
+  THINKING_MAX,
+  TODO_ITEMS_MAX,
+  TODO_TEXT_MAX,
   TOOL_RESULT_SUMMARY_MAX,
   TOOL_SUMMARY_MAX,
   type TurnEvent,
@@ -8,19 +19,38 @@ import {
 } from '@mwc/shared/harness';
 
 /**
- * Codex's thread items (`item.started` / `item.completed` of `codex exec --json`) as turn events: an agent message is
- * text; a command, a file change, an MCP tool call and a web search are tools, shown when they start (or, for those
- * that only complete, then) with their result on completion; reasoning and the to-do list give nothing.
+ * Codex's thread items (`item.started` / `item.updated` / `item.completed` of `codex exec --json`) as turn events: an
+ * agent message is text, reasoning is thinking; a command, a file change, an MCP tool call and a web search are tools,
+ * shown when they start (or, for those that only complete, then) with their result on completion; the to-do list is a
+ * `todo` event each time it changes (Codex's items are only done or not: `completed` or `pending`).
  */
 
-/** What the parser keeps across items: the tools already shown, the last agent message (the reply). */
+/** What the parser keeps across items: the tools already shown, the last agent message (the reply), the last list. */
 export interface ItemState {
   readonly tools: Set<string>;
   lastMessage: string | undefined;
+  lastTodos: string | undefined;
 }
 
 export function newItemState(): ItemState {
-  return { tools: new Set(), lastMessage: undefined };
+  return { tools: new Set(), lastMessage: undefined, lastTodos: undefined };
+}
+
+/** A `todo_list` item's list, when it changed since the last one given. */
+export function todoEvents(item: JsonRecord, state: ItemState): TurnEvent[] {
+  if (item.type !== 'todo_list' || !Array.isArray(item.items)) return [];
+  const items = item.items
+    .filter(isRecord)
+    .map((todo) => ({
+      text: clipLine(stringOf(todo.text) ?? '', TODO_TEXT_MAX),
+      status: todo.completed === true ? ('completed' as const) : ('pending' as const),
+    }))
+    .filter((todo) => todo.text !== '')
+    .slice(0, TODO_ITEMS_MAX);
+  const key = JSON.stringify(items);
+  if (key === state.lastTodos) return [];
+  state.lastTodos = key;
+  return [{ type: 'todo', items }];
 }
 
 const tool = (id: string, name: string, summary: string): TurnEventOf<'tool'> => ({
@@ -109,16 +139,25 @@ function resultOf(item: JsonRecord, id: string): TurnEventOf<'tool_result'> | nu
   }
 }
 
-/** `item.started`: a tool as soon as it starts. */
+/** `item.started`: a tool as soon as it starts, the to-do list when it is made. */
 export function startedEvents(item: JsonRecord, state: ItemState): TurnEvent[] {
+  if (item.type === 'todo_list') return todoEvents(item, state);
   const started = toolOf(item);
   if (started === null || state.tools.has(started.id)) return [];
   state.tools.add(started.id);
   return [started];
 }
 
-/** `item.completed`: the agent's text, a non-fatal error as a notice, a tool's result (with the tool if not shown). */
+/**
+ * `item.completed`: the agent's text, its reasoning, the final to-do list, a non-fatal error as a notice, a tool's
+ * result (with the tool if not shown).
+ */
 export function completedEvents(item: JsonRecord, state: ItemState): TurnEvent[] {
+  if (item.type === 'todo_list') return todoEvents(item, state);
+  if (item.type === 'reasoning') {
+    const text = stringOf(item.text);
+    return text?.trim() ? [{ type: 'thinking', text: clipMarked(text, THINKING_MAX) }] : [];
+  }
   if (item.type === 'agent_message') {
     const text = stringOf(item.text);
     if (text === undefined || text.trim() === '') return [];

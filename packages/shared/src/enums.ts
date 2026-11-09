@@ -164,3 +164,11 @@ export type PermissionPolicy = z.infer<typeof PermissionPolicy>;
  */
 export const ChatTurnStatus = z.enum(['queued', 'running', 'done', 'failed', 'stopped']);
 export type ChatTurnStatus = z.infer<typeof ChatTurnStatus>;
+
+/**
+ * `chat_turns.kind` (S5.2, docs/harness.md "Compact and Clear"): a person's prompt (`message`), the harness's own
+ * `/compact` of the conversation (`compact`), or a Clear, which runs no process and starts the next turn in a new
+ * conversation (`clear`).
+ */
+export const ChatTurnKind = z.enum(['message', 'compact', 'clear']);
+export type ChatTurnKind = z.infer<typeof ChatTurnKind>;

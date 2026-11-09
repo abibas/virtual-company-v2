@@ -141,6 +141,30 @@ describe('chat_turns', () => {
     expect(await constraint(insertTurn(chat, { usage: [1] as never }))).toBe('chat_turns_usage_check');
     expect(await constraint(insertTurn({ ...chat, companyId: globex.id }))).toBe('chat_turns_chat_fk');
   });
+
+  it('is a message by default, takes a compact, and a clear only done and on no credential', async () => {
+    const chat = await insertChat();
+    expect(await insertTurn(chat, { status: 'done' })).toMatchObject({ kind: 'message' });
+    expect(
+      await insertTurn(chat, { seq: 2, kind: 'compact', prompt: '/compact', status: 'done' }),
+    ).toMatchObject({
+      kind: 'compact',
+    });
+    expect(await constraint(insertTurn(chat, { seq: 3, kind: 'reset' as never }))).toBe(
+      'chat_turns_kind_check',
+    );
+    const clear = { seq: 3, kind: 'clear', prompt: '/clear' } as const;
+    expect(await constraint(insertTurn(chat, { ...clear, status: 'running' }))).toBe(
+      'chat_turns_clear_check',
+    );
+    expect(await constraint(insertTurn(chat, { ...clear, status: 'done', credentialId: MISSING_ID }))).toBe(
+      'chat_turns_clear_check',
+    );
+    expect(await insertTurn(chat, { ...clear, status: 'done' })).toMatchObject({
+      kind: 'clear',
+      status: 'done',
+    });
+  });
 });
 
 describe('chat_events', () => {

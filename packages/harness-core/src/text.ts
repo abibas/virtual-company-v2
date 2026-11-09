@@ -1,3 +1,5 @@
+import { TRUNCATED_MARKER } from '@mwc/shared/harness';
+
 /** Shortening texts for events: summaries keep to their limits without splitting a character in two. */
 
 const ELLIPSIS = '…';
@@ -33,4 +35,14 @@ export function clipTail(text: string, max: number): string {
 /** `text` on one line (every run of whitespace, newlines too, becomes one space), then `clipHead`. */
 export function clipLine(text: string, max: number): string {
   return clipHead(text.replace(/\s+/g, ' '), max);
+}
+
+/**
+ * A long text (thinking, a subagent's answer) at most `max` characters: whole when it fits, else its start ending in
+ * `TRUNCATED_MARKER`, so the reader sees there was more. Unlike `clipHead` it keeps the text's own spacing.
+ */
+export function clipMarked(text: string, max: number): string {
+  if (text.length <= max) return text;
+  if (max <= TRUNCATED_MARKER.length) return headOf(text, max);
+  return `${headOf(text, max - TRUNCATED_MARKER.length)}${TRUNCATED_MARKER}`;
 }

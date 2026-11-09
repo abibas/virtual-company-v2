@@ -1,0 +1,3 @@
+ALTER TABLE "chat_turns" ADD COLUMN "kind" text DEFAULT 'message' NOT NULL;--> statement-breakpoint
+ALTER TABLE "chat_turns" ADD CONSTRAINT "chat_turns_kind_check" CHECK ("chat_turns"."kind" in ('message', 'compact', 'clear'));--> statement-breakpoint
+ALTER TABLE "chat_turns" ADD CONSTRAINT "chat_turns_clear_check" CHECK ("chat_turns"."kind" <> 'clear' or ("chat_turns"."status" = 'done' and "chat_turns"."credential_id" is null));

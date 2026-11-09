@@ -199,6 +199,26 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    orchestration on a fake spawn, fetch and clock (lazy start, warm reuse, restart, fallback, retry pause, shutdown,
    short and blank clips), the selection on a fake host, the route on PGlite (auth, sizes, types, refusals, nothing
    kept), the config keys; no real whisper run, no frontend tests.
+   **S5.2 step 1, richer turn events, Compact and Clear: done 2026-11-09** (docs/harness.md "Events" and "Compact and
+   Clear"; the first step of chat parity: status, thinking, subagents, a to-do checklist and a context meter on the chat
+   page). `TurnEvent` gains `init` (model, effort, folder, slash commands), `thinking` (≤ 20 000, cut with a marker),
+   `context` (the last request's input, cache reads, cache writes, output and the window), `compact` (sizes before and
+   after), `todo` (the whole list, ≤ 100 items) and `subagent` (its whole state: `agentType`, description, model,
+   background, `running`|`done`|`failed`|`interrupted`, summary ≤ 4000, last step), and an optional `parentId` on
+   `text`, `thinking`, `tool`, `tool_result`, `notice`, `todo` and `subagent` for a subagent's own events; old events
+   stay valid. `contextWindowOf(model)` in `@mwc/shared` (the Claude 5 family and 4.x, Claude Code's aliases, `[1m]`,
+   the GPT/Codex models; unknown → null). Claude Code's parser reads `system/init`, thinking blocks, each main-agent
+   message's usage (once per message), `compact_boundary`, `TodoWrite`, Agent/Task calls with `parent_tool_use_id` and
+   `task_started`/`task_progress`/`task_updated`/`task_notification`, and `result.modelUsage[].contextWindow`; Codex's
+   reads `reasoning` and `todo_list` (no `init` or `context`: Codex says neither). The runner keeps `parentId` on a long
+   text it splits. Migration `0013_chat_turn_kind`: `chat_turns.kind` (`message`|`compact`|`clear`, a `clear` turn only
+   `done` and on no credential). Server: `POST …/chats/{chatId}/compact` (a `/compact` turn; 409 `nothing_to_compact`,
+   `compact_unsupported` for Codex) and `POST …/clear` (a `clear` turn as the thread's marker, the session forgotten;
+   409 `turn_running`, `nothing_to_clear`, `chat_archived`); the detail's `init` and `context` since the last Clear, and
+   each turn's `kind`. Tests: parser cases for every new event, `parentId`, truncation, dedupe and unknown shapes; the
+   new fixtures (`subagent`, `compact`, Codex `plan`); the model table; the routes on PGlite with `FakeRunner` (roles,
+   refusals, the session reset, the marker in the detail and on the stream); the migration's CHECKs. No real turn run.
+   Next: the chat page's status line, thinking, subagents, checklist and context meter (two web steps).
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

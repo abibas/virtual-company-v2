@@ -17,5 +17,5 @@ export {
   unsetFor,
 } from './args.ts';
 export { CodexDriver, type CodexDriverOptions } from './driver.ts';
-export { completedEvents, type ItemState, newItemState, startedEvents } from './items.ts';
+export { completedEvents, type ItemState, newItemState, startedEvents, todoEvents } from './items.ts';
 export { CodexLineParser } from './parser.ts';
