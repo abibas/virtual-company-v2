@@ -4,6 +4,7 @@ import {
   chmodSync,
   constants,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -41,6 +42,7 @@ export const nodeFs: HostFs = {
     copyFileSync(from, to);
     chmodSync(to, 0o644);
   },
+  copyTree: (from, to) => cpSync(from, to, { recursive: true }),
   mkdir: (path, mode) => {
     mkdirSync(path, { recursive: true, mode });
   },

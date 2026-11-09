@@ -2,6 +2,7 @@ import { type DbHandle, type TenantDb, tenant } from '@mwc/db';
 import {
   type CmdAck,
   encodeFrame,
+  isTerminalFrame,
   type PowerResult,
   parseRunnerFrame,
   RUNNER_CLOSE,
@@ -9,6 +10,7 @@ import {
   type RunnerFrame,
   type RunnerHello,
   type ServerFrame,
+  type TerminalRunnerFrame,
   type TunnelState,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
@@ -49,6 +51,8 @@ export interface ConnectionContext {
   release(connection: RunnerConnection): boolean;
   /** A controller reported one of its tunnels (`tunnel.state`; the hub keeps it in memory). */
   tunnel(connection: RunnerConnection, frame: TunnelState): void;
+  /** A frame of one of the terminals this connection carries (the hub relays it). */
+  terminal(connection: RunnerConnection, frame: TerminalRunnerFrame): void;
 }
 
 interface Pending {
@@ -61,9 +65,10 @@ interface Pending {
  * One runner socket, from the upgrade to its close (docs/runner-protocol.md, "Connection"): it waits for `runner.hello`
  * (4008 after the timeout), refuses another protocol (4002) and a runner too old (4003, after `server.hello`), takes
  * over from an older connection of its machine (closed 4004), records the machine online with a session and then answers
- * `server.hello`. Heartbeats and `hold.state` update the machine, `tunnel.state` the hub's memory; command replies settle
- * the hub's requests; frames of runs (S5) are accepted and left; unknown frames are ignored, invalid ones logged. Its close
- * ends the session and, unless it was replaced, takes the machine offline.
+ * `server.hello`. Heartbeats and `hold.state` update the machine, `tunnel.state` the hub's memory, terminal frames go to
+ * the hub's terminals; command replies settle the hub's requests; frames of runs (S5) are accepted and left; unknown
+ * frames are ignored, invalid ones logged. Its close ends the session (and the terminals it carried) and, unless it was
+ * replaced, takes the machine offline.
  */
 export class RunnerConnection {
   readonly runner: RunnerCredential;
@@ -157,6 +162,7 @@ export class RunnerConnection {
     } else if (frame.type === 'hold.state') {
       this.#run((t) => hold(t, this.machineId, frame.until, frame.source));
     } else if (frame.type === 'tunnel.state') this.#ctx.tunnel(this, frame);
+    else if (isTerminalFrame(frame)) this.#ctx.terminal(this, frame);
     else {
       this.#log(
         'debug',

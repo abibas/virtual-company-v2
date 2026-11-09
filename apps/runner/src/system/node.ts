@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { readFile, statfs } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import { WebSocket } from 'ws';
 import { detectPowerExecutor } from '../power/detect.ts';
 import type { MainDeps } from '../start.ts';
+import { loadPty } from '../terminal/loader.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
 import { runnerVersion } from './version.ts';
 
@@ -58,5 +60,8 @@ export function nodeDeps(): MainDeps {
     version: runnerVersion(readRunnerVersion),
     // A power controller when the airia CLI and gcloud are installed here (found without starting a process).
     power: detectPowerExecutor({ env: process.env, home: os.homedir(), exists: existsSync }),
+    // The PTY next to the bundle (node_modules/ beside runner.mjs), or the package's own from the sources.
+    loadPty: () =>
+      loadPty({ platform: process.platform, arch: process.arch, load: createRequire(import.meta.url) }),
   };
 }

@@ -1,4 +1,12 @@
-import type { CmdAck, PowerResult, RunnerFrame, ServerFrame, TunnelSpec } from '@mwc/shared/runner-protocol';
+import {
+  type CmdAck,
+  isTerminalFrame,
+  type PowerResult,
+  type RunnerFrame,
+  type ServerFrame,
+  type TerminalServerFrame,
+  type TunnelSpec,
+} from '@mwc/shared/runner-protocol';
 import { z } from 'zod';
 import type { Log } from '../log.ts';
 import { type PowerExecutor, runPowerCommand } from '../power.ts';
@@ -8,7 +16,8 @@ import { type PowerExecutor, runPowerCommand } from '../power.ts';
  * `cmd.ack` (`power.command` with `power.result`), and a repeat of a `cmdId` already run gets the same answer again
  * without running it again. S4.3 carries out `machine.hold`, `power.command` (through the injected executor),
  * `key.rotate` and `runner.drain`; the run commands are refused until S5, and offers are declined. `tunnel.set` is no
- * command (it has no `cmdId`): the controller's tunnels take it as it comes.
+ * command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal frames, which go to
+ * the terminals, whose answers are their own frames.
  */
 
 /** How many answered commands are remembered for repeats. */
@@ -27,6 +36,8 @@ export interface CommandDeps {
   drain(): void;
   /** `tunnel.set`: the tunnels the server wants this controller to hold now. */
   setTunnels(tunnels: readonly TunnelSpec[]): void;
+  /** `terminal.*`: for the machine's terminals. */
+  terminal(frame: TerminalServerFrame): void;
   readonly log: Log;
 }
 
@@ -56,6 +67,10 @@ export class Commands {
     }
     if (frame.type === 'tunnel.set') {
       this.#deps.setTunnels(frame.tunnels);
+      return [];
+    }
+    if (isTerminalFrame(frame)) {
+      this.#deps.terminal(frame);
       return [];
     }
     if (!('cmdId' in frame)) return [];

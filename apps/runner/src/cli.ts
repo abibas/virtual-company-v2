@@ -27,9 +27,10 @@ export const HELP = `usage: mwc-runner <command>   (node runner.mjs <command>)
   run                       the runner itself, as its service starts it
   enroll --server URL --token mwc_et_… [--name NAME] [--slots N] [--force]
                             enroll this machine: its id and runner key go to ~/.config/mwc/runner.json
-  install [--server URL --token mwc_et_… [--name NAME] [--slots N] [--force]]
-                            enroll (with a token), copy this runner to ~/.local/share/mwc-runner and run it
-                            as a service: a launchd agent on macOS, a systemd user unit on Linux
+  install [--server URL [--token mwc_et_… [--name NAME] [--slots N] [--force]]]
+                            enroll (with a token; without one, keep the enrollment on that server), copy this
+                            runner and its terminal's PTY to ~/.local/share/mwc-runner and run it as a service:
+                            a launchd agent on macOS, a systemd user unit on Linux
   status                    the enrollment, the service and what the running runner says
   uninstall [--purge]       stop and remove the service and the installed runner; --purge also removes
                             the configuration (the runner key) and the state folder

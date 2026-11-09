@@ -3,7 +3,8 @@
 # The API server image. Node 24 runs the workspace's TypeScript sources directly (its built-in type
 # stripping; every source is erasable syntax, enforced by tsconfig), so the server has no build step
 # and no tsx at runtime. Only the web UI is built (Vite) and the server serves it from MWC_WEB_DIST, and the
-# runner bundle (esbuild), which it hands to machines at /api/runner/runner.mjs.
+# runner bundle (esbuild), which it hands to machines at /api/runner/runner.mjs, with the terminal's PTY archives
+# beside it (dist/pty/<target>.tgz, served at /api/runner/pty/<target>.tgz).
 #
 #   docker build -f deploy/Dockerfile.server -t mwc-v2/server:local .
 #   docker run --rm -p 9950:9950 -e DATABASE_URL=postgres://... mwc-v2/server:local
@@ -30,7 +31,8 @@ RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store --filter "@mwc/web..." \
  && pnpm --filter @mwc/web build
 
-# The runner as one file (apps/runner/dist/runner.mjs): the runner, the workspace packages it depends on, and esbuild.
+# The runner as one file (apps/runner/dist/runner.mjs): the runner, the workspace packages it depends on, and esbuild;
+# and the terminal's PTY for each system (apps/runner/dist/pty/), packed from the runner's four node-pty packages.
 FROM pnpm AS runner
 COPY . .
 RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
@@ -59,6 +61,7 @@ COPY --from=prod /app/connectors/identity-clerk ./connectors/identity-clerk
 COPY --from=prod /app/apps/server ./apps/server
 COPY --from=web /app/apps/web/dist ./apps/web/dist
 COPY --from=runner /app/apps/runner/dist/runner.mjs ./apps/runner/dist/runner.mjs
+COPY --from=runner /app/apps/runner/dist/pty ./apps/runner/dist/pty
 USER node
 EXPOSE 9950
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --start-interval=1s --retries=3 \

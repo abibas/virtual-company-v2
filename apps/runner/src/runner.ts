@@ -21,13 +21,14 @@ import { Tunnels } from './power/tunnels.ts';
 import { NO_POWER, type PowerExecutor } from './power.ts';
 import type { KillGroup, Spawn } from './system/process.ts';
 import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from './system/time.ts';
+import { type TerminalHost, TerminalSessions } from './terminal/sessions.ts';
 
 /**
  * The runner (`@mwc/runner/runner`): the link to the server, the heartbeats with the machine's samples, the hold and
- * the commands, and a power controller's tunnels, put together. `start()` connects and keeps reconnecting; `stop()`
- * closes the socket, releases the hold and stops the tunnels; `setLiveRuns(n)` is how S5's runs tell it how many are
- * live (the runner holds the machine while any is); `ended` resolves when the link stops for good. Everything outside
- * the process is injected.
+ * the commands, a power controller's tunnels and the machine's terminals, put together. `start()` connects and keeps
+ * reconnecting; `stop()` ends the terminals, closes the socket, releases the hold and stops the tunnels; `setLiveRuns(n)`
+ * is how S5's runs tell it how many are live (the runner holds the machine while any is, or any terminal is open);
+ * `ended` resolves when the link stops for good. Everything outside the process is injected.
  */
 
 export interface RunnerOptions {
@@ -45,6 +46,8 @@ export interface RunnerOptions {
   readonly power?: PowerExecutor;
   /** How a power controller starts and stops its tunnels (`tunnel.set`); without it, or without power, none. */
   readonly processes?: { readonly spawn: Spawn; readonly killGroup: KillGroup };
+  /** The PTY and what a shell needs (`terminal/`); without it the runner opens no terminal (`caps.terminal` false). */
+  readonly terminal?: TerminalHost;
   /** Saves the configuration after `key.rotate`; without it the new key lives in memory only. */
   readonly saveConfig?: (config: RunnerConfig) => void | Promise<void>;
   readonly clock?: Clock;
@@ -58,7 +61,7 @@ export interface RunnerOptions {
 export interface Runner {
   /** Connects, and reconnects after every close until the link ends. */
   start(): void;
-  /** Closes the socket and releases the hold. */
+  /** Ends the terminals, closes the socket and releases the hold. */
   stop(): Promise<void>;
   /** How many runs are live; the hold follows the first start and the last end. Resolves once applied. */
   setLiveRuns(count: number): Promise<void>;
@@ -87,6 +90,7 @@ class RunnerDaemon implements Runner {
   readonly #commands: Commands;
   readonly #link: Link;
   readonly #tunnels: Tunnels | undefined;
+  readonly #terminals: TerminalSessions;
   #config: RunnerConfig;
   #draining = false;
 
@@ -108,7 +112,16 @@ class RunnerDaemon implements Runner {
       saveKey: (runnerKey) => this.#saveKey(runnerKey),
       drain: () => this.#drain(),
       setTunnels: (tunnels) => this.#setTunnels(tunnels),
+      terminal: (frame) => this.#terminals.handle(frame),
       log,
+    });
+    this.#terminals = new TerminalSessions({
+      host: options.terminal,
+      timers,
+      log,
+      send: (frame) => this.#link.send(frame),
+      buffered: () => this.#link.bufferedAmount,
+      count: (open) => void this.#hold.setTerminals(open),
     });
     const { processes } = options;
     const controller = this.#power.providers.length > 0 && processes !== undefined;
@@ -135,6 +148,7 @@ class RunnerDaemon implements Runner {
       beat: () => this.#beat(),
       handle: (frame) => this.#commands.handle(frame),
       refuse: (text, why) => this.#commands.refuse(text, why),
+      dropped: () => void this.#terminals.closeAll('link_lost'),
     });
     this.ended = this.#link.ended;
   }
@@ -148,6 +162,7 @@ class RunnerDaemon implements Runner {
   }
 
   async stop(): Promise<void> {
+    await this.#terminals.stop();
     await this.#link.stop();
     await Promise.all([this.#hold.close(), this.#tunnels?.close()]);
   }
@@ -173,6 +188,7 @@ class RunnerDaemon implements Runner {
       slots: this.#config.slots,
       hold: this.#options.hold.kind,
       power: [...this.#power.providers],
+      terminal: this.#terminals.available,
     };
     const { version, claudeVersion } = this.#options;
     return {

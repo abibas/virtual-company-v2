@@ -31,6 +31,8 @@ export interface HostFs {
   writeFile(path: string, text: string, mode: number): void;
   /** Copies a file over `to`, which then has mode 0644. */
   copyFile(from: string, to: string): void;
+  /** Copies a folder and everything in it to `to` (made), keeping the files' modes. */
+  copyTree(from: string, to: string): void;
   /** Makes a folder and its parents; new ones get `mode`. */
   mkdir(path: string, mode: number): void;
   /** Removes a file or a folder with everything in it; a missing one is fine. */

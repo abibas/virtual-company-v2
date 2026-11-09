@@ -21,6 +21,7 @@ export const IDS = {
   attention: newId(),
   input: newId(),
   principal: newId(),
+  session: newId(),
 } as const;
 
 export const NOW = Date.UTC(2026, 10, 6, 12, 0, 0);
@@ -62,7 +63,13 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
     type: 'runner.hello',
     protocol: 1,
     version: '0.5.0',
-    caps: { harnesses: ['claude_code'], slots: 2, hold: 'caffeinate', power: ['airia_devbox'] },
+    caps: {
+      harnesses: ['claude_code'],
+      slots: 2,
+      hold: 'caffeinate',
+      power: ['airia_devbox'],
+      terminal: true,
+    },
   },
   'runner.heartbeat': {
     type: 'runner.heartbeat',
@@ -108,6 +115,9 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
     metadata: { zone: 'europe-west1-b', 'devbox-tz': 'Europe/Kyiv' },
   },
   'tunnel.state': { type: 'tunnel.state', machineId: IDS.machine, state: 'up' },
+  'terminal.opened': { type: 'terminal.opened', sessionId: IDS.session, shell: '/bin/zsh' },
+  'terminal.output': { type: 'terminal.output', sessionId: IDS.session, data: 'aGVsbG8NCg==' },
+  'terminal.exit': { type: 'terminal.exit', sessionId: IDS.session, code: null, signal: 'SIGHUP' },
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
@@ -160,4 +170,8 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
       },
     ],
   },
+  'terminal.open': { type: 'terminal.open', sessionId: IDS.session, cols: 120, rows: 40 },
+  'terminal.input': { type: 'terminal.input', sessionId: IDS.session, data: 'bHMgLWxhDQ==' },
+  'terminal.resize': { type: 'terminal.resize', sessionId: IDS.session, cols: 80, rows: 24 },
+  'terminal.close': { type: 'terminal.close', sessionId: IDS.session },
 };

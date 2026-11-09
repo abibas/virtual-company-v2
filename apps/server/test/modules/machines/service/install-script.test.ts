@@ -1,4 +1,4 @@
-import { RUNNER_BUNDLE_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
+import { RUNNER_BUNDLE_PATH, RUNNER_PTY_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { INSTALL_SCRIPT } from '../../../../src/modules/machines/service/install-script.ts';
 
@@ -34,7 +34,13 @@ describe('the runner installer', () => {
   it('runs nothing before the whole script has arrived: all in functions, main called on the last line', () => {
     expect(lines.filter((line) => line !== '').at(-1)).toBe('main "$@"');
     expect(code).toMatch(/^main\(\) \{$/m);
-    expect(code.match(/^[a-z_]+\(\) \{$/gm)).toEqual(['fail() {', 'server_of() {', 'verify() {', 'main() {']);
+    expect(code.match(/^[a-z_]+\(\) \{$/gm)).toEqual([
+      'fail() {',
+      'server_of() {',
+      'verify() {',
+      'fetch_pty() {',
+      'main() {',
+    ]);
   });
 
   it('takes the server from --server URL or --server=URL, and needs it', () => {
@@ -76,5 +82,32 @@ describe('the runner installer', () => {
     const js = code.slice(code.indexOf("node -e '\n") + 9, code.indexOf('\' "$1" "$2"'));
     expect(js).toContain('process.exit(1)');
     expect(js).not.toContain("'");
+  });
+});
+
+describe("the installer and the terminal's PTY", () => {
+  it("downloads this system's PTY, checks it like the runner and unpacks it beside it, before the install", () => {
+    expect(code).toContain(`target=$(node -p 'process.platform + "-" + process.arch')`);
+    expect(code).toContain(
+      `if ! curl -fsSL -D "$dir/pty-headers" -o "$dir/pty.tgz" "$server${RUNNER_PTY_PATH}/$target.tgz"; then`,
+    );
+    const verify = code.indexOf('verify "$dir/pty.tgz" "$dir/pty-headers"');
+    const unpack = code.indexOf('tar -xzf "$dir/pty.tgz" -C "$dir" || fail');
+    expect(verify).toBeGreaterThan(0);
+    expect(unpack).toBeGreaterThan(verify);
+    const runnerChecked = code.indexOf(
+      'verify "$dir/runner.mjs" "$dir/headers"\n  fetch_pty\n  node "$dir/runner.mjs"',
+    );
+    expect(runnerChecked).toBeGreaterThan(0);
+    // The check names the file it refused.
+    expect(code).toContain('const what = path.basename(file);');
+  });
+
+  it('installs without a terminal when the server has no PTY for the system, or the machine has no tar', () => {
+    expect(code).toContain(
+      "printf 'mwc-runner install: no terminal for %s from %s; installing without it\\n'",
+    );
+    expect(code).toContain('if ! command -v tar >/dev/null 2>&1; then');
+    expect(code.match(/return 0/g)).toHaveLength(2);
   });
 });

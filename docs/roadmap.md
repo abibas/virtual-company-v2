@@ -135,6 +135,8 @@ the devbox starts and stops from the page, its keep-on hours hold it up, This Ma
 7. Placements: an agent's machine and mode (`host` folder or a fresh `container` per run) on the agent form. **Done 2026-11-06** (migration `0010_agent_placements`; `GET/PUT/DELETE agents/:agentId/placement` in the machines module; `placement` on agents and chart nodes, `agentCount` on machines; the agent form's **Where it runs**, "Runs on" in the facts, a Machine column.)
    **Devbox link over the airia SSH tunnel, done 2026-11-07** (no public URL: the install runs `airia devbox ssh -- -R …` from This Mac;
    This Mac's runner holds each running box's reverse tunnel over IAP from `tunnel.set` and reports `tunnel.state`, shown on the card.)
+   **Machine terminal (server and runner), done 2026-11-09** (owner-only one-time tickets, `GET /api/terminal/ws` relayed over the runner's link as `terminal.*` frames,
+   PTY sessions in the runner from prebuilt node-pty shipped beside the bundle, `caps.terminal`; docs/machines.md "Terminal"; the web's xterm.js panel is the next step.)
 8. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S5 — tasks, threads, runs

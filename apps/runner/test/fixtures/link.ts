@@ -13,7 +13,7 @@ export const HELLO: RunnerHello = {
   type: 'runner.hello',
   protocol: 1,
   version: '0.1.0',
-  caps: { harnesses: ['claude_code'], slots: 1, hold: 'none', power: [] },
+  caps: { harnesses: ['claude_code'], slots: 1, hold: 'none', power: [], terminal: false },
 };
 
 const links: Link[] = [];

@@ -1,9 +1,11 @@
 # syntax=docker/dockerfile:1
 #
 # The runner in a container (docs/machines.md, "Installing a runner"): Node 24, git and tini as PID 1, with the runner
-# bundle (apps/runner/dist/runner.mjs, built here) run by a non-root user. Its state, runner.json with the runner key
-# included, is the volume /var/lib/mwc-runner. On its first start, without a runner.json and with MWC_ENROLL_TOKEN and
-# MWC_SERVER_URL, the runner enrolls the container (kind container), then runs; later starts need no token.
+# bundle (apps/runner/dist/runner.mjs, built here) and the terminal's PTY for the image's system beside it
+# (node_modules/@lydell/node-pty-linux-<arch>, unpacked from the build's dist/pty/), run by a non-root user. Its
+# state, runner.json with the runner key included, is the volume /var/lib/mwc-runner. On its first start, without a
+# runner.json and with MWC_ENROLL_TOKEN and MWC_SERVER_URL, the runner enrolls the container (kind container), then
+# runs; later starts need no token. Its terminal's shell is /bin/bash as the user runner, in /home/runner.
 #
 #   docker build -f deploy/Dockerfile.runner -t mwc-v2/runner:local .
 #   MWC_ENROLL_TOKEN=mwc_et_... docker compose -f deploy/compose.yml --profile runner up -d runner-local
@@ -20,12 +22,15 @@ WORKDIR /app
 COPY package.json ./
 RUN corepack enable && corepack install
 
-# The runner as one file: the runner, the workspace packages it depends on, and its build tool (esbuild).
+# The runner as one file: the runner, the workspace packages it depends on, and its build tool (esbuild); and the
+# terminal's PTY of this image's system (the stage runs on the same system as the runtime), unpacked into /out.
 FROM pnpm AS bundle
 COPY . .
 RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store --filter-prod "@mwc/runner..." \
- && pnpm --filter @mwc/runner build
+ && pnpm --filter @mwc/runner build \
+ && mkdir -p /out \
+ && tar -xzf "apps/runner/dist/pty/linux-$(node -p process.arch).tgz" -C /out
 
 FROM ${NODE_IMAGE} AS runtime
 RUN apt-get update \
@@ -42,6 +47,7 @@ ENV NODE_ENV=production \
     MWC_RUNNER_CONFIG=/var/lib/mwc-runner/runner.json \
     MWC_RUNNER_HOLD=none
 COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs
+COPY --from=bundle /out/node_modules /opt/mwc-runner/node_modules
 USER runner
 WORKDIR /home/runner
 VOLUME /var/lib/mwc-runner

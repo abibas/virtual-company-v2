@@ -14,11 +14,12 @@ import type { LinkEnd } from './link/link.ts';
 import type { WebSocketCtor } from './link/socket.ts';
 import { createLog, type Log } from './log.ts';
 import type { PowerExecutor } from './power.ts';
-import { createRunner, type Runner } from './runner.ts';
+import { createRunner, type Runner, type RunnerOptions } from './runner.ts';
 import { createMemoryReader, type MemoryDeps } from './stats/memory.ts';
 import { type DiskStats, Sampler, type SamplerOs } from './stats/sampler.ts';
 import type { KillGroup, Spawn } from './system/process.ts';
 import type { Clock, Timers } from './system/time.ts';
+import type { PtyLoad } from './terminal/loader.ts';
 
 /**
  * `mwc-runner run` (`@mwc/runner/start`): reads the configuration, makes the state folder, picks the hold driver,
@@ -70,6 +71,8 @@ export interface MainDeps {
   readonly claudeVersion?: string | null;
   /** The power controller (S4.4b); none by default. */
   readonly power?: PowerExecutor;
+  /** Loads the terminal's PTY (`terminal/loader.ts`), once, when the daemon starts. */
+  loadPty(): PtyLoad;
 }
 
 interface Setup {
@@ -111,10 +114,22 @@ export function holdDriverFor(kind: HoldDriverKind, deps: MainDeps, log: Log): H
   return noneDriver();
 }
 
+/** The terminal's PTY, or why there is none (logged either way). */
+function loadTerminal(deps: MainDeps, home: string, log: Log): RunnerOptions['terminal'] {
+  const pty = deps.loadPty();
+  if (!pty.ok) {
+    log.warn('no terminal on this machine', { reason: pty.reason });
+    return undefined;
+  }
+  log.info('terminal ready', { pty: pty.target });
+  return { spawn: pty.spawn, env: deps.env, home, platform: deps.platform, exists: deps.fs.exists };
+}
+
 function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
   const { clock, timers } = deps;
   const memory = createMemoryReader({ ...deps, readFile: deps.fs.readFile, log });
   const home = deps.env.HOME || deps.os.homedir();
+  const terminal = loadTerminal(deps, home, log);
   return createRunner({
     config: setup.config,
     version: deps.version,
@@ -124,6 +139,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     sampler: new Sampler({ os: deps.os, statfs: deps.fs.statfs, home, memory, clock, log }),
     ...(deps.power ? { power: deps.power } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
+    ...(terminal ? { terminal } : {}),
     saveConfig: (next) => writeRunnerConfig(setup.configPath, next),
     clock,
     timers,
@@ -226,10 +242,10 @@ export async function main(argv: readonly string[], deps: MainDeps): Promise<num
     log.error((error as Error).message);
     return finish(EXIT.config);
   }
-  const runner = makeRunner(deps, setup, log);
   const { config, configPath, stateDir, hold } = setup;
   const { machineId, name, serverUrl: server } = config;
   log.info('starting', { version: deps.version, machineId, name, server, hold, configPath, stateDir });
+  const runner = makeRunner(deps, setup, log);
   runner.start();
   const health = await startHealth(runner, setup.port, log);
   return finish(await untilStopped(runner, health, deps, log));

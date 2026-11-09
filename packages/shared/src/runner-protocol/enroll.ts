@@ -28,6 +28,16 @@ export const RUNNER_INSTALL_SCRIPT_PATH = '/api/runner/install.sh';
 export const RUNNER_BUNDLE_PATH = '/api/runner/runner.mjs';
 export const RUNNER_SHA256_HEADER = 'x-mwc-runner-sha256';
 
+/**
+ * The systems whose terminal PTY the server hands out (`<platform>-<arch>`, as Node names them): the prebuilt node-pty
+ * the runner loads for its terminals (docs/machines.md, "Terminal"). The installer downloads its machine's at
+ * `RUNNER_PTY_PATH/<target>.tgz`, with its SHA-256 in `RUNNER_SHA256_HEADER`, and unpacks it next to the runner.
+ */
+export const RUNNER_PTY_TARGETS = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'] as const;
+export const RunnerPtyTarget = z.enum(RUNNER_PTY_TARGETS);
+export type RunnerPtyTarget = z.infer<typeof RunnerPtyTarget>;
+export const RUNNER_PTY_PATH = '/api/runner/pty';
+
 export const EnrollmentToken = z.string().regex(ENROLLMENT_TOKEN_PATTERN, 'an enrollment token (mwc_et_…)');
 
 /** Free text a machine says about itself: `darwin`, `arm64`, its hostname, the runner's Unix user. */

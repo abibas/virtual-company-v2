@@ -52,7 +52,7 @@ describe('FakeRunner: connecting', () => {
       type: 'runner.hello',
       protocol: 1,
       version: '1.0.0',
-      caps: { harnesses: ['claude_code'], slots: 1, hold: 'none', power: [] },
+      caps: { harnesses: ['claude_code'], slots: 1, hold: 'none', power: [], terminal: false },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });
     expect(await server.frames.next('hold.state')).toEqual({

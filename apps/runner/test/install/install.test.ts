@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readRunnerConfig, writeRunnerConfig } from '../../src/config.ts';
 import { installCommand } from '../../src/install/install.ts';
@@ -29,6 +29,7 @@ describe('mwc-runner install on macOS', () => {
       `Enrolled this machine as "ihors-mac" (laptop), machine ${config.machineId}, on ${SERVER}. ` +
         `Its runner key is in ${home}/.config/mwc/runner.json (readable by you only).\n` +
         `Installed the runner in ${bundle} and started it as a launchd agent (${plist}).\n` +
+        "warning: the terminal's PTY did not come with this runner (install.sh downloads it); no terminal here\n" +
         `Check it with: ${NODE} ${bundle} status\n` +
         `Its log: tail -f ${home}/.local/state/mwc-runner/runner.log\n`,
     );
@@ -64,8 +65,56 @@ describe('mwc-runner install on Linux', () => {
   });
 });
 
+describe("mwc-runner install and the terminal's PTY", () => {
+  /** A PTY package for the host's system (linux-arm64) beside a runner in `dir`. */
+  function ptyBesideRunner(dir: string): string {
+    const pty = join(dir, 'node_modules/@lydell/node-pty-linux-arm64');
+    mkdirSync(join(pty, 'prebuilds/linux-arm64'), { recursive: true });
+    writeFileSync(join(pty, 'package.json'), '{"name":"@lydell/node-pty-linux-arm64"}');
+    writeFileSync(join(pty, 'prebuilds/linux-arm64/pty.node'), 'native');
+    chmodSync(join(pty, 'prebuilds/linux-arm64/pty.node'), 0o755);
+    return pty;
+  }
+
+  it('puts the PTY install.sh unpacked beside the downloaded runner beside the installed one, modes kept', async () => {
+    const { host, home, out } = testHost({ files: ['/var/lib/systemd/linger/ihor'] });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    downloadedBundle(host);
+    ptyBesideRunner(dirname(host.selfPath));
+    const stale = join(home, '.local/share/mwc-runner/node_modules/old-pty');
+    mkdirSync(stale, { recursive: true });
+    await installCommand(host, {});
+    const installed = join(home, '.local/share/mwc-runner/node_modules/@lydell/node-pty-linux-arm64');
+    expect(readFileSync(join(installed, 'package.json'), 'utf8')).toContain('node-pty-linux-arm64');
+    expect(statSync(join(installed, 'prebuilds/linux-arm64/pty.node')).mode & 0o777).toBe(0o755);
+    expect(existsSync(stale)).toBe(false);
+    expect(out()).toContain(`The terminal's PTY (linux-arm64) is in ${installed}.\n`);
+  });
+
+  it('keeps the PTY beside the installed runner when reinstalled from it, and warns without one', async () => {
+    const { host, home, out } = testHost({ files: ['/var/lib/systemd/linger/ihor'] });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    const installed = { ...host, selfPath: join(home, '.local/share/mwc-runner/runner.mjs') };
+    downloadedBundle(installed);
+    await installCommand(installed, {});
+    expect(out()).toContain("warning: the terminal's PTY did not come with this runner");
+    const pty = ptyBesideRunner(dirname(installed.selfPath));
+    await installCommand(installed, {});
+    expect(existsSync(pty)).toBe(true);
+    expect(out()).toContain(`The terminal's PTY (linux-arm64) is in ${pty}.\n`);
+  });
+
+  it('says there is no terminal on a system no PTY is built for', async () => {
+    const { host, home, out } = testHost({ files: ['/var/lib/systemd/linger/ihor'] });
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    downloadedBundle(host);
+    await installCommand({ ...host, arch: 'ppc64' }, {});
+    expect(out()).toContain('warning: no terminal on linux-ppc64: no PTY is built for it\n');
+  });
+});
+
 describe('mwc-runner install refusing', () => {
-  it('refuses before the token is used: another system, a container, the sources, --server without --token', async () => {
+  it('refuses before the token is used: another system, a container, the sources', async () => {
     const token = `mwc_et_${'a1B2'.repeat(8)}`;
     const cases = [
       [{ platform: 'win32' as const }, 'not on win32', 1],
@@ -78,10 +127,23 @@ describe('mwc-runner install refusing', () => {
         expect.objectContaining({ code, message: expect.stringContaining(message) }),
       );
     }
-    const { host } = testHost({ fetch: noFetch });
+  });
+
+  it('takes --server without --token as a reinstall on the server it is enrolled on, and refuses another', async () => {
+    const { host, home, out } = testHost({ fetch: noFetch, files: ['/var/lib/systemd/linger/ihor'] });
     await expect(installCommand(host, { server: SERVER })).rejects.toThrow(
-      expect.objectContaining({ code: 64, message: expect.stringContaining('--server goes with --token') }),
+      expect.objectContaining({ code: 78, message: expect.stringContaining('give --server and --token') }),
     );
+    writeRunnerConfig(join(home, '.config/mwc/runner.json'), runnerConfig(SERVER));
+    downloadedBundle(host);
+    await expect(installCommand(host, { server: 'https://other.example.test' })).rejects.toThrow(
+      expect.objectContaining({
+        code: 64,
+        message: `this machine is enrolled on ${SERVER}, not https://other.example.test; give --token to enroll it there`,
+      }),
+    );
+    expect(await installCommand(host, { server: `${SERVER}/` })).toBe(0);
+    expect(out()).toContain(`Keeping the enrollment as "This Mac"`);
   });
 
   it('says to give a token when the machine has no enrollment, with the configuration code', async () => {

@@ -26,7 +26,7 @@ export interface FakeRunnerOptions {
   readonly version?: string;
   /** `runner.hello`'s protocol; `RUNNER_PROTOCOL_VERSION` by default. */
   readonly protocol?: number;
-  /** `runner.hello`'s caps over the defaults: Claude Code, one slot, no hold, no power. */
+  /** `runner.hello`'s caps over the defaults: Claude Code, one slot, no hold, no power, no terminal. */
   readonly caps?: Partial<RunnerCaps>;
   /** The runs `runner.resync` reports on every connect; none by default. */
   readonly runs?: readonly ResyncRun[];
@@ -88,6 +88,7 @@ export class FakeRunner {
       slots: 1,
       hold: 'none',
       power: [],
+      terminal: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;

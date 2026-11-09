@@ -42,7 +42,7 @@ describe('the runner on the wire', () => {
       type: 'runner.hello',
       protocol: 1,
       version: '0.1.0',
-      caps: { harnesses: ['claude_code'], slots: 3, hold: 'none', power: [] },
+      caps: { harnesses: ['claude_code'], slots: 3, hold: 'none', power: [], terminal: false },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });
     expect(await server.frames.next('hold.state')).toEqual({

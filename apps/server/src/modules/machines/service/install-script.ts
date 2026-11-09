@@ -1,10 +1,11 @@
-import { RUNNER_BUNDLE_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
+import { RUNNER_BUNDLE_PATH, RUNNER_PTY_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-protocol';
 
 /**
  * The installer a machine runs (`GET /api/runner/install.sh`, docs/machines.md "Installing a runner"), a POSIX shell
  * script: Node 22 or newer, the runner bundle downloaded to a temporary folder, its SHA-256 checked against the
- * server's header (by Node, so macOS and Linux check alike), then `node runner.mjs install` with the script's own
- * arguments. Everything is in functions called on the last line, so nothing runs before `curl … | sh` has delivered the
+ * server's header (by Node, so macOS and Linux check alike), the terminal's PTY for this system downloaded, checked the
+ * same way and unpacked beside it (without it, or without `tar`, the runner installs with no terminal; one that does not
+ * match its SHA-256 stops the install), then `node runner.mjs install` with the script's own arguments. Everything is in functions called on the last line, so nothing runs before `curl … | sh` has delivered the
  * whole script, and nothing reads the script's standard input. The same text for every machine: the server and the
  * token come as arguments.
  */
@@ -13,17 +14,19 @@ import { RUNNER_BUNDLE_PATH, RUNNER_SHA256_HEADER } from '@mwc/shared/runner-pro
 const VERIFY_JS = `
 const fs = require("fs");
 const crypto = require("crypto");
+const path = require("path");
 const [file, headers] = process.argv.slice(1);
+const what = path.basename(file);
 const name = "${RUNNER_SHA256_HEADER}:";
 const line = fs.readFileSync(headers, "utf8").split("\\n").reverse().find((l) => l.toLowerCase().startsWith(name));
 const expected = line ? line.slice(name.length).trim() : "";
 const actual = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 if (!expected) {
-  console.error("mwc-runner install: the server sent no SHA-256 for the runner");
+  console.error("mwc-runner install: the server sent no SHA-256 for " + what);
   process.exit(1);
 }
 if (actual !== expected) {
-  console.error("mwc-runner install: the runner does not match its SHA-256 (" + actual + ", expected " + expected + ")");
+  console.error("mwc-runner install: " + what + " does not match its SHA-256 (" + actual + ", expected " + expected + ")");
   process.exit(1);
 }
 `;
@@ -34,8 +37,9 @@ export const INSTALL_SCRIPT = `#!/bin/sh
 #   curl -fsSL <server>/api/runner/install.sh | sh -s -- --server <server> --token mwc_et_...
 #
 # It needs Node.js 22 or newer and curl. It downloads the runner (one JavaScript file) from the server, checks its
-# SHA-256 and runs "node runner.mjs install" with the same arguments: the machine is enrolled with the one-time token,
-# the runner copied to ~/.local/share/mwc-runner and started as a service (a launchd agent on macOS, a systemd user
+# SHA-256, downloads the terminal's PTY for this system (checked the same way, unpacked with tar beside the runner) and
+# runs "node runner.mjs install" with the same arguments: the machine is enrolled with the one-time token, the runner
+# and its PTY copied to ~/.local/share/mwc-runner and started as a service (a launchd agent on macOS, a systemd user
 # unit on Linux).
 set -eu
 
@@ -62,9 +66,25 @@ server_of() {
   done
 }
 
-# Checks the downloaded runner ($1) against the SHA-256 in its response headers ($2).
+# Checks a downloaded file ($1) against the SHA-256 in its response headers ($2).
 verify() {
   node -e '${VERIFY_JS}' "$1" "$2"
+}
+
+# The terminal's PTY for this system (prebuilt node-pty), checked like the runner and unpacked beside it as
+# node_modules/; without it the runner installs and works, with no terminal.
+fetch_pty() {
+  target=$(node -p 'process.platform + "-" + process.arch')
+  if ! command -v tar >/dev/null 2>&1; then
+    printf 'mwc-runner install: tar is needed for the terminal; installing without it\\n' >&2
+    return 0
+  fi
+  if ! curl -fsSL -D "$dir/pty-headers" -o "$dir/pty.tgz" "$server${RUNNER_PTY_PATH}/$target.tgz"; then
+    printf 'mwc-runner install: no terminal for %s from %s; installing without it\\n' "$target" "$server" >&2
+    return 0
+  fi
+  verify "$dir/pty.tgz" "$dir/pty-headers"
+  tar -xzf "$dir/pty.tgz" -C "$dir" || fail 'cannot unpack the terminal'
 }
 
 main() {
@@ -80,6 +100,7 @@ main() {
   curl -fsSL -D "$dir/headers" -o "$dir/runner.mjs" "$server${RUNNER_BUNDLE_PATH}" ||
     fail "cannot download the runner from $server"
   verify "$dir/runner.mjs" "$dir/headers"
+  fetch_pty
   node "$dir/runner.mjs" install "$@" </dev/null
 }
 

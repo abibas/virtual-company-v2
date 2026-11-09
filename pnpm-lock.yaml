@@ -184,6 +184,18 @@ importers:
 
   apps/runner:
     dependencies:
+      '@lydell/node-pty-darwin-arm64':
+        specifier: 1.2.0-beta.15
+        version: 1.2.0-beta.15
+      '@lydell/node-pty-darwin-x64':
+        specifier: 1.2.0-beta.15
+        version: 1.2.0-beta.15
+      '@lydell/node-pty-linux-arm64':
+        specifier: 1.2.0-beta.15
+        version: 1.2.0-beta.15
+      '@lydell/node-pty-linux-x64':
+        specifier: 1.2.0-beta.15
+        version: 1.2.0-beta.15
       '@mwc/machine-airia-devbox':
         specifier: workspace:*
         version: link:../../connectors/machine-airia-devbox
@@ -1056,6 +1068,26 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lydell/node-pty-darwin-arm64@1.2.0-beta.15':
+    resolution: {integrity: sha512-6TSBbzdcLiNTHl1mTuzflqXrkmcC36USVGvERoDgvHk2ItEDaMaFZuAJ1CqPmwYj0DyhCS16TVS8OGK9xZnjyQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@lydell/node-pty-darwin-x64@1.2.0-beta.15':
+    resolution: {integrity: sha512-yDT2oqPqYMBScyuk1U9Rg5VKcrbMOD9o9jWYYamDADA3NSbUISroPChrqYRQ74Y7BQtNH4gqYAiWOZRi5uQZ0Q==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@lydell/node-pty-linux-arm64@1.2.0-beta.15':
+    resolution: {integrity: sha512-wkbNF7dYAmtJv+o2+iztVlNwnUB4B0uX0wh/UD+mwMcmE2gNMnW9GChXO7fEE5XJokD0vB5idiHpGegaN+G/sg==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@lydell/node-pty-linux-x64@1.2.0-beta.15':
+    resolution: {integrity: sha512-+U/5AVvHT6W+8OCYcnJgN0Qgc0ycO3TfD6aaFJHK+WHij797f8gsi5dV1HEO9l6YQmWCD+VL5gaLDhx3mxHwCA==}
+    cpu: [x64]
+    os: [linux]
 
   '@modelcontextprotocol/sdk@1.32.1':
     resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
@@ -2832,6 +2864,14 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@lydell/node-pty-darwin-arm64@1.2.0-beta.15': {}
+
+  '@lydell/node-pty-darwin-x64@1.2.0-beta.15': {}
+
+  '@lydell/node-pty-linux-arm64@1.2.0-beta.15': {}
+
+  '@lydell/node-pty-linux-x64@1.2.0-beta.15': {}
 
   '@modelcontextprotocol/sdk@1.32.1(zod@4.6.7)':
     dependencies:

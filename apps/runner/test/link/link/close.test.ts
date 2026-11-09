@@ -4,6 +4,27 @@ import { settle } from '../../fixtures/time.ts';
 
 afterEach(cleanUpLinks);
 
+describe('a dropped link', () => {
+  it('says so once per socket that was past its handshake, and has nothing queued without a socket', async () => {
+    const server = await fakeServer({ hello: false });
+    let dropped = 0;
+    const { link, reconnectScheduled } = startLink(server.url, { dropped: () => dropped++ });
+    await server.frames.next('runner.hello');
+    expect(link.bufferedAmount).toBe(0);
+    server.dropAll();
+    await reconnectScheduled(1);
+    expect(dropped).toBe(0);
+    expect(link.bufferedAmount).toBe(0);
+    const helloed = await fakeServer();
+    const second = startLink(helloed.url, { dropped: () => dropped++ });
+    await second.connected();
+    expect(second.link.bufferedAmount).toBe(0);
+    helloed.dropAll();
+    await second.reconnectScheduled(1);
+    expect(dropped).toBe(1);
+  });
+});
+
 describe('close codes', () => {
   it('ends the link when the server refuses the key at the upgrade (HTTP 401)', async () => {
     const { link, time, delays } = startLink(await refusingServer(401));

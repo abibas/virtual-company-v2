@@ -44,6 +44,8 @@ export interface LinkDeps {
   handle(frame: ServerFrame): Promise<RunnerFrame[]>;
   /** The answers to a text that is not a frame this runner reads, and why. */
   refuse(text: string, why: string): RunnerFrame[];
+  /** A socket past its handshake closed (the terminals end with it). */
+  dropped?(): void;
 }
 
 /** How the link ended for good, with the code (or HTTP status) and the last `server.hello`. */
@@ -88,6 +90,11 @@ export class Link {
 
   start(): void {
     this.#open();
+  }
+
+  /** The bytes waiting in the socket's send buffer (0 without a socket). */
+  get bufferedAmount(): number {
+    return this.#session?.socket.bufferedAmount ?? 0;
   }
 
   /** Sends a frame when connected; false when not (what matters is sent again after the next handshake). */
@@ -206,6 +213,7 @@ export class Link {
     this.#session = undefined;
     this.#deps.timers.clearTimeout(session.helloTimer);
     this.#deps.timers.clearTimeout(session.beatTimer);
+    if (session.helloed) this.#deps.dropped?.();
     if (this.#stopping) {
       this.#end({ reason: 'stopped', code });
       return;

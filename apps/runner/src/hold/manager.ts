@@ -5,8 +5,8 @@ import type { HoldDriver } from './driver.ts';
 
 /**
  * The runner's hold (docs/runner-protocol.md, "Hold and power"): the machine is held until the later of the server's
- * `machine.hold {until}` and the runner's own hold while runs are live (a rolling 20 minutes, so it holds through a
- * server outage). Every change goes to the driver at once; while held, the driver is refreshed every 5 minutes, and
+ * `machine.hold {until}` and the runner's own hold while it has live work, runs or open terminals (a rolling 20
+ * minutes, so it holds through a server outage). Every change goes to the driver at once; while held, the driver is refreshed every 5 minutes, and
  * the server's hold is released when its time comes. After each change of what the driver guarantees, or of what set
  * it, the manager reports `hold.state {until, source}`. Changes run one at a time, in order.
  */
@@ -41,6 +41,7 @@ export class HoldManager {
   readonly #refreshMs: number;
   #serverUntil: number | null = null;
   #liveRuns = 0;
+  #terminals = 0;
   #state: HoldReport = { until: null, source: 'server' };
   #held = false;
   #closed = false;
@@ -70,10 +71,16 @@ export class HoldManager {
 
   /** How many runs are live (S5 calls it): the hold changes when the first starts and when the last ends. */
   setLiveRuns(count: number): Promise<void> {
-    const next = Math.max(0, Math.floor(count));
-    const changed = this.#liveRuns > 0 !== next > 0;
-    this.#liveRuns = next;
-    return changed ? this.#enqueue('live_runs', 'change') : this.#chain;
+    return this.#setLive(() => {
+      this.#liveRuns = Math.max(0, Math.floor(count));
+    });
+  }
+
+  /** How many terminals are open: live work like a run, so the hold changes with the first and the last. */
+  setTerminals(count: number): Promise<void> {
+    return this.#setLive(() => {
+      this.#terminals = Math.max(0, Math.floor(count));
+    });
   }
 
   /** Looks again now, as after the machine slept: an ended server hold is released, a held driver refreshed. */
@@ -89,8 +96,20 @@ export class HoldManager {
     await this.#deps.driver.close();
   }
 
+  /** Runs are live or terminals open: the runner holds the machine by itself. */
+  #live(): boolean {
+    return this.#liveRuns + this.#terminals > 0;
+  }
+
+  /** Changes a count of live work; the hold changes only when the machine goes from none to some, or back. */
+  #setLive(change: () => void): Promise<void> {
+    const before = this.#live();
+    change();
+    return before === this.#live() ? this.#chain : this.#enqueue('live_runs', 'change');
+  }
+
   #dominant(): HoldSource {
-    return this.#liveRuns > 0 ? 'live_runs' : 'server';
+    return this.#live() ? 'live_runs' : 'server';
   }
 
   #enqueue(source: HoldSource, step: Step): Promise<void> {
@@ -103,7 +122,7 @@ export class HoldManager {
   /** The end the machine is held to now, or null. */
   #target(now: number): number | null {
     const server = this.#serverUntil !== null && this.#serverUntil > now ? this.#serverUntil : null;
-    const live = this.#liveRuns > 0 ? now + LIVE_RUNS_HOLD_MS : null;
+    const live = this.#live() ? now + LIVE_RUNS_HOLD_MS : null;
     if (server === null) return live;
     return live === null ? server : Math.max(server, live);
   }

@@ -12,6 +12,7 @@ import {
   Uuid,
 } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
+import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
 
 /** The frames a runner sends to the server (docs/runner-protocol.md, "Runner to server"). */
 
@@ -24,13 +25,18 @@ export const RESYNC_RUNS_MAX = 1000;
 /** The most options an attention item offers (up to 4 questions of up to 8 options each). */
 export const ATTENTION_OPTIONS_MAX = 32;
 
-/** What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power. */
+/**
+ * What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power, and
+ * whether it opens terminals.
+ */
 export const RunnerCaps = protocolObject({
   harnesses: z.array(Harness).max(Harness.options.length),
   slots: z.int().min(0).max(RUNNER_SLOTS_MAX),
   hold: HoldDriver,
   /** Present when `airia` and `gcloud` are installed and signed in on this machine: it is a power controller. */
   power: z.array(PowerProvider).max(PowerProvider.options.length),
+  /** True when its PTY loaded (`terminal.open` works); false from a runner older than the terminal. */
+  terminal: z.boolean().default(false),
 });
 export type RunnerCaps = z.infer<typeof RunnerCaps>;
 
@@ -205,6 +211,7 @@ export const RUNNER_FRAMES = [
   HoldState,
   PowerResult,
   TunnelState,
+  ...TERMINAL_RUNNER_FRAMES,
 ] as const;
 
 /** Any frame a runner sends, told apart by `type`. */

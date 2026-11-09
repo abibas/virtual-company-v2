@@ -160,7 +160,13 @@ describe('when the tunnels cannot be sent', () => {
       companyId: '019a0000-0000-7000-8000-000000000001',
       machineId: '019a0000-0000-7000-8000-000000000002',
       version: '1.0.0',
-      caps: { harnesses: [], slots: 0, hold: 'none' as const, power: ['airia_devbox' as const] },
+      caps: {
+        harnesses: [],
+        slots: 0,
+        hold: 'none' as const,
+        power: ['airia_devbox' as const],
+        terminal: false,
+      },
       connectedAt: TEST_NOW_DATE,
     };
     tunnelsOnConnect(deps)(runner);

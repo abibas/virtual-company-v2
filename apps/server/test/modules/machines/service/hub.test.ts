@@ -50,7 +50,13 @@ describe('which runners the hub has', () => {
       companyId: company.companyId,
       machineId,
       version: '0.7.0',
-      caps: { harnesses: ['claude_code'], slots: 1, hold: 'caffeinate', power: ['airia_devbox'] },
+      caps: {
+        harnesses: ['claude_code'],
+        slots: 1,
+        hold: 'caffeinate',
+        power: ['airia_devbox'],
+        terminal: false,
+      },
       connectedAt: w.clock(),
     });
     await runner.disconnect();

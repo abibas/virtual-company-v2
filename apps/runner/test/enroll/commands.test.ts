@@ -48,6 +48,9 @@ describe('the container that enrolls on its first start', () => {
     expect(dockerfile).toContain(
       'COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs',
     );
+    // The terminal's PTY of the image's own system, beside the bundle.
+    expect(dockerfile).toContain('tar -xzf "apps/runner/dist/pty/linux-$(node -p process.arch).tgz" -C /out');
+    expect(dockerfile).toContain('COPY --from=bundle /out/node_modules /opt/mwc-runner/node_modules');
     expect(dockerfile).toMatch(/^USER runner$/m);
     for (const env of [
       'MWC_RUNNER_IN_CONTAINER=1',

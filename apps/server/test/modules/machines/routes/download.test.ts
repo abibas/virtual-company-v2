@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   RUNNER_BUNDLE_PATH,
   RUNNER_INSTALL_SCRIPT_PATH,
+  RUNNER_PTY_PATH,
   RUNNER_SHA256_HEADER,
 } from '@mwc/shared/runner-protocol';
 import { brokenDb, createTestApp, getJson } from '@mwc/testkit';
@@ -67,5 +68,31 @@ describe('GET /api/runner/install.sh', () => {
     const doc = (await getJson(t.app, '/api/openapi.json')).body as { paths: Record<string, unknown> };
     expect(Object.keys(doc.paths)).not.toContain(RUNNER_INSTALL_SCRIPT_PATH);
     expect(Object.keys(doc.paths)).not.toContain(RUNNER_BUNDLE_PATH);
+  });
+});
+
+describe('GET /api/runner/pty/<target>.tgz', () => {
+  it("serves a system's PTY archive from beside the bundle, uncached, with its SHA-256", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mwc-bundle-'));
+    mkdirSync(join(dir, 'pty'));
+    const archive = Buffer.from([0x1f, 0x8b, 8, 0, 1, 2, 3]);
+    writeFileSync(join(dir, 'pty', 'linux-x64.tgz'), archive);
+    const t = await appWith(join(dir, 'runner.mjs'));
+    const res = await t.app.request(`${RUNNER_PTY_PATH}/linux-x64.tgz`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/gzip');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(Buffer.from(await res.arrayBuffer()).equals(archive)).toBe(true);
+    expect(res.headers.get(RUNNER_SHA256_HEADER)).toBe(createHash('sha256').update(archive).digest('hex'));
+  });
+
+  it('is a 404 runner_pty_missing for a system none is built for, another name, or before the build', async () => {
+    const t = await appWith(join(tmpdir(), 'mwc-no-such-folder', 'runner.mjs'));
+    for (const file of ['linux-x64.tgz', 'win32-x64.tgz', 'linux-x64', '..%2Frunner.mjs']) {
+      expect(await getJson(t.app, `${RUNNER_PTY_PATH}/${file}`)).toMatchObject({
+        status: 404,
+        body: { error: { code: 'runner_pty_missing', message: expect.stringContaining('darwin-arm64') } },
+      });
+    }
   });
 });

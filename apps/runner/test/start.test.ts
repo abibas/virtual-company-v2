@@ -7,6 +7,7 @@ import { readRunnerConfig } from '../src/config.ts';
 import { CAFFEINATE_BIN, DEVBOX_KEEPALIVE_BIN } from '../src/hold/driver.ts';
 import { EXIT, holdDriverFor, main } from '../src/start.ts';
 import { cleanUpLinks, fakeServer } from './fixtures/link.ts';
+import { FakePtySpawner } from './fixtures/pty.ts';
 import { ROTATED_KEY, RUNNER_KEY } from './fixtures/runner.ts';
 import { world } from './fixtures/start.ts';
 
@@ -73,6 +74,34 @@ describe('mwc-runner run', () => {
     signals.get('SIGINT')?.();
     expect(await running).toBe(EXIT.ok);
     expect(caffeinate[0]?.child.signals).toEqual(['SIGTERM']);
+  });
+
+  it('opens terminals when its PTY loads, in the home folder, and says why there are none when it does not', async () => {
+    const server = await fakeServer();
+    const spawner = new FakePtySpawner();
+    const loadPty = () => ({ ok: true as const, target: 'linux-x64' as const, spawn: spawner.spawn });
+    const { deps, dir, entries, signals } = world({ server, loadPty, env: { SHELL: '/bin/zsh' } });
+    const running = main(['run'], deps);
+    expect((await server.frames.next('runner.hello')).caps.terminal).toBe(true);
+    expect(entries().find((entry) => entry.msg === 'terminal ready')).toMatchObject({ pty: 'linux-x64' });
+    await server.frames.next('runner.heartbeat');
+    server.send({ type: 'terminal.open', sessionId: newId(), cols: 80, rows: 24 });
+    await server.frames.next('terminal.opened');
+    // The fake machine has no /bin/zsh, nor bash: the shell falls back to /bin/sh.
+    expect(spawner.spawned[0]).toMatchObject({ file: '/bin/sh', options: { cwd: dir } });
+    signals.get('SIGTERM')?.();
+    expect(await running).toBe(EXIT.ok);
+    expect((await server.frames.next('terminal.exit')).error).toBe('runner_stopping');
+    const without = await fakeServer();
+    const none = world({ server: without });
+    const second = main(['run'], none.deps);
+    expect((await without.frames.next('runner.hello')).caps.terminal).toBe(false);
+    expect(none.entries().find((entry) => entry.msg === 'no terminal on this machine')).toMatchObject({
+      level: 'warn',
+      reason: 'no PTY in this test',
+    });
+    none.signals.get('SIGTERM')?.();
+    await second;
   });
 
   it('saves a rotated key to runner.json, still 0600', async () => {

@@ -104,6 +104,23 @@ describe('the hold while runs are live', () => {
     await hold.setLiveRuns(0);
     expect(hold.state).toEqual({ until: null, source: 'live_runs' });
   });
+
+  it('counts open terminals as live work: held from the first run or terminal to the last of both', async () => {
+    const { hold, time, reports } = manager();
+    await hold.setTerminals(1);
+    expect(reports).toEqual([{ until: time.now() + LIVE_RUNS_HOLD_MS, source: 'live_runs' }]);
+    expect(hold.liveRuns).toBe(0);
+    await hold.setLiveRuns(1);
+    await hold.setTerminals(0);
+    expect(reports).toHaveLength(1);
+    await time.advance(5 * MIN);
+    expect(hold.state.until).toBe(time.now() + LIVE_RUNS_HOLD_MS);
+    await hold.setTerminals(2.7);
+    await hold.setLiveRuns(0);
+    expect(hold.state.until).toBe(time.now() + LIVE_RUNS_HOLD_MS);
+    await hold.setTerminals(-1);
+    expect(hold.state).toEqual({ until: null, source: 'live_runs' });
+  });
 });
 
 describe('with the devbox driver', () => {

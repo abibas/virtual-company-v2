@@ -1,5 +1,5 @@
 import { newId } from '@mwc/shared/ids';
-import type { PowerCommand, ServerFrame, TunnelSpec } from '@mwc/shared/runner-protocol';
+import type { PowerCommand, ServerFrame, TerminalServerFrame, TunnelSpec } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { Commands, NO_RUNS, REMEMBERED_COMMANDS } from '../../src/link/commands.ts';
 import { NO_POWER, type PowerExecutor } from '../../src/power.ts';
@@ -10,6 +10,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
   const holds: (number | null)[] = [];
   const keys: string[] = [];
   const tunnelSets: (readonly TunnelSpec[])[] = [];
+  const terminals: TerminalServerFrame[] = [];
   let drained = 0;
   const logs = memoryLog();
   const handler = new Commands({
@@ -22,9 +23,10 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
       drained += 1;
     },
     setTunnels: (tunnels) => void tunnelSets.push(tunnels),
+    terminal: (frame) => void terminals.push(frame),
     log: logs.log,
   });
-  return { handler, holds, keys, tunnelSets, logs, drained: () => drained };
+  return { handler, holds, keys, tunnelSets, terminals, logs, drained: () => drained };
 }
 
 const powerCommand = (): PowerCommand => ({
@@ -57,6 +59,17 @@ describe('the commands', () => {
     expect(await commands({ power }).handler.handle(cmd)).toEqual([
       { type: 'power.result', cmdId: cmd.cmdId, ok: true, status: 'starting' },
     ]);
+  });
+
+  it('hands the terminal frames to the terminals, with no answer of its own', async () => {
+    const { handler, terminals } = commands();
+    const sessionId = newId();
+    const frames: TerminalServerFrame[] = [
+      { type: 'terminal.open', sessionId, cols: 80, rows: 24 },
+      { type: 'terminal.close', sessionId },
+    ];
+    for (const frame of frames) expect(await handler.handle(frame)).toEqual([]);
+    expect(terminals).toEqual(frames);
   });
 
   it('hands tunnel.set to the tunnels as it comes, with no answer (it is no command)', async () => {
@@ -135,6 +148,7 @@ describe('the commands', () => {
       saveKey: () => {},
       drain: () => {},
       setTunnels: () => {},
+      terminal: () => {},
       log: memoryLog().log,
     });
     const frame: ServerFrame = { type: 'machine.hold', cmdId: newId(), until: 5 };

@@ -73,6 +73,8 @@ never start a machine: auto-start switches are off until Ihor turns them on (v1 
   `power.result {cmd_id, ok, status, metadata, error}`.
 - server → controller `tunnel.set {tunnels[{machineId, target, remotePort, localPort}]}` (the full set it should hold)
   → `tunnel.state {machineId, state connecting|up|down, error?}` per change (2026-11-07, "Installing a runner").
+- `runner.hello.caps.terminal`; server → runner `terminal.open|input|resize|close`, runner → server
+  `terminal.opened|output|exit` (2026-11-09, "Terminal").
 
 ## Code placement (per the keep-structure skill)
 
@@ -81,6 +83,9 @@ never start a machine: auto-start switches are off until Ihor turns them on (v1 
   `gcloud` (spawn injected; tests with recorded JSON and a fake spawn). Loaded by the runner, never by the server.
 - `apps/runner`: link, heartbeat + sampler, hold drivers (`hold/devbox.ts`, `hold/caffeinate.ts`), controller
   executing `power.command` through the connector and holding the devboxes' tunnels (`power/tunnels.ts`).
+- The terminal: the runner's `terminal/` (the PTY loader, the shell and its environment, the batched output, the
+  sessions); the server's `routes/terminal.ts` (the owner's ticket, the browser's socket), `service/terminal.ts` with
+  `service/terminal/{tickets,relay}.ts`, and `service/hub/terminals.ts` (the sessions of each runner connection).
 - The server's side of the tunnels: `service/power/tunnels.ts` (the wanted set and when it is sent),
   `service/hub/tunnels.ts` (the set last sent per connection and the reported states, in memory), `rules/tunnels.ts`.
 - `apps/server/src/modules/machines/`: routes, service, repo, `rules/power.ts` (pure: keep-on window incl. overnight
@@ -110,8 +115,10 @@ esbuild, Node 22 or newer, every dependency inside; `mwc check --full` builds it
 installs itself (`enroll`, `install`, `status`, `uninstall`; `node runner.mjs help`). The server hands it out:
 `GET /api/runner/runner.mjs` (404 `runner_bundle_missing` until it is built; its SHA-256 in `x-mwc-runner-sha256`) and
 `GET /api/runner/install.sh`, a POSIX script that checks for Node 22 and curl, downloads the bundle to a temporary
-folder, checks its SHA-256 and runs `node runner.mjs install` with its own arguments. Both are public: the enrollment
-token is the secret. Nothing is installed by the repository's tooling; each install is a person's own step.
+folder, checks its SHA-256, downloads the terminal's PTY for the machine's system (`GET /api/runner/pty/<target>.tgz`,
+checked the same way and unpacked beside the bundle with `tar`; "Terminal" below) and runs `node runner.mjs install`
+with its own arguments. All are public: the enrollment token is the secret. Nothing is installed by the repository's
+tooling; each install is a person's own step.
 
 **1. A token.** An admin or owner makes one (good for one machine within the hour), and `mwc` prints the command for
 each kind of machine with it:
@@ -169,7 +176,9 @@ box needs Node 22 on the PATH of a non-interactive SSH command; a Node from nvm 
    `/usr/local/bin/devbox-keepalive` whose GCE metadata server names its instance, zone and project (1 s at most) is
    `airia_devbox`. The name is `--name`, else `Airia devbox`, else the short host name. 2 slots unless `--slots`.
    The id and the runner key go to `~/.config/mwc/runner.json` (0600 in a 0700 folder).
-3. Copies itself to `~/.local/share/mwc-runner/runner.mjs` and starts it as a service with the Node that installed it
+3. Copies itself to `~/.local/share/mwc-runner/runner.mjs`, with the PTY install.sh unpacked beside it
+   (`node_modules/@lydell/node-pty-<target>/`, replacing the one there; a reinstall from the installed copy keeps its
+   own; without one it warns that the machine has no terminal), and starts it as a service with the Node that installed it
    and a short PATH (Node's folder, the folders of `claude`, `git`, `gh`, `docker`, `airia` and `gcloud` found on the
    installer's PATH, the system's):
    - **macOS:** `~/Library/LaunchAgents/com.mwc.runner.plist` (RunAtLoad, KeepAlive while it fails, ThrottleInterval
@@ -182,6 +191,11 @@ box needs Node 22 on the PATH of a non-interactive SSH command; a Node from nvm 
      `systemctl --user daemon-reload` and `enable --now`; its log is `journalctl --user -u mwc-runner.service`.
 
 Run again without `--token`, `install` keeps the enrollment and reinstalls the service on the new bundle (a restart).
+That is also how a runner is updated: the machine's install command without `--token`
+(`curl -fsSL <url>/api/runner/install.sh | sh -s -- --server <url>`, the devbox's through `airia devbox ssh` as above)
+downloads the new bundle and PTY and reinstalls them on the enrollment it has; `--server` alone must name the server the
+machine is enrolled on (another is refused with 64). A container is updated by rebuilding its image (the same `up` with
+`--build`, no token: its enrollment is in the state volume).
 `node ~/.local/share/mwc-runner/runner.mjs status` shows the enrollment, the service file and what the runner's health
 endpoint (127.0.0.1:9953) says, and exits 0 only when it is connected; `uninstall` removes the service and the
 installed copy and keeps `runner.json` (`--purge` removes it and the state folder); the machine stays on the server until
@@ -194,7 +208,72 @@ state and `runner.json` in the volume `/var/lib/mwc-runner`. Started without a `
 compose profile `runner` (plain `docker compose up` still starts the dev Postgres only), reaches the dev API at
 `http://host.docker.internal:9950` (`MWC_SERVER_URL` overrides it), has a health check on 9953 and 90 s to stop.
 `docker compose -f deploy/compose.yml down` (what `mwc dev --down` runs) may stop it too; the same `up` command starts
-it again without a token. The image has no Claude Code yet (S5).
+it again without a token. The image has no Claude Code yet (S5). Its PTY is unpacked beside the bundle at build time
+(`/opt/mwc-runner/node_modules/`), so its terminal is `/bin/bash` as the user `runner` in `/home/runner`.
+
+## Terminal
+
+Built 2026-11-09 (Ihor: "add CONNECT via SSH so i can jump into it and have a command line to control it"; he chose a
+terminal in the page carried by the runner). An owner opens a real shell on any online machine (This Mac, the Airia
+devbox, a runner container) from the Machines page. It is carried by the machine's runner over the WebSocket it already
+holds to the server (`terminal.*` frames, docs/runner-protocol.md "Terminal"): no SSH keys, no new port, and it never
+wakes a box (a stopped box or a sleeping Mac has no connected runner, so it is offline).
+
+- **Owners only.** `POST /api/companies/{companyId}/machines/{machineId}/terminal-tickets` (owner role; admins and below
+  get 403, another company's machine the module's 404) answers 201 `{ticket, expiresAt, wsPath}`, or 409
+  `machine_offline` (no connected runner) or `terminal_unavailable` (its runner announced `caps.terminal: false`). The
+  ticket is random, works once within 60 s, is bound to the user, the company and the machine, and the server keeps
+  only its SHA-256, in memory. Each terminal opened is an `audit_log` row: entity `machine`, action `terminal_open`, field
+  `terminalSession` (the session id), the owner as the actor, the socket's request id. Nothing is recorded of what is
+  typed or printed.
+- **It runs as the runner's user**, with that user's rights on that machine: Ihor's own user on This Mac (the launchd
+  agent) and on the devbox (the systemd user unit, his GitHub login and sudo there), `runner` in a container. The shell is
+  the user's login shell (`$SHELL` when it exists, else `/bin/bash`, else `/bin/sh`) started with `-l`, in the home
+  folder, with the runner's environment less every `MWC_*` variable (its configuration, a container's enrollment token),
+  `TERM=xterm-256color`, and `LANG` (`en_US.UTF-8` on macOS, `C.UTF-8` on Linux) only when no locale is set.
+- **What keeps it open.** The browser's socket (pinged every 20 s) and the runner's link. An open terminal counts as
+  live work for the runner's own hold, as a live run does (`hold.state` source `live_runs`): the devbox's keepalive is
+  refreshed and This Mac keeps its `caffeinate` while a terminal is open, so a box does not stop under it.
+- **What closes it.** Closing the browser's socket (`terminal.close`: SIGHUP, then SIGKILL 5 s later); the shell
+  exiting (`exit` with its code, or the signal); the runner's link dropping (the runner ends its shells, and the server
+  ends the browser's socket with `error: 'machine_disconnected'`); the runner stopping (`runner_stopping`); 60 minutes
+  after the last input (a notice line, then `idle_timeout`). A machine has at most 4 terminals at once
+  (`too_many_sessions`). Output is batched (about 16 ms or 32 KB) and the PTY is paused while the link's send buffer is
+  over 1 MB (resumed at 256 KB).
+- **The PTY.** node-pty's prebuilt build in four platform packages, `@lydell/node-pty-<platform>-<arch>` 1.2.0-beta.15
+  (darwin-arm64, darwin-x64, linux-x64, linux-arm64), dependencies of `@mwc/runner`, so pnpm installs all four on every
+  machine and no machine compiles anything. It is native, so it is not in `runner.mjs`: `pnpm --filter @mwc/runner build`
+  also packs each as `apps/runner/dist/pty/<target>.tgz` (laid out as `node_modules/@lydell/node-pty-<target>/`, modes
+  kept), the server serves it with its SHA-256 (404 `runner_pty_missing` otherwise), `install.sh` checks and unpacks it,
+  and `install` copies it beside the installed bundle. The daemon loads it when it starts (`createRequire` from its own
+  file: `node_modules/` beside `runner.mjs`, or the package's own from the sources); when it cannot, it logs `no terminal
+  on this machine` with the reason, announces `caps.terminal: false` and answers every `terminal.open` with
+  `terminal_unavailable`. A runner installed before this gets its terminal by being updated (its install command
+  without `--token`, "Installing a runner" above; a container by rebuilding its image).
+
+**The browser's socket** (the contract the web's xterm.js panel builds on):
+
+1. Get a ticket (above). Open `new WebSocket(<the API's ws origin> + wsPath + '?ticket=' + encodeURIComponent(ticket) +
+   '&cols=' + cols + '&rows=' + rows)` from the web app's page, within 60 s. The server takes only the web origin
+   (`MWC_WEB_ORIGIN`, the browser's `Origin` header). In development the web on 9951 proxies `/api` to the API; that
+   proxy must also forward WebSockets (`ws: true`), or the page opens the socket on the API's own address (`apiUrl` in
+   `GET /api/config`, with `ws:` for `http:`); the `Origin` is the page's either way.
+2. Refused before the upgrade (a browser sees only a close with 1006): not an upgrade (426 `upgrade_required`), another
+   origin or none (403 `origin_not_allowed`), a missing or bad size (400 `invalid_request`; cols 2–500, rows 1–300), and
+   an unknown, used or expired ticket (401 `invalid_ticket`). Origin and size are checked before the ticket is used, so
+   a refused size keeps it. A socket that fails at once is best shown as "the link expired, open it again".
+3. Browser to server, JSON text: `{type: 'input', data}` (UTF-8 text as xterm.js's `onData` gives it; the server sends it
+   on as base64 frames of at most 64 KB) and `{type: 'resize', cols, rows}`. A message is at most 256 KB. One that is
+   not one of these is answered with `{type: 'error', code: 'invalid_message', message}` and the socket stays open.
+4. Server to browser, JSON text: `{type: 'opened', shell}` once the shell started; `{type: 'output', data}`, the raw
+   bytes in base64 (decode to a `Uint8Array` and `term.write(bytes)`, so characters split across messages stay whole);
+   `{type: 'exit', code, signal?, error?}` (`code` the shell's exit code, or null with the `signal`; `error` when the
+   runner or the server ended it: `idle_timeout`, `machine_disconnected`, `runner_stopping`, `too_many_sessions`,
+   `terminal_unavailable`, `spawn_failed: …`), then the close (1000, "The terminal ended"); or
+   `{type: 'error', code: 'machine_offline' | 'terminal_unavailable', message}` when the machine changed since the
+   ticket, then the close (1000, "No terminal").
+5. Closing the socket ends the terminal. Types and schemas: `TerminalToServer`, `TerminalToBrowser`, `TERMINAL_WS_PATH`
+   and the limits in `@mwc/shared/runner-protocol`.
 
 ## Placements
 

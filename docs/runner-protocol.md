@@ -46,7 +46,10 @@ error shape; a body that does not match is a 400.
 The installer and the runner it installs are served too (S4.5, `docs/machines.md` "Installing a runner"), both public:
 `GET /api/runner/install.sh` (`RUNNER_INSTALL_SCRIPT_PATH`, a POSIX script piped into `sh -s -- --server … --token …`)
 and `GET /api/runner/runner.mjs` (`RUNNER_BUNDLE_PATH`, the bundle, with its SHA-256 in `x-mwc-runner-sha256`,
-`RUNNER_SHA256_HEADER`, which the script checks; 404 `runner_bundle_missing` until it is built).
+`RUNNER_SHA256_HEADER`, which the script checks; 404 `runner_bundle_missing` until it is built), and the terminal's PTY
+for each system, `GET /api/runner/pty/<target>.tgz` (`RUNNER_PTY_PATH`, a target of `RUNNER_PTY_TARGETS`: darwin-arm64,
+darwin-x64, linux-x64, linux-arm64; with its SHA-256 in the same header; 404 `runner_pty_missing`), which the script
+checks and unpacks beside the bundle (docs/machines.md, "Terminal").
 
 ## Connection
 
@@ -63,7 +66,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record → `server.hello` |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |
@@ -74,6 +77,9 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `hold.state` | `until` (ms\|null), `source server\|live_runs` | after each resync and on every change (below) |
 | `power.result` | `cmdId`, `ok`, `status? running\|stopped\|starting\|stopping\|missing\|unknown`, `metadata?{}`, `error?` | the answer to `power.command` (instead of `cmd.ack`) |
 | `tunnel.state` | `machineId` (the box), `state connecting\|up\|down`, `error?` (1–500 characters: the last line the tunnel printed) | a controller's tunnel changed (`connecting` at each start, `up` after 10 s alive, `down` when it ended; a `connecting` after a `down` keeps its error), and every tunnel's state again after each `server.hello`; no answer |
+| `terminal.opened` | `sessionId`, `shell` (its path) | the shell of a `terminal.open` started; no answer |
+| `terminal.output` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | what the terminal printed, batched (about 16 ms or 32 KB) |
+| `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
 
 ## Server → runner
 
@@ -91,6 +97,10 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `machine.hold` | `cmdId`, `until` (ms\|null) | null releases the server's hold |
 | `power.command` | `cmdId`, `target{provider airia_devbox, ref{instance, zone, size?}}`, `action start\|stop\|status\|set_timezone`, `args?{timezone?}` | to a power controller; `set_timezone` needs `args.timezone` (IANA) |
 | `tunnel.set` | `tunnels[≤ 64]{machineId, target{provider airia_devbox, ref}, remotePort, localPort}` (ports 1–65535, one tunnel per machine) | to a power controller: the full set of tunnels it should hold now (an empty one stops them all); not a command (no `cmdId`, no answer) |
+| `terminal.open` | `sessionId` (the server's UUID), `cols` 2–500, `rows` 1–300 | start a login shell in a new PTY; answered by `terminal.opened` or, refused, by `terminal.exit` |
+| `terminal.input` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | typed or pasted bytes |
+| `terminal.resize` | `sessionId`, `cols`, `rows` | |
+| `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
 `placement{home, configDir|null, worktree|null}` (absolute or `~/` paths), `session` (`{mode: 'new', sessionId|null}`
@@ -157,6 +167,24 @@ limit alone.
   shows it on the machine in `GET machines` as `tunnel{state, error, since}` when its saved controller reported it,
   null otherwise.
 
+## Terminal
+
+Added 2026-11-09 (`runner-protocol/terminal.ts`; what it is for, who may open one and the browser's side are in
+docs/machines.md, "Terminal"). A runner whose PTY loaded says `caps.terminal: true`; the server sends `terminal.open`
+only to such a runner, relaying an owner's browser socket (`TERMINAL_WS_PATH`, `/api/terminal/ws`). The terminal frames
+are no commands (no `cmdId`, no `cmd.ack`): `terminal.open` is answered by `terminal.opened`, then `terminal.output`
+until `terminal.exit`, sent once per session, after its last output. Terminal bytes are base64 (`TerminalData`, at most
+`TERMINAL_DATA_MAX_BYTES` decoded), so a character split between two frames stays whole. A session belongs to the
+connection that carried its `terminal.open`: when the link drops the runner ends its shells (SIGHUP, SIGKILL 5 s later)
+and the server ends their browser sockets (`error: 'machine_disconnected'`); nothing is resumed after a reconnect. The
+runner refuses a `terminal.open` with `terminal.exit {code: null, error}`: `terminal_unavailable` (no PTY),
+`runner_stopping`, `too_many_sessions` (`TERMINAL_SESSIONS_MAX`, 4), `spawn_failed: …`; a second `terminal.open` of an
+open session is ignored, and input, resize or close of a session it does not have are ignored. It ends a session 60
+minutes after its last input (`TERMINAL_IDLE_MS`; a notice line in the output, then `error: 'idle_timeout'`) and when it
+stops (`runner_stopping`, sent before its socket closes). Open terminals count for its own hold as live runs do
+(`hold.state` source `live_runs`). Output is batched (16 ms or 32 KB) and the PTY is paused while the socket's send
+buffer is over 1 MB, until it is down to 256 KB.
+
 ## Limits and timers
 
 | Constant | Value |
@@ -173,6 +201,9 @@ limit alone.
 | `RUNNER_HELLO_TIMEOUT_MS` | 10 s |
 | `KEY_ROTATION_OVERLAP_MS` | 10 min |
 | `TUNNELS_MAX`, `TUNNEL_ERROR_MAX` | 64 tunnels in one `tunnel.set`, 500 characters of a `tunnel.state` error |
+| `TERMINAL_DATA_MAX_BYTES`, `TERMINAL_COLS`, `TERMINAL_ROWS` | 64 KB decoded per `terminal.input` / `terminal.output`; cols 2–500, rows 1–300 |
+| `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
+| the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
 | the runner's tunnels (`apps/runner/src/power/tunnels.ts`) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | `RUNNER_CLOSE` | 1009 frame too large, 4001 unauthorized (key revoked or machine removed while connected), 4002 unsupported protocol, 4003 runner too old, 4004 replaced, 4008 hello timeout |
 

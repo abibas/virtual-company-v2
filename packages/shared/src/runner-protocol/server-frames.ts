@@ -5,6 +5,7 @@ import { AiriaDevboxRef, PowerAction, TimeZone } from '../machines.ts';
 import { frame, protocolObject, RunnerVersion, Uuid } from './common.ts';
 import { RunSpec } from './run-spec.ts';
 import { ATTENTION_OPTIONS_MAX } from './runner-frames.ts';
+import { TERMINAL_SERVER_FRAMES } from './terminal.ts';
 
 /**
  * The frames the server sends to a runner (docs/runner-protocol.md, "Server to runner"). Every one with a `cmdId` is
@@ -180,6 +181,7 @@ export const SERVER_FRAMES = [
   MachineHold,
   PowerCommand,
   TunnelSet,
+  ...TERMINAL_SERVER_FRAMES,
 ] as const;
 
 /** Any frame the server sends, told apart by `type`. */

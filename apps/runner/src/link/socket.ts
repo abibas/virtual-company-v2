@@ -17,6 +17,8 @@ export const SOCKET_OPEN = 1;
 /** What the link uses of a WebSocket client. */
 export interface SocketLike {
   readonly readyState: number;
+  /** The bytes queued to send (`ws` has it). */
+  readonly bufferedAmount?: number;
   send(text: string): void;
   close(code?: number, reason?: string): void;
   terminate(): void;

@@ -48,5 +48,8 @@ describe('the real process behind main', () => {
     expect(() => deps.killGroup(2 ** 30, 'SIGTERM')).not.toThrow();
     // A power controller only where the airia CLI and gcloud are installed; found without starting either.
     expect(deps.power?.providers.every((provider) => provider === 'airia_devbox')).toBe(true);
+    // The PTY the runner package depends on, for this system, loaded without starting anything.
+    const pty = deps.loadPty();
+    expect(pty.ok ? pty.target : pty.reason).toBe(`${process.platform}-${process.arch}`);
   });
 });

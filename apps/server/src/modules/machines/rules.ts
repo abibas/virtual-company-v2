@@ -46,6 +46,12 @@ export const CONTROLLER_OFFLINE = refuse(
   'controller_offline',
   'The machine that powers this box is not connected',
 );
+export const MACHINE_OFFLINE = refuse(409, 'machine_offline', "The machine's runner is not connected");
+export const TERMINAL_UNAVAILABLE = refuse(
+  409,
+  'terminal_unavailable',
+  "The machine's runner has no terminal: its PTY did not load (its log says why), or it is older than the terminal",
+);
 export const TOKEN_UNKNOWN = refuse(401, 'unauthenticated', 'The enrollment token is not valid');
 export const TOKEN_USED = refuse(401, 'unauthenticated', 'The enrollment token was used already');
 export const TOKEN_EXPIRED = refuse(401, 'unauthenticated', 'The enrollment token has expired');

@@ -2,6 +2,35 @@ import { encodeFrameText, type FrameParse, frameTable, parseFrame } from './runn
 import { RUNNER_FRAMES, type RunnerFrame } from './runner-protocol/runner-frames.ts';
 import { SERVER_FRAMES, type ServerFrame } from './runner-protocol/server-frames.ts';
 
+export {
+  base64Bytes,
+  isTerminalFrame,
+  TERMINAL_COLS,
+  TERMINAL_DATA_MAX_BYTES,
+  TERMINAL_IDLE_MS,
+  TERMINAL_ROWS,
+  TERMINAL_RUNNER_FRAMES,
+  TERMINAL_SERVER_FRAMES,
+  TERMINAL_SESSIONS_MAX,
+  TERMINAL_TICKET_TTL_MS,
+  TERMINAL_WS_PATH,
+  TerminalClose,
+  TerminalCols,
+  TerminalData,
+  TerminalEnd,
+  TerminalExit,
+  TerminalInput,
+  TerminalOpen,
+  TerminalOpened,
+  TerminalOutput,
+  TerminalResize,
+  TerminalRows,
+  type TerminalRunnerFrame,
+  type TerminalServerFrame,
+  TerminalToBrowser,
+  TerminalToServer,
+} from './runner-protocol/terminal.ts';
+
 /**
  * The runner protocol v1 (docs/runner-protocol.md): one WebSocket from each runner to the server, JSON frames told
  * apart by `type`, fields in camelCase. The server's hub and the runner both import this module, so its types are the
@@ -40,9 +69,12 @@ export {
   RUNNER_BUNDLE_PATH,
   RUNNER_ENROLL_PATH,
   RUNNER_INSTALL_SCRIPT_PATH,
+  RUNNER_PTY_PATH,
+  RUNNER_PTY_TARGETS,
   RUNNER_SHA256_HEADER,
   RunnerEnrollRequest,
   RunnerEnrollResponse,
+  RunnerPtyTarget,
 } from './runner-protocol/enroll.ts';
 export { FrameError, type FrameErrorCode, type FrameParse, utf8Bytes } from './runner-protocol/frame.ts';
 export {

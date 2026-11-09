@@ -15,9 +15,16 @@ import type { RunnerCredential } from '../../../platform/auth/api-keys.ts';
 import type { SocketHandlers, SocketLink } from '../../../platform/realtime/sockets.ts';
 import { MIN_RUNNER_VERSION } from '../rules.ts';
 import { type ConnectionContext, HubError, RunnerConnection } from './connection.ts';
+import {
+  type TerminalChannel,
+  type TerminalRequest,
+  type TerminalSink,
+  terminalBoard,
+} from './hub/terminals.ts';
 import { type HubTunnels, tunnelBoard } from './hub/tunnels.ts';
 
 export { HubError, type HubErrorCode } from './connection.ts';
+export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } from './hub/terminals.ts';
 
 /** A server frame that is a command (it has a `cmdId`), and what answers it. */
 export type CommandFrame = Extract<ServerFrame, { cmdId: string }>;
@@ -68,6 +75,11 @@ export interface RunnerHub {
     frame: F,
     options?: { readonly timeoutMs?: number },
   ): Promise<ReplyTo<F>>;
+  /**
+   * Opens a terminal on the machine's runner (`terminal.open`) and relays its frames to `sink` until it ends; undefined
+   * when the runner is not ready or has no terminal (`caps.terminal`).
+   */
+  terminal(machineId: string, request: TerminalRequest, sink: TerminalSink): TerminalChannel | undefined;
   /** Closes every socket of the machine with `code`; false when it has none. */
   disconnect(machineId: string, code: number, reason: string): boolean;
   /**
@@ -188,6 +200,7 @@ export function createRunnerHub(
   const queues = machineQueues(deps.logger);
   const listeners = connectListeners(deps.logger);
   const tunnels = tunnelBoard(deps.clock, sockets.ready);
+  const terminals = terminalBoard();
   const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   let closing = false;
   const ctx: ConnectionContext = {
@@ -197,8 +210,12 @@ export function createRunnerHub(
     enqueue: queues.enqueue,
     claim: sockets.claim,
     ready: listeners.ready,
-    release: sockets.release,
+    release: (connection) => {
+      terminals.drop(connection);
+      return sockets.release(connection);
+    },
     tunnel: tunnels.record,
+    terminal: terminals.record,
   };
   return {
     pingMs: options.pingMs ?? RUNNER_PING_MS,
@@ -219,6 +236,11 @@ export function createRunnerHub(
       if (connection === undefined) throw new HubError('offline', machineId, 'The runner is not connected');
       const reply = await connection.request(frame, requestOptions?.timeoutMs ?? requestTimeoutMs);
       return reply as ReplyTo<typeof frame>;
+    },
+    terminal(machineId, request, sink) {
+      const connection = sockets.ready(machineId);
+      if (connection?.hello?.caps.terminal !== true) return undefined;
+      return terminals.open(connection, request, sink);
     },
     disconnect(machineId, code, reason) {
       const ofMachine = [...sockets.all].filter((connection) => connection.machineId === machineId);
