@@ -13,7 +13,7 @@ export function MobileNav({ items }: { readonly items: readonly NavItem[] }) {
       className="fixed inset-x-3 bottom-3 z-30 flex gap-1 rounded-2xl bg-glass p-1.5 shadow-raised ring-1 ring-line backdrop-blur-md md:hidden"
     >
       {items
-        .filter((item) => item.href !== undefined && !item.soon)
+        .filter((item) => item.href !== undefined && !item.soon && !item.railOnly)
         .map((item) => {
           const Icon = item.icon;
           return (

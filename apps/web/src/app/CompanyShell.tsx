@@ -19,6 +19,11 @@ import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { ChatPage } from '../pages/company/ChatPage.tsx';
 import { MachinesPage } from '../pages/company/MachinesPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
+import {
+  GatewaysCompanyPage,
+  ProfilesCompanyPage,
+  SubscriptionsCompanyPage,
+} from '../pages/company/PersonalPages.tsx';
 import { SettingsPage } from '../pages/company/SettingsPage.tsx';
 import { StructurePage } from '../pages/company/StructurePage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
@@ -28,10 +33,13 @@ import { companyHrefs, companyNav, companyPath, movedSection, railSection } from
 import { Redirect, useLocation } from './router.tsx';
 import { rememberCompany, useSession } from './session.tsx';
 
-/** The pages of a company, by the path after `/:slug/`. */
+/** The pages of a company, by the path after `/:slug/`; `subscriptions`, `gateways` and `profiles` are the person's own. */
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
   machines: MachinesPage,
+  subscriptions: SubscriptionsCompanyPage,
+  gateways: GatewaysCompanyPage,
+  profiles: ProfilesCompanyPage,
   'api-keys': ApiKeysPage,
   settings: SettingsPage,
 };

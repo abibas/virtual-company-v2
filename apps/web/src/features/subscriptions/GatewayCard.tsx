@@ -1,8 +1,8 @@
 import { CREDENTIAL_LABEL } from '@mwc/shared/credentials';
 import { Lock } from 'lucide-react';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
+import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
-import { ACCESS_PROFILES_PATH } from '../../components/auth/AccountMenu.tsx';
 import { formatDate, formatDateTime, fromNow } from '../../components/data/format.ts';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
@@ -28,6 +28,7 @@ const addressOf = (gateway: Subscription): string | undefined => {
 
 /** The profiles that include it, each a link to the Access profiles tab. */
 function GatewayProfiles({ profiles }: { readonly profiles: readonly AccessProfile[] | undefined }) {
+  const profilesHref = usePersonalHref('profiles');
   if (profiles === undefined) return <p className="text-xs text-dim">Checking your access profiles…</p>;
   if (profiles.length === 0)
     return (
@@ -40,7 +41,7 @@ function GatewayProfiles({ profiles }: { readonly profiles: readonly AccessProfi
         {profiles.map((profile) => (
           <li key={profile.id}>
             <Link
-              to={ACCESS_PROFILES_PATH}
+              to={profilesHref}
               className="inline-flex items-center rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-ink-2 hover:text-teal focus-visible:text-teal"
             >
               {profile.name}

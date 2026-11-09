@@ -40,6 +40,10 @@ export interface NavItem {
   readonly active?: boolean;
   /** Not built yet: shown muted with this note ("Coming in S2"). */
   readonly soon?: string;
+  /** Starts a new group of the rail: a thin line above it. */
+  readonly divider?: boolean;
+  /** Only in the rail, not in the phone's bottom bar (which has room for a few pages only). */
+  readonly railOnly?: boolean;
 }
 
 /** One item of the rail: a link, the active one a filled blue square, a future one muted with its note. */
@@ -48,7 +52,7 @@ function RailItem({ item }: { readonly item: NavItem }) {
   const label = item.soon ? `${item.label}: ${item.soon}` : item.label;
   const classes = iconButtonClass({ size: 'lg', active: item.active ?? false });
   return (
-    <li>
+    <li className={cx(item.divider && 'mt-1.5 border-t border-line pt-3')}>
       <Tooltip label={label} side="right">
         {item.href !== undefined && !item.soon ? (
           <Link

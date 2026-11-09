@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import {
   type SubscriptionCalls,
@@ -26,8 +26,14 @@ const SKELETON = (
   </div>
 );
 
-/** The tab's bar: what the cards are, a fresh check of the limits, and Add a subscription. */
-function TabBar({
+/**
+ * Renders the page's header around the tab's actions (its own company page); without it the tab shows its own bar with
+ * a line on what it is (the standalone page's tabs).
+ */
+export type TabHeader = (actions: ReactNode) => ReactNode;
+
+/** The tab's actions: a fresh check of the limits, and Add a subscription. */
+function TabActions({
   refreshing,
   onRefresh,
   onAdd,
@@ -37,25 +43,32 @@ function TabBar({
   readonly onAdd: () => void;
 }) {
   return (
+    <>
+      <Button
+        size="sm"
+        tone="quiet"
+        icon={RefreshCw}
+        disabled={refreshing}
+        onClick={onRefresh}
+        className={cx(refreshing && 'motion-safe:[&_svg]:animate-spin')}
+      >
+        Check limits
+      </Button>
+      <Button size="sm" tone="primary" icon={Plus} onClick={onAdd}>
+        Add a subscription
+      </Button>
+    </>
+  );
+}
+
+/** The tab's bar on the standalone page: what the cards are, and the actions. */
+function TabBar({ actions }: { readonly actions: ReactNode }) {
+  return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <p className="max-w-prose text-sm text-dim">
         Personal to you, in every company. Secrets are stored encrypted and never shown back.
       </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          tone="quiet"
-          icon={RefreshCw}
-          disabled={refreshing}
-          onClick={onRefresh}
-          className={cx(refreshing && 'motion-safe:[&_svg]:animate-spin')}
-        >
-          Check limits
-        </Button>
-        <Button size="sm" tone="primary" icon={Plus} onClick={onAdd}>
-          Add a subscription
-        </Button>
-      </div>
+      <div className="flex flex-wrap items-center gap-2">{actions}</div>
     </div>
   );
 }
@@ -115,9 +128,9 @@ function SubscriptionList({ list, limits, now, calls, onChanged, onSignIn, onAdd
 /**
  * The Subscriptions tab (logins, setup-tokens and API keys; gateways have their own tab): one card per subscription
  * with its kind, state, account and limits; rename, remove and Sign in again on each, and Add a subscription in a
- * sheet beside the page.
+ * sheet beside the page. `header` puts the actions in the page's header.
  */
-export function SubscriptionsTab() {
+export function SubscriptionsTab({ header }: { readonly header?: TabHeader }) {
   const api = useApi();
   const calls = useMemo(() => subscriptionCalls(api), [api]);
   const subscriptions = useSubscriptions();
@@ -139,9 +152,12 @@ export function SubscriptionsTab() {
     setHighlight(credentialId);
     setAdded('Signed in. Your subscription is highlighted below.');
   });
+  const actions = (
+    <TabActions refreshing={limits.refreshing} onRefresh={limits.refresh} onAdd={adding.choose} />
+  );
   return (
     <>
-      <TabBar refreshing={limits.refreshing} onRefresh={limits.refresh} onAdd={adding.choose} />
+      {header ? header(actions) : <TabBar actions={actions} />}
       {added && (
         <div className="mb-4">
           <Notice tone="success" onDismiss={() => setAdded(undefined)}>

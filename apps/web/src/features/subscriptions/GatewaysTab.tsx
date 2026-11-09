@@ -1,5 +1,5 @@
 import { Plus, Waypoints } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import {
   type SubscriptionCalls,
@@ -8,8 +8,7 @@ import {
   useSubscriptions,
 } from '../../api/subscriptions.ts';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
-import { navigate } from '../../app/router.tsx';
-import { GATEWAYS_PATH } from '../../components/auth/AccountMenu.tsx';
+import { navigate, useLocation } from '../../app/router.tsx';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { Sheet } from '../../components/layout/Drawer.tsx';
 import { Button } from '../../components/ui/Button.tsx';
@@ -19,6 +18,7 @@ import { Notice } from '../../components/ui/Notice.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import { GatewayCard } from './GatewayCard.tsx';
 import { PasteForm, pasteTitle } from './PasteForm.tsx';
+import type { TabHeader } from './SubscriptionsTab.tsx';
 
 const SKELETON = (
   <div className="grid gap-4 md:grid-cols-2">
@@ -81,33 +81,50 @@ function GatewayList({ gateways, profiles, calls, onChanged, onAdd }: ListProps)
 /**
  * The AI gateways tab: the person's gateways (credentials of kind `gateway`) as cards, with the profiles that include
  * each, rename and remove; Add gateway opens the gateway form in a sheet. `addOnOpen` (`&add=1`, from a profile's empty
- * Gateway slot) opens that sheet at once.
+ * Gateway slot) opens that sheet at once, and leaves the address without it. `header` puts Add gateway in the page's
+ * header.
  */
-export function GatewaysTab({ addOnOpen = false }: { readonly addOnOpen?: boolean }) {
+export function GatewaysTab({
+  addOnOpen = false,
+  header,
+}: {
+  readonly addOnOpen?: boolean;
+  readonly header?: TabHeader;
+}) {
   const api = useApi();
   const calls = useMemo(() => subscriptionCalls(api), [api]);
   const subscriptions = useSubscriptions();
   const profiles = useAccessProfiles();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState<string>();
+  const { pathname, search } = useLocation();
   useEffect(() => {
     if (!addOnOpen) return;
     setAdding(true);
-    navigate(GATEWAYS_PATH, { replace: true });
-  }, [addOnOpen]);
+    const rest = new URLSearchParams(search);
+    rest.delete('add');
+    navigate(rest.size > 0 ? `${pathname}?${rest}` : pathname, { replace: true });
+  }, [addOnOpen, pathname, search]);
   const changed = () => {
     subscriptions.reload();
     profiles.reload();
   };
   const add = () => setAdding(true);
+  const action: ReactNode = (
+    <Button size="sm" tone="primary" icon={Plus} onClick={add}>
+      Add gateway
+    </Button>
+  );
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-prose text-sm text-dim">{WHAT_IT_IS}</p>
-        <Button size="sm" tone="primary" icon={Plus} onClick={add}>
-          Add gateway
-        </Button>
-      </div>
+      {header ? (
+        header(action)
+      ) : (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-prose text-sm text-dim">{WHAT_IT_IS}</p>
+          {action}
+        </div>
+      )}
       {added && (
         <div className="mb-4">
           <Notice tone="success" onDismiss={() => setAdded(undefined)}>

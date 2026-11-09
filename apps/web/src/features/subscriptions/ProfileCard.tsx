@@ -8,8 +8,8 @@ import {
 import { type FormEvent, useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import type { AccessProfile, AccessProfileChanges, Subscription } from '../../api/types.ts';
+import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
-import { ADD_GATEWAY_PATH } from '../../components/auth/AccountMenu.tsx';
 import { count } from '../../components/data/format.ts';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { SelectField, TextField } from '../../components/forms/Field.tsx';
@@ -125,6 +125,7 @@ function SlotSelect({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const current = profile[slot];
+  const addGatewayHref = usePersonalHref('gateways', true);
   const change = async (value: string) => {
     setBusy(true);
     setError(undefined);
@@ -145,7 +146,7 @@ function SlotSelect({
         noGateway ? (
           <>
             You have none yet.{' '}
-            <Link to={ADD_GATEWAY_PATH} className="font-semibold text-blue hover:underline">
+            <Link to={addGatewayHref} className="font-semibold text-blue hover:underline">
               Add a gateway
             </Link>
           </>

@@ -60,7 +60,8 @@ function SignedIn({ href, children }: { readonly href: string; readonly children
 
 /**
  * The routes: `/sign-in`, `/sign-up` (Clerk's own steps below them) and `/accept-invitation` for everyone; `/`
- * (the company to open), `/companies/new`, `/profile`, `/subscriptions` and `/:slug/...` (a company) behind
+ * (the company to open), `/companies/new`, `/profile`, `/subscriptions` (the old address of the person's own pages,
+ * now company pages: it opens the last company's) and `/:slug/...` (a company) behind
  * sign-in, each once the person has a name: until then `/onboarding` asks for it. An old company link,
  * `/c/<slug>/...`, is replaced by the same address without `/c`.
  */

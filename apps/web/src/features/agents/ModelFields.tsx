@@ -3,8 +3,8 @@ import { type ReactNode, useId } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, AgentProfile } from '../../api/types.ts';
+import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
-import { ACCESS_PROFILES_PATH } from '../../components/auth/AccountMenu.tsx';
 import { ChoiceField, Field, SelectField, TextField } from '../../components/forms/Field.tsx';
 import { Input } from '../../components/forms/Input.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
@@ -59,9 +59,10 @@ function ModelChoice({ draft, readOnly }: { readonly draft: AgentDraft; readonly
 
 /** The hint under the profile select: what a profile is, and where the person's own are. */
 function ProfileHint({ count, error }: { readonly count: number | undefined; readonly error: unknown }) {
+  const profilesHref = usePersonalHref('profiles');
   if (error !== undefined) return friendlyMessage(error);
   const link = (
-    <Link to={ACCESS_PROFILES_PATH} className="font-semibold text-blue hover:underline">
+    <Link to={profilesHref} className="font-semibold text-blue hover:underline">
       {count === 0 ? 'Make one' : 'Your access profiles'}
     </Link>
   );

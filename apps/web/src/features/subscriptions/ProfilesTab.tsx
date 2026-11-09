@@ -1,6 +1,6 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { Layers, Plus } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { type ReactNode, useId, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
 import {
@@ -19,6 +19,7 @@ import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import { NewProfileForm, ProfileCard } from './ProfileCard.tsx';
+import type { TabHeader } from './SubscriptionsTab.tsx';
 
 const SKELETON = <Skeleton className="h-48 rounded-2xl" />;
 
@@ -141,33 +142,40 @@ function ProfileList({
 /**
  * The Access profiles tab: the person's named bundles of their subscriptions (a Claude one, an OpenAI one, a gateway),
  * the agents using each, New profile, and their default per company. `memberships` and `onDefaultChanged` are the
- * session's (the page passes them).
+ * session's (the page passes them); `header` puts New profile in the page's header.
  */
 export function ProfilesTab({
   memberships,
   onDefaultChanged,
+  header,
 }: {
   readonly memberships: readonly Membership[];
   readonly onDefaultChanged: () => Promise<unknown>;
+  readonly header?: TabHeader;
 }) {
   const api = useApi();
   const calls = useMemo(() => profileCalls(api), [api]);
   const profiles = useAccessProfiles();
   const subscriptions = useSubscriptions();
   const [creating, setCreating] = useState(false);
+  const action: ReactNode = !creating && (
+    <Button size="sm" tone="primary" icon={Plus} onClick={() => setCreating(true)}>
+      New profile
+    </Button>
+  );
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-prose text-sm text-dim">
-          A profile is what you give an agent: which of your subscriptions its runs use. It never moves a
-          subscription into a company.
-        </p>
-        {!creating && (
-          <Button size="sm" tone="primary" icon={Plus} onClick={() => setCreating(true)}>
-            New profile
-          </Button>
-        )}
-      </div>
+      {header ? (
+        header(action)
+      ) : (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-prose text-sm text-dim">
+            A profile is what you give an agent: which of your subscriptions its runs use. It never moves a
+            subscription into a company.
+          </p>
+          {action}
+        </div>
+      )}
       {creating && (
         <NewProfileForm
           create={(name) =>

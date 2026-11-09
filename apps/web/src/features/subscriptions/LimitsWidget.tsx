@@ -2,7 +2,7 @@ import { Gauge, Info, Plus, RefreshCw, Settings2 } from 'lucide-react';
 import { useSubscriptionLimits } from '../../api/subscriptions.ts';
 import type { LimitsList, SubscriptionLimits } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
-import { SUBSCRIPTIONS_PATH } from '../../components/auth/AccountMenu.tsx';
+import { usePersonalHref } from '../../app/company.ts';
 import { cx } from '../../components/cx.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
@@ -149,13 +149,14 @@ export function SubscriptionLimitsWidget() {
   const limits = useSubscriptionLimits();
   const adding = useAddSubscription(limits.reload);
   const now = useNow();
+  const manageHref = usePersonalHref('subscriptions');
   return (
     <>
       <LimitsWidget
         limits={limits}
         refreshing={limits.refreshing}
         onRefresh={limits.refresh}
-        manageHref={SUBSCRIPTIONS_PATH}
+        manageHref={manageHref}
         onAdd={adding.choose}
         now={now}
       />

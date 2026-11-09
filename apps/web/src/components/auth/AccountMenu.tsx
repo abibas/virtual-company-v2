@@ -1,6 +1,7 @@
 import { useClerk } from '@clerk/react';
 import { LogOut, Settings, Sparkles, UserRound } from 'lucide-react';
 import type { Me } from '../../api/types.ts';
+import { usePersonalHref } from '../../app/company.ts';
 import { MenuItem, MenuSeparator } from '../forms/Menu.tsx';
 import type { ShellUser } from '../layout/TopBar.tsx';
 import { personName } from '../ui/Avatar.tsx';
@@ -8,34 +9,20 @@ import { personName } from '../ui/Avatar.tsx';
 /** Where the person changes their name and photo (`pages/ProfilePage.tsx`). */
 export const PROFILE_PATH = '/profile';
 
-/** Where the person adds their AI subscriptions and bundles them into access profiles (`pages/SubscriptionsPage.tsx`). */
-export const SUBSCRIPTIONS_PATH = '/subscriptions';
-
-/** The Subscriptions page on its Access profiles tab. */
-export const ACCESS_PROFILES_PATH = `${SUBSCRIPTIONS_PATH}?tab=profiles`;
-
-/** The Subscriptions page on its AI gateways tab. */
-export const GATEWAYS_PATH = `${SUBSCRIPTIONS_PATH}?tab=gateways`;
-
-/** The AI gateways tab with its Add gateway sheet open. */
-export const ADD_GATEWAY_PATH = `${GATEWAYS_PATH}&add=1`;
-
 /**
- * The items of the signed-in person's account menu: their profile here (name and photo), their AI subscriptions, the
+ * The items of the signed-in person's account menu: their profile here (name and photo), their AI subscriptions (the
+ * current company's Subscriptions page, or the last company's outside one), the
  * sign-in service's own account page (email, sign-in methods, sessions) and signing out, back to the sign-in page.
  */
 export function AccountMenuItems() {
   const clerk = useClerk();
+  const subscriptions = usePersonalHref('subscriptions');
   return (
     <>
       <MenuItem href={PROFILE_PATH} icon={UserRound}>
         Your profile
       </MenuItem>
-      <MenuItem
-        href={SUBSCRIPTIONS_PATH}
-        icon={Sparkles}
-        description="Claude, OpenAI, keys, gateways, profiles"
-      >
+      <MenuItem href={subscriptions} icon={Sparkles} description="Claude, OpenAI, keys, gateways, profiles">
         Subscriptions
       </MenuItem>
       <MenuItem

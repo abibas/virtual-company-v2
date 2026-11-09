@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { AgentList, Me, Membership } from '../api/types.ts';
 import type { Loaded } from '../api/use-load.ts';
+import { type PersonalPage, personalPath } from './nav.ts';
 
 export interface CompanyView {
   /** The signed-in person's membership in the company on screen (its id, slug, name, role and status). */
@@ -22,4 +23,12 @@ export function useCompany(): CompanyView {
   const view = useContext(CompanyContext);
   if (view === null) throw new Error('useCompany() is used outside the company shell');
   return view;
+}
+
+/**
+ * The address of one of the person's own pages (Subscriptions, AI gateways, Access profiles): the current company's
+ * (`/:slug/gateways`) inside the company shell, else the old `/subscriptions?tab=...`, which opens the last company's.
+ */
+export function usePersonalHref(page: PersonalPage, add = false): string {
+  return personalPath(useContext(CompanyContext)?.membership.slug, page, add);
 }

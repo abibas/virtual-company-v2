@@ -1,4 +1,6 @@
 import {
+  CreditCard,
+  IdCard,
   Inbox,
   KeyRound,
   LayoutGrid,
@@ -7,6 +9,7 @@ import {
   Network,
   Server,
   Settings,
+  Waypoints,
 } from 'lucide-react';
 import type { NavItem } from '../components/layout/Rail.tsx';
 
@@ -49,8 +52,9 @@ export function movedSection(section: string, search: URLSearchParams): string |
 }
 
 /**
- * The rail of a company: its pages (the one of `section` current), then the ones of later stages shown muted with
- * their note. `hrefOf` places them: the company's routes, or the design gallery's mocks.
+ * The rail of a company: its pages (the one of `section` current), the person's own Subscriptions, AI gateways and
+ * Access profiles in their own group (rail only; phones reach them from the account menu), then the ones of later
+ * stages shown muted with their note. `hrefOf` places them: the company's routes, or the design gallery's mocks.
  */
 export function companyNav(hrefOf: SectionHref, section: string): readonly NavItem[] {
   const page = (key: string, label: string, icon: LucideIcon): NavItem => {
@@ -61,9 +65,29 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
     page('overview', 'Overview', LayoutGrid),
     page('structure', 'Company structure', Network),
     page('machines', 'Machines', Server),
-    page('api-keys', 'API keys', KeyRound),
+    { ...page('subscriptions', 'Subscriptions', CreditCard), divider: true, railOnly: true },
+    { ...page('gateways', 'AI gateways', Waypoints), railOnly: true },
+    { ...page('profiles', 'Access profiles', IdCard), railOnly: true },
+    { ...page('api-keys', 'API keys', KeyRound), divider: true },
     page('settings', 'Settings', Settings),
     { key: 'tasks', label: 'Tasks', icon: ListChecks, soon: 'coming in S5' },
     { key: 'inbox', label: 'Inbox', icon: Inbox, soon: 'coming in S6' },
   ];
 }
+
+/** The person's own pages (2026-11-09: company pages in the rail, the same in every company of theirs). */
+export type PersonalPage = 'subscriptions' | 'gateways' | 'profiles';
+
+/** The old address of a personal page, `/subscriptions?tab=...`: outside a company, it opens the last company's page. */
+export function oldPersonalPath(page: PersonalPage, add = false): string {
+  const base = page === 'subscriptions' ? '/subscriptions' : `/subscriptions?tab=${page}`;
+  return add ? `${base}${page === 'subscriptions' ? '?' : '&'}add=1` : base;
+}
+
+/** The personal page an old `/subscriptions` address names, from its `?tab=`. */
+export const personalPageOf = (tab: string | null): PersonalPage =>
+  tab === 'gateways' || tab === 'profiles' ? tab : 'subscriptions';
+
+/** A personal page's address in the company at `slug` (`&add=1` as `?add=1`), else its old address. */
+export const personalPath = (slug: string | undefined, page: PersonalPage, add = false): string =>
+  slug === undefined ? oldPersonalPath(page, add) : `${companyPath(slug, page)}${add ? '?add=1' : ''}`;
