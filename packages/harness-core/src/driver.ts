@@ -1,0 +1,80 @@
+import type { Harness } from '@mwc/shared/enums';
+import type { TerminalSpec, TurnEvent, TurnEventOf, TurnSpec } from '@mwc/shared/harness';
+
+/** A file a process reads from its private folder (Codex's `auth.json`). */
+export interface PrivateFile {
+  /** A plain file name, no folders. */
+  readonly name: string;
+  readonly contents: string;
+  /** Its permission bits, `0o600` for a secret. */
+  readonly mode: number;
+}
+
+/**
+ * The folder a harness keeps its state in, when the driver needs the runner to manage it (Codex's `CODEX_HOME`, where
+ * its login and its threads live). The runner makes it private (0700) when missing, puts its path in `env`, writes
+ * `files` before the start and removes them when the last process using the folder exits, so no secret stays on disk
+ * between turns. The folder itself is kept: a thread lives in it, so a resume needs the same folder.
+ */
+export interface PrivateDir {
+  /** The variable that gets the folder's path, e.g. `CODEX_HOME`. */
+  readonly env: string;
+  /**
+   * The folder: the turn's `configDir` (the agent's own), or null for the runner's own private folder for this harness
+   * and `cwd` (docs/harness.md).
+   */
+  readonly path: string | null;
+  readonly files: readonly PrivateFile[];
+}
+
+/** A notice the runner sends before the process's own events (a setting the harness cannot honour). */
+export type TurnNotice = TurnEventOf<'notice'>;
+
+/**
+ * How to start one turn or terminal (pure data: nothing runs). The runner starts `command` in the spec's `cwd` with
+ * its own environment minus `MWC_*` and minus `unsetEnv`, plus `env`; it writes `stdin` to the process and closes it
+ * (a terminal gets the pseudo-terminal instead).
+ */
+export interface ProcessSpec {
+  /** The program: a name looked up on PATH, or the full path a driver was given. */
+  readonly command: string;
+  /** Its arguments, no shell. */
+  readonly args: readonly string[];
+  /** Only the variables to add or override. */
+  readonly env: Readonly<Record<string, string>>;
+  /** Variables of the runner's own environment the process must not see (another credential, another gateway). */
+  readonly unsetEnv: readonly string[];
+  /** The prompt, written to stdin and then closed (never an argument); null for a terminal. */
+  readonly stdin: string | null;
+  readonly privateDir?: PrivateDir;
+  /** What the person should know before the output (sent as the turn's first events, shown above a terminal). */
+  readonly notices: readonly TurnNotice[];
+}
+
+/**
+ * Reads one turn's stdout, a line at a time (without its newline), into normalized events. It is stateful (one per
+ * process) and never throws: a blank, partial or garbled line and an unknown message type give no events. `end` is
+ * called once, after the exit, with the exit code (null when a signal ended it) and the last of stderr; it gives a
+ * failing `result` when the output gave none, and nothing otherwise.
+ */
+export interface LineParser {
+  feed(line: string): TurnEvent[];
+  end(exitCode: number | null, stderrTail: string): TurnEvent[];
+}
+
+/**
+ * The harness driver port (docs/harness.md): what a runner loads to run a harness's CLI. Pure: it builds process
+ * specs and parsers, and never spawns anything. `turn` and `terminal` throw a `HarnessError` only (a credential of
+ * the other harness, an id that would break the command line).
+ */
+export interface HarnessDriver {
+  readonly harness: Harness;
+  /** The arguments that print the CLI's version (`claude --version`): what the runner reports in its hello. */
+  readonly versionArgs: readonly string[];
+  /** One chat turn, its output streamed as JSON lines. */
+  turn(spec: TurnSpec): ProcessSpec;
+  /** The interactive TUI on the conversation (resumed, or a new one when `sessionId` is null). */
+  terminal(spec: TerminalSpec): ProcessSpec;
+  /** A new parser for one turn's output. */
+  parser(): LineParser;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@mwc/harness-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The harness driver port: one chat turn or terminal as a process spec, the line parser that turns its output into normalized events, the harness error type, text and spec checks the drivers share, and a fake driver and fake binary for tests.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fake": "./src/fake.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/shared": "workspace:*"
+  }
+}

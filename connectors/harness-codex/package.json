@@ -1,0 +1,18 @@
+{
+  "name": "@mwc/harness-codex",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Codex harness connector: implements @mwc/harness-core's HarnessDriver for the codex CLI (codex exec --json and its resume, the interactive TUI) and parses its JSON events into turn events; recorded-style fixtures for the runner's tests.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/harness-core": "workspace:*",
+    "@mwc/shared": "workspace:*"
+  }
+}

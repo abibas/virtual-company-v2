@@ -50,7 +50,7 @@ Most_Wanted_corp_v2/
 │   ├── db/                         schema, migrations, tenant layer
 │   ├── identity-core/              identity model and projector                S1
 │   ├── machines-core/              the machine power driver port, its fake, the tunnels' supervisor S4
-│   ├── harness-core/               harness driver interface                    S5
+│   ├── harness-core/               the harness driver port, its fake and the fake binary (built) S5.1a
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
 │   │                               api/ (client, org, session), org/ (commands.ts, render.ts) S2.6
@@ -59,11 +59,11 @@ Most_Wanted_corp_v2/
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2
 │   ├── identity-oidc/              other identity providers, user sync         later
 │   ├── machine-airia-devbox/       the Airia devbox's power (airia CLI, gcloud), run by a runner or the server S4
-│   ├── harness-claude-code/                                                    S5
-│   ├── harness-codex/                                                          S7
+│   ├── harness-claude-code/        Claude Code HarnessDriver, its parser, fixtures (built) S5.1a
+│   ├── harness-codex/              Codex HarnessDriver, its parser, fixtures (built) S5.1a
 │   └── jira/ github/ gateway/                                                  S7
 ├── deploy/                         Dockerfiles, compose, later Kubernetes
-└── docs/                           architecture, roadmap, ports, schema, testing, structure, subscriptions
+└── docs/                           architecture, roadmap, ports, schema, testing, structure, subscriptions, harness
 ```
 
 At the top level there is nothing else but the root configuration files (`package.json`,
@@ -97,7 +97,10 @@ stay in `src/` and are exported: `@mwc/db/testing` (test databases), `@mwc/ident
 `@mwc/testkit` as a whole (also `@mwc/testkit/provider-contract`, the `IdentityProvider` contract every provider
 runs, `@mwc/testkit/store-contract`, the `IdentityStore` contract every store runs, `@mwc/testkit/webhooks`,
 svix-signed deliveries, and `@mwc/testkit/runner`, the runner protocol's fake server and fake runner, the last two
-loading without the server). Runtime code another package reuses is exported from its
+loading without the server), `@mwc/harness-core/fake` (S5.1a: `FakeHarnessDriver`, fake specs and credentials, and the
+fake harness binary, whose entry is `packages/harness-core/scripts/fake-harness.ts`, outside coverage, with its logic in
+`src/scenario.ts` and its path exported as `FAKE_HARNESS_BIN`) and each harness connector's `/fixtures` (its CLI's
+recorded-style turns, for its own tests and the runner's; `docs/harness.md`). Runtime code another package reuses is exported from its
 owner's `src/` the same way: `@mwc/cli/credentials` (S1.9), the saved logins of `mwc login`, which `@mwc/mcp` (S2.6)
 reads, and what `mwc org tree`, `mwc agents list` and `@mwc/mcp` share (S2.6): `@mwc/cli/api/client` (a GET with a
 personal key and the server's refusals), `/api/org` (the chart and agents calls and their shapes), `/api/session` (the key
@@ -197,8 +200,9 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
 
 An outside system (Clerk, another identity provider, Claude Code, Codex, Jira, GitHub, the AI gateway)
 is reached only through a connector in `connectors/<name>/`, which implements a port defined in a
-`packages/*-core` package (`IdentityProvider` in `@mwc/identity-core`, later `HarnessDriver` in
-`@mwc/harness-core`). Connectors are wired in `apps/server/src/app.ts` (or the runner's equivalent);
+`packages/*-core` package (`IdentityProvider` in `@mwc/identity-core`, `HarnessDriver` in `@mwc/harness-core`, whose
+connectors only the runner loads: the server reads the wire contracts of `@mwc/shared/harness`). Connectors are wired
+in `apps/server/src/app.ts` (or the runner's equivalent);
 modules depend on the port, never on a connector, so tests use the core package's fake.
 
 A connector takes the outside system's client as an injected port, so its unit tests run against a fake with

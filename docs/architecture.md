@@ -115,6 +115,9 @@ Tenant-scoping rule in code: `tenant(db, companyId): TenantDb` is the only way r
 
 ## 10. Harness driver `claude_code` (`packages/harness-core`, `connectors/harness-claude-code`)
 
+The built port (S5.1a, one process per chat turn, both drivers) is `docs/harness.md`; this section is the target design of
+runs and the inbox (S5–S6), which extends it.
+
 `HarnessDriver` (harness-agnostic): `buildSpawn(spec, runDir)`, `parseLine(line, state) → RunEvent[]`, `encodeInput(text, input_id)`, `sessionIdFrom(initEvent)`, `interruptSignal`. A `codex` driver later maps `codex exec --json` / `codex app-server` JSON-RPC (thread/start|resume, turn/start|steer|interrupt, approval and `tool/requestUserInput` requests) onto the same events.
 
 Spawn (cwd = the agent's home so its CLAUDE.md, skills and memory load; the task worktree is `--add-dir`, which grants file access without loading that folder's `.claude` config):

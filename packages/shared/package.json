@@ -11,6 +11,7 @@
     "./container-runner": "./src/container-runner.ts",
     "./credentials": "./src/credentials.ts",
     "./enums": "./src/enums.ts",
+    "./harness": "./src/harness.ts",
     "./identity": "./src/identity.ts",
     "./ids": "./src/ids.ts",
     "./logos": "./src/logos.ts",

@@ -28,6 +28,21 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-09: A test executable another package's tests spawn, and fixtures in a connector's `src/`
+
+- **What happened:** S5.1a needs a fake harness binary for the runner's later tests (a process the runner spawns). The
+  placement table has no row for a test executable: it went to `packages/harness-core/scripts/fake-harness.ts` (25
+  lines, outside coverage), its logic in `src/scenario.ts` (tested in-process) and its path exported from
+  `@mwc/harness-core/fake` as `FAKE_HARNESS_BIN`, though `scripts/` is described as dev tooling. Each CLI's recorded-style
+  turns are exported from its connector (`src/fixtures.ts` as `/fixtures`), the "owner's `src/`" row, since testkit
+  would pull in the server. `packages/shared/src/harness.ts` imports `protocolObject`, so
+  `runner-protocol/common.ts` now shows as `fan-in` (8 importers).
+- **Where:** the S5.1a commit.
+- **What was done:** as above.
+- **Suggested change:** a row "a test executable other packages' tests spawn → the owner's `scripts/`, its logic in
+  `src/` and its path exported"; leave `common.ts` out of `fan-in` (`fanInExempt`), as a designed building block.
+- **Status:** `open`.
+
 ### 2026-11-06: Socket routes, and a hub injected into the test app
 
 - **What happened:** S4.2's runner socket is an ordinary Hono route through `@hono/node-server`'s upgrade (auth as

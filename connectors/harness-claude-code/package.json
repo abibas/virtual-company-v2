@@ -1,0 +1,18 @@
+{
+  "name": "@mwc/harness-claude-code",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Claude Code harness connector: implements @mwc/harness-core's HarnessDriver for the claude CLI (a -p turn with stream-json output, the interactive TUI) and parses its stream into turn events; recorded-style fixtures for the runner's tests.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/harness-core": "workspace:*",
+    "@mwc/shared": "workspace:*"
+  }
+}

@@ -131,11 +131,11 @@ Full map and rules: `docs/ports.md`.
 ## Layout
 
 ```
-apps/        server, web (now); runner (S3)
-packages/    shared, db, identity-core, testkit, cli, mcp (now); harness-core (S4)
-connectors/  identity-clerk (now); harness-claude-code (S4), jira, github, gateway, harness-codex (S6–S7)
+apps/        server, web, runner
+packages/    shared, db, identity-core, machines-core, harness-core, testkit, cli, mcp
+connectors/  identity-clerk, machine-airia-devbox, harness-claude-code, harness-codex (now); jira, github, gateway (S7)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper)
-docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, mcp, schema (generated)
+docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, mcp, harness, schema (generated)
 ```
 
 Where each kind of code goes, the size limits and the coverage floors: `docs/structure.md`.

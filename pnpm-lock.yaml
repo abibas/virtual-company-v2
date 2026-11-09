@@ -332,6 +332,24 @@ importers:
         specifier: 8.3.5
         version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
+  connectors/harness-claude-code:
+    dependencies:
+      '@mwc/harness-core':
+        specifier: workspace:*
+        version: link:../../packages/harness-core
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  connectors/harness-codex:
+    dependencies:
+      '@mwc/harness-core':
+        specifier: workspace:*
+        version: link:../../packages/harness-core
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
   connectors/identity-clerk:
     dependencies:
       '@clerk/backend':
@@ -391,6 +409,12 @@ importers:
       drizzle-kit:
         specifier: 0.31.11
         version: 0.31.11
+
+  packages/harness-core:
+    dependencies:
+      '@mwc/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/identity-core:
     dependencies:
