@@ -180,12 +180,16 @@ function PowerParts({
   );
 }
 
-/** A machine on the Machines page: who and how it is, its numbers, its power, its log, and its actions (Connect, Remove for admins). */
+/**
+ * A machine on the Machines page: who and how it is, its numbers, its power, its log, and its actions (Connect,
+ * Terminal for owners, Remove for admins).
+ */
 export function MachineCard({
   machine,
   stats,
   now,
   admin,
+  owner,
   companyId,
   calls,
   onChanged,
@@ -194,6 +198,7 @@ export function MachineCard({
   readonly stats: MachineStats | undefined;
   readonly now: number;
   readonly admin: boolean;
+  readonly owner: boolean;
   readonly companyId: string;
   readonly calls: MachineCalls;
   readonly onChanged: () => void;
@@ -219,7 +224,14 @@ export function MachineCard({
       />
       {stats && <MachineMetrics stats={stats} />}
       <PowerParts machine={machine} control={control} now={now} />
-      <MachineActions machine={machine} admin={admin} onRemove={remove} />
+      <MachineActions
+        machine={machine}
+        companyId={companyId}
+        admin={admin}
+        owner={owner}
+        online={(stats?.status ?? machine.status) === 'online'}
+        onRemove={remove}
+      />
     </Card>
   );
 }

@@ -89,6 +89,7 @@ export function MachinesPage() {
                   stats={stats.data?.machines.find((item) => item.machineId === machine.id)}
                   now={now}
                   admin={admin}
+                  owner={membership.role === 'owner'}
                   companyId={companyId}
                   calls={calls}
                   onChanged={reload}

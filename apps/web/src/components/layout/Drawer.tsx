@@ -87,19 +87,22 @@ export function Drawer({
 
 /**
  * A task done beside the page (add a subscription): a titled dialog over a dimmed page, rising from the bottom on
- * phones and standing at the right from small screens up. Its body scrolls on its own.
+ * phones and standing at the right from small screens up. Its body scrolls on its own; `wide` makes it up to 72rem
+ * wide (a machine's terminal).
  */
 export function Sheet({
   open,
   onClose,
   title,
   description,
+  wide = false,
   children,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly title: string;
   readonly description?: ReactNode;
+  readonly wide?: boolean;
   readonly children: ReactNode;
 }) {
   const id = useId();
@@ -116,7 +119,10 @@ export function Sheet({
         aria-labelledby={`${id}-title`}
         aria-describedby={description ? `${id}-description` : undefined}
         tabIndex={-1}
-        className="relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-surface shadow-float outline-none sm:m-2 sm:max-h-none sm:w-[min(100vw-1rem,30rem)] sm:rounded-2xl"
+        className={cx(
+          'relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-surface shadow-float outline-none sm:m-2 sm:max-h-none sm:rounded-2xl',
+          wide ? 'sm:w-[min(100vw-1rem,72rem)]' : 'sm:w-[min(100vw-1rem,30rem)]',
+        )}
       >
         <header className="flex items-start gap-3 border-b border-line px-5 pt-5 pb-4">
           <div className="min-w-0 flex-1">

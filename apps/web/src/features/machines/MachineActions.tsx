@@ -5,6 +5,7 @@ import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { CommandBox } from './CommandBox.tsx';
 import { connectCommand } from './connect-command.ts';
+import { TerminalButton } from './terminal/TerminalButton.tsx';
 
 /** The shell command for this machine, its Copy button and where to run it. */
 function ConnectPanel({ command, hint }: { readonly command: string; readonly hint: string }) {
@@ -17,21 +18,27 @@ function ConnectPanel({ command, hint }: { readonly command: string; readonly hi
 }
 
 /**
- * The card's action row: tools on the left (Connect; more go next to it), Remove for admins on the right,
- * and the open tool's panel under the row.
+ * The card's action row: tools on the left (Connect, and Terminal for owners while the machine is online), Remove for
+ * admins on the right, and the open tool's panel under the row (the terminal in its own sheet).
  */
 export function MachineActions({
   machine,
+  companyId,
   admin,
+  owner,
+  online,
   onRemove,
 }: {
   readonly machine: Machine;
+  readonly companyId: string;
   readonly admin: boolean;
+  readonly owner: boolean;
+  readonly online: boolean;
   readonly onRemove: () => Promise<void>;
 }) {
   const connect = connectCommand(machine);
   const [open, setOpen] = useState(false);
-  if (!connect && !admin) return null;
+  if (!connect && !admin && !owner) return null;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -47,6 +54,7 @@ export function MachineActions({
               Connect
             </Button>
           )}
+          {owner && <TerminalButton companyId={companyId} machine={machine} online={online} />}
         </div>
         {admin && (
           <ConfirmInline
