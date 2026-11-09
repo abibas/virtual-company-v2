@@ -1,6 +1,6 @@
 import { CHAT_PROMPT } from '@mwc/shared/chats';
 import { SendHorizontal, Square } from 'lucide-react';
-import { type FormEvent, type KeyboardEvent, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, type ReactNode, useState } from 'react';
 import { cx } from '../../components/cx.ts';
 import { CONTROL } from '../../components/forms/Input.tsx';
 import { Button } from '../../components/ui/Button.tsx';
@@ -25,6 +25,7 @@ export function Composer({
   placeholder,
   onSend,
   onStop,
+  meter,
 }: {
   /** A turn of this chat runs: Stop instead of Send. */
   readonly running: boolean;
@@ -33,6 +34,8 @@ export function Composer({
   readonly placeholder: string;
   readonly onSend: (prompt: string) => Promise<void>;
   readonly onStop: () => Promise<void>;
+  /** The context meter (S5.2), under the box beside the hint, and beside the reason when the box is closed. */
+  readonly meter?: ReactNode;
 }) {
   const [text, setText] = useState('');
   const { busy, error, run } = useAction();
@@ -41,7 +44,13 @@ export function Composer({
     event?.preventDefault();
     if (ready) void run(() => onSend(text)).then((sent) => sent && setText(''));
   };
-  if (disabled) return <p className="border-t border-line px-5 py-4 text-sm text-dim">{disabled}</p>;
+  if (disabled)
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-4">
+        <p className="text-sm text-dim">{disabled}</p>
+        {meter}
+      </div>
+    );
   return (
     <form onSubmit={send} className="grid gap-2 border-t border-line px-4 py-3 md:px-5">
       {error && (
@@ -72,7 +81,10 @@ export function Composer({
           </Button>
         )}
       </div>
-      <p className="text-2xs text-faint">Enter sends · Shift+Enter for a new line</p>
+      <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="text-2xs text-faint">Enter sends · Shift+Enter for a new line</p>
+        {meter}
+      </div>
     </form>
   );
 }

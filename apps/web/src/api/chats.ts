@@ -34,6 +34,9 @@ export function chatCalls(api: Api, companyId: string) {
     send: (chatId: string, prompt: string) => call(one.turns.$post({ ...param(chatId), json: { prompt } })),
     stop: (chatId: string, turnId: string) =>
       call(one.turns[':turnId'].stop.$post({ param: { companyId, chatId, turnId } })),
+    /** S5.2: the harness's own `/compact` as a turn (202), and a Clear (200): the next turn starts a new conversation. */
+    compact: (chatId: string) => call(one.compact.$post(param(chatId))),
+    clear: (chatId: string) => call(one.clear.$post(param(chatId))),
     terminalTicket: (chatId: string) => call(one['terminal-tickets'].$post(param(chatId))),
     /** The raw stream response (its body goes to `readEventStream`); `lastEventId` replays what came after it. */
     stream: (chatId: string, lastEventId: string | undefined, signal: AbortSignal) =>

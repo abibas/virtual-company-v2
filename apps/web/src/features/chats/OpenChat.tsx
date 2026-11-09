@@ -9,6 +9,7 @@ import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import { ChatHeader, type ChatMode } from './ChatHeader.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
+import { ChatContextMeter } from './context/ChatContextMeter.tsx';
 import { ChatThread } from './thread/ChatThread.tsx';
 
 export interface OpenChatProps {
@@ -80,6 +81,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   }
   const actions = chatActions(calls, live, chat, rest.onChanged);
   const header = { agent, placement, chat, admin, owner, mode, profiles: rest.profiles };
+  const closed = closedWhy(chat, admin, placement);
   return (
     <>
       <ChatHeader {...header} stream={live.stream} onMode={setMode} onProfile={actions.changeProfile} />
@@ -91,10 +93,11 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
           <ChatThread turns={live.turns} agentName={agent.name} />
           <Composer
             running={actions.running !== undefined}
-            disabled={closedWhy(chat, admin, placement)}
+            disabled={closed}
             placeholder={`Message ${agent.name}`}
             onSend={actions.send}
             onStop={actions.stop}
+            meter={<ChatContextMeter calls={calls} live={live} chat={chat} closed={closed} />}
           />
         </>
       )}
