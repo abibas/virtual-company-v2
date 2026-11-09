@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError, friendlyMessage } from '../../../api/errors.ts';
 import { Button } from '../../../components/ui/Button.tsx';
 import { Notice } from '../../../components/ui/Notice.tsx';
-import { CommandBox } from '../CommandBox.tsx';
+import { CommandBox } from '../add/CommandBox.tsx';
 import { RELOAD_AFTER_MS, UPDATED_TEXT } from './runner-text.ts';
 
 /**

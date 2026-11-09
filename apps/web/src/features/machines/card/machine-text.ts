@@ -1,6 +1,6 @@
 import { Cloud, Container, Laptop, type LucideIcon } from 'lucide-react';
-import type { MachineKind, MachineStats, PowerBox } from '../../api/types.ts';
-import type { Tone } from '../../components/ui/Badge.tsx';
+import type { MachineKind, MachineStats, PowerBox } from '../../../api/types.ts';
+import type { Tone } from '../../../components/ui/Badge.tsx';
 
 /** How a machine and its numbers read on the board and the Machines page (pure). */
 

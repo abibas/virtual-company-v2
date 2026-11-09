@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
-import type { MachineStats } from '../../api/types.ts';
-import { cx } from '../../components/cx.ts';
-import { formatTime, formatWeekdayTime } from '../../components/data/format.ts';
-import { Sparkline } from '../../components/data/Sparkline.tsx';
-import { UpDownBar } from '../../components/data/UpDownBar.tsx';
-import { SegmentedControl } from '../../components/forms/Segmented.tsx';
+import type { MachineStats } from '../../../api/types.ts';
+import { cx } from '../../../components/cx.ts';
+import { formatTime, formatWeekdayTime } from '../../../components/data/format.ts';
+import { Sparkline } from '../../../components/data/Sparkline.tsx';
+import { UpDownBar } from '../../../components/data/UpDownBar.tsx';
+import { SegmentedControl } from '../../../components/forms/Segmented.tsx';
 import { CPU_LIMIT, diskText, hoursText, LOAD_LIMIT, loadText, percentText } from './machine-text.ts';
 
 /** One number of the stats row: its small label, then the value, red when it is over its limit. */

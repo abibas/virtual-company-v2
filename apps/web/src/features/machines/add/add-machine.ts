@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useApi } from '../../api/context.ts';
-import { type MachineCalls, machineCalls, useVisibleInterval } from '../../api/machines.ts';
-import type { EnrollmentToken, Machine } from '../../api/types.ts';
+import { useApi } from '../../../api/context.ts';
+import { type MachineCalls, machineCalls, useVisibleInterval } from '../../../api/machines.ts';
+import type { EnrollmentToken, Machine } from '../../../api/types.ts';
 import type { NewMachineKind } from './install-commands.ts';
 
 /** How often the open sheet looks for the new machine. */

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useApi } from '../../api/context.ts';
-import { friendlyMessage } from '../../api/errors.ts';
-import { removeMachineLogo, uploadMachineLogo, useMachineLogo } from '../../api/machine-logo.ts';
-import { LogoPicker } from '../../components/forms/image/LogoPicker.tsx';
-import { type PreparedLogo, releaseLogo } from '../../components/forms/image/logo-file.ts';
-import { Sheet } from '../../components/layout/Drawer.tsx';
-import { Notice } from '../../components/ui/Notice.tsx';
+import { useApi } from '../../../api/context.ts';
+import { friendlyMessage } from '../../../api/errors.ts';
+import { removeMachineLogo, uploadMachineLogo, useMachineLogo } from '../../../api/machine-logo.ts';
+import { LogoPicker } from '../../../components/forms/image/LogoPicker.tsx';
+import { type PreparedLogo, releaseLogo } from '../../../components/forms/image/logo-file.ts';
+import { Sheet } from '../../../components/layout/Drawer.tsx';
+import { Notice } from '../../../components/ui/Notice.tsx';
 import type { MachineMark } from './MachineLogo.tsx';
 
 const HINT =

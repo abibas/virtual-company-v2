@@ -1,4 +1,4 @@
-import type { Machine } from '../../api/types.ts';
+import type { Machine } from '../../../api/types.ts';
 
 /** The command that opens a shell on a machine from the user's own Terminal, with where to run it (pure). */
 export interface ConnectCommand {

@@ -1,9 +1,9 @@
 import { useId, useMemo } from 'react';
-import type { PowerPolicy } from '../../api/types.ts';
-import { cx } from '../../components/cx.ts';
-import { Field } from '../../components/forms/Field.tsx';
-import { Input, Select } from '../../components/forms/Input.tsx';
-import { Switch } from '../../components/forms/Switch.tsx';
+import type { PowerPolicy } from '../../../api/types.ts';
+import { cx } from '../../../components/cx.ts';
+import { Field } from '../../../components/forms/Field.tsx';
+import { Input, Select } from '../../../components/forms/Input.tsx';
+import { Switch } from '../../../components/forms/Switch.tsx';
 import { DAYS, timeZones } from './power-text.ts';
 
 /** The keep-on hours of a machine's power settings: on or off, the days, from and to, and the time zone. */

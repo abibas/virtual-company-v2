@@ -1,7 +1,7 @@
-import { ApiError } from '../../api/errors.ts';
-import type { Machine, MachinePower, PowerBox, PowerEvent } from '../../api/types.ts';
-import { formatTime, formatWeekdayTime } from '../../components/data/format.ts';
-import type { Tone } from '../../components/ui/Badge.tsx';
+import { ApiError } from '../../../api/errors.ts';
+import type { Machine, MachinePower, PowerBox, PowerEvent } from '../../../api/types.ts';
+import { formatTime, formatWeekdayTime } from '../../../components/data/format.ts';
+import type { Tone } from '../../../components/ui/Badge.tsx';
 
 /** How a machine's power reads: its hold, its tunnel, the box's own rules, the refusals and the log's actors (pure). */
 

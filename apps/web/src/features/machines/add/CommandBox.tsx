@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CopyButton } from '../../components/forms/CopyButton.tsx';
+import { CopyButton } from '../../../components/forms/CopyButton.tsx';
 
 /** A command in a mono box, with Copy command on the right and an optional part (a countdown) on its left. */
 export function CommandBox({ command, aside }: { readonly command: string; readonly aside?: ReactNode }) {

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { friendlyMessage } from '../../api/errors.ts';
-import type { MachineKind, PowerPolicy } from '../../api/types.ts';
-import { Input } from '../../components/forms/Input.tsx';
-import { Switch } from '../../components/forms/Switch.tsx';
-import { Badge } from '../../components/ui/Badge.tsx';
-import { Button } from '../../components/ui/Button.tsx';
+import { friendlyMessage } from '../../../api/errors.ts';
+import type { MachineKind, PowerPolicy } from '../../../api/types.ts';
+import { Input } from '../../../components/forms/Input.tsx';
+import { Switch } from '../../../components/forms/Switch.tsx';
+import { Badge } from '../../../components/ui/Badge.tsx';
+import { Button } from '../../../components/ui/Button.tsx';
 import { KeepOnFields } from './KeepOnFields.tsx';
 
 type Flag =

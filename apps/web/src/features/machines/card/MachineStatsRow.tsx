@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import type { MachineStats } from '../../api/types.ts';
-import { cx } from '../../components/cx.ts';
-import { Badge } from '../../components/ui/Badge.tsx';
-import { Card } from '../../components/ui/Card.tsx';
+import type { MachineStats } from '../../../api/types.ts';
+import { cx } from '../../../components/cx.ts';
+import { Badge } from '../../../components/ui/Badge.tsx';
+import { Card } from '../../../components/ui/Card.tsx';
 import { MachineLogo } from './MachineLogo.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
 import { kindName, statusText } from './machine-text.ts';

@@ -1,19 +1,19 @@
 import { History, SquareTerminal } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import type { MachineCalls } from '../../api/machines.ts';
-import type { Machine } from '../../api/types.ts';
-import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
-import { Button } from '../../components/ui/Button.tsx';
-import { CommandBox } from './CommandBox.tsx';
-import { type ConnectCommand, connectCommand } from './connect-command.ts';
+import type { MachineCalls } from '../../../api/machines.ts';
+import type { Machine } from '../../../api/types.ts';
+import { ConfirmInline } from '../../../components/forms/ConfirmInline.tsx';
+import { Button } from '../../../components/ui/Button.tsx';
+import { CommandBox } from '../add/CommandBox.tsx';
 import {
   type RunnerUpdate,
   RunnerUpdateNotice,
   UpdateRunnerButton,
   useRunnerUpdate,
-} from './runner/RunnerUpdate.tsx';
-import { runnerOutOfDate } from './runner/runner-text.ts';
-import { TerminalButton } from './terminal/TerminalButton.tsx';
+} from '../runner/RunnerUpdate.tsx';
+import { runnerOutOfDate } from '../runner/runner-text.ts';
+import { TerminalButton } from '../terminal/TerminalButton.tsx';
+import { type ConnectCommand, connectCommand } from './connect-command.ts';
 
 type Panel = 'connect' | 'log' | null;
 

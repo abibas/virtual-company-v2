@@ -1,11 +1,11 @@
 import { Clock, Power, PowerOff } from 'lucide-react';
 import { useState } from 'react';
-import type { PowerControl } from '../../api/machines.ts';
-import type { MachinePower, PowerBox } from '../../api/types.ts';
-import { Badge } from '../../components/ui/Badge.tsx';
-import { Button } from '../../components/ui/Button.tsx';
-import { Notice } from '../../components/ui/Notice.tsx';
-import { BOX_STATUS, costText } from './machine-text.ts';
+import type { PowerControl } from '../../../api/machines.ts';
+import type { MachinePower, PowerBox } from '../../../api/types.ts';
+import { Badge } from '../../../components/ui/Badge.tsx';
+import { Button } from '../../../components/ui/Button.tsx';
+import { Notice } from '../../../components/ui/Notice.tsx';
+import { BOX_STATUS, costText } from '../card/machine-text.ts';
 import { boxRulesText, powerRefusal } from './power-text.ts';
 
 /** Runs a power change: busy while it waits, its refusal in plain words. */

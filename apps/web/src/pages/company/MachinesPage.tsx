@@ -9,10 +9,10 @@ import { Button } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
-import { AddMachineSheet } from '../../features/machines/AddMachineSheet.tsx';
-import { useAddMachine } from '../../features/machines/add-machine.ts';
-import { MachineFold } from '../../features/machines/MachineFold.tsx';
-import { useOpenMachines } from '../../features/machines/open-machines.ts';
+import { AddMachineSheet } from '../../features/machines/add/AddMachineSheet.tsx';
+import { useAddMachine } from '../../features/machines/add/add-machine.ts';
+import { MachineFold } from '../../features/machines/card/MachineFold.tsx';
+import { useOpenMachines } from '../../features/machines/card/open-machines.ts';
 import { useNow } from '../../features/subscriptions/limits.ts';
 
 /** None yet: the invitation to add one (admins), or who does. */

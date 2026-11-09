@@ -1,11 +1,11 @@
 import { MACHINE_NAME } from '@mwc/shared/machines';
-import type { Machine, MachinePower, MachineStats } from '../../api/types.ts';
-import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
-import { Badge } from '../../components/ui/Badge.tsx';
+import type { Machine, MachinePower, MachineStats } from '../../../api/types.ts';
+import { InlineEdit } from '../../../components/forms/InlineEdit.tsx';
+import { Badge } from '../../../components/ui/Badge.tsx';
+import { holdText, tunnelText } from '../power/power-text.ts';
+import { runnerOutOfDate } from '../runner/runner-text.ts';
 import { EditableMachineLogo, MachineLogo } from './MachineLogo.tsx';
 import { MachineIdentity } from './MachineStatsRow.tsx';
-import { holdText, tunnelText } from './power-text.ts';
-import { runnerOutOfDate } from './runner/runner-text.ts';
 
 /**
  * The top of a machine card: its logo and name (changed in place by admins), its status, "Runner out of date" when its

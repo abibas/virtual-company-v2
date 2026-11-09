@@ -1,17 +1,17 @@
 import type { ReactNode } from 'react';
-import { type MachineCalls, type PowerControl, usePowerControl } from '../../api/machines.ts';
-import type { Machine, MachineStats, PowerEvent } from '../../api/types.ts';
-import type { Loaded } from '../../api/use-load.ts';
-import { formatDateTime } from '../../components/data/format.ts';
-import { LoadState } from '../../components/data/LoadState.tsx';
-import { Card } from '../../components/ui/Card.tsx';
-import { DevboxPower } from './DevboxPower.tsx';
+import { type MachineCalls, type PowerControl, usePowerControl } from '../../../api/machines.ts';
+import type { Machine, MachineStats, PowerEvent } from '../../../api/types.ts';
+import type { Loaded } from '../../../api/use-load.ts';
+import { formatDateTime } from '../../../components/data/format.ts';
+import { LoadState } from '../../../components/data/LoadState.tsx';
+import { Card } from '../../../components/ui/Card.tsx';
+import { DevboxPower } from '../power/DevboxPower.tsx';
+import { PowerSettings } from '../power/PowerSettings.tsx';
+import { actorText } from '../power/power-text.ts';
 import { MachineActions } from './MachineActions.tsx';
 import { MachineHeader } from './MachineHeader.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
 import { agoText } from './machine-text.ts';
-import { PowerSettings } from './PowerSettings.tsx';
-import { actorText } from './power-text.ts';
 
 /** A part of the card under its small heading. */
 function Part({ title, children }: { readonly title: string; readonly children: ReactNode }) {

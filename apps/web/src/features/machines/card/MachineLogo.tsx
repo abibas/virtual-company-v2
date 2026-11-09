@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useMachineLogo } from '../../api/machine-logo.ts';
-import type { MachineKind } from '../../api/types.ts';
-import { IconTile } from '../../components/ui/IconTile.tsx';
+import { useMachineLogo } from '../../../api/machine-logo.ts';
+import type { MachineKind } from '../../../api/types.ts';
+import { IconTile } from '../../../components/ui/IconTile.tsx';
 import { MachineLogoSheet } from './MachineLogoSheet.tsx';
 import { kindIcon } from './machine-text.ts';
 

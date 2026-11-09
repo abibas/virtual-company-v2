@@ -6,9 +6,9 @@ import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import { useNow } from '../subscriptions/limits.ts';
-import { AddMachineSheet } from './AddMachineSheet.tsx';
-import { useAddMachine } from './add-machine.ts';
-import { MachineStatsRow } from './MachineStatsRow.tsx';
+import { AddMachineSheet } from './add/AddMachineSheet.tsx';
+import { useAddMachine } from './add/add-machine.ts';
+import { MachineStatsRow } from './card/MachineStatsRow.tsx';
 
 const SKELETON = (
   <div className="flex flex-col gap-3">

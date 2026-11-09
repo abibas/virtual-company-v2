@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentProps } from 'react';
-import { Button } from '../../components/ui/Button.tsx';
-import { Card } from '../../components/ui/Card.tsx';
+import { Button } from '../../../components/ui/Button.tsx';
+import { Card } from '../../../components/ui/Card.tsx';
 import { MachineCard } from './MachineCard.tsx';
 import { MachineLogo } from './MachineLogo.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
