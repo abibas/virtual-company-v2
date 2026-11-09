@@ -88,7 +88,7 @@ function HoldMinutes({ policy, onChange, disabled }: Editing) {
         onChange={(e) =>
           onChange({ holdAfterTurnMin: Math.min(720, Math.max(0, Math.round(Number(e.target.value) || 0))) })
         }
-        className="w-20"
+        className="w-20 shrink-0 grow-0"
       />
       minutes after a chat
     </span>

@@ -31,6 +31,8 @@ function holdWhy(reason: string | null, source: Machine['hold']['source']): stri
 
 /** "Kept awake until 19:00 · keep-on hours"; undefined when nothing holds it. */
 export function holdText(machine: Machine, power: MachinePower | undefined, now: number): string | undefined {
+  // An offline machine is not being kept awake, whatever the server decided for it.
+  if (machine.status !== 'online') return undefined;
   const until = machine.hold.until ?? power?.state.holdUntil ?? null;
   if (until === null || Date.parse(until) <= now) return undefined;
   const why = holdWhy(power?.state.holdReason ?? null, machine.hold.source);
