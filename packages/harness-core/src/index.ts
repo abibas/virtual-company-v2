@@ -11,13 +11,16 @@ export type {
   TurnSpec,
 } from '@mwc/shared/harness';
 export { checkSpec, checkTurn } from './checks.ts';
-export type {
-  HarnessDriver,
-  LineParser,
-  PrivateDir,
-  PrivateFile,
-  ProcessSpec,
-  TurnNotice,
+export {
+  ASK_SOCKET_ENV,
+  ASK_TOKEN_ENV,
+  type HarnessDriver,
+  type LineParser,
+  type PrivateDir,
+  type PrivateFile,
+  type ProcessSpec,
+  type TurnNotice,
+  type TurnTools,
 } from './driver.ts';
 export {
   HARNESS_ERROR_CODES,

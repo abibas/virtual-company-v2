@@ -1,15 +1,16 @@
 import { z } from 'zod';
 import { Harness } from '../enums.ts';
-import { CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts';
+import { AskQuestions, CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts';
 import { ErrorText, frame, protocolObject, Uuid } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 
 /**
  * Chat turns (S5.1b, docs/harness.md "How a turn runs"): the server asks a runner for one turn of a harness
  * (`turn.start`, with the credential it resolved) and may stop it (`turn.stop`); the runner sends the turn's events as
- * they come (`turn.events`, batched) and how it ended (`turn.end`, once). A turn belongs to the connection that carried
- * its `turn.start`: when the link drops the runner ends its process and the server fails the turn. And what a runner
- * says of its harnesses in its hello: each CLI's version, or null when it is not installed.
+ * they come (`turn.events`, batched), a question the agent asked through the runner's tool (`turn.question`, S5.2) and
+ * how it ended (`turn.end`, once). A turn belongs to the connection that carried its `turn.start`: when the link drops
+ * the runner ends its process and the server fails the turn. And what a runner says of its harnesses in its hello: each
+ * CLI's version, or null when it is not installed.
  */
 
 /** The version a harness's CLI printed (`2.1.319 (Claude Code)`, `codex-cli 0.163.0`). */
@@ -94,6 +95,20 @@ export const TurnEvents = frame('turn.events', {
 export type TurnEvents = z.infer<typeof TurnEvents>;
 
 /**
+ * Runner to server: the agent asked the person (its `ask_user_question` call, relayed from the runner's MCP server over
+ * the turn's private socket; docs/harness.md "Asking the person"). `seq` is the event number the runner gave it among
+ * the turn's events (its earlier events were sent before), `questionId` the runner's UUID for the call. The server
+ * keeps it as the turn's `question` event; the person's answer comes back as the chat's next prompt.
+ */
+export const TurnQuestion = frame('turn.question', {
+  turnId: Uuid,
+  seq: z.int().min(1),
+  questionId: Uuid,
+  questions: AskQuestions,
+});
+export type TurnQuestion = z.infer<typeof TurnQuestion>;
+
+/**
  * Runner to server: the turn ended, after its last events. `ok` is its result's; `exitCode` the process's (null when a
  * signal ended it or it never started); `error` why the runner ended or refused it (a `TURN_ERRORS` code); `authJson`
  * the Codex login the process rewrote while it ran (its token refreshed), for the server to seal again.
@@ -112,8 +127,8 @@ export const TURN_SERVER_FRAMES = [TurnStart, TurnStop] as const;
 export type TurnServerFrame = TurnStart | TurnStop;
 
 /** The turn frames a runner sends. */
-export const TURN_RUNNER_FRAMES = [TurnEvents, TurnEnd] as const;
-export type TurnRunnerFrame = TurnEvents | TurnEnd;
+export const TURN_RUNNER_FRAMES = [TurnEvents, TurnQuestion, TurnEnd] as const;
+export type TurnRunnerFrame = TurnEvents | TurnQuestion | TurnEnd;
 
 /** True for a frame of a chat turn (`turn.*`), of either direction. */
 export function isTurnFrame<F extends { readonly type: string }>(

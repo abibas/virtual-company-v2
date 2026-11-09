@@ -4,7 +4,7 @@ import type { PowerExecutor } from '../power/executor.ts';
 import type { MemoryDeps } from '../stats/memory.ts';
 import type { DiskStats, SamplerOs } from '../stats/sampler.ts';
 import type { PtyLoad } from '../terminal/loader.ts';
-import type { FindHarness, HarnessClis } from '../turns/drivers.ts';
+import type { FindHarness, HarnessClis, ToolServer } from '../turns/drivers.ts';
 import type { PrivateFs } from '../turns/private-dir.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
 import type { KillGroup, Spawn } from './process.ts';
@@ -58,6 +58,8 @@ export interface MainDeps {
   readonly harnesses?: HarnessClis;
   /** Finds a missing harness's CLI again when a turn or a terminal needs it (`cli.ts`); left out, it stays missing. */
   readonly findHarness?: FindHarness;
+  /** How a harness starts the runner's MCP server (`cli.ts`: its Node and bundle); left out, turns run without it. */
+  readonly toolServer?: ToolServer;
   /** The build it runs (`cli.ts` hashes the bundle once), sent in the hello; left out when unknown. */
   readonly build?: string | null;
   /** How it updates itself, for an installed copy under launchd or systemd (`cli.ts`); none otherwise. */

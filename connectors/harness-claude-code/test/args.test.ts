@@ -2,11 +2,14 @@ import { isHarnessError } from '@mwc/harness-core';
 import { FAKE_CREDENTIALS, fakeTerminalSpec } from '@mwc/harness-core/fake';
 import { describe, expect, it } from 'vitest';
 import {
+  ASK_PROMPT,
   CLAUDE_ACCOUNT_VARS,
   claudeEnv,
   credentialEnv,
   customHeaders,
+  mcpConfig,
   sharedArgs,
+  toolArgs,
   unsetFor,
 } from '../src/args.ts';
 
@@ -97,6 +100,41 @@ describe('claudeEnv', () => {
     });
     expect(customHeaders({})).toBe('');
     expect(customHeaders({ A: '1' })).toBe('A: 1');
+  });
+});
+
+const TOOLS = {
+  dir: '/home/agent/.local/state/mwc-runner/turns/0a1b2c3d4e5f',
+  command: '/usr/local/bin/node',
+  args: ['/home/agent/.local/share/mwc-runner/runner.mjs', 'mcp'],
+  env: {
+    MWC_ASK_SOCKET: '/home/agent/.local/state/mwc-runner/turns/0a1b2c3d4e5f/ask.sock',
+    MWC_ASK_TOKEN: 'tok',
+  },
+};
+
+describe('the runner’s tools', () => {
+  it('name the MCP config in the turn’s folder, allow the question tool and say when to use it', () => {
+    expect(toolArgs(TOOLS)).toEqual([
+      '--mcp-config',
+      `${TOOLS.dir}/mcp.json`,
+      '--allowedTools',
+      'mcp__mwc__ask_user_question',
+      '--append-system-prompt',
+      ASK_PROMPT,
+    ]);
+    expect(ASK_PROMPT).toBe(
+      'When the person must choose between options, ask them with the ask_user_question tool, then end your ' +
+        'turn: their answer comes as their next message.',
+    );
+    expect(ASK_PROMPT).not.toContain('\n');
+  });
+
+  it('start the runner’s MCP server with its socket and token in the config, never on a command line', () => {
+    expect(JSON.parse(mcpConfig(TOOLS))).toEqual({
+      mcpServers: { mwc: { type: 'stdio', command: TOOLS.command, args: TOOLS.args, env: TOOLS.env } },
+    });
+    expect(toolArgs(TOOLS).join(' ')).not.toContain('tok');
   });
 });
 

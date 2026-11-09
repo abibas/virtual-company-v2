@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { Harness } from '@mwc/shared/enums';
 import { runnerConfigPath } from './config.ts';
@@ -12,12 +13,14 @@ import { PERMANENT_EXIT_CODES } from './install/systemd.ts';
 import { uninstallCommand } from './install/uninstall.ts';
 import { createLog, type Log } from './system/log.ts';
 import { runnerBuiltAt } from './system/version.ts';
+import { type McpIo, mcpCommand, nodeMcpIo } from './turns/ask/command.ts';
 import { runnerBuild, updateTarget } from './update/build.ts';
 import { selfUpdater } from './update/self-update.ts';
 
 /**
- * `mwc-runner <command>` (`node runner.mjs <command>`): the daemon (`run`, what the service starts) and the commands a
- * person runs on the machine: `enroll`, `install`, `status`, `uninstall`. `main.ts` calls it with the real process.
+ * `mwc-runner <command>` (`node runner.mjs <command>`): the daemon (`run`, what the service starts), the commands a
+ * person runs on the machine (`enroll`, `install`, `status`, `uninstall`), and `mcp`, the MCP server a harness starts
+ * for a chat turn (docs/harness.md, "Asking the person"). `main.ts` calls it with the real process.
  */
 
 export interface CliDeps {
@@ -25,6 +28,8 @@ export interface CliDeps {
   daemon(): MainDeps;
   /** The machine (`install/system.ts`), for every command and a container's first start. */
   host(): Host;
+  /** The MCP server's stdio (`turns/ask/command.ts`), made for `mcp` only; the real process's by default. */
+  mcp?(version: string): McpIo;
 }
 
 export const HELP = `usage: mwc-runner <command>   (node runner.mjs <command>)
@@ -40,6 +45,7 @@ export const HELP = `usage: mwc-runner <command>   (node runner.mjs <command>)
   status                    the enrollment, the service and what the running runner says
   uninstall [--purge]       stop and remove the service and the installed runner; --purge also removes
                             the configuration (the runner key) and the state folder
+  mcp                       the runner's MCP server on stdio, as a harness starts it for a chat turn
 `;
 
 const OPTIONS = {
@@ -125,7 +131,16 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
   const harnesses = await harnessClis(host);
   const claudeVersion = harnesses.claude_code?.version ?? null;
   const findHarness = (harness: Harness) => harnessCli(host, harness);
-  return main(argv, { ...daemon, harnesses, findHarness, claudeVersion, ...selfFacts(host), exit });
+  const toolServer = { command: host.execPath, args: [resolve(host.selfPath), 'mcp'] };
+  return main(argv, {
+    ...daemon,
+    harnesses,
+    findHarness,
+    claudeVersion,
+    toolServer,
+    ...selfFacts(host),
+    exit,
+  });
 }
 
 /** One of the commands a person runs; its message on stderr and its exit code when it fails. */
@@ -147,6 +162,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   const [name, ...args] = argv;
   if (name === 'run') return run(argv, deps);
   const host = deps.host();
+  if (name === 'mcp') return mcpCommand((deps.mcp ?? nodeMcpIo)(host.version));
   if (name !== undefined && Object.hasOwn(COMMAND_OPTIONS, name)) return command(name, args, host);
   if (name === undefined || name === 'help' || name === '--help') {
     host.out(HELP);

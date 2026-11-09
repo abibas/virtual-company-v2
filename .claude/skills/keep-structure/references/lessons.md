@@ -28,6 +28,18 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: S5.2 step 4's runner MCP server under `turns/ask/`
+
+- **What happened:** the runner's MCP tool server (`runner.mjs mcp`: JSON-RPC, the socket client) and each turn's
+  question socket (6 files) have no row in the runner table of SKILL.md; they went to a new
+  `apps/runner/src/turns/ask/` rather than a 15th entry of `apps/runner/src/` (`big-folder`, 14). The chats module's
+  question rules went to `modules/chats/rules/questions.ts` beside `rules.ts` (203 lines), as `org/rules/`.
+- **Where:** the S5.2 step 4 commit.
+- **What was done:** as above.
+- **Suggested change:** a runner row "a turn's tools: the MCP server a harness starts and the socket that relays its
+  calls to the runner → `turns/ask/`"; S6's tool server (approvals, `report_blocked`…) extends it there.
+- **Status:** `open`.
+
 ### 2026-11-09: S5.1d's runner `folders/`, and the web's folder browser hook in `api/`
 
 - **What happened:** the folder browser's runner side (path rules, `fs.list`/`fs.mkdir`, Node's calls: 3 files) went to

@@ -1,6 +1,9 @@
 import { ArrowDown, MessagesSquare } from 'lucide-react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
+import type { Answering } from './question/QuestionCard.tsx';
+import { answerTurnIds } from './question/question-model.ts';
+import { sentTurnIds } from './question/use-question-draft.ts';
 import type { RunsOn } from './status/WorkingStatus.tsx';
 import { TurnView } from './TurnView.tsx';
 import { useFollow } from './use-follow.ts';
@@ -26,12 +29,16 @@ export function ChatThread({
   turns,
   agentName,
   chatInit,
+  answering,
 }: {
   readonly turns: readonly ChatTurnWithEvents[];
   readonly agentName: string;
   readonly chatInit: RunsOn | undefined;
+  /** How the person answers the agent's questions (S5.2 step 4). */
+  readonly answering: Answering | undefined;
 }) {
   const streaming = turns.some((turn) => turn.status === 'running');
+  const answers = new Set([...answerTurnIds(turns), ...sentTurnIds()]);
   const follow = useFollow(turns, streaming);
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -47,8 +54,14 @@ export function ChatThread({
           </EmptyState>
         ) : (
           <ol ref={follow.content} className="mx-auto grid max-w-3xl gap-7">
-            {turns.map((turn) => (
-              <TurnView key={turn.id} turn={turn} agentName={agentName} chatInit={chatInit} />
+            {turns.map((turn, index) => (
+              <TurnView
+                key={turn.id}
+                turn={turn}
+                agentName={agentName}
+                chatInit={chatInit}
+                place={{ last: index === turns.length - 1, answer: answers.has(turn.id), answering }}
+              />
             ))}
           </ol>
         )}

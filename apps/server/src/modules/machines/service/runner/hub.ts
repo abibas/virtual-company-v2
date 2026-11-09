@@ -32,7 +32,7 @@ import { type TurnChannel, type TurnRequest, type TurnSink, turnBoard } from './
 
 export { HubError, type HubErrorCode } from './connection.ts';
 export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } from './hub/terminals.ts';
-export type { TurnChannel, TurnEnding, TurnRequest, TurnSink } from './hub/turns.ts';
+export type { TurnAsked, TurnChannel, TurnEnding, TurnRequest, TurnSink } from './hub/turns.ts';
 
 /**
  * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update` or the

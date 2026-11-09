@@ -1,7 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
 import { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
-import { InitEvent, TurnEvent } from '@mwc/shared/harness';
+import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared/harness';
 
 /**
  * The chats' shapes (S5.1b, docs/harness.md "How a turn runs"): a chat with an agent, its turns and their events, the
@@ -125,12 +125,28 @@ export const ChatContextSchema = z
   })
   .openapi('ChatContext');
 
+/** The question the agent asked that waits for the person (S5.2 step 4, `rules/questions.ts`). */
+export const OpenQuestionSchema = z
+  .object({
+    turnId: z.string().openapi({ description: 'The turn that asked it' }),
+    id: z
+      .string()
+      .openapi({ description: "The question's id (its `question` event's), which the answer names" }),
+    questions: AskQuestions,
+  })
+  .openapi('OpenQuestion');
+
 export const ChatDetailSchema = ChatSchema.extend({
   turns: z.array(ChatTurnWithEventsSchema),
   /** The last `init` event since the chat's last Clear (model, effort, folder, slash commands); null before one. */
   init: InitEvent.nullable(),
   context: ChatContextSchema.nullable().openapi({
     description: "How full the conversation is since the chat's last Clear; null before anything measured it",
+  }),
+  question: OpenQuestionSchema.nullable().openapi({
+    description:
+      "The latest question of the chat's last turn while it is not answered; null when there is none (a newer turn " +
+      'or a plain message closes it)',
   }),
 }).openapi('ChatDetail');
 
@@ -153,6 +169,14 @@ export const CreateTurnSchema = z
   .object({ prompt: z.string().min(CHAT_PROMPT.min).max(CHAT_PROMPT.max) })
   .openapi('CreateTurn');
 
+/** The person's answers to the open question: one per question at most (none of a question: skipped). */
+export const AnswerQuestionSchema = z
+  .object({
+    questionId: z.string().min(1).openapi({ description: "The open question's id" }),
+    answers: QuestionAnswers,
+  })
+  .openapi('AnswerQuestion');
+
 export type ChatView = z.infer<typeof ChatSchema>;
 export type ChatTurnView = z.infer<typeof ChatTurnSchema>;
 export type ChatEventView = z.infer<typeof ChatEventSchema>;
@@ -160,6 +184,7 @@ export type ChatDetailView = z.infer<typeof ChatDetailSchema>;
 export type ChatContextView = z.infer<typeof ChatContextSchema>;
 export type CreateChat = z.infer<typeof CreateChatSchema>;
 export type UpdateChat = z.infer<typeof UpdateChatSchema>;
+export type AnswerQuestion = z.infer<typeof AnswerQuestionSchema>;
 
 /**
  * The stream's messages (`GET …/chats/{chatId}/stream`, `text/event-stream`): `event: turn` with `{turn}` when a turn

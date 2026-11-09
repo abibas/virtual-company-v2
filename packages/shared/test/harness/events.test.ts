@@ -6,6 +6,10 @@ import {
   TURN_EVENT_TYPES,
   TurnEvent,
 } from '../../src/harness/events.ts';
+import { QUESTION } from '../fixtures/runner-protocol/frames.ts';
+
+const QUESTION_ID = '019a6c1d-2b3c-7d4e-8f5a-6b7c8d9e0f1a';
+const TURN_ID = '019a6c1d-9e8f-7a6b-8c5d-4e3f2a1b0c9d';
 
 describe('TurnEvent', () => {
   const events = [
@@ -44,6 +48,13 @@ describe('TurnEvent', () => {
     { type: 'notice', level: 'warn', message: 'Refused for permission: Bash' },
     { type: 'result', ok: true, text: 'Hi', durationMs: 12 },
     { type: 'result', ok: false, error: 'Claude Code exited with code 1' },
+    { type: 'question', id: QUESTION_ID, questions: [QUESTION] },
+    {
+      type: 'answered',
+      questionId: QUESTION_ID,
+      turnId: TURN_ID,
+      answers: [{ question: QUESTION.question, picked: ['SQLite'] }],
+    },
   ];
 
   it('takes every event type, one of each listed in order', () => {

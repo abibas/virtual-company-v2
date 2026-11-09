@@ -1,5 +1,13 @@
-import { HarnessError } from '@mwc/harness-core';
-import type { HarnessCredential, HarnessGateway, TerminalSpec } from '@mwc/shared/harness';
+import { join } from 'node:path';
+import { HarnessError, type TurnTools } from '@mwc/harness-core';
+import {
+  ASK_SERVER,
+  ASK_TOOL,
+  ASK_TOOL_CALLS,
+  type HarnessCredential,
+  type HarnessGateway,
+  type TerminalSpec,
+} from '@mwc/shared/harness';
 
 /** Claude Code's command line and environment for a turn or a terminal (docs/harness.md, "Claude Code"). */
 
@@ -33,6 +41,35 @@ export function sharedArgs(spec: TerminalSpec): string[] {
     ...(spec.model === null ? [] : ['--model', spec.model]),
     ...(spec.effort === undefined ? [] : ['--effort', spec.effort]),
     ...(spec.permissionPolicy === 'bypass' ? ['--dangerously-skip-permissions'] : []),
+  ];
+}
+
+/** The MCP config a turn with the runner's tools gets, in the turn's folder. */
+export const MCP_CONFIG_FILE = 'mcp.json';
+
+/** The line `--append-system-prompt` adds to a turn with the runner's tools: when to ask, and to end the turn then. */
+export const ASK_PROMPT =
+  `When the person must choose between options, ask them with the ${ASK_TOOL} tool, then end your turn: ` +
+  'their answer comes as their next message.';
+
+/** The runner's MCP server as Claude Code's `--mcp-config` names it (its token in `env`, never on a command line). */
+export function mcpConfig(tools: TurnTools): string {
+  const server = { type: 'stdio', command: tools.command, args: tools.args, env: tools.env };
+  return JSON.stringify({ mcpServers: { [ASK_SERVER]: server } });
+}
+
+/**
+ * A turn's arguments for the runner's tools: the MCP config file in the turn's folder, the question tool allowed (so
+ * the `ask` policy does not refuse it in print mode), and the line that says when to use it.
+ */
+export function toolArgs(tools: TurnTools): string[] {
+  return [
+    '--mcp-config',
+    join(tools.dir, MCP_CONFIG_FILE),
+    '--allowedTools',
+    ASK_TOOL_CALLS[0],
+    '--append-system-prompt',
+    ASK_PROMPT,
   ];
 }
 

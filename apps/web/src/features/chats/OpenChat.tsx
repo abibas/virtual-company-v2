@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { isLiveTurn } from '../../api/chat-turns.ts';
 import { type ChatCalls, chatCalls } from '../../api/chats.ts';
 import { useApi } from '../../api/context.ts';
-import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../api/types.ts';
+import type { AccessProfile, AgentDetail, AgentPlacement, Chat, QuestionAnswer } from '../../api/types.ts';
 import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import { ChatHeader, type ChatMode } from './ChatHeader.tsx';
@@ -11,6 +11,8 @@ import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
 import { ChatThread } from './thread/ChatThread.tsx';
+import { questionOf } from './thread/question/question-model.ts';
+import { rememberSent, sentAnswer } from './thread/question/use-question-draft.ts';
 
 export interface OpenChatProps {
   readonly companyId: string;
@@ -43,7 +45,14 @@ function MovedNotice() {
   );
 }
 
-/** Send, Stop and a profile change, each shown at once from the API's answer. */
+/** True while the chat's last turn asks the person something they have not answered. */
+function asking(live: ChatLive): boolean {
+  const last = live.turns.at(-1);
+  const question = last && questionOf(last.events);
+  return question !== undefined && !question.answered && sentAnswer(question.event.id) === undefined;
+}
+
+/** Send, Stop, an answer and a profile change, each shown at once from the API's answer. */
 function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: () => void) {
   const running = live.turns.find(isLiveTurn);
   const first = live.turns.length === 0;
@@ -55,6 +64,11 @@ function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: ()
     },
     stop: async () => {
       if (running) live.putTurn(await calls.stop(chat.id, running.id));
+    },
+    answer: async (questionId: string, answers: QuestionAnswer[]) => {
+      const turn = await calls.answer(chat.id, { questionId, answers });
+      rememberSent(questionId, turn.id, answers);
+      live.putTurn(turn);
     },
     changeProfile: async (profileId: string | null) => {
       live.putChat(await calls.update(chat.id, { profileId }));
@@ -94,11 +108,12 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
             turns={live.turns}
             agentName={agent.name}
             chatInit={live.detail.data?.init ?? undefined}
+            answering={{ answer: actions.answer, closed }}
           />
           <Composer
             running={actions.running !== undefined}
             disabled={closed}
-            placeholder={`Message ${agent.name}`}
+            placeholder={asking(live) ? 'Answer above, or write your answer here' : `Message ${agent.name}`}
             onSend={actions.send}
             onStop={actions.stop}
             meter={<ChatContextMeter calls={calls} live={live} chat={chat} closed={closed} />}

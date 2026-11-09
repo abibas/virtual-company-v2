@@ -219,6 +219,20 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    new fixtures (`subagent`, `compact`, Codex `plan`); the model table; the routes on PGlite with `FakeRunner` (roles,
    refusals, the session reset, the marker in the detail and on the stream); the migration's CHECKs. No real turn run.
    Next: the chat page's status line, thinking, subagents, checklist and context meter (two web steps).
+   **S5.2 step 4, selections: done 2026-11-10** (docs/harness.md "Asking the person", docs/runner-protocol.md "Chat
+   turns"). The runner bundle's `mcp` subcommand is a hand-written stdio MCP server with one tool, `ask_user_question`
+   (AskUserQuestion's shape: 1–4 questions, a header ≤ 12, 2–8 options, one pick or several); a call goes to the runner
+   that started the turn over a private Unix socket (a 0700 folder per turn, a random token) and is answered at once
+   ("End your turn now…"). Claude Code turns get `--mcp-config`, `--allowedTools mcp__mwc__ask_user_question` and one
+   `--append-system-prompt` line; Codex turns the server as `-c mcp_servers.mwc.*` overrides (verified on 0.162.1 with
+   `codex mcp list`; no instruction line). New frame `turn.question {turnId, seq, questionId, questions}`, stored as a
+   `question` event; the detail's open `question`; `POST …/chats/{chatId}/answers` starts the next turn with the
+   answers in words and marks the question with an `answered` event (409 `question_closed` once answered or after any
+   newer turn, a plain message superseding it; 422 `invalid_answers`); no migration. The web's question card (pages,
+   radio or checkboxes, Other, filter, number keys, Skip/Next/Send answer; receipt; "answered in a message"). Tests: the
+   JSON-RPC, the `mcp` command, the socket and its token, a turn whose fake process asks, both drivers' arguments, the
+   frame, and the server's storage, stream, detail and route on PGlite; no real turn run, no frontend tests. Tool
+   approvals can ride the same bridge in S6.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

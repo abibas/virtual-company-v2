@@ -1,9 +1,11 @@
+import { join } from 'node:path';
 import { ClaudeCodeDriver } from '@mwc/harness-claude-code';
 import { CodexDriver } from '@mwc/harness-codex';
 import type { HarnessDriver } from '@mwc/harness-core';
 import type { Harness } from '@mwc/shared/enums';
 import type { HarnessVersions } from '@mwc/shared/runner-protocol';
 import type { Log } from '../system/log.ts';
+import { askHost } from './ask/bridge.ts';
 import type { Env } from './env.ts';
 import { PrivateDirs, type PrivateFs } from './private-dir.ts';
 import type { HarnessHost } from './turns.ts';
@@ -43,11 +45,21 @@ export function harnessVersions(clis: HarnessClis): HarnessVersions {
 /** Finds a harness's CLI again and asks its version (`install/enroll/facts.ts`'s `harnessCli`). */
 export type FindHarness = (harness: Harness) => Promise<HarnessCli | undefined>;
 
+/** How a harness starts the runner's MCP server: `<node> <runner.mjs> mcp` (`cli.ts`). */
+export interface ToolServer {
+  readonly command: string;
+  readonly args: readonly string[];
+}
+
+/** Where the turns' question sockets live: `<state>/turns/<12 hex>/` (docs/harness.md, "Asking the person"). */
+export const turnsRoot = (stateDir: string) => join(stateDir, 'turns');
+
 /**
  * The harnesses the daemon runs (`daemon/start.ts`): the CLIs `cli.ts` found, their drivers, and the private folders
  * under the state folder; logged by version, never an environment value. With `find`, a harness that was missing is
  * looked for again when a turn or a terminal needs it (no process unless it is found now): a CLI installed since the
- * runner started is then driven, and its version goes in the next hello.
+ * runner started is then driven, and its version goes in the next hello. With `tools`, each turn gets the runner's MCP
+ * server and its own question socket under the state folder.
  */
 export function harnessHost(
   machine: {
@@ -56,6 +68,7 @@ export function harnessHost(
     readonly fs: PrivateFs;
     readonly stateDir: string;
     readonly find?: FindHarness | undefined;
+    readonly tools?: ToolServer | undefined;
   },
   log: Log,
 ): HarnessHost {
@@ -81,6 +94,9 @@ export function harnessHost(
     env: machine.env,
     dirs: new PrivateDirs({ fs: machine.fs, stateDir: machine.stateDir }),
     isDirectory: (path) => machine.fs.isDirectory(path),
+    ...(machine.tools === undefined
+      ? {}
+      : { ask: askHost({ ...machine.tools, root: turnsRoot(machine.stateDir), log }) }),
     ...(find === undefined
       ? {}
       : {

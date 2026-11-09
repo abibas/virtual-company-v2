@@ -71,6 +71,23 @@ describe('CodexDriver.turn', () => {
     expect(JSON.stringify(process)).not.toContain('8300');
   });
 
+  it('gives a turn with the runner’s tools their overrides and the server’s variables in its environment', () => {
+    const tools = {
+      dir: '/state/turns/0a1b',
+      command: '/usr/bin/node',
+      args: ['/opt/runner.mjs', 'mcp'],
+      env: { MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock', MWC_ASK_TOKEN: 'tok' },
+    };
+    const process = driver.turn(
+      fakeTurnSpec('codex', { credential: FAKE_CREDENTIALS.openai_api_key }),
+      tools,
+    );
+    expect(process.args).toContain('mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]');
+    expect(process.env).toEqual({ CODEX_API_KEY: 'sk-fake-openai-key', ...tools.env });
+    expect(process.turnFiles).toBeUndefined();
+    expect(process.unsetEnv).not.toContain('CODEX_API_KEY');
+  });
+
   it('uses the program the runner found', () => {
     expect(new CodexDriver({ command: '/opt/codex/bin/codex' }).turn(fakeTurnSpec('codex')).command).toBe(
       '/opt/codex/bin/codex',

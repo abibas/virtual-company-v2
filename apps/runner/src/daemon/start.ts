@@ -121,6 +121,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
         fs: deps.privateFs,
         stateDir: setup.stateDir,
         find: deps.findHarness,
+        tools: deps.toolServer,
       },
       log,
     ),

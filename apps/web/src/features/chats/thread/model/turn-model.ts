@@ -1,4 +1,5 @@
 import type { ChatEvent, ChatTurnWithEvents, TurnEvent } from '../../../../api/types.ts';
+import { isAskCall, questionOf } from '../question/question-model.ts';
 import { between } from './format.ts';
 import type { CurrentActivity, Part, SubagentState, ToolCall, TurnModel } from './parts.ts';
 import { familyOf } from './tool-kinds.ts';
@@ -7,7 +8,8 @@ import { familyOf } from './tool-kinds.ts';
  * A turn's thread from its events (docs/harness.md, "Events"; S5.2). Events with a `parentId` belong to that
  * subagent and never show in the main reply: each list of parts is built the same way, by who it belongs to.
  * Consecutive text joins, consecutive tool calls make one group, an Agent call becomes its subagent's block, a
- * `TodoWrite` call shows only as the to-do card, and each subagent keeps its latest state. Pure.
+ * `TodoWrite` call shows only as the to-do card, a question tool call only as the question card (S5.2 step 4), and
+ * each subagent keeps its latest state. Pure.
  */
 
 type Of<T extends TurnEvent['type']> = Extract<TurnEvent, { type: T }>;
@@ -45,7 +47,7 @@ function placeSubagent(build: Build, list: MutablePart[], id: string, key: strin
 
 function addTool(build: Build, list: MutablePart[], event: Of<'tool'>, key: string, at: string) {
   if (build.subagentIds.has(event.id)) return placeSubagent(build, list, event.id, key);
-  if (familyOf(event.name) === 'todo') {
+  if (familyOf(event.name) === 'todo' || isAskCall(event.name)) {
     build.hidden.add(event.id);
     return;
   }
@@ -192,6 +194,7 @@ export function turnModel(turn: ChatTurnWithEvents): TurnModel {
     durationMs: result?.durationMs ?? between(turn.startedAt, turn.endedAt),
     calls: parts.flatMap((part) => (part.kind === 'tools' ? part.calls : [])),
     current: currentOf(turn.events, build),
+    question: questionOf(turn.events),
     replyText: mainText || fallback,
     error: failed ? (turn.error ?? result?.error ?? 'The turn failed.') : undefined,
   };

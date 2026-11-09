@@ -1,5 +1,5 @@
-import { HarnessError, type PrivateFile, type TurnNotice } from '@mwc/harness-core';
-import type { HarnessCredential, TerminalSpec, TurnSpec } from '@mwc/shared/harness';
+import { HarnessError, type PrivateFile, type TurnNotice, type TurnTools } from '@mwc/harness-core';
+import { ASK_SERVER, type HarnessCredential, type TerminalSpec, type TurnSpec } from '@mwc/shared/harness';
 
 /** Codex's command line, environment and home folder for a turn or a terminal (docs/harness.md, "Codex"). */
 
@@ -51,9 +51,39 @@ export function permissionArgs(spec: TerminalSpec, mode: 'exec' | 'tui'): string
   return [...configArg('sandbox_mode', 'workspace-write'), ...configArg('approval_policy', 'never')];
 }
 
-/** `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn; the prompt comes on stdin. */
-export function turnArgs(spec: TurnSpec): string[] {
-  const options = ['--json', '--skip-git-repo-check', ...modelArgs(spec), ...permissionArgs(spec, 'exec')];
+/** A `-c key=value` override whose value is a TOML array of strings. */
+export function configListArg(key: string, values: readonly string[]): string[] {
+  return ['-c', `${key}=${JSON.stringify(values)}`];
+}
+
+/**
+ * A turn's overrides for the runner's tools: its MCP server's command and arguments, the variables Codex hands it from
+ * its own environment (`env_vars`: the socket and the token, so the token is not on the command line), and its tools
+ * approved without asking (a turn's approvals are off). Codex gets no extra instruction line: its
+ * `developer_instructions` would replace the agent's own; the tool's description says when to use it.
+ */
+export function toolArgs(tools: TurnTools): string[] {
+  const server = `mcp_servers.${ASK_SERVER}`;
+  return [
+    ...configArg(`${server}.command`, tools.command),
+    ...configListArg(`${server}.args`, tools.args),
+    ...configListArg(`${server}.env_vars`, Object.keys(tools.env)),
+    ...configArg(`${server}.default_tools_approval_mode`, 'approve'),
+  ];
+}
+
+/**
+ * `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn; the prompt comes on stdin. With
+ * the runner's tools, their overrides come after the permissions.
+ */
+export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
+  const options = [
+    '--json',
+    '--skip-git-repo-check',
+    ...modelArgs(spec),
+    ...permissionArgs(spec, 'exec'),
+    ...(tools === undefined ? [] : toolArgs(tools)),
+  ];
   return spec.sessionId === null
     ? ['exec', ...options, '-']
     : ['exec', 'resume', ...options, spec.sessionId, '-'];

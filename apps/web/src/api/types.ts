@@ -89,6 +89,12 @@ export type TurnEvent = ChatEvent['event'];
 export type ChatChanges = InferRequestType<ChatRoutes['$patch']>['json'];
 /** An `event:` message of a chat's stream: one event with its turn's id and number (its `id:` is `<turnSeq>.<seq>`). */
 export type ChatStreamEvent = ChatEvent & { readonly turnId: string; readonly turnSeq: number };
+/** S5.2 step 4: the agent's questions, as its `question` event holds them, and the person's answers to them. */
+export type QuestionEvent = Extract<TurnEvent, { type: 'question' }>;
+export type AnsweredEvent = Extract<TurnEvent, { type: 'answered' }>;
+export type AskQuestion = QuestionEvent['questions'][number];
+export type AnswerBody = InferRequestType<ChatRoutes['answers']['$post']>['json'];
+export type QuestionAnswer = AnswerBody['answers'][number];
 
 /** A folder of a machine and the folders in it, as its runner read them (S5.1d). */
 export type FolderList = InferResponseType<OneMachineRoutes['folders']['$get'], 200>;

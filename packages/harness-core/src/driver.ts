@@ -27,6 +27,26 @@ export interface PrivateDir {
   readonly files: readonly PrivateFile[];
 }
 
+/** The variables that tell the runner's MCP server where the turn's socket is and the token it must present. */
+export const ASK_SOCKET_ENV = 'MWC_ASK_SOCKET';
+export const ASK_TOKEN_ENV = 'MWC_ASK_TOKEN';
+
+/**
+ * The runner's tools a turn may call (docs/harness.md, "Asking the person"): its MCP server, which a harness starts as
+ * `command args` with `env` (the socket and its token) and which relays an `ask_user_question` call to the runner, and
+ * this turn's own folder (0700), which the runner makes before the start and removes after the exit. A driver that
+ * needs a file for it (Claude Code's `--mcp-config`) names it in `ProcessSpec.turnFiles`.
+ */
+export interface TurnTools {
+  readonly dir: string;
+  /** `<node>`: the runner's own Node. */
+  readonly command: string;
+  /** `[<runner.mjs>, 'mcp']`. */
+  readonly args: readonly string[];
+  /** `ASK_SOCKET_ENV` and `ASK_TOKEN_ENV`. */
+  readonly env: Readonly<Record<string, string>>;
+}
+
 /** A notice the runner sends before the process's own events (a setting the harness cannot honour). */
 export type TurnNotice = TurnEventOf<'notice'>;
 
@@ -47,6 +67,8 @@ export interface ProcessSpec {
   /** The prompt, written to stdin and then closed (never an argument); null for a terminal. */
   readonly stdin: string | null;
   readonly privateDir?: PrivateDir;
+  /** Files the runner writes in the turn's tools folder (`TurnTools.dir`) before the start: Claude Code's MCP config. */
+  readonly turnFiles?: readonly PrivateFile[];
   /** What the person should know before the output (sent as the turn's first events, shown above a terminal). */
   readonly notices: readonly TurnNotice[];
 }
@@ -71,8 +93,8 @@ export interface HarnessDriver {
   readonly harness: Harness;
   /** The arguments that print the CLI's version (`claude --version`): what the runner reports in its hello. */
   readonly versionArgs: readonly string[];
-  /** One chat turn, its output streamed as JSON lines. */
-  turn(spec: TurnSpec): ProcessSpec;
+  /** One chat turn, its output streamed as JSON lines; with `tools`, the runner's MCP server is the harness's too. */
+  turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec;
   /** The interactive TUI on the conversation (resumed, or a new one when `sessionId` is null). */
   terminal(spec: TerminalSpec): ProcessSpec;
   /** A new parser for one turn's output. */

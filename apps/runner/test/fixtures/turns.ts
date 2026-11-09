@@ -56,6 +56,8 @@ export function turnsWorld(
     readonly host?: HarnessHost | undefined;
     readonly slots?: number;
     readonly processes?: boolean;
+    /** Whether the link is up: a frame sent while it is down is kept but `send` says false. */
+    readonly online?: () => boolean;
   } = {},
 ) {
   const time = new FakeTime();
@@ -71,7 +73,7 @@ export function turnsWorld(
     log: logs.log,
     send: (frame) => {
       sent.push(frame);
-      return true;
+      return options.online?.() ?? true;
     },
     count: (live) => void counts.push(live),
   });

@@ -4,6 +4,7 @@ import { giveRefusal } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
 import { turnsRepo } from './repo/turns.ts';
 import { chatsRepo } from './repo.ts';
+import { openQuestion } from './rules/questions.ts';
 import {
   AGENT_NOT_FOUND,
   CHAT_NOT_FOUND,
@@ -103,8 +104,8 @@ export async function createChat(
 }
 
 /**
- * One chat with its turns and their events, in order (archived ones too), and its conversation since its last Clear:
- * the last `init` and how full it is; 404 for an unknown one.
+ * One chat with its turns and their events, in order (archived ones too), its conversation since its last Clear (the
+ * last `init` and how full it is) and its open question; 404 for an unknown one.
  */
 export async function getChat(
   t: TenantDb,
@@ -121,7 +122,8 @@ export async function getChat(
     ...turnView(turn),
     events: events.filter((event) => event.turnId === turn.id).map(eventView),
   }));
-  return { ok: true, chat: { ...chatView(chat), turns: shown, ...conversationState(shown) } };
+  const question = openQuestion(shown);
+  return { ok: true, chat: { ...chatView(chat), turns: shown, ...conversationState(shown), question } };
 }
 
 /** Renames a chat and chooses its profile (see above); an unchanged field writes nothing. */

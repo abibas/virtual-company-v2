@@ -47,6 +47,16 @@ describe("a turn's events on their way", () => {
     expect(batcher.lastSeq).toBe(3);
   });
 
+  it('reserve a number for an event sent on its own, and go on after it', async () => {
+    const { time, batches, batcher } = newBatcher();
+    batcher.push([text('a')]);
+    batcher.flush();
+    expect(batcher.reserve()).toBe(2);
+    batcher.push([text('b')]);
+    await time.advance(TURN_EVENTS_BATCH_MS);
+    expect(batches).toEqual([[{ seq: 1, event: text('a') }], [{ seq: 3, event: text('b') }]]);
+  });
+
   it('go at once from 32 KB or 100 events, and never pass the size in one frame', () => {
     const { time, batches, batcher } = newBatcher();
     batcher.push(Array.from({ length: EVENT_BATCH_MAX_EVENTS + 1 }, () => text('x')));

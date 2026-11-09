@@ -1,7 +1,7 @@
 /**
- * Chats with an agent (S5.1b, docs/harness.md "How a turn runs"): the limits the API, the database and the web share,
- * and the id of a chat event on the chat's stream (`GET …/chats/{chatId}/stream`, Server-Sent Events), which the web
- * sends back as `Last-Event-ID` to get what it missed.
+ * Chats with an agent (S5.1b, docs/harness.md "How a turn runs"): the limits the API, the database and the web share
+ * (an agent's questions' too, S5.2), and the id of a chat event on the chat's stream (`GET …/chats/{chatId}/stream`,
+ * Server-Sent Events), which the web sends back as `Last-Event-ID` to get what it missed.
  */
 
 /** A chat's title: the first prompt's start, at most 80 characters. */
@@ -9,6 +9,27 @@ export const CHAT_TITLE = { min: 1, max: 80 } as const;
 
 /** One prompt: 1 to 20 000 characters. */
 export const CHAT_PROMPT = { min: 1, max: 20_000 } as const;
+
+/** The runner's question tool (S5.2 step 4, `harness/questions.ts`) and its MCP server's name. */
+export const ASK_TOOL = 'ask_user_question';
+export const ASK_SERVER = 'mwc';
+/**
+ * How each harness names a call of it: Claude Code's `mcp__<server>__<tool>` (what `--allowedTools` takes), Codex's
+ * `mcp:<server>/<tool>` (its parser's).
+ */
+export const ASK_TOOL_CALLS = [`mcp__${ASK_SERVER}__${ASK_TOOL}`, `mcp:${ASK_SERVER}/${ASK_TOOL}`] as const;
+
+/** A call's limits: 1–4 questions of at most 500 characters, a header of 12, 2–8 options of 60 (a description 200). */
+export const ASK_LIMITS = {
+  questions: { min: 1, max: 4 },
+  question: 500,
+  header: 12,
+  options: { min: 2, max: 8 },
+  label: 60,
+  description: 200,
+  /** The person's own answer in the "Other" box. */
+  other: 2000,
+} as const;
 
 /** How often the stream sends a comment line, so proxies keep it open and the web sees it is alive. */
 export const CHAT_STREAM_HEARTBEAT_MS = 20_000;

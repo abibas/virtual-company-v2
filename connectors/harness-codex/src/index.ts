@@ -8,11 +8,13 @@ export {
   type CodexAccount,
   codexAccount,
   configArg,
+  configListArg,
   GATEWAY_NOTICE,
   gatewayNotices,
   modelArgs,
   permissionArgs,
   terminalArgs,
+  toolArgs,
   turnArgs,
   unsetFor,
 } from './args.ts';

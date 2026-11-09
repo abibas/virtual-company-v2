@@ -84,6 +84,12 @@ export class EventBatcher {
     return this.#seq;
   }
 
+  /** Takes the next number for an event sent on its own (a question, `turn.question`); flush first to keep the order. */
+  reserve(): number {
+    this.#seq += 1;
+    return this.#seq;
+  }
+
   /** The next events, in order. */
   push(events: readonly TurnEvent[]): void {
     for (const event of events.flatMap(fitEvent)) this.#add({ seq: ++this.#seq, event });

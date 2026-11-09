@@ -66,10 +66,26 @@ async function insertEvents(
   return t.insert(chatEvents, rows).onConflictDoNothing().returning();
 }
 
+/** The highest event number of a turn, 0 before its first event. */
+async function lastEventSeq(t: TenantDb, turnId: string): Promise<number> {
+  const [row] = await t.selectFields(chatEvents, { seq: max(chatEvents.seq) }, eq(chatEvents.turnId, turnId));
+  return row?.seq ?? 0;
+}
+
 /** The events of these turns, in order. */
 const eventsOf = (t: TenantDb, turnIds: readonly string[]): Promise<ChatEvent[]> =>
   turnIds.length === 0
     ? Promise.resolve([])
     : t.select(chatEvents, inArray(chatEvents.turnId, [...turnIds])).orderBy(asc(chatEvents.seq));
 
-export const turnsRepo = { get, ofChat, liveOf, lastSeq, insert, updateLive, insertEvents, eventsOf };
+export const turnsRepo = {
+  get,
+  ofChat,
+  liveOf,
+  lastSeq,
+  insert,
+  updateLive,
+  insertEvents,
+  lastEventSeq,
+  eventsOf,
+};

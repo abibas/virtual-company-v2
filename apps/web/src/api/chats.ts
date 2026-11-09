@@ -1,7 +1,7 @@
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
-import type { Chat, ChatChanges } from './types.ts';
+import type { AnswerBody, Chat, ChatChanges } from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
 
 /**
@@ -37,6 +37,8 @@ export function chatCalls(api: Api, companyId: string) {
     /** S5.2: the harness's own `/compact` as a turn (202), and a Clear (200): the next turn starts a new conversation. */
     compact: (chatId: string) => call(one.compact.$post(param(chatId))),
     clear: (chatId: string) => call(one.clear.$post(param(chatId))),
+    /** S5.2 step 4: the person's answers to the agent's open question, sent as the chat's next turn (202). */
+    answer: (chatId: string, body: AnswerBody) => call(one.answers.$post({ ...param(chatId), json: body })),
     terminalTicket: (chatId: string) => call(one['terminal-tickets'].$post(param(chatId))),
     /** The raw stream response (its body goes to `readEventStream`); `lastEventId` replays what came after it. */
     stream: (chatId: string, lastEventId: string | undefined, signal: AbortSignal) =>

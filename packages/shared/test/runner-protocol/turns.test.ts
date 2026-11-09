@@ -9,6 +9,7 @@ import {
   TURN_ERRORS,
   TurnEnd,
   TurnEvents,
+  TurnQuestion,
   TurnStart,
   TurnStop,
 } from '../../src/runner-protocol/turns.ts';
@@ -61,6 +62,16 @@ describe('the turn frames', () => {
     expect(issuesOf(TurnEvents, { ...events, events: [{ seq: 1, event: { type: 'reasoning' } }] })).toEqual([
       'events.0.event.type',
     ]);
+  });
+
+  it('carry a question with its place among the events and the runner’s id, and refuse a bad one', () => {
+    const question = RUNNER_EXAMPLES['turn.question'];
+    expect(issuesOf(TurnQuestion, question)).toEqual([]);
+    expect(isTurnFrame(question)).toBe(true);
+    expect(issuesOf(TurnQuestion, { ...question, seq: 0 })).toEqual(['seq']);
+    expect(issuesOf(TurnQuestion, { ...question, questionId: 'q-1' })).toEqual(['questionId']);
+    expect(issuesOf(TurnQuestion, { ...question, questions: [] })).toEqual(['questions']);
+    expect(issuesOf(TurnQuestion, without(question, 'questions'))).toEqual(['questions']);
   });
 
   it('end a turn with its exit code (or null), an error and a rewritten Codex login', () => {

@@ -1,4 +1,4 @@
-import type { TurnSpec } from '../../../src/harness.ts';
+import type { AskQuestion, TurnSpec } from '../../../src/harness.ts';
 import { newId } from '../../../src/ids.ts';
 import type { MachineSample } from '../../../src/machines.ts';
 import type {
@@ -24,7 +24,19 @@ export const IDS = {
   principal: newId(),
   session: newId(),
   turn: newId(),
+  question: newId(),
 } as const;
+
+/** A question an agent asks: one pick of two options. */
+export const QUESTION: AskQuestion = {
+  question: 'Which database should the service use?',
+  header: 'Database',
+  options: [
+    { label: 'PostgreSQL', description: 'The one the other services use' },
+    { label: 'SQLite', description: 'A file beside the service, nothing to run' },
+  ],
+  multiSelect: false,
+};
 
 export const NOW = Date.UTC(2026, 10, 6, 12, 0, 0);
 
@@ -149,6 +161,13 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       { seq: 1, event: { type: 'session', sessionId: 'b4c1f0e2-session' } },
       { seq: 2, event: { type: 'text', text: '4' } },
     ],
+  },
+  'turn.question': {
+    type: 'turn.question',
+    turnId: IDS.turn,
+    seq: 3,
+    questionId: IDS.question,
+    questions: [QUESTION],
   },
   'turn.end': { type: 'turn.end', turnId: IDS.turn, ok: true, exitCode: 0 },
   'fs.result': {

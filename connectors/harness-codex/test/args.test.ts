@@ -5,11 +5,13 @@ import {
   CODEX_ACCOUNT_VARS,
   codexAccount,
   configArg,
+  configListArg,
   GATEWAY_NOTICE,
   gatewayNotices,
   modelArgs,
   permissionArgs,
   terminalArgs,
+  toolArgs,
   turnArgs,
   unsetFor,
 } from '../src/args.ts';
@@ -88,6 +90,44 @@ describe('turnArgs', () => {
       THREAD,
       '-',
     ]);
+  });
+});
+
+const TOOLS = {
+  dir: '/state/turns/0a1b',
+  command: '/usr/local/bin/node',
+  args: ['/home/agent/.local/share/mwc-runner/runner.mjs', 'mcp'],
+  env: { MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock', MWC_ASK_TOKEN: 'tok' },
+};
+
+const TOOL_ARGS = [
+  '-c',
+  'mcp_servers.mwc.command="/usr/local/bin/node"',
+  '-c',
+  'mcp_servers.mwc.args=["/home/agent/.local/share/mwc-runner/runner.mjs","mcp"]',
+  '-c',
+  'mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]',
+  '-c',
+  'mcp_servers.mwc.default_tools_approval_mode="approve"',
+];
+
+describe('the runner’s tools', () => {
+  it('start its MCP server from config overrides, its variables passed through by name, its tools approved', () => {
+    expect(toolArgs(TOOLS)).toEqual(TOOL_ARGS);
+    expect(toolArgs(TOOLS).join(' ')).not.toContain('tok"');
+    expect(configListArg('k', ['a "b"', 'c\\d'])).toEqual(['-c', 'k=["a \\"b\\"","c\\\\d"]']);
+  });
+
+  it('come after the permissions, before the thread and the stdin marker', () => {
+    expect(turnArgs(fakeTurnSpec('codex'), TOOLS)).toEqual([
+      'exec',
+      '--json',
+      '--skip-git-repo-check',
+      ...ASK_EXEC,
+      ...TOOL_ARGS,
+      '-',
+    ]);
+    expect(turnArgs(fakeTurnSpec('codex', { sessionId: THREAD }), TOOLS).slice(-2)).toEqual([THREAD, '-']);
   });
 });
 

@@ -83,6 +83,26 @@ describe('mwc-runner', () => {
   });
 });
 
+describe('mwc-runner mcp', () => {
+  it('serves MCP on the stdio it is given, with the runner’s version, until its input ends', async () => {
+    const { host } = testHost();
+    const out: string[] = [];
+    const versions: string[] = [];
+    const ping = `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' })}\n`;
+    const mcp = (version: string) => {
+      versions.push(version);
+      const input = (async function* () {
+        yield ping;
+      })();
+      return { input, write: (line: string) => void out.push(line), env: {}, version };
+    };
+    expect(await runCli(['mcp'], { daemon: unusedDaemon, host: () => host, mcp })).toBe(0);
+    expect(out).toEqual([`${JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })}\n`]);
+    expect(versions).toEqual([host.version]);
+    expect(HELP).toContain('  mcp ');
+  });
+});
+
 describe('mwc-runner run', () => {
   it("starts the daemon with its harnesses' versions and Claude Code's in its hello, asking each CLI once", async () => {
     const server = await fakeServer();

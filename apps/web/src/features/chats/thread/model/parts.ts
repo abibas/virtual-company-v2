@@ -1,4 +1,5 @@
 import type { TurnEvent } from '../../../../api/types.ts';
+import type { TurnQuestion } from '../question/question-model.ts';
 
 /** The pieces a turn's thread shows (S5.2), built by `turn-model.ts`. Types only. */
 
@@ -76,6 +77,8 @@ export interface TurnModel {
   /** The main agent's tool calls, in order (the action history and the counts). */
   readonly calls: readonly ToolCall[];
   readonly current: CurrentActivity;
+  /** The agent's latest question in this turn, with the person's answer once given (S5.2 step 4). */
+  readonly question: TurnQuestion | undefined;
   /** The reply as text, for Copy: the main agent's text, else the result's. */
   readonly replyText: string;
   /** Why the turn failed, once. */

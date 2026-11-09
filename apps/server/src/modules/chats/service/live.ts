@@ -13,9 +13,9 @@ import { streamEvent, turnView } from './views.ts';
 
 /**
  * The chats' live turns in this server process (S5.1b): each started turn's sink, which stores the runner's events in
- * order (a `session` event saves the chat's session id), tells the chat's stream listeners, and on the turn's end closes
- * its row (done, failed or stopped, with the reply and the usage) and seals again a Codex login the process rewrote;
- * and each live turn's channel, which a stop goes through. Every write runs on one queue per turn, so the end is written
+ * order (a `session` event saves the chat's session id; a question the agent asked is its `question` event, S5.2),
+ * tells the chat's stream listeners, and on the turn's end closes its row (done, failed or stopped, with the reply and
+ * the usage) and seals again a Codex login the process rewrote; and each live turn's channel, which a stop goes through. Every write runs on one queue per turn, so the end is written
  * after the last event. A failure is logged by the turn's id, never thrown into the hub.
  */
 
@@ -122,6 +122,11 @@ export function chatsLive(deps: LiveDeps) {
         events: (items) =>
           void run(async () => {
             outcome = await stored(l, t, turn, items, outcome);
+          }),
+        question: ({ seq, questionId, questions }) =>
+          void run(async () => {
+            const event = { type: 'question', id: questionId, questions } as const;
+            outcome = await stored(l, t, turn, [{ seq, event }], outcome);
           }),
         end: (ending) => void run(() => ended(l, t, turn, { ending, outcome, used })),
       };

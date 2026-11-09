@@ -3,6 +3,7 @@ import {
   encodeFrame,
   type TurnEnd,
   type TurnEventItem,
+  type TurnQuestion,
   type TurnRunnerFrame,
 } from '@mwc/shared/runner-protocol';
 import type { RunnerConnection } from '../connection.ts';
@@ -24,9 +25,14 @@ export interface TurnRequest {
 /** How a turn ended: `turn.end` without its type and turn id. */
 export type TurnEnding = Omit<TurnEnd, 'type' | 'turnId'>;
 
+/** A question the agent asked (S5.2): `turn.question` without its type and turn id. */
+export type TurnAsked = Omit<TurnQuestion, 'type' | 'turnId'>;
+
 /** Where a turn's frames go, in the order the runner sent them. */
 export interface TurnSink {
   events(items: readonly TurnEventItem[]): void;
+  /** The agent asked the person, between the events numbered before and after `seq`. */
+  question(asked: TurnAsked): void;
   /** The end; nothing follows it. */
   end(ending: TurnEnding): void;
 }
@@ -75,7 +81,10 @@ export function turnBoard() {
       const sink = own?.get(frame.turnId);
       if (own === undefined || sink === undefined) return;
       if (frame.type === 'turn.events') sink.events(frame.events);
-      else {
+      else if (frame.type === 'turn.question') {
+        const { seq, questionId, questions } = frame;
+        sink.question({ seq, questionId, questions });
+      } else {
         own.delete(frame.turnId);
         sink.end(endingOf(frame));
       }

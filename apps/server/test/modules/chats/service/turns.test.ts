@@ -2,6 +2,7 @@ import { chatTurns, tenant } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
 import { captureLogger } from '@mwc/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { QUESTION_CLOSED } from '../../../../src/modules/chats/rules/questions.ts';
 import { chatsLive } from '../../../../src/modules/chats/service/live.ts';
 import { startTurn, stopTurn, type TurnsDeps } from '../../../../src/modules/chats/service/turns.ts';
 import { credentialsForHarness } from '../../../../src/modules/credentials/index.ts';
@@ -62,6 +63,31 @@ describe('startTurn', () => {
       'started',
       'turn_running',
     ]);
+  });
+});
+
+describe("startTurn's checks in the transaction that records it", () => {
+  it('record nothing when the check refuses (an answer whose question a newer turn closed meanwhile)', async () => {
+    const s = await scene(w);
+    const t = await tenant(w.t.db, s.company.companyId);
+    const seqs: number[] = [];
+    const result = await startTurn(
+      depsWith(() => undefined),
+      t,
+      caller(s),
+      s.chat.id,
+      'My answers',
+      {
+        kind: 'message',
+        check: (seq) => {
+          seqs.push(seq);
+          return QUESTION_CLOSED;
+        },
+      },
+    );
+    expect(result).toMatchObject({ ok: false, code: 'question_closed' });
+    expect(seqs).toEqual([1]);
+    expect(await t.select(chatTurns)).toEqual([]);
   });
 });
 

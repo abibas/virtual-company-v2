@@ -9,8 +9,8 @@ conversation.
 
 | Package                       | What                                                                                          |
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `@mwc/shared/harness`         | the wire contracts (zod): `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway` (`harness/specs.ts`), `TurnEvent` and its limits (`harness/events.ts`), `contextWindowOf` (`harness/context.ts`) |
-| `@mwc/harness-core`           | the port: `HarnessDriver`, `ProcessSpec`, `PrivateDir`, `LineParser`, `HarnessError`, the shared checks and text helpers (`clipMarked` for long texts) |
+| `@mwc/shared/harness`         | the wire contracts (zod): `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway` (`harness/specs.ts`), `TurnEvent` and its limits (`harness/events.ts`), `contextWindowOf` (`harness/context.ts`), the question tool's input and the answers (`harness/questions.ts`) |
+| `@mwc/harness-core`           | the port: `HarnessDriver`, `ProcessSpec`, `PrivateDir`, `TurnTools`, `LineParser`, `HarnessError`, the shared checks and text helpers (`clipMarked` for long texts) |
 | `@mwc/harness-core/fake`      | `FakeHarnessDriver`, the fake binary (`FAKE_HARNESS_BIN`, `runFakeHarness`), fake specs and credentials |
 | `@mwc/harness-claude-code`    | `ClaudeCodeDriver` (`claude`), its parser; `/fixtures`: seven recorded-style turns             |
 | `@mwc/harness-codex`          | `CodexDriver` (`codex`), its parser; `/fixtures`: six recorded-style turns                    |
@@ -25,9 +25,13 @@ TurnSpec     { harness, cwd, prompt, sessionId: string|null, model: string|null,
 TerminalSpec  the same without `prompt`
 
 ProcessSpec  { command, args, env /* to add or override */, unsetEnv /* to remove */, stdin: string|null,
-               privateDir?: { env, path: string|null, files: { name, contents, mode }[] }, notices: TurnEvent<'notice'>[] }
+               privateDir?: { env, path: string|null, files: { name, contents, mode }[] },
+               turnFiles?: { name, contents, mode }[] /* written in TurnTools.dir */, notices: TurnEvent<'notice'>[] }
+TurnTools    { dir /* the turn's own folder, 0700 */, command, args /* <node> <runner.mjs> mcp */,
+               env /* MWC_ASK_SOCKET, MWC_ASK_TOKEN */ }
 
-HarnessDriver { harness; versionArgs; turn(TurnSpec): ProcessSpec; terminal(TerminalSpec): ProcessSpec; parser(): LineParser }
+HarnessDriver { harness; versionArgs; turn(TurnSpec, TurnTools?): ProcessSpec; terminal(TerminalSpec): ProcessSpec;
+                parser(): LineParser }
 LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: string): TurnEvent[] }
 ```
 
@@ -68,7 +72,9 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude only |
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
 | `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request, a gateway not used |
-| `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | always the last event of a turn                             |
+| `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | the last event of the harness's output                     |
+| `question`    | `id` (the runner's UUID), `questions` (1–4, "Asking the person") | the agent asked the person through the runner's tool: a `turn.question` frame, never a parser's |
+| `answered`    | `questionId`, `turnId` (the turn that carried the answers), `answers` (1–4 `{question, picked[], other?}`) | the person answered: the server adds it to the question's turn after its end |
 
 A runner sends them as `turn.events`, each with its `seq` from 1 (docs/runner-protocol.md, "Chat turns"); a long text is
 split into several `text` events, each keeping its `parentId`.
@@ -83,6 +89,9 @@ split into several `text` events, each keeping its `parentId`.
   `codex-mini` 200k, `gpt-oss` 131 072); unknown models are null. Claude's `result.modelUsage[].contextWindow`, when it
   differs and is not smaller than what the conversation already holds, gives the last `context` again with it.
 - **Old events stay valid**: every field added in S5.2 is optional, and the new types are new.
+- **Questions** (S5.2 step 4): a harness's parser never gives `question` or `answered`. The runner numbers a question
+  among the turn's events (it sends the ones before it first), and the server writes `answered` after the turn ended,
+  numbered after its last event, so a reader shows them in place.
 
 ## Credentials
 
@@ -106,6 +115,10 @@ Verified against `claude --help` 2.1.319.
 ```
 turn:      claude -p --output-format stream-json --verbose [--resume <id>] [--model <m>] [--effort <e>]
                   [--dangerously-skip-permissions]                      prompt on stdin
+           with the runner's tools, after those:
+                  --mcp-config <dir>/mcp.json --allowedTools mcp__mwc__ask_user_question
+                  --append-system-prompt "When the person must choose between options, ask them with the
+                  ask_user_question tool, then end your turn: their answer comes as their next message."
 terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
 env:       the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; with a gateway
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
@@ -149,8 +162,12 @@ Verified against `codex --help`, `codex exec --help`, `codex exec resume --help`
 sign-in helper pins 0.163.0), and the documented `--json` events (`codex-rs/exec/src/exec_events.rs`).
 
 ```
-turn, new:      codex exec --json --skip-git-repo-check [--model <m>] [-c model_reasoning_effort="<e>"] <permissions> -
-turn, resume:   codex exec resume --json --skip-git-repo-check [--model <m>] [-c …] <permissions> <threadId> -
+turn, new:      codex exec --json --skip-git-repo-check [--model <m>] [-c model_reasoning_effort="<e>"] <permissions>
+                [<tools>] -
+turn, resume:   codex exec resume --json --skip-git-repo-check [--model <m>] [-c …] <permissions> [<tools>] <threadId> -
+tools:          -c mcp_servers.mwc.command="<node>" -c mcp_servers.mwc.args=["<runner.mjs>","mcp"]
+                -c mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]
+                -c mcp_servers.mwc.default_tools_approval_mode="approve"     and both variables in codex's env
 terminal:       codex [resume] [--model <m>] [-c …] <permissions> [<threadId>]
 permissions:    bypass  --dangerously-bypass-approvals-and-sandbox
                 ask     turn: -c sandbox_mode="workspace-write" -c approval_policy="never"
@@ -266,6 +283,62 @@ with its own folders.
 notices) until S6 brings the permission round trip; the terminal asks the person on the TUI. No test runs a real
 `claude` or `codex` turn: that spends Ihor's subscription.
 
+## Asking the person
+
+Built in S5.2 step 4 (2026-11-10): selections. An agent asks the person multiple-choice questions through an MCP tool
+its turn gets from the runner; the questions show as a card in the chat; the person's picks go back as the chat's next
+prompt. The same bridge is where S6's tool approvals will ride.
+
+- **The tool**, `ask_user_question` (`apps/runner/src/turns/ask/tool.ts`), in the shape of Claude Code's own
+  AskUserQuestion: `{ questions: [{ question (1–500), header (1–12), options: [{ label (1–60, unique), description
+  (≤ 200) }] (2–8), multiSelect }] (1–4, each asked once) }` (`AskInput` of `@mwc/shared/harness`; the limits are
+  `ASK_LIMITS` of `@mwc/shared/chats`, which the web reads too). Its description says when to use it; annotated
+  read-only. A valid call is answered at once: "Your question is shown to the person. End your turn now; their answer
+  comes as their next message." A bad input is an MCP tool error (`isError`) listing what to fix, so the model corrects
+  it; the runner is not asked.
+- **The MCP server**, `node runner.mjs mcp` (`turns/ask/command.ts`, `mcp.ts`): JSON-RPC 2.0 by hand over stdio, one
+  message a line, no dependency. It answers `initialize` (tools only; the version the client asks for when it speaks it,
+  `2025-06-18`, `2025-03-26` or `2024-11-05`, else the newest), `ping`, `tools/list`, `tools/call`; notifications
+  (`notifications/initialized`) get no answer, an unknown method -32601, an unknown tool -32602, a line that is no JSON
+  -32700, a message that is no request -32600. Answers go out as each is ready; it exits 0 when stdin ends. Without its
+  variables a call says it works only inside a chat turn.
+- **The bridge** (`turns/ask/bridge.ts`, `client.ts`): before each turn's process the runner makes the turn's own folder
+  `<state>/turns/<12 hex>/` (0700), listens on a Unix socket `ask.sock` in it (Node binds the path at once, before the
+  spawn) and draws a random 32-byte token. The MCP server reaches it through `MWC_ASK_SOCKET` and `MWC_ASK_TOKEN`: one
+  connection per call, one line out (`{token, questions}`), one line back (`{ok: true, text}` or `{ok: false, error}`),
+  10 s at most, 64 KB a line. A wrong token is refused (logged, never the token), questions are checked again. The turn
+  answers: it flushes its batched events, takes the next event number, sends `turn.question {turnId, seq, questionId,
+  questions}` and returns the text; once the turn is stopping it answers that the question was not shown, and while the
+  link is down the same. When the process ends the socket closes and the folder goes with its files. A socket path over
+  103 bytes (macOS's limit) or a folder that cannot be made runs the turn without the tool, logged.
+- **The harnesses.** Claude Code gets `--mcp-config <dir>/mcp.json` (`{mcpServers: {mwc: {type: 'stdio', command,
+  args, env}}}`, written 0600 by the runner from the driver's `turnFiles`, so the token is never on a command line),
+  `--allowedTools mcp__mwc__ask_user_question` (the `ask` policy refuses tools that need approval in print mode) and one
+  `--append-system-prompt` line. Codex 0.162.1 takes MCP servers as config overrides (verified with `codex mcp list` on
+  an empty `CODEX_HOME`: `env_vars` takes names, `default_tools_approval_mode` one of `auto`, `prompt`, `writes`,
+  `approve`): its server's command and arguments, `env_vars` naming the two variables (set in codex's own environment,
+  so the token is not on its command line either) and `approve` (a turn's approvals are off). Codex gets no extra
+  instruction line: its `developer_instructions` would replace the agent's own; the tool's description says when to
+  use it. Whether `codex exec` then calls the tool is not verified without a real turn.
+- **The server** (the chats module): `turn.question` is stored as the turn's `question` event and streamed like the
+  others. The chat's detail has `question`: the latest question of its last turn while no `answered` event names it
+  (`rules/questions.ts`), else null. `POST …/chats/{chatId}/answers {questionId, answers: [{question, picked[],
+  other?}]}` (admins and owners) checks the answers fit (each names a question asked, once; picks only its labels, once
+  each; one for a single choice: else 422 `invalid_answers` saying why), then starts the next turn as any prompt
+  (refused as any turn is: `turn_running` while the asking turn still runs), with the prompt `My answers to your
+  questions:` and one line per question in order, `<n>. <question> → <picks>`, `; Other: <words>` for the person's own,
+  `skipped` for a question left out. In the transaction that records that turn the question must still be open (its
+  turn right before: else 409 `question_closed`), and the asking turn gets `answered {questionId, turnId, answers}`
+  after its last event, streamed before the new turn. 404 `question_not_found`; 409 `question_closed` for a question
+  answered already, a later question of the same turn, or any newer turn: a plain message instead closes it
+  (`superseded`) without a mark, as the thread shows it. No migration: both marks are events.
+- **The web** (`apps/web/src/features/chats/thread/question/`): the card under the agent's reply while open (one
+  question per page, "1 of N" and arrows, the headers as steps, option rows as a radio group or checkboxes with their
+  descriptions and keys 1–9, a filter over 6 options, an "Other" box, Skip, Next and "Send answer"; Left and Right turn
+  pages; drafts kept while the page lives); answered: "You answered" with each header's picks; superseded: "answered in
+  a message". The tool's own call shows no tool row, and the turn that carried the answers shows no prompt bubble. The
+  composer stays open: a message instead answers in words.
+
 ## Compact and Clear
 
 Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat's turns have a `kind`
@@ -299,6 +372,12 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
   messages, one in the background ended by `task_notification`) and `compact`; Codex's `answer`, `tool`, `denied`,
   `error`, `resume` and `plan` (its to-do list started, updated and completed, reasoning). The runner's tests reuse them
   from `@mwc/harness-claude-code/fixtures` and `@mwc/harness-codex/fixtures`.
+- The question bridge is tested in parts, in-process, never with a real CLI: the MCP server's JSON-RPC (initialize,
+  tools/list, a valid call relayed, an invalid input, an unknown tool and method, notifications, parse errors), the
+  `mcp` command on fake stdio, the socket with its token on a real Unix socket in a temporary folder (a wrong token, a
+  long request, no socket, a silent one), a turn on the fake driver whose fake process calls the socket (its
+  `turn.question` numbered after the events before it, refused while stopping or offline, the folder removed after),
+  each driver's arguments, and the server's frame, detail, stream and answers route on PGlite with `FakeRunner`.
 - The fake binary, `node FAKE_HARNESS_BIN`, plays a `FakeScenario` JSON file named by `FAKE_HARNESS_SCENARIO`: it reads
   stdin, writes what it got (argv, cwd, stdin, only the variables `recordEnv` names) to `record`, prints `lines` (after
   `delayMs` each), then `stderr`, waits `holdMs` and exits with `exitCode`. A runner test points `FakeHarnessDriver` at it
@@ -314,6 +393,7 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
 - A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
   before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
   later one writes its login over a token the first may have just refreshed (the server seals again what comes back).
-- Asking the person mid-turn (the permission tool, `ask_user`): S6. Until then `ask` refuses in chat and asks only in
-  the terminal.
+- Approving a tool mid-turn (the permission tool): S6, over the same bridge. Until then `ask` refuses in chat and asks
+  only in the terminal. Selections are built ("Asking the person"); the agent ends its turn after asking, and the answer
+  is the next turn rather than a live reply.
 - Running as root: Claude Code refuses `--dangerously-skip-permissions` as root, which matters for container runs.

@@ -3,6 +3,7 @@ import { newRouter } from '../../platform/http/router.ts';
 import type { Keyring } from '../../platform/secrets/keyring.ts';
 import { credentialsForHarness, providerFetchFor } from '../credentials/index.ts';
 import type { RunnerHub, TerminalTickets } from '../machines/index.ts';
+import { answerRoutes } from './routes/answers.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { conversationRoutes } from './routes/conversation.ts';
 import { streamRoutes } from './routes/stream.ts';
@@ -19,7 +20,7 @@ export interface ChatsDeps extends ServerDeps {
 
 /**
  * The chats module's routes (S5.1b, docs/harness.md "How a turn runs"): chats with an agent, their turns, Compact and
- * Clear (S5.2), the chat's stream and its terminal. The live turns of this process (their sinks, their stops, the stream's listeners) are made
+ * Clear (S5.2), answers to the agent's questions (S5.2 step 4), the chat's stream and its terminal. The live turns of this process (their sinks, their stops, the stream's listeners) are made
  * here once per app, on the credentials module's side for turns (subscriptions opened, refreshed, sealed again).
  */
 export function chatsRoutes(deps: ChatsDeps) {
@@ -31,6 +32,7 @@ export function chatsRoutes(deps: ChatsDeps) {
     .route('/', chatRoutes(deps))
     .route('/', turnRoutes(turns))
     .route('/', conversationRoutes(turns))
+    .route('/', answerRoutes(turns))
     .route('/', streamRoutes(deps, { bus: live.bus }))
     .route('/', chatTerminalRoutes({ ...turns, tickets: deps.tickets }));
 }

@@ -4,9 +4,19 @@ import {
   type HarnessDriver,
   type LineParser,
   type ProcessSpec,
+  type TurnTools,
 } from '@mwc/harness-core';
 import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
-import { CLAUDE_COMMAND, claudeEnv, sharedArgs, TURN_ARGS, unsetFor } from './args.ts';
+import {
+  CLAUDE_COMMAND,
+  claudeEnv,
+  MCP_CONFIG_FILE,
+  mcpConfig,
+  sharedArgs,
+  TURN_ARGS,
+  toolArgs,
+  unsetFor,
+} from './args.ts';
 import { ClaudeLineParser } from './parser.ts';
 
 export interface ClaudeCodeDriverOptions {
@@ -18,6 +28,8 @@ export interface ClaudeCodeDriverOptions {
  * The Claude Code `HarnessDriver` (docs/harness.md, "Claude Code"). A turn is
  * `claude -p --output-format stream-json --verbose [--resume <id>] [--model <m>] [--effort <e>]
  * [--dangerously-skip-permissions]` with the prompt on stdin; a terminal is the same without the first four, the TUI.
+ * With the runner's tools a turn also gets its MCP server (`--mcp-config <dir>/mcp.json`, the file written by the runner),
+ * the question tool allowed and one line of system prompt (`toolArgs`).
  */
 export class ClaudeCodeDriver implements HarnessDriver {
   readonly harness = 'claude_code' as const;
@@ -28,9 +40,12 @@ export class ClaudeCodeDriver implements HarnessDriver {
     this.command = options.command ?? CLAUDE_COMMAND;
   }
 
-  turn(spec: TurnSpec): ProcessSpec {
+  turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec {
     checkTurn(this.harness, spec);
-    return this.#process([...TURN_ARGS, ...sharedArgs(spec)], spec, spec.prompt);
+    const args = [...TURN_ARGS, ...sharedArgs(spec)];
+    if (tools === undefined) return this.#process(args, spec, spec.prompt);
+    const file = { name: MCP_CONFIG_FILE, contents: mcpConfig(tools), mode: 0o600 };
+    return { ...this.#process([...args, ...toolArgs(tools)], spec, spec.prompt), turnFiles: [file] };
   }
 
   terminal(spec: TerminalSpec): ProcessSpec {

@@ -1,7 +1,7 @@
 import { isHarnessError } from '@mwc/harness-core';
 import { FAKE_CREDENTIALS, fakeTerminalSpec, fakeTurnSpec } from '@mwc/harness-core/fake';
 import { describe, expect, it } from 'vitest';
-import { CLAUDE_ACCOUNT_VARS } from '../src/args.ts';
+import { ASK_PROMPT, CLAUDE_ACCOUNT_VARS } from '../src/args.ts';
 import { ClaudeCodeDriver } from '../src/driver.ts';
 import { ClaudeLineParser } from '../src/parser.ts';
 
@@ -65,6 +65,37 @@ describe('ClaudeCodeDriver.turn', () => {
       expect(process.env.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Api-Key: gw');
       expect(process.privateDir).toBeUndefined();
     }
+  });
+
+  it('gives a turn with the runner’s tools its MCP config to write, the tool allowed and the line, after the rest', () => {
+    const tools = {
+      dir: '/state/turns/0a1b',
+      command: '/usr/bin/node',
+      args: ['/opt/runner.mjs', 'mcp'],
+      env: { MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock', MWC_ASK_TOKEN: 'tok' },
+    };
+    const process = driver.turn(fakeTurnSpec('claude_code', { permissionPolicy: 'bypass' }), tools);
+    expect(process.args).toEqual([
+      ...TURN,
+      '--dangerously-skip-permissions',
+      '--mcp-config',
+      '/state/turns/0a1b/mcp.json',
+      '--allowedTools',
+      'mcp__mwc__ask_user_question',
+      '--append-system-prompt',
+      ASK_PROMPT,
+    ]);
+    expect(process.turnFiles).toEqual([
+      {
+        name: 'mcp.json',
+        contents: JSON.stringify({
+          mcpServers: { mwc: { type: 'stdio', command: '/usr/bin/node', args: tools.args, env: tools.env } },
+        }),
+        mode: 0o600,
+      },
+    ]);
+    expect(process.env).not.toHaveProperty('MWC_ASK_TOKEN');
+    expect(driver.turn(fakeTurnSpec('claude_code')).turnFiles).toBeUndefined();
   });
 
   it('uses the program the runner found', () => {

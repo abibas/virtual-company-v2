@@ -25,7 +25,8 @@ import { turnView } from './views.ts';
  * `target.ts`, refused with what to fix), recorded as running with the profile and credential it runs on, then sent to
  * the runner (`turn.start`) with its sink in place, so its events and end land in the database and the chat's stream;
  * the first prompt is the chat's title. A stop asks the runner to stop it; its end says `stopped`. A Compact is such a
- * turn too, of kind `compact` (`conversation.ts`).
+ * turn too, of kind `compact` (`conversation.ts`), and so is an answer to the agent's question (`answers.ts`), which
+ * checks and marks its question in the transaction that records the turn.
  */
 
 export interface TurnsDeps extends TargetDeps {
@@ -43,31 +44,45 @@ type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
 const INVALID_SPEC = (paths: string) =>
   refuse(422, 'invalid_spec', `The agent's settings cannot start a turn (${paths}): fix them on the agent`);
 
-/** Records the turn as running, unless another one runs (409), and gives the chat its title on the first. */
+/** What kind of turn to start (a prompt, a `/compact`), and why this chat may not have one, beyond a turn's checks. */
+export interface TurnKindOptions {
+  readonly kind: ChatTurnKind;
+  readonly refuse?: (chat: Chat) => Refusal | undefined;
+  /** In the transaction that records the turn, before it, with its number: a refusal records nothing. */
+  readonly check?: (seq: number) => Refusal | undefined;
+  /** In that transaction, after the turn is written; what it returns runs once it is committed. */
+  readonly alongside?: (tx: TenantDb, turn: ChatTurn) => Promise<() => void>;
+}
+
+/**
+ * Records the turn as running, unless another one runs (409) or `how.check` refuses, gives the chat its title on the
+ * first, and writes what `how.alongside` adds in the same transaction.
+ */
 async function record(
   t: TenantDb,
   chatId: string,
   values: Omit<Parameters<typeof turnsRepo.insert>[1], 'seq'>,
+  how: TurnKindOptions,
 ) {
+  let committed: (() => void) | undefined;
   try {
-    return await t.transaction(async (tx) => {
+    const recorded = await t.transaction(async (tx) => {
       const seq = (await turnsRepo.lastSeq(tx, chatId)) + 1;
+      const refused = how.check?.(seq);
+      if (refused !== undefined) return refused;
       const turn = await turnsRepo.insert(tx, { ...values, seq });
+      committed = await how.alongside?.(tx, turn);
       const chat = (await chatsRepo.get(tx, chatId)) as Chat;
       const title = chat.title === null ? { title: titleOf(values.prompt) } : {};
       await chatsRepo.update(tx, chatId, { updatedAt: values.startedAt as Date, ...title });
       return turn;
     });
+    committed?.();
+    return recorded;
   } catch (error) {
     if (isUniqueViolation(error)) return TURN_RUNNING;
     throw error;
   }
-}
-
-/** What kind of turn to start (a prompt, a `/compact`), and why this chat may not have one, beyond a turn's checks. */
-export interface TurnKindOptions {
-  readonly kind: ChatTurnKind;
-  readonly refuse?: (chat: Chat) => Refusal | undefined;
 }
 
 /** Starts a turn of the chat with this prompt (see above); 202 with the turn, or why not. */
@@ -94,17 +109,22 @@ export async function startTurn(
   if (!spec.success)
     return INVALID_SPEC([...new Set(spec.error.issues.map((i) => i.path.join('.')))].join(', '));
   const now = deps.clock();
-  const turn = await record(t, chat.id, {
-    id: newId(),
-    chatId: chat.id,
-    kind: how.kind,
-    prompt,
-    status: 'running',
-    profileId: target.profileId,
-    credentialId: target.credentialId,
-    startedAt: now,
-    createdBy: caller.principalId,
-  });
+  const turn = await record(
+    t,
+    chat.id,
+    {
+      id: newId(),
+      chatId: chat.id,
+      kind: how.kind,
+      prompt,
+      status: 'running',
+      profileId: target.profileId,
+      credentialId: target.credentialId,
+      startedAt: now,
+      createdBy: caller.principalId,
+    },
+    how,
+  );
   if ('ok' in turn) return turn;
   const { credentialId, ownerUserId, kind } = target;
   return send(deps, t, turn, chat.machineId, { credentialId, ownerUserId, kind }, spec.data);

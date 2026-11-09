@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import type { LineParser, ProcessSpec } from '@mwc/harness-core';
-import type { TurnEvent } from '@mwc/shared/harness';
+import type { AskQuestions, TurnEvent } from '@mwc/shared/harness';
 import {
   TURN_STOP_KILL_MS,
   TURN_STOP_TERM_MS,
@@ -9,6 +10,8 @@ import {
 import type { Log } from '../system/log.ts';
 import type { ChildLike, KillGroup, Spawn } from '../system/process.ts';
 import type { Timers } from '../system/time.ts';
+import type { AskBridge } from './ask/bridge.ts';
+import { ASK_REPLY, type AskReply } from './ask/tool.ts';
 import { EventBatcher } from './batch.ts';
 import { LineReader, TailBuffer } from './lines.ts';
 import { type PrivateLease, releaseLogin } from './private-dir.ts';
@@ -19,6 +22,8 @@ import { type PrivateLease, releaseLogin } from './private-dir.ts';
  * driver's parser into events (the driver's notices first), batched to the link, and the end of its stderr kept. When
  * it ends: the parser's last events, the private folder released (a Codex login it rewrote goes back as `authJson`),
  * then `turn.end` once. `stop` walks the ladder: SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT.
+ * With the runner's tools, a question the agent asks through its bridge goes out as `turn.question`, numbered among the
+ * events (those before it sent first), and the agent is told to end its turn; the bridge closes when the process ends.
  */
 
 /** Why the runner ended a turn: a person stopped it, the runner stops, or the link dropped (nothing gets through). */
@@ -42,9 +47,15 @@ export interface TurnLaunch {
   readonly env: Readonly<Record<string, string>>;
   readonly parser: LineParser;
   readonly lease: PrivateLease | undefined;
+  /** The turn's question socket, when the runner offers its tools. */
+  readonly bridge?: AskBridge | undefined;
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** Why a question was not shown: the turn is ending, or the link is down. */
+export const ASK_ENDING = 'The question was not shown: this turn is ending.';
+export const ASK_OFFLINE = 'The question was not shown: the runner has lost its link to the server.';
 
 /** The log line of a login a harness rewrote into something that is not one (its text is never logged). */
 export const INVALID_LOGIN = 'the harness rewrote its login into something that is not one; not sent back';
@@ -76,6 +87,7 @@ export class TurnProcess {
       timers: deps.timers,
       send: (events) => deps.send({ type: 'turn.events', turnId, events: [...events] }),
     });
+    launch.bridge?.bind((questions) => this.#ask(questions));
   }
 
   /** Starts the process; throws when it cannot even be spawned (the caller refuses the turn). */
@@ -117,6 +129,23 @@ export class TurnProcess {
     return this.done;
   }
 
+  /** The agent asked the person: the events so far, then the question with the next number. */
+  #ask(questions: AskQuestions): AskReply {
+    if (this.#ended || this.#stopped !== undefined) return { ok: false, error: ASK_ENDING };
+    this.#batcher.flush();
+    const seq = this.#batcher.reserve();
+    const questionId = randomUUID();
+    if (!this.#deps.send({ type: 'turn.question', turnId: this.turnId, seq, questionId, questions })) {
+      return { ok: false, error: ASK_OFFLINE };
+    }
+    this.#deps.log.info('turn asked the person', {
+      turnId: this.turnId,
+      questionId,
+      questions: questions.length,
+    });
+    return { ok: true, text: ASK_REPLY };
+  }
+
   #events(events: readonly TurnEvent[]): void {
     for (const event of events) if (event.type === 'result') this.#result = event;
     this.#batcher.push(events);
@@ -126,6 +155,7 @@ export class TurnProcess {
   #finish(code: number | null, failure?: string): void {
     if (this.#ended) return;
     this.#ended = true;
+    this.#launch.bridge?.close();
     for (const timer of this.#timers) this.#deps.timers.clearTimeout(timer);
     const last = this.#stdout.end();
     if (last !== undefined) this.#events(this.#launch.parser.feed(last));

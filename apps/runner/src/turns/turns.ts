@@ -9,6 +9,7 @@ import type {
 import type { Log } from '../system/log.ts';
 import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Timers } from '../system/time.ts';
+import { type AskBridge, type AskHost, turnTools } from './ask/bridge.ts';
 import { type Env, processEnv } from './env.ts';
 import type { PrivateDirs, PrivateLease } from './private-dir.ts';
 import { type StopReason, type TurnLaunch, TurnProcess } from './turn.ts';
@@ -20,7 +21,8 @@ import { type StopReason, type TurnLaunch, TurnProcess } from './turn.ts';
  * taken), `home_missing` (the agent's folder is not on this machine), `invalid_spec: …` (the driver refused the spec),
  * `spawn_failed: …`, `runner_stopping`. A repeated start of a live turn and a stop of an unknown one are ignored. Live
  * turns count for the runner's own hold; they all end when the link drops (nothing can reach them then) and when the
- * runner stops (`runner_stopping`, before the link closes).
+ * runner stops (`runner_stopping`, before the link closes). A runner that offers its tools opens each turn's question
+ * socket first and hands the driver its MCP server (a turn whose socket cannot open runs without it, logged).
  */
 
 /** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
@@ -35,6 +37,8 @@ export interface HarnessHost {
   readonly dirs: PrivateDirs;
   /** Whether the agent's folder is there. */
   isDirectory(path: string): boolean;
+  /** The runner's tools (its MCP server and each turn's question socket); left out, turns run without them. */
+  readonly ask?: AskHost;
   /**
    * Looks for a harness that has no driver again (no process unless its CLI is found now, then its `--version`); true
    * once it has one. Left out: a missing harness stays missing.
@@ -146,6 +150,7 @@ export class Turns {
       turn.start();
     } catch (error) {
       prepared.launch.lease?.release();
+      prepared.launch.bridge?.close();
       this.#refuse(turnId, `spawn_failed: ${messageOf(error)}`);
       return;
     }
@@ -163,21 +168,36 @@ export class Turns {
       return { refused: 'unsupported' };
     if (this.#live.size >= this.#deps.slots()) return { refused: 'busy' };
     if (!host.isDirectory(spec.cwd)) return { refused: 'home_missing' };
+    const bridge = this.#openBridge(host, frame.turnId);
     let process: ProcessSpec;
     try {
-      process = driver.turn(spec);
+      process = driver.turn(spec, bridge && host.ask && turnTools(host.ask, bridge));
     } catch (error) {
+      bridge?.close();
       return { refused: `invalid_spec: ${messageOf(error)}` };
     }
     let lease: PrivateLease | undefined;
     try {
+      for (const file of process.turnFiles ?? []) bridge?.write(file);
       lease = process.privateDir && host.dirs.acquire(process.privateDir, spec.harness, spec.cwd);
     } catch (error) {
+      bridge?.close();
       return { refused: `spawn_failed: ${messageOf(error)}` };
     }
     const extra = lease && process.privateDir ? { [process.privateDir.env]: lease.path } : {};
     const env = processEnv(host.env, process, extra);
-    return { launch: { process, cwd: spec.cwd, env, parser: driver.parser(), lease }, processes };
+    return { launch: { process, cwd: spec.cwd, env, parser: driver.parser(), lease, bridge }, processes };
+  }
+
+  /** The turn's question socket, when the runner offers its tools; a turn whose socket cannot open runs without it. */
+  #openBridge(host: HarnessHost, turnId: string): AskBridge | undefined {
+    if (host.ask === undefined) return undefined;
+    try {
+      return host.ask.open();
+    } catch (error) {
+      this.#deps.log.warn('this turn runs without the question tool', { turnId, error: messageOf(error) });
+      return undefined;
+    }
   }
 
   #refuse(turnId: string, error: string): void {

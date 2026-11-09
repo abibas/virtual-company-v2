@@ -1,7 +1,15 @@
 import type { Harness } from '@mwc/shared/enums';
 import { type TerminalSpec, TurnEvent, type TurnSpec } from '@mwc/shared/harness';
 import { checkSpec, checkTurn } from './checks.ts';
-import type { HarnessDriver, LineParser, PrivateDir, ProcessSpec, TurnNotice } from './driver.ts';
+import type {
+  HarnessDriver,
+  LineParser,
+  PrivateDir,
+  PrivateFile,
+  ProcessSpec,
+  TurnNotice,
+  TurnTools,
+} from './driver.ts';
 import type { HarnessError } from './errors.ts';
 import { failedResult, parseJsonLine } from './lines.ts';
 
@@ -31,16 +39,23 @@ export interface FakeHarnessDriverOptions {
   readonly notices?: readonly TurnNotice[];
 }
 
+/** The file a fake turn with tools asks the runner to write in the turn's folder: how to start the MCP server. */
+export const FAKE_TOOLS_FILE = 'tools.json';
+
 /**
  * A `HarnessDriver` for other packages' tests: it runs the real spec checks, records every spec (`turns`,
- * `terminals`), throws queued errors (`failNext`), and builds process specs from its options. Its parser reads lines
- * that are `TurnEvent`s themselves (`fakeLines`), so the fake binary can play any turn.
+ * `terminals`) and the tools a turn got (`tools`), throws queued errors (`failNext`), and builds process specs from its
+ * options; with tools, a turn gets `--tools <dir>`, the tools' variables and `tools.json` (the MCP server's command) to
+ * write in the turn's folder. Its parser reads lines that are `TurnEvent`s themselves (`fakeLines`), so the fake binary
+ * can play any turn.
  */
 export class FakeHarnessDriver implements HarnessDriver {
   readonly harness: Harness;
   readonly versionArgs = ['--version'] as const;
   readonly turns: TurnSpec[] = [];
   readonly terminals: TerminalSpec[] = [];
+  /** The tools each turn got (undefined: none). */
+  readonly tools: (TurnTools | undefined)[] = [];
   readonly #options: FakeHarnessDriverOptions;
   readonly #failures: HarnessError[] = [];
 
@@ -54,11 +69,21 @@ export class FakeHarnessDriver implements HarnessDriver {
     this.#failures.push(error);
   }
 
-  turn(spec: TurnSpec): ProcessSpec {
+  turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec {
     this.#throwQueued();
     checkTurn(this.harness, spec);
     this.turns.push(spec);
-    return this.#process('turn', spec.sessionId, spec.prompt);
+    this.tools.push(tools);
+    const process = this.#process('turn', spec.sessionId, spec.prompt);
+    if (tools === undefined) return process;
+    const contents = JSON.stringify({ command: tools.command, args: tools.args });
+    const file: PrivateFile = { name: FAKE_TOOLS_FILE, contents, mode: 0o600 };
+    return {
+      ...process,
+      args: [...process.args, '--tools', tools.dir],
+      env: { ...process.env, ...tools.env },
+      turnFiles: [file],
+    };
   }
 
   terminal(spec: TerminalSpec): ProcessSpec {

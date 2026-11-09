@@ -4,6 +4,7 @@ import {
   type HarnessDriver,
   type LineParser,
   type ProcessSpec,
+  type TurnTools,
 } from '@mwc/harness-core';
 import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
 import {
@@ -26,7 +27,8 @@ export interface CodexDriverOptions {
  * The Codex `HarnessDriver` (docs/harness.md, "Codex"). A turn is `codex exec --json --skip-git-repo-check … -` (or
  * `codex exec resume … <thread> -`) with the prompt on stdin; a terminal is `codex …` (or `codex resume … <thread>`).
  * Codex always runs in a home folder the runner manages (`CODEX_HOME`: the turn's `configDir`, or the runner's own per
- * `cwd`), where its threads stay between turns and its login is written for the process's lifetime only.
+ * `cwd`), where its threads stay between turns and its login is written for the process's lifetime only. With the
+ * runner's tools a turn also gets its MCP server as config overrides, and the server's variables in its environment.
  */
 export class CodexDriver implements HarnessDriver {
   readonly harness = 'codex' as const;
@@ -37,9 +39,10 @@ export class CodexDriver implements HarnessDriver {
     this.command = options.command ?? CODEX_COMMAND;
   }
 
-  turn(spec: TurnSpec): ProcessSpec {
+  turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec {
     checkTurn(this.harness, spec);
-    return this.#process(turnArgs(spec), spec, 'exec', spec.prompt);
+    const process = this.#process(turnArgs(spec, tools), spec, 'exec', spec.prompt);
+    return tools === undefined ? process : { ...process, env: { ...process.env, ...tools.env } };
   }
 
   terminal(spec: TerminalSpec): ProcessSpec {

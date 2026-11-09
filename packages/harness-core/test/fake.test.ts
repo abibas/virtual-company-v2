@@ -1,8 +1,10 @@
 import type { TurnEvent } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
+import { ASK_SOCKET_ENV, ASK_TOKEN_ENV } from '../src/driver.ts';
 import { HarnessError, isHarnessError } from '../src/errors.ts';
 import {
   FAKE_HARNESS_BIN,
+  FAKE_TOOLS_FILE,
   FakeHarnessDriver,
   fakeLines,
   fakeTerminalSpec,
@@ -27,6 +29,25 @@ describe('FakeHarnessDriver', () => {
     expect(driver.terminal(terminal)).toMatchObject({ args: ['terminal', '--resume', 's-1'], stdin: null });
     expect(driver.turns).toEqual([turn]);
     expect(driver.terminals).toEqual([terminal]);
+  });
+
+  it('gives a turn with tools their folder, variables and file, and records them', () => {
+    const driver = new FakeHarnessDriver({ env: { KEEP: '1' } });
+    const env = { [ASK_SOCKET_ENV]: '/state/turns/a/ask.sock', [ASK_TOKEN_ENV]: 'token' };
+    const tools = { dir: '/state/turns/a', command: '/usr/bin/node', args: ['/opt/runner.mjs', 'mcp'], env };
+    expect(driver.turn(fakeTurnSpec('claude_code'), tools)).toMatchObject({
+      args: ['turn', '--tools', '/state/turns/a'],
+      env: { KEEP: '1', MWC_ASK_SOCKET: '/state/turns/a/ask.sock', MWC_ASK_TOKEN: 'token' },
+      turnFiles: [
+        {
+          name: FAKE_TOOLS_FILE,
+          contents: '{"command":"/usr/bin/node","args":["/opt/runner.mjs","mcp"]}',
+          mode: 0o600,
+        },
+      ],
+    });
+    driver.turn(fakeTurnSpec('claude_code'));
+    expect(driver.tools).toEqual([tools, undefined]);
   });
 
   it('points at the fake binary with its options', () => {

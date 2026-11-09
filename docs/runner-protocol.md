@@ -82,6 +82,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `authJson?` (a harness terminal's rewritten Codex login, never relayed to the browser), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `runner_updating`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
 | `runner.update.result` | `cmdId`, `ok`, `build?` (the new build, when `ok`), `error?` (`<code>: <words>`, the code one of `RUNNER_UPDATE_ERRORS`: `unsupported`, `busy`, `download_failed`, `hash_mismatch`, `write_failed`) | the answer to `runner.update` (instead of `cmd.ack`); after an `ok` the runner restarts |
 | `turn.events` | `turnId`, `events[1–100]{seq ≥ 1, event}` (`event` a `TurnEvent` of `@mwc/shared/harness`) | a chat turn's next events, in order (S5.1b, "Chat turns" below); no answer |
+| `turn.question` | `turnId`, `seq ≥ 1` (its number among the turn's events), `questionId` (the runner's UUID), `questions` (1–4 `AskQuestion`s: `question`, `header`, `options[2–8]{label, description}`, `multiSelect`) | the agent called the runner's `ask_user_question` tool (S5.2 step 4, "Chat turns" below); no answer: the person's answer comes as the chat's next turn |
 | `fs.result` | `cmdId`, `ok`, `error?` (`<code>: <words>`, the code one of `FOLDER_ERRORS`), `path?` (resolved, absolute), and for a listing `parent?` (null at `/` and at the container's root), `entries?[≤ 500]{name, git, claudeMd}`, `truncated?`, `home?` (the runner user's home), `root?` (`/work` in a container, else null) | the answer to `fs.list` and `fs.mkdir` (instead of `cmd.ack`; "Folders" below) |
 | `turn.end` | `turnId`, `ok`, `exitCode` (int\|null), `error?` (a `TURN_ERRORS` code, optionally `: ` and words), `authJson?` (a Codex login the process rewrote, a JSON object of at most 64 KB) | once per turn, after its last events; no answer |
 
@@ -201,12 +202,12 @@ buffer is over 1 MB, until it is down to 256 KB.
 
 ## Chat turns
 
-Added in S5.1b (`runner-protocol/turns.ts`; how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
+Added in S5.1b (`runner-protocol/turns.ts`, `turn.question` in S5.2; how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
 sends `turn.start` only to a runner whose hello gave the harness's CLI version (`caps.harnesses`, read with
 `harnessVersionOf`: undefined for a runner older than chats, which the server refuses as `runner_outdated`; null for a
 missing CLI, `harness_missing`). The turn frames are no commands (no `cmdId`, no `cmd.ack`): `turn.start` is answered by
-`turn.events` (zero or more, in order, each event numbered from 1 per turn) and exactly one `turn.end`, after the last
-events. The spec carries the credential the server resolved for this turn only; the runner never logs it, its
+`turn.events` (zero or more, in order, each event numbered from 1 per turn), `turn.question` (zero or more, numbered
+among the events) and exactly one `turn.end`, after the last events. The spec carries the credential the server resolved for this turn only; the runner never logs it, its
 environment values or `auth.json`.
 
 - **Refusals.** A start the runner does not carry out is answered at once with `turn.end {ok: false, exitCode: null,
@@ -222,6 +223,16 @@ environment values or `auth.json`.
   (`TURN_EVENTS_BATCH_BYTES`) or 100 events; a text event over 16 KB is split into several (each keeping its
   `parentId`) and a result's text is cut, so every frame fits the 256 KB frame limit (the other events are small by
   their limits: a thinking text at most 20 000 characters, a to-do list 100 items of 300).
+- **Questions** (S5.2 step 4, docs/harness.md "Asking the person"). The runner gives each turn its MCP server
+  (`runner.mjs mcp`) and a private Unix socket: the folder `<state>/turns/<12 hex>/` (0700) holds `ask.sock` (made
+  before the process starts, gone with the folder when it ends) and the driver's files (Claude Code's `mcp.json`,
+  0600); `MWC_ASK_SOCKET` and `MWC_ASK_TOKEN` (32 random bytes, hex) reach the MCP server through that file or, for
+  Codex, its environment. On the socket each call is one line `{token, questions}` answered by one line `{ok: true,
+  text}` or `{ok: false, error}` (a token compared in constant time, 64 KB a line, 10 s). A call the runner takes
+  flushes the turn's waiting events, takes the next event number and sends `turn.question {turnId, seq, questionId,
+  questions}`, so the events before it arrive first; the server stores it as the turn's `question` event. A call while
+  the turn stops, or while the link is down, is answered as not shown; nothing is queued. Tool approvals (S6) are
+  meant to ride the same socket.
 - **The link.** A turn belongs to the connection that carried its `turn.start`: when the link drops the runner ends its
   processes by the stop ladder (nothing can reach the server then), and the server fails the turns of that connection
   (`machine_disconnected`). Nothing is re-attached after a reconnect yet (S5 proper). Live turns count for the runner's
