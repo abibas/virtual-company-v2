@@ -16,6 +16,7 @@ export {
 } from './args.ts';
 export { contextEvents, forgetContext, resultContext } from './context.ts';
 export { ClaudeCodeDriver, type ClaudeCodeDriverOptions } from './driver.ts';
+export { INPUT_ARGS, inputEvent, isReplay, userLine } from './input.ts';
 export { assistantEvents, resultEvents, todoEvent, userEvents } from './messages.ts';
 export { ClaudeLineParser } from './parser.ts';
 export { type ClaudeState, newClaudeState, parentOf, type SubagentState } from './state.ts';

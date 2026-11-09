@@ -1,10 +1,11 @@
 import { Folder, MessageSquare, Server, SquareTerminal } from 'lucide-react';
-import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../api/types.ts';
-import type { StreamState } from '../../api/use-chat-live.ts';
-import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
-import { harnessLabel } from '../../components/org/agent-labels.ts';
-import { AgentAvatar } from '../../components/org/OrgNodeCard.tsx';
-import { Badge } from '../../components/ui/Badge.tsx';
+import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../../api/types.ts';
+import type { StreamState } from '../../../api/use-chat-live.ts';
+import { SegmentedControl, type SegmentOption } from '../../../components/forms/Segmented.tsx';
+import { harnessLabel } from '../../../components/org/agent-labels.ts';
+import { AgentAvatar } from '../../../components/org/OrgNodeCard.tsx';
+import { Badge } from '../../../components/ui/Badge.tsx';
+import { OpenInClaudeCode } from './OpenInClaudeCode.tsx';
 import { ProfilePicker } from './ProfilePicker.tsx';
 
 export type ChatMode = 'chat' | 'terminal';
@@ -38,10 +39,13 @@ function WhereLine({ placement }: { readonly placement: AgentPlacement | undefin
 }
 
 /**
- * The open chat's header (S5.1c): the agent, where it runs, the harness, the access profile picker and the Chat /
- * Terminal switch (the terminal for owners only).
+ * The open chat's header (S5.1c): the agent, where it runs, the harness, "Open in Claude Code" for admins once the chat
+ * has a conversation (S5.2 step 6), the access profile picker and the Chat / Terminal switch (the terminal for owners
+ * only).
  */
 export function ChatHeader({
+  companyId,
+  sessionCwd,
   agent,
   placement,
   chat,
@@ -53,6 +57,9 @@ export function ChatHeader({
   onMode,
   onProfile,
 }: {
+  readonly companyId: string;
+  /** The folder the conversation began in (its last `init`'s), for "Open in Claude Code". */
+  readonly sessionCwd: string | undefined;
   readonly agent: AgentDetail;
   readonly placement: AgentPlacement | undefined;
   readonly chat: Chat;
@@ -96,6 +103,9 @@ export function ChatHeader({
         </p>
       </div>
       <div className="flex flex-wrap items-start gap-2">
+        {admin && (
+          <OpenInClaudeCode companyId={companyId} chat={chat} placement={placement} sessionCwd={sessionCwd} />
+        )}
         <ProfilePicker
           chat={chat}
           agentProfileName={agent.profile?.name ?? null}

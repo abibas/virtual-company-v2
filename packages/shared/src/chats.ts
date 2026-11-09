@@ -1,6 +1,6 @@
 /**
  * Chats with an agent (S5.1b, docs/harness.md "How a turn runs"): the limits the API, the database and the web share
- * (an agent's questions' too, S5.2), and the id of a chat event on the chat's stream (`GET …/chats/{chatId}/stream`,
+ * (an agent's questions' too, S5.2), the order of a chat's queue (S5.2 step 6), and the id of a chat event on the chat's stream (`GET …/chats/{chatId}/stream`,
  * Server-Sent Events), which the web sends back as `Last-Event-ID` to get what it missed.
  */
 
@@ -9,6 +9,24 @@ export const CHAT_TITLE = { min: 1, max: 80 } as const;
 
 /** One prompt: 1 to 20 000 characters. */
 export const CHAT_PROMPT = { min: 1, max: 20_000 } as const;
+
+/** The most messages a chat keeps waiting for its running turn (S5.2 step 6). */
+export const CHAT_QUEUE_MAX = 10;
+
+/** What orders a chat's queue: how the message was sent, and its number in the chat. */
+export interface QueuedPlace {
+  readonly delivery: 'now' | 'after' | 'interrupt' | null;
+  readonly seq: number;
+}
+
+/**
+ * The order a chat's queued turns start in (docs/harness.md, "Delivery while a turn runs"): a message sent Now that the
+ * running turn did not take, and one that interrupts, before the ones sent for after the turn; each group oldest first.
+ */
+export function queueOrder(a: QueuedPlace, b: QueuedPlace): number {
+  const first = (place: QueuedPlace) => (place.delivery === 'after' ? 1 : 0);
+  return first(a) - first(b) || a.seq - b.seq;
+}
 
 /** The runner's question tool (S5.2 step 4, `harness/questions.ts`) and its MCP server's name. */
 export const ASK_TOOL = 'ask_user_question';

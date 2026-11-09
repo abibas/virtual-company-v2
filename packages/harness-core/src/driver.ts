@@ -53,7 +53,8 @@ export type TurnNotice = TurnEventOf<'notice'>;
 /**
  * How to start one turn or terminal (pure data: nothing runs). The runner starts `command` in the spec's `cwd` with
  * its own environment minus `MWC_*` and minus `unsetEnv`, plus `env`; it writes `stdin` to the process and closes it
- * (a terminal gets the pseudo-terminal instead).
+ * (a terminal gets the pseudo-terminal instead), or with `stdinOpen` keeps it open for the person's messages while the
+ * turn runs (`HarnessDriver.inputLine`) and closes it once the harness answered them all (`LineParser.settled`).
  */
 export interface ProcessSpec {
   /** The program: a name looked up on PATH, or the full path a driver was given. */
@@ -66,6 +67,11 @@ export interface ProcessSpec {
   readonly unsetEnv: readonly string[];
   /** The prompt, written to stdin and then closed (never an argument); null for a terminal. */
   readonly stdin: string | null;
+  /**
+   * The harness takes more messages on stdin while the turn runs (S5.2 step 6, Claude Code's stream-json input): the
+   * runner keeps stdin open after `stdin` and closes it after a `result` once every message it wrote was taken.
+   */
+  readonly stdinOpen?: boolean;
   readonly privateDir?: PrivateDir;
   /** Files the runner writes in the turn's tools folder (`TurnTools.dir`) before the start: Claude Code's MCP config. */
   readonly turnFiles?: readonly PrivateFile[];
@@ -82,6 +88,11 @@ export interface ProcessSpec {
 export interface LineParser {
   feed(line: string): TurnEvent[];
   end(exitCode: number | null, stderrTail: string): TurnEvent[];
+  /**
+   * With `stdinOpen`: true once the harness answered every message it took (its last line was a result and it says
+   * nothing waits), so stdin may close. Left out: true after any result.
+   */
+  settled?(): boolean;
 }
 
 /**
@@ -99,4 +110,9 @@ export interface HarnessDriver {
   terminal(spec: TerminalSpec): ProcessSpec;
   /** A new parser for one turn's output. */
   parser(): LineParser;
+  /**
+   * The stdin line that gives a running turn of a `stdinOpen` process the person's message `text` (S5.2 step 6). The
+   * harness's echo of it once it takes it is an `input` event with `inputId` = `id`. Left out: no message mid-turn.
+   */
+  inputLine?(text: string, id: string): string;
 }

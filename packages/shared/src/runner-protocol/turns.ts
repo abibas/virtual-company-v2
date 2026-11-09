@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAT_PROMPT } from '../chats.ts';
 import { Harness } from '../enums.ts';
 import { AskQuestions, CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts';
 import { ErrorText, frame, protocolObject, Uuid } from './common.ts';
@@ -6,7 +7,8 @@ import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 
 /**
  * Chat turns (S5.1b, docs/harness.md "How a turn runs"): the server asks a runner for one turn of a harness
- * (`turn.start`, with the credential it resolved) and may stop it (`turn.stop`); the runner sends the turn's events as
+ * (`turn.start`, with the credential it resolved), may send the person's message into it while it runs (`turn.input`,
+ * S5.2 step 6) and may stop it (`turn.stop`); the runner sends the turn's events as
  * they come (`turn.events`, batched), a question the agent asked through the runner's tool (`turn.question`, S5.2) and
  * how it ended (`turn.end`, once). A turn belongs to the connection that carried its `turn.start`: when the link drops
  * the runner ends its process and the server fails the turn. And what a runner says of its harnesses in its hello: each
@@ -80,6 +82,20 @@ export const TurnStop = frame('turn.stop', {
 });
 export type TurnStop = z.infer<typeof TurnStop>;
 
+/**
+ * Server to runner: the person's message for the running turn (S5.2 step 6, docs/harness.md "Delivery while a turn
+ * runs"). A turn whose harness takes messages mid-turn (Claude Code's stream-json input) gets it on its stdin, and the
+ * harness's echo once it takes it comes back as an `input` event carrying `inputId`; any other turn, a turn that no
+ * longer reads its input (its result came and its stdin closed) and a runner older than this frame drop it, and the
+ * server starts the message as the next turn instead. No answer.
+ */
+export const TurnInput = frame('turn.input', {
+  turnId: Uuid,
+  inputId: Uuid,
+  text: z.string().min(CHAT_PROMPT.min).max(CHAT_PROMPT.max),
+});
+export type TurnInput = z.infer<typeof TurnInput>;
+
 /** One event of a turn, numbered from 1 in the order the runner read it. */
 export const TurnEventItem = protocolObject({
   seq: z.int().min(1),
@@ -123,8 +139,8 @@ export const TurnEnd = frame('turn.end', {
 export type TurnEnd = z.infer<typeof TurnEnd>;
 
 /** The turn frames the server sends. */
-export const TURN_SERVER_FRAMES = [TurnStart, TurnStop] as const;
-export type TurnServerFrame = TurnStart | TurnStop;
+export const TURN_SERVER_FRAMES = [TurnStart, TurnInput, TurnStop] as const;
+export type TurnServerFrame = TurnStart | TurnInput | TurnStop;
 
 /** The turn frames a runner sends. */
 export const TURN_RUNNER_FRAMES = [TurnEvents, TurnQuestion, TurnEnd] as const;

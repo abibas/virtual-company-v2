@@ -78,6 +78,62 @@ describe('ClaudeLineParser after the result', () => {
   });
 });
 
+describe('ClaudeLineParser with stream-json input', () => {
+  const MESSAGE_ID = '0a8d6c3e-5f1b-4c2a-9e7d-3b6f1a2c4d5e';
+  const echo = (uuid: string, text: string) =>
+    line({
+      type: 'user',
+      isReplay: true,
+      uuid,
+      message: { role: 'user', content: [{ type: 'text', text }] },
+    });
+  const reply = line({ type: 'assistant', message: { content: [{ type: 'text', text: 'On staging.' }] } });
+
+  it('gives an echo as input, settles at a result with nothing queued, and not before', () => {
+    const parser = new ClaudeLineParser();
+    parser.feed(init);
+    expect(parser.settled()).toBe(false);
+    expect(parser.feed(echo(MESSAGE_ID, 'Use staging'))).toEqual([
+      { type: 'input', text: 'Use staging', inputId: MESSAGE_ID },
+    ]);
+    expect(parser.feed(reply)).toEqual([{ type: 'text', text: 'On staging.' }]);
+    parser.feed(line({ type: 'result', subtype: 'success', result: 'Hi', queued_turn_count: 1 }));
+    expect(parser.settled()).toBe(false);
+    expect(parser.feed(reply)).toEqual([{ type: 'text', text: 'On staging.' }]);
+    expect(parser.end(0, '')).toEqual([]);
+    parser.feed(line({ type: 'result', subtype: 'success', result: 'Hi', queued_turn_count: 0 }));
+    expect(parser.settled()).toBe(true);
+    expect(parser.feed(reply)).toEqual([]);
+  });
+
+  it('goes on after the result when Claude Code takes a message as one more turn, to its own result', () => {
+    const parser = new ClaudeLineParser();
+    parser.feed(init);
+    parser.feed(result);
+    expect(parser.settled()).toBe(true);
+    expect(parser.feed(reply)).toEqual([]);
+    expect(parser.feed(echo(MESSAGE_ID.toUpperCase(), 'And the logs'))).toEqual([
+      { type: 'input', text: 'And the logs', inputId: MESSAGE_ID },
+    ]);
+    expect(parser.settled()).toBe(false);
+    expect(parser.feed(reply)).toEqual([{ type: 'text', text: 'On staging.' }]);
+    expect(parser.end(null, '')).toEqual([
+      { type: 'result', ok: false, error: 'Claude Code was stopped before it finished the turn' },
+    ]);
+  });
+
+  it('ignores an echo without a usable uuid, and reads a string content', () => {
+    const parser = new ClaudeLineParser();
+    parser.feed(result);
+    expect(
+      parser.feed(line({ type: 'user', isReplay: true, uuid: 'nope', message: { content: 'x' } })),
+    ).toEqual([]);
+    expect(
+      parser.feed(line({ type: 'user', isReplay: true, uuid: MESSAGE_ID, message: { content: 'x' } })),
+    ).toEqual([{ type: 'input', text: 'x', inputId: MESSAGE_ID }]);
+  });
+});
+
 describe('ClaudeLineParser.end', () => {
   it('gives nothing once a result came, whatever the exit code', () => {
     const parser = new ClaudeLineParser();

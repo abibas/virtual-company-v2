@@ -9,6 +9,7 @@ import {
   TURN_ERRORS,
   TurnEnd,
   TurnEvents,
+  TurnInput,
   TurnQuestion,
   TurnStart,
   TurnStop,
@@ -50,6 +51,16 @@ describe('the turn frames', () => {
     expect(issuesOf(TurnStart, { ...start, spec: { ...TURN_SPEC, prompt: '' } })).toEqual(['spec.prompt']);
     expect(issuesOf(TurnStart, { ...start, spec: { ...TURN_SPEC, cwd: 'relative' } })).toEqual(['spec.cwd']);
     expect(issuesOf(TurnStop, SERVER_EXAMPLES['turn.stop'])).toEqual([]);
+  });
+
+  it("send the person's message into a running turn with its id, a prompt's length at most", () => {
+    const input = SERVER_EXAMPLES['turn.input'];
+    expect(issuesOf(TurnInput, input)).toEqual([]);
+    expect(isTurnFrame(input)).toBe(true);
+    expect(issuesOf(TurnInput, { ...input, inputId: 'i-1' })).toEqual(['inputId']);
+    expect(issuesOf(TurnInput, { ...input, text: '' })).toEqual(['text']);
+    expect(issuesOf(TurnInput, { ...input, text: 'x'.repeat(20_001) })).toEqual(['text']);
+    expect(issuesOf(TurnInput, without(input, 'turnId'))).toEqual(['turnId']);
   });
 
   it('carry 1 to 100 numbered events of the known types', () => {

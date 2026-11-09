@@ -26,7 +26,8 @@ import { turnView } from './views.ts';
  * the runner (`turn.start`) with its sink in place, so its events and end land in the database and the chat's stream;
  * the first prompt is the chat's title. A stop asks the runner to stop it; its end says `stopped`. A Compact is such a
  * turn too, of kind `compact` (`conversation.ts`), and so is an answer to the agent's question (`answers.ts`), which
- * checks and marks its question in the transaction that records the turn.
+ * checks and marks its question in the transaction that records the turn. A message sent while a turn runs waits in
+ * the chat's queue instead (`queue.ts`, S5.2 step 6), which starts it through `launch` once the running turn ended.
  */
 
 export interface TurnsDeps extends TargetDeps {
@@ -41,7 +42,7 @@ export interface TurnCaller {
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
 
-const INVALID_SPEC = (paths: string) =>
+export const INVALID_SPEC = (paths: string) =>
   refuse(422, 'invalid_spec', `The agent's settings cannot start a turn (${paths}): fix them on the agent`);
 
 /** What kind of turn to start (a prompt, a `/compact`), and why this chat may not have one, beyond a turn's checks. */
@@ -106,8 +107,7 @@ export async function startTurn(
   });
   if (!target.ok) return target;
   const spec = TurnSpec.safeParse({ ...target.spec, prompt });
-  if (!spec.success)
-    return INVALID_SPEC([...new Set(spec.error.issues.map((i) => i.path.join('.')))].join(', '));
+  if (!spec.success) return INVALID_SPEC(specIssues(spec.error));
   const now = deps.clock();
   const turn = await record(
     t,
@@ -127,11 +127,19 @@ export async function startTurn(
   );
   if ('ok' in turn) return turn;
   const { credentialId, ownerUserId, kind } = target;
-  return send(deps, t, turn, chat.machineId, { credentialId, ownerUserId, kind }, spec.data);
+  return launch(deps, t, turn, chat.machineId, { credentialId, ownerUserId, kind }, spec.data);
 }
 
-/** Sends the recorded turn to its machine's runner; one gone in the meantime fails it at once (`machine_offline`). */
-async function send(
+/** Why a spec failed its schema: the paths of its issues, once each. */
+export const specIssues = (error: {
+  readonly issues: readonly { readonly path: readonly PropertyKey[] }[];
+}) => [...new Set(error.issues.map((i) => i.path.join('.')))].join(', ');
+
+/**
+ * Sends the recorded turn to its machine's runner and tells the stream; one gone in the meantime fails it at once
+ * (`machine_offline`).
+ */
+export async function launch(
   deps: TurnsDeps,
   t: TenantDb,
   turn: ChatTurn,

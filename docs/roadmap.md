@@ -233,6 +233,23 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    JSON-RPC, the `mcp` command, the socket and its token, a turn whose fake process asks, both drivers' arguments, the
    frame, and the server's storage, stream, detail and route on PGlite; no real turn run, no frontend tests. Tool
    approvals can ride the same bridge in S6.
+   **S5.2 step 6, delivery while the agent works: done 2026-11-10** (docs/harness.md "Delivery while a turn runs" and
+   "Open in Claude Code", docs/runner-protocol.md "Chat turns"). The composer stays open while a turn runs: Now, After
+   this turn or Interrupt (the last choice remembered per browser). `POST …/chats/{chatId}/turns {prompt, delivery}`
+   queues a message (202 `queued`, ten at most: `queue_full`); without a delivery a running turn still refuses
+   (`turn_running`). Interrupt stops the running turn and starts first; after every turn's end the next waiting turn
+   starts as its sender, resuming the session (a refused one fails in words, the next is tried; an overtaken one is
+   renumbered after the last). Now is Claude Code's: every Claude turn now runs with `--input-format stream-json
+   --replay-user-messages` (checked with `claude --help` 2.1.321), the prompt the first stdin line, stdin open until a
+   settled result; new frame `turn.input {turnId, inputId, text}`, the harness's echo a new `input` event that removes
+   the waiting turn; one not taken starts next. Waiting messages: `PATCH`/`DELETE …/turns/{turnId}` and `POST
+   …/turns/{turnId}/deliver {now|interrupt}`, listed above the composer; the detail's `queue`; the stream's `removed`.
+   Migration `0014_chat_turn_queue` (the one-live index on `running` only, `chat_turns.delivery`). "Open in Claude Code"
+   in the chat header: copyable resume commands for a Mac, the devbox (`airia devbox ssh -- -t "…"`) and a Docker
+   runner (`docker exec -it … sh -lc "…"`), `codex resume` for Codex (`@mwc/shared/resume`). Tests: the queue rules and
+   routes on PGlite with `FakeRunner`, the drain's races, the index, the runner's stdin in input mode, the driver's
+   arguments and the parser's echoes, the `input` event and frame, the commands' quoting read back through `/bin/sh`; no
+   real turn run, no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

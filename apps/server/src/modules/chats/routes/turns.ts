@@ -5,12 +5,14 @@ import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { ChatParamsSchema, ChatTurnSchema, CreateTurnSchema, TurnParamsSchema } from '../schemas.ts';
-import { startTurn, stopTurn, type TurnsDeps } from '../service/turns.ts';
+import { type QueueDeps, sendMessage } from '../service/queue.ts';
+import { stopTurn } from '../service/turns.ts';
 
 /**
  * A chat's turns (S5.1b): `POST /api/companies/{companyId}/chats/{chatId}/turns` sends a prompt to the agent on its
- * machine (202: the turn runs; its events come on the chat's stream), `POST …/turns/{turnId}/stop` stops a running one.
- * Admins and owners only.
+ * machine (202: the turn runs, or with a `delivery` waits for the running one, S5.2 step 6; its events come on the
+ * chat's stream), `POST …/turns/{turnId}/stop` stops a running one. The waiting ones are `routes/queue.ts`'s. Admins
+ * and owners only.
  */
 
 const TURNS = '/api/companies/{companyId}/chats/{chatId}/turns' as const;
@@ -21,7 +23,9 @@ export const TURN_REFUSALS = {
     'The chat is archived (`chat_archived`), a turn of it runs (`turn_running`), the agent has no placement ' +
     '(`placement_missing`), runs in a container (`container_runs_later`), moved to another machine ' +
     "(`machine_changed`: start a new chat) or changed harness (`harness_changed`), its machine's runner is not " +
-    'connected (`machine_offline`), is older than chats (`runner_outdated`) or has no such CLI (`harness_missing`)',
+    'connected (`machine_offline`), is older than chats (`runner_outdated`) or has no such CLI (`harness_missing`); ' +
+    'with a `delivery`: ten messages wait already (`queue_full`), or the running turn takes no message now ' +
+    '(`now_unsupported`: Codex, or a compaction)',
   422:
     'No access profile (`profile_missing`), an empty slot for the harness (`profile_slot_empty`), a subscription ' +
     'that is gone, revoked, signed out or of the wrong kind (`credential_not_found`, `credential_revoked`, ' +
@@ -40,9 +44,9 @@ const startRoute = (deps: ServerDeps) => {
       "when due, handed to the runner for this turn only. Its events, and its end, come on the chat's stream.",
     request: { params: ChatParamsSchema, body: jsonBody(CreateTurnSchema) },
     responses: {
-      202: jsonResponse('The turn, running', ChatTurnSchema),
+      202: jsonResponse('The turn: running, or waiting (`queued`) with its delivery', ChatTurnSchema),
       400: errorResponse(
-        'The request does not match the schema (`invalid_request`): a prompt of 1–20 000 characters',
+        'The request does not match the schema (`invalid_request`): a prompt of 1–20 000 characters, a known delivery',
       ),
       ...refusals,
       404: errorResponse(
@@ -71,12 +75,13 @@ const stopRoute = (deps: ServerDeps) => {
   });
 };
 
-export function turnRoutes(deps: ServerDeps & TurnsDeps) {
+export function turnRoutes(deps: ServerDeps & QueueDeps) {
   return newRouter()
     .openapi(startRoute(deps), async (c) => {
       const { chatId } = c.req.valid('param');
       const caller = { principalId: c.var.membership.principalId };
-      const result = await startTurn(deps, c.var.tenant, caller, chatId, c.req.valid('json').prompt);
+      const { prompt, delivery } = c.req.valid('json');
+      const result = await sendMessage(deps, c.var.tenant, caller, chatId, prompt, delivery);
       if (!result.ok)
         return errorJson(c, result.status as 404 | 409 | 422 | 503, result.code, result.message);
       return c.json(result.turn, 202);

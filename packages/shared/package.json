@@ -19,6 +19,7 @@
     "./machines": "./src/machines.ts",
     "./org": "./src/org.ts",
     "./ports": "./src/ports.ts",
+    "./resume": "./src/resume.ts",
     "./roles": "./src/roles.ts",
     "./runner-protocol": "./src/runner-protocol.ts",
     "./slugs": "./src/slugs.ts"

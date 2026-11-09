@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 14, the last is `0013_chat_turn_kind`.
+Tables: 29. Migrations: 15, the last is `0014_chat_turn_queue`.
 
 ```mermaid
 erDiagram
@@ -96,6 +96,7 @@ erDiagram
     text kind "not null, default 'message', message|compact|clear"
     text prompt "not null"
     text status "not null, default 'queued', queued|running|done|failed|stopped"
+    text delivery "nullable, now|after|interrupt"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     timestamptz started_at "nullable"
@@ -629,6 +630,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `kind` | `text` | no | `'message'` |  | `message`, `compact`, `clear` |
 | `prompt` | `text` | no |  |  |  |
 | `status` | `text` | no | `'queued'` |  | `queued`, `running`, `done`, `failed`, `stopped` |
+| `delivery` | `text` | yes |  |  | `now`, `after`, `interrupt` |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `started_at` | `timestamp with time zone` | yes |  |  |  |
@@ -650,12 +652,13 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
   - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
+  - `chat_turns_delivery_check`: `delivery` is one of `now`, `after`, `interrupt`
   - `chat_turns_clear_check`: `"kind" <> 'clear' or ("status" = 'done' and "credential_id" is null)`
   - `chat_turns_seq_check`: `"seq" >= 1`
   - `chat_turns_prompt_check`: `char_length("prompt") between 1 and 20000`
   - `chat_turns_usage_check`: `"usage" is null or jsonb_typeof("usage") = 'object'`
 - **Indexes:**
-  - `chat_turns_one_live_idx` on (`company_id`, `chat_id`), unique, where `"status" in ('queued', 'running')`
+  - `chat_turns_one_running_idx` on (`company_id`, `chat_id`), unique, where `"status" = 'running'`
   - `chat_turns_status_idx` on (`status`)
 
 ### `chats`

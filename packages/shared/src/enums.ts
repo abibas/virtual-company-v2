@@ -158,8 +158,8 @@ export const PermissionPolicy = z.enum(['ask', 'bypass']);
 export type PermissionPolicy = z.infer<typeof PermissionPolicy>;
 
 /**
- * `chat_turns.status` (S5.1b, docs/harness.md): a chat turn waiting for its machine (`queued`, kept for the queue that
- * comes with runs), its process running there (`running`), and how it ended: with its result (`done`), failed or
+ * `chat_turns.status` (S5.1b, docs/harness.md): a chat turn waiting in the chat's queue for the running one to end
+ * (`queued`, S5.2 step 6), its process running there (`running`), and how it ended: with its result (`done`), failed or
  * refused (`failed`), or stopped by a person (`stopped`).
  */
 export const ChatTurnStatus = z.enum(['queued', 'running', 'done', 'failed', 'stopped']);
@@ -172,3 +172,12 @@ export type ChatTurnStatus = z.infer<typeof ChatTurnStatus>;
  */
 export const ChatTurnKind = z.enum(['message', 'compact', 'clear']);
 export type ChatTurnKind = z.infer<typeof ChatTurnKind>;
+
+/**
+ * `chat_turns.delivery` (S5.2 step 6, docs/harness.md "Delivery while a turn runs"): how a message sent while the agent
+ * worked was to reach it: into the running turn (`now`; Claude Code only, the turn takes it at its next step), as the
+ * next turn once the running one ends (`after`), or by stopping the running turn and starting next (`interrupt`). Null
+ * for a turn that started at once.
+ */
+export const ChatTurnDelivery = z.enum(['now', 'after', 'interrupt']);
+export type ChatTurnDelivery = z.infer<typeof ChatTurnDelivery>;

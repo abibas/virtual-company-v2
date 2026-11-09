@@ -1,13 +1,15 @@
 import type { ChatStreamEvent, ChatTurnView } from '../schemas.ts';
 
 /**
- * What a chat's stream listeners hear (S5.1b): a turn that started or changed status, and each event stored. Memory
- * only, in this server process: a listener that missed something reads it back from the database (`Last-Event-ID`).
+ * What a chat's stream listeners hear (S5.1b): a turn that started or changed status, each event stored, and a waiting
+ * message that went (S5.2 step 6: discarded, or taken into the running turn). Memory only, in this server process: a
+ * listener that missed something reads it back from the database (`Last-Event-ID`, or the chat's detail).
  */
 
 export type ChatMessage =
   | { readonly kind: 'turn'; readonly turn: ChatTurnView }
-  | { readonly kind: 'event'; readonly event: ChatStreamEvent };
+  | { readonly kind: 'event'; readonly event: ChatStreamEvent }
+  | { readonly kind: 'removed'; readonly turnId: string };
 
 export type ChatListener = (message: ChatMessage) => void;
 

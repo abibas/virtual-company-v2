@@ -40,6 +40,8 @@ export interface TurnSink {
 /** One started turn, as its starter drives it. Nothing is sent once it ended. */
 export interface TurnChannel {
   readonly turnId: string;
+  /** Gives it the person's message (`turn.input`, S5.2 step 6); its echo comes back as an `input` event, or nothing. */
+  input(inputId: string, text: string): void;
   /** Asks the runner to stop it (`turn.stop`); its `turn.end` follows. */
   stop(): void;
 }
@@ -66,12 +68,14 @@ export function turnBoard() {
       const own = turns.get(connection) ?? new Map<string, TurnSink>();
       turns.set(connection, own.set(turnId, sink));
       connection.link.send(encodeFrame({ type: 'turn.start', turnId, spec: request.spec }));
+      const live = () => own.has(turnId) && turns.get(connection) === own;
       return {
         turnId,
+        input: (inputId, text) => {
+          if (live()) connection.link.send(encodeFrame({ type: 'turn.input', turnId, inputId, text }));
+        },
         stop: () => {
-          if (own.has(turnId) && turns.get(connection) === own) {
-            connection.link.send(encodeFrame({ type: 'turn.stop', turnId }));
-          }
+          if (live()) connection.link.send(encodeFrame({ type: 'turn.stop', turnId }));
         },
       };
     },

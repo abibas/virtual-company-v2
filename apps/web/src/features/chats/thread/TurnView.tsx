@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import { formatTime } from '../../../components/data/format.ts';
 import { turnErrorText } from '../chat-text.ts';
+import { STARTED_NOTE } from '../delivery/delivery.ts';
 import type { TurnModel } from './model/parts.ts';
 import { turnModel } from './model/turn-model.ts';
 import { type Answering, QuestionCard } from './question/QuestionCard.tsx';
@@ -110,13 +111,15 @@ export function TurnView({
       </li>
     );
   }
+  const note = turn.delivery ? STARTED_NOTE[turn.delivery] : undefined;
   return (
     <li className="grid gap-3">
       {!place.answer && (
-        <div className="flex justify-end">
+        <div className="grid justify-items-end gap-1">
           <p className="max-w-[85%] rounded-2xl rounded-br-md bg-blue px-3.5 py-2 text-sm break-words whitespace-pre-wrap text-on-blue shadow-primary">
             {turn.prompt}
           </p>
+          {note && <span className="text-2xs text-dim">{note}</span>}
         </div>
       )}
       <Reply turn={turn} model={model} agentName={agentName} runsOn={model.init ?? chatInit} place={place} />

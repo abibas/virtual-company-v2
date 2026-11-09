@@ -242,6 +242,12 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
   'terminal.close': { type: 'terminal.close', sessionId: IDS.session },
   'runner.update': { type: 'runner.update', cmdId: IDS.cmd },
   'turn.start': { type: 'turn.start', turnId: IDS.turn, spec: TURN_SPEC },
+  'turn.input': {
+    type: 'turn.input',
+    turnId: IDS.turn,
+    inputId: IDS.input,
+    text: 'Use the staging database',
+  },
   'turn.stop': { type: 'turn.stop', turnId: IDS.turn },
   'fs.list': { type: 'fs.list', cmdId: IDS.cmd, path: '~/agents' },
   'fs.mkdir': { type: 'fs.mkdir', cmdId: IDS.cmd, path: '/Users/ihor/agents/scout' },

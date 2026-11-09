@@ -120,14 +120,30 @@ describe('chats', () => {
 });
 
 describe('chat_turns', () => {
-  it('numbers the turns of a chat once each, and keeps one queued or running at a time', async () => {
+  it('numbers the turns of a chat once each, and keeps one running at a time with any number queued', async () => {
     const chat = await insertChat();
     const first = await insertTurn(chat, { status: 'running' });
-    expect(first).toMatchObject({ status: 'running', resultText: null, usage: null });
+    expect(first).toMatchObject({ status: 'running', resultText: null, usage: null, delivery: null });
     expect(await constraint(insertTurn(chat, { seq: 1, status: 'done' }))).toBe('chat_turns_chat_seq_unique');
-    expect(await constraint(insertTurn(chat, { seq: 2 }))).toBe('chat_turns_one_live_idx');
+    expect(await constraint(insertTurn(chat, { seq: 2, status: 'running' }))).toBe(
+      'chat_turns_one_running_idx',
+    );
+    expect(await insertTurn(chat, { seq: 2, delivery: 'after' })).toMatchObject({ status: 'queued' });
+    expect(await insertTurn(chat, { seq: 3, delivery: 'interrupt' })).toMatchObject({ status: 'queued' });
     await handle.db.update(chatTurns).set({ status: 'done' }).where(eq(chatTurns.id, first.id));
-    expect(await insertTurn(chat, { seq: 2 })).toMatchObject({ status: 'queued' });
+    expect(await insertTurn(chat, { seq: 4, status: 'running', delivery: 'now' })).toMatchObject({
+      status: 'running',
+      delivery: 'now',
+    });
+    const other = await insertChat();
+    expect(await insertTurn(other, { status: 'running' })).toMatchObject({ status: 'running' });
+  });
+
+  it('takes only the known deliveries', async () => {
+    const chat = await insertChat();
+    expect(await constraint(insertTurn(chat, { delivery: 'later' as never }))).toBe(
+      'chat_turns_delivery_check',
+    );
   });
 
   it('refuses a bad status, seq, prompt or usage, and another company’s chat', async () => {

@@ -1,13 +1,14 @@
 import { z } from 'zod';
-import { protocolObject } from '../runner-protocol/common.ts';
+import { CHAT_PROMPT } from '../chats.ts';
+import { protocolObject, Uuid } from '../runner-protocol/common.ts';
 import { AnsweredEvent, QuestionEvent } from './questions.ts';
 import { HarnessSessionId } from './specs.ts';
 
 /**
  * What a turn's output means, the same for every harness (docs/harness.md, "Events"): the conversation's id and what
  * it runs on, the assistant's text and thinking, a tool call and its result (summaries only), the to-do list, the
- * subagents it started, the tokens used and how full the context is, a compaction, a notice for the person, and the
- * turn's end. A runner sends them in order as `turn.events`, numbered from 1 (docs/runner-protocol.md, "Chat turns").
+ * subagents it started, the tokens used and how full the context is, a compaction, a notice for the person, a message
+ * the person sent into the running turn (S5.2 step 6), and the turn's end. A runner sends them in order as `turn.events`, numbered from 1 (docs/runner-protocol.md, "Chat turns").
  * Two more come from elsewhere (`questions.ts`): a question the agent asked through the runner's tool, and the
  * person's answer to it, which the server adds. Every string and list has a limit; events stored before a field or
  * type was added stay valid.
@@ -155,6 +156,13 @@ export const TurnEvent = z.discriminatedUnion('type', [
     ...belongs,
   }),
   protocolObject({
+    type: z.literal('input'),
+    /** The person's message the harness took mid-turn (Claude Code's echo of it), as the runner wrote it. */
+    text: z.string().min(CHAT_PROMPT.min).max(CHAT_PROMPT.max),
+    /** The id it was sent with (`turn.input`'s): the queued turn the server keeps until the harness takes it. */
+    inputId: Uuid.optional(),
+  }),
+  protocolObject({
     type: z.literal('result'),
     ok: z.boolean(),
     /** The reply: the turn's last assistant message. */
@@ -183,6 +191,7 @@ export const TURN_EVENT_TYPES = [
   'context',
   'compact',
   'notice',
+  'input',
   'result',
   'question',
   'answered',

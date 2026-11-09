@@ -1,8 +1,8 @@
 import type { Harness } from '@mwc/shared/enums';
-import type { AccessProfile, Chat } from '../../api/types.ts';
-import { Select, type SelectOption } from '../../components/forms/Input.tsx';
-import { HARNESS_SLOT } from './chat-text.ts';
-import { useAction } from './use-action.ts';
+import type { AccessProfile, Chat } from '../../../api/types.ts';
+import { Select, type SelectOption } from '../../../components/forms/Input.tsx';
+import { HARNESS_SLOT } from '../chat-text.ts';
+import { useAction } from '../use-action.ts';
 
 /** The agent's profile: the empty value, so choosing it sends `profileId: null`. */
 const AGENTS = '';

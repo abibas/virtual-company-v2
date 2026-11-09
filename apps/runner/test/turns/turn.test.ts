@@ -16,9 +16,10 @@ function turnOf(driver: ClaudeCodeDriver | FakeHarnessDriver, prompt = 'Hi') {
   const sent: TurnRunnerFrame[] = [];
   const ended: string[] = [];
   const process = driver.turn(fakeTurnSpec('claude_code', { prompt }));
+  const inputLine = process.stdinOpen ? driver.inputLine.bind(driver) : undefined;
   const turn = new TurnProcess(
     newId(),
-    { process, cwd: '/home/agent/work', env: {}, parser: driver.parser(), lease: undefined },
+    { process, cwd: '/home/agent/work', env: {}, parser: driver.parser(), lease: undefined, inputLine },
     {
       spawn: spawn.spawn,
       killGroup: spawn.killGroup,
@@ -80,8 +81,18 @@ describe('one turn process', () => {
     );
     t.turn.start();
     await vi.waitFor(() => expect(t.end()).toBeDefined());
-    expect(t.spawn.calls[0]?.args).toEqual(['-p', '--output-format', 'stream-json', '--verbose']);
-    expect(t.spawn.calls[0]?.child.input).toBe('What is 2 + 2?');
+    expect(t.spawn.calls[0]?.args).toEqual([
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--input-format',
+      'stream-json',
+      '--replay-user-messages',
+    ]);
+    const first = JSON.parse(t.spawn.calls[0]?.child.input ?? '');
+    expect(first.message.content).toEqual([{ type: 'text', text: 'What is 2 + 2?' }]);
+    expect(t.spawn.calls[0]?.child.inputClosed).toBe(true);
     expect(t.events()[0]).toEqual({ type: 'session', sessionId: CLAUDE_SESSION_ID });
     expect(t.events().at(-1)).toMatchObject({ type: 'result', ok: true });
     expect(t.end()).toMatchObject({ ok: true, exitCode: 0 });

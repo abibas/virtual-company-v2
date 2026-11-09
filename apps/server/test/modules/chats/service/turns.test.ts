@@ -53,7 +53,7 @@ describe('startTurn', () => {
   it('takes one of two prompts sent at the same moment, and refuses the other as turn_running', async () => {
     const s = await scene(w);
     const t = await tenant(w.t.db, s.company.companyId);
-    const channel = (turnId: string): TurnChannel => ({ turnId, stop: () => {} });
+    const channel = (turnId: string): TurnChannel => ({ turnId, input: () => {}, stop: () => {} });
     const deps = depsWith((_machineId, request) => channel(request.turnId));
     const results = await Promise.all([
       startTurn(deps, t, caller(s), s.chat.id, 'one'),

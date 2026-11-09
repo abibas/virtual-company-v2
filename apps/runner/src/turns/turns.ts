@@ -16,7 +16,8 @@ import { type StopReason, type TurnLaunch, TurnProcess } from './turn.ts';
 
 /**
  * The machine's chat turns (docs/harness.md, "How a turn runs"): `turn.start` runs one turn of a harness as a process
- * (`turn.ts`), at most `slots` at once, and `turn.stop` stops it. A start the runner will not carry out is answered at
+ * (`turn.ts`), at most `slots` at once, `turn.input` gives a running one the person's message (S5.2 step 6; dropped
+ * when it takes none), and `turn.stop` stops it. A start the runner will not carry out is answered at
  * once with `turn.end {ok: false, exitCode: null, error}`: `unsupported` (no such harness here), `busy` (every slot
  * taken), `home_missing` (the agent's folder is not on this machine), `invalid_spec: …` (the driver refused the spec),
  * `spawn_failed: …`, `runner_stopping`. A repeated start of a live turn and a stop of an unknown one are ignored. Live
@@ -89,6 +90,12 @@ export class Turns {
       return;
     }
     const turn = this.#live.get(frame.turnId);
+    if (frame.type === 'turn.input') {
+      if (turn === undefined)
+        this.#deps.log.info('turn.input for no live turn; dropped', { turnId: frame.turnId });
+      else turn.input(frame.inputId, frame.text);
+      return;
+    }
     if (this.#searching.has(frame.turnId)) this.#searching.set(frame.turnId, 'stopped');
     else if (turn === undefined)
       this.#deps.log.info('turn.stop for no live turn; ignored', { turnId: frame.turnId });
@@ -186,7 +193,9 @@ export class Turns {
     }
     const extra = lease && process.privateDir ? { [process.privateDir.env]: lease.path } : {};
     const env = processEnv(host.env, process, extra);
-    return { launch: { process, cwd: spec.cwd, env, parser: driver.parser(), lease, bridge }, processes };
+    const inputLine = process.stdinOpen ? driver.inputLine?.bind(driver) : undefined;
+    const launch = { process, cwd: spec.cwd, env, parser: driver.parser(), lease, bridge, inputLine };
+    return { launch, processes };
   }
 
   /** The turn's question socket, when the runner offers its tools; a turn whose socket cannot open runs without it. */

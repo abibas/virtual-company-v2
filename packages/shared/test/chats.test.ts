@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CHAT_PROMPT, CHAT_TITLE, chatEventId, isAfter, parseChatEventId } from '../src/chats.ts';
+import {
+  CHAT_PROMPT,
+  CHAT_QUEUE_MAX,
+  CHAT_TITLE,
+  chatEventId,
+  isAfter,
+  parseChatEventId,
+  queueOrder,
+} from '../src/chats.ts';
 
 describe('chats', () => {
   it('hold a title to 80 characters and a prompt to 20 000', () => {
@@ -21,5 +29,17 @@ describe('chats', () => {
     expect(isAfter({ turnSeq: 1, eventSeq: 3 }, { turnSeq: 1, eventSeq: 2 })).toBe(true);
     expect(isAfter({ turnSeq: 1, eventSeq: 2 }, { turnSeq: 1, eventSeq: 2 })).toBe(false);
     expect(isAfter({ turnSeq: 1, eventSeq: 9 }, { turnSeq: 2, eventSeq: 0 })).toBe(false);
+  });
+
+  it('start queued messages sent Now or interrupting first, then the rest, each oldest first; ten at most', () => {
+    const queued = [
+      { id: 'a', delivery: 'after', seq: 3 },
+      { id: 'b', delivery: 'interrupt', seq: 5 },
+      { id: 'c', delivery: 'after', seq: 4 },
+      { id: 'd', delivery: 'now', seq: 6 },
+      { id: 'e', delivery: 'interrupt', seq: 2 },
+    ] as const;
+    expect([...queued].sort(queueOrder).map((turn) => turn.id)).toEqual(['e', 'b', 'd', 'a', 'c']);
+    expect(CHAT_QUEUE_MAX).toBe(10);
   });
 });

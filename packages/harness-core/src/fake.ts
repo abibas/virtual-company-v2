@@ -37,7 +37,13 @@ export interface FakeHarnessDriverOptions {
   readonly unsetEnv?: readonly string[];
   readonly privateDir?: PrivateDir;
   readonly notices?: readonly TurnNotice[];
+  /** A turn keeps stdin open for messages mid-turn (`stdinOpen`), each written as a `fakeInputLine`. */
+  readonly liveInput?: boolean;
 }
+
+/** The stdin line the fake driver gives a message mid-turn. */
+export const fakeInputLine = (text: string, id: string): string =>
+  `${JSON.stringify({ type: 'fake_input', id, text })}\n`;
 
 /** The file a fake turn with tools asks the runner to write in the turn's folder: how to start the MCP server. */
 export const FAKE_TOOLS_FILE = 'tools.json';
@@ -47,7 +53,8 @@ export const FAKE_TOOLS_FILE = 'tools.json';
  * `terminals`) and the tools a turn got (`tools`), throws queued errors (`failNext`), and builds process specs from its
  * options; with tools, a turn gets `--tools <dir>`, the tools' variables and `tools.json` (the MCP server's command) to
  * write in the turn's folder. Its parser reads lines that are `TurnEvent`s themselves (`fakeLines`), so the fake binary
- * can play any turn.
+ * can play any turn; with `liveInput` a turn keeps stdin open and takes messages as `fakeInputLine`s, its parser settled
+ * after a result.
  */
 export class FakeHarnessDriver implements HarnessDriver {
   readonly harness: Harness;
@@ -74,7 +81,8 @@ export class FakeHarnessDriver implements HarnessDriver {
     checkTurn(this.harness, spec);
     this.turns.push(spec);
     this.tools.push(tools);
-    const process = this.#process('turn', spec.sessionId, spec.prompt);
+    const opened = this.#process('turn', spec.sessionId, spec.prompt);
+    const process = this.#options.liveInput ? { ...opened, stdinOpen: true } : opened;
     if (tools === undefined) return process;
     const contents = JSON.stringify({ command: tools.command, args: tools.args });
     const file: PrivateFile = { name: FAKE_TOOLS_FILE, contents, mode: 0o600 };
@@ -95,6 +103,10 @@ export class FakeHarnessDriver implements HarnessDriver {
 
   parser(): LineParser {
     return new FakeLineParser(this.harness);
+  }
+
+  inputLine(text: string, id: string): string {
+    return fakeInputLine(text, id);
   }
 
   #throwQueued(): void {
@@ -120,6 +132,7 @@ export class FakeHarnessDriver implements HarnessDriver {
 class FakeLineParser implements LineParser {
   readonly #harness: Harness;
   #resultSeen = false;
+  #settled = false;
 
   constructor(harness: Harness) {
     this.#harness = harness;
@@ -129,7 +142,12 @@ class FakeLineParser implements LineParser {
     const parsed = TurnEvent.safeParse(parseJsonLine(line));
     if (!parsed.success) return [];
     if (parsed.data.type === 'result') this.#resultSeen = true;
+    this.#settled = parsed.data.type === 'result';
     return [parsed.data];
+  }
+
+  settled(): boolean {
+    return this.#settled;
   }
 
   end(exitCode: number | null, stderrTail: string): TurnEvent[] {

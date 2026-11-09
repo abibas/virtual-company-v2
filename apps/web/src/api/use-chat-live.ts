@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addEvent, lastEventId, upsertTurn } from './chat-turns.ts';
+import { addEvent, lastEventId, removeTurn, upsertTurn } from './chat-turns.ts';
 import { type ChatCalls, chatCalls } from './chats.ts';
 import { useApi } from './context.ts';
 import { readEventStream, type StreamMessage } from './event-stream.ts';
@@ -23,6 +23,8 @@ export interface ChatLive {
   readonly stream: StreamState;
   /** A turn the page started or stopped (the API's answer), shown before the stream says so. */
   putTurn(turn: ChatTurn): void;
+  /** A waiting message the page discarded (S5.2 step 6), gone before the stream says so. */
+  dropTurn(turnId: string): void;
   /** The chat after a change the page made (its profile). */
   putChat(chat: Chat): void;
 }
@@ -81,6 +83,9 @@ function useStream(calls: ChatCalls, chatId: string, detail: Loaded<ChatDetail>,
       } else if (m.event === 'event') {
         const event = parsed<ChatStreamEvent>(m.data);
         if (event) apply((x) => ({ ...x, turns: addEvent(x.turns, event) }));
+      } else if (m.event === 'removed') {
+        const turnId = parsed<{ turnId: string }>(m.data)?.turnId;
+        if (turnId) apply((x) => ({ ...x, turns: removeTurn(x.turns, turnId) }));
       }
     };
     const open = () => {
@@ -132,6 +137,7 @@ export function useChatLive(companyId: string, chatId: string): ChatLive {
     turns: current.turns,
     stream,
     putTurn: (turn) => apply((m) => ({ ...m, turns: upsertTurn(m.turns, turn) })),
+    dropTurn: (turnId) => apply((m) => ({ ...m, turns: removeTurn(m.turns, turnId) })),
     putChat: (chat) => apply((m) => ({ ...m, chat })),
   };
 }

@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
 import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared/harness';
 
 /**
@@ -80,6 +80,12 @@ export const ChatTurnSchema = z
     }),
     prompt: z.string(),
     status: ChatTurnStatus,
+    delivery: ChatTurnDelivery.nullable().openapi({
+      description:
+        'How a message sent while a turn ran was to reach the agent: `now` (into the running turn; it waits, ' +
+        'unchangeable, until the turn takes it, then goes, else starts first), `after` (once the running turn ends) or ' +
+        '`interrupt` (the running turn was stopped; it starts first). Null: it started at once',
+    }),
     profileId: z.string().nullable(),
     credentialId: z
       .string()
@@ -143,6 +149,10 @@ export const ChatDetailSchema = ChatSchema.extend({
   context: ChatContextSchema.nullable().openapi({
     description: "How full the conversation is since the chat's last Clear; null before anything measured it",
   }),
+  queue: z.array(z.string()).openapi({
+    description:
+      "The waiting turns' ids in the order they start (Now and interrupting ones first, then the rest, oldest first)",
+  }),
   question: OpenQuestionSchema.nullable().openapi({
     description:
       "The latest question of the chat's last turn while it is not answered; null when there is none (a newer turn " +
@@ -165,9 +175,24 @@ export const UpdateChatSchema = z
   })
   .openapi('UpdateChat');
 
+const Prompt = z.string().min(CHAT_PROMPT.min).max(CHAT_PROMPT.max);
+
 export const CreateTurnSchema = z
-  .object({ prompt: z.string().min(CHAT_PROMPT.min).max(CHAT_PROMPT.max) })
+  .object({
+    prompt: Prompt,
+    delivery: ChatTurnDelivery.optional().openapi({
+      description:
+        'While a turn runs: `now` (into it: Claude Code only), `after` (queued for its end) or `interrupt` (stop it, ' +
+        'start this). Left out, a running turn refuses the prompt (`turn_running`)',
+    }),
+  })
   .openapi('CreateTurn');
+
+/** A waiting message's new prompt. */
+export const EditTurnSchema = z.object({ prompt: Prompt }).openapi('EditTurn');
+
+/** Sends a waiting message into the running turn now, or makes it interrupt the running turn. */
+export const DeliverTurnSchema = z.object({ delivery: z.enum(['now', 'interrupt']) }).openapi('DeliverTurn');
 
 /** The person's answers to the open question: one per question at most (none of a question: skipped). */
 export const AnswerQuestionSchema = z
@@ -189,7 +214,8 @@ export type AnswerQuestion = z.infer<typeof AnswerQuestionSchema>;
 /**
  * The stream's messages (`GET …/chats/{chatId}/stream`, `text/event-stream`): `event: turn` with `{turn}` when a turn
  * starts or changes status, `event: event` with `{turnId, turnSeq, seq, event, at}` for each event (its `id:` is
- * `<turnSeq>.<seq>`, which `Last-Event-ID` sends back), and a `: heartbeat` comment every 20 s.
+ * `<turnSeq>.<seq>`, which `Last-Event-ID` sends back), `event: removed` with `{turnId}` when a waiting message goes
+ * (discarded, or taken into the running turn; S5.2 step 6), and a `: heartbeat` comment every 20 s.
  */
 export const ChatStreamTurnSchema = z.object({ turn: ChatTurnSchema });
 export const ChatStreamEventSchema = z.object({
@@ -199,5 +225,7 @@ export const ChatStreamEventSchema = z.object({
   event: TurnEvent,
   at: dateTime,
 });
+export const ChatStreamRemovedSchema = z.object({ turnId: z.string() });
 export type ChatStreamTurn = z.infer<typeof ChatStreamTurnSchema>;
+export type ChatStreamRemoved = z.infer<typeof ChatStreamRemovedSchema>;
 export type ChatStreamEvent = z.infer<typeof ChatStreamEventSchema>;

@@ -6,6 +6,7 @@ import {
   FAKE_HARNESS_BIN,
   FAKE_TOOLS_FILE,
   FakeHarnessDriver,
+  fakeInputLine,
   fakeLines,
   fakeTerminalSpec,
   fakeTurnSpec,
@@ -110,5 +111,29 @@ describe('FakeHarnessDriver', () => {
     expect(parser.end(1, 'boom')).toEqual([
       { type: 'result', ok: false, error: 'Codex exited with code 1: boom' },
     ]);
+  });
+
+  it('keeps stdin open with live input, gives each message a line, and is settled after a result', () => {
+    const driver = new FakeHarnessDriver({ liveInput: true });
+    expect(driver.turn(fakeTurnSpec('claude_code'))).toMatchObject({
+      stdin: 'What is 2 + 2?',
+      stdinOpen: true,
+    });
+    expect(new FakeHarnessDriver().turn(fakeTurnSpec('claude_code')).stdinOpen).toBeUndefined();
+    expect(driver.inputLine('Use staging', 'i-1')).toBe(fakeInputLine('Use staging', 'i-1'));
+    expect(JSON.parse(fakeInputLine('Use staging', 'i-1'))).toEqual({
+      type: 'fake_input',
+      id: 'i-1',
+      text: 'Use staging',
+    });
+    const parser = driver.parser();
+    const [text, result] = fakeLines([
+      { type: 'text', text: 'Hi' },
+      { type: 'result', ok: true },
+    ]) as [string, string];
+    parser.feed(text);
+    expect(parser.settled?.()).toBe(false);
+    parser.feed(result);
+    expect(parser.settled?.()).toBe(true);
   });
 });

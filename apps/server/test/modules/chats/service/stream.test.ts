@@ -61,7 +61,7 @@ function manualInterval() {
 }
 
 describe('streamChat', () => {
-  it('sends a heartbeat comment at each interval, and stops it when the stream closes', async () => {
+  it('sends a heartbeat comment at each interval and a waiting message that went, and stops when it closes', async () => {
     const s = await scene(w, { offline: true });
     const bus = chatBus();
     const manual = manualInterval();
@@ -76,10 +76,11 @@ describe('streamChat', () => {
       close.promise,
     );
     manual.tick();
+    bus.publish(s.chat.id, { kind: 'removed', turnId: 'waiting-1' });
     manual.tick();
     close.resolve();
     await done;
-    expect(got).toEqual([': open', ': heartbeat', ': heartbeat']);
+    expect(got).toEqual([': open', ': heartbeat', 'removed', ': heartbeat']);
     expect(manual.cleared()).toBe(1);
     expect(bus.count(s.chat.id)).toBe(0);
   });

@@ -8,8 +8,9 @@ import { familyOf } from './tool-kinds.ts';
  * A turn's thread from its events (docs/harness.md, "Events"; S5.2). Events with a `parentId` belong to that
  * subagent and never show in the main reply: each list of parts is built the same way, by who it belongs to.
  * Consecutive text joins, consecutive tool calls make one group, an Agent call becomes its subagent's block, a
- * `TodoWrite` call shows only as the to-do card, a question tool call only as the question card (S5.2 step 4), and
- * each subagent keeps its latest state. Pure.
+ * `TodoWrite` call shows only as the to-do card, a question tool call only as the question card (S5.2 step 4), a
+ * message the person sent into the running turn where the agent took it (S5.2 step 6), and each subagent keeps its
+ * latest state. Pure.
  */
 
 type Of<T extends TurnEvent['type']> = Extract<TurnEvent, { type: T }>;
@@ -114,6 +115,7 @@ function addEvent(build: Build, { seq, event, at }: ChatEvent) {
   else if (event.type === 'notice')
     list.push({ kind: 'notice', key, level: event.level, message: event.message });
   else if (event.type === 'compact') list.push({ kind: 'compact', key, event });
+  else if (event.type === 'input') list.push({ kind: 'input', key, text: event.text });
 }
 
 /** What the latest event of the turn means (who it came from, and what it does). */

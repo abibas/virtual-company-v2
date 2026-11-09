@@ -46,6 +46,8 @@ describe('TurnEvent', () => {
     { type: 'compact', preTokens: 150_000, postTokens: 12_000, trigger: 'manual' },
     { type: 'compact', preTokens: 150_000, postTokens: null },
     { type: 'notice', level: 'warn', message: 'Refused for permission: Bash' },
+    { type: 'input', text: 'Use the staging database', inputId: TURN_ID },
+    { type: 'input', text: 'And keep the logs' },
     { type: 'result', ok: true, text: 'Hi', durationMs: 12 },
     { type: 'result', ok: false, error: 'Claude Code exited with code 1' },
     { type: 'question', id: QUESTION_ID, questions: [QUESTION] },
@@ -112,6 +114,9 @@ describe('TurnEvent', () => {
       { type: 'compact', preTokens: -1, postTokens: null },
       { type: 'compact', preTokens: 1, postTokens: 1, trigger: 'timer' },
       { type: 'text', text: 'x', parentId: '' },
+      { type: 'input', text: '' },
+      { type: 'input', text: 'x'.repeat(20_001) },
+      { type: 'input', text: 'x', inputId: 'i-1' },
     ]) {
       expect(TurnEvent.safeParse(bad).success).toBe(false);
     }

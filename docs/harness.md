@@ -25,18 +25,21 @@ TurnSpec     { harness, cwd, prompt, sessionId: string|null, model: string|null,
 TerminalSpec  the same without `prompt`
 
 ProcessSpec  { command, args, env /* to add or override */, unsetEnv /* to remove */, stdin: string|null,
+               stdinOpen? /* S5.2 step 6: stdin stays open for messages mid-turn */,
                privateDir?: { env, path: string|null, files: { name, contents, mode }[] },
                turnFiles?: { name, contents, mode }[] /* written in TurnTools.dir */, notices: TurnEvent<'notice'>[] }
 TurnTools    { dir /* the turn's own folder, 0700 */, command, args /* <node> <runner.mjs> mcp */,
                env /* MWC_ASK_SOCKET, MWC_ASK_TOKEN */ }
 
 HarnessDriver { harness; versionArgs; turn(TurnSpec, TurnTools?): ProcessSpec; terminal(TerminalSpec): ProcessSpec;
-                parser(): LineParser }
-LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: string): TurnEvent[] }
+                parser(): LineParser; inputLine?(text, id): string /* a message mid-turn's stdin line */ }
+LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: string): TurnEvent[];
+                settled?(): boolean /* every message taken answered: stdin may close */ }
 ```
 
 - **Starting it.** The runner starts `command` with `args` (no shell) in `cwd`, from its own environment minus `MWC_*`
-  and minus `unsetEnv`, plus `env`. It writes `stdin` (the prompt) and closes it; a terminal gets the pseudo-terminal
+  and minus `unsetEnv`, plus `env`. It writes `stdin` (the prompt) and closes it, or with `stdinOpen` keeps it open for
+  the person's messages while the turn runs ("Delivery while a turn runs" below); a terminal gets the pseudo-terminal
   instead (`stdin` is null). It sends `notices` as the turn's first events (a terminal shows them above the TUI).
 - **The prompt is never an argument.** It goes on stdin: an argument would show in `ps` to every user of the machine,
   hit the argument length limit, and a one-word message such as `update`, `install` or `purge` would run that
@@ -72,6 +75,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude only |
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
 | `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request, a gateway not used |
+| `input`       | `text` (1–20 000), `inputId?` (the message's id, `turn.input`'s) | a message the person sent into the running turn, where the harness took it (S5.2 step 6): Claude Code's echo of it, kept by the runner only for a message it wrote |
 | `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | the last event of the harness's output                     |
 | `question`    | `id` (the runner's UUID), `questions` (1–4, "Asking the person") | the agent asked the person through the runner's tool: a `turn.question` frame, never a parser's |
 | `answered`    | `questionId`, `turnId` (the turn that carried the answers), `answers` (1–4 `{question, picked[], other?}`) | the person answered: the server adds it to the question's turn after its end |
@@ -110,11 +114,12 @@ the profile's subscription); Codex's `CODEX_API_KEY`, `OPENAI_API_KEY`, `CODEX_A
 
 ## Claude Code
 
-Verified against `claude --help` 2.1.319.
+Verified against `claude --help` 2.1.319; the input mode against 2.1.321 (S5.2 step 6).
 
 ```
-turn:      claude -p --output-format stream-json --verbose [--resume <id>] [--model <m>] [--effort <e>]
-                  [--dangerously-skip-permissions]                      prompt on stdin
+turn:      claude -p --output-format stream-json --verbose --input-format stream-json --replay-user-messages
+                  [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
+                  the prompt as the first user message on stdin, which stays open
            with the runner's tools, after those:
                   --mcp-config <dir>/mcp.json --allowedTools mcp__mwc__ask_user_question
                   --append-system-prompt "When the person must choose between options, ask them with the
@@ -124,6 +129,15 @@ env:       the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; wi
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
 ```
 
+- **Input mode** (S5.2 step 6, `input.ts`): every turn reads its messages as stream-json, one user message a line,
+  `{"type":"user","uuid":<id>,"session_id":"","parent_tool_use_id":null,"message":{"role":"user","content":[{"type":
+  "text","text":<text>}]}}`: the prompt first, then each message sent Now (`inputLine`). With
+  `--replay-user-messages` Claude Code echoes each message it takes as a `user` message with `isReplay: true` and its
+  `uuid`, which the parser gives as `input {text, inputId}`. A message sent mid-turn is taken at the turn's next step;
+  one that comes as the turn ends runs as one more turn in the same process, with its own result. The parser is settled
+  at a `result` whose `queued_turn_count` is 0 (or absent); a result that says a message waits, and any echo after a
+  result, keep it reading. A Compact's `/compact` goes as the first message the same way (as the Agent SDK sends slash
+  commands); that it runs as the command in this mode is not verified without a real turn.
 - **Permissions.** `bypass` adds `--dangerously-skip-permissions`. `ask` adds nothing: in `-p` there is no one to ask,
   so a tool that needs approval is refused, the model is told, and the `result`'s `permission_denials` become `warn`
   notices (`Refused for permission: Bash (rm -rf build)`). In the terminal Claude Code asks the person on the TUI.
@@ -230,7 +244,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
    `runner_stopping`. Otherwise it starts the driver's command with no shell, detached (its own process group), in the
    agent's folder, with its own environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the private folder's
-   variable; writes the prompt to stdin and closes it; sends the driver's notices as the first events; reads stdout line
+   variable; writes the prompt to stdin and closes it (Claude Code's turns keep it open for the person's messages until
+   their result, "Delivery while a turn runs"); sends the driver's notices as the first events; reads stdout line
    by line into the driver's parser and keeps the last 4 KB of stderr. Events go as `turn.events` about 100 ms after the
    first, or at once from 32 KB or 100 events, numbered from 1; a text event over 16 KB is split, a result's text cut to
    fit. On exit, `parser.end` gives the last events, then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the
@@ -339,6 +354,69 @@ prompt. The same bridge is where S6's tool approvals will ride.
   a message". The tool's own call shows no tool row, and the turn that carried the answers shows no prompt bubble. The
   composer stays open: a message instead answers in words.
 
+## Delivery while a turn runs
+
+Built in S5.2 step 6 (2026-11-10): the composer stays open while the agent works, and a message sent then reaches it
+Now (into the running turn), After this turn (queued) or by Interrupt. The server side is the chats module's queue
+(`service/queue.ts`, `service/drain.ts`, `rules/queue.ts`, `repo/queue.ts`); the runner's is `turns/input.ts`.
+
+- **The queue.** A chat has at most one `running` turn and up to `CHAT_QUEUE_MAX` (10) `queued` ones (migration
+  `0014_chat_turn_queue`: the partial unique index is on `running` only, and `chat_turns.delivery` is `now`, `after`,
+  `interrupt` or null for a turn that started at once). `POST …/chats/{chatId}/turns {prompt, delivery}` (admins and
+  owners): with nothing running or waiting it starts at once as before (refusals and all, `delivery` null); otherwise
+  202 with a `queued` turn (409 `queue_full` past ten). Without `delivery` a running turn still refuses the prompt
+  (`turn_running`), for API callers that know nothing of the queue.
+- **After this turn** (`after`): waits. **Interrupt** (`interrupt`): the running turn is stopped by its stop ladder
+  (`turn.stop`), and this one starts first. **Now** (`now`, Claude Code's message turns only; 409 `now_unsupported` for
+  Codex and during a compaction): the turn waits as `queued`, unchangeable, and goes to the runner as `turn.input
+  {turnId, inputId: <its id>, text}`; when the harness takes it, its `input` event (stored in the running turn) removes
+  the waiting turn (the stream says `removed`). If the running turn ends without taking it (it came too late, the
+  runner is older than `turn.input`, or the harness dropped it), it is still waiting and starts first.
+- **Starting the next one** (`drain.ts`): after every turn's end (done, failed or stopped, a dropped link too) and after
+  every message queued or moved up, while nothing runs, the next waiting turn (`queueOrder` of `@mwc/shared/chats`:
+  Now and Interrupt first, then After, each oldest first) starts as a prompt does, as the person who sent it (the
+  checks, a `credential_uses` row, the runner), resuming the chat's session. One the checks refuse fails with the
+  refusal's words ("The agent's machine has no connected runner") and the next is tried. A turn that starts after a
+  later one (it was overtaken) takes the next number after the chat's last, so the turns that started are numbered in
+  start order and `Last-Event-ID` still reads them in order. One chat's starts run one at a time in the server process;
+  a start that loses to another (the index) leaves the chat to it. At the server's start the queued turns fail with
+  the running ones (`server_restarted`).
+- **Waiting messages** (admins and owners, 409 `turn_not_queued` once it started or ended, `message_sent` for one sent
+  Now): `PATCH …/turns/{turnId} {prompt}` changes its prompt (200); `DELETE …/turns/{turnId}` discards it (204, the
+  stream says `removed`); `POST …/turns/{turnId}/deliver {delivery: 'now'|'interrupt'}` sends it Now or makes it
+  interrupt (202). The detail's `queue` lists the waiting turns' ids in start order; each turn has its `delivery`.
+- **The input mode on the runner** (`turns/input.ts`): a process whose spec says `stdinOpen` gets the prompt and keeps
+  stdin; `turn.input` writes the driver's `inputLine(text, inputId)` (once per id), and the parser's `input` events are
+  kept only for the ids this turn wrote, with the text written (the prompt's own echo goes). After a `result`, stdin
+  closes once every message written was taken and the parser is settled, so the process ends as before; while one
+  still waits, it stays open until the harness prints nothing for `INPUT_QUIET_MS` (30 s). A stop, the end, a turn that
+  takes no input (Codex) or a closed stdin drop `turn.input` (logged), and the server starts the message next.
+- **The web** (`apps/web/src/features/chats/delivery/`): while a turn runs the composer shows "The agent is working —
+  send: Now · After this turn · Interrupt" (Now only where it works; the last choice remembered in the browser,
+  `mwc.chat.delivery`), Stop beside Send, and the waiting messages above the box in start order, each saying what
+  happens to it ("Queued — starts after the current turn", "Interrupting the turn — starts next", "Sending into the
+  running turn…") with Edit, Send now, Interrupt and Discard. A message the turn took shows in the reply where it was
+  taken, "Sent into the running turn"; a turn that interrupted says "Interrupted the turn" under its prompt.
+
+### Open in Claude Code
+
+The chat's header has "Open in Claude Code" ("Open in Codex") for admins once the chat has a conversation: a popover of
+commands that resume it in the person's own terminal, each with a copy button (`resumeCommands` of
+`@mwc/shared/resume`). The folder is the conversation's own (its last `init`'s `cwd`), else the agent's home while it is
+still on the chat's machine; the agent's config folder goes along (`CLAUDE_CONFIG_DIR=`, Codex's `CODEX_HOME=`).
+
+```
+a Mac or another machine:   cd '<folder>' && claude --resume <sessionId>
+the devbox (from the Mac):  airia devbox ssh -- -t "cd '<folder>' && claude --resume <sessionId>"
+a Docker runner:            docker exec -it <container> sh -lc "cd '<folder>' && claude --resume <sessionId>"
+Codex:                      codex resume <sessionId> in the same places
+```
+
+Paths are single-quoted (`'` as `'\''`) and a command that crosses a second shell is double-quoted once more (`\`, `"`,
+`$` and backquotes escaped); a test reads them back through `/bin/sh`. The popover says it uses that machine's own
+login, not the chat's access profile, and that typing there spends it; a Codex chat's thread lives in the runner's
+own folder unless the agent has a config folder, which it says too.
+
 ## Compact and Clear
 
 Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat's turns have a `kind`
@@ -372,6 +450,13 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
   messages, one in the background ended by `task_notification`) and `compact`; Codex's `answer`, `tool`, `denied`,
   `error`, `resume` and `plan` (its to-do list started, updated and completed, reasoning). The runner's tests reuse them
   from `@mwc/harness-claude-code/fixtures` and `@mwc/harness-codex/fixtures`.
+- The delivery (S5.2 step 6) is tested without a real CLI: the Claude driver's arguments and stdin lines, its parser's
+  echoes, results that say a message waits and a turn that goes on after its result; the runner's stdin (closed for a
+  harness without input, the first message, `turn.input` written once, echoes kept or dropped, closed after a settled
+  result or a quiet wait, a stop) on fake processes and through the real driver; the server's queue on PGlite with
+  `FakeRunner` (after, interrupt, now taken and not taken, the cap, starts after a done, failed, stopped or dropped turn,
+  a refusal in words, an archived chat, renumbering, edit, discard and deliver while waiting only, roles, the old
+  refusal without a delivery, races), the migration's index and the resume commands' quoting.
 - The question bridge is tested in parts, in-process, never with a real CLI: the MCP server's JSON-RPC (initialize,
   tools/list, a valid call relayed, an invalid input, an unknown tool and method, notifications, parse errors), the
   `mcp` command on fake stdio, the socket with its token on a real Unix socket in a temporary folder (a wrong token, a
@@ -393,6 +478,9 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
 - A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
   before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
   later one writes its login over a token the first may have just refreshed (the server seals again what comes back).
+- Codex takes no message mid-turn (`codex exec` reads its prompt once): Now is hidden for it. A Claude Code turn that
+  takes a message after its result reports that result's usage as Claude Code counts it, and the parser's first-result
+  bookkeeping (a background subagent still running becomes `interrupted`) is not redone for the extra turn.
 - Approving a tool mid-turn (the permission tool): S6, over the same bridge. Until then `ask` refuses in chat and asks
   only in the terminal. Selections are built ("Asking the person"); the agent ends its turn after asking, and the answer
   is the next turn rather than a live reply.

@@ -108,6 +108,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
 | `runner.update` | `cmdId` | update yourself from the server you are linked to and restart; answered by `runner.update.result` ("Updating a runner") |
 | `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
+| `turn.input` | `turnId`, `inputId` (the waiting turn's UUID), `text` (1–20 000 characters) | the person's message for the running turn (S5.2 step 6, "Chat turns" below); no answer: the harness's echo comes back as an `input` event with `inputId`, or nothing |
 | `fs.list` | `cmdId`, `path` (absolute or `~/…`, 1–1024 characters; null for the default start) | the folders in a folder; answered by `fs.result` (S5.1d) |
 | `fs.mkdir` | `cmdId`, `path` (absolute or `~/…`) | make one folder whose parent exists; answered by `fs.result` |
 | `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT; its `turn.end` says `stopped` |
@@ -202,7 +203,7 @@ buffer is over 1 MB, until it is down to 256 KB.
 
 ## Chat turns
 
-Added in S5.1b (`runner-protocol/turns.ts`, `turn.question` in S5.2; how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
+Added in S5.1b (`runner-protocol/turns.ts`, `turn.question` and `turn.input` in S5.2; how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
 sends `turn.start` only to a runner whose hello gave the harness's CLI version (`caps.harnesses`, read with
 `harnessVersionOf`: undefined for a runner older than chats, which the server refuses as `runner_outdated`; null for a
 missing CLI, `harness_missing`). The turn frames are no commands (no `cmdId`, no `cmd.ack`): `turn.start` is answered by
@@ -233,6 +234,15 @@ environment values or `auth.json`.
   questions}`, so the events before it arrive first; the server stores it as the turn's `question` event. A call while
   the turn stops, or while the link is down, is answered as not shown; nothing is queued. Tool approvals (S6) are
   meant to ride the same socket.
+- **Messages mid-turn** (S5.2 step 6, docs/harness.md "Delivery while a turn runs"). `turn.input {turnId, inputId,
+  text}` goes to a running turn whose harness takes messages while it works (Claude Code's turns start with
+  `--input-format stream-json --replay-user-messages`, the prompt as the first stdin line, stdin kept open). The runner
+  writes it as one more user message (once per `inputId`); when the harness takes it, its echo is sent as an `input`
+  event `{text, inputId}` among the turn's events, numbered in place. Stdin closes after a `result` once every message
+  written was taken (or after 30 s of silence while one waits), so the process ends. A `turn.input` for no live turn,
+  for a turn that takes no input (Codex), once it stops or after its stdin closed is dropped (logged); a runner older
+  than the frame ignores it as an unknown frame. Either way the server sees no `input` event and starts the message as
+  the next turn.
 - **The link.** A turn belongs to the connection that carried its `turn.start`: when the link drops the runner ends its
   processes by the stop ladder (nothing can reach the server then), and the server fails the turns of that connection
   (`machine_disconnected`). Nothing is re-attached after a reconnect yet (S5 proper). Live turns count for the runner's

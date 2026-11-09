@@ -34,7 +34,9 @@ export type Part =
   /** A subagent's block, where its Agent call came. */
   | { readonly kind: 'subagent'; readonly key: string; readonly id: string }
   /** A compaction during a turn (Claude Code's own, near the end of the window). */
-  | { readonly kind: 'compact'; readonly key: string; readonly event: Of<'compact'> };
+  | { readonly kind: 'compact'; readonly key: string; readonly event: Of<'compact'> }
+  /** The person's message the running turn took (S5.2 step 6), where the agent took it. */
+  | { readonly kind: 'input'; readonly key: string; readonly text: string };
 
 /** A subagent's latest state, when it started and ended, and how many steps (tool calls) it made. */
 export interface SubagentState {

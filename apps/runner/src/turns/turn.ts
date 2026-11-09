@@ -13,13 +13,14 @@ import type { Timers } from '../system/time.ts';
 import type { AskBridge } from './ask/bridge.ts';
 import { ASK_REPLY, type AskReply } from './ask/tool.ts';
 import { EventBatcher } from './batch.ts';
+import { TurnInput } from './input.ts';
 import { LineReader, TailBuffer } from './lines.ts';
 import { type PrivateLease, releaseLogin } from './private-dir.ts';
 
 /**
  * One chat turn's process (docs/harness.md, "How a turn runs"): started from the driver's process spec in the agent's
- * folder as its own process group, the prompt written to its stdin and closed, its stdout read line by line through the
- * driver's parser into events (the driver's notices first), batched to the link, and the end of its stderr kept. When
+ * folder as its own process group, the prompt written to its stdin and closed (or kept open for the person's messages
+ * while it runs, `input.ts`, S5.2 step 6), its stdout read line by line through the driver's parser into events (the driver's notices first), batched to the link, and the end of its stderr kept. When
  * it ends: the parser's last events, the private folder released (a Codex login it rewrote goes back as `authJson`),
  * then `turn.end` once. `stop` walks the ladder: SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT.
  * With the runner's tools, a question the agent asks through its bridge goes out as `turn.question`, numbered among the
@@ -49,6 +50,8 @@ export interface TurnLaunch {
   readonly lease: PrivateLease | undefined;
   /** The turn's question socket, when the runner offers its tools. */
   readonly bridge?: AskBridge | undefined;
+  /** The driver's line for a message mid-turn, when the process keeps stdin open (`ProcessSpec.stdinOpen`). */
+  readonly inputLine?: ((text: string, id: string) => string) | undefined;
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -71,6 +74,7 @@ export class TurnProcess {
   readonly #stderr = new TailBuffer();
   readonly #resolve: () => void;
   #child: ChildLike | undefined;
+  #input: TurnInput | undefined;
   #result: Extract<TurnEvent, { type: 'result' }> | undefined;
   #stopped: StopReason | undefined;
   #timers: unknown[] = [];
@@ -100,18 +104,37 @@ export class TurnProcess {
       env,
     });
     this.#child = child;
+    const { parser, inputLine } = this.#launch;
+    this.#input = new TurnInput({
+      turnId: this.turnId,
+      stdin: child.stdin,
+      line: inputLine,
+      open: process.stdinOpen === true,
+      settled: () => parser.settled?.() ?? true,
+      timers: this.#deps.timers,
+      log: this.#deps.log,
+    });
     this.#events(process.notices);
     child.stdout?.on('data', (chunk: Buffer | string) => {
-      for (const line of this.#stdout.push(chunk)) this.#events(this.#launch.parser.feed(line));
+      for (const line of this.#stdout.push(chunk)) this.#line(line);
     });
     child.stderr?.on('data', (chunk: Buffer | string) => this.#stderr.push(chunk));
     child.once('error', (error) => this.#finish(null, `spawn_failed: ${messageOf(error)}`));
     child.once('close', (code) => this.#finish(code));
-    child.stdin?.on('error', () => {
-      // A process that exits before reading its prompt closes the pipe: its exit says what happened.
-    });
-    child.stdin?.end(process.stdin ?? '');
+    this.#input.begin(process.stdin);
     this.#deps.log.info('turn started', { turnId: this.turnId, command: process.command, pid: child.pid });
+  }
+
+  /**
+   * The person's message for the running turn (`turn.input`): written to a harness that takes messages mid-turn; false
+   * when it does not or no longer does (its result came, it is stopping or ended), so the server starts it next.
+   */
+  input(inputId: string, text: string): boolean {
+    // Only a started turn is live: its input is there.
+    const input = this.#input as TurnInput;
+    const taken = !this.#ended && this.#stopped === undefined && input.send(inputId, text);
+    if (!taken) this.#deps.log.info('turn.input not taken; dropped', { turnId: this.turnId, inputId });
+    return taken;
   }
 
   /** Ends it by the stop ladder (once); `reason` goes in its `turn.end`. */
@@ -120,6 +143,7 @@ export class TurnProcess {
     this.#stopped = reason;
     const pid = this.#child?.pid;
     if (pid === undefined) return this.done;
+    (this.#input as TurnInput).close('stopping');
     const { killGroup, timers } = this.#deps;
     killGroup(pid, 'SIGINT');
     this.#timers = [
@@ -146,6 +170,13 @@ export class TurnProcess {
     return { ok: true, text: ASK_REPLY };
   }
 
+  /** One line of stdout through the parser, the echoes of this turn's messages kept (`input.ts`). */
+  #line(line: string): void {
+    const input = this.#input as TurnInput;
+    input.activity();
+    this.#events(input.filter(this.#launch.parser.feed(line)));
+  }
+
   #events(events: readonly TurnEvent[]): void {
     for (const event of events) if (event.type === 'result') this.#result = event;
     this.#batcher.push(events);
@@ -158,7 +189,8 @@ export class TurnProcess {
     this.#launch.bridge?.close();
     for (const timer of this.#timers) this.#deps.timers.clearTimeout(timer);
     const last = this.#stdout.end();
-    if (last !== undefined) this.#events(this.#launch.parser.feed(last));
+    if (last !== undefined) this.#line(last);
+    (this.#input as TurnInput).close();
     this.#events(this.#launch.parser.end(code, failure ?? this.#stderr.text()));
     this.#batcher.flush();
     const end = this.#end(code, failure);

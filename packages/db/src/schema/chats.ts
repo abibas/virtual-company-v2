@@ -1,5 +1,5 @@
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import {
@@ -76,9 +76,9 @@ export const chats = pgTable(
 /**
  * A chat's turns, numbered from 1 (`seq`): the prompt, how far it got, the profile and credential it actually ran on
  * (plain ids, kept after either goes, like `credential_uses`), its reply, error and token usage. At most one turn of a
- * chat is queued or running at a time. Its `kind` (S5.2): a person's prompt, the harness's own `/compact`, or a Clear,
- * which runs no process (always `done`, on no credential) and marks where the chat's next turn starts a new
- * conversation.
+ * chat runs at a time; others wait `queued` behind it (S5.2 step 6, migration 0014), each with how it was sent while the
+ * agent worked (`delivery`). Its `kind` (S5.2): a person's prompt, the harness's own `/compact`, or a Clear, which runs
+ * no process (always `done`, on no credential) and marks where the chat's next turn starts a new conversation.
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -90,6 +90,8 @@ export const chatTurns = pgTable(
     kind: text('kind').$type<ChatTurnKind>().notNull().default('message'),
     prompt: text('prompt').notNull(),
     status: text('status').$type<ChatTurnStatus>().notNull().default('queued'),
+    /** How a message sent while a turn ran was to reach the agent (S5.2 step 6); null for a turn that started at once. */
+    delivery: text('delivery').$type<ChatTurnDelivery>(),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     startedAt: at('started_at'),
@@ -109,6 +111,7 @@ export const chatTurns = pgTable(
     tenantForeignKey('chat_turns_created_by_fk', t.companyId, t.createdBy, principals),
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
     check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),
+    check('chat_turns_delivery_check', oneOf(t.delivery, ChatTurnDelivery.options)),
     check(
       'chat_turns_clear_check',
       sql`${t.kind} <> 'clear' or (${t.status} = 'done' and ${t.credentialId} is null)`,
@@ -119,9 +122,7 @@ export const chatTurns = pgTable(
       sql`char_length(${t.prompt}) between ${n(CHAT_PROMPT.min)} and ${n(CHAT_PROMPT.max)}`,
     ),
     check('chat_turns_usage_check', sql`${t.usage} is null or jsonb_typeof(${t.usage}) = 'object'`),
-    uniqueIndex('chat_turns_one_live_idx')
-      .on(t.companyId, t.chatId)
-      .where(sql`${t.status} in ('queued', 'running')`),
+    uniqueIndex('chat_turns_one_running_idx').on(t.companyId, t.chatId).where(sql`${t.status} = 'running'`),
     index('chat_turns_status_idx').on(t.status),
   ],
 );

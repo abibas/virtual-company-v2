@@ -87,6 +87,8 @@ export type ChatTurn = InferResponseType<ChatRoutes['turns']['$post'], 202>;
 export type ChatEvent = ChatTurnWithEvents['events'][number];
 export type TurnEvent = ChatEvent['event'];
 export type ChatChanges = InferRequestType<ChatRoutes['$patch']>['json'];
+/** S5.2 step 6: how a message sent while the agent works reaches it (`now`, `after`, `interrupt`). */
+export type ChatDelivery = NonNullable<InferRequestType<ChatRoutes['turns']['$post']>['json']['delivery']>;
 /** An `event:` message of a chat's stream: one event with its turn's id and number (its `id:` is `<turnSeq>.<seq>`). */
 export type ChatStreamEvent = ChatEvent & { readonly turnId: string; readonly turnSeq: number };
 /** S5.2 step 4: the agent's questions, as its `question` event holds them, and the person's answers to them. */

@@ -177,6 +177,7 @@ export {
   type TurnError,
   TurnEventItem,
   TurnEvents,
+  TurnInput,
   TurnQuestion,
   type TurnRunnerFrame,
   type TurnServerFrame,

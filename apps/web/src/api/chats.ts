@@ -1,13 +1,13 @@
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
-import type { AnswerBody, Chat, ChatChanges } from './types.ts';
+import type { AnswerBody, Chat, ChatChanges, ChatDelivery } from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
 
 /**
  * Chats with an agent on its machine (S5.1c, docs/harness.md "How a turn runs"): an agent's chats, one chat with its
  * turns, the changes admins make (begin, rename or choose the profile, archive), prompts and Stop, an owner's terminal
- * ticket, and the chat's stream (Server-Sent Events read with the client's own Bearer header, never `EventSource`).
+ * ticket, the waiting messages (S5.2 step 6), and the chat's stream (Server-Sent Events read with the client's own Bearer header, never `EventSource`).
  */
 
 /** An agent's chats, the latest first (archived ones are left out). */
@@ -31,7 +31,16 @@ export function chatCalls(api: Api, companyId: string) {
     get: (chatId: string) => call(one.$get(param(chatId))),
     update: (chatId: string, changes: ChatChanges) => call(one.$patch({ ...param(chatId), json: changes })),
     archive: (chatId: string) => call(one.$delete(param(chatId))),
-    send: (chatId: string, prompt: string) => call(one.turns.$post({ ...param(chatId), json: { prompt } })),
+    /** A prompt; with a `delivery` while a turn runs (S5.2 step 6): into it, after it, or interrupting it. */
+    send: (chatId: string, prompt: string, delivery?: ChatDelivery) =>
+      call(one.turns.$post({ ...param(chatId), json: delivery ? { prompt, delivery } : { prompt } })),
+    /** S5.2 step 6: a waiting message's new prompt, its discard (204), and Now or Interrupt for it. */
+    edit: (chatId: string, turnId: string, prompt: string) =>
+      call(one.turns[':turnId'].$patch({ param: { companyId, chatId, turnId }, json: { prompt } })),
+    discard: (chatId: string, turnId: string) =>
+      call(one.turns[':turnId'].$delete({ param: { companyId, chatId, turnId } })),
+    deliver: (chatId: string, turnId: string, delivery: 'now' | 'interrupt') =>
+      call(one.turns[':turnId'].deliver.$post({ param: { companyId, chatId, turnId }, json: { delivery } })),
     stop: (chatId: string, turnId: string) =>
       call(one.turns[':turnId'].stop.$post({ param: { companyId, chatId, turnId } })),
     /** S5.2: the harness's own `/compact` as a turn (202), and a Clear (200): the next turn starts a new conversation. */

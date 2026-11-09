@@ -1,4 +1,5 @@
 import { auditChanges, type Chat, diffFields, type TenantDb } from '@mwc/db';
+import { queueOrder } from '@mwc/shared/chats';
 import { agentPlacement } from '../machines/index.ts';
 import { giveRefusal } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
@@ -105,7 +106,8 @@ export async function createChat(
 
 /**
  * One chat with its turns and their events, in order (archived ones too), its conversation since its last Clear (the
- * last `init` and how full it is) and its open question; 404 for an unknown one.
+ * last `init` and how full it is), its open question and its waiting turns in the order they start; 404 for an unknown
+ * one.
  */
 export async function getChat(
   t: TenantDb,
@@ -123,7 +125,9 @@ export async function getChat(
     events: events.filter((event) => event.turnId === turn.id).map(eventView),
   }));
   const question = openQuestion(shown);
-  return { ok: true, chat: { ...chatView(chat), turns: shown, ...conversationState(shown), question } };
+  const queue = shown.filter((turn) => turn.status === 'queued').sort(queueOrder);
+  const detail = { ...chatView(chat), turns: shown, ...conversationState(shown), question };
+  return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id) } };
 }
 
 /** Renames a chat and chooses its profile (see above); an unchanged field writes nothing. */

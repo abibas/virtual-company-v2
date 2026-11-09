@@ -6,19 +6,49 @@ import { ClaudeCodeDriver } from '../src/driver.ts';
 import { ClaudeLineParser } from '../src/parser.ts';
 
 const SESSION = '7f3c9a2e-4b1d-4e8a-9c6f-2d5e8b1a3c47';
-const TURN = ['-p', '--output-format', 'stream-json', '--verbose'];
+const TURN = [
+  '-p',
+  '--output-format',
+  'stream-json',
+  '--verbose',
+  '--input-format',
+  'stream-json',
+  '--replay-user-messages',
+];
+
+/** The user message a stdin line holds. */
+const messageOf = (stdin: string | null) => JSON.parse(stdin ?? 'null');
 
 describe('ClaudeCodeDriver.turn', () => {
   const driver = new ClaudeCodeDriver();
 
-  it('starts a new conversation in print mode with the prompt on stdin', () => {
-    expect(driver.turn(fakeTurnSpec('claude_code'))).toEqual({
+  it('starts a new conversation in print mode with the prompt as the first user message on stdin, kept open', () => {
+    const process = driver.turn(fakeTurnSpec('claude_code'));
+    expect(process).toEqual({
       command: 'claude',
       args: TURN,
       env: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token' },
       unsetEnv: CLAUDE_ACCOUNT_VARS.filter((name) => name !== 'CLAUDE_CODE_OAUTH_TOKEN'),
-      stdin: 'What is 2 + 2?',
+      stdin: expect.stringMatching(/\n$/),
+      stdinOpen: true,
       notices: [],
+    });
+    expect(messageOf(process.stdin)).toEqual({
+      type: 'user',
+      uuid: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      session_id: '',
+      parent_tool_use_id: null,
+      message: { role: 'user', content: [{ type: 'text', text: 'What is 2 + 2?' }] },
+    });
+  });
+
+  it('gives a message for the running turn as one more user message line, with its id', () => {
+    const line = driver.inputLine('Use staging', '0a8d6c3e-5f1b-4c2a-9e7d-3b6f1a2c4d5e');
+    expect(line.endsWith('\n')).toBe(true);
+    expect(messageOf(line)).toMatchObject({
+      type: 'user',
+      uuid: '0a8d6c3e-5f1b-4c2a-9e7d-3b6f1a2c4d5e',
+      message: { content: [{ type: 'text', text: 'Use staging' }] },
     });
   });
 
@@ -41,7 +71,7 @@ describe('ClaudeCodeDriver.turn', () => {
       'max',
       '--dangerously-skip-permissions',
     ]);
-    expect(process.stdin).toBe('-p --help and double it');
+    expect(messageOf(process.stdin).message.content[0].text).toBe('-p --help and double it');
     expect(process.args).not.toContain(spec.prompt);
   });
 

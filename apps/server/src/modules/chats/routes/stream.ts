@@ -26,7 +26,8 @@ const streamRoute = (deps: ServerDeps) => {
     description:
       '`event: turn` with `{turn}` (a `ChatTurn`) when a turn starts or changes status, or a Clear is recorded (a ' +
       'turn of kind `clear`); `event: event` with ' +
-      '`{turnId, turnSeq, seq, event, at}` for each event, its `id:` `<turnSeq>.<seq>`; a `: heartbeat` comment every ' +
+      '`{turnId, turnSeq, seq, event, at}` for each event, its `id:` `<turnSeq>.<seq>`; `event: removed` with ' +
+      '`{turnId}` when a waiting message goes (discarded, or taken into the running turn); a `: heartbeat` comment every ' +
       '20 s. Send the last id you saw as `Last-Event-ID` to get the turns from its turn on and the events after it ' +
       'first. Without it, only what happens from now on.',
     request: {
