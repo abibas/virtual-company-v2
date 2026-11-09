@@ -90,7 +90,11 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
         <ChatTerminal companyId={companyId} chat={chat} />
       ) : (
         <>
-          <ChatThread turns={live.turns} agentName={agent.name} />
+          <ChatThread
+            turns={live.turns}
+            agentName={agent.name}
+            chatInit={live.detail.data?.init ?? undefined}
+          />
           <Composer
             running={actions.running !== undefined}
             disabled={closed}
