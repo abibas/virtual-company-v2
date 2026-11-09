@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CodexAuthJson, TerminalSpec } from '../harness.ts';
 import { ErrorText, frame, Uuid } from './common.ts';
 
 /**
@@ -51,11 +52,17 @@ export const TerminalData = z
     message: `at most ${TERMINAL_DATA_MAX_BYTES} bytes`,
   });
 
-/** Server to runner: open a shell in a new pseudo-terminal of this size (`sessionId` is the server's). */
+/**
+ * Server to runner: open a shell in a new pseudo-terminal of this size (`sessionId` is the server's); with `harness`
+ * (a chat's terminal, S5.1b), the harness's own TUI on the chat's conversation, in the agent's folder, with the
+ * credential the server resolved, instead of a login shell. A runner older than chats ignores `harness` and opens a
+ * shell, so the server sends it only to a runner that has the harness.
+ */
 export const TerminalOpen = frame('terminal.open', {
   sessionId: Uuid,
   cols: TerminalCols,
   rows: TerminalRows,
+  harness: TerminalSpec.optional(),
 });
 export type TerminalOpen = z.infer<typeof TerminalOpen>;
 
@@ -104,10 +111,15 @@ export const TerminalEnd = {
   error: ErrorText.optional(),
 };
 
-/** Runner to server: the session ended (the shell exited, or it never started); nothing follows for it. */
+/**
+ * Runner to server: the session ended (the shell exited, or it never started); nothing follows for it. A harness's
+ * terminal adds the Codex login its process rewrote (`authJson`, never relayed to the browser), for the server to seal
+ * again.
+ */
 export const TerminalExit = frame('terminal.exit', {
   sessionId: Uuid,
   ...TerminalEnd,
+  authJson: CodexAuthJson.optional(),
 });
 export type TerminalExit = z.infer<typeof TerminalExit>;
 

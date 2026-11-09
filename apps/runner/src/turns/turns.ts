@@ -1,0 +1,160 @@
+import type { HarnessDriver, ProcessSpec } from '@mwc/harness-core';
+import type { Harness } from '@mwc/shared/enums';
+import type {
+  HarnessVersions,
+  TurnRunnerFrame,
+  TurnServerFrame,
+  TurnStart,
+} from '@mwc/shared/runner-protocol';
+import type { Log } from '../system/log.ts';
+import type { KillGroup, Spawn } from '../system/process.ts';
+import type { Timers } from '../system/time.ts';
+import { type Env, processEnv } from './env.ts';
+import type { PrivateDirs, PrivateLease } from './private-dir.ts';
+import { type StopReason, type TurnLaunch, TurnProcess } from './turn.ts';
+
+/**
+ * The machine's chat turns (docs/harness.md, "How a turn runs"): `turn.start` runs one turn of a harness as a process
+ * (`turn.ts`), at most `slots` at once, and `turn.stop` stops it. A start the runner will not carry out is answered at
+ * once with `turn.end {ok: false, exitCode: null, error}`: `unsupported` (no such harness here), `busy` (every slot
+ * taken), `home_missing` (the agent's folder is not on this machine), `invalid_spec: …` (the driver refused the spec),
+ * `spawn_failed: …`, `runner_stopping`. A repeated start of a live turn and a stop of an unknown one are ignored. Live
+ * turns count for the runner's own hold; they all end when the link drops (nothing can reach them then) and when the
+ * runner stops (`runner_stopping`, before the link closes).
+ */
+
+/** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
+export interface HarnessHost {
+  /** The drivers of the harnesses whose CLI is installed here. */
+  readonly drivers: Partial<Record<Harness, HarnessDriver>>;
+  /** Each CLI's version (`caps.harnesses`), null for a missing one. */
+  readonly versions: HarnessVersions;
+  /** The runner's environment, which a process gets less `MWC_*` and the driver's `unsetEnv`. */
+  readonly env: Env;
+  /** The private folders, shared by turns and terminals. */
+  readonly dirs: PrivateDirs;
+  /** Whether the agent's folder is there. */
+  isDirectory(path: string): boolean;
+}
+
+export interface TurnsDeps {
+  /** Undefined when this runner runs no harness: every start is `unsupported`. */
+  readonly host: HarnessHost | undefined;
+  /** How a turn's process starts and stops; without them every start is `unsupported` too. */
+  readonly processes: { readonly spawn: Spawn; readonly killGroup: KillGroup } | undefined;
+  /** How many turns may run at once (the configuration's slots). */
+  slots(): number;
+  readonly timers: Timers;
+  readonly log: Log;
+  send(frame: TurnRunnerFrame): boolean;
+  /** How many turns are live, after each change (the hold counts them). */
+  count(live: number): void;
+}
+
+/** A start refused: the code and words, or a launch. */
+type Prepared =
+  | { readonly refused: string }
+  | { readonly launch: TurnLaunch; readonly processes: NonNullable<TurnsDeps['processes']> };
+
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+export class Turns {
+  readonly #deps: TurnsDeps;
+  readonly #live = new Map<string, TurnProcess>();
+  #stopping = false;
+
+  constructor(deps: TurnsDeps) {
+    this.#deps = deps;
+  }
+
+  /** How many turns are live. */
+  get live(): number {
+    return this.#live.size;
+  }
+
+  handle(frame: TurnServerFrame): void {
+    if (frame.type === 'turn.start') {
+      this.#start(frame);
+      return;
+    }
+    const turn = this.#live.get(frame.turnId);
+    if (turn === undefined)
+      this.#deps.log.info('turn.stop for no live turn; ignored', { turnId: frame.turnId });
+    else void turn.stop('stopped');
+  }
+
+  /** Ends every live turn by the stop ladder, `reason` in each `turn.end`; resolves once they ended. */
+  async stopAll(reason: StopReason): Promise<void> {
+    await Promise.all([...this.#live.values()].map((turn) => turn.stop(reason)));
+  }
+
+  /** The runner stops: no new turn, and every live one ended with `runner_stopping`. */
+  async stop(): Promise<void> {
+    this.#stopping = true;
+    await this.stopAll('runner_stopping');
+  }
+
+  #start(frame: TurnStart): void {
+    const { turnId } = frame;
+    if (this.#live.has(turnId)) {
+      this.#deps.log.warn('a second turn.start for a live turn; ignored', { turnId });
+      return;
+    }
+    const prepared = this.#prepare(frame);
+    if ('refused' in prepared) {
+      this.#refuse(turnId, prepared.refused);
+      return;
+    }
+    const turn = new TurnProcess(turnId, prepared.launch, {
+      ...prepared.processes,
+      timers: this.#deps.timers,
+      log: this.#deps.log,
+      send: (sent) => this.#deps.send(sent),
+      ended: (id) => {
+        this.#live.delete(id);
+        this.#deps.count(this.#live.size);
+      },
+    });
+    try {
+      turn.start();
+    } catch (error) {
+      prepared.launch.lease?.release();
+      this.#refuse(turnId, `spawn_failed: ${messageOf(error)}`);
+      return;
+    }
+    this.#live.set(turnId, turn);
+    this.#deps.count(this.#live.size);
+  }
+
+  /** The checks in order, then the driver's spec, the private folder and the environment. */
+  #prepare(frame: TurnStart): Prepared {
+    const { spec } = frame;
+    const { host, processes } = this.#deps;
+    const driver = host?.drivers[spec.harness];
+    if (this.#stopping) return { refused: 'runner_stopping' };
+    if (host === undefined || processes === undefined || driver === undefined)
+      return { refused: 'unsupported' };
+    if (this.#live.size >= this.#deps.slots()) return { refused: 'busy' };
+    if (!host.isDirectory(spec.cwd)) return { refused: 'home_missing' };
+    let process: ProcessSpec;
+    try {
+      process = driver.turn(spec);
+    } catch (error) {
+      return { refused: `invalid_spec: ${messageOf(error)}` };
+    }
+    let lease: PrivateLease | undefined;
+    try {
+      lease = process.privateDir && host.dirs.acquire(process.privateDir, spec.harness, spec.cwd);
+    } catch (error) {
+      return { refused: `spawn_failed: ${messageOf(error)}` };
+    }
+    const extra = lease && process.privateDir ? { [process.privateDir.env]: lease.path } : {};
+    const env = processEnv(host.env, process, extra);
+    return { launch: { process, cwd: spec.cwd, env, parser: driver.parser(), lease }, processes };
+  }
+
+  #refuse(turnId: string, error: string): void {
+    this.#deps.log.info('turn refused', { turnId, error });
+    this.#deps.send({ type: 'turn.end', turnId, ok: false, exitCode: null, error: error.slice(0, 2000) });
+  }
+}

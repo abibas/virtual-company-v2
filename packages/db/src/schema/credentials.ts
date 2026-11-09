@@ -72,8 +72,9 @@ export const credentials = pgTable(
 );
 
 /**
- * Every time the server opened a secret: which credential, whose, what for, and when. The rows outlive the credential
- * (no foreign key on `credential_id`), like its audit rows, so a removed subscription's uses stay on record.
+ * Every time the server opened a secret: which credential, whose, what for, and when; for a chat's turn or terminal
+ * (S5.1b) also in which company, for which agent and chat, and who asked. The rows outlive the credential, the company's
+ * rows and the people (plain ids, no foreign keys), like the audit rows, so a removed subscription's uses stay on record.
  */
 export const credentialUses = pgTable(
   'credential_uses',
@@ -83,12 +84,22 @@ export const credentialUses = pgTable(
     ownerUserId: uuid('owner_user_id')
       .notNull()
       .references(() => users.id),
-    /** What opened it: `usage_check`, later `run`. */
+    /** What opened it: `usage_check`, `chat_turn`, `chat_terminal`. */
     purpose: text('purpose').notNull(),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    /** The company a chat's use was for; null for the owner's own (a usage check). */
+    companyId: uuid('company_id'),
+    agentId: uuid('agent_id'),
+    chatId: uuid('chat_id'),
+    /** Who started the turn or opened the terminal. */
+    principalId: uuid('principal_id'),
   },
   (t) => [
     check('credential_uses_purpose_check', lengthWithin(t.purpose, CREDENTIAL_PURPOSE)),
+    check(
+      'credential_uses_company_check',
+      sql`${t.companyId} is not null or (${t.agentId} is null and ${t.chatId} is null and ${t.principalId} is null)`,
+    ),
     index('credential_uses_credential_idx').on(t.credentialId, t.at),
   ],
 );

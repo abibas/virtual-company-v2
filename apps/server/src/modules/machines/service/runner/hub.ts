@@ -25,9 +25,11 @@ import {
   terminalBoard,
 } from './hub/terminals.ts';
 import { type HubTunnels, tunnelBoard } from './hub/tunnels.ts';
+import { type TurnChannel, type TurnRequest, type TurnSink, turnBoard } from './hub/turns.ts';
 
 export { HubError, type HubErrorCode } from './connection.ts';
 export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } from './hub/terminals.ts';
+export type { TurnChannel, TurnEnding, TurnRequest, TurnSink } from './hub/turns.ts';
 
 /**
  * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update` acks it
@@ -65,8 +67,9 @@ export interface HubOptions {
 }
 
 /**
- * The runner hub (S4.2): every runner socket of this server process, by machine. S4.4b's power control and S5's runs
- * talk to runners only through it. Commands go only to a runner that answered `server.hello` on this process.
+ * The runner hub (S4.2): every runner socket of this server process, by machine. S4.4b's power control, the terminals,
+ * S5.1b's chat turns and S5's runs talk to runners only through it. Commands go only to a runner that answered
+ * `server.hello` on this process.
  */
 export interface RunnerHub {
   readonly pingMs: number;
@@ -92,6 +95,11 @@ export interface RunnerHub {
    * when the runner is not ready or has no terminal (`caps.terminal`).
    */
   terminal(machineId: string, request: TerminalRequest, sink: TerminalSink): TerminalChannel | undefined;
+  /**
+   * Starts a chat turn on the machine's runner (`turn.start`) and hands its frames to `sink` until it ends (S5.1b);
+   * undefined when the runner is not ready. The caller checks the runner has the harness (`caps.harnesses`).
+   */
+  turn(machineId: string, request: TurnRequest, sink: TurnSink): TurnChannel | undefined;
   /** Closes every socket of the machine with `code`; false when it has none. */
   disconnect(machineId: string, code: number, reason: string): boolean;
   /**
@@ -136,18 +144,24 @@ function connectListeners(logger: Logger) {
   };
 }
 
-/** The hub on the server's database, logger and clock. */
-export function createRunnerHub(
-  deps: { readonly db: DbHandle; readonly logger: Logger; readonly clock: () => Date },
-  options: HubOptions = {},
-): RunnerHub {
+type HubDeps = { readonly db: DbHandle; readonly logger: Logger; readonly clock: () => Date };
+
+/** What the hub keeps: its sockets, write queues, connect listeners and the boards of tunnels, terminals and turns. */
+function hubParts(deps: HubDeps) {
   const sockets = connections();
-  const queues = machineQueues(deps.logger);
-  const listeners = connectListeners(deps.logger);
-  const tunnels = tunnelBoard(deps.clock, sockets.ready);
-  const terminals = terminalBoard();
-  const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
-  let closing = false;
+  return {
+    sockets,
+    queues: machineQueues(deps.logger),
+    listeners: connectListeners(deps.logger),
+    tunnels: tunnelBoard(deps.clock, sockets.ready),
+    terminals: terminalBoard(),
+    turns: turnBoard(),
+  };
+}
+
+/** What each connection gets from the hub: its parts' callbacks (a closed one drops its terminals and turns). */
+function connectionContext(deps: HubDeps, options: HubOptions, parts: ReturnType<typeof hubParts>) {
+  const { sockets, queues, listeners, tunnels, terminals, turns } = parts;
   const ctx: ConnectionContext = {
     ...deps,
     helloTimeoutMs: options.helloTimeoutMs ?? RUNNER_HELLO_TIMEOUT_MS,
@@ -157,11 +171,23 @@ export function createRunnerHub(
     ready: listeners.ready,
     release: (connection) => {
       terminals.drop(connection);
+      turns.drop(connection);
       return sockets.release(connection);
     },
     tunnel: tunnels.record,
     terminal: terminals.record,
+    turn: turns.record,
   };
+  return ctx;
+}
+
+/** The hub on the server's database, logger and clock. */
+export function createRunnerHub(deps: HubDeps, options: HubOptions = {}): RunnerHub {
+  const parts = hubParts(deps);
+  const { sockets, queues, listeners, tunnels, terminals, turns } = parts;
+  const ctx = connectionContext(deps, options, parts);
+  const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
+  let closing = false;
   return {
     pingMs: options.pingMs ?? RUNNER_PING_MS,
     tunnels: tunnels.api,
@@ -186,6 +212,10 @@ export function createRunnerHub(
       const connection = sockets.ready(machineId);
       if (connection?.hello?.caps.terminal !== true) return undefined;
       return terminals.open(connection, request, sink);
+    },
+    turn(machineId, request, sink) {
+      const connection = sockets.ready(machineId);
+      return connection === undefined ? undefined : turns.start(connection, request, sink);
     },
     disconnect(machineId, code, reason) {
       const ofMachine = [...sockets.all].filter((connection) => connection.machineId === machineId);

@@ -62,7 +62,10 @@ export function codexWindows(body: Record<string, unknown>): LimitWindow[] {
 }
 
 /** Codex's refresh: new access, id and refresh tokens for the saved `auth.json`, sealed again. */
-async function refresh(login: CodexLogin, ctx: LoginContext<'codex_oauth'>): Promise<CodexLogin> {
+export async function refreshCodexLogin(
+  login: CodexLogin,
+  ctx: LoginContext<'codex_oauth'>,
+): Promise<CodexLogin> {
   const tokens = login.auth.tokens as Tokens;
   if (!tokens.refresh_token) throw new UsageFailure('needs_sign_in');
   const response = await providerCall(ctx.fetch, CODEX_TOKEN_URL, {
@@ -104,7 +107,7 @@ export function checkCodexOauth(login: CodexLogin, ctx: LoginContext<'codex_oaut
       const access = l.auth.tokens?.access_token;
       return access === undefined ? undefined : jwtExpiry(access);
     },
-    refresh: (l) => refresh(l, ctx),
+    refresh: (l) => refreshCodexLogin(l, ctx),
     usage: (l) => {
       const tokens = l.auth.tokens as Tokens;
       return providerCall(ctx.fetch, CODEX_USAGE_URL, {

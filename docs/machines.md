@@ -360,6 +360,12 @@ wakes a box (a stopped box or a sleeping Mac has no connected runner, so it is o
   runner**, "Updating a runner" below; a container by rebuilding its image); until then the card's Terminal button is
   disabled with "Update the runner to use the terminal".
 
+**A chat's terminal** (S5.1b, docs/harness.md "How a turn runs") uses the same ticket store and socket: an owner's
+`POST /api/companies/{companyId}/chats/{chatId}/terminal-tickets` resolves the chat's harness, folder and credential, and
+the socket's `terminal.open` then carries `harness`, so the runner opens the harness's TUI on the chat's conversation
+instead of a login shell. A Codex login it rewrote comes back in `terminal.exit` and is sealed again, never sent to the
+browser.
+
 **The browser's socket** (the contract the web's xterm.js panel builds on):
 
 1. Get a ticket (above). Open `new WebSocket(<the API's ws origin> + wsPath + '?ticket=' + encodeURIComponent(ticket) +

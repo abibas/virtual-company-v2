@@ -37,6 +37,9 @@ function isJsonObject(text: string): boolean {
   }
 }
 
+/** A Codex login's `auth.json`, as its text: a JSON object of at most `CODEX_AUTH_JSON_MAX` characters. */
+export const CodexAuthJson = z.string().max(CODEX_AUTH_JSON_MAX).refine(isJsonObject, 'a JSON object');
+
 /**
  * The secret a turn runs on, opened by the server for this turn only: a Claude login's access token or a setup-token
  * (both `CLAUDE_CODE_OAUTH_TOKEN`), an Anthropic API key, a Codex login's `auth.json` (as its text), an OpenAI API key.
@@ -45,10 +48,7 @@ export const HarnessCredential = z.discriminatedUnion('kind', [
   protocolObject({ kind: z.literal('claude_oauth'), token: Secret }),
   protocolObject({ kind: z.literal('claude_setup_token'), token: Secret }),
   protocolObject({ kind: z.literal('anthropic_api_key'), key: Secret }),
-  protocolObject({
-    kind: z.literal('codex_oauth'),
-    authJson: z.string().max(CODEX_AUTH_JSON_MAX).refine(isJsonObject, 'a JSON object'),
-  }),
+  protocolObject({ kind: z.literal('codex_oauth'), authJson: CodexAuthJson }),
   protocolObject({ kind: z.literal('openai_api_key'), key: Secret }),
 ]);
 export type HarnessCredential = z.infer<typeof HarnessCredential>;
@@ -128,7 +128,7 @@ export type NoticeLevel = z.infer<typeof NoticeLevel>;
 /**
  * What a turn's output means, the same for every harness: the conversation's id, the assistant's text, a tool call
  * and its result (summaries only), the tokens used, a notice for the person (a tool refused for permission), and the
- * turn's end. A runner sends them in order as `run.events` (an event's `kind` is its `type`).
+ * turn's end. A runner sends them in order as `turn.events`, numbered from 1 (docs/runner-protocol.md, "Chat turns").
  */
 export const TurnEvent = z.discriminatedUnion('type', [
   protocolObject({ type: z.literal('session'), sessionId: HarnessSessionId }),

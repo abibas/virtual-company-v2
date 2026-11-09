@@ -1,6 +1,7 @@
 import { newId } from '@mwc/shared/ids';
 import { type PowerCommand, RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { TEST_NOW } from '@mwc/testkit';
+import { FAKE_CLAUDE_VERSION } from '@mwc/testkit/runner';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { HubError } from '../../../../../src/modules/machines/index.ts';
 import { enroll, machineRow } from '../../../../fixtures/machines/machines.ts';
@@ -53,7 +54,7 @@ describe('which runners the hub has', () => {
       version: '0.7.0',
       build: 'ab'.repeat(32),
       caps: {
-        harnesses: ['claude_code'],
+        harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
         slots: 1,
         hold: 'caffeinate',
         power: ['airia_devbox'],

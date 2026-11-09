@@ -33,7 +33,7 @@ export const systemdUnitPath = (env: Env, home: string): string =>
  * The programs the runner and its runs start by name: the service's PATH holds the folders they are in on the
  * installer's PATH, and nothing more (a long PATH multiplies the lookups of every process start).
  */
-export const SERVICE_TOOLS = ['claude', 'git', 'gh', 'docker', 'airia', 'gcloud'] as const;
+export const SERVICE_TOOLS = ['claude', 'codex', 'git', 'gh', 'docker', 'airia', 'gcloud'] as const;
 
 /** The system's own folders, always on the service's PATH. */
 export const SYSTEM_PATH = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'] as const;

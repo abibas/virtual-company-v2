@@ -2,7 +2,7 @@ import { type Credential, type DbHandle, diffFields, owned } from '@mwc/db';
 import type { CredentialStatus } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import type { Keyring, Sealed } from '../../../platform/secrets/keyring.ts';
-import { type CredentialsRepo, credentialsRepo } from '../repo.ts';
+import { type CredentialsRepo, credentialsRepo, type UseContext } from '../repo.ts';
 import {
   audited,
   credentialAad,
@@ -106,8 +106,9 @@ async function storeCredential(
 }
 
 /**
- * Opens the owner's credential for `purpose` (`usage_check`, later `run`): checks it against its kind's shape, records
- * the use in `credential_uses` and moves `last_used_at`. A credential that is not this owner's (or is gone) and one
+ * Opens the owner's credential for `purpose` (`usage_check`, `chat_turn`, `chat_terminal`): checks it against its kind's
+ * shape, records the use in `credential_uses` (with the company, agent, chat and who for a chat's) and moves
+ * `last_used_at`. A credential that is not this owner's (or is gone) and one
  * revoked at the provider are refused, with nothing recorded; one that needs signing in again still opens (its
  * refresh may need it). A sealed value that does not open throws `SecretOpenError`, recording nothing.
  */
@@ -117,6 +118,7 @@ async function useCredentialSecret(
   credentialId: string,
   ownerUserId: string,
   purpose: string,
+  context?: UseContext,
 ): Promise<UsedCredential> {
   if (!purposeFits(purpose)) throw new RangeError('A use names its purpose in 1 to 80 characters');
   const o = owned(deps.db, ownerUserId);
@@ -125,7 +127,7 @@ async function useCredentialSecret(
   if (row.status === 'revoked') return USE_REVOKED;
   const secret = parseSecret(row.kind, deps.keyring.open(sealedOf(row), credentialAad(row)));
   const at = deps.clock();
-  await repo.recordUse(o, row, purpose, at);
+  await repo.recordUse(o, row, purpose, at, context);
   const credential = credentialView({ ...row, lastUsedAt: at });
   return { ok: true, credential, kind: row.kind, secret } as UsedCredential;
 }
@@ -140,7 +142,9 @@ export function credentialSecrets(deps: SecretDeps) {
       credentialId: string,
       ownerUserId: string,
       purpose: string,
-    ): Promise<UsedCredential> => useCredentialSecret(deps, repo, credentialId, ownerUserId, purpose),
+      context?: UseContext,
+    ): Promise<UsedCredential> =>
+      useCredentialSecret(deps, repo, credentialId, ownerUserId, purpose, context),
     replaceCredentialSecret: (
       credentialId: string,
       ownerUserId: string,

@@ -10,7 +10,7 @@ import { upgradeSocket } from '../../../platform/realtime/sockets.ts';
 import { TerminalSocketQuery, TerminalTicketSchema } from '../schemas/terminal.ts';
 import { MachineParamsSchema } from '../schemas.ts';
 import type { RunnerHub } from '../service/runner/hub.ts';
-import { terminalTickets } from '../service/terminal/tickets.ts';
+import { type TerminalTickets, terminalTickets } from '../service/terminal/tickets.ts';
 import { type OpenTerminal, type TerminalService, terminalService } from '../service/terminal.ts';
 
 /**
@@ -90,8 +90,12 @@ const redeemTicket =
     await next();
   };
 
-export function terminalRoutes(deps: ServerDeps & { readonly hub: RunnerHub }) {
-  const service = terminalService({ db: deps.db, hub: deps.hub, tickets: terminalTickets() });
+/** The routes, on the app's ticket store (`tickets`, shared with the chats' terminals) or one of their own. */
+export function terminalRoutes(
+  deps: ServerDeps & { readonly hub: RunnerHub; readonly tickets?: TerminalTickets | undefined },
+) {
+  const tickets = deps.tickets ?? terminalTickets();
+  const service = terminalService({ db: deps.db, hub: deps.hub, tickets });
   return newRouter()
     .openapi(ticketRoute(deps), async (c) => {
       const { machineId } = c.req.valid('param');

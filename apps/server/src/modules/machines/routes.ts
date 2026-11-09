@@ -13,6 +13,7 @@ import { type PowerControl, tunnelsOnConnect } from './service/power/control.ts'
 import { holdOnConnect } from './service/power/hold.ts';
 import { powerService } from './service/power.ts';
 import type { RunnerHub } from './service/runner/hub.ts';
+import type { TerminalTickets } from './service/terminal/tickets.ts';
 import { machinesService } from './service.ts';
 
 /**
@@ -25,7 +26,12 @@ import { machinesService } from './service.ts';
  * server's own port.
  */
 export function machinesRoutes(
-  deps: ServerDeps & { readonly hub: RunnerHub; readonly control: PowerControl },
+  deps: ServerDeps & {
+    readonly hub: RunnerHub;
+    readonly control: PowerControl;
+    /** The terminal tickets, shared with the chats' terminals (S5.1b); omitted, the terminal routes keep their own. */
+    readonly tickets?: TerminalTickets;
+  },
 ) {
   const linked = { ...deps, port: deps.config.MWC_PORT };
   const machines = machinesService(linked);

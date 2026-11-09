@@ -3,7 +3,12 @@
  * runner's tests, `FakeRunner` for the server's hub tests, both speaking `@mwc/shared/runner-protocol` over real
  * WebSockets on 127.0.0.1.
  */
-export { type CloseInfo, FakeRunner, type FakeRunnerOptions } from './runner/fake-runner.ts';
+export {
+  type CloseInfo,
+  FAKE_CLAUDE_VERSION,
+  FakeRunner,
+  type FakeRunnerOptions,
+} from './runner/fake-runner.ts';
 export {
   FakeRunnerServer,
   type FakeRunnerServerOptions,

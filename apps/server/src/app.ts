@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { newId } from '@mwc/shared/ids';
 import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
+import { chatsRoutes } from './modules/chats/index.ts';
 import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
 import { credentialsRoutes, signInRoutes } from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
@@ -13,6 +14,7 @@ import {
   machineUpkeep,
   type PowerControl,
   type RunnerHub,
+  terminalTickets,
 } from './modules/machines/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
@@ -29,6 +31,7 @@ import type { LocalPower } from './platform/processes/power/local.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 
+export { reapTurns } from './modules/chats/index.ts';
 export {
   createPowerControl,
   createRunnerHub,
@@ -65,7 +68,8 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * else the one MWC_LOGIN_HELPER names. The runner hub is the one passed in, else one of its own; the HTTP server hands it
  * the runners' sockets (`platform/realtime/sockets.ts`, whose server `start.ts` gives to `serve()`). The power control
  * is the one passed in (`start.ts`: this server's own driver when MWC_LOCAL_POWER finds the airia CLI), else the runner
- * controllers'; `/api/config` says which (`localPower`).
+ * controllers'; `/api/config` says which (`localPower`). The chats (S5.1b) start their turns through the same hub and
+ * share the machines' terminal tickets.
  */
 export function createApp(deps: AppOptions) {
   const clock = deps.clock ?? (() => new Date());
@@ -77,6 +81,8 @@ export function createApp(deps: AppOptions) {
   const hub = deps.runnerHub ?? ownHub(server);
   const control =
     deps.powerControl ?? createPowerControl({ hub, port: deps.config.MWC_PORT, logger: deps.logger });
+  // One ticket store for the machines' terminals and the chats' (S5.1b): both open the same browser socket.
+  const tickets = terminalTickets();
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -97,7 +103,8 @@ export function createApp(deps: AppOptions) {
     .route('/', orgRoutes(server))
     .route('/', credentialsRoutes({ ...server, keyring }))
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
-    .route('/', machinesRoutes({ ...server, hub, control }));
+    .route('/', machinesRoutes({ ...server, hub, control, tickets }))
+    .route('/', chatsRoutes({ ...server, hub, tickets, keyring }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

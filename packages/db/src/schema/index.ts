@@ -1,5 +1,6 @@
 export * from './api-keys.ts';
 export * from './audit-log.ts';
+export * from './chats.ts';
 export * from './companies.ts';
 export * from './company-logos.ts';
 export * from './credentials.ts';

@@ -156,3 +156,11 @@ export type PlacementMode = z.infer<typeof PlacementMode>;
 /** `agent_placements.permission_policy`: its runs ask a person before a tool outside their rules, or skip the prompts. */
 export const PermissionPolicy = z.enum(['ask', 'bypass']);
 export type PermissionPolicy = z.infer<typeof PermissionPolicy>;
+
+/**
+ * `chat_turns.status` (S5.1b, docs/harness.md): a chat turn waiting for its machine (`queued`, kept for the queue that
+ * comes with runs), its process running there (`running`), and how it ended: with its result (`done`), failed or
+ * refused (`failed`), or stopped by a person (`stopped`).
+ */
+export const ChatTurnStatus = z.enum(['queued', 'running', 'done', 'failed', 'stopped']);
+export type ChatTurnStatus = z.infer<typeof ChatTurnStatus>;

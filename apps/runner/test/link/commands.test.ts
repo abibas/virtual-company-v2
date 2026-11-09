@@ -1,3 +1,4 @@
+import { fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import type {
   PowerCommand,
@@ -5,6 +6,7 @@ import type {
   ServerFrame,
   TerminalServerFrame,
   TunnelSpec,
+  TurnServerFrame,
 } from '@mwc/shared/runner-protocol';
 import { describe, expect, it } from 'vitest';
 import { Commands, NO_RUNS, REMEMBERED_COMMANDS } from '../../src/link/commands.ts';
@@ -17,6 +19,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
   const keys: string[] = [];
   const tunnelSets: (readonly TunnelSpec[])[] = [];
   const terminals: TerminalServerFrame[] = [];
+  const turns: TurnServerFrame[] = [];
   const updates: RunnerUpdate[] = [];
   let drained = 0;
   const logs = memoryLog();
@@ -31,13 +34,14 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
     },
     setTunnels: (tunnels) => void tunnelSets.push(tunnels),
     terminal: (frame) => void terminals.push(frame),
+    turn: (frame) => void turns.push(frame),
     update: async (frame) => {
       updates.push(frame);
       return { type: 'runner.update.result', cmdId: frame.cmdId, ok: true, build: 'cd'.repeat(32) };
     },
     log: logs.log,
   });
-  return { handler, holds, keys, tunnelSets, terminals, updates, logs, drained: () => drained };
+  return { handler, holds, keys, tunnelSets, terminals, turns, updates, logs, drained: () => drained };
 }
 
 const powerCommand = (): PowerCommand => ({
@@ -81,6 +85,17 @@ describe('the commands', () => {
     ];
     for (const frame of frames) expect(await handler.handle(frame)).toEqual([]);
     expect(terminals).toEqual(frames);
+  });
+
+  it('hands the turn frames to the turns, with no answer of its own', async () => {
+    const { handler, turns } = commands();
+    const turnId = newId();
+    const frames: TurnServerFrame[] = [
+      { type: 'turn.start', turnId, spec: fakeTurnSpec('claude_code') },
+      { type: 'turn.stop', turnId },
+    ];
+    for (const frame of frames) expect(await handler.handle(frame)).toEqual([]);
+    expect(turns).toEqual(frames);
   });
 
   it('hands tunnel.set to the tunnels as it comes, with no answer (it is no command)', async () => {
@@ -160,6 +175,7 @@ describe('the commands', () => {
       drain: () => {},
       setTunnels: () => {},
       terminal: () => {},
+      turn: () => {},
       update: async () => {
         throw new Error('no update in this test');
       },

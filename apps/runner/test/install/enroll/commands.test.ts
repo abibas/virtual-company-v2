@@ -61,6 +61,10 @@ describe('the container that enrolls on its first start', () => {
       expect(dockerfile).toContain(env);
     }
     expect(dockerfile).toContain('VOLUME /var/lib/mwc-runner');
+    // Claude Code and Codex for chat turns, at the exact versions the sign-in helper's image pins.
+    const pins = /@anthropic-ai\/claude-code@\d+\.\d+\.\d+ @openai\/codex@\d+\.\d+\.\d+/;
+    expect(dockerfile.match(pins)?.[0]).toBe(read('deploy/Dockerfile.login').match(pins)?.[0]);
+    expect(dockerfile).toContain('command -v claude codex');
     expect(dockerfile).toContain('ENTRYPOINT ["/usr/bin/tini", "--"]');
     expect(dockerfile).toContain('CMD ["node", "/opt/mwc-runner/runner.mjs", "run"]');
   });

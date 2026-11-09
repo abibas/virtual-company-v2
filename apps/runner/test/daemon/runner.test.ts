@@ -43,7 +43,7 @@ describe('the runner on the wire', () => {
       protocol: 1,
       version: '0.1.0',
       caps: {
-        harnesses: ['claude_code'],
+        harnesses: { claude_code: null, codex: null },
         slots: 3,
         hold: 'none',
         power: [],

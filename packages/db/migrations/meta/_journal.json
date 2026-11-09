@@ -85,6 +85,13 @@
       "when": 1794213363556,
       "tag": "0011_machine_logos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794228380053,
+      "tag": "0012_chats",
+      "breakpoints": true
     }
   ]
 }

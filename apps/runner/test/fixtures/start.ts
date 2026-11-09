@@ -5,6 +5,7 @@ import { WebSocket } from 'ws';
 import { writeRunnerConfig } from '../../src/config.ts';
 import type { MainDeps } from '../../src/daemon/start.ts';
 import { CAFFEINATE_BIN } from '../../src/hold/driver.ts';
+import { nodePrivateFs } from '../../src/turns/files.ts';
 import type { LogEntry } from './log.ts';
 import { httpOf, runnerConfig, tempDir } from './runner.ts';
 import { FakeSpawn } from './spawn.ts';
@@ -61,6 +62,8 @@ export interface WorldOptions {
   readonly power?: MainDeps['power'];
   /** The PTY the daemon loads; none (with a reason) by default. */
   readonly loadPty?: MainDeps['loadPty'];
+  /** The harnesses' CLIs `cli.ts` found; none by default. */
+  readonly harnesses?: MainDeps['harnesses'];
 }
 
 /** `main`'s outside world, faked: a config file in a temporary folder, fake time, a fake spawn, captured signals. */
@@ -88,6 +91,7 @@ export function world(options: WorldOptions = {}) {
     pid: 4242,
     os: machine.os,
     fs: machine.fs,
+    privateFs: nodePrivateFs(),
     spawn: spawn.spawn,
     killGroup: spawn.killGroup,
     WebSocket,
@@ -97,6 +101,7 @@ export function world(options: WorldOptions = {}) {
     ...proc.process,
     version: '0.1.0',
     ...(options.power ? { power: options.power } : {}),
+    ...(options.harnesses ? { harnesses: options.harnesses } : {}),
     loadPty: options.loadPty ?? (() => ({ ok: false, reason: 'no PTY in this test' })),
   };
   const entries = () => proc.lines.map((line) => JSON.parse(line) as LogEntry);

@@ -13,6 +13,7 @@ import type { LinkEnd } from '../link/link.ts';
 import { machineSampler } from '../stats/machine.ts';
 import type { MainDeps } from '../system/deps.ts';
 import { createLog, type Log } from '../system/log.ts';
+import { harnessHost } from '../turns/drivers.ts';
 import { type HealthServer, healthPort, startHealthServer } from './health.ts';
 import { createRunner, type Runner, type RunnerOptions } from './runner.ts';
 
@@ -109,6 +110,10 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     ...(deps.power ? { power: deps.power } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     ...(terminal ? { terminal } : {}),
+    harness: harnessHost(
+      { clis: deps.harnesses ?? {}, env: deps.env, fs: deps.privateFs, stateDir: setup.stateDir },
+      log,
+    ),
     saveConfig: (next) => writeRunnerConfig(setup.configPath, next),
     clock,
     timers,

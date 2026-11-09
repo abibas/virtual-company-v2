@@ -66,7 +66,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses[], slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |
@@ -79,8 +79,10 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `tunnel.state` | `machineId` (the box), `state connecting\|up\|down`, `error?` (1–500 characters: the last line the tunnel printed) | a controller's tunnel changed (`connecting` at each start, `up` after 10 s alive, `down` when it ended; a `connecting` after a `down` keeps its error), and every tunnel's state again after each `server.hello`; no answer |
 | `terminal.opened` | `sessionId`, `shell` (its path) | the shell of a `terminal.open` started; no answer |
 | `terminal.output` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | what the terminal printed, batched (about 16 ms or 32 KB) |
-| `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `runner_updating`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
+| `terminal.exit` | `sessionId`, `code` (int\|null), `signal?` (`SIGHUP`, …), `authJson?` (a harness terminal's rewritten Codex login, never relayed to the browser), `error?` (why the runner ended it or refused it: `terminal_unavailable`, `too_many_sessions`, `runner_stopping`, `runner_updating`, `idle_timeout`, `spawn_failed: …`) | the session ended (the shell exited, or it never started); nothing follows for it |
 | `runner.update.result` | `cmdId`, `ok`, `build?` (the new build, when `ok`), `error?` (`<code>: <words>`, the code one of `RUNNER_UPDATE_ERRORS`: `unsupported`, `busy`, `download_failed`, `hash_mismatch`, `write_failed`) | the answer to `runner.update` (instead of `cmd.ack`); after an `ok` the runner restarts |
+| `turn.events` | `turnId`, `events[1–100]{seq ≥ 1, event}` (`event` a `TurnEvent` of `@mwc/shared/harness`) | a chat turn's next events, in order (S5.1b, "Chat turns" below); no answer |
+| `turn.end` | `turnId`, `ok`, `exitCode` (int\|null), `error?` (a `TURN_ERRORS` code, optionally `: ` and words), `authJson?` (a Codex login the process rewrote, a JSON object of at most 64 KB) | once per turn, after its last events; no answer |
 
 ## Server → runner
 
@@ -98,11 +100,13 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `machine.hold` | `cmdId`, `until` (ms\|null) | null releases the server's hold |
 | `power.command` | `cmdId`, `target{provider airia_devbox, ref{instance, zone, size?}}`, `action start\|stop\|status\|set_timezone`, `args?{timezone?}` | to a power controller; `set_timezone` needs `args.timezone` (IANA) |
 | `tunnel.set` | `tunnels[≤ 64]{machineId, target{provider airia_devbox, ref}, remotePort, localPort}` (ports 1–65535, one tunnel per machine) | to a power controller: the full set of tunnels it should hold now (an empty one stops them all); not a command (no `cmdId`, no answer) |
-| `terminal.open` | `sessionId` (the server's UUID), `cols` 2–500, `rows` 1–300 | start a login shell in a new PTY; answered by `terminal.opened` or, refused, by `terminal.exit` |
+| `terminal.open` | `sessionId` (the server's UUID), `cols` 2–500, `rows` 1–300, `harness?` (a `TerminalSpec`, S5.1b) | start a login shell in a new PTY, or with `harness` the harness's TUI on a chat's conversation; answered by `terminal.opened` or, refused, by `terminal.exit` |
 | `terminal.input` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | typed or pasted bytes |
 | `terminal.resize` | `sessionId`, `cols`, `rows` | |
 | `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
 | `runner.update` | `cmdId` | update yourself from the server you are linked to and restart; answered by `runner.update.result` ("Updating a runner") |
+| `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
+| `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT; its `turn.end` says `stopped` |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
 `placement{home, configDir|null, worktree|null}` (absolute or `~/` paths), `session` (`{mode: 'new', sessionId|null}`
@@ -191,6 +195,33 @@ stops (`runner_stopping`, sent before its socket closes). Open terminals count f
 (`hold.state` source `live_runs`). Output is batched (16 ms or 32 KB) and the PTY is paused while the socket's send
 buffer is over 1 MB, until it is down to 256 KB.
 
+## Chat turns
+
+Added in S5.1b (`runner-protocol/turns.ts`; how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
+sends `turn.start` only to a runner whose hello gave the harness's CLI version (`caps.harnesses`, read with
+`harnessVersionOf`: undefined for a runner older than chats, which the server refuses as `runner_outdated`; null for a
+missing CLI, `harness_missing`). The turn frames are no commands (no `cmdId`, no `cmd.ack`): `turn.start` is answered by
+`turn.events` (zero or more, in order, each event numbered from 1 per turn) and exactly one `turn.end`, after the last
+events. The spec carries the credential the server resolved for this turn only; the runner never logs it, its
+environment values or `auth.json`.
+
+- **Refusals.** A start the runner does not carry out is answered at once with `turn.end {ok: false, exitCode: null,
+  error}`, the codes of `TURN_ERRORS`: `unsupported` (no driver for the harness here), `busy` (`caps.slots` turns live),
+  `home_missing` (the spec's `cwd` is not a folder on the machine), `invalid_spec: …` (the driver refused the spec),
+  `spawn_failed: …` (the process or its private folder could not start), `runner_stopping`. A repeated `turn.start` of
+  a live turn and a `turn.stop` of a turn it does not have are ignored.
+- **The end.** `ok` is the turn's result's (false whenever there is an `error`), `exitCode` the process's (null after a
+  signal), `error` `stopped` after `turn.stop` and `runner_stopping` when the runner stops (sent before its socket
+  closes). `authJson` comes when a Codex process rewrote its `auth.json` (its own token refresh); the server seals it
+  into the credential again.
+- **Batching.** Events go about 100 ms after the first of a batch (`TURN_EVENTS_BATCH_MS`), or at once from 32 KB
+  (`TURN_EVENTS_BATCH_BYTES`) or 100 events; a text event over 16 KB is split into several and a result's text is cut, so
+  every frame fits the 256 KB frame limit.
+- **The link.** A turn belongs to the connection that carried its `turn.start`: when the link drops the runner ends its
+  processes by the stop ladder (nothing can reach the server then), and the server fails the turns of that connection
+  (`machine_disconnected`). Nothing is re-attached after a reconnect yet (S5 proper). Live turns count for the runner's
+  own hold (`hold.state` source `live_runs`) and make `runner.update` answer `busy`.
+
 ## Updating a runner
 
 Added 2026-11-09 (`runner-protocol/update.ts`; what Ihor sees and the server's other paths are in docs/machines.md,
@@ -232,6 +263,8 @@ It trusts the server over its authenticated link and checks SHA-256 only; the si
 | `TUNNELS_MAX`, `TUNNEL_ERROR_MAX` | 64 tunnels in one `tunnel.set`, 500 characters of a `tunnel.state` error |
 | `TERMINAL_DATA_MAX_BYTES`, `TERMINAL_COLS`, `TERMINAL_ROWS` | 64 KB decoded per `terminal.input` / `terminal.output`; cols 2–500, rows 1–300 |
 | `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
+| `TURN_EVENTS_BATCH_MS`, `TURN_EVENTS_BATCH_BYTES` | a turn's events sent 100 ms after the first of a batch, or at once from 32 KB (or 100 events) |
+| `TURN_STOP_TERM_MS`, `TURN_STOP_KILL_MS` | SIGTERM 5 s and SIGKILL 10 s after a stopped turn's SIGINT |
 | the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
 | the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | the self-update (`apps/runner/src/update/`, the server's `service/runner/update.ts`) | 3 minutes for the runner's answer, 2 minutes per download, the restart 250 ms after the answer, exit code 75 |

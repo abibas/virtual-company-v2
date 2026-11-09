@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Harness, HoldSource } from '../enums.ts';
+import { HoldSource } from '../enums.ts';
 import { EpochMs } from '../identity.ts';
 import { HoldDriver, MachineSample, PowerProvider, PowerStatus } from '../machines.ts';
 import {
@@ -13,6 +13,7 @@ import {
 } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
+import { RunnerHarnesses, TURN_RUNNER_FRAMES } from './turns.ts';
 import { RunnerBuild, RunnerUpdateResult } from './update.ts';
 
 /** The frames a runner sends to the server (docs/runner-protocol.md, "Runner to server"). */
@@ -31,7 +32,11 @@ export const ATTENTION_OPTIONS_MAX = 32;
  * it opens terminals, and whether it updates itself.
  */
 export const RunnerCaps = protocolObject({
-  harnesses: z.array(Harness).max(Harness.options.length),
+  /**
+   * Each harness's CLI version, null when it is missing (S5.1b); a runner older than chats lists the names alone and
+   * runs no turn (`harnessVersionOf`).
+   */
+  harnesses: RunnerHarnesses,
   slots: z.int().min(0).max(RUNNER_SLOTS_MAX),
   hold: HoldDriver,
   /** Present when `airia` and `gcloud` are installed and signed in on this machine: it is a power controller. */
@@ -224,6 +229,7 @@ export const RUNNER_FRAMES = [
   TunnelState,
   ...TERMINAL_RUNNER_FRAMES,
   RunnerUpdateResult,
+  ...TURN_RUNNER_FRAMES,
 ] as const;
 
 /** Any frame a runner sends, told apart by `type`. */

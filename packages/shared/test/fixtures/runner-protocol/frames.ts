@@ -1,3 +1,4 @@
+import type { TurnSpec } from '../../../src/harness.ts';
 import { newId } from '../../../src/ids.ts';
 import type { MachineSample } from '../../../src/machines.ts';
 import type {
@@ -22,6 +23,7 @@ export const IDS = {
   input: newId(),
   principal: newId(),
   session: newId(),
+  turn: newId(),
 } as const;
 
 export const NOW = Date.UTC(2026, 10, 6, 12, 0, 0);
@@ -61,13 +63,27 @@ export const RUN_SPEC: RunSpec = {
   limits: { maxTurns: 200 },
 };
 
+/** A turn of Claude Code on a setup-token, resuming a session. */
+export const TURN_SPEC: TurnSpec = {
+  harness: 'claude_code',
+  cwd: '/Users/ihor/agents/slop-box',
+  prompt: 'What is 2 + 2?',
+  sessionId: 'b4c1f0e2-session',
+  model: 'claude-opus-5-5',
+  effort: 'high',
+  permissionPolicy: 'ask',
+  configDir: null,
+  credential: { kind: 'claude_setup_token', token: 'sk-ant-oat01-test' },
+  gateway: null,
+};
+
 export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerFrame, { type: T }> } = {
   'runner.hello': {
     type: 'runner.hello',
     protocol: 1,
     version: '0.5.0',
     caps: {
-      harnesses: ['claude_code'],
+      harnesses: { claude_code: '2.1.319 (Claude Code)', codex: 'codex-cli 0.163.0' },
       slots: 2,
       hold: 'caffeinate',
       power: ['airia_devbox'],
@@ -124,6 +140,15 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
   'terminal.output': { type: 'terminal.output', sessionId: IDS.session, data: 'aGVsbG8NCg==' },
   'terminal.exit': { type: 'terminal.exit', sessionId: IDS.session, code: null, signal: 'SIGHUP' },
   'runner.update.result': { type: 'runner.update.result', cmdId: IDS.cmd, ok: true, build: BUILD },
+  'turn.events': {
+    type: 'turn.events',
+    turnId: IDS.turn,
+    events: [
+      { seq: 1, event: { type: 'session', sessionId: 'b4c1f0e2-session' } },
+      { seq: 2, event: { type: 'text', text: '4' } },
+    ],
+  },
+  'turn.end': { type: 'turn.end', turnId: IDS.turn, ok: true, exitCode: 0 },
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
@@ -181,4 +206,6 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
   'terminal.resize': { type: 'terminal.resize', sessionId: IDS.session, cols: 80, rows: 24 },
   'terminal.close': { type: 'terminal.close', sessionId: IDS.session },
   'runner.update': { type: 'runner.update', cmdId: IDS.cmd },
+  'turn.start': { type: 'turn.start', turnId: IDS.turn, spec: TURN_SPEC },
+  'turn.stop': { type: 'turn.stop', turnId: IDS.turn },
 };

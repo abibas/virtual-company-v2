@@ -6,17 +6,22 @@ import {
 } from '@mwc/shared/runner-protocol';
 import type { Log } from '../system/log.ts';
 import type { Timers } from '../system/time.ts';
+import { releaseLogin } from '../turns/private-dir.ts';
+import { INVALID_LOGIN } from '../turns/turn.ts';
+import type { HarnessHost } from '../turns/turns.ts';
+import { harnessLaunch, shellLaunch, type TerminalLaunch } from './launch.ts';
 import type { PtyProcess, PtySpawn } from './loader.ts';
 import { TerminalSession } from './session.ts';
-import { type Env, LOGIN_FLAG, loginShell, TERMINAL_TERM, terminalEnv } from './shell.ts';
+import { type Env, TERMINAL_TERM } from './shell.ts';
 
 /**
- * The machine's terminals (docs/machines.md, "Terminal"): `terminal.open` starts a login shell in a PTY (at most 4 at
- * once), the other terminal frames go to their session, and every open terminal counts for the runner's own hold (live
- * work, as a live run). They all end when the link drops (nothing can reach them then) and when the runner stops (each
- * with `runner_stopping` in its `terminal.exit`, sent before the link closes). An open the runner refuses is answered
- * at once with `terminal.exit` and why: `terminal_unavailable` (no PTY here), `runner_stopping`, `too_many_sessions`,
- * or `spawn_failed: …`.
+ * The machine's terminals (docs/machines.md, "Terminal"): `terminal.open` starts a login shell in a PTY, or with
+ * `harness` a chat's harness TUI (`launch.ts`), at most 4 at once; the other terminal frames go to their session, and
+ * every open terminal counts for the runner's own hold (live work, as a live run). They all end when the link drops
+ * (nothing can reach them then) and when the runner stops (each with `runner_stopping` in its `terminal.exit`, sent
+ * before the link closes). An open the runner refuses is answered at once with `terminal.exit` and why:
+ * `terminal_unavailable` (no PTY here), `runner_stopping`, `too_many_sessions`, `spawn_failed: …`, and for a harness's
+ * `unsupported`, `home_missing` or `invalid_spec: …`.
  */
 
 /** What a runner with a terminal has: the PTY that loaded, and what a shell needs from the machine. */
@@ -33,6 +38,8 @@ export interface TerminalHost {
 export interface TerminalSessionsDeps {
   /** Undefined when the PTY did not load: every open is refused. */
   readonly host: TerminalHost | undefined;
+  /** The harnesses, for a chat's terminal (`terminal.open` with `harness`); without them that is `unsupported`. */
+  readonly harness?: HarnessHost | undefined;
   readonly timers: Timers;
   readonly log: Log;
   send(frame: TerminalRunnerFrame): boolean;
@@ -107,6 +114,15 @@ export class TerminalSessions {
     else this.#start(frame, host);
   }
 
+  /** A session ended: its private folder released, and the Codex login its process rewrote for `terminal.exit`. */
+  #finish(sessionId: string, launch: TerminalLaunch): { readonly authJson?: string } {
+    const login = releaseLogin(launch.lease);
+    if (login === undefined) return {};
+    if (login !== 'invalid') return { authJson: login };
+    this.#deps.log.warn(INVALID_LOGIN, { sessionId });
+    return {};
+  }
+
   /** Answers an open it will not carry out with `terminal.exit` and why. */
   #refuse(sessionId: string, error: string): void {
     this.#deps.send({ type: 'terminal.exit', sessionId, code: null, error });
@@ -114,23 +130,28 @@ export class TerminalSessions {
 
   #start(frame: TerminalOpen, host: TerminalHost): void {
     const { sessionId } = frame;
-    const shell = loginShell(host.env, host.exists);
+    const launch = frame.harness ? harnessLaunch(frame.harness, this.#deps.harness, host) : shellLaunch(host);
+    if ('refused' in launch) {
+      this.#refuse(sessionId, launch.refused);
+      return;
+    }
     let pty: PtyProcess;
     try {
-      pty = host.spawn(shell, [LOGIN_FLAG], {
+      pty = host.spawn(launch.file, launch.args, {
         name: TERMINAL_TERM,
         cols: frame.cols,
         rows: frame.rows,
-        cwd: host.home,
-        env: terminalEnv(host.env, host.platform),
+        cwd: launch.cwd,
+        env: launch.env,
         encoding: null,
       });
     } catch (error) {
-      this.#deps.log.warn('a terminal could not start', { sessionId, shell, error });
+      launch.lease?.release();
+      this.#deps.log.warn('a terminal could not start', { sessionId, shell: launch.file, error });
       this.#refuse(sessionId, `spawn_failed: ${messageOf(error)}`);
       return;
     }
-    const session = new TerminalSession(sessionId, shell, pty, {
+    const session = new TerminalSession(sessionId, launch.file, pty, {
       timers: this.#deps.timers,
       log: this.#deps.log,
       send: (sent) => this.#deps.send(sent),
@@ -139,6 +160,8 @@ export class TerminalSessions {
         this.#sessions.delete(id);
         this.#deps.count(this.#sessions.size);
       },
+      ...(launch.banner === undefined ? {} : { banner: launch.banner }),
+      finish: () => this.#finish(sessionId, launch),
     });
     this.#sessions.set(sessionId, session);
     this.#deps.count(this.#sessions.size);

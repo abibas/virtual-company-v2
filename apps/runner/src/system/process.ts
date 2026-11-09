@@ -9,6 +9,8 @@ import type { Timers } from './time.ts';
 /** What the runner uses of a child process. */
 export interface ChildLike {
   readonly pid?: number | undefined;
+  /** Piped only for a chat turn, which gets its prompt there. */
+  readonly stdin?: NodeJS.WritableStream | null;
   readonly stdout: NodeJS.ReadableStream | null;
   /** Piped only for a tunnel, whose last line says why it ended. */
   readonly stderr?: NodeJS.ReadableStream | null;
@@ -22,13 +24,15 @@ export interface ChildLike {
 }
 
 /**
- * The options the runner passes: stdin ignored, stdout piped when it reads it, stderr piped only for a tunnel, which
- * is also `detached` (its own process group, so its children are stopped with it) and may bring its own environment.
+ * The options the runner passes: stdin ignored but for a chat turn (its prompt), stdout piped when it reads it, stderr
+ * piped only for a tunnel and a turn, which are also `detached` (their own process group, so their children are
+ * stopped with them) and bring their own environment; a turn also starts in its agent's folder (`cwd`).
  */
 export interface SpawnOptions {
-  readonly stdio: ['ignore', 'pipe' | 'ignore', 'ignore' | 'pipe'];
+  readonly stdio: ['ignore' | 'pipe', 'pipe' | 'ignore', 'ignore' | 'pipe'];
   readonly detached?: boolean;
   readonly env?: Readonly<Record<string, string>>;
+  readonly cwd?: string;
 }
 
 /** `child_process.spawn`, narrowed to what the runner uses. */

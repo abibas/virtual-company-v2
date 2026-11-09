@@ -28,6 +28,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-09: S5.1b's runner `turns/`, a second raw-access file, and a personal table naming a company
+
+- **What happened:** the runner's chat turns went to a new `apps/runner/src/turns/` (8 files): the runner table of
+  SKILL.md has no row for it, and `apps/runner/src/` and its mirrored `test/` now have 13 entries (`big-folder`). The
+  chats module fails every company's left-running turns at the server's start, so it got a raw-access file,
+  `modules/chats/repo/reaper.ts`, added to biome.json's exemption beside `machines/repo/upkeep.ts`. `credential_uses`
+  (personal) now names the company, agent, chat and principal of a chat's use as plain ids, so the db's tenant test
+  lists it with the global tables that name a company. `packages/shared/src/enums.ts` reached 8 importers (`fan-in`,
+  the new `runner-protocol/turns.ts`); `platform/start.ts` is at 241 of 300 lines (`near-limit`, one line for the
+  reaper's call).
+- **Where:** the S5.1b commit.
+- **What was done:** as above.
+- **Suggested change:** a runner row "a harness turn's process, its private folder and its event batches → `turns/`";
+  group the runner's `src/` (13) at the S5 review, e.g. `power/`, `hold/` and `stats/` under one machine folder.
+- **Status:** `open`.
+
 ### 2026-11-09: A test executable another package's tests spawn, and fixtures in a connector's `src/`
 
 - **What happened:** S5.1a needs a fake harness binary for the runner's later tests (a process the runner spawns). The

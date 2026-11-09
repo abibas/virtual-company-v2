@@ -144,6 +144,28 @@ export {
   TunnelSpec,
 } from './runner-protocol/server-frames.ts';
 export {
+  HarnessVersion,
+  HarnessVersions,
+  harnessVersionOf,
+  isTurnFrame,
+  RunnerHarnesses,
+  TURN_ERRORS,
+  TURN_EVENTS_BATCH_BYTES,
+  TURN_EVENTS_BATCH_MS,
+  TURN_RUNNER_FRAMES,
+  TURN_SERVER_FRAMES,
+  TURN_STOP_KILL_MS,
+  TURN_STOP_TERM_MS,
+  TurnEnd,
+  type TurnError,
+  TurnEventItem,
+  TurnEvents,
+  type TurnRunnerFrame,
+  type TurnServerFrame,
+  TurnStart,
+  TurnStop,
+} from './runner-protocol/turns.ts';
+export {
   RUNNER_UPDATE_ERRORS,
   RunnerBuild,
   RunnerUpdate,

@@ -45,7 +45,7 @@ describe('runner.hello', () => {
     expect(issuesOf(RunnerHello, { ...hello, version: 'v0.5' })).toEqual(['version']);
     expect(issuesOf(RunnerHello, without(hello, 'caps'))).toEqual(['caps']);
     expect(issuesOf(RunnerHello, { ...hello, caps: { ...caps, harnesses: ['cursor'] } })).toEqual([
-      'caps.harnesses.0',
+      'caps.harnesses',
     ]);
     expect(issuesOf(RunnerHello, { ...hello, caps: { ...caps, slots: -1 } })).toEqual(['caps.slots']);
     expect(issuesOf(RunnerHello, { ...hello, caps: { ...caps, slots: 65 } })).toEqual(['caps.slots']);

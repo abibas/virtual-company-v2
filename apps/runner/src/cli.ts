@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 import { runnerConfigPath } from './config.ts';
 import { EXIT, type MainDeps, main } from './daemon/start.ts';
 import { enrollCommand, enrollOnFirstBoot } from './install/enroll/commands.ts';
-import { claudeVersion } from './install/enroll/facts.ts';
+import { harnessClis } from './install/enroll/facts.ts';
 import { CommandError, type Env, type Host } from './install/host.ts';
 import { installCommand } from './install/install.ts';
 import { SERVICE_MANAGER_ENV } from './install/launchd.ts';
@@ -99,8 +99,8 @@ export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'update'> {
 }
 
 /**
- * `run`: a container enrolls itself on its first start; then the daemon, with Claude Code's version, its build and its
- * self-update for its hello.
+ * `run`: a container enrolls itself on its first start; then the daemon, with the harnesses' CLIs (each asked
+ * `--version` once; Claude Code's is also the hello's `claudeVersion`), its build and its self-update for its hello.
  */
 async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
   const daemon = deps.daemon();
@@ -116,7 +116,9 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
     exit(failed);
     return failed;
   }
-  return main(argv, { ...daemon, claudeVersion: await claudeVersion(host), ...selfFacts(host), exit });
+  const harnesses = await harnessClis(host);
+  const claudeVersion = harnesses.claude_code?.version ?? null;
+  return main(argv, { ...daemon, harnesses, claudeVersion, ...selfFacts(host), exit });
 }
 
 /** One of the commands a person runs; its message on stderr and its exit code when it fails. */

@@ -3,6 +3,8 @@ import type { PowerExecutor } from '../power/executor.ts';
 import type { MemoryDeps } from '../stats/memory.ts';
 import type { DiskStats, SamplerOs } from '../stats/sampler.ts';
 import type { PtyLoad } from '../terminal/loader.ts';
+import type { HarnessClis } from '../turns/drivers.ts';
+import type { PrivateFs } from '../turns/private-dir.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
 import type { KillGroup, Spawn } from './process.ts';
 import type { Clock, Timers } from './time.ts';
@@ -10,7 +12,8 @@ import type { Clock, Timers } from './time.ts';
 /**
  * The process the daemon runs on (`daemon/start.ts`'s `main`): its environment, Node's `os` and files as the runner
  * reads them, process starts, the WebSocket, time, the log's output, signals and its exit, and what `cli.ts` learned at
- * start (Claude Code's version, the build, the self-update). `node.ts` is the real one; tests pass fakes.
+ * start (the harnesses' CLIs and Claude Code's version, the build, the self-update). `node.ts` is the real one; tests
+ * pass fakes.
  */
 export interface MainDeps {
   readonly env: Readonly<Record<string, string | undefined>>;
@@ -25,6 +28,8 @@ export interface MainDeps {
     /** Makes a folder and its parents, new ones 0700. */
     mkdir(path: string): void;
   };
+  /** The harnesses' private folders' files (a Codex login while its process runs), and the agent folder's check. */
+  readonly privateFs: PrivateFs;
   readonly spawn: Spawn;
   /** Signals a detached child's process group (a power controller's tunnels). */
   readonly killGroup: KillGroup;
@@ -41,6 +46,11 @@ export interface MainDeps {
   readonly version: string;
   /** Claude Code's version (`cli.ts` asks `claude --version` once), sent in the hello; left out when unknown. */
   readonly claudeVersion?: string | null;
+  /**
+   * The harnesses' CLIs found on the PATH with their versions (`cli.ts` asks each `--version` once): the daemon runs
+   * turns and harness terminals with them. None when left out.
+   */
+  readonly harnesses?: HarnessClis;
   /** The build it runs (`cli.ts` hashes the bundle once), sent in the hello; left out when unknown. */
   readonly build?: string | null;
   /** How it updates itself, for an installed copy under launchd or systemd (`cli.ts`); none otherwise. */

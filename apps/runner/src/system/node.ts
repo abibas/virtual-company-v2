@@ -6,6 +6,7 @@ import os from 'node:os';
 import { WebSocket } from 'ws';
 import { detectPowerExecutor } from '../power/detect.ts';
 import { loadPty } from '../terminal/loader.ts';
+import { nodePrivateFs } from '../turns/files.ts';
 import type { MainDeps } from './deps.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
 import { runnerVersion } from './version.ts';
@@ -34,6 +35,7 @@ export function nodeDeps(): MainDeps {
         mkdirSync(path, { recursive: true, mode: 0o700 });
       },
     },
+    privateFs: nodePrivateFs(),
     spawn,
     killGroup: (pid, signal) => {
       try {

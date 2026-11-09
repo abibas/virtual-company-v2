@@ -9,6 +9,7 @@ import { createRunner, type Runner } from '../../src/daemon/runner.ts';
 import type { HoldDriver, HoldDriverKind } from '../../src/hold/driver.ts';
 import type { PowerExecutor } from '../../src/power/executor.ts';
 import type { TerminalHost } from '../../src/terminal/sessions.ts';
+import type { HarnessHost } from '../../src/turns/turns.ts';
 import type { SelfUpdate } from '../../src/update/self-update.ts';
 import { memoryLog } from './log.ts';
 import type { FakeSpawn } from './spawn.ts';
@@ -102,6 +103,8 @@ export function startRunner(
     config?: Partial<RunnerConfig>;
     /** Opens terminals through this host (a fake PTY). */
     terminal?: TerminalHost;
+    /** Runs turns with these harnesses (and `spawn`). */
+    harness?: HarnessHost;
     /** The build it says it runs, and how it updates itself. */
     build?: string | null;
     update?: SelfUpdate;
@@ -124,6 +127,7 @@ export function startRunner(
       ? { processes: { spawn: options.spawn.spawn, killGroup: options.spawn.killGroup } }
       : {}),
     ...(options.terminal ? { terminal: options.terminal } : {}),
+    ...(options.harness ? { harness: options.harness } : {}),
     ...(options.build === undefined ? {} : { build: options.build }),
     ...(options.update ? { update: options.update } : {}),
     saveConfig: (next) => {

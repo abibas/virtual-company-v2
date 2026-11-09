@@ -76,7 +76,10 @@ function scopedWindows(limits: unknown): LimitWindow[] {
 }
 
 /** Claude Code's refresh: a new token set for the login, sealed again; the login's account config is kept. */
-async function refresh(login: ClaudeLogin, ctx: LoginContext<'claude_oauth'>): Promise<ClaudeLogin> {
+export async function refreshClaudeLogin(
+  login: ClaudeLogin,
+  ctx: LoginContext<'claude_oauth'>,
+): Promise<ClaudeLogin> {
   const tokens = login.credentials.claudeAiOauth as TokenSet;
   if (!tokens.refreshToken) throw new UsageFailure('needs_sign_in');
   const response = await providerCall(ctx.fetch, CLAUDE_TOKEN_URL, {
@@ -118,7 +121,7 @@ export function checkClaudeOauth(
   return loginCheck(login, ctx.clock(), {
     accessToken: (l) => l.credentials.claudeAiOauth?.accessToken,
     expiresAt: (l) => l.credentials.claudeAiOauth?.expiresAt,
-    refresh: (l) => refresh(l, ctx),
+    refresh: (l) => refreshClaudeLogin(l, ctx),
     usage: (l) =>
       providerCall(ctx.fetch, CLAUDE_USAGE_URL, {
         headers: {

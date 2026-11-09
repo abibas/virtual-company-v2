@@ -1,6 +1,7 @@
 import {
   type CmdAck,
   isTerminalFrame,
+  isTurnFrame,
   type PowerResult,
   type RunnerFrame,
   type RunnerUpdate,
@@ -8,6 +9,7 @@ import {
   type ServerFrame,
   type TerminalServerFrame,
   type TunnelSpec,
+  type TurnServerFrame,
 } from '@mwc/shared/runner-protocol';
 import { z } from 'zod';
 import { type PowerExecutor, runPowerCommand } from '../power/executor.ts';
@@ -19,8 +21,8 @@ import type { Log } from '../system/log.ts';
  * `cmdId` already run gets the same answer again without running it again. S4.3 carries out `machine.hold`,
  * `power.command` (through the injected executor), `key.rotate` and `runner.drain`, and the self-update its
  * `runner.update`; the run commands are refused until S5, and offers are declined. `tunnel.set` is no
- * command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal frames, which go to
- * the terminals, whose answers are their own frames.
+ * command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal and turn frames,
+ * which go to the terminals and the turns, whose answers are their own frames.
  */
 
 /** How many answered commands are remembered for repeats. */
@@ -41,6 +43,8 @@ export interface CommandDeps {
   setTunnels(tunnels: readonly TunnelSpec[]): void;
   /** `terminal.*`: for the machine's terminals. */
   terminal(frame: TerminalServerFrame): void;
+  /** `turn.*`: for the machine's chat turns. */
+  turn(frame: TurnServerFrame): void;
   /** `runner.update`: the self-update's answer (it never throws). */
   update(frame: RunnerUpdate): Promise<RunnerUpdateResult>;
   readonly log: Log;
@@ -76,6 +80,10 @@ export class Commands {
     }
     if (isTerminalFrame(frame)) {
       this.#deps.terminal(frame);
+      return [];
+    }
+    if (isTurnFrame(frame)) {
+      this.#deps.turn(frame);
       return [];
     }
     if (!('cmdId' in frame)) return [];

@@ -30,6 +30,10 @@ export interface SessionDeps {
   buffered(): number;
   /** Called once, right after its `terminal.exit` was sent. */
   ended(sessionId: string): void;
+  /** Printed first, before the program's own output (a harness's notices). */
+  readonly banner?: string;
+  /** Called once when it ended, before `terminal.exit`: what that frame adds (a Codex login its process rewrote). */
+  finish?(): { readonly authJson?: string };
 }
 
 /** The name of a signal's number (`1` → `SIGHUP`), or undefined for none. */
@@ -71,6 +75,7 @@ export class TerminalSession {
     pty.onExit(({ exitCode, signal }) => this.#exited(exitCode, signal));
     deps.send({ type: 'terminal.opened', sessionId, shell });
     deps.log.info('terminal opened', { sessionId, shell, pid: pty.pid });
+    if (deps.banner !== undefined) this.#output.push(Buffer.from(deps.banner));
     this.#armIdle();
   }
 
@@ -134,7 +139,8 @@ export class TerminalSession {
     const name = signalName(signal);
     const end: TerminalEnd = name === undefined ? { code: exitCode } : { code: null, signal: name };
     const exit = this.#reason === undefined ? end : { ...end, error: this.#reason };
-    this.#deps.send({ type: 'terminal.exit', sessionId: this.sessionId, ...exit });
+    const added = this.#deps.finish?.() ?? {};
+    this.#deps.send({ type: 'terminal.exit', sessionId: this.sessionId, ...exit, ...added });
     this.#deps.log.info('terminal ended', { sessionId: this.sessionId, ...exit });
     this.#resolve();
     this.#deps.ended(this.sessionId);

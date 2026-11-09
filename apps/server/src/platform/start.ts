@@ -5,7 +5,7 @@ import { createDb, type DbHandle, migrateToLatest } from '@mwc/db/system';
 import { type Config, loadConfig } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { WebSocketServer } from 'ws';
-import { createApp, machinesRuntime, moduleJobs } from '../app.ts';
+import { createApp, machinesRuntime, moduleJobs, reapTurns } from '../app.ts';
 import type { ServerDeps } from './env.ts';
 import { identityFromConfig } from './identity.ts';
 import { advisoryJobsLock } from './jobs/lock.ts';
@@ -176,10 +176,10 @@ function warnIgnoredSecretKey(
 /**
  * The API server's startup, all of what `main.ts` runs: the configuration from `env` (a `ConfigError` listing every
  * problem when it is invalid, before anything is opened), the logger, the master keyring, the server's own power driver
- * (MWC_LOCAL_POWER), the database, the migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the app, the
- * listening server, the jobs loop (MWC_JOBS), the sweep of the sign-in sandboxes a stopped server left, and the graceful
- * shutdown on SIGTERM and SIGINT, which ends the sign-ins in progress and the devboxes' tunnels. A server error (the
- * port is taken) exits 1.
+ * (MWC_LOCAL_POWER), the database, the migrations when MWC_MIGRATE_ON_START (or `migrate`) says so, the chat turns a
+ * stopped server left running failed, the app, the listening server, the jobs loop (MWC_JOBS), the sweep of the sign-in
+ * sandboxes a stopped server left, and the graceful shutdown on SIGTERM and SIGINT, which ends the sign-ins in progress
+ * and the devboxes' tunnels. A server error (the port is taken) exits 1.
  */
 export async function start(
   env: Readonly<Record<string, string | undefined>>,
@@ -207,6 +207,7 @@ export async function start(
     identity,
     ...webDist,
   };
+  await reapTurns(serverDeps); // before listening: the turns an earlier server left running fail
   const { app, jobs, loginHelper, stops } = compose(serverDeps, deps, keyring, local);
   const websocket = { server: createSocketServer() };
   const server = deps.serve(

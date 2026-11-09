@@ -33,6 +33,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
 │   │   │   │   ├── org/            agents, reporting chain, org chart (built)  S2
 │   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
+│   │   │   │   ├── chats/          chats with an agent: turns, events, stream, terminal (built) S5.1b
 │   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
@@ -44,7 +45,7 @@ Most_Wanted_corp_v2/
 │   ├── web/                        React UI, no tests for now (identity pages built) S1.11
 │   │   └── src/ app/ pages/ components/ features/ api/ styles/
 │   └── runner/                     machine daemon                              S4
-│       └── src/ daemon/ link/ hold/ stats/ power/ terminal/ update/ install/ system/ (cli.ts, config.ts, main.ts)
+│       └── src/ daemon/ link/ hold/ stats/ power/ terminal/ turns/ update/ install/ system/ (cli.ts, config.ts, main.ts)
 ├── packages/                       libraries, pure where possible
 │   ├── shared/                     contracts: config, ports, ids, enums, protocols
 │   ├── db/                         schema, migrations, tenant layer
@@ -287,7 +288,8 @@ per-field audit rows of `diffFields` in the tenant's company, and `isUniqueViola
 taken value (a 409) from a failure on both drivers.
 
 Personal data, a person's own rows that belong to no company (S3.1: `credentials`, `credential_uses`, which have
-`owner_user_id` and no `company_id`), is reached the same way through `owned(db, userId)` of `@mwc/db`: its `OwnedDb`
+`owner_user_id` and no company of their own; since S5.1b a use names the company, agent, chat and principal a chat's
+turn or terminal opened it for, as plain ids with no foreign keys), is reached the same way through `owned(db, userId)` of `@mwc/db`: its `OwnedDb`
 scopes every statement to that person (reads, updates and deletes get `owner_user_id = …`, inserts get it stamped)
 and writes their audit rows with no company (`o.audit(entry)`). It is neither tenant data nor raw access, so a module
 uses it without an exemption; the user id is the signed-in caller's (`c.var.userId` of a personal route) or the owner a
@@ -296,7 +298,10 @@ server-side use names. S3.4's `access_profiles` is personal too, and company row
 person's layer on a tenant's connection), `ownersOf(t, table, ids)` (whose personal rows these are, nothing more; the
 rows are then read through their owner's layer) and `o.tenant(companyId)` (a company's tenant on a person's
 connection). The org module reads the profiles its agents point at this way; the credentials module asks the org
-module's service for the agents using a profile and for the audit rows its removal leaves.
+module's service for the agents using a profile and for the audit rows its removal leaves. The chats module (S5.1b)
+reads the profile a turn runs on the same way and opens its subscriptions through the credentials module's service
+(`credentialsForHarness`). Its one raw access is `modules/chats/repo/reaper.ts` (in the Biome exemption, as the
+machines' `repo/upkeep.ts`): at the server's start it fails every company's turns a stopped server left running.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the

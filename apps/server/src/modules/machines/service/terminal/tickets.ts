@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import type { TerminalSpec } from '@mwc/shared/harness';
 import { TERMINAL_TICKET_TTL_MS } from '@mwc/shared/runner-protocol';
 
 /**
@@ -8,12 +9,17 @@ import { TERMINAL_TICKET_TTL_MS } from '@mwc/shared/runner-protocol';
  * and is kept in this process's memory as its SHA-256 only. Expired ones are swept at each issue and redeem.
  */
 
-/** Whom and what a ticket opens a terminal for. */
+/**
+ * Whom and what a ticket opens a terminal for; a chat's ticket (S5.1b) also holds the harness's spec with its resolved
+ * credential (in this process's memory only, for the ticket's 60 s) and where a rewritten Codex login goes.
+ */
 export interface TicketBinding {
   readonly userId: string;
   readonly principalId: string;
   readonly companyId: string;
   readonly machineId: string;
+  readonly harness?: TerminalSpec;
+  readonly rewrote?: (authJson: string) => void;
 }
 
 export interface IssuedTicket {

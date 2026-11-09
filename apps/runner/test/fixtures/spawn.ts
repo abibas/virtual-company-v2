@@ -5,17 +5,28 @@ import type { ChildLike, KillGroup, Spawn, SpawnOptions } from '../../src/system
 /** A child process that does what the test says: print and exit, fail to start, or run until killed. */
 export class FakeChild extends EventEmitter implements ChildLike {
   readonly pid: number;
+  readonly stdin: PassThrough | null;
   readonly stdout: PassThrough | null;
   readonly stderr: PassThrough | null;
+  /** What was written to its stdin, and whether stdin was closed. */
+  input = '';
+  inputClosed = false;
   /** The signals `kill` got, in order. */
   readonly signals: NodeJS.Signals[] = [];
   exited = false;
   /** Whether `kill` ends it (true by default). */
   dies = true;
 
-  constructor(pid: number, piped: boolean, errPiped = false) {
+  constructor(pid: number, piped: boolean, errPiped = false, inPiped = false) {
     super();
     this.pid = pid;
+    this.stdin = inPiped ? new PassThrough() : null;
+    this.stdin?.on('data', (chunk: Buffer) => {
+      this.input += chunk.toString();
+    });
+    this.stdin?.on('end', () => {
+      this.inputClosed = true;
+    });
     this.stdout = piped ? new PassThrough() : null;
     this.stderr = errPiped ? new PassThrough() : null;
   }
@@ -91,7 +102,12 @@ export class FakeSpawn {
   readonly spawn: Spawn = (file, args, options) => {
     if (this.throwsFor.has(file)) throw new Error(`cannot start ${file}`);
     const pid = 4000 + this.calls.length;
-    const child = new FakeChild(pid, options.stdio[1] === 'pipe', options.stdio[2] === 'pipe');
+    const child = new FakeChild(
+      pid,
+      options.stdio[1] === 'pipe',
+      options.stdio[2] === 'pipe',
+      options.stdio[0] === 'pipe',
+    );
     this.calls.push({ file, args: [...args], options, child });
     const behaviour = this.#behaviours.get(file);
     if (behaviour) setImmediate(() => behaviour(child, args));

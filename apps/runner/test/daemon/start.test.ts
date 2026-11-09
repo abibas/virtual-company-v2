@@ -1,6 +1,7 @@
 import { chmodSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
+import { fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readRunnerConfig } from '../../src/config.ts';
@@ -119,6 +120,23 @@ describe('mwc-runner run', () => {
     });
     none.signals.get('SIGTERM')?.();
     await second;
+  });
+
+  it('runs turns with the harnesses cli.ts found, saying their versions, and checks the agent folder', async () => {
+    const server = await fakeServer();
+    const claude = { path: '/opt/bin/claude', version: '2.1.319 (Claude Code)' };
+    const { deps, dir, entries, signals } = world({ server, harnesses: { claude_code: claude } });
+    const running = main(['run'], deps);
+    const versions = { claude_code: '2.1.319 (Claude Code)', codex: null };
+    expect((await server.frames.next('runner.hello')).caps.harnesses).toEqual(versions);
+    expect(entries().find((entry) => entry.msg === 'harnesses')).toMatchObject(versions);
+    await server.frames.next('runner.heartbeat');
+    const turnId = newId();
+    const spec = fakeTurnSpec('claude_code', { cwd: join(dir, 'no-such-agent') });
+    server.send({ type: 'turn.start', turnId, spec });
+    expect(await server.frames.next('turn.end')).toMatchObject({ turnId, ok: false, error: 'home_missing' });
+    signals.get('SIGTERM')?.();
+    expect(await running).toBe(EXIT.ok);
   });
 
   it('saves a rotated key to runner.json, still 0600', async () => {

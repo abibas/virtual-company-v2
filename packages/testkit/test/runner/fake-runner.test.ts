@@ -5,7 +5,12 @@ import type { MachineSample } from '@mwc/shared/machines';
 import { RUNNER_CLOSE, RUNNER_SUBPROTOCOL, type RunnerFrame } from '@mwc/shared/runner-protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocketServer } from 'ws';
-import { FakeRunner, type FakeRunnerOptions, FakeRunnerServer } from '../../src/runner.ts';
+import {
+  FAKE_CLAUDE_VERSION,
+  FakeRunner,
+  type FakeRunnerOptions,
+  FakeRunnerServer,
+} from '../../src/runner.ts';
 
 const servers: FakeRunnerServer[] = [];
 const runners: FakeRunner[] = [];
@@ -53,7 +58,7 @@ describe('FakeRunner: connecting', () => {
       protocol: 1,
       version: '1.0.0',
       caps: {
-        harnesses: ['claude_code'],
+        harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
         slots: 1,
         hold: 'none',
         power: [],
@@ -86,7 +91,12 @@ describe('FakeRunner: connecting', () => {
       protocol: 2,
       version: '0.5.0-rc.1',
       build: 'ab'.repeat(32),
-      caps: { harnesses: ['claude_code'], slots: 4, hold: 'devbox_keepalive', power: ['airia_devbox'] },
+      caps: {
+        harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
+        slots: 4,
+        hold: 'devbox_keepalive',
+        power: ['airia_devbox'],
+      },
     });
     expect((await server.frames.next('runner.resync')).runs).toEqual([run]);
     expect(await server.frames.next('hold.state')).toMatchObject({ until, source: 'live_runs' });

@@ -1,5 +1,6 @@
-import type { MachineKind } from '@mwc/shared/enums';
+import { Harness, type MachineKind } from '@mwc/shared/enums';
 import { MACHINE_NAME } from '@mwc/shared/machines';
+import { HARNESS_COMMANDS, type HarnessCli, type HarnessClis } from '../../turns/drivers.ts';
 import { type Host, unixUser } from '../host.ts';
 import { findOnPath } from '../paths.ts';
 
@@ -22,13 +23,31 @@ export function machineKind(host: Host): MachineKind {
 /** The longest Claude Code version the protocol takes (`ClaudeVersion`). */
 const CLAUDE_VERSION_MAX = 100;
 
+/** A CLI on the PATH and the first line its `--version` prints, or undefined when it is missing or does not answer. */
+async function cliOnPath(host: Host, name: string): Promise<HarnessCli | undefined> {
+  const path = findOnPath(name, host.env.PATH, host.fs.isExecutable);
+  if (path === undefined) return undefined;
+  const result = await host.exec(path, ['--version']);
+  const line = result.code === 0 ? result.stdout.trim().split('\n')[0]?.trim() : undefined;
+  return line ? { path, version: line.slice(0, CLAUDE_VERSION_MAX) } : undefined;
+}
+
 /** The first line `claude --version` prints (`2.1.3 (Claude Code)`), or null without Claude Code or an answer. */
 export async function claudeVersion(host: Host): Promise<string | null> {
-  const claude = findOnPath('claude', host.env.PATH, host.fs.isExecutable);
-  if (claude === undefined) return null;
-  const result = await host.exec(claude, ['--version']);
-  const line = result.code === 0 ? result.stdout.trim().split('\n')[0]?.trim() : undefined;
-  return line ? line.slice(0, CLAUDE_VERSION_MAX) : null;
+  return (await cliOnPath(host, HARNESS_COMMANDS.claude_code))?.version ?? null;
+}
+
+/**
+ * The harnesses' CLIs on the PATH (`claude`, `codex`), each asked `--version` once, side by side, when the daemon
+ * starts; nothing is started for a CLI that is not there.
+ */
+export async function harnessClis(host: Host): Promise<HarnessClis> {
+  const found = await Promise.all(
+    Harness.options.map(
+      async (harness) => [harness, await cliOnPath(host, HARNESS_COMMANDS[harness])] as const,
+    ),
+  );
+  return Object.fromEntries(found.filter(([, cli]) => cli !== undefined));
 }
 
 /** The host name without macOS's `.local`. */

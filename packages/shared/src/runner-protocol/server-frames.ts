@@ -6,6 +6,7 @@ import { frame, protocolObject, RunnerVersion, Uuid } from './common.ts';
 import { RunSpec } from './run-spec.ts';
 import { ATTENTION_OPTIONS_MAX } from './runner-frames.ts';
 import { TERMINAL_SERVER_FRAMES } from './terminal.ts';
+import { TURN_SERVER_FRAMES } from './turns.ts';
 import { RunnerUpdate } from './update.ts';
 
 /**
@@ -184,6 +185,7 @@ export const SERVER_FRAMES = [
   TunnelSet,
   ...TERMINAL_SERVER_FRAMES,
   RunnerUpdate,
+  ...TURN_SERVER_FRAMES,
 ] as const;
 
 /** Any frame the server sends, told apart by `type`. */

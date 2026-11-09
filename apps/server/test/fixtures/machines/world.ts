@@ -24,6 +24,7 @@ import {
   type RunnerHub,
 } from '../../../src/modules/machines/index.ts';
 import type { LocalPower } from '../../../src/platform/processes/power/local.ts';
+import type { Keyring } from '../../../src/platform/secrets/keyring.ts';
 import type { AuthWorld } from '../platform/auth.ts';
 import { eventually, listen } from '../platform/realtime.ts';
 
@@ -53,7 +54,14 @@ export interface MachinesWorld extends AuthWorld {
  */
 export async function machinesWorld(
   hubOptions: HubOptions = {},
-  options: { readonly local?: LocalPower; readonly runnerBundle?: string } = {},
+  options: {
+    readonly local?: LocalPower;
+    readonly runnerBundle?: string;
+    /** The keyring the app seals subscriptions under (the chats' tests seal theirs with it too). */
+    readonly keyring?: Keyring;
+    /** The fake AI provider the app's refreshes call (the chats' tests). */
+    readonly providerFetch?: typeof fetch;
+  } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
   const fake = new FakeIdentityProvider({ clock });
@@ -71,6 +79,8 @@ export async function machinesWorld(
     runnerHub: hub,
     powerControl: control,
     ...(options.runnerBundle === undefined ? {} : { runnerBundle: options.runnerBundle }),
+    ...(options.keyring === undefined ? {} : { keyring: options.keyring }),
+    ...(options.providerFetch === undefined ? {} : { providerFetch: options.providerFetch }),
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

@@ -196,6 +196,15 @@ importers:
       '@lydell/node-pty-linux-x64':
         specifier: 1.2.0-beta.15
         version: 1.2.0-beta.15
+      '@mwc/harness-claude-code':
+        specifier: workspace:*
+        version: link:../../connectors/harness-claude-code
+      '@mwc/harness-codex':
+        specifier: workspace:*
+        version: link:../../connectors/harness-codex
+      '@mwc/harness-core':
+        specifier: workspace:*
+        version: link:../../packages/harness-core
       '@mwc/machine-airia-devbox':
         specifier: workspace:*
         version: link:../../connectors/machine-airia-devbox

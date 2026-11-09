@@ -151,6 +151,26 @@ First: how a run receives its credential (`docs/subscriptions.md`): a short test
 
 Done when: a message to a task assigned to an agent starts a run on its machine, events stream to the thread, the reply is posted; a second message resumes the same session id; Stop works; `kill -9` of the runner and a server restart mid-turn both recover; the chaos scripts pass with the fake `claude`.
 1. **S5.1a, the harness drivers: done 2026-11-09** (`docs/harness.md`; pure, nothing spawned, no real turn run). `@mwc/shared/harness`: the wire contracts `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway`, `TurnEvent` (session, text, tool, tool_result, usage, notice, result). `@mwc/harness-core`: the `HarnessDriver` port (`turn`, `terminal`, `parser`, `versionArgs`), `ProcessSpec` (the prompt on stdin, `unsetEnv`, a private `CODEX_HOME`, notices), `LineParser`, `HarnessError` (`credential_mismatch`, `invalid_spec`), and `/fake`: `FakeHarnessDriver`, fake specs and the fake binary. `@mwc/harness-claude-code` (`claude -p --output-format stream-json --verbose`, `--resume`, `--model`, `--effort`, `--dangerously-skip-permissions`; denials as notices) and `@mwc/harness-codex`, moved here from S7 (`codex exec --json` and `codex exec resume`, sandbox and approvals as config overrides, the login as a private `auth.json`, a gateway not used yet with a notice); each with five recorded-style fixtures as `/fixtures`, flags checked against `claude` 2.1.319 and `codex` 0.162.1. Next in S5.1: the runner runs them, a chat turn streamed and the terminal on the conversation. The real permission-tool round trip is recorded once with the installed CLI in S6.
+   **S5.1b, chats with an agent: done 2026-11-09** (`docs/harness.md` "How a turn runs"; Ihor's choices of that day: the
+   agent's placement and access profile, a per-chat profile picker, the credential sent with each turn over the runner's
+   link after the server refreshed it, Claude Code and Codex, chat mode and terminal mode). Migration `0012_chats`:
+   `chats` (bound to the agent's harness and its placement's machine at creation; an own profile only its owner sets;
+   the session id from the first `session` event; the title from the first prompt), `chat_turns` (one queued or running
+   per chat, the profile and credential each ran on, reply, error, usage) and `chat_events` (`(company_id, turn_id,
+   seq)`), and `credential_uses` naming the company, agent, chat and principal of a chat's use. The chats module: the
+   chats API, turns (`POST …/turns` 202, stop, every refusal naming what to fix), the credential resolved through the
+   credentials module (a Claude login refreshed under 60 minutes left, a Codex login like its usage check, a rewritten
+   `auth.json` sealed again), the stream (Server-Sent Events with `Last-Event-ID` replay and a 20 s heartbeat), the
+   chat's terminal (the machine terminal's ticket opening the harness's TUI), and the reaper at the server's start
+   (`server_restarted`). Protocol: `caps.harnesses` as versions (old runners' names still parse, as no turns),
+   `turn.start`/`turn.stop`/`turn.events`/`turn.end`, `terminal.open.harness`, `terminal.exit.authJson`. Runner
+   (`apps/runner/src/turns/`): the drivers wired with the CLIs on its PATH (`claude --version` and `codex --version` asked
+   once at start), refusals (`unsupported`, `busy`, `home_missing`, `invalid_spec`, `spawn_failed`, `runner_stopping`),
+   detached spawn with the prompt on stdin, batched events, the stop ladder, the private Codex folder (`auth.json` 0600
+   only while a process runs, sent back when rewritten), the harness terminal; `deploy/Dockerfile.runner` installs both
+   CLIs at the sign-in helper's pins. Tests on PGlite with `FakeRunner` and in the runner with `FakeHarnessDriver` and a
+   fake spawn; no real turn. Runners need an update to chat (an old one is refused as `runner_outdated`). Next: the web
+   (S5.1c) on this API.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

@@ -1,3 +1,4 @@
+import type { TerminalSpec } from '@mwc/shared/harness';
 import { encodeFrame, type TerminalRunnerFrame, type TerminalServerFrame } from '@mwc/shared/runner-protocol';
 import type { RunnerConnection } from '../connection.ts';
 
@@ -8,18 +9,26 @@ import type { RunnerConnection } from '../connection.ts';
  * it, so every sink gets an end with `machine_disconnected`. Memory only.
  */
 
-/** A terminal's new session: its id (the caller's) and its size. */
+/**
+ * A terminal's new session: its id (the caller's) and its size; with `harness`, a chat's terminal: the harness's TUI on
+ * the chat's conversation, with the credential the server resolved (S5.1b).
+ */
 export interface TerminalRequest {
   readonly sessionId: string;
   readonly cols: number;
   readonly rows: number;
+  readonly harness?: TerminalSpec;
 }
 
-/** How a terminal ended: `terminal.exit` without its type and session. */
+/**
+ * How a terminal ended: `terminal.exit` without its type and session; a harness's terminal may add the Codex login its
+ * process rewrote (`authJson`, for the server to seal again, never for the browser).
+ */
 export interface TerminalEnding {
   readonly code: number | null;
   readonly signal?: string;
   readonly error?: string;
+  readonly authJson?: string;
 }
 
 /** Where a terminal's frames go. */
@@ -50,6 +59,7 @@ function endingOf(frame: Extract<TerminalRunnerFrame, { type: 'terminal.exit' }>
     code: frame.code,
     ...(frame.signal === undefined ? {} : { signal: frame.signal }),
     ...(frame.error === undefined ? {} : { error: frame.error }),
+    ...(frame.authJson === undefined ? {} : { authJson: frame.authJson }),
   };
 }
 
@@ -63,7 +73,8 @@ export function terminalBoard() {
       sessions.set(connection, own.set(sessionId, sink));
       const send = (frame: TerminalServerFrame) => connection.link.send(encodeFrame(frame));
       const live = () => own.has(sessionId) && sessions.get(connection) === own;
-      send({ type: 'terminal.open', ...request });
+      const { harness, ...size } = request;
+      send({ type: 'terminal.open', ...size, ...(harness === undefined ? {} : { harness }) });
       return {
         sessionId,
         input: (data) => {

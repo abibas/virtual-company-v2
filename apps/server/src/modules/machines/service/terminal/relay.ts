@@ -10,17 +10,21 @@ import type { RunnerHub, TerminalRequest } from '../runner/hub.ts';
  * The browser's terminal socket, relayed to the machine's runner through the hub (docs/machines.md, "Terminal"). On
  * open it sends `terminal.open`; the runner's frames come back as JSON messages (`opened`, `output` in base64, `exit`),
  * the browser's typed text (`input`, UTF-8) goes to the runner as base64 frames of at most 64 KB, and `resize` follows.
- * The terminal's end closes the socket (1000, after the `exit`); closing the socket ends the terminal
- * (`terminal.close`). A machine whose runner went away or has no terminal is an `error` message, then the close.
+ * The terminal's end closes the socket (1000, after the `exit`; a Codex login a chat's terminal rewrote goes to
+ * `rewrote`, never to the browser); closing the socket ends the terminal (`terminal.close`). A machine whose runner went away or has no terminal is an `error` message, then the close.
  */
 
 /** The close code after a terminal's `exit` or an `error`: the message says why. */
 export const TERMINAL_SOCKET_DONE = 1000;
 
-/** The terminal a socket opens: on which machine of which company, its session and size. */
+/**
+ * The terminal a socket opens: on which machine of which company, its session and size; for a chat's terminal also the
+ * harness's spec (`harness`) and where a Codex login its process rewrote goes (`rewrote`, the chats module seals it).
+ */
 export interface RelayTarget extends TerminalRequest {
   readonly companyId: string;
   readonly machineId: string;
+  readonly rewrote?: (authJson: string) => void;
 }
 
 /** UTF-8 text as base64 pieces of at most `TERMINAL_DATA_MAX_BYTES` bytes each. */
@@ -66,18 +70,18 @@ export function openRelay(hub: RunnerHub, link: SocketLink, target: RelayTarget)
     send(message);
     link.close(TERMINAL_SOCKET_DONE, message.type === 'exit' ? 'The terminal ended' : 'No terminal');
   };
-  const { companyId, machineId, sessionId, cols, rows } = target;
+  const { companyId, machineId, sessionId, cols, rows, harness } = target;
   const ours = hub.connected(machineId)?.companyId === companyId;
+  const request = { sessionId, cols, rows, ...(harness === undefined ? {} : { harness }) };
   const channel = ours
-    ? hub.terminal(
-        machineId,
-        { sessionId, cols, rows },
-        {
-          opened: (shell) => send({ type: 'opened', shell }),
-          output: (data) => send({ type: 'output', data }),
-          exit: (ending) => end({ type: 'exit', ...ending }),
+    ? hub.terminal(machineId, request, {
+        opened: (shell) => send({ type: 'opened', shell }),
+        output: (data) => send({ type: 'output', data }),
+        exit: ({ authJson, ...ending }) => {
+          if (authJson !== undefined) target.rewrote?.(authJson);
+          end({ type: 'exit', ...ending });
         },
-      )
+      })
     : undefined;
   if (channel === undefined) end(ours ? UNAVAILABLE : OFFLINE);
   return {

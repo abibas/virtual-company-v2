@@ -17,6 +17,9 @@ import {
 import { WebSocket } from 'ws';
 import { FrameLog } from './frame-log.ts';
 
+/** The Claude Code version a fake runner says it has, unless its caps say otherwise. */
+export const FAKE_CLAUDE_VERSION = '2.1.319 (Claude Code)';
+
 export interface FakeRunnerOptions {
   /** The server's runner address (`ws://…/api/runner/ws`). */
   readonly url: string;
@@ -26,7 +29,10 @@ export interface FakeRunnerOptions {
   readonly version?: string;
   /** `runner.hello`'s protocol; `RUNNER_PROTOCOL_VERSION` by default. */
   readonly protocol?: number;
-  /** `runner.hello`'s caps over the defaults: Claude Code, one slot, no hold, no power, no terminal, no self-update. */
+  /**
+   * `runner.hello`'s caps over the defaults: Claude Code (`FAKE_CLAUDE_VERSION`, no Codex), one slot, no hold, no power,
+   * no terminal, no self-update.
+   */
   readonly caps?: Partial<RunnerCaps>;
   /** `runner.hello`'s build (a SHA-256, or null from the sources); left out by default, as an older runner does. */
   readonly build?: string | null;
@@ -89,7 +95,7 @@ export class FakeRunner {
   /** The `runner.hello` it sends. */
   get hello(): RunnerHello {
     const caps: RunnerCaps = {
-      harnesses: ['claude_code'],
+      harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
       slots: 1,
       hold: 'none',
       power: [],

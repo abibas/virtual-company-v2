@@ -1,12 +1,11 @@
 import { Tunnels } from '@mwc/machines-core/tunnels';
-import {
-  type HoldState,
-  RUNNER_PROTOCOL_VERSION,
-  type RunnerFrame,
-  type RunnerHello,
-  type RunnerResync,
-  type ServerHello,
-  type TunnelSpec,
+import type {
+  HoldState,
+  RunnerFrame,
+  RunnerHello,
+  RunnerResync,
+  ServerHello,
+  TunnelSpec,
 } from '@mwc/shared/runner-protocol';
 import { WebSocket } from 'ws';
 import { type RunnerConfig, runnerWsUrl } from '../../config.ts';
@@ -17,13 +16,16 @@ import { Link, type LinkEnd } from '../../link/link.ts';
 import { NO_POWER, type PowerExecutor } from '../../power/executor.ts';
 import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from '../../system/time.ts';
 import { TerminalSessions } from '../../terminal/sessions.ts';
+import { Turns } from '../../turns/turns.ts';
 import { Updates } from '../../update/updates.ts';
 import type { HealthStatus } from '../health.ts';
 import type { Runner, RunnerOptions } from '../runner.ts';
+import { helloOf, NO_HARNESSES } from './hello.ts';
 
 /**
  * The daemon behind `createRunner` (`../runner.ts`, its contract): it makes the hold manager, the heartbeats, the
- * commands, the terminals, the self-update, a power controller's tunnels and the link, and wires each to the others.
+ * commands, the chat turns, the terminals, the self-update, a power controller's tunnels and the link, and wires each to
+ * the others. Live turns and the runs `setLiveRuns` reports count together as live work.
  */
 
 const holdState = (state: HoldReport): HoldState => ({ type: 'hold.state', ...state });
@@ -40,9 +42,11 @@ export class RunnerDaemon implements Runner {
   readonly #link: Link;
   readonly #tunnels: Tunnels | undefined;
   readonly #terminals: TerminalSessions;
+  readonly #turns: Turns;
   readonly #updates: Updates;
   #config: RunnerConfig;
   #draining = false;
+  #runs = 0;
 
   constructor(options: RunnerOptions) {
     const { log } = options;
@@ -63,11 +67,22 @@ export class RunnerDaemon implements Runner {
       drain: () => this.#drain(),
       setTunnels: (tunnels) => this.#setTunnels(tunnels),
       terminal: (frame) => this.#terminals.handle(frame),
+      turn: (frame) => this.#turns.handle(frame),
       update: (frame) => this.#updates.handle(frame),
       log,
     });
+    this.#turns = new Turns({
+      host: options.harness,
+      processes: options.processes,
+      slots: () => this.#config.slots,
+      timers,
+      log,
+      send: (frame) => this.#link.send(frame),
+      count: () => void this.#applyLive(),
+    });
     this.#terminals = new TerminalSessions({
       host: options.terminal,
+      harness: options.harness,
       timers,
       log,
       send: (frame) => this.#link.send(frame),
@@ -103,7 +118,7 @@ export class RunnerDaemon implements Runner {
     });
   }
 
-  /** The link to the server, wired to the hello, the heartbeats, the commands and the terminals. */
+  /** The link to the server, wired to the hello, the heartbeats, the commands, the turns and the terminals. */
   #makeLink(clock: Clock, timers: Timers): Link {
     const options = this.#options;
     return new Link({
@@ -119,7 +134,10 @@ export class RunnerDaemon implements Runner {
       beat: () => this.#beat(),
       handle: (frame) => this.#commands.handle(frame),
       refuse: (text, why) => this.#commands.refuse(text, why),
-      dropped: () => void this.#terminals.closeAll('link_lost'),
+      dropped: () => {
+        void this.#terminals.closeAll('link_lost');
+        void this.#turns.stopAll('link_lost');
+      },
     });
   }
 
@@ -132,13 +150,19 @@ export class RunnerDaemon implements Runner {
   }
 
   async stop(): Promise<void> {
-    await this.#terminals.stop();
+    await Promise.all([this.#turns.stop(), this.#terminals.stop()]);
     await this.#link.stop();
     await Promise.all([this.#hold.close(), this.#tunnels?.close()]);
   }
 
   setLiveRuns(count: number): Promise<void> {
-    return this.#hold.setLiveRuns(count);
+    this.#runs = Math.max(0, Math.floor(count));
+    return this.#applyLive();
+  }
+
+  /** Runs and turns together are the hold's live work (the self-update waits for them too). */
+  #applyLive(): Promise<void> {
+    return this.#hold.setLiveRuns(this.#runs + this.#turns.live);
   }
 
   status(): HealthStatus {
@@ -153,23 +177,16 @@ export class RunnerDaemon implements Runner {
   }
 
   #hello(): RunnerHello {
+    const { harness, processes, version, claudeVersion, build } = this.#options;
     const caps = {
-      harnesses: ['claude_code' as const],
+      harnesses: harness && processes ? harness.versions : NO_HARNESSES,
       slots: this.#config.slots,
       hold: this.#options.hold.kind,
       power: [...this.#power.providers],
       terminal: this.#terminals.available,
       selfUpdate: this.#updates.available,
     };
-    const { version, claudeVersion, build } = this.#options;
-    return {
-      type: 'runner.hello',
-      protocol: RUNNER_PROTOCOL_VERSION,
-      version,
-      caps,
-      ...(claudeVersion === undefined ? {} : { claudeVersion }),
-      ...(build === undefined ? {} : { build }),
-    };
+    return helloOf({ version, caps, claudeVersion, build });
   }
 
   #afterHello(hello: ServerHello): RunnerFrame[] {

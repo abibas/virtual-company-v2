@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 26. Migrations: 12, the last is `0011_machine_logos`.
+Tables: 29. Migrations: 13, the last is `0012_chats`.
 
 ```mermaid
 erDiagram
@@ -81,6 +81,45 @@ erDiagram
     text request_id "nullable"
     timestamptz created_at "not null, default now()"
   }
+  chat_events {
+    uuid company_id PK, FK "not null"
+    uuid turn_id PK, FK "not null"
+    integer seq PK "not null"
+    jsonb event "not null"
+    timestamptz at "not null, default now()"
+  }
+  chat_turns {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid chat_id FK "not null"
+    integer seq "not null"
+    text prompt "not null"
+    text status "not null, default 'queued', queued|running|done|failed|stopped"
+    uuid profile_id "nullable"
+    uuid credential_id "nullable"
+    timestamptz started_at "nullable"
+    timestamptz ended_at "nullable"
+    text result_text "nullable"
+    text error "nullable"
+    jsonb usage "nullable"
+    uuid created_by FK "not null"
+    timestamptz created_at "not null, default now()"
+  }
+  chats {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid agent_id FK "not null"
+    text harness "not null, claude_code|codex"
+    uuid machine_id FK "not null"
+    uuid profile_id FK "nullable"
+    uuid profile_set_by FK "nullable"
+    text session_id "nullable"
+    text title "nullable"
+    uuid created_by FK "not null"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+    timestamptz archived_at "nullable"
+  }
   companies {
     uuid id PK "not null, default newId() (app-side)"
     text slug UK "not null"
@@ -111,6 +150,10 @@ erDiagram
     uuid owner_user_id FK "not null"
     text purpose "not null"
     timestamptz at "not null, default now()"
+    uuid company_id "nullable"
+    uuid agent_id "nullable"
+    uuid chat_id "nullable"
+    uuid principal_id "nullable"
   }
   credentials {
     uuid id PK "not null, default newId() (app-side)"
@@ -333,6 +376,17 @@ erDiagram
   api_keys }o--o| machines : "company_id, machine_id"
   audit_log }o--o| companies : "company_id"
   audit_log }o--o| principals : "company_id, actor_principal_id"
+  chat_events }o--|| companies : "company_id"
+  chat_events }o--|| chat_turns : "company_id, turn_id"
+  chat_turns }o--|| companies : "company_id"
+  chat_turns |o--|| chats : "company_id, chat_id"
+  chat_turns }o--|| principals : "company_id, created_by"
+  chats }o--|| companies : "company_id"
+  chats }o--o| access_profiles : "profile_id"
+  chats }o--o| users : "profile_set_by"
+  chats }o--|| agents : "company_id, agent_id"
+  chats }o--|| machines : "company_id, machine_id"
+  chats }o--|| principals : "company_id, created_by"
   companies }o--o| users : "created_by_user_id"
   company_logos |o--|| companies : "company_id"
   company_logos }o--o| principals : "company_id, updated_by_principal_id"
@@ -543,6 +597,100 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Indexes:**
   - `audit_log_entity_idx` on (`company_id`, `entity_type`, `entity_id`, `id`)
 
+### `chat_events`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `turn_id` | `uuid` | no |  | PK, FK |  |
+| `seq` | `integer` | no |  | PK |  |
+| `event` | `jsonb` | no |  |  |  |
+| `at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`, `turn_id`, `seq`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`chat_events_company_id_companies_id_fk`)
+  - (`company_id`, `turn_id`) → `chat_turns` (`company_id`, `id`), on delete no action (`chat_events_turn_fk`)
+- **Unique:** none
+- **Checks:**
+  - `chat_events_seq_check`: `"seq" >= 1`
+  - `chat_events_event_check`: `jsonb_typeof("event") = 'object'`
+- **Indexes:** none
+
+### `chat_turns`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `chat_id` | `uuid` | no |  | FK |  |
+| `seq` | `integer` | no |  |  |  |
+| `prompt` | `text` | no |  |  |  |
+| `status` | `text` | no | `'queued'` |  | `queued`, `running`, `done`, `failed`, `stopped` |
+| `profile_id` | `uuid` | yes |  |  |  |
+| `credential_id` | `uuid` | yes |  |  |  |
+| `started_at` | `timestamp with time zone` | yes |  |  |  |
+| `ended_at` | `timestamp with time zone` | yes |  |  |  |
+| `result_text` | `text` | yes |  |  |  |
+| `error` | `text` | yes |  |  |  |
+| `usage` | `jsonb` | yes |  |  |  |
+| `created_by` | `uuid` | no |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`chat_turns_company_id_companies_id_fk`)
+  - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`chat_turns_chat_fk`)
+  - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chat_turns_created_by_fk`)
+- **Unique:**
+  - `chat_turns_company_id_id_unique` (`company_id`, `id`)
+  - `chat_turns_chat_seq_unique` (`company_id`, `chat_id`, `seq`)
+- **Checks:**
+  - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
+  - `chat_turns_seq_check`: `"seq" >= 1`
+  - `chat_turns_prompt_check`: `char_length("prompt") between 1 and 20000`
+  - `chat_turns_usage_check`: `"usage" is null or jsonb_typeof("usage") = 'object'`
+- **Indexes:**
+  - `chat_turns_one_live_idx` on (`company_id`, `chat_id`), unique, where `"status" in ('queued', 'running')`
+  - `chat_turns_status_idx` on (`status`)
+
+### `chats`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `agent_id` | `uuid` | no |  | FK |  |
+| `harness` | `text` | no |  |  | `claude_code`, `codex` |
+| `machine_id` | `uuid` | no |  | FK |  |
+| `profile_id` | `uuid` | yes |  | FK |  |
+| `profile_set_by` | `uuid` | yes |  | FK |  |
+| `session_id` | `text` | yes |  |  |  |
+| `title` | `text` | yes |  |  |  |
+| `created_by` | `uuid` | no |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `archived_at` | `timestamp with time zone` | yes |  |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`chats_company_id_companies_id_fk`)
+  - `profile_id` → `access_profiles` (`id`), on delete set null (`chats_profile_id_access_profiles_id_fk`)
+  - `profile_set_by` → `users` (`id`), on delete no action (`chats_profile_set_by_users_id_fk`)
+  - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete no action (`chats_agent_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`chats_machine_fk`)
+  - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chats_created_by_fk`)
+- **Unique:**
+  - `chats_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `chats_harness_check`: `harness` is one of `claude_code`, `codex`
+  - `chats_title_check`: `char_length("title") between 1 and 80`
+  - `chats_session_id_check`: `char_length("session_id") between 1 and 200`
+  - `chats_profile_set_by_check`: `"profile_id" is null or "profile_set_by" is not null`
+- **Indexes:**
+  - `chats_agent_idx` on (`company_id`, `agent_id`, `updated_at`)
+  - `chats_profile_idx` on (`profile_id`)
+
 ### `companies`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -604,6 +752,10 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `owner_user_id` | `uuid` | no |  | FK |  |
 | `purpose` | `text` | no |  |  |  |
 | `at` | `timestamp with time zone` | no | `now()` |  |  |
+| `company_id` | `uuid` | yes |  |  |  |
+| `agent_id` | `uuid` | yes |  |  |  |
+| `chat_id` | `uuid` | yes |  |  |  |
+| `principal_id` | `uuid` | yes |  |  |  |
 
 - **Primary key:** `id`
 - **Foreign keys:**
@@ -611,6 +763,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Unique:** none
 - **Checks:**
   - `credential_uses_purpose_check`: `char_length("purpose") between 1 and 80`
+  - `credential_uses_company_check`: `"company_id" is not null or ("agent_id" is null and "chat_id" is null and "principal_id" is null)`
 - **Indexes:**
   - `credential_uses_credential_idx` on (`credential_id`, `at`)
 

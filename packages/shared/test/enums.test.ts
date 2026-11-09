@@ -3,6 +3,7 @@ import {
   ActorKind,
   AgentStatus,
   ApiKeyKind,
+  ChatTurnStatus,
   CompanyStatus,
   CredentialKind,
   CredentialStatus,
@@ -65,6 +66,7 @@ describe('enums', () => {
     expect(MachineStatus.options).toEqual(['online', 'offline', 'draining']);
     expect(PlacementMode.options).toEqual(['host', 'container']);
     expect(PermissionPolicy.options).toEqual(['ask', 'bypass']);
+    expect(ChatTurnStatus.options).toEqual(['queued', 'running', 'done', 'failed', 'stopped']);
     expect(HoldSource.options).toEqual(['server', 'live_runs']);
     expect(PowerEventAction.options).toEqual([
       'started',

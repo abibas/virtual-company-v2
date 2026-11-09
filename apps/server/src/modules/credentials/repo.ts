@@ -48,13 +48,27 @@ async function remove(o: OwnedDb, id: string): Promise<Credential | undefined> {
   return row;
 }
 
+/** What a use was for in a company (a chat's turn or terminal): the company, the agent, the chat and who asked. */
+export interface UseContext {
+  readonly companyId: string;
+  readonly agentId: string;
+  readonly chatId: string;
+  readonly principalId: string;
+}
+
 /**
- * Records a server-side use of a credential's secret and moves its `last_used_at`, in one transaction. A use is not a
- * change: `updated_at` keeps the value it had.
+ * Records a server-side use of a credential's secret (with what it was for in a company, when it was) and moves its
+ * `last_used_at`, in one transaction. A use is not a change: `updated_at` keeps the value it had.
  */
-function recordUse(o: OwnedDb, row: Credential, purpose: string, at: Date): Promise<void> {
+function recordUse(
+  o: OwnedDb,
+  row: Credential,
+  purpose: string,
+  at: Date,
+  context?: UseContext,
+): Promise<void> {
   return o.transaction(async (tx) => {
-    await tx.insert(credentialUses, { credentialId: row.id, purpose, at });
+    await tx.insert(credentialUses, { credentialId: row.id, purpose, at, ...context });
     await tx.update(credentials, { lastUsedAt: at, updatedAt: row.updatedAt }, eq(credentials.id, row.id));
   });
 }

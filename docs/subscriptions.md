@@ -186,7 +186,10 @@ Built in S3.4 (migration `0008_access_profiles`):
 - **On machines:** nothing at rest. How a run receives its credential is decided in S5, starting with a short test of a
   relay: the run would get a short-lived run token and the server would swap in the real credential, so SSH into a
   container or a box finds nothing reusable. The fallback hands the credential to the run's environment over the
-  runner's connection, never to disk, where root on that machine could read it while the run lives.
+  runner's connection, never to disk, where root on that machine could read it while the run lives. Chats (S5.1b, Ihor's choice
+  of 2026-11-09) use the fallback: each turn's credential goes in its `turn.start` over the runner's link, refreshed by
+  the server first; nothing is on disk for Claude, and Codex's `auth.json` only while its process runs
+  (docs/harness.md, "How a turn runs").
 - **Audit:** every add, change, removal and assignment, and every server-side use of a secret (a usage check, later a
   run), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
   subscription is removed (S3.1).

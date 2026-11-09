@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 #
-# The runner in a container (docs/machines.md, "Installing a runner"): Node 24, git and tini as PID 1, with the runner
-# bundle (apps/runner/dist/runner.mjs, built here) and the terminal's PTY for the image's system beside it
-# (node_modules/@lydell/node-pty-linux-<arch>, unpacked from the build's dist/pty/), run by a non-root user. Its
+# The runner in a container (docs/machines.md, "Installing a runner"): Node 24, git, Claude Code and Codex (pinned, for
+# chat turns) and tini as PID 1, with the runner bundle (apps/runner/dist/runner.mjs, built here) and the terminal's PTY
+# for the image's system beside it (node_modules/@lydell/node-pty-linux-<arch>, unpacked from the build's dist/pty/),
+# run by a non-root user. Its
 # state, runner.json with the runner key included, is the volume /var/lib/mwc-runner. On its first start, without a
 # runner.json and with MWC_ENROLL_TOKEN and MWC_SERVER_URL, the runner enrolls the container (kind container), then
 # runs; later starts need no token. Its terminal's shell is /bin/bash as the user runner, in /home/runner.
@@ -34,15 +35,23 @@ RUN --mount=type=cache,id=mwc-pnpm-store,target=/pnpm/store \
  && tar -xzf "apps/runner/dist/pty/linux-$(node -p process.arch).tgz" -C /out
 
 FROM ${NODE_IMAGE} AS runtime
+# The harnesses a container runs chat turns with (docs/harness.md): the official Claude Code and Codex CLIs at the exact
+# versions deploy/Dockerfile.login pins (claude-code 2.1.308, codex 0.163.0), so the runner's hello reports both.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates git tini \
  && rm -rf /var/lib/apt/lists/* \
+ && npm install --global --no-fund --no-audit --no-update-notifier \
+      @anthropic-ai/claude-code@2.1.308 @openai/codex@0.163.0 \
+ && npm cache clean --force \
+ && command -v claude codex \
  && useradd --create-home --uid 10001 --user-group runner \
  && mkdir -p /opt/mwc-runner /var/lib/mwc-runner \
  && chown runner:runner /var/lib/mwc-runner \
  && chmod 0700 /var/lib/mwc-runner
 # The container is the machine (kind container); its configuration lives in the state volume; nothing holds it awake.
 ENV NODE_ENV=production \
+    DISABLE_AUTOUPDATER=1 \
+    NO_UPDATE_NOTIFIER=1 \
     MWC_RUNNER_IN_CONTAINER=1 \
     MWC_RUNNER_STATE_DIR=/var/lib/mwc-runner \
     MWC_RUNNER_CONFIG=/var/lib/mwc-runner/runner.json \

@@ -7,14 +7,16 @@ import { apiKeys, auditLog, type Company, principals } from '../../src/schema/in
 import { pgError, type TestDb } from '../../src/testing.ts';
 import { insertCompany, insertPrincipal, MISSING_ID, migratedTestDb } from '../fixtures/rows.ts';
 
-/** Global tables that name a company without being tenant rows (no composite keys point at them). */
-const GLOBAL_WITH_COMPANY = ['audit_log', 'identity_outbox'];
+/** Tables that name a company without being tenant rows (no composite keys point at them). */
+const GLOBAL_WITH_COMPANY = ['audit_log', 'credential_uses', 'identity_outbox'];
 /** Tenant tables with one row per company: `company_id` is their primary key, they have no `id` and nothing points at them. */
 const ONE_PER_COMPANY = ['company_logos'];
 /** Tenant tables with one row per principal: `(company_id, principal_id)` is their primary key, they have no `id`. */
 const ONE_PER_PRINCIPAL = ['org_positions'];
 /** Tenant tables of a machine's rows keyed by it: `(company_id, machine_id, …)` is their primary key, no `id`. */
 const KEYED_BY_MACHINE = ['machine_logos', 'machine_power', 'machine_samples'];
+/** Tenant tables of a chat turn's rows keyed by it: `(company_id, turn_id, seq)` is their primary key, no `id`. */
+const KEYED_BY_TURN = ['chat_events'];
 
 const tables = (Object.values(schema) as unknown[])
   .filter((value): value is PgTable => is(value, PgTable))
@@ -26,18 +28,22 @@ const tenantTables = withCompany.filter(
   (t) =>
     !ONE_PER_COMPANY.includes(t.name) &&
     !ONE_PER_PRINCIPAL.includes(t.name) &&
-    !KEYED_BY_MACHINE.includes(t.name),
+    !KEYED_BY_MACHINE.includes(t.name) &&
+    !KEYED_BY_TURN.includes(t.name),
 );
 const onePerCompany = withCompany.filter((t) => ONE_PER_COMPANY.includes(t.name));
 const onePerPrincipal = withCompany.filter((t) => ONE_PER_PRINCIPAL.includes(t.name));
 const keyedByMachine = withCompany.filter((t) => KEYED_BY_MACHINE.includes(t.name));
+const keyedByTurn = withCompany.filter((t) => KEYED_BY_TURN.includes(t.name));
 
 describe('the tenant conventions, on every tenant table', () => {
-  it('finds the S1, S2 and S4 tenant tables', () => {
+  it('finds the S1, S2, S4 and S5 tenant tables', () => {
     expect(tenantTables.map((t) => t.name).sort()).toEqual([
       'agent_placements',
       'agents',
       'api_keys',
+      'chat_turns',
+      'chats',
       'enrollment_tokens',
       'invitations',
       'machine_power_events',
@@ -49,7 +55,21 @@ describe('the tenant conventions, on every tenant table', () => {
     expect(onePerCompany.map((t) => t.name)).toEqual(ONE_PER_COMPANY);
     expect(onePerPrincipal.map((t) => t.name)).toEqual(ONE_PER_PRINCIPAL);
     expect(keyedByMachine.map((t) => t.name).sort()).toEqual(KEYED_BY_MACHINE);
+    expect(keyedByTurn.map((t) => t.name)).toEqual(KEYED_BY_TURN);
   });
+
+  it.each(keyedByTurn.map((t) => [t.name, t] as const))(
+    '%s: PRIMARY KEY(company_id, turn_id, seq), the turn a composite key, no id',
+    (_, t) => {
+      expect(t.primaryKeys.map((pk) => pk.columns.map((c) => c.name))).toEqual([
+        ['company_id', 'turn_id', 'seq'],
+      ]);
+      expect(t.columns.some((c) => c.name === 'id')).toBe(false);
+      const refs = t.foreignKeys.map((fk) => fk.reference());
+      const turn = refs.find((r) => r.columns.map((c) => c.name).join() === 'company_id,turn_id');
+      expect(getTableConfig(turn?.foreignTable as PgTable).name).toBe('chat_turns');
+    },
+  );
 
   it.each(keyedByMachine.map((t) => [t.name, t] as const))(
     '%s: PRIMARY KEY(company_id, machine_id, …), the machine a composite key, no id',
@@ -112,7 +132,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(22);
+    expect(composite).toBe(28);
   });
 });
 

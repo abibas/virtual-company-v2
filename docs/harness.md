@@ -3,7 +3,9 @@
 How a runner turns one chat turn into a harness process and its output into events (S5.1a, 2026-11-09). The drivers
 are pure: they build process specs and parse lines, and never spawn anything. The runner loads them (never the server):
 it gets a turn with its credential over its link, asks the driver for the process spec, starts it in the agent's home
-folder, feeds stdout to the driver's parser line by line and sends the events to the server.
+folder, feeds stdout to the driver's parser line by line and sends the events to the server. S5.1b runs them: chats with
+an agent on its machine, each prompt one turn ("How a turn runs" below), and the chat's terminal on the same
+conversation.
 
 | Package                       | What                                                                                          |
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
@@ -62,7 +64,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `notice`      | `level` (`info`, `warn`), `message` (≤ 2000)              | a tool refused for permission, a retried request, a gateway not used |
 | `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | always the last event of a turn                             |
 
-A runner sends them as `run.events` with the event's `type` as `kind` and the rest as `data`.
+A runner sends them as `turn.events`, each with its `seq` from 1 (docs/runner-protocol.md, "Chat turns").
 
 ## Credentials
 
@@ -132,6 +134,75 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
   way) and is the failure's detail when the turn does not complete. Reasoning and the to-do list give nothing. Codex
   has no result event: a clean exit (0) after `turn.completed` gives `result` ok with the last agent message.
 
+## How a turn runs
+
+Built in S5.1b (2026-11-09; Ihor's choices of that day): a chat with an agent runs on the agent's placement (its machine
+and home folder), on the agent's access profile unless the chat has its own, with Claude Code or Codex, as a process per
+turn (chat mode) or the real TUI (terminal mode). The server is the chats module (`apps/server/src/modules/chats/`); the
+runner's side is `apps/runner/src/turns/` and its terminals.
+
+1. **A chat** (`POST /api/companies/{companyId}/agents/{agentId}/chats`, admins and owners) is bound at creation to the
+   agent's harness and to its placement's machine: a harness session lives on the machine it began on, so a placement
+   moved to another machine later refuses the chat's turns (`machine_changed`, "start a new chat"), as a changed harness
+   does (`harness_changed`). A chat may have its own access profile, chosen only by its owner (the rule of giving a
+   profile to an agent: `profile_not_yours`, `session_required`); it counts while that person is still an admin or owner
+   of the company (else `profile_missing`), and goes when the profile does.
+2. **A prompt** (`POST …/chats/{chatId}/turns`, at most 20 000 characters) is checked in this order, each refusal
+   naming what to fix: the chat not archived, no turn of it running; the agent's placement (none, `container` mode: S5
+   proper), its machine's runner connected, newer than chats (`caps.harnesses` with versions) and with the harness's
+   CLI; the profile (the chat's, else the agent's) and the subscription in the harness's slot (Claude Code: the Claude
+   slot and the gateway slot; Codex: the OpenAI slot).
+3. **The credential** is opened by the credentials module as its owner (`credentialsForHarness`): one
+   `credential_uses` row per turn, naming the company, the agent, the chat and who sent the prompt (`chat_turn`;
+   `chat_terminal` for a terminal), and one for the gateway. A Claude login whose access token has under 60 minutes left
+   is refreshed first (Claude Code's own refresh call, the new token set sealed again); a Codex login whose token is near
+   its end the same way as its usage check. A refused refresh marks the login `needs_sign_in`
+   (`credential_needs_sign_in`); a provider that does not answer keeps a token that still works, else
+   `provider_unavailable` (503). The secret goes with this turn only, in `turn.start` over the runner's link: nothing on
+   the machine's disk for Claude (the token is the process's `CLAUDE_CODE_OAUTH_TOKEN`), and Codex's `auth.json` only
+   while its process runs. A Codex chat's gateway goes as its address alone (no headers), so the driver says it is not
+   used and nothing of its secret leaves the server.
+4. **The turn** is recorded `running` (with the profile and credential it runs on; the first prompt is the chat's title,
+   80 characters), its sink is put in place, and `turn.start {turnId, spec}` goes to the runner. The answer is 202 with
+   the turn.
+5. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
+   what it cannot run: `unsupported` (no such CLI, or no way to start processes), `busy` (all `slots` live), `home_missing`
+   (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
+   `runner_stopping`. Otherwise it starts the driver's command with no shell, detached (its own process group), in the
+   agent's folder, with its own environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the private folder's
+   variable; writes the prompt to stdin and closes it; sends the driver's notices as the first events; reads stdout line
+   by line into the driver's parser and keeps the last 4 KB of stderr. Events go as `turn.events` about 100 ms after the
+   first, or at once from 32 KB or 100 events, numbered from 1; a text event over 16 KB is split, a result's text cut to
+   fit. On exit, `parser.end` gives the last events, then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the
+   result's, `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the
+   SIGINT) or `runner_stopping`. Live turns hold the machine as live runs do and make the self-update say `busy`.
+6. **Codex's private folder** (`turns/private-dir.ts`): the placement's `configDir` when it has one, else
+   `<runner state dir>/<harness>/<first 16 hex of sha256(home)>/`, never the machine's `~/.codex`; made 0700. `auth.json`
+   is written 0600 before the process (a marker file first; a file of that name the runner did not write is set aside
+   and put back) and removed when the last process using the folder ends. When the process rewrote it (its own token
+   refresh), the new text goes back in `turn.end.authJson` (a terminal's in `terminal.exit.authJson`) and the server
+   seals it into the credential again; the browser never sees it.
+7. **The server** stores each event (`chat_events`, a resend kept once), saves the chat's `session_id` from the
+   `session` event (the next turn resumes it), tells the chat's stream listeners, and on `turn.end` closes the turn:
+   `done`, `failed` (the runner's reason first, else the result's error) or `stopped`, with the result's text and the
+   usage. A runner whose link drops fails its running turns (`machine_disconnected`; the runner ends their processes
+   too, nothing is re-attached yet), and at the server's start the turns a stopped server left running fail
+   (`server_restarted`).
+8. **The stream** (`GET …/chats/{chatId}/stream`, members and above): Server-Sent Events over an authenticated GET
+   (the web reads it with `fetch` and its Bearer header): `turn` (`{turn}`) on a start and each status change, `event`
+   (`{turnId, turnSeq, seq, event, at}`, its `id:` `<turnSeq>.<seq>`), a `: heartbeat` comment every 20 s;
+   `Last-Event-ID` replays the turns from that turn on and the events after it, then the live ones, never one twice.
+9. **The terminal** (`POST …/chats/{chatId}/terminal-tickets`, owners only): the same checks and credential, then the
+   machine terminal's one-time ticket (`/api/terminal/ws`), holding the resolved `TerminalSpec` in the server's memory
+   for its 60 s. Opening the socket sends `terminal.open` with `harness`, and the runner starts `driver.terminal(spec)`
+   in the PTY (the TUI resuming the chat's session) instead of a login shell, with the same environment rules and
+   private folder; the driver's notices are printed above it. A runner without the CLI answers `terminal.exit` with
+   `unsupported`.
+
+`ask` in chat mode refuses a tool that needs approval (Claude Code's denials and Codex's declined commands become `warn`
+notices) until S6 brings the permission round trip; the terminal asks the person on the TUI. No test runs a real
+`claude` or `codex` turn: that spends Ihor's subscription.
+
 ## Tests
 
 - Each connector's tests run every argument and environment combination and parse its five fixtures (`answer`,
@@ -146,12 +217,13 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
 
 ## Not supported yet
 
-- The runner's execution: spawning, the private folder, the journal, Stop (S5.1b and S5.2).
+- The journal, re-attaching a turn after a runner or server restart, and runs of tasks (S5.2 and on): a dropped link ends
+  a chat's turn today.
 - Codex through a gateway; Claude Code's own `settings.json` `env` can still override the gateway variables of a turn
   (`--settings` with the gateway, from a private file, is the planned fix).
-- A Codex login's refreshed `auth.json`: Codex rewrites it when it refreshes its token, and the runner does not send it
-  back yet, so the server must hand out a fresh login (its usage check refreshes it); the same for a Claude login's
-  access token, which expires during a very long turn.
+- A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
+  before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
+  later one writes its login over a token the first may have just refreshed (the server seals again what comes back).
 - Asking the person mid-turn (the permission tool, `ask_user`): S6. Until then `ask` refuses in chat and asks only in
   the terminal.
 - Running as root: Claude Code refuses `--dangerously-skip-permissions` as root, which matters for container runs.

@@ -113,10 +113,11 @@ describe('credentials', () => {
     });
   });
 
-  it('is a personal table: an owner, no company', () => {
+  it('is a personal table: an owner, no company (a use names the company it was for, as a plain id)', () => {
+    expect(getTableConfig(credentials).columns.some((c) => c.name === 'company_id')).toBe(false);
+    expect(getTableConfig(credentialUses).columns.find((c) => c.name === 'company_id')?.notNull).toBe(false);
     for (const table of [credentials, credentialUses] as PgTable[]) {
       const config = getTableConfig(table);
-      expect(config.columns.some((c) => c.name === 'company_id')).toBe(false);
       expect(config.columns.find((c) => c.name === 'owner_user_id')?.notNull).toBe(true);
       const refs = config.foreignKeys.map((fk) => fk.reference());
       expect(refs.map((r) => [r.columns.map((c) => c.name), getTableConfig(r.foreignTable).name])).toEqual([
@@ -140,8 +141,33 @@ describe('credential_uses', () => {
       .from(credentialUses)
       .where(eq(credentialUses.credentialId, credentialId));
     expect(uses).toEqual([
-      { id: expect.any(Number), credentialId, ownerUserId: ownerId, purpose: 'usage_check', at },
+      {
+        id: expect.any(Number),
+        credentialId,
+        ownerUserId: ownerId,
+        purpose: 'usage_check',
+        at,
+        companyId: null,
+        agentId: null,
+        chatId: null,
+        principalId: null,
+      },
     ]);
+  });
+
+  it("records a chat's use with its company, agent, chat and who, and refuses those without a company", async () => {
+    const ids = { agentId: MISSING_ID, chatId: MISSING_ID, principalId: MISSING_ID };
+    const values = { credentialId: MISSING_ID, ownerUserId: ownerId, purpose: 'chat_turn' };
+    const [row] = await handle.db
+      .insert(credentialUses)
+      .values({ ...values, ...ids, companyId: MISSING_ID })
+      .returning();
+    expect(row).toMatchObject({ ...ids, companyId: MISSING_ID });
+    for (const field of ['agentId', 'chatId', 'principalId'] as const) {
+      expect(
+        await pgError(handle.db.insert(credentialUses).values({ ...values, [field]: MISSING_ID })),
+      ).toMatchObject({ code: '23514', constraint: 'credential_uses_company_check' });
+    }
   });
 
   it.each([
