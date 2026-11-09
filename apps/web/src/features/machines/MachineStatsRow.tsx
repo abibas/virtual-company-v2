@@ -3,9 +3,9 @@ import type { MachineStats } from '../../api/types.ts';
 import { cx } from '../../components/cx.ts';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
-import { IconTile } from '../../components/ui/IconTile.tsx';
+import { MachineLogo } from './MachineLogo.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
-import { kindIcon, kindName, statusText } from './machine-text.ts';
+import { kindName, statusText } from './machine-text.ts';
 
 /**
  * A machine's status line: a dot, "Running · up 8d 3h" or "Asleep · last seen 5 min ago", and "· 3 agents" (the agents
@@ -47,21 +47,26 @@ export type IdentityFacts = Pick<
   readonly agentCount?: number | undefined;
 };
 
-/** The machine's mark, name, kind and status, with the Overloaded badge; `name` replaces the plain name (a rename). */
+/**
+ * The machine's mark (its logo or kind icon, `MachineLogo`), name, kind and status, with the Overloaded badge; `name`
+ * replaces the plain name (a rename).
+ */
 export function MachineIdentity({
   stats,
   now,
+  mark,
   name,
   aside,
 }: {
   readonly stats: IdentityFacts;
   readonly now: number;
+  readonly mark: ReactNode;
   readonly name?: ReactNode;
   readonly aside?: ReactNode;
 }) {
   return (
     <header className="flex items-start gap-3">
-      <IconTile icon={kindIcon(stats.kind)} tone={stats.status === 'online' ? 'blue' : 'neutral'} />
+      {mark}
       <div className="min-w-0 flex-1">
         <h3 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-ink">
           {name ?? <span className="truncate">{stats.name}</span>}
@@ -79,11 +84,27 @@ export function MachineIdentity({
   );
 }
 
-/** One machine on the home board: who it is and how it is, then its stats row. */
-export function MachineStatsRow({ stats, now }: { readonly stats: MachineStats; readonly now: number }) {
+/** One machine on the home board: who it is (its logo, else its kind icon) and how it is, then its stats row. */
+export function MachineStatsRow({
+  stats,
+  now,
+  companyId,
+}: {
+  readonly stats: MachineStats;
+  readonly now: number;
+  readonly companyId: string;
+}) {
+  const mark = {
+    companyId,
+    machineId: stats.machineId,
+    name: stats.name,
+    kind: stats.kind,
+    online: stats.status === 'online',
+    logoVersion: stats.logo?.version,
+  };
   return (
     <Card as="article" variant="soft" padding="sm" aria-label={stats.name} className="flex flex-col gap-4">
-      <MachineIdentity stats={stats} now={now} />
+      <MachineIdentity stats={stats} now={now} mark={<MachineLogo mark={mark} />} />
       <MachineMetrics stats={stats} />
     </Card>
   );

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type CompanyLogo, diffFields, type TenantDb } from '@mwc/db';
+import type { LogoContentType } from '@mwc/shared/enums';
 import { LOGO_MAX_BYTES, type LogoRef, logoRef, logoVersion } from '@mwc/shared/logos';
 import { type LogoInfo, logoRows } from '../repo/logo.ts';
 import { companiesRepo } from '../repo.ts';
@@ -69,6 +70,27 @@ function auditLogo(tx: TenantDb, change: LogoChange) {
   });
 }
 
+/** An uploaded logo that passed the checks: its bytes, the type they show and their SHA-256 (hex). */
+export interface CheckedLogo {
+  readonly ok: true;
+  readonly bytes: Uint8Array;
+  readonly contentType: LogoContentType;
+  readonly sha256: string;
+}
+
+/**
+ * Checks an uploaded logo file as every logo is checked (a company's, a machine's): 400 `logo_empty` for an empty
+ * file, 413 `logo_too_large` over 1 MB, 415 `logo_type_unsupported` unless its bytes are a PNG, JPEG or WebP image.
+ */
+export async function checkLogoFile(file: Blob): Promise<CheckedLogo | LogoRefusal> {
+  if (file.size === 0) return EMPTY;
+  if (file.size > LOGO_MAX_BYTES) return LOGO_TOO_LARGE;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const contentType = detectLogoType(bytes);
+  if (contentType === undefined) return UNSUPPORTED;
+  return { ok: true, bytes, contentType, sha256: createHash('sha256').update(bytes).digest('hex') };
+}
+
 /**
  * Sets the company's logo from an uploaded file, replacing any it had, as the acting member's principal: 400
  * `logo_empty` for an empty file, 413 `logo_too_large` over 1 MB, 415 `logo_type_unsupported` unless its bytes are a
@@ -80,12 +102,9 @@ export async function uploadLogo(
   file: Blob,
   requestId: string,
 ): Promise<{ ok: true; logo: LogoView } | LogoRefusal> {
-  if (file.size === 0) return EMPTY;
-  if (file.size > LOGO_MAX_BYTES) return LOGO_TOO_LARGE;
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const contentType = detectLogoType(bytes);
-  if (contentType === undefined) return UNSUPPORTED;
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const checked = await checkLogoFile(file);
+  if (!checked.ok) return checked;
+  const { bytes, contentType, sha256 } = checked;
   const saved = await t.transaction(async (tx) => {
     await tx.lockCompany();
     const before = (await logoRows.info(tx))?.sha256 ?? null;

@@ -1,7 +1,7 @@
 import { createRoute } from '@hono/zod-openapi';
 import type { MembershipRole } from '@mwc/shared/enums';
 import { LOGO_MAX_BYTES, logoVersion } from '@mwc/shared/logos';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, Env, Input, MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { AppEnv, ServerDeps } from '../../../platform/env.ts';
@@ -33,8 +33,8 @@ const REVALIDATE = 'private, no-cache';
 const NOT_FOUND =
   'No such company, a deleted one, or one the caller is not an active member of (`not_found`)';
 
-/** Refuses a body over 1 MB and its framing before anything parses it: 413 `logo_too_large`. */
-const logoBodyLimit: MiddlewareHandler<AppEnv> = bodyLimit({
+/** Refuses a body over 1 MB and its framing before anything parses it: 413 `logo_too_large` (machine logos too). */
+export const logoBodyLimit: MiddlewareHandler<AppEnv> = bodyLimit({
   maxSize: LOGO_MAX_BYTES + MULTIPART_ALLOWANCE,
   onError: (c) => errorJson(c, LOGO_TOO_LARGE.status, LOGO_TOO_LARGE.code, LOGO_TOO_LARGE.message),
 });
@@ -112,6 +112,38 @@ function etagMatches(header: string | undefined, etag: string): boolean {
   });
 }
 
+/** What `sendLogo` needs of a stored logo (a company's or a machine's row). */
+export interface StoredLogo {
+  readonly sha256: string;
+  readonly contentType: string;
+  readonly bytes: Uint8Array;
+}
+
+/**
+ * The logo image as `GET .../logo` answers it (a company's, a machine's): its ETag, cached for good when asked for by
+ * its current version `v`, a 304 for a matching `If-None-Match`, and the image with `nosniff` and a CSP that runs
+ * nothing.
+ */
+export function sendLogo<E extends Env, P extends string, I extends Input>(
+  c: Context<E, P, I>,
+  logo: StoredLogo,
+  v: string | undefined,
+) {
+  const etag = `"${logo.sha256}"`;
+  const headers = {
+    etag,
+    'cache-control': v === logoVersion(logo.sha256) ? IMMUTABLE : REVALIDATE,
+    'x-content-type-options': 'nosniff',
+  };
+  if (etagMatches(c.req.header('if-none-match'), etag)) return c.body(null, 304, headers);
+  return c.body(new Uint8Array(logo.bytes), 200, {
+    ...headers,
+    'content-type': logo.contentType,
+    'content-security-policy': "default-src 'none'",
+    'content-disposition': 'inline',
+  });
+}
+
 export function logoRoutes(deps: ServerDeps) {
   return newRouter()
     .openapi(putLogoRoute(deps), async (c) => {
@@ -123,19 +155,7 @@ export function logoRoutes(deps: ServerDeps) {
     .openapi(getLogoRoute(deps), async (c) => {
       const logo = await logoFile(c.var.tenant);
       if (logo === undefined) return errorJson(c, 404, 'logo_not_found', 'This company has no logo');
-      const etag = `"${logo.sha256}"`;
-      const headers = {
-        etag,
-        'cache-control': c.req.valid('query').v === logoVersion(logo.sha256) ? IMMUTABLE : REVALIDATE,
-        'x-content-type-options': 'nosniff',
-      };
-      if (etagMatches(c.req.header('if-none-match'), etag)) return c.body(null, 304, headers);
-      return c.body(new Uint8Array(logo.bytes), 200, {
-        ...headers,
-        'content-type': logo.contentType,
-        'content-security-policy': "default-src 'none'",
-        'content-disposition': 'inline',
-      });
+      return sendLogo(c, logo, c.req.valid('query').v);
     })
     .openapi(deleteLogoRoute(deps), async (c) => {
       await removeLogo(c.var.tenant, c.var.membership.principalId, c.var.requestId);

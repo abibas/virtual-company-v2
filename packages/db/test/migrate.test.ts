@@ -51,6 +51,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'identity_outbox',
       'identity_parked_events',
       'invitations',
+      'machine_logos',
       'machine_power',
       'machine_power_events',
       'machine_samples',

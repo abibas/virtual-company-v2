@@ -66,7 +66,7 @@ export function MachinesBoard({
           ) : (
             <div className="flex flex-col gap-3">
               {data.machines.map((machine) => (
-                <MachineStatsRow key={machine.machineId} stats={machine} now={now} />
+                <MachineStatsRow key={machine.machineId} stats={machine} now={now} companyId={companyId} />
               ))}
             </div>
           )

@@ -137,6 +137,7 @@ the devbox starts and stops from the page, its keep-on hours hold it up, This Ma
    This Mac's runner holds each running box's reverse tunnel over IAP from `tunnel.set` and reports `tunnel.state`, shown on the card.)
    **Machine terminal (server and runner), done 2026-11-09** (owner-only one-time tickets, `GET /api/terminal/ws` relayed over the runner's link as `terminal.*` frames,
    PTY sessions in the runner from prebuilt node-pty shipped beside the bundle, `caps.terminal`; docs/machines.md "Terminal"; the web's xterm.js panel is the next step.)
+   **Machine logos, done 2026-11-09** (migration `0011_machine_logos`; `GET/PUT/DELETE machines/:machineId/logo` as the company logo's, `logo` on machines and stats rows; the logo on the card's tile and the home board, changed by admins with the company logo's picker; docs/machines.md "Logos".)
 8. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S5 — tasks, threads, runs

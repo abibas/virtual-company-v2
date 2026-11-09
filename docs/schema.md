@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 25. Migrations: 11, the last is `0010_agent_placements`.
+Tables: 26. Migrations: 12, the last is `0011_machine_logos`.
 
 ```mermaid
 erDiagram
@@ -194,6 +194,17 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  machine_logos {
+    uuid company_id PK, FK "not null"
+    uuid machine_id PK, FK "not null"
+    text content_type "not null, image/png|image/jpeg|image/webp"
+    bytea bytes "not null"
+    integer size "not null"
+    text sha256 "not null"
+    uuid updated_by_principal_id FK "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   machine_power {
     uuid company_id PK, FK "not null"
     uuid machine_id PK, FK "not null"
@@ -334,6 +345,9 @@ erDiagram
   invitations }o--|| companies : "company_id"
   invitations }o--o| users : "accepted_by_user_id"
   invitations }o--o| principals : "company_id, invited_by_principal_id"
+  machine_logos }o--|| companies : "company_id"
+  machine_logos |o--|| machines : "company_id, machine_id"
+  machine_logos }o--o| principals : "company_id, updated_by_principal_id"
   machine_power }o--|| companies : "company_id"
   machine_power |o--|| machines : "company_id, machine_id"
   machine_power }o--o| principals : "company_id, updated_by"
@@ -781,6 +795,32 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `invitations_status_check`: `status` is one of `pending`, `accepted`, `revoked`, `expired`, `failed`
 - **Indexes:**
   - `invitations_one_pending_per_email` on (`company_id`, `email_normalized`), unique, where `"status" = 'pending'`
+
+### `machine_logos`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `machine_id` | `uuid` | no |  | PK, FK |  |
+| `content_type` | `text` | no |  |  | `image/png`, `image/jpeg`, `image/webp` |
+| `bytes` | `bytea` | no |  |  |  |
+| `size` | `integer` | no |  |  |  |
+| `sha256` | `text` | no |  |  |  |
+| `updated_by_principal_id` | `uuid` | yes |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`, `machine_id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`machine_logos_company_id_companies_id_fk`)
+  - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete cascade (`machine_logos_machine_fk`)
+  - (`company_id`, `updated_by_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`machine_logos_updated_by_principal_fk`)
+- **Unique:** none
+- **Checks:**
+  - `machine_logos_content_type_check`: `content_type` is one of `image/png`, `image/jpeg`, `image/webp`
+  - `machine_logos_size_check`: `"size" between 1 and 1048576`
+  - `machine_logos_sha256_check`: `"sha256" ~ '^[0-9a-f]{64}$'`
+- **Indexes:** none
 
 ### `machine_power`
 

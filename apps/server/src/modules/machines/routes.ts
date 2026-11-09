@@ -2,6 +2,7 @@ import type { ServerDeps } from '../../platform/env.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import { runnerDownloadRoutes } from './routes/download.ts';
 import { enrollmentRoutes } from './routes/enrollment.ts';
+import { machineLogoRoutes } from './routes/logo.ts';
 import { machineRoutes } from './routes/machines.ts';
 import { placementRoutes } from './routes/placement.ts';
 import { powerRoutes } from './routes/power.ts';
@@ -16,7 +17,7 @@ import { machinesService } from './service.ts';
 /**
  * The machines module's routes (docs/machines.md): the machines and their stats, enrolling a machine, the runner's
  * installer and bundle (S4.5), the runners' socket, which the hub serves (S4.2), each machine's power (S4.4b), the
- * agents' placements on the machines (S4.7) and a machine's terminal for its owners (tickets and the browser's socket). A runner that connects gets its machine's hold at once, and a power
+ * agents' placements on the machines (S4.7), each machine's logo and a machine's terminal for its owners (tickets and the browser's socket). A runner that connects gets its machine's hold at once, and a power
  * controller its devboxes' tunnels (the hub's connect listeners, registered here once per app). Both ends of every
  * tunnel are this server's own port.
  */
@@ -29,6 +30,7 @@ export function machinesRoutes(deps: ServerDeps & { readonly hub: RunnerHub }) {
     .route('/', enrollmentRoutes(linked))
     .route('/', runnerDownloadRoutes(deps))
     .route('/', machineRoutes(deps, machines))
+    .route('/', machineLogoRoutes(deps))
     .route('/', powerRoutes(deps, powerService(linked)))
     .route('/', placementRoutes(deps))
     .route('/', runnerSocketRoutes(deps, deps.hub))

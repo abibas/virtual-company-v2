@@ -1,4 +1,5 @@
 import type { Machine, MachineSampleRow, RunnerSession, TenantDb } from '@mwc/db';
+import { type LogoRef, logoRef } from '@mwc/shared/logos';
 import { samplesRepo } from '../repo/samples.ts';
 import { sessionsRepo } from '../repo/sessions.ts';
 import { machinesRepo } from '../repo.ts';
@@ -12,6 +13,7 @@ import {
   WEEK_MS,
 } from '../rules/stats.ts';
 import type { MachineStatsListView, MachineStatsView } from '../schemas/stats.ts';
+import { machineLogoHashes } from './logo.ts';
 import { agentCounts } from './placement.ts';
 
 const repo = machinesRepo();
@@ -32,7 +34,12 @@ const span = (row: RunnerSession): SessionSpan => ({
   disconnectedAt: row.disconnectedAt?.getTime() ?? null,
 });
 
-function statsView(machine: Machine, stats: MachineStats, agentCount: number): MachineStatsView {
+function statsView(
+  machine: Machine,
+  stats: MachineStats,
+  agentCount: number,
+  logo: LogoRef | null,
+): MachineStatsView {
   const { now } = stats;
   return {
     machineId: machine.id,
@@ -40,6 +47,7 @@ function statsView(machine: Machine, stats: MachineStats, agentCount: number): M
     kind: machine.kind,
     provider: machine.provider,
     status: machine.status,
+    logo,
     lastSeenAt: machine.lastSeenAt?.toISOString() ?? null,
     agentCount,
     now: now === null ? null : { ...now, at: iso(now.at) },
@@ -62,6 +70,7 @@ export async function machineStatsList(t: TenantDb, now: Date): Promise<MachineS
   const samples = byMachine(await samplesRepo.since(t, new Date(nowMs - DAY_MS)));
   const sessions = byMachine(await sessionsRepo.since(t, new Date(nowMs - WEEK_MS)));
   const counts = await agentCounts(t);
+  const logos = await machineLogoHashes(t);
   return {
     at: now.toISOString(),
     machines: machines.map((machine) =>
@@ -74,6 +83,7 @@ export async function machineStatsList(t: TenantDb, now: Date): Promise<MachineS
           nowMs,
         }),
         counts.get(machine.id) ?? 0,
+        logoRef(logos.get(machine.id)),
       ),
     ),
   };

@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { MachineKind, MachineProvider, MachineStatus } from '@mwc/shared/enums';
+import { MachineLogoRefSchema } from '../schemas.ts';
 
 /** The home board's machine stats (`GET /api/companies/{companyId}/machines/stats`), from `rules/stats.ts`. */
 
@@ -29,6 +30,7 @@ export const MachineStatsSchema = z
     kind: MachineKind,
     provider: MachineProvider,
     status: MachineStatus,
+    logo: MachineLogoRefSchema,
     lastSeenAt: dateTime.nullable(),
     agentCount: z
       .number()

@@ -10,6 +10,7 @@ import { Badge } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { DevboxPower } from './DevboxPower.tsx';
 import { MachineActions } from './MachineActions.tsx';
+import { EditableMachineLogo, MachineLogo } from './MachineLogo.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
 import { MachineIdentity } from './MachineStatsRow.tsx';
 import { agoText } from './machine-text.ts';
@@ -99,29 +100,42 @@ function TunnelLine({
   );
 }
 
-/** Who and how it is: its name (renamed in place by admins), status, facts and tunnel. */
+/** Who and how it is: its logo and name (changed in place by admins), status, facts and tunnel. */
 function Header({
   machine,
   stats,
   power,
   now,
   admin,
+  companyId,
   onRename,
+  onChanged,
 }: {
   readonly machine: Machine;
   readonly stats: MachineStats | undefined;
   readonly power: MachinePower | undefined;
   readonly now: number;
   readonly admin: boolean;
+  readonly companyId: string;
   readonly onRename: (name: string) => Promise<void>;
+  readonly onChanged: () => void;
 }) {
-  // The stats refresh every minute, so their status is the fresher one; the name is the machine's (a rename).
+  // The stats refresh every minute, so their status is the fresher one; the name and logo are the machine's.
   const facts = stats ? { ...stats, name: machine.name } : { ...machine, upSince: null };
+  const mark = {
+    companyId,
+    machineId: machine.id,
+    name: machine.name,
+    kind: machine.kind,
+    online: facts.status === 'online',
+    logoVersion: machine.logo?.version,
+  };
   return (
     <div className="flex flex-col gap-2">
       <MachineIdentity
         stats={facts}
         now={now}
+        mark={admin ? <EditableMachineLogo mark={mark} onChanged={onChanged} /> : <MachineLogo mark={mark} />}
         name={
           <InlineEdit
             value={machine.name}
@@ -207,7 +221,9 @@ export function MachineCard({
         power={control.power.data}
         now={now}
         admin={admin}
+        companyId={companyId}
         onRename={rename}
+        onChanged={onChanged}
       />
       {stats && <MachineMetrics stats={stats} />}
       <PowerParts machine={machine} control={control} />

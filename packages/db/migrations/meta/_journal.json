@@ -78,6 +78,13 @@
       "when": 1793979137635,
       "tag": "0010_agent_placements",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794213363556,
+      "tag": "0011_machine_logos",
+      "breakpoints": true
     }
   ]
 }

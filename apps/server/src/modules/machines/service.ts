@@ -1,4 +1,5 @@
 import { diffFields, type Machine, type TenantDb } from '@mwc/db';
+import { type LogoRef, logoRef } from '@mwc/shared/logos';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { type MachinesRepo, machinesRepo } from './repo.ts';
 import { isPowered } from './rules/power.ts';
@@ -11,6 +12,7 @@ import {
 } from './rules.ts';
 import type { MachineUpdate, MachineView, TunnelView } from './schemas.ts';
 import type { RunnerHub } from './service/hub.ts';
+import { machineLogoHashes } from './service/logo.ts';
 import { agentCounts, removeMachinePlacements } from './service/placement.ts';
 import { syncTunnels, type TunnelDeps } from './service/power/tunnels.ts';
 
@@ -25,10 +27,15 @@ export function tunnelOf(hub: RunnerHub, row: Machine): TunnelView | null {
 }
 
 /**
- * A machine as the API shows it, with how many agents not archived run on it by default (`agentCount`) and, for a
- * devbox, its tunnel (`tunnelOf`).
+ * A machine as the API shows it, with how many agents not archived run on it by default (`agentCount`), for a devbox
+ * its tunnel (`tunnelOf`), and its logo's version (null without one).
  */
-export function machineView(row: Machine, agentCount: number, tunnel: TunnelView | null): MachineView {
+export function machineView(
+  row: Machine,
+  agentCount: number,
+  tunnel: TunnelView | null,
+  logo: LogoRef | null,
+): MachineView {
   return {
     id: row.id,
     name: row.name,
@@ -48,6 +55,7 @@ export function machineView(row: Machine, agentCount: number, tunnel: TunnelView
     hourlyCost: row.hourlyCost,
     agentCount,
     tunnel,
+    logo,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -83,9 +91,14 @@ async function controllerRefusal(
   return (await repo.get(t, controllerId)) === undefined ? CONTROLLER_NOT_FOUND : undefined;
 }
 
-/** A machine's view with its agent count, read in the caller's transaction when it is one, and its tunnel. */
+/** A machine's view with its agent count and logo, read in the caller's transaction when it is one, and its tunnel. */
 const viewOf = async (hub: RunnerHub, t: TenantDb, row: Machine) =>
-  machineView(row, (await agentCounts(t)).get(row.id) ?? 0, tunnelOf(hub, row));
+  machineView(
+    row,
+    (await agentCounts(t)).get(row.id) ?? 0,
+    tunnelOf(hub, row),
+    logoRef((await machineLogoHashes(t)).get(row.id)),
+  );
 
 /**
  * Renames a machine and/or sets (or clears) a devbox's controller; audited. After a new controller, the old one and
@@ -167,7 +180,10 @@ export function machinesService(deps: TunnelDeps) {
     async list(t: TenantDb): Promise<MachineView[]> {
       const rows = await repo.list(t);
       const counts = await agentCounts(t);
-      return rows.map((row) => machineView(row, counts.get(row.id) ?? 0, tunnelOf(deps.hub, row)));
+      const logos = await machineLogoHashes(t);
+      return rows.map((row) =>
+        machineView(row, counts.get(row.id) ?? 0, tunnelOf(deps.hub, row), logoRef(logos.get(row.id))),
+      );
     },
 
     async get(t: TenantDb, id: string): Promise<Viewed> {

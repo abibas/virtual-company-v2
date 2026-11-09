@@ -311,6 +311,20 @@ archived agent keeps its placement and is left out of the counts.
   folder, the permissions; saved with the agent, read-only below admin), "Runs on <machine> · <mode>" in the agent's
   facts, and a Machine column in the agents table.
 
+## Logos
+
+A machine can have a logo, as a company does (migration `0011_machine_logos`): `machine_logos` holds one image per
+machine (primary key `(company_id, machine_id)`, a composite foreign key to the machine with `ON DELETE CASCADE`; a
+removed machine keeps its row, as it keeps its history), with the company logo's limits and checks: a PNG, JPEG or WebP
+image of at most 1 MB, its type told from its first bytes, its SHA-256 the ETag and, cut to 16 characters, its version.
+`GET /api/companies/:companyId/machines/:machineId/logo` (viewer and above; 404 `logo_not_found` without one) answers
+as the company logo does (cached for good with `?v=<version>`, 304 for its ETag); `PUT` (a multipart form with `file`)
+and `DELETE` are for admins and owners, each change audited as the machine's `logo` field. Another company's machine,
+an unknown or a removed one is a 404 `machine_not_found`. `GET machines`, a machine and `GET machines/stats` rows carry
+`logo: { version } | null`. Web: the machine's tile on its card and on the home board shows the logo, else its kind
+icon (`features/machines/MachineLogo.tsx`); for admins and owners a click on the card's tile opens the company logo's
+picker in a sheet (pick, crop, upload, Remove).
+
 ## Stage plan (S4)
 
 | Wave | Step | Size / effort | Notes |

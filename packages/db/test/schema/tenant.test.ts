@@ -14,7 +14,7 @@ const ONE_PER_COMPANY = ['company_logos'];
 /** Tenant tables with one row per principal: `(company_id, principal_id)` is their primary key, they have no `id`. */
 const ONE_PER_PRINCIPAL = ['org_positions'];
 /** Tenant tables of a machine's rows keyed by it: `(company_id, machine_id, …)` is their primary key, no `id`. */
-const KEYED_BY_MACHINE = ['machine_power', 'machine_samples'];
+const KEYED_BY_MACHINE = ['machine_logos', 'machine_power', 'machine_samples'];
 
 const tables = (Object.values(schema) as unknown[])
   .filter((value): value is PgTable => is(value, PgTable))
@@ -112,7 +112,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(20);
+    expect(composite).toBe(22);
   });
 });
 

@@ -6,8 +6,8 @@ import { CompanyLogo } from '../../ui/CompanyLogo.tsx';
 import { ConfirmInline } from '../ConfirmInline.tsx';
 import type { CropShape } from './ImageCropper.tsx';
 
-/** What the picker picks: a company's logo (a rounded tile), or a person's photo (round). */
-export type PickerKind = 'logo' | 'photo';
+/** What the picker picks: a company's logo (a rounded tile), a machine's logo (the same tile), or a person's photo (round). */
+export type PickerKind = 'logo' | 'machine' | 'photo';
 
 interface PickerLook {
   /** The crop frame's mask. */
@@ -37,6 +37,18 @@ export const PICKER_KINDS: Readonly<Record<PickerKind, PickerLook>> = {
     crop: 'Crop the logo',
     hint: 'PNG, JPEG or WebP, up to 10 MB. Click, drop a file, or paste an image; then crop it square.',
     removeQuestion: 'Remove the logo? The company shows its initials again.',
+    removeConfirm: 'Remove logo',
+  },
+  machine: {
+    shape: 'square',
+    zone: 'rounded-2xl',
+    label: 'Machine logo',
+    empty: 'Add logo',
+    add: 'Add a logo',
+    replace: 'Replace the logo',
+    crop: 'Crop the logo',
+    hint: 'PNG, JPEG or WebP, up to 10 MB. Click, drop a file, or paste an image; then crop it square.',
+    removeQuestion: 'Remove the logo? The machine shows its kind icon again.',
     removeConfirm: 'Remove logo',
   },
   photo: {

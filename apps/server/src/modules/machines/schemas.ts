@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { HoldSource, MachineKind, MachineProvider, MachineStatus } from '@mwc/shared/enums';
+import { LogoRef } from '@mwc/shared/logos';
 import { MACHINE_NAME } from '@mwc/shared/machines';
 import { TunnelStatus } from '@mwc/shared/runner-protocol';
 
@@ -19,6 +20,9 @@ export const MachineParamsSchema = z.object({
 });
 
 const dateTime = z.string().openapi({ format: 'date-time' });
+
+/** The machine's logo version (for `GET .../logo?v=<version>`), or null when it has none. */
+export const MachineLogoRefSchema = LogoRef.nullable().openapi({ example: { version: '9f86d081884c7d65' } });
 
 /** A devbox's link to this server: its controller's SSH tunnel, as the controller last reported it (memory only). */
 export const TunnelSchema = z
@@ -61,6 +65,7 @@ export const MachineSchema = z
     agentCount: z.number().int(),
     /** A devbox's tunnel as its controller reported it; null for other machines and before a report. */
     tunnel: TunnelSchema.nullable(),
+    logo: MachineLogoRefSchema,
     createdAt: dateTime,
   })
   .openapi('Machine');
