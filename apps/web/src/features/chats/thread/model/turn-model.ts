@@ -85,6 +85,13 @@ function addSubagent(build: Build, list: MutablePart[], event: Of<'subagent'>, k
   placeSubagent(build, list, event.id, key);
 }
 
+/** Two messages as paragraphs: a blank line between them, none added when either is empty. */
+function joinParagraphs(before: string, after: string): string {
+  if (before.trim() === '') return after;
+  if (after.trim() === '') return before;
+  return `${before.replace(/\s+$/, '')}\n\n${after.replace(/^\s+/, '')}`;
+}
+
 /** One event into the list of whom it belongs to. */
 function addEvent(build: Build, { seq, event, at }: ChatEvent) {
   const owner = ('parentId' in event && event.parentId) || MAIN;
@@ -97,7 +104,9 @@ function addEvent(build: Build, { seq, event, at }: ChatEvent) {
   }
   const last = list.at(-1);
   if (event.type === 'text') {
-    if (last?.kind === 'text') last.text += event.text;
+    // Each text event is a whole message (Codex's agent messages, Claude Code's text blocks), never a fragment: two in a
+    // row are two paragraphs, not one run-on line ("…when they finish.The gpt-6.1-sol agents…").
+    if (last?.kind === 'text') last.text = joinParagraphs(last.text, event.text);
     else list.push({ kind: 'text', key, text: event.text });
   } else if (event.type === 'thinking') {
     if (last?.kind === 'thinking' && open) last.text += `\n\n${event.text}`;
