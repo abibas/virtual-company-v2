@@ -1,9 +1,10 @@
 import { Download, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { MachineCalls } from '../../../api/machines.ts';
-import type { Machine, MachineTools as Tools } from '../../../api/types.ts';
+import type { LatestRunner, Machine, MachineTools as Tools } from '../../../api/types.ts';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
+import { runnerOutOfDate, versionText } from '../runner/runner-text.ts';
 import { InstallOutcome } from './InstallOutcome.tsx';
 import {
   installQuestion,
@@ -75,6 +76,11 @@ function ToolRow({
             update available · {state.latest}
           </Badge>
         )}
+        {state.kind === 'ok' && isInstallable(tool) && (
+          <Badge size="sm" tone="done">
+            up to date
+          </Badge>
+        )}
         {offered && !asking && (
           <Button
             size="sm"
@@ -98,6 +104,37 @@ function ToolRow({
             install.start(tool);
           }}
         />
+      )}
+    </li>
+  );
+}
+
+/** The runner itself: its version and build time, and whether it is the build this server hands out. */
+function RunnerRow({
+  machine,
+  latest,
+  online,
+}: {
+  readonly machine: Machine;
+  readonly latest: LatestRunner;
+  readonly online: boolean;
+}) {
+  const old = runnerOutOfDate(machine, online);
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+      <span className="w-28 shrink-0 text-sm font-semibold text-ink">Runner</span>
+      <span className="min-w-0 flex-1 truncate text-sm text-dim">
+        {versionText(machine.runner.version, machine.runner.builtAt)}
+      </span>
+      {online && old && (
+        <Badge size="sm" tone="input">
+          update available{latest ? ` · ${versionText(latest.version, latest.builtAt)}` : ''}
+        </Badge>
+      )}
+      {online && !old && (
+        <Badge size="sm" tone="done">
+          up to date
+        </Badge>
       )}
     </li>
   );
@@ -139,12 +176,14 @@ function NoTools({ online }: { readonly online: boolean }) {
  */
 export function MachineTools({
   machine,
+  latestRunner,
   admin,
   online,
   calls,
   onChanged,
 }: {
   readonly machine: Machine;
+  readonly latestRunner: LatestRunner;
   readonly admin: boolean;
   readonly online: boolean;
   readonly calls: MachineCalls;
@@ -159,11 +198,11 @@ export function MachineTools({
   return (
     <section
       id={machineToolsId(machine.id)}
-      aria-label="Tools"
-      className="flex scroll-mt-6 flex-col gap-2 border-t border-line pt-5"
+      aria-label="Software"
+      className="flex min-w-0 scroll-mt-6 flex-col gap-2"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-bold text-ink-2">Tools</h4>
+        <h4 className="text-xs font-bold text-ink-2">Software</h4>
         {admin && tools && (
           <Button size="sm" tone="quiet" icon={RefreshCw} busy={check.busy} onClick={check.run}>
             Check again
@@ -171,15 +210,14 @@ export function MachineTools({
         )}
       </div>
       {check.error && <p className="text-xs font-medium text-failed">{check.error}</p>}
-      {tools === null ? (
-        <NoTools online={online} />
-      ) : (
-        <ul className="flex flex-col divide-y divide-line">
-          {TOOL_ORDER.map((tool) => (
+      <ul className="flex flex-col divide-y divide-line">
+        <RunnerRow machine={machine} latest={latestRunner} online={online} />
+        {tools !== null &&
+          TOOL_ORDER.map((tool) => (
             <ToolRow key={tool} {...{ tool, machine, tools, install }} canInstall={admin && !container} />
           ))}
-        </ul>
-      )}
+      </ul>
+      {tools === null && <NoTools online={online} />}
       {tools && container && (
         <p className="text-xs text-dim">
           In a container its CLIs come from its image: rebuild it to add or update one.

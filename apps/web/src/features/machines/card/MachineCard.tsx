@@ -55,17 +55,31 @@ function PowerLog({
   );
 }
 
-/** The power parts: the devbox's controls and the power settings (the log is behind the actions' Log button). */
-function PowerParts({ machine, control }: { readonly machine: Machine; readonly control: PowerControl }) {
+/**
+ * The card's two columns: the devbox's power controls and the machine's software (runner and CLIs) on the left, the power
+ * settings on the right (the log is behind the actions' Log button).
+ */
+function PowerParts({
+  machine,
+  control,
+  software,
+}: {
+  readonly machine: Machine;
+  readonly control: PowerControl;
+  readonly software: ReactNode;
+}) {
   const power = control.power.data;
   const devbox = machine.provider === 'airia_devbox';
   return (
     <div className="grid gap-6 border-t border-line pt-5 lg:grid-cols-2">
-      {devbox && power && (
-        <Part title="Power">
-          <DevboxPower power={power} control={control} />
-        </Part>
-      )}
+      <div className="flex min-w-0 flex-col gap-6">
+        {devbox && power && (
+          <Part title="Power">
+            <DevboxPower power={power} control={control} />
+          </Part>
+        )}
+        {software}
+      </div>
       <Part title="Power settings">
         <LoadState loaded={control.power} label="Loading the power settings…">
           {(data) => (
@@ -141,8 +155,20 @@ export function MachineCard({
         onChanged={onChanged}
       />
       {stats && <MachineMetrics stats={stats} />}
-      <PowerParts machine={machine} control={control} />
-      <MachineTools machine={machine} admin={admin} online={online} calls={calls} onChanged={onChanged} />
+      <PowerParts
+        machine={machine}
+        control={control}
+        software={
+          <MachineTools
+            machine={machine}
+            latestRunner={latestRunner}
+            admin={admin}
+            online={online}
+            calls={calls}
+            onChanged={onChanged}
+          />
+        }
+      />
       <MachineActions
         machine={machine}
         companyId={companyId}

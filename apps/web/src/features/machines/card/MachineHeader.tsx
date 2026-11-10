@@ -3,7 +3,7 @@ import type { LatestRunner, Machine, MachinePower, MachineStats } from '../../..
 import { InlineEdit } from '../../../components/forms/InlineEdit.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { holdText, tunnelText } from '../power/power-text.ts';
-import { outOfDateText, runnerOutOfDate, versionText } from '../runner/runner-text.ts';
+import { outOfDateText, runnerOutOfDate } from '../runner/runner-text.ts';
 import { EditableMachineLogo, MachineLogo } from './MachineLogo.tsx';
 import { MachineIdentity } from './MachineStatsRow.tsx';
 
@@ -13,7 +13,7 @@ import { MachineIdentity } from './MachineStatsRow.tsx';
  * runner's with its build time), hold and tunnel.
  */
 
-/** Versions, where it runs and its hold, in one quiet line. */
+/** Where it runs (system, user and host) and its hold, in one quiet line; versions are in the card's Software part. */
 function FactsLine({
   machine,
   power,
@@ -23,14 +23,10 @@ function FactsLine({
   readonly power: MachinePower | undefined;
   readonly now: number;
 }) {
-  const claude = machine.versions.claude
-    ? ` · Claude Code ${machine.versions.claude.replace(/ \(Claude Code\)$/, '')}`
-    : '';
   const hold = holdText(machine, power, now);
   return (
     <p className="text-xs text-dim">
-      Runner {versionText(machine.runner.version, machine.runner.builtAt)}
-      {claude} · {machine.os} {machine.arch} · {machine.unixUser}@{machine.hostname}
+      {machine.os} {machine.arch} · {machine.unixUser}@{machine.hostname}
       {hold && <span className="font-medium text-ink-2"> · {hold}</span>}
     </p>
   );
