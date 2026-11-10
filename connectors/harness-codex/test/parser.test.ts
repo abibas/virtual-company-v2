@@ -10,6 +10,17 @@ const completed = line({
   usage: { input_tokens: 100, cached_input_tokens: 80, output_tokens: 7 },
 });
 
+/** The `context` a turn's total gives: the uncached input, the cache reads, marked an estimate. */
+const context = (inputTokens: number, cacheReadTokens: number, outputTokens: number) => ({
+  type: 'context',
+  inputTokens,
+  cacheReadTokens,
+  cacheCreationTokens: 0,
+  outputTokens,
+  window: null,
+  estimate: true,
+});
+
 describe('CodexLineParser.feed', () => {
   it('gives the session from thread.started, and skips an id that is no command-line word', () => {
     const parser = new CodexLineParser();
@@ -23,11 +34,24 @@ describe('CodexLineParser.feed', () => {
   it('gives the usage of turn.completed, with or without cached tokens, and none without usage', () => {
     expect(new CodexLineParser().feed(completed)).toEqual([
       { type: 'usage', inputTokens: 100, outputTokens: 7, cachedInputTokens: 80 },
+      context(20, 80, 7),
     ]);
     expect(new CodexLineParser().feed(line({ type: 'turn.completed', usage: { output_tokens: 3 } }))).toEqual(
       [{ type: 'usage', inputTokens: 0, outputTokens: 3 }],
     );
     expect(new CodexLineParser().feed(line({ type: 'turn.completed' }))).toEqual([]);
+  });
+
+  it("estimates the context from the turn's total: no cached tokens, or more cached than input, stay in bounds", () => {
+    const usage = (fields: object) =>
+      new CodexLineParser().feed(line({ type: 'turn.completed', usage: fields }));
+    expect(usage({ input_tokens: 500, output_tokens: 2 })).toEqual([
+      { type: 'usage', inputTokens: 500, outputTokens: 2 },
+      context(500, 0, 2),
+    ]);
+    expect(usage({ input_tokens: 10, cached_input_tokens: 40, output_tokens: 1 })[1]).toEqual(
+      context(0, 10, 1),
+    );
   });
 
   it('reads items, and skips items that are no object', () => {

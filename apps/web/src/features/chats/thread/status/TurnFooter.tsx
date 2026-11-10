@@ -2,6 +2,7 @@ import { CircleCheck, CircleSlash, CircleX } from 'lucide-react';
 import type { ChatTurnWithEvents } from '../../../../api/types.ts';
 import { cx } from '../../../../components/cx.ts';
 import { tokens } from '../../chat-text.ts';
+import { PLAN_COST } from '../../context/context-text.ts';
 import { CopyAction } from '../markdown/CopyAction.tsx';
 import { activitySummary } from '../model/current-action.ts';
 import { roundedDuration } from '../model/format.ts';
@@ -13,10 +14,14 @@ const ENDINGS = {
   stopped: { icon: CircleSlash, words: 'Stopped after', bare: 'Stopped', tone: 'text-dim' },
 } as const;
 
-/** Tokens in and out (cached ones), and the cost when the harness gives it. */
-function usageWords(usage: NonNullable<TurnModel['usage']>): string {
+/** Tokens in and out (cached ones), and the cost: the plan's for a login's turn, else the money the harness gives. */
+function usageWords(usage: NonNullable<TurnModel['usage']>, onPlan: boolean): string {
   const cached = usage.cachedInputTokens ? ` (${tokens(usage.cachedInputTokens)} cached)` : '';
-  const cost = usage.costUsd === undefined ? '' : ` · $${usage.costUsd.toFixed(usage.costUsd < 1 ? 3 : 2)}`;
+  const cost = onPlan
+    ? ` · ${PLAN_COST}`
+    : usage.costUsd === undefined
+      ? ''
+      : ` · $${usage.costUsd.toFixed(usage.costUsd < 1 ? 3 : 2)}`;
   return `${tokens(usage.inputTokens)} in${cached} · ${tokens(usage.outputTokens)} out${cost}`;
 }
 
@@ -44,7 +49,9 @@ export function TurnFooter({
         <span className="font-semibold">{took}</span>
         {summary && <span className="min-w-0">· {summary}</span>}
       </span>
-      {model.usage && <span className="tabular">{usageWords(model.usage)}</span>}
+      {model.usage && (
+        <span className="tabular">{usageWords(model.usage, turn.usage?.includedInPlan === true)}</span>
+      )}
       {model.replyText && <CopyAction text={model.replyText} label="Copy reply" className="-my-1 ml-auto" />}
     </div>
   );

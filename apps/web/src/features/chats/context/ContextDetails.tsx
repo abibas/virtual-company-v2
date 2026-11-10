@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { count, formatDateTime } from '../../../components/data/format.ts';
 import { ContextFills } from './ContextFills.tsx';
 import type { ConversationView, TurnTokens } from './context-state.ts';
-import { money, short } from './context-text.ts';
+import { costText, short } from './context-text.ts';
 
 /** A titled group of the popover. */
 function Section({ title, children }: { readonly title: string; readonly children: ReactNode }) {
@@ -43,7 +43,9 @@ function LastTurn({ turn }: { readonly turn: TurnTokens }) {
         {short(turn.cacheWrite)}
       </Row>
       <Row label="Output">{short(turn.output)}</Row>
-      <Row label="Cost">{turn.costUsd === undefined ? '—' : money(turn.costUsd)}</Row>
+      <Row label="Cost">
+        {turn.includedInPlan ? costText(undefined, true) : costText(turn.costUsd, false)}
+      </Row>
     </dl>
   );
 }
@@ -64,8 +66,15 @@ function Heading({ view }: { readonly view: ConversationView }) {
       </p>
       {view.used !== undefined && (
         <p className="tabular text-sm text-ink-2">
+          {view.estimate && '≈ '}
           {view.used.toLocaleString()} tokens
           {view.window ? ` of ${short(view.window)}` : ", of a window this model doesn't name"}
+        </p>
+      )}
+      {view.estimate && (
+        <p className="text-xs text-dim">
+          An estimate: Codex reports only each turn's total, so a turn with several model calls reads higher
+          than the conversation is.
         </p>
       )}
     </div>
@@ -91,7 +100,7 @@ export function ContextDetails({ view }: { readonly view: ConversationView }) {
         <dl className="grid gap-1">
           <Row label="Turns">{session.turns}</Row>
           {session.turns > 0 && <Row label="Tokens">{short(session.tokens)}</Row>}
-          {session.turns > 0 && <Row label="Cost">{money(session.costUsd)}</Row>}
+          {session.turns > 0 && <Row label="Cost">{costText(session.costUsd, session.onPlan)}</Row>}
           {session.since && <Row label="Began">{formatDateTime(session.since)}</Row>}
         </dl>
       </Section>

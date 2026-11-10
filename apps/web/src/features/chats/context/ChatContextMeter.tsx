@@ -6,7 +6,7 @@ import type { Chat } from '../../../api/types.ts';
 import type { ChatLive } from '../../../api/use-chat-live.ts';
 import { ContextMeter } from './ContextMeter.tsx';
 import type { ConversationControls } from './ConversationActions.tsx';
-import { type ChatRuns, type ConversationView, conversationView } from './context-state.ts';
+import { type ChatRuns, type ConversationView, conversationView, runsModel } from './context-state.ts';
 import { conversationRefusal } from './context-text.ts';
 
 const WAIT_FOR_TURN = 'Wait for the current turn to finish.';
@@ -81,12 +81,14 @@ export function ChatContextMeter({
   const detail = live.detail.data;
   const view = useMemo(() => {
     const read = conversationView(turns, detail);
-    if (read.used !== undefined) return read;
-    const model = read.model ?? runs?.model ?? null;
+    // What the harness did not say (Codex never names its model or window) comes from what the chat runs.
     const window =
-      read.window ?? (runs ? profileWindowOf(runs.provider, runs.model) : contextWindowOf(model));
-    return { ...read, model, window, used: 0, percent: window ? 0 : undefined };
-  }, [turns, detail, runs]);
+      read.window ?? (runs ? profileWindowOf(runs.provider, runs.model) : contextWindowOf(read.model));
+    const model = read.model ?? runsModel(chat.harness, runs) ?? null;
+    const used = read.used ?? 0;
+    const percent = window ? Math.round((used / window) * 100) : undefined;
+    return { ...read, model, window, used, percent };
+  }, [turns, detail, runs, chat.harness]);
   const running = turns.some(isLiveTurn);
   const controls = useControls(calls, live, chat, blockedWhy(view, running, closed));
   return (

@@ -25,19 +25,26 @@ export interface ContextBase {
   readonly after: 'start' | 'compaction';
 }
 
-/** One turn's tokens and cost from its `usage`; the cache writes from its main-agent `context` events. */
+/**
+ * One turn's tokens and cost from its `usage`; the cache writes from its main-agent `context` events; whether it ran on
+ * a plan (a login or setup token: the server marks its usage `includedInPlan` at its end), whose cost is the plan's.
+ */
 export interface TurnTokens {
   readonly input: number;
   readonly cacheRead: number;
   readonly cacheWrite: number;
   readonly output: number;
   readonly costUsd: number | undefined;
+  readonly includedInPlan: boolean;
 }
 
 export interface SessionTotals {
   readonly turns: number;
   readonly tokens: number;
-  readonly costUsd: number;
+  /** What the turns not on a plan cost; undefined when none said (only plan turns, or no cost given at all). */
+  readonly costUsd: number | undefined;
+  /** Some turn ran on a plan. */
+  readonly onPlan: boolean;
   /** When the conversation began: its first turn since the chat's start or last Clear. */
   readonly since: string | undefined;
   readonly afterClear: boolean;
@@ -50,6 +57,8 @@ export interface ConversationView {
   readonly window: number | null;
   /** 0–100, rounded; undefined without a size or a window. */
   readonly percent: number | undefined;
+  /** The size is estimated from a turn's total (Codex), not read from its last request. */
+  readonly estimate: boolean;
   readonly model: string | null;
   readonly effort: string | undefined;
   readonly base: ContextBase | undefined;
@@ -73,7 +82,8 @@ function turnTokens(turn: ChatTurnWithEvents): TurnTokens | undefined {
     if (event.type === 'usage') usage = event;
     else if (event.type === 'context') cacheWrite += event.cacheCreationTokens;
   }
-  usage ??= (turn.usage as Usage | null) ?? undefined;
+  const kept = (turn.usage as (Usage & { includedInPlan?: unknown }) | null) ?? undefined;
+  usage ??= kept;
   if (usage === undefined) return undefined;
   return {
     input: num(usage.inputTokens),
@@ -81,6 +91,7 @@ function turnTokens(turn: ChatTurnWithEvents): TurnTokens | undefined {
     cacheWrite,
     output: num(usage.outputTokens),
     costUsd: typeof usage.costUsd === 'number' ? usage.costUsd : undefined,
+    includedInPlan: kept?.includedInPlan === true,
   };
 }
 
@@ -89,6 +100,7 @@ interface Walk {
   used: number | undefined;
   window: number | null;
   base: ContextBase | undefined;
+  estimate: boolean;
   hasSession: boolean;
 }
 
@@ -99,10 +111,12 @@ function step(walk: Walk, event: TurnEvent) {
   else if (event.type === 'session') walk.hasSession = true;
   else if (event.type === 'context') {
     walk.used = sizeOf(event);
+    walk.estimate = event.estimate === true;
     walk.window = event.window ?? contextWindowOf(model);
     walk.base ??= { tokens: walk.used, after: 'start' };
   } else if (event.type === 'compact' && event.postTokens !== null) {
     walk.used = event.postTokens;
+    walk.estimate = false;
     walk.window = walk.window ?? contextWindowOf(model);
     walk.base = { tokens: event.postTokens, after: 'compaction' };
   }
@@ -111,10 +125,12 @@ function step(walk: Walk, event: TurnEvent) {
 function totals(work: readonly ChatTurnWithEvents[], cleared: boolean) {
   const tokens = work.map(turnTokens);
   const counted = tokens.filter((t): t is TurnTokens => t !== undefined);
+  const paid = counted.filter((t) => !t.includedInPlan && t.costUsd !== undefined);
   const session: SessionTotals = {
     turns: work.length,
     tokens: counted.reduce((sum, t) => sum + t.input + t.output, 0),
-    costUsd: counted.reduce((sum, t) => sum + (t.costUsd ?? 0), 0),
+    costUsd: paid.length === 0 ? undefined : paid.reduce((sum, t) => sum + (t.costUsd ?? 0), 0),
+    onPlan: counted.some((t) => t.includedInPlan),
     since: work[0]?.createdAt,
     afterClear: cleared,
   };
@@ -131,7 +147,14 @@ export function conversationView(
   const since = turns.slice(lastClear + 1);
   // Without a Clear among the turns, the detail's `init` may come from turns a long chat left out: it names the model.
   const seed = cleared ? undefined : (detail?.init ?? undefined);
-  const walk: Walk = { init: seed, used: undefined, window: null, base: undefined, hasSession: false };
+  const walk: Walk = {
+    init: seed,
+    used: undefined,
+    window: null,
+    base: undefined,
+    estimate: false,
+    hasSession: false,
+  };
   for (const turn of since) for (const { event } of turn.events) step(walk, event);
   // Nothing measured in the turns and no Clear among them: the detail's own reading stands.
   const init = walk.init ?? (cleared ? undefined : (detail?.init ?? undefined));
@@ -149,6 +172,7 @@ export function conversationView(
     used,
     window,
     percent: used !== undefined && window ? Math.round((used / window) * 100) : undefined,
+    estimate: walk.used !== undefined ? walk.estimate : fallback?.estimate === true,
     model,
     effort: init?.effort,
     base: walk.base,
@@ -161,6 +185,23 @@ export function conversationView(
 
 /** What a chat's turns run, for its meter before the first reading: the model (null: the provider's default). */
 export type ChatRuns = Pick<NonNullable<AgentDetail['runsWith']>, 'model' | 'provider'>;
+
+/** What the meter names when Codex picks the model itself (its stream never names it). */
+export const CODEX_DEFAULT_MODEL = "Codex's default";
+
+/**
+ * The model a chat's turns run as the meter names it before (or, for Codex, instead of) the harness saying so: the
+ * profile's model, or for Codex "Codex's default" when the turn leaves it to Codex (no model, the old
+ * `codex-default` marker or a Claude id, as the server's `turnModel` does); undefined when that is not known.
+ */
+export function runsModel(harness: Chat['harness'], runs: ChatRuns | undefined): string | null | undefined {
+  if (harness !== 'codex') return runs?.model;
+  if (runs === undefined) return undefined;
+  const model = runs.model;
+  return model === null || model === 'codex-default' || model.startsWith('claude')
+    ? CODEX_DEFAULT_MODEL
+    : model;
+}
 
 /**
  * What the chat runs: its own access profile's when it has one (known when it is one of the viewer's), else the

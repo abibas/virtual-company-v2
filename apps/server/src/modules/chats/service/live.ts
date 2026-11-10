@@ -112,7 +112,7 @@ async function ended(
   l.turns.delete(turn.id);
   const how = ending.error === undefined ? { ok: ending.ok } : { ok: ending.ok, error: ending.error };
   const row = await turnsRepo.updateLive(t, turn.id, {
-    ...endedTurn(how, outcome, stopRequested),
+    ...endedTurn(how, outcome, stopRequested, used.kind),
     endedAt: l.deps.clock(),
   });
   if (row === undefined) return;

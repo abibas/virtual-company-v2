@@ -61,7 +61,7 @@ export function ContextMeter({
   const id = useId();
   const place = useFloatingPanel(popover.open, 'end', popover.trigger, popover.panel, popover.close);
   const tone = fullness(view.percent);
-  const line = meterLine(view.used, view.window, view.percent);
+  const line = meterLine(view.used, view.window, view.percent, view.estimate);
   const inlineCompact = controls.canCompact && tone !== 'room';
   return (
     <div ref={popover.root} className="flex min-w-0 items-center gap-1.5">

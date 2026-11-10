@@ -1,6 +1,6 @@
 import { CHAT_TITLE } from '@mwc/shared/chats';
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
-import type { ChatTurnKind, ChatTurnStatus, Effort, Harness } from '@mwc/shared/enums';
+import type { ChatTurnKind, ChatTurnStatus, CredentialKind, Effort, Harness } from '@mwc/shared/enums';
 import { contextWindowOf, type InitEvent, type TurnEvent } from '@mwc/shared/harness';
 import { PROVIDER_EFFORTS } from '@mwc/shared/models';
 import type { ChatContextView } from './schemas.ts';
@@ -139,8 +139,18 @@ export interface TurnEnd {
   readonly error?: string;
 }
 
-/** The turn's row once it ended: its status (`stopped` when a person stopped it), reply, error and usage. */
-export function endedTurn(end: TurnEnd, outcome: TurnOutcome, stopRequested: boolean) {
+/** The subscriptions whose turns cost nothing beyond the plan: the logins and Claude's setup token (not API keys). */
+export const PLAN_KINDS: ReadonlySet<CredentialKind> = new Set([
+  'claude_oauth',
+  'claude_setup_token',
+  'codex_oauth',
+]);
+
+/**
+ * The turn's row once it ended: its status (`stopped` when a person stopped it), reply, error and usage; a turn on a
+ * plan (`PLAN_KINDS`) keeps `includedInPlan: true` in its usage, so its cost reads "included in your plan".
+ */
+export function endedTurn(end: TurnEnd, outcome: TurnOutcome, stopRequested: boolean, kind?: CredentialKind) {
   const stopped = stopRequested || end.error === 'stopped';
   const status: ChatTurnStatus = end.ok && !stopped ? 'done' : stopped ? 'stopped' : 'failed';
   const error = status === 'done' ? null : (end.error ?? outcome.result?.error ?? 'The turn failed');
@@ -149,7 +159,13 @@ export function endedTurn(end: TurnEnd, outcome: TurnOutcome, stopRequested: boo
     status,
     resultText: outcome.result?.text ?? null,
     error,
-    usage: outcome.usage === undefined ? null : (usage as Record<string, unknown>),
+    usage:
+      outcome.usage === undefined
+        ? null
+        : ({ ...usage, ...(kind && PLAN_KINDS.has(kind) ? { includedInPlan: true } : {}) } as Record<
+            string,
+            unknown
+          >),
   };
 }
 
@@ -170,8 +186,8 @@ export interface ConversationState {
 
 /**
  * The chat's conversation since its last Clear (a `clear` turn forgets everything before it): its last `init`, and its
- * size, from the last `context` (input, cache reads and cache writes of the last request) or a later `compact` that
- * says its size after; the window is the `context`'s, else the model table's for the last `init`'s model, else
+ * size, from the last `context` (input, cache reads and cache writes of the last request; an `estimate` from a turn's
+ * total stays marked) or a later `compact` that says its size after; the window is the `context`'s, else the model table's for the last `init`'s model, else
  * `profileWindow`, the window of what the chat's access profile runs (`profileWindowOf`).
  */
 export function conversationState(
@@ -190,7 +206,7 @@ export function conversationState(
       else if (event.type === 'context') {
         const usedTokens = event.inputTokens + event.cacheReadTokens + event.cacheCreationTokens;
         const window = event.window ?? contextWindowOf(model) ?? profileWindow;
-        state.context = { usedTokens, window, model, at };
+        state.context = { usedTokens, window, model, at, ...(event.estimate ? { estimate: true } : {}) };
       } else if (event.type === 'compact' && event.postTokens !== null) {
         const window = state.context?.window ?? contextWindowOf(model) ?? profileWindow;
         state.context = { usedTokens: event.postTokens, window, model, at };

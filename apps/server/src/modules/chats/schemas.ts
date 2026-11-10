@@ -99,7 +99,11 @@ export const ChatTurnSchema = z
     usage: z
       .record(z.string(), z.unknown())
       .nullable()
-      .openapi({ description: '`{inputTokens, outputTokens, cachedInputTokens?, costUsd?}`' }),
+      .openapi({
+        description:
+          '`{inputTokens, outputTokens, cachedInputTokens?, costUsd?, includedInPlan?}`; `includedInPlan`: it ran on ' +
+          'a login or setup token, so it cost nothing beyond the plan',
+      }),
     createdBy: z.string(),
     createdAt: dateTime,
   })
@@ -129,6 +133,9 @@ export const ChatContextSchema = z
       .openapi({ description: "The model's context window; null: unknown" }),
     model: z.string().nullable().openapi({ description: 'The model the last `init` named' }),
     at: dateTime.openapi({ description: 'When it was measured: the time of the event it comes from' }),
+    estimate: z.literal(true).optional().openapi({
+      description: "Estimated from a turn's total usage (Codex): a turn of several model calls reads high",
+    }),
   })
   .openapi('ChatContext');
 

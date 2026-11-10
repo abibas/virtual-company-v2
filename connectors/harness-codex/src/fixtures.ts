@@ -12,6 +12,7 @@ export const CODEX_THREAD_ID = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const started = { type: 'thread.started', thread_id: CODEX_THREAD_ID };
 const turnStarted = { type: 'turn.started' };
 
+/** `turn.completed` as Codex 0.167.0 writes it: the turn's sum over its model calls, no window, no last request. */
 const usage = (input: number, cached: number, output: number, reasoning: number) => ({
   type: 'turn.completed',
   usage: {
@@ -56,13 +57,15 @@ const todoList = (type: string, done: number) => ({
 const LS = "/bin/zsh -lc 'ls src'";
 const RM = "/bin/zsh -lc 'rm -rf build'";
 const TOUCH = "/bin/zsh -lc 'touch /etc/hosts'";
+const TEST_A = "/bin/zsh -lc 'pnpm test parser'";
+const TEST_B = "/bin/zsh -lc 'pnpm test items'";
 const CAT = "/bin/zsh -lc 'cat src/parser.ts'";
 const AUTH_ERROR =
   'unexpected status 401 Unauthorized: Your access token could not be refreshed. Please log out and sign in again.';
 
 /**
- * The turns: an answer, a tool call, a refused command, an error, a resume of the first, and one that plans with its
- * to-do list.
+ * The turns: an answer, a tool call, a refused command, an error, a resume of the first, one that plans with its
+ * to-do list, and one of several model calls (two commands: three requests whose input `turn.completed` sums).
  */
 export const CODEX_SCENARIOS = {
   answer: {
@@ -131,6 +134,19 @@ export const CODEX_SCENARIOS = {
       message('item_3', 'The parser reads reasoning items now.'),
       todoList('item.completed', 2),
       usage(30412, 28800, 512, 220),
+    ),
+    exitCode: 0,
+  },
+  steps: {
+    lines: lines(
+      started,
+      turnStarted,
+      { type: 'item.started', item: command('item_0', TEST_A, 'in_progress', null, '') },
+      completed(command('item_0', TEST_A, 'completed', 0, '12 passed\n')),
+      { type: 'item.started', item: command('item_1', TEST_B, 'in_progress', null, '') },
+      completed(command('item_1', TEST_B, 'completed', 0, '9 passed\n')),
+      message('item_2', 'Both tests pass.'),
+      usage(45210, 37376, 262, 64),
     ),
     exitCode: 0,
   },

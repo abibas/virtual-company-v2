@@ -12,6 +12,16 @@ function play(scenario: FakeScenario): TurnEvent[] {
 }
 
 const session = { type: 'session', sessionId: CODEX_THREAD_ID };
+/** The conversation's size Codex's turn total gives: the uncached input and the cache reads, marked an estimate. */
+const estimate = (input: number, cached: number, output: number) => ({
+  type: 'context',
+  inputTokens: input - cached,
+  cacheReadTokens: cached,
+  cacheCreationTokens: 0,
+  outputTokens: output,
+  window: null,
+  estimate: true,
+});
 const LS = "/bin/zsh -lc 'ls src'";
 
 describe('the Codex fixtures', () => {
@@ -28,6 +38,7 @@ describe('the Codex fixtures', () => {
       { type: 'thinking', text: '**Adding two numbers**' },
       { type: 'text', text: '2 + 2 = 4.' },
       { type: 'usage', inputTokens: 12034, outputTokens: 42, cachedInputTokens: 11008 },
+      estimate(12034, 11008, 42),
       { type: 'result', ok: true, text: '2 + 2 = 4.' },
     ]);
   });
@@ -41,6 +52,7 @@ describe('the Codex fixtures', () => {
       { type: 'tool_result', id: 'item_2', ok: true, summary: 'applied' },
       { type: 'text', text: 'src holds index.ts and main.ts; I updated main.ts.' },
       { type: 'usage', inputTokens: 25411, outputTokens: 310, cachedInputTokens: 24064 },
+      estimate(25411, 24064, 310),
       { type: 'result', ok: true, text: 'src holds index.ts and main.ts; I updated main.ts.' },
     ]);
   });
@@ -78,6 +90,16 @@ describe('the Codex fixtures', () => {
     expect(events.at(-1)).toEqual({ type: 'result', ok: true, text: 'Doubled, that is 8.' });
   });
 
+  it('steps: a turn of several model calls sums their input, so its context reads high (≈)', () => {
+    const events = play(CODEX_SCENARIOS.steps);
+    expect(events.filter((event) => event.type === 'tool')).toHaveLength(2);
+    expect(events.slice(-3)).toEqual([
+      { type: 'usage', inputTokens: 45210, outputTokens: 262, cachedInputTokens: 37376 },
+      estimate(45210, 37376, 262),
+      { type: 'result', ok: true, text: 'Both tests pass.' },
+    ]);
+  });
+
   it('plan: the to-do list as it is made and changes, the reasoning, the command, the answer', () => {
     const list = (done: number) => ({
       type: 'todo',
@@ -97,6 +119,7 @@ describe('the Codex fixtures', () => {
       { type: 'text', text: 'The parser reads reasoning items now.' },
       list(2),
       { type: 'usage', inputTokens: 30412, outputTokens: 512, cachedInputTokens: 28800 },
+      estimate(30412, 28800, 512),
       { type: 'result', ok: true, text: 'The parser reads reasoning items now.' },
     ]);
   });

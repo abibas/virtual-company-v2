@@ -344,6 +344,7 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    unused profiles, the dropped columns), the profile routes per provider, `runsWith`, turns on the chat's or the
    agent's profile, the CLI and MCP output; no real turn run, no frontend tests.
    **Machine software against npm's latest: done 2026-11-10** (docs/machines.md "Tools", docs/harness.md): `runner.toolsLatest` is npm's latest Claude Code and Codex (6 h cache, the pins as fallback, `source`, `checkedAt`), Update installs it, and turns and terminals turn the CLIs' own update checks off (`-c check_for_update_on_startup=false`, `DISABLE_AUTOUPDATER=1`); tested with a fake registry.
+   **Codex context readings and plan costs: done 2026-11-10** (docs/harness.md "Codex", "Context and cost"): a Codex turn's `turn.completed` usage also gives a `context` marked `estimate` (the meter shows "≈"; Codex 0.167.0's exec stream has no last request's usage, window or model), the meter names the profile's model or "Codex's default", and a turn on a login or setup token keeps `includedInPlan` in its usage, so its cost reads "included in your plan"; no migration, no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

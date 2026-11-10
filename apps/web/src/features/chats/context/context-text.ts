@@ -23,21 +23,38 @@ export function short(count: number): string {
   return `${Number((count / 1_000_000).toFixed(1))}M`;
 }
 
+/** What a turn on a plan (a login or setup token) costs, in the popover and the turn's footer. */
+export const PLAN_COST = 'included in your plan';
+
+/**
+ * A cost as the popover shows it: "included in your plan" for a plan's turns (unless others cost money), the money
+ * when the harness gave it, else "—".
+ */
+export function costText(usd: number | undefined, onPlan: boolean): string {
+  if (usd === undefined) return onPlan ? PLAN_COST : '—';
+  return onPlan ? `${money(usd)} + ${PLAN_COST}` : money(usd);
+}
+
 /** Dollars to the cent; a cost below a cent is "<$0.01", none is "$0.00". */
 export function money(usd: number): string {
   if (usd > 0 && usd < 0.005) return '<$0.01';
   return `$${usd.toFixed(2)}`;
 }
 
-/** The meter's one line: "Context 476k / 1M · 48%", the size alone for an unknown window, "Context —" before any. */
+/**
+ * The meter's one line: "Context 476k / 1M · 48%", the size alone for an unknown window, "Context —" before any; an
+ * estimate (Codex) reads "Context ≈45k / 272k · 17%".
+ */
 export function meterLine(
   used: number | undefined,
   window: number | null,
   percent: number | undefined,
+  estimate = false,
 ): string {
   if (used === undefined) return 'Context —';
-  if (!window || percent === undefined) return `Context ${short(used)}`;
-  return `Context ${short(used)} / ${short(window)} · ${percent}%`;
+  const size = `${estimate ? '≈' : ''}${short(used)}`;
+  if (!window || percent === undefined) return `Context ${size}`;
+  return `Context ${size} / ${short(window)} · ${percent}%`;
 }
 
 const REFUSALS: Readonly<Record<string, string>> = {

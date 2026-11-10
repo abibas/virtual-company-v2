@@ -13,7 +13,7 @@ conversation.
 | `@mwc/harness-core`           | the port: `HarnessDriver`, `ProcessSpec`, `PrivateDir`, `TurnTools`, `LineParser`, `HarnessError`, the shared checks and text helpers (`clipMarked` for long texts) |
 | `@mwc/harness-core/fake`      | `FakeHarnessDriver`, the fake binary (`FAKE_HARNESS_BIN`, `runFakeHarness`), fake specs and credentials |
 | `@mwc/harness-claude-code`    | `ClaudeCodeDriver` (`claude`), its parser; `/fixtures`: seven recorded-style turns             |
-| `@mwc/harness-codex`          | `CodexDriver` (`codex`), its parser; `/fixtures`: six recorded-style turns                    |
+| `@mwc/harness-codex`          | `CodexDriver` (`codex`), its parser; `/fixtures`: seven recorded-style turns                  |
 
 The server reads only `@mwc/shared/harness`; it never imports a harness package.
 
@@ -74,7 +74,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `todo`        | `items` (≤ 100: `text` ≤ 300, `status` `pending` \| `in_progress` \| `completed`), `parentId?` | the whole to-do list as it is now (the latest replaces the one before): Claude's `TodoWrite` input (its `tool` event comes too), Codex's `todo_list` item (done or not: `completed` or `pending`) |
 | `subagent`    | `id` (its Agent call's id), `agentType` (≤ 100), `description` (≤ 200), `model?`, `background?`, `status` (`running` \| `done` \| `failed` \| `interrupted`), `summary?` (≤ 4000, cut with the marker), `lastStep?` (≤ 200), `parentId?` | a subagent's whole state, each time it changes (the latest per `id` counts); Claude only |
 | `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | the turn's sum; input counts cached tokens too; Claude adds its cache writes and reads |
-| `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude only |
+| `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown), `estimate?` (`true`) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude's is exact, Codex's an `estimate` from the turn's total (see "Codex") |
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
 | `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request |
 | `input`       | `text` (1–20 000), `inputId?` (the message's id, `turn.input`'s) | a message the person sent into the running turn, where the harness took it (S5.2 step 6): Claude Code's echo of it, kept by the runner only for a message it wrote |
@@ -273,9 +273,20 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
   way) and is the failure's detail when the turn does not complete. A completed `reasoning` item with text gives
   `thinking`; the `todo_list` item gives `todo` when it starts, on each `item.updated` that changes it and when it
   completes (its `items`' `text`, `completed` → `completed`, else `pending`). Codex has no result event: a clean exit
-  (0) after `turn.completed` gives `result` ok with the last agent message. Codex says nothing of its model, and its
-  usage is the turn's sum rather than the last request's, so a Codex turn gives no `init` and no `context`; it has no
-  subagents and no `parentId`.
+  (0) after `turn.completed` gives `result` ok with the last agent message. It has no subagents and no `parentId`.
+- **Context and cost** (checked in Codex 0.167.0's binary, 2026-11-10: the exec stream's events are `thread.started
+  {thread_id}`, `turn.started`, `turn.completed {usage}`, `turn.failed`, `item.*` and `error`; the usage is
+  `input_tokens` (cached ones included), `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`,
+  `reasoning_output_tokens`). The per-request `last_token_usage`, `token_count` events and `model_context_window` exist
+  only in Codex's own protocol and TUI, never in `exec --json`, and no event names the model. So `turn.completed` also
+  gives a `context` with `estimate: true`: `inputTokens` = input − cached, `cacheReadTokens` = cached,
+  `cacheCreationTokens` 0, `window` null (the server takes the model table's window for the access profile's model, else
+  272k, Codex's default; the meter too). It is the turn's sum over its model calls, so a turn with several (each command
+  or tool call is another request) reads higher than the conversation is; a one-call turn is exact. The meter shows
+  "≈" before the size and says so in its popover, and names the profile's model or "Codex's default" (no `init`).
+  Codex gives no cost: a turn on a login (`codex_oauth`, and Claude's `claude_oauth` and `claude_setup_token`) keeps
+  `includedInPlan: true` in its stored usage (`endedTurn`), and the popover and the turn's footer say "included in your
+  plan" instead of a dash or $0.00; only API keys and gateways show money, when the harness gives it.
 
 ## How a turn runs
 

@@ -51,6 +51,22 @@ describe('a turn’s end', () => {
     expect(endedTurn({ ok: false, error: 'stopped' }, {}, false)).toMatchObject({ status: 'stopped' });
   });
 
+  it('marks the usage of a turn on a login or setup token as included in the plan, not one on an API key', () => {
+    const plan = { inputTokens: 5, outputTokens: 1, includedInPlan: true };
+    for (const kind of ['claude_oauth', 'claude_setup_token', 'codex_oauth'] as const) {
+      expect(endedTurn({ ok: true }, { result, usage }, false, kind).usage).toEqual(plan);
+    }
+    const paid = { ...usage, costUsd: 0.25 };
+    for (const kind of ['anthropic_api_key', 'openai_api_key', 'gateway'] as const) {
+      expect(endedTurn({ ok: true }, { result, usage: paid }, false, kind).usage).toEqual({
+        inputTokens: 5,
+        outputTokens: 1,
+        costUsd: 0.25,
+      });
+    }
+    expect(endedTurn({ ok: true }, { result }, false, 'codex_oauth').usage).toBeNull();
+  });
+
   it('counts queued and running turns as live', () => {
     expect(['queued', 'running', 'done', 'failed', 'stopped'].map((s) => isLive(s as never))).toEqual([
       true,
@@ -126,6 +142,27 @@ describe('conversationState', () => {
     expect(conversationState(known, 1_000_000).context).toMatchObject({ window: 200_000 });
     const compactOnly = [turn('compact', { type: 'compact', preTokens: 9, postTokens: 4 })];
     expect(conversationState(compactOnly, 272_000).context).toMatchObject({ usedTokens: 4, window: 272_000 });
+  });
+
+  it("keeps an estimate from a turn's total (Codex) marked, sized by the profile's window without a model", () => {
+    const estimate: TurnEvent = {
+      type: 'context',
+      inputTokens: 7834,
+      cacheReadTokens: 37_376,
+      cacheCreationTokens: 0,
+      outputTokens: 262,
+      window: null,
+      estimate: true,
+    };
+    expect(conversationState([turn('message', estimate)], 272_000).context).toEqual({
+      usedTokens: 45_210,
+      window: 272_000,
+      model: null,
+      at: at(0),
+      estimate: true,
+    });
+    const exact = conversationState([turn('message', estimate, context(1000, 200_000))]).context;
+    expect(exact).not.toHaveProperty('estimate');
   });
 
   it('starts over after a Clear', () => {

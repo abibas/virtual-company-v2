@@ -141,6 +141,11 @@ export const TurnEvent = z.discriminatedUnion('type', [
     outputTokens: Count,
     /** The model's context window; null when it is not known. */
     window: z.int().positive().nullable(),
+    /**
+     * True when the harness gives no last request's usage and this is the turn's total instead (Codex): a turn with
+     * several model calls reads higher than the conversation is.
+     */
+    estimate: z.literal(true).optional(),
   }),
   protocolObject({
     type: z.literal('compact'),
