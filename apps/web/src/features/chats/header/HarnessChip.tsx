@@ -21,7 +21,8 @@ const TONES = {
 
 /**
  * Beside the chat's profile picker: the chat's harness CLI on the agent's machine ("Codex 0.162.1 · Airia devbox"),
- * amber with "update available" when older than the version the server installs, red "not installed" when missing,
+ * amber with "update available" when older than the version the server installs or "runner out of date" when its
+ * runner is an older build than the server's, red "not installed" when missing,
  * linking to the machine's Tools part on the Machines page. Nothing until the machines are loaded.
  */
 export function HarnessChip({
@@ -48,13 +49,17 @@ export function HarnessChip({
     if (state.kind === 'missing') look = { tone: TONES.bad, words: `${name} not installed` };
     else if (state.kind === 'old')
       look = { tone: TONES.warn, words: `${name} ${state.version} · update available` };
+    // An older runner build than the server hands out still runs turns, but without what came since (Codex's exact
+    // context reading, …): amber, so it is noticed before a reading looks wrong.
+    else if (machine.runner.current === false)
+      look = { tone: TONES.warn, words: `${name} ${state.version} · runner out of date` };
     else look = { tone: TONES.ok, words: `${name} ${state.version}` };
   }
   return (
     <Link
       to={machineToolsHref(companyPath(slug, 'machines'), machine.id)}
       title={`${name} on ${machine.name}: open its tools on the Machines page`}
-      className={cx(HEADER_CONTROL, 'max-w-60')}
+      className={cx(HEADER_CONTROL, 'max-w-88')}
     >
       <span aria-hidden="true" className={cx('size-1.5 shrink-0 rounded-full', look.tone.dot)} />
       <span className={cx('truncate', look.tone.text)}>
