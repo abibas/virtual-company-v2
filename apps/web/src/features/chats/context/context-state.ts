@@ -42,6 +42,8 @@ export interface TurnTokens {
 export interface SessionTotals {
   readonly turns: number;
   readonly tokens: number;
+  /** Input not read from the cache plus output, over the turns: what Codex's status line calls "used". */
+  readonly uncached: number;
   /** What the turns not on a plan cost; undefined when none said (only plan turns, or no cost given at all). */
   readonly costUsd: number | undefined;
   /** Some turn ran on a plan. */
@@ -138,6 +140,7 @@ function totals(work: readonly ChatTurnWithEvents[], cleared: boolean) {
   const session: SessionTotals = {
     turns: work.length,
     tokens: counted.reduce((sum, t) => sum + t.input + t.output, 0),
+    uncached: counted.reduce((sum, t) => sum + Math.max(0, t.input - t.cacheRead) + t.output, 0),
     costUsd: paid.length === 0 ? undefined : paid.reduce((sum, t) => sum + (t.costUsd ?? 0), 0),
     onPlan: counted.some((t) => t.includedInPlan),
     since: work[0]?.createdAt,

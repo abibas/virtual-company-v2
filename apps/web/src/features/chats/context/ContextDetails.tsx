@@ -105,6 +105,14 @@ export function ContextDetails({ view }: { readonly view: ConversationView }) {
         <dl className="grid gap-1">
           <Row label="Turns">{session.turns}</Row>
           {session.turns > 0 && <Row label="Tokens">{short(session.tokens)}</Row>}
+          {session.turns > 0 && (
+            <Row
+              label="Without cache"
+              hint="Input not read from the cache, plus output: the tokens the conversation spent. Codex's status line calls this “used”; it is not the context's size."
+            >
+              {short(session.uncached)}
+            </Row>
+          )}
           {session.turns > 0 && <Row label="Cost">{costText(session.costUsd, session.onPlan)}</Row>}
           {session.since && <Row label="Began">{formatDateTime(session.since)}</Row>}
         </dl>
