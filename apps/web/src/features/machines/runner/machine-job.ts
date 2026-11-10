@@ -38,7 +38,7 @@ export function cardJob(
 /** The job running on the machine (the server's first, else the card's own) as the card says it; undefined for none. */
 export function busyJob(server: MachineJob | null, own: CardJob | undefined): BusyJob | undefined {
   const job: CardJob | undefined =
-    server === null
+    server == null
       ? own
       : server.kind === 'tool_install' && server.tool && server.version
         ? { kind: 'tool_install', tool: server.tool, version: server.version }
@@ -54,7 +54,9 @@ export function busyJob(server: MachineJob | null, own: CardJob | undefined): Bu
 const counted = (n: number, one: string) => (n > 0 ? [`${n} ${one}${n === 1 ? '' : 's'}`] : []);
 
 /** Why Update runner waits for the machine's live work ("1 chat turn and 2 terminals are running on it…"), or undefined. */
-export function liveReason(live: MachineLive): string | undefined {
+export function liveReason(live: MachineLive | undefined): string | undefined {
+  // An API that predates the count (a restart while the page is open) sends none: nothing is known to block.
+  if (live === undefined) return undefined;
   const parts = [...counted(live.turns, 'chat turn'), ...counted(live.terminals, 'terminal')];
   if (parts.length === 0) return undefined;
   const one = live.turns + live.terminals === 1;
