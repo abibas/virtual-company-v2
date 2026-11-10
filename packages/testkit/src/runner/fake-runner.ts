@@ -14,6 +14,8 @@ import {
   type RunnerHello,
   type ServerFrame,
   type ServerHello,
+  type ToolsCheck,
+  type ToolsInstall,
 } from '@mwc/shared/runner-protocol';
 import { WebSocket } from 'ws';
 import { FrameLog } from './frame-log.ts';
@@ -58,8 +60,9 @@ export interface FakeRunnerOptions {
   /** The samples heartbeats carry, one each, in order; heartbeats after the last carry none. */
   readonly samples?: readonly MachineSample[];
   /**
-   * Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok, `runner.update.result` ok, and
-   * `fs.result` ok: an empty `/work` for `fs.list`, the path for `fs.mkdir`); `[]` answers nothing.
+   * Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok, `runner.update.result` ok,
+   * `fs.result` ok: an empty `/work` for `fs.list`, the path for `fs.mkdir`; and with `caps.tools`, `tools.result` ok:
+   * the tools for `tools.check`, with the installed version for `tools.install`); `[]` answers nothing.
    */
   readonly respond?: (frame: ServerFrame) => readonly RunnerFrame[];
 }
@@ -231,6 +234,16 @@ export class FakeRunner {
     if (frame.type === 'fs.list') return [{ ...FAKE_FOLDER_LIST, cmdId: frame.cmdId }];
     if (frame.type === 'fs.mkdir')
       return [{ type: 'fs.result', cmdId: frame.cmdId, ok: true, path: frame.path }];
+    if (frame.type === 'tools.check' || frame.type === 'tools.install') return this.#tools(frame);
     return 'cmdId' in frame ? [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }] : [];
+  }
+
+  /** The tools frames: their result with `caps.tools` (and the installed version), else acked as a runner older than them. */
+  #tools(frame: ToolsCheck | ToolsInstall): readonly RunnerFrame[] {
+    const { tools } = this.hello.caps;
+    if (tools === undefined)
+      return [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: false, error: 'unknown command' }];
+    const after = frame.type === 'tools.install' ? { ...tools, [frame.tool]: frame.version } : tools;
+    return [{ type: 'tools.result', cmdId: frame.cmdId, ok: true, tools: after }];
   }
 }

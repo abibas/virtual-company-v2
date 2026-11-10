@@ -12,7 +12,7 @@ import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import { AddMachineSheet } from '../../features/machines/add/AddMachineSheet.tsx';
 import { useAddMachine } from '../../features/machines/add/add-machine.ts';
 import { MachineFold } from '../../features/machines/card/MachineFold.tsx';
-import { useOpenMachines } from '../../features/machines/card/open-machines.ts';
+import { useMachineLink, useOpenMachines } from '../../features/machines/card/open-machines.ts';
 import { versionText } from '../../features/machines/runner/runner-text.ts';
 import { useNow } from '../../features/subscriptions/limits.ts';
 
@@ -42,7 +42,9 @@ function NoMachines({ onAdd }: { readonly onAdd: (() => void) | undefined }) {
 
 /**
  * `/:slug/machines`: the machines agents run on (This Mac, a Docker container, the Airia devbox), each folded to its
- * status and numbers until opened (remembered per viewer), then its card with power and log; admins add, rename and remove them, start and stop the devbox and set the power.
+ * status and numbers until opened (remembered per viewer), then its card with power, tools and log; admins add, rename
+ * and remove them, start and stop the devbox, set the power and install Claude Code or Codex. `?machine=<id>` opens
+ * and scrolls to one (`#tools` to its Tools part).
  */
 export function MachinesPage() {
   const { membership } = useCompany();
@@ -58,6 +60,8 @@ export function MachinesPage() {
   const adding = useAddMachine(companyId, reload);
   const now = useNow();
   const folds = useOpenMachines(companyId);
+  const ids = machines.data?.machines.map((machine) => machine.id);
+  useMachineLink(ids, folds);
   // The runner the server hands out, in a quiet line under the header (none while it is not built).
   const latest = machines.data?.latestRunner;
   return (

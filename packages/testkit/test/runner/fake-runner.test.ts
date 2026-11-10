@@ -204,6 +204,38 @@ describe('FakeRunner: commands', () => {
     });
   });
 
+  it('answers the tools frames with its caps.tools, and acks them as unknown without', async () => {
+    const tools = { claude: '2.1.319 (Claude Code)', codex: null, git: null, gh: null, docker: null };
+    const { server, runner } = await setUp({ caps: { tools } });
+    await runner.connect();
+    const check = newId();
+    server.send({ type: 'tools.check', cmdId: check });
+    expect(await server.frames.next('tools.result')).toEqual({
+      type: 'tools.result',
+      cmdId: check,
+      ok: true,
+      tools,
+    });
+    const install = newId();
+    server.send({ type: 'tools.install', cmdId: install, tool: 'codex', version: '0.163.0' });
+    expect(await server.frames.next('tools.result')).toEqual({
+      type: 'tools.result',
+      cmdId: install,
+      ok: true,
+      tools: { ...tools, codex: '0.163.0' },
+    });
+    const old = await setUp();
+    await old.runner.connect();
+    const unknown = newId();
+    old.server.send({ type: 'tools.check', cmdId: unknown });
+    expect(await old.server.frames.next('cmd.ack')).toEqual({
+      type: 'cmd.ack',
+      cmdId: unknown,
+      ok: false,
+      error: 'unknown command',
+    });
+  });
+
   it('answers as a test scripts it, and acks by hand', async () => {
     const answers: RunnerFrame[] = [{ type: 'hold.state', until: null, source: 'server' }];
     const { server, runner } = await setUp({

@@ -3,6 +3,7 @@ import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
 import type {
+  InstallableTool,
   LatestRunner,
   Machine,
   MachineChanges,
@@ -135,8 +136,8 @@ export function usePowerControl(companyId: string, machineId: string): PowerCont
 
 /**
  * The calls on the machines: the list, a token to enroll one, a rename, a removal, the power policy and commands, an
- * owner's one-time terminal ticket, the update of a machine's runner, and its folders (a listing and a new folder, read
- * and made by its runner).
+ * owner's one-time terminal ticket, the update of a machine's runner, its folders (a listing and a new folder, read
+ * and made by its runner), and its tools (a check, an install and its progress).
  */
 export function machineCalls(api: Api, companyId: string) {
   const machines = api.api.companies[':companyId'].machines;
@@ -161,6 +162,19 @@ export function machineCalls(api: Api, companyId: string) {
       call(one.folders.$get({ ...param(machineId), query: path === undefined ? {} : { path } })),
     makeFolder: (machineId: string, path: string) =>
       call(one.folders.$post({ ...param(machineId), json: { path } })),
+    /** Has the runner look for its CLIs again. */
+    checkTools: (machineId: string) => call(one.tools.check.$post(param(machineId))),
+    /** Installs (or updates) Claude Code or Codex at the server's pin; its output through `toolInstall`. */
+    installTool: (machineId: string, tool: InstallableTool) =>
+      call(one.tools.install.$post({ ...param(machineId), json: { tool } })),
+    /** An install: its state and its output from line `from` on. */
+    toolInstall: (machineId: string, installId: string, from: number) =>
+      call(
+        one.tools.install[':installId'].$get({
+          param: { companyId, machineId, installId },
+          query: { from: String(from) },
+        }),
+      ),
   };
 }
 

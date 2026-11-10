@@ -3,6 +3,7 @@ import { HoldSource, MachineKind, MachineProvider, MachineStatus } from '@mwc/sh
 import { LogoRef } from '@mwc/shared/logos';
 import { MACHINE_NAME } from '@mwc/shared/machines';
 import { TunnelStatus } from '@mwc/shared/runner-protocol';
+import { MachineToolsSchema, ToolsLatestSchema } from './schemas/tools.ts';
 
 /** The machines API's shapes (`/api/companies/{companyId}/machines`): never a runner key's secret or hash. */
 
@@ -55,6 +56,11 @@ export const MachineRunnerSchema = z
     }),
     terminal: z.boolean().openapi({ description: 'It opens terminals; false while offline' }),
     selfUpdate: z.boolean().openapi({ description: 'It updates itself over its link; false while offline' }),
+    tools: MachineToolsSchema.nullable().openapi({
+      description:
+        'The CLIs it found, each one’s version or null (docs/machines.md, "Tools"); null while offline or from a runner older than the tools',
+    }),
+    toolsLatest: ToolsLatestSchema,
   })
   .openapi('MachineRunner');
 

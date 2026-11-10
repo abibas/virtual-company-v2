@@ -11,6 +11,9 @@ import {
   type RunnerUpdateResult,
   type ServerFrame,
   type TerminalServerFrame,
+  type ToolsCheck,
+  type ToolsInstall,
+  type ToolsResult,
   type TunnelSpec,
   type TurnServerFrame,
 } from '@mwc/shared/runner-protocol';
@@ -21,10 +24,11 @@ import type { Log } from '../system/log.ts';
 /**
  * The server's commands (docs/runner-protocol.md, "Semantics"): every frame with a `cmdId` is answered once, with
  * `cmd.ack` (`power.command` with `power.result`, `runner.update` with `runner.update.result`, `fs.list` and `fs.mkdir`
- * with `fs.result`), and a repeat of a `cmdId` already run gets the same answer again without running it again (a
- * folder listing, which may be large, is read again instead of kept). S4.3 carries out `machine.hold`, `power.command`
- * (through the injected executor), `key.rotate` and `runner.drain`, the self-update its `runner.update` and the folder
- * browser `fs.list` and `fs.mkdir` (S5.1d); the run commands are refused until S5, and offers are declined.
+ * with `fs.result`, `tools.check` and `tools.install` with `tools.result`), and a repeat of a `cmdId` already run gets
+ * the same answer again without running it again (a folder listing, which may be large, is read again instead of kept).
+ * S4.3 carries out `machine.hold`, `power.command` (through the injected executor), `key.rotate` and `runner.drain`,
+ * the self-update its `runner.update`, the folder browser `fs.list` and `fs.mkdir` (S5.1d) and the machine's tools
+ * `tools.check` and `tools.install`; the run commands are refused until S5, and offers are declined.
  * `tunnel.set` is no command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal and
  * turn frames, which go to the terminals and the turns, whose answers are their own frames.
  */
@@ -53,10 +57,12 @@ export interface CommandDeps {
   update(frame: RunnerUpdate): Promise<RunnerUpdateResult>;
   /** `fs.list` and `fs.mkdir`: the folder browser's answer (it never throws). */
   folders(frame: FsList | FsMkdir): Promise<FsResult>;
+  /** `tools.check` and `tools.install`: the machine's tools' answer. */
+  tools(frame: ToolsCheck | ToolsInstall): Promise<ToolsResult>;
   readonly log: Log;
 }
 
-type Answer = CmdAck | PowerResult | RunnerUpdateResult | FsResult;
+type Answer = CmdAck | PowerResult | RunnerUpdateResult | FsResult | ToolsResult;
 
 const isUuid = (value: unknown): value is string => z.uuid().safeParse(value).success;
 
@@ -142,6 +148,9 @@ export class Commands {
         case 'fs.list':
         case 'fs.mkdir':
           return await this.#deps.folders(frame);
+        case 'tools.check':
+        case 'tools.install':
+          return await this.#deps.tools(frame);
         case 'key.rotate':
           await this.#deps.saveKey(frame.runnerKey);
           this.#deps.log.info('saved the rotated runner key');

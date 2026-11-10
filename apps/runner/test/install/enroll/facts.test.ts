@@ -4,7 +4,6 @@ import {
   claudeVersion,
   defaultName,
   harnessCli,
-  harnessClis,
   machineFacts,
   machineKind,
   shortHostname,
@@ -62,31 +61,6 @@ describe('what a machine says about itself', () => {
     expect(await claudeVersion(host)).toBeNull();
     expect(await claudeVersion(host)).toBeNull();
     expect(await claudeVersion(host)).toBe('x'.repeat(100));
-  });
-
-  it("asks each harness's CLI on the PATH its version once, and starts nothing for a missing or silent one", async () => {
-    const none = testHost();
-    expect(await harnessClis(none.host)).toEqual({});
-    expect(none.execs).toEqual([]);
-    const { host, home, execs } = testHost({
-      exec: (file) =>
-        file.endsWith('codex')
-          ? { code: 0, stdout: 'codex-cli 0.163.0\n', stderr: '' }
-          : { code: 0, stdout: '2.1.319 (Claude Code)\n', stderr: '' },
-    });
-    const claude = executable(join(home, 'bin'), 'claude');
-    const codex = executable(join(home, 'bin'), 'codex');
-    expect(await harnessClis(host)).toEqual({
-      claude_code: { path: claude, version: '2.1.319 (Claude Code)' },
-      codex: { path: codex, version: 'codex-cli 0.163.0' },
-    });
-    expect(execs.map((call) => [call.file, call.args])).toEqual([
-      [claude, ['--version']],
-      [codex, ['--version']],
-    ]);
-    const silent = testHost({ exec: () => ({ code: 127, stdout: '', stderr: 'no' }) });
-    executable(join(silent.home, 'bin'), 'codex');
-    expect(await harnessClis(silent.host)).toEqual({});
   });
 
   it('names a machine after its short host name, the devbox Airia devbox, a container as one', () => {

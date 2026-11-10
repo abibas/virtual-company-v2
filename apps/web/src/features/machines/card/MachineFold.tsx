@@ -1,9 +1,11 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { usePowerControl } from '../../../api/machines.ts';
+import type { MachineTools } from '../../../api/types.ts';
 import { Button } from '../../../components/ui/Button.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
 import { DevboxQuickPower } from '../power/DevboxPower.tsx';
+import { machineCardId, toolsLine } from '../tools/tools-text.ts';
 import { MachineCard } from './MachineCard.tsx';
 import { MachineLogo } from './MachineLogo.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
@@ -12,8 +14,8 @@ import { MachineIdentity } from './MachineStatsRow.tsx';
 type MachineCardProps = ComponentProps<typeof MachineCard>;
 
 /**
- * A machine on the Machines page, folded to who it is and its numbers until it is opened; open, the whole card
- * (power, settings, actions) with Collapse in its top corner.
+ * A machine on the Machines page, folded to who it is, its numbers and its harness CLIs ("Claude Code 2.1.319 · Codex
+ * —") until it is opened; open, the whole card (power, settings, tools, actions) with Collapse in its top corner.
  */
 export function MachineFold({
   open,
@@ -49,7 +51,12 @@ export function MachineFold({
     logoVersion: machine.logo?.version,
   };
   return (
-    <Card as="article" aria-label={machine.name} className="flex flex-col gap-4">
+    <Card
+      as="article"
+      id={machineCardId(machine.id)}
+      aria-label={machine.name}
+      className="flex scroll-mt-6 flex-col gap-4"
+    >
       <MachineIdentity
         stats={facts}
         now={now}
@@ -66,8 +73,14 @@ export function MachineFold({
         }
       />
       {stats && <MachineMetrics stats={stats} />}
+      {mark.online && <FoldedTools tools={machine.runner.tools} />}
     </Card>
   );
+}
+
+/** A folded card's harness CLIs, while its runner says them. */
+function FoldedTools({ tools }: { readonly tools: MachineTools | null }) {
+  return tools && <p className="text-xs text-dim">{toolsLine(tools)}</p>;
 }
 
 /** A folded devbox's Start or Stop, so it needs no opening. */

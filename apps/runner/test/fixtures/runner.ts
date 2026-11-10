@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { newId } from '@mwc/shared/ids';
 import type { MachineSample } from '@mwc/shared/machines';
+import type { RunnerTools } from '@mwc/shared/runner-protocol';
 import type { FakeRunnerServer } from '@mwc/testkit/runner';
 import type { RunnerConfig } from '../../src/config.ts';
 import { createRunner, type Runner } from '../../src/daemon/runner.ts';
@@ -10,6 +11,7 @@ import type { FolderHost } from '../../src/folders/browse.ts';
 import type { HoldDriver, HoldDriverKind } from '../../src/hold/driver.ts';
 import type { PowerExecutor } from '../../src/power/executor.ts';
 import type { TerminalHost } from '../../src/terminal/sessions.ts';
+import type { ToolsHost } from '../../src/tools/host.ts';
 import type { HarnessHost } from '../../src/turns/turns.ts';
 import type { SelfUpdate } from '../../src/update/self-update.ts';
 import { memoryLog } from './log.ts';
@@ -111,6 +113,8 @@ export function startRunner(
     update?: SelfUpdate;
     /** Browses folders through this host. */
     folders?: FolderHost;
+    /** The machine's CLIs: found at start, looked for again and installed through this host. */
+    tools?: { readonly host: ToolsHost; readonly found: RunnerTools };
   } = {},
 ): StartedRunner {
   const time = new FakeTime();
@@ -134,6 +138,7 @@ export function startRunner(
     ...(options.build === undefined ? {} : { build: options.build }),
     ...(options.update ? { update: options.update } : {}),
     ...(options.folders ? { folders: options.folders } : {}),
+    ...(options.tools ? { tools: options.tools } : {}),
     saveConfig: (next) => {
       if (options.saveFails) throw new Error('disk full');
       saved.push(next);

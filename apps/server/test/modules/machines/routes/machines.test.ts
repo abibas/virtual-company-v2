@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { apiKeys, machineSamples, machines, runnerSessions, tenant } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
+import { RUNNER_CLOSE, type RunnerCaps } from '@mwc/shared/runner-protocol';
 import { TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { TOOLS_LATEST } from '../../../../src/modules/machines/rules/runner.ts';
 import type { MachineStatsListView } from '../../../../src/modules/machines/schemas/stats.ts';
 import type { MachineView } from '../../../../src/modules/machines/schemas.ts';
 import { call } from '../../../fixtures/companies/companies.ts';
@@ -20,7 +21,7 @@ import {
   machinesPath,
   sampleAt,
 } from '../../../fixtures/machines/machines.ts';
-import { type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
+import { eventually, type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
 import { addMember, as, membersCompany } from '../../../fixtures/members/members.ts';
 
 /** The bundle this server hands out in these tests, and its build. */
@@ -40,6 +41,13 @@ afterEach(async () => {
 afterAll(() => w.close());
 
 const MINUTE = 60_000;
+const TOOLS = {
+  claude: '2.1.319 (Claude Code)',
+  codex: null,
+  git: 'git version 2.39.5',
+  gh: null,
+  docker: null,
+};
 const listed = (body: unknown) => (body as { machines: MachineView[] }).machines;
 
 describe("GET machines: each machine's runner", () => {
@@ -49,22 +57,61 @@ describe("GET machines: each machine's runner", () => {
     const current = await enroll(w, company, { name: 'Current' });
     const old = await enroll(w, company, { name: 'Old' });
     const older = await enroll(w, company, { name: 'Older' });
-    const caps = { terminal: true, selfUpdate: true };
+    const caps = { terminal: true, selfUpdate: true, tools: TOOLS };
     await w.connect(current.runnerKey, { build: SERVED, builtAt: BUILT_AT, version: '0.5.0', caps });
     await w.connect(old.runnerKey, { build: 'ab'.repeat(32) });
     await w.connect(older.runnerKey);
     const res = await as(w, company.owner)('GET', machinesPath(company));
     const runners = Object.fromEntries(listed(res.body).map((one) => [one.name, one.runner]));
-    const none = { builtAt: null, build: null, current: null, terminal: false, selfUpdate: false };
+    const none = {
+      builtAt: null,
+      build: null,
+      current: null,
+      terminal: false,
+      selfUpdate: false,
+      tools: null,
+    };
+    const latest = { toolsLatest: TOOLS_LATEST };
     expect(runners).toEqual({
       // Offline: the version on record from its enrollment.
-      Offline: { version: '0.5.0', ...none },
-      Current: { version: '0.5.0', builtAt: BUILT_AT, build: SERVED, current: true, ...caps },
-      Old: { version: '1.0.0', ...none, build: 'ab'.repeat(32), current: false },
-      Older: { version: '1.0.0', ...none },
+      Offline: { version: '0.5.0', ...none, ...latest },
+      Current: { version: '0.5.0', builtAt: BUILT_AT, build: SERVED, current: true, ...caps, ...latest },
+      Old: { version: '1.0.0', ...none, build: 'ab'.repeat(32), current: false, ...latest },
+      Older: { version: '1.0.0', ...none, ...latest },
     });
     const one = await as(w, company.owner)('GET', machinesPath(company, `/${old.machineId}`));
     expect((one.body as MachineView).runner.current).toBe(false);
+  });
+});
+
+describe('GET machines: a runner whose caps change on its live link (runner.caps)', () => {
+  it('shows its new tools at once, with its slots and Claude Code version recorded', async () => {
+    const company = await membersCompany(w);
+    const { machineId, runnerKey } = await enroll(w, company);
+    const runner = await w.connect(runnerKey, { caps: { tools: TOOLS } });
+    const caps: RunnerCaps = {
+      ...runner.hello.caps,
+      slots: 3,
+      harnesses: { claude_code: '2.1.400 (Claude Code)', codex: 'codex-cli 0.163.0' },
+      tools: { ...TOOLS, claude: '2.1.400 (Claude Code)', codex: 'codex-cli 0.163.0' },
+    };
+    runner.send({ type: 'runner.caps', caps });
+    await eventually('the hub has the new caps', () => w.hub.connected(machineId)?.caps.slots === 3);
+    await w.hub.idle();
+    const res = await as(w, company.owner)('GET', machinesPath(company, `/${machineId}`));
+    expect((res.body as MachineView).runner.tools).toEqual(caps.tools);
+    expect((res.body as MachineView).versions.claude).toBe('2.1.400 (Claude Code)');
+    expect((await machineRow(w.t.db, machineId))?.slots).toBe(3);
+    // A runner older than the tools: Claude Code's version from its harnesses; none without one.
+    runner.send({ type: 'runner.caps', caps: { ...caps, tools: undefined, harnesses: ['claude_code'] } });
+    await eventually('the tools are gone', () => w.hub.connected(machineId)?.caps.tools === undefined);
+    await w.hub.idle();
+    expect((await machineRow(w.t.db, machineId))?.claudeVersion).toBe('2.1.400 (Claude Code)');
+    runner.send({ type: 'runner.caps', caps: { ...caps, tools: undefined } });
+    await eventually(
+      'the harnesses are back',
+      () => !Array.isArray(w.hub.connected(machineId)?.caps.harnesses),
+    );
   });
 });
 

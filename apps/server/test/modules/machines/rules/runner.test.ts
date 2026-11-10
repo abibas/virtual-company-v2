@@ -4,6 +4,7 @@ import {
   portOf,
   runnerBusy,
   runnerFacts,
+  TOOLS_LATEST,
   updateFailed,
   updateUnsupported,
 } from '../../../../src/modules/machines/rules/runner.ts';
@@ -11,7 +12,20 @@ import {
 const OLD = 'ab'.repeat(32);
 const NEW = 'cd'.repeat(32);
 const BUILT_AT = '2026-11-09T16:40:00.000Z';
-const connected = (build: string | null, caps = { terminal: true, selfUpdate: true }) => ({
+const TOOLS = {
+  claude: '2.1.319 (Claude Code)',
+  codex: null,
+  git: 'git version 2.39.5',
+  gh: null,
+  docker: null,
+};
+const connected = (
+  build: string | null,
+  caps: { terminal: boolean; selfUpdate: boolean; tools?: typeof TOOLS } = {
+    terminal: true,
+    selfUpdate: true,
+  },
+) => ({
   version: '0.5.0',
   builtAt: BUILT_AT,
   build,
@@ -20,13 +34,17 @@ const connected = (build: string | null, caps = { terminal: true, selfUpdate: tr
 
 describe("a machine's runner facts", () => {
   it('is current when its build is the served one, out of date when another', () => {
-    expect(runnerFacts(connected(NEW), NEW, '0.1.0')).toEqual({
+    expect(
+      runnerFacts(connected(NEW, { terminal: true, selfUpdate: true, tools: TOOLS }), NEW, '0.1.0'),
+    ).toEqual({
       version: '0.5.0',
       builtAt: BUILT_AT,
       build: NEW,
       current: true,
       terminal: true,
       selfUpdate: true,
+      tools: TOOLS,
+      toolsLatest: TOOLS_LATEST,
     });
     expect(runnerFacts(connected(OLD, { terminal: false, selfUpdate: false }), NEW, '0.1.0')).toEqual({
       version: '0.5.0',
@@ -35,6 +53,8 @@ describe("a machine's runner facts", () => {
       current: false,
       terminal: false,
       selfUpdate: false,
+      tools: null,
+      toolsLatest: TOOLS_LATEST,
     });
   });
 
@@ -48,7 +68,17 @@ describe("a machine's runner facts", () => {
       current: null,
       terminal: false,
       selfUpdate: false,
+      tools: null,
+      toolsLatest: TOOLS_LATEST,
     });
+  });
+
+  it('lists only the CLIs it knows from a newer runner’s tools, and pins the versions this server installs', () => {
+    const newer = { ...TOOLS, bun: '1.3.0' };
+    expect(
+      runnerFacts(connected(NEW, { terminal: true, selfUpdate: true, tools: newer }), NEW, '0.1.0').tools,
+    ).toEqual(TOOLS);
+    expect(TOOLS_LATEST).toEqual({ claude: '2.1.308', codex: '0.163.0' });
   });
 });
 

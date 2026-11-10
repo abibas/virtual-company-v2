@@ -131,6 +131,11 @@ later). Never both:
 - The terminal: the runner's `terminal/` (the PTY loader, the shell and its environment, the batched output, the
   sessions); the server's `routes/terminal.ts` (the owner's ticket, the browser's socket), `service/terminal.ts` with
   `service/terminal/{tickets,relay}.ts`, and `service/runner/hub/terminals.ts` (the sessions of each runner connection).
+- Tools: the runner's `tools/` (`find.ts` the CLI search and versions, `host.ts` npm and the home, `install.ts` the npm
+  process, `tools.ts` the check, the install and `runner.caps`); the server's `routes/tools.ts`, `service/tools.ts` with
+  `service/tools/installs.ts` (the installs in memory), `rules/tools.ts`, `schemas/tools.ts`, and the hub's `runner.caps`
+  and `tools.output` in `service/runner/connection.ts`; the web's `features/machines/tools/` and
+  `features/chats/header/HarnessChip.tsx`.
 - Updating a runner: the runner's `update/` (`build.ts` the build and the update target, `self-update.ts` the download,
   check and swap, `untar.ts` the PTY archive in memory, `updates.ts` the `runner.update` answer and the restart); the
   server's `routes/update.ts`, `service/runner/update.ts`, `rules/runner.ts` (the runner's facts, the commands by hand),
@@ -149,7 +154,8 @@ later). Never both:
   v1's power and load-stats services as design, rewritten with tests.
 - API under `/api/companies/:companyId/`: `machines` (list/get/rename/remove), `machines/enrollment-tokens`,
   `machines/:id/power` (GET/PUT policy, POST start|stop|timezone — admins and owners; viewers read only),
-  `machines/:id/events`, `machines/stats` (the board), `machines/:id/runner-update` (admins and owners); `POST
+  `machines/:id/events`, `machines/stats` (the board), `machines/:id/runner-update` and `machines/:id/tools/…` (admins
+  and owners); `POST
   /api/runner/enroll`, `GET /api/runner/ws`.
 - Web: `/:slug/machines` (`pages/company/MachinesPage.tsx`, `features/machines/`): a card per machine — status,
   agents on it, the stats row, Start/Stop with the hourly cost (devbox), the Power form (keep-on hours, days, from/to,
@@ -546,6 +552,55 @@ contents, and nothing is deleted or renamed.
   Machines page to browse its folders".
 - Runners need an update for it (an older one is refused as `runner_outdated`); a Docker runner needs the rebuild that
   brings its work volume ("A runner in a Docker container").
+
+## Tools
+
+Built 2026-11-10 (Ihor, after a Codex chat on the devbox was refused with "The machine has no Codex": "Can we have some
+link, and some automation/verification in the MACHINES management?"; then "I would love to see somewhere Claude
+Code/Codex version, and if it requires update"). Each machine card lists the CLIs its runner found, checks again, and
+installs or updates Claude Code or Codex through the runner; the chat header and the agent form link to it.
+
+- **What the runner reports.** `caps.tools` in its hello: `claude`, `codex`, `git`, `gh`, `docker`, each the first
+  line its `--version` printed, or null. They are found as the harnesses are (`apps/runner/src/system/find-cli.ts`: the
+  PATH, then the usual folders, no process for a missing one) and each found one is asked `--version` once at start, by
+  its full path (`apps/runner/src/tools/find.ts`; Claude Code's and Codex's are also the harnesses, `caps.harnesses`,
+  kept as is for older servers). After a check or an install the runner reads them again and sends `runner.caps` with
+  its whole caps: the server's hub replaces the hello's (and records the machine's slots and Claude Code version), so a
+  CLI installed later counts at once, with no reconnect. A runner older than the tools leaves `caps.tools` out.
+- **Check again**: `POST /api/companies/:companyId/machines/:machineId/tools/check` (admin and above) → 200 `{ tools }`
+  (`tools.check`, 45 s at most: `runner_timeout`).
+- **Install or update**: `POST …/tools/install { tool: 'claude' | 'codex' }` (admin and above) → 202 `{ installId,
+  tool, version }`; the server sends `tools.install` with its pin and goes on in the background. The runner runs
+  `npm install -g --prefix ~/.local @anthropic-ai/claude-code@2.1.308` (or `@openai/codex@0.163.0`), the versions
+  `deploy/Dockerfile.login` and `deploy/Dockerfile.runner` pin (`TOOL_PACKAGES` in `@mwc/shared/machines`, which a test
+  holds to both files), with the npm beside its own Node, as its user (never sudo), from its home, in its own process
+  group, with npm's folder first on the PATH and its own `MWC_*` settings left out. The command lands in
+  `~/.local/bin`, which the CLI search and the service's PATH already have. npm's lines (both streams, each cut to 500
+  characters, 500 lines at most, then one notice) come back as `tools.output`; after 10 minutes npm's group is killed.
+  `GET …/tools/install/:installId?from=N` → `{ id, tool, version, status running|succeeded|failed, lines (from N),
+  next, tools, error, startedAt, finishedAt }`; the card reads it every second. The server keeps installs in memory an
+  hour after they end (100 at most) and forgets them when it restarts. Each install's end is audited on the machine
+  (`tool_install`: `tool`, `toolVersion`, `result`, and `error` when it failed), by who started it.
+- **Refusals**: 404 another company's or an unknown machine (`install_not_found` for an install), 403 below admin, 409
+  `machine_offline`, `runner_outdated` (no `caps.tools`: update the runner first), `busy` (one install at a time per
+  machine; the runner refuses a second too) and `unsupported` (a container: its CLIs come from its image, rebuilt
+  instead). An install that started can end `failed` with `npm_missing: …` (no npm beside the runner's Node), `timeout:
+  …`, `failed: npm exited with code N (its last line)`, `machine_offline: …` (the runner went away) or `runner_outdated`.
+- **Needs update.** `runner.toolsLatest` (`{ claude, codex }`, the pins) beside `runner.tools` in `GET machines`; a
+  version older than its pin is "update available" (`toolNeedsUpdate`, numbers compared), a newer one is fine. Update is
+  the same install at the pin. npm puts it in `~/.local/bin`, so an older copy elsewhere on the runner's PATH (an nvm or
+  Homebrew global, Claude Code's own installer) may still come first: the card then says so after the install. An
+  install over a native Claude Code install in `~/.local/bin` can fail with npm's `EEXIST`, shown in its output.
+- **Web** (`features/machines/tools/`): the opened card's **Tools** part lists each CLI with its version or "not
+  installed", "update available · <pin>" for an older Claude Code or Codex, and for admins **Check again** and
+  **Install** / **Update** (asked first: "Installs Codex 0.163.0 for <user> on <machine> with npm, into ~/.local/bin"),
+  npm's output in a small log box and the result; a container says to rebuild its image. The folded card has the line
+  "Claude Code 2.1.319 · Codex —". `/:slug/machines?machine=<id>` opens and scrolls to that card, `#tools` to its Tools
+  part. The chat header shows the chat's harness CLI on the agent's machine ("Codex 0.162.1 · Airia devbox"; amber
+  "update available", red "not installed", "runner out of date", "offline") linking there, and the agent form warns
+  under Access profile when the picked profile's harness CLI is missing or old on the chosen machine, with **Open
+  Machines**.
+- Not here: installing anything else (git, gh, Docker), uninstalling, signing in to the CLIs.
 
 ## Logos
 

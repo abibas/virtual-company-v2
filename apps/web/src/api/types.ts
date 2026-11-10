@@ -76,6 +76,11 @@ export type MachinePower = InferResponseType<OneMachineRoutes['power']['$get'], 
 export type PowerPolicy = MachinePower['policy'];
 export type PowerBox = NonNullable<MachinePower['box']>;
 export type PowerEvent = InferResponseType<OneMachineRoutes['events']['$get'], 200>['events'][number];
+/** The CLIs a machine's runner found (null while offline or from a runner older than the tools), and the pins. */
+export type MachineTools = NonNullable<Machine['runner']['tools']>;
+export type ToolsLatest = Machine['runner']['toolsLatest'];
+export type InstallableTool = keyof ToolsLatest;
+export type ToolInstall = InferResponseType<OneMachineRoutes['tools']['install'][':installId']['$get'], 200>;
 
 /** Chats with an agent on its machine (S5.1b), their turns and events (`/api/companies/:companyId/.../chats`). */
 type ChatRoutes = CompanyRoutes['chats'][':chatId'];

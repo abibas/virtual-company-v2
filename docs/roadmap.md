@@ -290,6 +290,21 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    Gateway slot listing only its provider's gateways. Tests: the migration's constraint change, the provider rules, the
    routes, both drivers' arguments, environment and settings, the runner writing, naming and removing the settings file
    in turns and terminals; no real turn run, no frontend tests.
+   **Machine tools: done 2026-11-10** (docs/machines.md "Tools", docs/runner-protocol.md "Tools"; Ihor: "Can we have
+   some link, and some automation/verification in the MACHINES management?", then the versions and "if it requires
+   update"). The runner reports `caps.tools` (Claude Code, Codex, git, gh, Docker: each found one's `--version`, asked
+   once at start; `caps.harnesses` kept for older servers) and sends `runner.caps` when they change, which the hub takes
+   at once (a CLI installed later needs no reconnect); new frames `tools.check`, `tools.install {tool, version}`,
+   `tools.output`, `tools.result`. `POST …/machines/{machineId}/tools/check`, `POST …/tools/install {tool}` (202; the
+   runner's `npm install -g --prefix ~/.local` of `@anthropic-ai/claude-code@2.1.308` or `@openai/codex@0.163.0`, the
+   Dockerfiles' pins, with the npm beside its Node, one at a time, 10 minutes, never in a container, audited) and `GET
+   …/tools/install/{installId}?from=` (its output and end); `GET machines` gains `runner.tools` and `runner.toolsLatest`.
+   Web: the card's Tools part (versions, "update available", Check again, Install / Update with its output), the folded
+   card's line, `/:slug/machines?machine=<id>#tools`, the chat header's harness CLI chip and the agent form's warning
+   under Access profile, both linking there. No migration. Tests: the frames, the runner's search, npm process (fake
+   spawn: its exact arguments, output and caps, success, failure, busy, timeout, container, npm missing) and wire, the
+   hub's `runner.caps` and `tools.output`, the routes (roles, offline, outdated, busy, container, audit); no real install,
+   no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

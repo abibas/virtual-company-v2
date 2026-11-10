@@ -158,3 +158,50 @@ export type MachinePowerPolicyInput = z.input<typeof MachinePowerPolicy>;
 
 /** The policy a new machine gets. */
 export const DEFAULT_MACHINE_POWER_POLICY: MachinePowerPolicy = MachinePowerPolicy.parse({});
+
+/**
+ * The CLIs a machine's runner reports (`caps.tools`, docs/machines.md "Tools"), by their commands: Claude Code
+ * (`claude`), Codex (`codex`), git, GitHub's CLI (`gh`) and Docker.
+ */
+export const MachineTool = z.enum(['claude', 'codex', 'git', 'gh', 'docker']);
+export type MachineTool = z.infer<typeof MachineTool>;
+
+/** The CLIs a runner installs (or updates) from the Machines page: Claude Code and Codex, with npm. */
+export const InstallableTool = MachineTool.extract(['claude', 'codex']);
+export type InstallableTool = z.infer<typeof InstallableTool>;
+
+/**
+ * Each installable CLI's npm package and the version the Machines page installs: the versions `deploy/Dockerfile.login`
+ * and `deploy/Dockerfile.runner` pin, so the machines and the sign-in helper run the same CLIs. Raise them together.
+ */
+export const TOOL_PACKAGES: Readonly<
+  Record<InstallableTool, { readonly name: string; readonly version: string }>
+> = {
+  claude: { name: '@anthropic-ai/claude-code', version: '2.1.308' },
+  codex: { name: '@openai/codex', version: '0.163.0' },
+};
+
+/** The first `1.2.3`-like number in what a CLI printed (`2.1.319 (Claude Code)`, `codex-cli 0.163.0`), or undefined. */
+export function toolVersionNumber(printed: string): string | undefined {
+  return /\d+\.\d+(?:\.\d+)?/.exec(printed)?.[0];
+}
+
+/** Numeric order of two dotted versions (`0.163.0` against `0.162.1`): negative, zero or positive. */
+function compareDotted(a: string, b: string): number {
+  const left = a.split('.').map(Number);
+  const right = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const order = (left[i] ?? 0) - (right[i] ?? 0);
+    if (order !== 0) return order;
+  }
+  return 0;
+}
+
+/**
+ * True when what a CLI printed names a version older than `pinned` (the one this server installs); false for the same,
+ * a newer one, or a text without a version (nothing to compare).
+ */
+export function toolNeedsUpdate(printed: string, pinned: string): boolean {
+  const found = toolVersionNumber(printed);
+  return found !== undefined && compareDotted(found, pinned) < 0;
+}

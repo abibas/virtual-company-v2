@@ -12,6 +12,7 @@ import { OrgNodeCard } from '../../components/org/OrgNodeCard.tsx';
 import { OrgTree } from '../../components/org/OrgTree.tsx';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
+import { HarnessToolWarning } from '../machines/tools/ToolWarning.tsx';
 import { type PlacementDraft, placementStep, usePlacementDraft } from '../placements/placement-draft.ts';
 import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
@@ -149,7 +150,20 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
       className="grid items-start gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]"
     >
       <div className="grid min-w-0 gap-4 md:gap-5">
-        <AgentForm draft={draft} where={where} chart={chart} meUserId={meUserId} />
+        <AgentForm
+          draft={draft}
+          where={where}
+          profileNote={
+            <HarnessToolWarning
+              companyId={companyId}
+              machineId={placement.values.machineId}
+              harness={draft.values.harness}
+              machinesHref={links.machines}
+            />
+          }
+          chart={chart}
+          meUserId={meUserId}
+        />
         <FormActions
           status="It joins the chart at once and works only on the tasks it is given."
           error={error}

@@ -1,11 +1,13 @@
 import { type DbHandle, type TenantDb, tenant } from '@mwc/db';
 import {
   encodeFrame,
+  harnessVersionOf,
   isTerminalFrame,
   isTurnFrame,
   parseRunnerFrame,
   RUNNER_CLOSE,
   RUNNER_PROTOCOL_VERSION,
+  type RunnerCaps,
   type RunnerFrame,
   type RunnerHello,
   type ServerFrame,
@@ -18,7 +20,7 @@ import type { RunnerCredential } from '../../../../platform/auth/api-keys.ts';
 import type { SocketLink } from '../../../../platform/realtime/sockets.ts';
 import { isTooOld } from '../../rules.ts';
 import { type CommandReply, HubError, isReply } from './hub/replies.ts';
-import { heartbeat, hold, type OpenSession, offline, online, tooOld } from './presence.ts';
+import { capsChanged, heartbeat, hold, type OpenSession, offline, online, tooOld } from './presence.ts';
 
 export { HubError, type HubErrorCode } from './hub/replies.ts';
 
@@ -49,16 +51,19 @@ interface Pending {
   readonly resolve: (reply: CommandReply) => void;
   readonly reject: (error: HubError) => void;
   readonly timer: ReturnType<typeof setTimeout>;
+  /** Each `tools.output` line of the command (an install's), as it comes. */
+  readonly output: ((line: string) => void) | undefined;
 }
 
 /**
  * One runner socket, from the upgrade to its close (docs/runner-protocol.md, "Connection"): it waits for `runner.hello`
  * (4008 after the timeout), refuses another protocol (4002) and a runner too old (4003, after `server.hello`), takes
  * over from an older connection of its machine (closed 4004), records the machine online with a session and then answers
- * `server.hello`. Heartbeats and `hold.state` update the machine, `tunnel.state` the hub's memory, terminal frames go to
- * the hub's terminals and chat turns' frames to their sinks; command replies settle the hub's requests; frames of runs
- * (S5) are accepted and left; unknown frames are ignored, invalid ones logged. Its close ends the session (and the
- * terminals and turns it carried) and, unless it was replaced, takes the machine offline.
+ * `server.hello`. Heartbeats and `hold.state` update the machine, `tunnel.state` the hub's memory, `runner.caps` the
+ * hello's caps (and the machine's slots and Claude Code version), terminal frames go to the hub's terminals and chat
+ * turns' frames to their sinks; command replies settle the hub's requests (`tools.output` goes to its request);
+ * frames of runs (S5) are accepted and left; unknown frames are ignored, invalid ones logged. Its close ends the session
+ * (and the terminals and turns it carried) and, unless it was replaced, takes the machine offline.
  */
 export class RunnerConnection {
   readonly runner: RunnerCredential;
@@ -108,17 +113,21 @@ export class RunnerConnection {
   }
 
   /**
-   * Sends a command and resolves with its reply (`cmd.ack`, `power.result`, `runner.update.result`), or rejects after
-   * `timeoutMs`.
+   * Sends a command and resolves with its reply (`cmd.ack`, `power.result`, `runner.update.result`, `fs.result`,
+   * `tools.result`), or rejects after `timeoutMs`; `output` gets the command's `tools.output` lines meanwhile.
    */
-  request(frame: Extract<ServerFrame, { cmdId: string }>, timeoutMs: number): Promise<CommandReply> {
+  request(
+    frame: Extract<ServerFrame, { cmdId: string }>,
+    timeoutMs: number,
+    output?: (line: string) => void,
+  ): Promise<CommandReply> {
     return new Promise((resolve, reject) => {
       const text = encodeFrame(frame);
       const timer = setTimeout(() => {
         this.#pending.delete(frame.cmdId);
         reject(new HubError('timeout', this.machineId, `No answer to ${frame.type} within ${timeoutMs} ms`));
       }, timeoutMs);
-      this.#pending.set(frame.cmdId, { resolve, reject, timer });
+      this.#pending.set(frame.cmdId, { resolve, reject, timer, output });
       this.link.send(text);
     });
   }
@@ -154,7 +163,9 @@ export class RunnerConnection {
       this.#run((t) => heartbeat(t, this.machineId, now, frame.sample));
     } else if (frame.type === 'hold.state') {
       this.#run((t) => hold(t, this.machineId, frame.until, frame.source));
-    } else if (frame.type === 'tunnel.state') this.#ctx.tunnel(this, frame);
+    } else if (frame.type === 'runner.caps') this.#onCaps(frame.caps);
+    else if (frame.type === 'tools.output') this.#pending.get(frame.cmdId)?.output?.(frame.line);
+    else if (frame.type === 'tunnel.state') this.#ctx.tunnel(this, frame);
     else if (isTerminalFrame(frame)) this.#ctx.terminal(this, frame);
     else if (isTurnFrame(frame)) this.#ctx.turn(this, frame);
     else {
@@ -204,6 +215,17 @@ export class RunnerConnection {
       },
       () => this.link.close(1011, 'The server could not record the connection'),
     );
+  }
+
+  /**
+   * What the runner can do changed on the live link (its tools): its caps replace the hello's at once (the hub's view),
+   * and the machine's slots and Claude Code version are recorded.
+   */
+  #onCaps(caps: RunnerCaps): void {
+    this.hello = { ...(this.hello as RunnerHello), caps };
+    const claudeVersion = caps.tools?.claude ?? harnessVersionOf(caps.harnesses, 'claude_code');
+    this.#log('info', { tools: caps.tools }, 'runner: its caps changed');
+    this.#run((t) => capsChanged(t, this.machineId, { slots: caps.slots, claudeVersion }));
   }
 
   #onReply(reply: CommandReply): void {

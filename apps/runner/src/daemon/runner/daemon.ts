@@ -1,9 +1,7 @@
 import { Tunnels } from '@mwc/machines-core/tunnels';
 import type {
-  FsList,
-  FsMkdir,
-  FsResult,
   HoldState,
+  RunnerCaps,
   RunnerFrame,
   RunnerHello,
   RunnerResync,
@@ -20,6 +18,7 @@ import { Link, type LinkEnd } from '../../link/link.ts';
 import { NO_POWER, type PowerExecutor } from '../../power/executor.ts';
 import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from '../../system/time.ts';
 import { TerminalSessions } from '../../terminal/sessions.ts';
+import { Tools } from '../../tools/tools.ts';
 import { Turns } from '../../turns/turns.ts';
 import { Updates } from '../../update/updates.ts';
 import type { HealthStatus } from '../health.ts';
@@ -28,8 +27,9 @@ import { helloOf, NO_HARNESSES } from './hello.ts';
 
 /**
  * The daemon behind `createRunner` (`../runner.ts`, its contract): it makes the hold manager, the heartbeats, the
- * commands, the chat turns, the terminals, the self-update, a power controller's tunnels and the link, and wires each to
- * the others (and the commands to the folder browser). Live turns and the runs `setLiveRuns` reports count together as live work.
+ * commands, the chat turns, the terminals, the self-update, the machine's tools, a power controller's tunnels and the
+ * link, and wires each to the others (and the commands to the folder browser). Live turns and the runs `setLiveRuns`
+ * reports count together as live work; a change of the tools is sent as `runner.caps`.
  */
 
 const holdState = (state: HoldReport): HoldState => ({ type: 'hold.state', ...state });
@@ -48,6 +48,7 @@ export class RunnerDaemon implements Runner {
   readonly #terminals: TerminalSessions;
   readonly #turns: Turns;
   readonly #updates: Updates;
+  readonly #tools: Tools;
   #config: RunnerConfig;
   #draining = false;
   #runs = 0;
@@ -73,9 +74,11 @@ export class RunnerDaemon implements Runner {
       terminal: (frame) => this.#terminals.handle(frame),
       turn: (frame) => this.#turns.handle(frame),
       update: (frame) => this.#updates.handle(frame),
-      folders: (frame) => this.#browse(frame),
+      folders: (frame) => browse(this.#options.folders, frame),
+      tools: (frame) => this.#tools.handle(frame),
       log,
     });
+    this.#tools = this.#makeTools(timers);
     this.#turns = new Turns({
       host: options.harness,
       processes: options.processes,
@@ -106,6 +109,16 @@ export class RunnerDaemon implements Runner {
     this.#tunnels = this.#controllerTunnels(clock, timers);
     this.#link = this.#makeLink(clock, timers);
     this.ended = this.#link.ended;
+  }
+
+  /** The machine's tools: their output and a change of them (`runner.caps`) go through the link. */
+  #makeTools(timers: Timers): Tools {
+    const { tools, processes, harness, log } = this.#options;
+    return new Tools({
+      ...{ host: tools?.host, found: tools?.found, processes, harness, timers, log },
+      send: (frame) => this.#link.send(frame),
+      changed: () => this.#link.send({ type: 'runner.caps', caps: this.#caps() }),
+    });
   }
 
   /** A power controller's tunnels (`tunnel.set`), reported through the link; none without power or processes. */
@@ -155,6 +168,7 @@ export class RunnerDaemon implements Runner {
   }
 
   async stop(): Promise<void> {
+    this.#tools.stop();
     await Promise.all([this.#turns.stop(), this.#terminals.stop()]);
     await this.#link.stop();
     await Promise.all([this.#hold.close(), this.#tunnels?.close()]);
@@ -181,9 +195,11 @@ export class RunnerDaemon implements Runner {
     };
   }
 
-  #hello(): RunnerHello {
-    const { harness, processes, version, builtAt, claudeVersion, build } = this.#options;
-    const caps = {
+  /** What it can do now (the hello's and `runner.caps`'s). */
+  #caps(): RunnerCaps {
+    const { harness, processes } = this.#options;
+    const tools = this.#tools.current;
+    return {
       harnesses: harness && processes ? harness.versions : NO_HARNESSES,
       slots: this.#config.slots,
       hold: this.#options.hold.kind,
@@ -191,10 +207,15 @@ export class RunnerDaemon implements Runner {
       terminal: this.#terminals.available,
       selfUpdate: this.#updates.available,
       folders: this.#options.folders !== undefined,
+      ...(tools ? { tools } : {}),
     };
+  }
+
+  #hello(): RunnerHello {
+    const { harness, version, builtAt, claudeVersion, build } = this.#options;
     // A Claude Code found after the start (a turn looked again) is in the next hello.
     const claude = harness?.versions.claude_code ?? claudeVersion;
-    return helloOf({ version, builtAt: builtAt ?? null, caps, claudeVersion: claude, build });
+    return helloOf({ version, builtAt: builtAt ?? null, caps: this.#caps(), claudeVersion: claude, build });
   }
 
   #afterHello(hello: ServerHello): RunnerFrame[] {
@@ -237,14 +258,6 @@ export class RunnerDaemon implements Runner {
       return;
     }
     this.#tunnels.set(tunnels);
-  }
-
-  /** `fs.list` and `fs.mkdir` through the folder browser; `unsupported` without one. */
-  #browse(frame: FsList | FsMkdir): Promise<FsResult> {
-    const host = this.#options.folders;
-    if (host !== undefined) return browse(host, frame);
-    const error = 'unsupported: this runner does not browse folders';
-    return Promise.resolve({ type: 'fs.result', cmdId: frame.cmdId, ok: false, error });
   }
 
   #drain(): void {

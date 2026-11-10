@@ -1,12 +1,14 @@
 import { COMPOSE_FILE_RELATIVE, containerRunnerProject, shellWord } from '@mwc/shared/container-runner';
 import type { MachineKind, MachineProvider } from '@mwc/shared/enums';
+import { type InstallableTool, MachineTool, TOOL_PACKAGES } from '@mwc/shared/machines';
 import { INSTALL_PORT } from '@mwc/shared/ports';
+import type { RunnerTools } from '@mwc/shared/runner-protocol';
 import { type Refusal, refuse } from '../rules.ts';
 
 /**
  * A machine's runner as the machines API shows it, and how to update one (docs/machines.md, "Updating a runner"; pure):
- * whether it runs the build this server hands out, and, for a runner that cannot update itself and that this server
- * cannot reinstall, the command a person runs instead.
+ * whether it runs the build this server hands out, the CLIs it found against the versions this server installs, and,
+ * for a runner that cannot update itself and that this server cannot reinstall, the command a person runs instead.
  */
 
 /** The runner of a machine: its version, its build, whether that is the served one, and what it can do. */
@@ -23,6 +25,10 @@ export interface RunnerFacts {
   readonly terminal: boolean;
   /** It updates itself over its link (`caps.selfUpdate`); false while it is not connected. */
   readonly selfUpdate: boolean;
+  /** The CLIs it found (`caps.tools`); null while it is not connected, or from a runner older than the tools. */
+  readonly tools: RunnerTools | null;
+  /** The version this server installs of Claude Code and Codex (`TOOL_PACKAGES`): an older one is due an update. */
+  readonly toolsLatest: Readonly<Record<InstallableTool, string>>;
 }
 
 /** What the hub knows of a connected runner, as far as these facts go. */
@@ -30,7 +36,22 @@ export interface ConnectedFacts {
   readonly version: string;
   readonly builtAt: string | null;
   readonly build: string | null;
-  readonly caps: { readonly terminal: boolean; readonly selfUpdate: boolean };
+  readonly caps: {
+    readonly terminal: boolean;
+    readonly selfUpdate: boolean;
+    readonly tools?: RunnerTools | undefined;
+  };
+}
+
+/** The pinned versions, by installable CLI. */
+export const TOOLS_LATEST: Readonly<Record<InstallableTool, string>> = {
+  claude: TOOL_PACKAGES.claude.version,
+  codex: TOOL_PACKAGES.codex.version,
+};
+
+/** A runner's tools without the fields a newer runner adds (the API lists the CLIs it knows). */
+export function knownTools(tools: RunnerTools): RunnerTools {
+  return Object.fromEntries(MachineTool.options.map((tool) => [tool, tools[tool] ?? null])) as RunnerTools;
 }
 
 /**
@@ -50,6 +71,8 @@ export function runnerFacts(
     current: build === null || served === null ? null : build === served,
     terminal: connected?.caps.terminal ?? false,
     selfUpdate: connected?.caps.selfUpdate ?? false,
+    tools: connected?.caps.tools === undefined ? null : knownTools(connected.caps.tools),
+    toolsLatest: TOOLS_LATEST,
   };
 }
 

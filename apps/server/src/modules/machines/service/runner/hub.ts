@@ -14,6 +14,9 @@ import {
   type RunnerUpdate,
   type RunnerUpdateResult,
   type ServerFrame,
+  type ToolsCheck,
+  type ToolsInstall,
+  type ToolsResult,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import type { RunnerCredential } from '../../../../platform/auth/api-keys.ts';
@@ -35,8 +38,8 @@ export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } f
 export type { TurnAsked, TurnChannel, TurnEnding, TurnRequest, TurnSink } from './hub/turns.ts';
 
 /**
- * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update` or the
- * folder frames acks them as commands it does not know).
+ * A server frame that is a command (it has a `cmdId`), and what answers it (a runner older than `runner.update`, the
+ * folder frames or the tools frames acks them as commands it does not know).
  */
 export type CommandFrame = Extract<ServerFrame, { cmdId: string }>;
 export type ReplyTo<F extends CommandFrame> = F extends PowerCommand
@@ -45,7 +48,9 @@ export type ReplyTo<F extends CommandFrame> = F extends PowerCommand
     ? RunnerUpdateResult | CmdAck
     : F extends FsList | FsMkdir
       ? FsResult | CmdAck
-      : CmdAck;
+      : F extends ToolsCheck | ToolsInstall
+        ? ToolsResult | CmdAck
+        : CmdAck;
 
 /** A machine's runner as the hub knows it, once it answered `server.hello`. */
 export interface ConnectedRunner {
@@ -84,18 +89,20 @@ export interface RunnerHub {
   readonly tunnels: HubTunnels;
   /** True while the machine's runner is connected to this process and past its hello. */
   isOnline(machineId: string): boolean;
-  /** The machine's connected runner (its version, caps, since when), or undefined. */
+  /** The machine's connected runner (its version, caps as its last hello or `runner.caps` said, since when), or undefined. */
   connected(machineId: string): ConnectedRunner | undefined;
   /** Sends a frame to the machine's runner; false when it is not connected. */
   send(machineId: string, frame: ServerFrame): boolean;
   /**
    * Sends a command and resolves with its answer, matched by `cmdId`: `power.result` for `power.command`, `fs.result`
-   * for the folder frames, `cmd.ack` for the others. Rejects with a `HubError`: `offline` (not connected), `timeout`, `disconnected` (closed first).
+   * for the folder frames, `tools.result` for the tools frames, `cmd.ack` for the others; `output` gets each
+   * `tools.output` line of the command meanwhile. Rejects with a `HubError`: `offline` (not connected), `timeout`,
+   * `disconnected` (closed first).
    */
   request<F extends CommandFrame>(
     machineId: string,
     frame: F,
-    options?: { readonly timeoutMs?: number },
+    options?: { readonly timeoutMs?: number; readonly output?: (line: string) => void },
   ): Promise<ReplyTo<F>>;
   /**
    * Opens a terminal on the machine's runner (`terminal.open`) and relays its frames to `sink` until it ends; undefined
@@ -220,7 +227,8 @@ export function createRunnerHub(deps: HubDeps, options: HubOptions = {}): Runner
     async request(machineId, frame, requestOptions) {
       const connection = sockets.ready(machineId);
       if (connection === undefined) throw new HubError('offline', machineId, 'The runner is not connected');
-      const reply = await connection.request(frame, requestOptions?.timeoutMs ?? requestTimeoutMs);
+      const timeoutMs = requestOptions?.timeoutMs ?? requestTimeoutMs;
+      const reply = await connection.request(frame, timeoutMs, requestOptions?.output);
       return reply as ReplyTo<typeof frame>;
     },
     terminal(machineId, request, sink) {

@@ -41,6 +41,19 @@ Newest first, one entry per lesson:
 - **Suggested change:** none beyond the open S5 review items: group `features/subscriptions/` (profiles, gateways) and
   the Claude Code connector's parser files (`messages.ts`, `subagents.ts`, `system.ts`, `summary.ts`, `context.ts`)
   under `parse/`.
+
+### 2026-11-10: The runner's machine tools in a new `apps/runner/src/tools/`
+
+- **What happened:** finding the machine's CLIs, their versions and installing Claude Code or Codex with npm (4 files)
+  have no row in the runner table of SKILL.md; they went to a new `apps/runner/src/tools/`, the 15th entry of
+  `apps/runner/src/` (`big-folder`, was 14), `apps/runner/test/` grew to 15 and `apps/server/test/modules/machines/routes/`
+  to 14. `apps/runner/src/daemon/runner/daemon.ts` went from 254 to 267 lines (the tools' wiring; the folder browser's
+  `unsupported` answer moved into `folders/browse.ts`), the hub's `connection.ts` from 239 to 261 (`runner.caps`,
+  `tools.output`).
+- **Where:** the machine-tools commit.
+- **What was done:** as above.
+- **Suggested change:** a runner row "the machine's CLIs: finding them, their versions, installing one → `tools/`"; at
+  the S5 review, group the daemon's parts' wiring so `daemon.ts` stays well under its limit.
 - **Status:** `open`.
 
 ### 2026-11-10: Access profiles of one provider, and a migration whose data step sits between two generated parts

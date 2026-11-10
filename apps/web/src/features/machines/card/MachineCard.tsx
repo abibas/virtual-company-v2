@@ -8,6 +8,8 @@ import { Card } from '../../../components/ui/Card.tsx';
 import { DevboxPower } from '../power/DevboxPower.tsx';
 import { PowerSettings } from '../power/PowerSettings.tsx';
 import { actorText } from '../power/power-text.ts';
+import { MachineTools } from '../tools/MachineTools.tsx';
+import { machineCardId } from '../tools/tools-text.ts';
 import { MachineActions } from './MachineActions.tsx';
 import { MachineHeader } from './MachineHeader.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
@@ -83,8 +85,9 @@ function PowerParts({ machine, control }: { readonly machine: Machine; readonly 
 }
 
 /**
- * A machine on the Machines page: who and how it is (`MachineHeader`), its numbers, its power, its log, and its actions
- * (Connect, Terminal for owners, Update runner and Remove for admins).
+ * A machine on the Machines page: who and how it is (`MachineHeader`), its numbers, its power, its tools (the CLIs its
+ * runner found; Check again and Install for admins), its log, and its actions (Connect, Terminal for owners, Update
+ * runner and Remove for admins).
  */
 export function MachineCard({
   machine,
@@ -119,7 +122,12 @@ export function MachineCard({
   };
   const online = (stats?.status ?? machine.status) === 'online';
   return (
-    <Card as="article" aria-label={machine.name} className="flex flex-col gap-5">
+    <Card
+      as="article"
+      id={machineCardId(machine.id)}
+      aria-label={machine.name}
+      className="flex scroll-mt-6 flex-col gap-5"
+    >
       <MachineHeader
         machine={machine}
         latestRunner={latestRunner}
@@ -134,6 +142,7 @@ export function MachineCard({
       />
       {stats && <MachineMetrics stats={stats} />}
       <PowerParts machine={machine} control={control} />
+      <MachineTools machine={machine} admin={admin} online={online} calls={calls} onChanged={onChanged} />
       <MachineActions
         machine={machine}
         companyId={companyId}

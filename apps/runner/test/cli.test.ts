@@ -104,7 +104,7 @@ describe('mwc-runner mcp', () => {
 });
 
 describe('mwc-runner run', () => {
-  it("starts the daemon with its harnesses' versions and Claude Code's in its hello, asking each CLI once", async () => {
+  it("starts the daemon with its CLIs' versions and Claude Code's in its hello, asking each CLI found once", async () => {
     const server = await fakeServer();
     const { deps, signals } = world({ server });
     const { host, home, execs } = testHost({
@@ -116,6 +116,8 @@ describe('mwc-runner run', () => {
     const hello = await server.frames.next('runner.hello');
     expect(hello.claudeVersion).toBe('2.1.3 (Claude Code)');
     expect(hello.caps.harnesses).toEqual({ claude_code: '2.1.3 (Claude Code)', codex: null });
+    const tools = { claude: '2.1.3 (Claude Code)', codex: null, git: null, gh: null, docker: null };
+    expect(hello.caps.tools).toEqual(tools);
     expect(execs).toHaveLength(1);
     signals.get('SIGTERM')?.();
     expect(await running).toBe(0);

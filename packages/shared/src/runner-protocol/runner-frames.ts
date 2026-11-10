@@ -14,6 +14,7 @@ import {
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 import { FOLDER_RUNNER_FRAMES } from './folders.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
+import { RunnerTools, TOOL_RUNNER_FRAMES } from './tools.ts';
 import { RunnerHarnesses, TURN_RUNNER_FRAMES } from './turns.ts';
 import { RunnerBuild, RunnerBuiltAt, RunnerUpdateResult } from './update.ts';
 
@@ -30,7 +31,7 @@ export const ATTENTION_OPTIONS_MAX = 32;
 
 /**
  * What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power, whether
- * it opens terminals, whether it updates itself, and whether it browses its folders.
+ * it opens terminals, whether it updates itself, whether it browses its folders, and the CLIs it found.
  */
 export const RunnerCaps = protocolObject({
   /**
@@ -51,6 +52,11 @@ export const RunnerCaps = protocolObject({
   selfUpdate: z.boolean().default(false),
   /** True when it answers `fs.list` and `fs.mkdir` (S5.1d); false from a runner older than the folder browser. */
   folders: z.boolean().default(false),
+  /**
+   * The CLIs it found, each one's version or null (`tools.ts`); left out by a runner older than the tools, which knows
+   * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).
+   */
+  tools: RunnerTools.optional(),
 });
 export type RunnerCaps = z.infer<typeof RunnerCaps>;
 
@@ -76,6 +82,15 @@ export const RunnerHello = frame('runner.hello', {
   builtAt: RunnerBuiltAt.nullable().default(null),
 });
 export type RunnerHello = z.infer<typeof RunnerHello>;
+
+/**
+ * What a runner can do changed on a live link (its tools after `tools.check` or `tools.install`): the whole caps again,
+ * which replace the hello's on the server. No answer.
+ */
+export const RunnerCapsUpdate = frame('runner.caps', {
+  caps: RunnerCaps,
+});
+export type RunnerCapsUpdate = z.infer<typeof RunnerCapsUpdate>;
 
 /** Every `RUNNER_HEARTBEAT_MS`: renews the lease of every run it lists; a sample rides along once a minute. */
 export const RunnerHeartbeat = frame('runner.heartbeat', {
@@ -171,8 +186,8 @@ export const AttentionCreate = frame('attention.create', {
 export type AttentionCreate = z.infer<typeof AttentionCreate>;
 
 /**
- * The answer to every server frame that has a `cmdId`, except `power.command`, `runner.update`, `fs.list` and `fs.mkdir`
- * (each answered by its own result frame).
+ * The answer to every server frame that has a `cmdId`, except `power.command`, `runner.update`, `fs.list`, `fs.mkdir`,
+ * `tools.check` and `tools.install` (each answered by its own result frame).
  */
 export const CmdAck = frame('cmd.ack', {
   cmdId: Uuid,
@@ -228,6 +243,7 @@ export type TunnelState = z.infer<typeof TunnelState>;
 /** Every runner frame, in the order of the reference. */
 export const RUNNER_FRAMES = [
   RunnerHello,
+  RunnerCapsUpdate,
   RunnerHeartbeat,
   RunnerResync,
   JobAccept,
@@ -242,6 +258,7 @@ export const RUNNER_FRAMES = [
   RunnerUpdateResult,
   ...TURN_RUNNER_FRAMES,
   ...FOLDER_RUNNER_FRAMES,
+  ...TOOL_RUNNER_FRAMES,
 ] as const;
 
 /** Any frame a runner sends, told apart by `type`. */

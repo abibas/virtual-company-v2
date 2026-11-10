@@ -62,6 +62,19 @@ export function online(
   });
 }
 
+/**
+ * A runner said what it can do again (`runner.caps`): its slots and, when it says, Claude Code's version (null when it
+ * has none now).
+ */
+export async function capsChanged(
+  t: TenantDb,
+  machineId: string,
+  caps: { readonly slots: number; readonly claudeVersion: string | null | undefined },
+): Promise<void> {
+  const { slots, claudeVersion } = caps;
+  await repo.update(t, machineId, { slots, ...(claudeVersion === undefined ? {} : { claudeVersion }) });
+}
+
 /** A runner too old for the server said hello: its version is recorded, so its page can say it needs an update. */
 export async function tooOld(t: TenantDb, machineId: string, version: string): Promise<void> {
   await repo.update(t, machineId, { runnerVersion: version });

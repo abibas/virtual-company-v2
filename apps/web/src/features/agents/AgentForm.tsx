@@ -208,6 +208,8 @@ export interface AgentFormProps {
   readonly draft: AgentDraft;
   /** "Where it runs" (`WhereItRuns` on the page's placement draft), at the end of How it works. */
   readonly where: ReactNode;
+  /** Under the access profile: whether its harness's CLI is on the chosen machine (`HarnessToolWarning`). */
+  readonly profileNote?: ReactNode;
   /** The chart, for the manager's choices (a waiting select until it loads). */
   readonly chart: OrgChart | undefined;
   /** The agent being edited; none for a new one. */
@@ -221,11 +223,11 @@ export interface AgentFormProps {
  * The agent's fields, in four panels: who it is, how it works (with its access profile and where it runs), its place,
  * its instructions.
  */
-export function AgentForm({ draft, where, chart, agent, meUserId, readOnly = false }: AgentFormProps) {
+export function AgentForm({ draft, chart, agent, meUserId, readOnly = false, ...parts }: AgentFormProps) {
   return (
     <div className="grid gap-4 md:gap-5">
       <IdentityPanel draft={draft} readOnly={readOnly} isNew={agent === undefined} />
-      <ModelPanel draft={draft} readOnly={readOnly} agent={agent} meUserId={meUserId} where={where} />
+      <ModelPanel draft={draft} readOnly={readOnly} agent={agent} meUserId={meUserId} {...parts} />
       <PlacePanel draft={draft} readOnly={readOnly} chart={chart} agent={agent} meUserId={meUserId} />
       <InstructionsPanel draft={draft} readOnly={readOnly} agent={agent} />
     </div>

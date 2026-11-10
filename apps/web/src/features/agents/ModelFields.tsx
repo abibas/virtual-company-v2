@@ -59,10 +59,15 @@ function ModelChoice({ draft, readOnly }: { readonly draft: AgentDraft; readonly
 /**
  * How the agent works, in the order it is decided: how many runs at once, whose subscription it runs on (an access
  * profile, which also decides what runs it: Claude Code for a Claude profile, Codex for an OpenAI one), its model
- * (that harness's), its effort, and where it runs (`where`, the form's "Where it runs"). There is no harness choice:
- * each provider's own harness is the only one today.
+ * (that harness's), its effort, and where it runs (`where`, the form's "Where it runs"); `profileNote` under the profile
+ * says when that harness's CLI is missing on the chosen machine. There is no harness choice: each provider's own harness
+ * is the only one today.
  */
-export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?: ReactNode }) {
+export function ModelPanel({
+  where,
+  profileNote,
+  ...props
+}: ProfileProps & { readonly where?: ReactNode; readonly profileNote?: ReactNode }) {
   const { draft, readOnly } = props;
   const { values, set } = draft;
   const profiles = useAccessProfiles();
@@ -85,6 +90,7 @@ export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?
         <div className="grid gap-4 sm:grid-cols-2">
           <ProfileChoice {...props} profiles={profiles} />
         </div>
+        {profileNote}
         <ModelChoice draft={draft} readOnly={readOnly} />
         <ChoiceField label="Effort" hint="More effort thinks longer and costs more; high suits most work.">
           <SegmentedControl

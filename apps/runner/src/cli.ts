@@ -4,7 +4,7 @@ import type { Harness } from '@mwc/shared/enums';
 import { runnerConfigPath } from './config.ts';
 import { EXIT, type MainDeps, main } from './daemon/start.ts';
 import { enrollCommand, enrollOnFirstBoot } from './install/enroll/commands.ts';
-import { harnessCli, harnessClis } from './install/enroll/facts.ts';
+import { harnessCli } from './install/enroll/facts.ts';
 import { CommandError, type Env, type Host } from './install/host.ts';
 import { installCommand } from './install/install.ts';
 import { SERVICE_MANAGER_ENV } from './install/launchd.ts';
@@ -13,6 +13,8 @@ import { PERMANENT_EXIT_CODES } from './install/systemd.ts';
 import { uninstallCommand } from './install/uninstall.ts';
 import { createLog, type Log } from './system/log.ts';
 import { runnerBuiltAt } from './system/version.ts';
+import { harnessesOf } from './tools/find.ts';
+import { toolsHost } from './tools/host.ts';
 import { type McpIo, mcpCommand, nodeMcpIo } from './turns/ask/command.ts';
 import { runnerBuild, updateTarget } from './update/build.ts';
 import { selfUpdater } from './update/self-update.ts';
@@ -111,8 +113,9 @@ export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'builtAt' | 'upd
 }
 
 /**
- * `run`: a container enrolls itself on its first start; then the daemon, with the harnesses' CLIs (each asked
- * `--version` once; Claude Code's is also the hello's `claudeVersion`), its build and its self-update for its hello.
+ * `run`: a container enrolls itself on its first start; then the daemon, with the machine's CLIs (each found one asked
+ * `--version` once: `caps.tools`; Claude Code's and Codex's are the harnesses, Claude Code's also the hello's
+ * `claudeVersion`), how to look for them again and install one, its build and its self-update for its hello.
  */
 async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
   const daemon = deps.daemon();
@@ -128,7 +131,9 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
     exit(failed);
     return failed;
   }
-  const harnesses = await harnessClis(host);
+  const tools = toolsHost(host);
+  const found = await tools.find();
+  const harnesses = harnessesOf(found);
   const claudeVersion = harnesses.claude_code?.version ?? null;
   const findHarness = (harness: Harness) => harnessCli(host, harness);
   const toolServer = { command: host.execPath, args: [resolve(host.selfPath), 'mcp'] };
@@ -138,6 +143,7 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
     findHarness,
     claudeVersion,
     toolServer,
+    tools: { host: tools, found: found.versions },
     ...selfFacts(host),
     exit,
   });

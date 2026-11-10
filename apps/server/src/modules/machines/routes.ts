@@ -9,6 +9,7 @@ import { placementRoutes } from './routes/placement.ts';
 import { powerRoutes } from './routes/power.ts';
 import { runnerSocketRoutes } from './routes/runner.ts';
 import { terminalRoutes } from './routes/terminal.ts';
+import { toolRoutes } from './routes/tools.ts';
 import { runnerUpdateRoutes } from './routes/update.ts';
 import { type PowerControl, tunnelsOnConnect } from './service/power/control.ts';
 import { holdOnConnect } from './service/power/hold.ts';
@@ -21,7 +22,8 @@ import { machinesService } from './service.ts';
  * The machines module's routes (docs/machines.md): the machines and their stats, enrolling a machine, the runner's
  * installer and bundle (S4.5), the runners' socket, which the hub serves (S4.2), each machine's power (S4.4b), the
  * agents' placements on the machines (S4.7), each machine's logo, a machine's terminal for its owners (tickets and the
- * browser's socket), the update of its runner, and its folders read and made through its runner (S5.1d). A runner that
+ * browser's socket), the update of its runner, its folders read and made through its runner (S5.1d), and its tools
+ * (the CLIs its runner found, a check and an install of Claude Code or Codex). A runner that
  * connects gets its machine's hold at once, and a power controller its devboxes' tunnels, an empty set while this server
  * drives them (the hub's connect listeners, registered here once per app). The power control (`control`) says who
  * drives the devboxes; both ends of every tunnel are this server's own port.
@@ -48,5 +50,6 @@ export function machinesRoutes(
     .route('/', runnerSocketRoutes(deps, deps.hub))
     .route('/', terminalRoutes(deps))
     .route('/', runnerUpdateRoutes(deps))
-    .route('/', folderRoutes(deps));
+    .route('/', folderRoutes(deps))
+    .route('/', toolRoutes(deps));
 }

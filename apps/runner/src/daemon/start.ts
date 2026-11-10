@@ -110,6 +110,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     hold: holdDriverFor(setup.hold, deps, log),
     sampler: machineSampler(deps, home, log),
     ...(deps.power ? { power: deps.power } : {}),
+    ...(deps.tools ? { tools: deps.tools } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     ...(terminal ? { terminal } : {}),
     // In a container its folders are only those of its work volume.

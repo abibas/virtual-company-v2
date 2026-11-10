@@ -7,6 +7,8 @@ import type {
   RunnerUpdate,
   ServerFrame,
   TerminalServerFrame,
+  ToolsCheck,
+  ToolsInstall,
   TunnelSpec,
   TurnServerFrame,
 } from '@mwc/shared/runner-protocol';
@@ -24,6 +26,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
   const turns: TurnServerFrame[] = [];
   const updates: RunnerUpdate[] = [];
   const browsed: (FsList | FsMkdir)[] = [];
+  const tooled: (ToolsCheck | ToolsInstall)[] = [];
   let drained = 0;
   const logs = memoryLog();
   const handler = new Commands({
@@ -47,6 +50,10 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
       const listing = frame.type === 'fs.list' ? { entries: [], truncated: false } : {};
       return { type: 'fs.result', cmdId: frame.cmdId, ok: true, path: '/w', ...listing };
     },
+    tools: async (frame) => {
+      tooled.push(frame);
+      return { type: 'tools.result', cmdId: frame.cmdId, ok: true };
+    },
     log: logs.log,
   });
   return {
@@ -58,6 +65,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
     turns,
     updates,
     browsed,
+    tooled,
     logs,
     drained: () => drained,
   };
@@ -201,6 +209,9 @@ describe('the commands', () => {
       folders: async () => {
         throw new Error('no folders in this test');
       },
+      tools: async () => {
+        throw new Error('no tools in this test');
+      },
       log: memoryLog().log,
     });
     const frame: ServerFrame = { type: 'machine.hold', cmdId: newId(), until: 5 };
@@ -258,6 +269,21 @@ describe('frames the runner cannot read', () => {
 });
 
 describe('the folder commands', () => {
+  it('answers tools.check and tools.install with the tools’ tools.result, once per cmdId', async () => {
+    const { handler, tooled } = commands();
+    const check: ToolsCheck = { type: 'tools.check', cmdId: newId() };
+    const install: ToolsInstall = {
+      type: 'tools.install',
+      cmdId: newId(),
+      tool: 'codex',
+      version: '0.163.0',
+    };
+    expect(await handler.handle(check)).toEqual([{ type: 'tools.result', cmdId: check.cmdId, ok: true }]);
+    expect(await handler.handle(install)).toEqual([{ type: 'tools.result', cmdId: install.cmdId, ok: true }]);
+    expect(await handler.handle(install)).toEqual([{ type: 'tools.result', cmdId: install.cmdId, ok: true }]);
+    expect(tooled).toEqual([check, install]);
+  });
+
   it('answers fs.list and fs.mkdir with the browser’s fs.result', async () => {
     const { handler, browsed } = commands();
     const list: FsList = { type: 'fs.list', cmdId: newId(), path: null };

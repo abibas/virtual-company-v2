@@ -1,3 +1,4 @@
+import type { RunnerTools } from '@mwc/shared/runner-protocol';
 import type { RunnerConfig } from '../config.ts';
 import type { FolderHost } from '../folders/browse.ts';
 import type { HoldDriver } from '../hold/driver.ts';
@@ -9,6 +10,7 @@ import type { Log } from '../system/log.ts';
 import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import type { TerminalHost } from '../terminal/sessions.ts';
+import type { ToolsHost } from '../tools/host.ts';
 import type { HarnessHost } from '../turns/turns.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
 import type { HealthStatus } from './health.ts';
@@ -16,9 +18,9 @@ import { RunnerDaemon } from './runner/daemon.ts';
 
 /**
  * The runner (`@mwc/runner/runner`): the link to the server, the heartbeats with the machine's samples, the hold and
- * the commands, a power controller's tunnels, the chat turns, the machine's terminals and its self-update, put together.
- * `start()` connects and keeps reconnecting; `stop()` ends the turns and the terminals, closes the socket, releases the
- * hold and stops the tunnels; `setLiveRuns(n)` is how S5's runs tell it how many are live (the runner holds the machine
+ * the commands, a power controller's tunnels, the chat turns, the machine's terminals, its self-update and its tools, put
+ * together. `start()` connects and keeps reconnecting; `stop()` ends the turns, the terminals and an install, closes the
+ * socket, releases the hold and stops the tunnels; `setLiveRuns(n)` is how S5's runs tell it how many are live (the runner holds the machine
  * while any run or turn is live, or any terminal is open); `ended` resolves when the link stops for good, `restart` once
  * an update is in place. Everything outside the process is injected. This entry is the contract; the daemon that keeps
  * it is `runner/daemon.ts`.
@@ -57,6 +59,11 @@ export interface RunnerOptions {
    * `fs.mkdir` (`caps.folders`); without it every one is `unsupported`.
    */
   readonly folders?: FolderHost;
+  /**
+   * The machine's CLIs (`tools/`): the versions found at start, and how to look again and install one; without them the
+   * hello has no `caps.tools` and every `tools.check` and `tools.install` is unsupported.
+   */
+  readonly tools?: { readonly host: ToolsHost; readonly found: RunnerTools };
   /** Saves the configuration after `key.rotate`; without it the new key lives in memory only. */
   readonly saveConfig?: (config: RunnerConfig) => void | Promise<void>;
   readonly clock?: Clock;

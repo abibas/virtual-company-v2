@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as enums from '../src/enums.ts';
 import {
@@ -5,6 +6,7 @@ import {
   DEFAULT_MACHINE_POWER_POLICY,
   DevboxSize,
   HoldDriver,
+  InstallableTool,
   isTimeZone,
   KeepOnWindow,
   MachineKind,
@@ -12,6 +14,7 @@ import {
   MachineProvider,
   MachineSample,
   MachineStatus,
+  MachineTool,
   PermissionPolicy,
   PlacementMode,
   PlacementPath,
@@ -21,6 +24,9 @@ import {
   PowerStatus,
   TimeOfDay,
   TimeZone,
+  TOOL_PACKAGES,
+  toolNeedsUpdate,
+  toolVersionNumber,
   Weekday,
 } from '../src/machines.ts';
 import { SAMPLE } from './fixtures/runner-protocol/frames.ts';
@@ -150,5 +156,35 @@ describe('MachinePowerPolicy', () => {
     expect(issuesOf(MachinePowerPolicy, { holdAfterTurnMin: 7.5 })).toEqual(['holdAfterTurnMin']);
     expect(issuesOf(MachinePowerPolicy, { keepMacAwake: 'yes' })).toEqual(['keepMacAwake']);
     expect(issuesOf(MachinePowerPolicy, { keepOn: { days: [8] } })).toEqual(['keepOn.days.0']);
+  });
+});
+
+describe('the machine tools', () => {
+  it('are five CLIs, of which the page installs Claude Code and Codex', () => {
+    expect(MachineTool.options).toEqual(['claude', 'codex', 'git', 'gh', 'docker']);
+    expect(InstallableTool.options).toEqual(['claude', 'codex']);
+  });
+
+  it('install the versions the Dockerfiles pin', () => {
+    for (const file of ['Dockerfile.login', 'Dockerfile.runner']) {
+      const text = readFileSync(new URL(`../../../deploy/${file}`, import.meta.url), 'utf8');
+      for (const { name, version } of Object.values(TOOL_PACKAGES))
+        expect(text).toContain(`${name}@${version}`);
+    }
+  });
+
+  it('read the version a CLI printed and say when it is older than the pinned one', () => {
+    expect(toolVersionNumber('2.1.319 (Claude Code)')).toBe('2.1.319');
+    expect(toolVersionNumber('codex-cli 0.163.0')).toBe('0.163.0');
+    expect(toolVersionNumber('Docker version 27.3.1, build ce12230')).toBe('27.3.1');
+    expect(toolVersionNumber('gh version 2.40')).toBe('2.40');
+    expect(toolVersionNumber('no number')).toBeUndefined();
+    expect(toolNeedsUpdate('codex-cli 0.162.1', '0.163.0')).toBe(true);
+    expect(toolNeedsUpdate('2.1.99 (Claude Code)', '2.1.308')).toBe(true);
+    expect(toolNeedsUpdate('codex-cli 0.163.0', '0.163.0')).toBe(false);
+    expect(toolNeedsUpdate('2.1.319 (Claude Code)', '2.1.308')).toBe(false);
+    expect(toolNeedsUpdate('codex-cli 1.0', '0.163.0')).toBe(false);
+    expect(toolNeedsUpdate('2.1 (Claude Code)', '2.1.308')).toBe(true);
+    expect(toolNeedsUpdate('a version we cannot read', '0.163.0')).toBe(false);
   });
 });

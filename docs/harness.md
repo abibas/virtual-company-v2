@@ -346,9 +346,10 @@ with its own folders.
 - Turns and chat terminals start the CLI by that full path, with its folder first on the child's PATH, so its own
   helpers resolve (the `node` beside an npm-installed `claude` in an nvm `bin`).
 - A turn or a chat terminal for a harness that was missing at start searches again first (no process unless it is found
-  now, then one `--version`). When found, the turn runs it and the next hello carries its version. There is no frame
-  that updates `caps` on a live link, and the server refuses a harness the last hello said is missing
-  (`harness_missing`), so a CLI installed later counts once the runner reconnects.
+  now, then one `--version`). When found, the turn runs it and the next hello carries its version. The server refuses a
+  harness its view of the runner says is missing (`harness_missing`); since 2026-11-10 that view follows `runner.caps`,
+  which the runner sends after the Machines page's **Check again** or **Install** (docs/machines.md, "Tools"), so a CLI
+  installed later counts at once, with no reconnect.
 - `install` puts the usual folders that exist on the service's PATH too (docs/machines.md, "Install").
 
 `ask` in chat mode refuses a tool that needs approval (Claude Code's denials and Codex's declined commands become `warn`

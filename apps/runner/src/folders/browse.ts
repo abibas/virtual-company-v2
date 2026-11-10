@@ -140,8 +140,16 @@ async function mkdir(host: FolderHost, frame: FsMkdir): Promise<FsResult> {
   return { type: 'fs.result', cmdId: frame.cmdId, ok: true, path };
 }
 
-/** The answer to `fs.list` or `fs.mkdir`; it never throws. */
-export async function browse(host: FolderHost, frame: FsList | FsMkdir): Promise<FsResult> {
+/** The answer to `fs.list` or `fs.mkdir` (`unsupported` without a host: a runner that does not browse); it never throws. */
+export async function browse(host: FolderHost | undefined, frame: FsList | FsMkdir): Promise<FsResult> {
+  if (host === undefined) {
+    return {
+      type: 'fs.result',
+      cmdId: frame.cmdId,
+      ok: false,
+      error: 'unsupported: this runner does not browse folders',
+    };
+  }
   try {
     return await (frame.type === 'fs.list' ? list(host, frame) : mkdir(host, frame));
   } catch (error) {

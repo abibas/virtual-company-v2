@@ -14,6 +14,7 @@ import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { nodesById } from '../../components/org/chart.ts';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
+import { HarnessToolWarning } from '../machines/tools/ToolWarning.tsx';
 import {
   type PlacementDraft,
   type PlacementStep,
@@ -122,6 +123,38 @@ function ProfileActions({ form }: { readonly form: ProfileForm }) {
   );
 }
 
+/** "Where it runs" on the form's placement draft, and the note under the access profile about its harness's CLI there. */
+function placementParts(
+  form: ProfileForm,
+  at: {
+    readonly companyId: string;
+    readonly machinesHref: string;
+    readonly admin: boolean;
+    readonly slug: string;
+  },
+) {
+  const { companyId, machinesHref } = at;
+  return {
+    where: (
+      <WhereItRuns
+        draft={form.placement}
+        companyId={companyId}
+        machinesHref={machinesHref}
+        readOnly={!at.admin}
+        agentSlug={at.slug}
+      />
+    ),
+    profileNote: (
+      <HarnessToolWarning
+        companyId={companyId}
+        machineId={form.placement.values.machineId}
+        harness={form.draft.values.harness}
+        machinesHref={machinesHref}
+      />
+    ),
+  };
+}
+
 /** The loaded agent: its header with the status actions, then its fields, editable for admins. */
 function ProfileBody({
   agent,
@@ -143,15 +176,7 @@ function ProfileBody({
     event.preventDefault();
     void form.save();
   };
-  const where = (
-    <WhereItRuns
-      draft={form.placement}
-      companyId={companyId}
-      machinesHref={machinesHref}
-      readOnly={!admin}
-      agentSlug={agent.slug}
-    />
-  );
+  const parts = placementParts(form, { companyId, machinesHref, admin, slug: agent.slug });
   return (
     <div className="grid gap-4 md:gap-5">
       <AgentHeader
@@ -165,7 +190,7 @@ function ProfileBody({
       <form onSubmit={submit} className="grid gap-4 md:gap-5">
         <AgentForm
           draft={form.draft}
-          where={where}
+          {...parts}
           chart={chart.data}
           agent={agent}
           meUserId={meUserId}

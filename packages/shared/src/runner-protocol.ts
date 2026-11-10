@@ -125,6 +125,7 @@ export {
   RunEvent,
   RunEvents,
   RunnerCaps,
+  RunnerCapsUpdate,
   RunnerFrame,
   type RunnerFrameType,
   RunnerHeartbeat,
@@ -160,6 +161,24 @@ export {
   TunnelSet,
   TunnelSpec,
 } from './runner-protocol/server-frames.ts';
+export {
+  PackageVersion,
+  RunnerTools,
+  TOOL_INSTALL_ERRORS,
+  TOOL_OUTPUT_LINE_MAX,
+  TOOL_OUTPUT_LINES_MAX,
+  TOOL_RUNNER_FRAMES,
+  TOOL_SERVER_FRAMES,
+  TOOLS_CHECK_TIMEOUT_MS,
+  TOOLS_INSTALL_TIMEOUT_MS,
+  type ToolInstallError,
+  ToolsCheck,
+  ToolsInstall,
+  ToolsOutput,
+  ToolsResult,
+  ToolVersion,
+  toolInstallErrorCode,
+} from './runner-protocol/tools.ts';
 export {
   HarnessVersion,
   HarnessVersions,

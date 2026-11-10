@@ -4,22 +4,24 @@ import type {
   PowerResult,
   RunnerFrame,
   RunnerUpdateResult,
+  ToolsResult,
 } from '@mwc/shared/runner-protocol';
 
 /**
  * How a runner answers the hub's commands (docs/runner-protocol.md, "Semantics"): `cmd.ack`, `power.result` for
- * `power.command`, `runner.update.result` for `runner.update` and `fs.result` for `fs.list` and `fs.mkdir`, matched by
- * `cmdId`; and why a request failed.
+ * `power.command`, `runner.update.result` for `runner.update`, `fs.result` for `fs.list` and `fs.mkdir` and
+ * `tools.result` for `tools.check` and `tools.install`, matched by `cmdId`; and why a request failed.
  */
 
 /** A runner's answer to a command. */
-export type CommandReply = CmdAck | PowerResult | RunnerUpdateResult | FsResult;
+export type CommandReply = CmdAck | PowerResult | RunnerUpdateResult | FsResult | ToolsResult;
 
 const REPLIES: ReadonlySet<string> = new Set([
   'cmd.ack',
   'power.result',
   'runner.update.result',
   'fs.result',
+  'tools.result',
 ]);
 
 /** True for a frame that answers a command. */

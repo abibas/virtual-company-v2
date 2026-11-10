@@ -6,6 +6,7 @@ import { harnessLabel } from '../../../components/org/agent-labels.ts';
 import { AgentAvatar } from '../../../components/org/OrgNodeCard.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { ClaudeMark, OpenAIMark } from '../../../components/ui/ProviderLogo.tsx';
+import { HarnessChip } from './HarnessChip.tsx';
 import { OpenInClaudeCode } from './OpenInClaudeCode.tsx';
 import { ProfilePicker } from './ProfilePicker.tsx';
 
@@ -41,8 +42,8 @@ function WhereLine({ placement }: { readonly placement: AgentPlacement | undefin
 
 /**
  * The open chat's header (S5.1c): the agent, where it runs, the harness, "Open in Claude Code" for admins once the chat
- * has a conversation (S5.2 step 6), the access profile picker and the Chat / Terminal switch (the terminal for owners
- * only).
+ * has a conversation (S5.2 step 6), the harness CLI on the machine (linking to its tools), the access profile picker and
+ * the Chat / Terminal switch (the terminal for owners only).
  */
 export function ChatHeader({
   companyId,
@@ -109,6 +110,7 @@ export function ChatHeader({
         {admin && (
           <OpenInClaudeCode companyId={companyId} chat={chat} placement={placement} sessionCwd={sessionCwd} />
         )}
+        <HarnessChip companyId={companyId} machineId={chat.machineId} harness={chat.harness} />
         <ProfilePicker
           chat={chat}
           agentProfileName={agent.profile?.name ?? null}

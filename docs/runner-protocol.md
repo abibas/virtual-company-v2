@@ -66,7 +66,8 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it), folders (boolean: it answers `fs.list` and `fs.mkdir`, S5.1d; false when left out)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it), `builtAt` (when its bundle was built, UTC ISO 8601, or null from its sources; left out by a runner older than versioned runners, which parses as null; docs/machines.md, "Runner versions") | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it), folders (boolean: it answers `fs.list` and `fs.mkdir`, S5.1d; false when left out), tools? (`{claude, codex, git, gh, docker}`, each CLI's `--version` first line, 1–100 characters, or null; left out by a runner older than the tools, which knows no `tools.*` frame; "Tools" below)}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it), `builtAt` (when its bundle was built, UTC ISO 8601, or null from its sources; left out by a runner older than versioned runners, which parses as null; docs/machines.md, "Runner versions") | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
+| `runner.caps` | `caps` (the whole `RunnerCaps` again) | what it can do changed on the live link (its tools after `tools.check` or `tools.install`, sent before their `tools.result`); the server's hub replaces the hello's caps and records the machine's slots and Claude Code version; no answer |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
 | `job.accept` | `id` (the offer), `runId` | → `run.start` |
@@ -84,6 +85,8 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `turn.events` | `turnId`, `events[1–100]{seq ≥ 1, event}` (`event` a `TurnEvent` of `@mwc/shared/harness`) | a chat turn's next events, in order (S5.1b, "Chat turns" below); no answer |
 | `turn.question` | `turnId`, `seq ≥ 1` (its number among the turn's events), `questionId` (the runner's UUID), `questions` (1–4 `AskQuestion`s: `question`, `header`, `options[2–8]{label, description}`, `multiSelect`) | the agent called the runner's `ask_user_question` tool (S5.2 step 4, "Chat turns" below); no answer: the person's answer comes as the chat's next turn |
 | `fs.result` | `cmdId`, `ok`, `error?` (`<code>: <words>`, the code one of `FOLDER_ERRORS`), `path?` (resolved, absolute), and for a listing `parent?` (null at `/` and at the container's root), `entries?[≤ 500]{name, git, claudeMd}`, `truncated?`, `home?` (the runner user's home), `root?` (`/work` in a container, else null) | the answer to `fs.list` and `fs.mkdir` (instead of `cmd.ack`; "Folders" below) |
+| `tools.output` | `cmdId` (the install's), `line` (≤ 500 characters) | one line npm printed during a `tools.install` (both streams, at most 500 lines, then one notice); the server hands it to the request; no answer |
+| `tools.result` | `cmdId`, `ok`, `tools?` (as `caps.tools`), `error?` (`<code>: <words>`, the code one of `TOOL_INSTALL_ERRORS`: `unsupported`, `busy`, `npm_missing`, `timeout`, `failed`) | the answer to `tools.check` and `tools.install` (instead of `cmd.ack`), after the versions were read again ("Tools" below) |
 | `turn.end` | `turnId`, `ok`, `exitCode` (int\|null), `error?` (a `TURN_ERRORS` code, optionally `: ` and words), `authJson?` (a Codex login the process rewrote, a JSON object of at most 64 KB) | once per turn, after its last events; no answer |
 
 ## Server → runner
@@ -111,6 +114,8 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `turn.input` | `turnId`, `inputId` (the waiting turn's UUID), `text` (1–20 000 characters) | the person's message for the running turn (S5.2 step 6, "Chat turns" below); no answer: the harness's echo comes back as an `input` event with `inputId`, or nothing |
 | `fs.list` | `cmdId`, `path` (absolute or `~/…`, 1–1024 characters; null for the default start) | the folders in a folder; answered by `fs.result` (S5.1d) |
 | `fs.mkdir` | `cmdId`, `path` (absolute or `~/…`) | make one folder whose parent exists; answered by `fs.result` |
+| `tools.check` | `cmdId` | look for the CLIs again and ask each one found its version; answered by `runner.caps`, then `tools.result` |
+| `tools.install` | `cmdId`, `tool` (`claude` \| `codex`), `version` (an exact version: the server's pin) | install it with npm into `~/.local`; answered by `tools.output` lines, `runner.caps` and `tools.result` ("Tools" below) |
 | `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT; its `turn.end` says `stopped` |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
@@ -127,9 +132,9 @@ limit alone.
   contiguous seq it holds; the runner forgets events up to it. At most 500 unacked events in flight over all runs; then
   the runner stops reading (its disk keeps everything).
 - **Commands.** Every server frame with a `cmdId` is answered once, `cmd.ack` (or `power.result`, `runner.update.result`,
-  `fs.result`); duplicates after a reconnect are normal, and the runner remembers the `cmdId`s it ran (a folder listing
+  `fs.result`, `tools.result`); duplicates after a reconnect are normal, and the runner remembers the `cmdId`s it ran (a folder listing
   is read again instead of kept). A runner older than a command acks it as unknown (`cmd.ack`, `ok: false`), which the
-  server reads for `runner.update` as `unsupported` and for the folder frames as `runner_outdated`.
+  server reads for `runner.update` as `unsupported` and for the folder and tools frames as `runner_outdated`.
 - **Leases.** Each heartbeat sets `runs.lease_expires_at = now + 90 s` for the runs it lists. A lapse makes the run
   `lost` (never failed or cancelled) and the machine offline; the next resync reconciles: `running` stays running,
   `exited` is finalized from the journal, `gone` fails with `runner_lost_process` and is re-run in the same
@@ -296,6 +301,32 @@ when it has the browser; the server sends `fs.list` and `fs.mkdir` only to such 
   browser), `failed` (any other file system error, with its words). The server answers them as 422s in plain words,
   `not_found` as `folder_not_found` and `exists` as `folder_exists` (docs/machines.md).
 
+## Tools
+
+Added 2026-11-10 (`runner-protocol/tools.ts`, the runner's `apps/runner/src/tools/`; what Ihor sees and the server's
+routes are in docs/machines.md, "Tools"). A runner says the CLIs it found in `caps.tools` (`RunnerTools`: `claude`,
+`codex`, `git`, `gh`, `docker`, each its `--version`'s first line or null; a CLI a side does not know yet is null and a
+newer one passes through). The server sends `tools.check` and `tools.install` only to a runner that says `caps.tools`.
+
+- **`tools.check {cmdId}`**: the runner looks for every CLI again (no process for a missing one, one `--version` per
+  found one), has its harnesses look again for a harness CLI found now (so a turn drives it and `caps.harnesses` says
+  it), sends `runner.caps` and then answers `tools.result {ok: true, tools}`. The server waits 45 s
+  (`TOOLS_CHECK_TIMEOUT_MS`).
+- **`tools.install {cmdId, tool, version}`**: `tool` is `claude` or `codex` (`InstallableTool` of `@mwc/shared/machines`),
+  `version` an exact version (`PackageVersion`: `2.1.308`, `1.0.0-beta.1`; never a range or a tag), the server's pin
+  (`TOOL_PACKAGES`). The runner refuses it with `tools.result {ok: false, error}` when it cannot install here
+  (`unsupported`: a container, or no way to start a process), while another install runs (`busy`), and without an npm
+  beside its Node (`npm_missing`). Otherwise it runs `<node's folder>/npm install -g --prefix <home>/.local
+  <package>@<version>` as its user from its home, in its own process group, with npm's folder first on the PATH and no
+  `MWC_*` variable; every line npm prints on either stream is sent as `tools.output {cmdId, line}` (cut to
+  `TOOL_OUTPUT_LINE_MAX`, 500 characters; after `TOOL_OUTPUT_LINES_MAX`, 500 lines, one notice and nothing more); after
+  `TOOLS_INSTALL_TIMEOUT_MS` (10 minutes) the group gets SIGKILL (`timeout`). When npm ends it reads the versions again
+  as a check does, sends `runner.caps`, and answers `tools.result {ok, tools, error?}` (`failed: npm exited with code N
+  (<its last line>)` on a failure). A repeated `cmdId` gets the remembered answer; a runner that stops kills an install
+  under way. The server waits the runner's 10 minutes and one more.
+- **`runner.caps {caps}`** carries the whole caps again; it comes before the answer, so the server's view is current
+  when the answer arrives.
+
 ## Limits and timers
 
 | Constant | Value |
@@ -320,6 +351,7 @@ when it has the browser; the server sends `fs.list` and `fs.mkdir` only to such 
 | the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | the self-update (`apps/runner/src/update/`, the server's `service/runner/update.ts`) | 3 minutes for the runner's answer, 2 minutes per download, the restart 250 ms after the answer, exit code 75 |
 | `FOLDERS_MAX`, `FOLDERS_TIMEOUT_MS` | 500 folders in one `fs.result`, 10 s for the runner's answer |
+| `TOOLS_CHECK_TIMEOUT_MS`, `TOOLS_INSTALL_TIMEOUT_MS`, `TOOL_OUTPUT_LINE_MAX`, `TOOL_OUTPUT_LINES_MAX` | 45 s for a check's answer, 10 minutes for npm (the server waits a minute more), 500 characters per output line, 500 lines per install |
 | `RUNNER_CLOSE` | 1009 frame too large, 4001 unauthorized (key revoked or machine removed while connected), 4002 unsupported protocol, 4003 runner too old, 4004 replaced, 4008 hello timeout |
 
 ## Reading and writing frames

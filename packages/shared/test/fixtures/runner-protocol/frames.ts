@@ -40,6 +40,15 @@ export const QUESTION: AskQuestion = {
 
 export const NOW = Date.UTC(2026, 10, 6, 12, 0, 0);
 
+/** The CLIs a Mac's runner found: Claude Code, Codex and git; no gh, no Docker. */
+export const TOOLS = {
+  claude: '2.1.319 (Claude Code)',
+  codex: 'codex-cli 0.163.0',
+  git: 'git version 2.39.5 (Apple Git-154)',
+  gh: null,
+  docker: null,
+} as const;
+
 /** A runner build: the SHA-256 of a bundle. */
 export const BUILD = 'ab'.repeat(32);
 
@@ -102,9 +111,23 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       terminal: true,
       selfUpdate: true,
       folders: true,
+      tools: TOOLS,
     },
     build: BUILD,
     builtAt: '2026-11-09T16:40:00.000Z',
+  },
+  'runner.caps': {
+    type: 'runner.caps',
+    caps: {
+      harnesses: { claude_code: '2.1.319 (Claude Code)', codex: 'codex-cli 0.163.0' },
+      slots: 2,
+      hold: 'caffeinate',
+      power: [],
+      terminal: true,
+      selfUpdate: true,
+      folders: true,
+      tools: TOOLS,
+    },
   },
   'runner.heartbeat': {
     type: 'runner.heartbeat',
@@ -184,6 +207,8 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
     home: '/Users/ihor',
     root: null,
   },
+  'tools.output': { type: 'tools.output', cmdId: IDS.cmd, line: 'added 2 packages in 4s' },
+  'tools.result': { type: 'tools.result', cmdId: IDS.cmd, ok: true, tools: TOOLS },
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
@@ -251,4 +276,6 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
   'turn.stop': { type: 'turn.stop', turnId: IDS.turn },
   'fs.list': { type: 'fs.list', cmdId: IDS.cmd, path: '~/agents' },
   'fs.mkdir': { type: 'fs.mkdir', cmdId: IDS.cmd, path: '/Users/ihor/agents/scout' },
+  'tools.check': { type: 'tools.check', cmdId: IDS.cmd },
+  'tools.install': { type: 'tools.install', cmdId: IDS.cmd, tool: 'codex', version: '0.163.0' },
 };
