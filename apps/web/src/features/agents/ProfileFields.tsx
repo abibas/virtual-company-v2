@@ -1,4 +1,3 @@
-import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import { useId } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
@@ -12,97 +11,81 @@ import { profileLabel } from '../../components/org/agent-labels.ts';
 import { Button } from '../../components/ui/Button.tsx';
 import { PROVIDER_STYLES } from '../subscriptions/Providers.tsx';
 import { profilesOf } from '../subscriptions/profile-options.ts';
-import type { AgentDraft, ProfileDefaults } from './agent-draft.ts';
+import type { AgentDraft } from './agent-draft.ts';
+import { followProvider } from './harness-from-profile.ts';
 
 /** The person's own access profiles, as the form loads them once. */
 type MyProfiles = Loaded<{ readonly profiles: readonly AccessProfile[] }>;
-
-/** The provider of a profile the form knows: one of the person's, or the agent's own; undefined when it does not. */
-function providerOf(id: string, mine: readonly AccessProfile[], theirs: AgentProfile | null | undefined) {
-  return (
-    mine.find((profile) => profile.id === id)?.provider ?? (theirs?.id === id ? theirs.provider : undefined)
-  );
-}
-
-/**
- * The profile a change of the form's harness leaves it with: a profile of the other provider is replaced by
- * the hirer's default of the new one (none on an agent's page, where saving takes it off); on the hire form, no
- * profile yet takes that default too. A profile the form cannot place yet (still loading) stays.
- */
-export function profileForHarness(
-  harness: Harness,
-  current: string | null,
-  known: { readonly mine: readonly AccessProfile[]; readonly agent?: AgentDetail | undefined },
-  defaults: ProfileDefaults | undefined,
-): string | null {
-  const provider = HARNESS_PROVIDER[harness];
-  if (current === null) return defaults?.[provider] ?? null;
-  const held = providerOf(current, known.mine, known.agent?.profile);
-  return held === undefined || held === provider ? current : (defaults?.[provider] ?? null);
-}
 
 /** The address of New profile for a provider on the person's profiles page. */
 function newProfileHref(profilesHref: string, provider: ProfileProvider): string {
   return `${profilesHref}${profilesHref.includes('?') ? '&' : '?'}new=${provider}`;
 }
 
-/** The hint under the profile select: which profiles fit the harness, and Make one (New profile of that provider). */
+/** The hint under the profile select: what the profile decides, what runs the agent now, and the profiles page. */
 function ProfileHint({
-  provider,
+  harness,
   count,
   error,
 }: {
-  readonly provider: ProfileProvider;
+  readonly harness: Harness;
   readonly count: number | undefined;
   readonly error: unknown;
 }) {
   const profilesHref = usePersonalHref('profiles');
   if (error !== undefined) return friendlyMessage(error);
-  const style = PROVIDER_STYLES[provider];
   const link = (
     <Link
-      to={count === 0 ? newProfileHref(profilesHref, provider) : profilesHref}
+      to={count === 0 ? newProfileHref(profilesHref, 'claude') : profilesHref}
       className="font-semibold text-blue hover:underline"
     >
       {count === 0 ? 'Make one' : 'Your access profiles'}
     </Link>
   );
-  return count === 0 ? (
+  if (count === 0)
+    return <>You have no access profile yet: the agent runs on one of your subscriptions. {link}</>;
+  const runs = harness === 'codex' ? 'Codex' : 'Claude Code';
+  return (
     <>
-      You have no {style.name} profile yet, which {style.agents} run on. {link}
-    </>
-  ) : (
-    <>
-      Your {style.name} profiles: {style.agents} run on them. {link}
+      The profile decides what runs it: a Claude profile runs Claude Code, an OpenAI profile runs Codex. Now:{' '}
+      {runs}. {link}
     </>
   );
 }
 
-/** One of the signed-in person's own profiles of the provider the harness runs on, or None. */
+/** One of the signed-in person's own profiles, Claude's first then OpenAI's, or None; a pick sets the harness. */
 function MyProfileSelect({ draft, profiles }: { readonly draft: AgentDraft; readonly profiles: MyProfiles }) {
-  const provider = HARNESS_PROVIDER[draft.values.harness];
   const all = profiles.data?.profiles ?? [];
-  const fitting = profilesOf(all, provider);
+  const ordered = [...profilesOf(all, 'claude'), ...profilesOf(all, 'openai')];
   const value = draft.values.profileId ?? '';
-  const options = [{ value: '', label: 'None' }, ...fitting.map((p) => ({ value: p.id, label: p.name }))];
-  if (value && !fitting.some((p) => p.id === value)) {
-    const other = all.find((p) => p.id === value);
-    const label = other
-      ? `${other.name} (for ${PROVIDER_STYLES[other.provider].name}: does not fit)`
-      : profiles.data
-        ? 'A profile that no longer exists'
-        : 'Loading your profiles…';
-    options.push({ value, label });
+  const options = [
+    { value: '', label: 'None' },
+    ...ordered.map((p) => ({ value: p.id, label: `${p.name} · ${PROVIDER_STYLES[p.provider].name}` })),
+  ];
+  if (value && !ordered.some((p) => p.id === value)) {
+    options.push({
+      value,
+      label: profiles.data ? 'A profile that no longer exists' : 'Loading your profiles…',
+    });
   }
+  const pick = (id: string) => {
+    draft.set('profileId', id || null);
+    const picked = all.find((p) => p.id === id);
+    if (picked) followProvider(draft, picked.provider);
+  };
   return (
     <SelectField
       label="Access profile"
       value={value}
       options={options}
       disabled={profiles.loading && profiles.data === undefined}
-      onChange={(event) => draft.set('profileId', event.target.value || null)}
+      onChange={(event) => pick(event.target.value)}
       hint={
-        <ProfileHint provider={provider} count={profiles.data && fitting.length} error={profiles.error} />
+        <ProfileHint
+          harness={draft.values.harness}
+          count={profiles.data && ordered.length}
+          error={profiles.error}
+        />
       }
     />
   );

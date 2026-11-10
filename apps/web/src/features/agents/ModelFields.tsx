@@ -4,15 +4,16 @@ import type { ReactNode } from 'react';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import { ChoiceField, SelectField, TextField } from '../../components/forms/Field.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
-import { CODEX_MODELS, EFFORT_OPTIONS, HARNESS_OPTIONS, MODELS } from '../../components/org/agent-labels.ts';
+import { EFFORT_OPTIONS } from '../../components/org/agent-labels.ts';
 import { Panel } from '../../components/ui/Panel.tsx';
 import type { AgentDraft } from './agent-draft.ts';
-import { ProfileChoice, type ProfileProps, profileForHarness } from './ProfileFields.tsx';
+import { modelsOf } from './harness-from-profile.ts';
+import { ProfileChoice, type ProfileProps } from './ProfileFields.tsx';
 
 const CUSTOM = 'custom';
 const ANOTHER = { value: CUSTOM, label: 'Another model (type its id)' };
 /** The models a harness offers: Claude's for Claude Code, Codex's default for Codex; and any id typed in. */
-const modelOptions = (harness: Harness) => [...(harness === 'codex' ? CODEX_MODELS : MODELS), ANOTHER];
+const modelOptions = (harness: Harness) => [...modelsOf(harness), ANOTHER];
 
 /** 1 to 8, as the choices of a segmented control. */
 const RUN_OPTIONS: readonly SegmentOption<string>[] = Array.from(
@@ -56,36 +57,35 @@ function ModelChoice({ draft, readOnly }: { readonly draft: AgentDraft; readonly
 }
 
 /**
- * How the agent works: its model, whose subscription it runs on (an access profile of the provider its harness runs
- * on), its effort, its harness, its runs at once, and where it runs (`where`, the form's "Where it runs"). Changing the
- * harness changes a profile of the other provider for the hirer's default of the new one (the draft's
- * `profileDefaults`, when hiring), or none.
+ * How the agent works, in the order it is decided: how many runs at once, whose subscription it runs on (an access
+ * profile, which also decides what runs it: Claude Code for a Claude profile, Codex for an OpenAI one), its model
+ * (that harness's), its effort, and where it runs (`where`, the form's "Where it runs"). There is no harness choice:
+ * each provider's own harness is the only one today.
  */
 export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?: ReactNode }) {
-  const { draft, readOnly, agent } = props;
+  const { draft, readOnly } = props;
   const { values, set } = draft;
   const profiles = useAccessProfiles();
-  const changeHarness = (harness: Harness) => {
-    set('harness', harness);
-    // A known model of the other harness makes no sense here: take this harness's first one.
-    const known = (harness === 'codex' ? CODEX_MODELS : MODELS).some(
-      (option) => option.value === values.model,
-    );
-    if (!values.customModel && !known)
-      set('model', (harness === 'codex' ? CODEX_MODELS : MODELS)[0]?.value ?? '');
-    const mine = profiles.data?.profiles ?? [];
-    set('profileId', profileForHarness(harness, values.profileId, { mine, agent }, draft.profileDefaults));
-  };
   return (
     <Panel
       title="How it works"
-      description="The model behind it, whose subscription it runs on, how hard it thinks, what runs it and where."
+      description="How many tasks at once, whose subscription it runs on (which also decides what runs it), its model, how hard it thinks, and where."
     >
       <div className="flex flex-col gap-5">
-        <ModelChoice draft={draft} readOnly={readOnly} />
+        <ChoiceField label="Runs at once" hint="How many tasks it may work on at the same time.">
+          <SegmentedControl
+            label="Runs at once"
+            size="sm"
+            options={RUN_OPTIONS}
+            value={String(values.maxConcurrentRuns)}
+            onChange={(runs) => set('maxConcurrentRuns', Number(runs))}
+            disabled={readOnly}
+          />
+        </ChoiceField>
         <div className="grid gap-4 sm:grid-cols-2">
           <ProfileChoice {...props} profiles={profiles} />
         </div>
+        <ModelChoice draft={draft} readOnly={readOnly} />
         <ChoiceField label="Effort" hint="More effort thinks longer and costs more; high suits most work.">
           <SegmentedControl
             label="Effort"
@@ -96,27 +96,6 @@ export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?
             className="max-w-full overflow-x-auto"
           />
         </ChoiceField>
-        <div className="flex flex-wrap gap-x-8 gap-y-5">
-          <ChoiceField label="Harness" hint="What runs it on a machine: Claude Code or OpenAI's Codex.">
-            <SegmentedControl
-              label="Harness"
-              options={HARNESS_OPTIONS}
-              value={values.harness}
-              onChange={changeHarness}
-              disabled={readOnly}
-            />
-          </ChoiceField>
-          <ChoiceField label="Runs at once" hint="How many tasks it may work on at the same time.">
-            <SegmentedControl
-              label="Runs at once"
-              size="sm"
-              options={RUN_OPTIONS}
-              value={String(values.maxConcurrentRuns)}
-              onChange={(runs) => set('maxConcurrentRuns', Number(runs))}
-              disabled={readOnly}
-            />
-          </ChoiceField>
-        </div>
         {where}
       </div>
     </Panel>
