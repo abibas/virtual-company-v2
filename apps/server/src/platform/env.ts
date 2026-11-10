@@ -3,6 +3,7 @@ import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { JobsView } from './jobs/status.ts';
+import type { LocalDocker } from './processes/docker/local.ts';
 import type { LoginHelper } from './processes/login-helper/port.ts';
 import type { Speech } from './processes/speech/whisper.ts';
 import type { Keyring } from './secrets/keyring.ts';
@@ -61,6 +62,11 @@ export interface AppDeps {
    * computer's whisper.cpp when MWC_WHISPER finds it (`processes/speech/select.ts`), stopped with the server.
    */
   readonly speech?: Speech | undefined;
+  /**
+   * This computer's Docker CLI, with which the server rebuilds container runners (tests pass a fake; undefined: none, the
+   * card shows the command). Omitted, the one MWC_LOCAL_DOCKER finds (`processes/docker/local.ts`).
+   */
+  readonly localDocker?: LocalDocker | undefined;
   /**
    * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
    * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.

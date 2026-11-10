@@ -1,6 +1,6 @@
 import type { InstallableTool } from '@mwc/shared/machines';
 import { type Refusal, refuse } from '../rules.ts';
-import type { MachineJobView, MachineLiveView } from '../schemas/jobs.ts';
+import type { MachineJobView, MachineLiveView, RunnerUpdateFailureView } from '../schemas/jobs.ts';
 import type { RunnerUpdatePath } from '../schemas/update.ts';
 
 /**
@@ -16,7 +16,21 @@ export type MachineJob =
       readonly version: string;
       readonly startedAt: Date;
     }
-  | { readonly kind: 'runner_update'; readonly path: RunnerUpdatePath; readonly startedAt: Date };
+  | {
+      readonly kind: 'runner_update';
+      readonly path: RunnerUpdatePath;
+      readonly startedAt: Date;
+      /** A rebuild's last output line so far. */
+      readonly progress?: string;
+    };
+
+/** A runner update that failed after its answer (a container's rebuild): why, the command to run instead, when. */
+export interface UpdateFailure {
+  readonly path: RunnerUpdatePath;
+  readonly message: string;
+  readonly command: string | null;
+  readonly at: Date;
+}
 
 /** How people call the CLIs an install installs. */
 export const TOOL_NAMES: Readonly<Record<InstallableTool, string>> = {
@@ -28,7 +42,9 @@ export const TOOL_NAMES: Readonly<Record<InstallableTool, string>> = {
 export function jobText(job: MachineJob): string {
   return job.kind === 'tool_install'
     ? `${TOOL_NAMES[job.tool]} ${job.version} is being installed: wait for it to finish`
-    : 'The runner is updating: wait for it to restart';
+    : job.path === 'docker_rebuild'
+      ? 'The container is being rebuilt: wait for its runner to restart'
+      : 'The runner is updating: wait for it to restart';
 }
 
 /** Another job runs on the machine. */
@@ -61,5 +77,12 @@ export function jobView(job: MachineJob | undefined): MachineJobView | null {
   const startedAt = job.startedAt.toISOString();
   return job.kind === 'tool_install'
     ? { kind: job.kind, tool: job.tool, version: job.version, startedAt }
-    : { kind: job.kind, path: job.path, startedAt };
+    : { kind: job.kind, path: job.path, startedAt, ...(job.progress ? { progress: job.progress } : {}) };
+}
+
+/** A failed update as the API shows it. */
+export function failureView(failure: UpdateFailure | undefined): RunnerUpdateFailureView | null {
+  if (failure === undefined) return null;
+  const { path, message, command, at } = failure;
+  return { path, message, command, at: at.toISOString() };
 }

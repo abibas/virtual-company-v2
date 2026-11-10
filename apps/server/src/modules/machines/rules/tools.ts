@@ -19,12 +19,6 @@ export const TOOLS_OUTDATED = refuse(
   "The machine's runner is older than the tools: update it on the Machines page",
 );
 
-export const INSTALL_UNSUPPORTED = refuse(
-  409,
-  'unsupported',
-  'A container gets its CLIs from its image: rebuild the image instead',
-);
-
 export const TOOLS_TIMED_OUT = refuse(
   504,
   'runner_timeout',
@@ -52,6 +46,19 @@ export interface InstallOutcome {
   readonly ok: boolean;
   readonly tools: RunnerTools | null;
   readonly error: string | null;
+}
+
+/**
+ * What a container's runner built before installs in a container (2026-11-10) answers `tools.install` with
+ * (`unsupported: …`), said as what to do: update the container once.
+ */
+export const CONTAINER_OUTDATED =
+  "container_outdated: this container's runner is older than installs in a container; update the container once, then install again";
+
+/** An install's end on a container: an old runner's `unsupported` becomes `CONTAINER_OUTDATED`. */
+export function containerOutcome(outcome: InstallOutcome, container: boolean): InstallOutcome {
+  const old = container && !outcome.ok && outcome.error?.startsWith('unsupported:') === true;
+  return old ? { ...outcome, error: CONTAINER_OUTDATED } : outcome;
 }
 
 /** The runner's answer to `tools.install`: its result, or a runner that did not know the frame. */

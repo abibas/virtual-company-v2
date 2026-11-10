@@ -27,6 +27,7 @@ describe('loadConfig', () => {
       MWC_RECONCILE_MINUTES: 10,
       MWC_LOGIN_HELPER: 'docker',
       MWC_LOCAL_POWER: 'auto',
+      MWC_LOCAL_DOCKER: 'auto',
       MWC_WHISPER: 'auto',
       MWC_WHISPER_LANGUAGE: 'auto',
       MWC_WHISPER_PORT: 9957,

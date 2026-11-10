@@ -17,6 +17,13 @@ export type RunnerBuild = z.infer<typeof RunnerBuild>;
 export const RunnerBuiltAt = z.iso.datetime();
 
 /**
+ * The Docker container a runner runs in (`caps.containerId`): its id as the container's hostname says it (12 to 64
+ * lower-case hex digits). A container is rebuilt to update its runner, and the server finds it by this id.
+ */
+export const ContainerId = z.string().regex(/^[0-9a-f]{12,64}$/, 'a Docker container id in lower-case hex');
+export type ContainerId = z.infer<typeof ContainerId>;
+
+/**
  * Why a runner did not update, the code before `: ` in `runner.update.result.error`: it cannot (`unsupported`: run from
  * its sources, in a container, or not under launchd or systemd), it has live work (`busy`), a download failed
  * (`download_failed`), a file did not match its SHA-256 (`hash_mismatch`), or the files could not be put in place

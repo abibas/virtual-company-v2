@@ -1,6 +1,7 @@
 import type { RunnerFrame, RunnerTools, ServerFrame } from '@mwc/shared/runner-protocol';
 import type { FakeRunnerOptions } from '@mwc/testkit/runner';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { CONTAINER_OUTDATED } from '../../../../src/modules/machines/rules/tools.ts';
 import type { ToolInstallView } from '../../../../src/modules/machines/schemas/tools.ts';
 import type { MachineView } from '../../../../src/modules/machines/schemas.ts';
 import { auditOf, enroll, MAC, machinesPath } from '../../../fixtures/machines/machines.ts';
@@ -216,12 +217,31 @@ describe('POST machines/:machineId/tools/install', () => {
     });
   });
 
-  it('refuses a container, no runner, an old runner, a CLI it does not install, members and viewers', async () => {
-    const box = await connected({}, { ...MAC, name: 'Docker runner', kind: 'container' });
-    expect(await box.api.install('codex')).toMatchObject({
-      status: 409,
-      body: { error: { code: 'unsupported' } },
+  it('installs in a container too, and tells a container runner older than that to update the container', async () => {
+    const container = { ...MAC, name: 'Docker runner', kind: 'container' as const };
+    const box = await connected({}, container);
+    const started = (await box.api.install('codex')).body as { installId: string };
+    expect((await ended(box.api, started.installId)).status).toBe('succeeded');
+    const refusing = answering((frame) => [
+      {
+        type: 'tools.result',
+        cmdId: frame.cmdId,
+        ok: false,
+        error: 'unsupported: a container gets its CLIs from its image; rebuild the image instead',
+      },
+    ]);
+    const old = await connected({ respond: refusing }, container);
+    const refused = (await old.api.install('codex')).body as { installId: string };
+    expect(await ended(old.api, refused.installId)).toMatchObject({
+      status: 'failed',
+      error: CONTAINER_OUTDATED,
     });
+    const mac = await connected({ respond: refusing });
+    const kept = (await mac.api.install('codex')).body as { installId: string };
+    expect((await ended(mac.api, kept.installId)).error).toMatch(/^unsupported: /);
+  });
+
+  it('refuses no runner, an old runner, a CLI it does not install, members and viewers', async () => {
     const company = await membersCompany(w);
     const { machineId, runnerKey } = await enroll(w, company);
     expect((await tools(company, machineId).install('codex')).body).toMatchObject({

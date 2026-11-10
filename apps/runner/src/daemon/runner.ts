@@ -38,6 +38,8 @@ export interface RunnerOptions {
   readonly builtAt?: string | null;
   /** How it updates itself (`runner.update`); without it the runner answers `unsupported` (`caps.selfUpdate` false). */
   readonly update?: SelfUpdate;
+  /** Its container's id when it runs in a Docker container (`caps.containerId`), so the server can rebuild that one. */
+  readonly containerId?: string;
   readonly log: Log;
   /** How it holds the machine (`hold/`): `caps.hold` is its kind. */
   readonly hold: HoldDriver;

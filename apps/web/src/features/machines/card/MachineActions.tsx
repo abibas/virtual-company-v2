@@ -74,7 +74,8 @@ function Tools({
 
 /**
  * The card's action row: tools on the left (Connect, Terminal for owners while the machine is online, Update runner
- * for admins while its runner is out of date, waiting while another job or live work runs on the machine, and the
+ * for admins while its runner is out of date (a container's Update container is in Software instead), waiting while
+ * another job or live work runs on the machine, and the
  * power Log), Remove for admins on the right, and the open tool's panel under the row (the terminal in its own sheet,
  * the update's outcome).
  */
@@ -105,7 +106,9 @@ export function MachineActions({
   const connect = connectCommand(machine);
   const [panel, setPanel] = useState<Panel>(null);
   const toggle = (which: 'connect' | 'log') => setPanel((was) => (was === which ? null : which));
-  const due = admin && (runnerOutOfDate(machine, online) || update.state.kind !== 'idle');
+  // A container's runner is updated by rebuilding the container: Update container is in its Software part.
+  const container = machine.kind === 'container';
+  const due = admin && !container && (runnerOutOfDate(machine, online) || update.state.kind !== 'idle');
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -123,7 +126,7 @@ export function MachineActions({
           />
         )}
       </div>
-      <RunnerUpdateNotice update={update} />
+      {!container && <RunnerUpdateNotice update={update} failure={machine.runner.updateFailure} />}
       {connect && panel === 'connect' && <ConnectPanel command={connect.command} hint={connect.hint} />}
       {panel === 'log' && (
         <section aria-label="Log" className="flex flex-col gap-3">

@@ -23,6 +23,7 @@ import {
   type PowerControl,
   type RunnerHub,
 } from '../../../src/modules/machines/index.ts';
+import type { LocalDocker } from '../../../src/platform/processes/docker/local.ts';
 import type { LocalPower } from '../../../src/platform/processes/power/local.ts';
 import type { Keyring } from '../../../src/platform/secrets/keyring.ts';
 import type { AuthWorld } from '../platform/auth.ts';
@@ -63,6 +64,8 @@ export async function machinesWorld(
     readonly providerFetch?: typeof fetch;
     /** The fake npm registry the machines' latest tools are read from (else every read is refused: the pins). */
     readonly registryFetch?: typeof fetch;
+    /** The Docker CLI the server rebuilds container runners with (else none: their command is shown). */
+    readonly localDocker?: LocalDocker;
   } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
@@ -84,6 +87,7 @@ export async function machinesWorld(
     ...(options.keyring === undefined ? {} : { keyring: options.keyring }),
     ...(options.providerFetch === undefined ? {} : { providerFetch: options.providerFetch }),
     ...(options.registryFetch === undefined ? {} : { registryFetch: options.registryFetch }),
+    localDocker: options.localDocker,
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

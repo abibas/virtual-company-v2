@@ -3,7 +3,7 @@ import { HoldSource, MachineKind, MachineProvider, MachineStatus } from '@mwc/sh
 import { LogoRef } from '@mwc/shared/logos';
 import { MACHINE_NAME } from '@mwc/shared/machines';
 import { TunnelStatus } from '@mwc/shared/runner-protocol';
-import { MachineJobSchema, MachineLiveSchema } from './schemas/jobs.ts';
+import { MachineJobSchema, MachineLiveSchema, RunnerUpdateFailureSchema } from './schemas/jobs.ts';
 import { MachineToolsSchema, ToolsLatestSchema } from './schemas/tools.ts';
 
 /** The machines API's shapes (`/api/companies/{companyId}/machines`): never a runner key's secret or hash. */
@@ -64,6 +64,7 @@ export const MachineRunnerSchema = z
     toolsLatest: ToolsLatestSchema,
     job: MachineJobSchema.nullable(),
     live: MachineLiveSchema,
+    updateFailure: RunnerUpdateFailureSchema.nullable(),
   })
   .openapi('MachineRunner');
 

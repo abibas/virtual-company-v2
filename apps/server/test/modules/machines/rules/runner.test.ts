@@ -19,7 +19,12 @@ const TOOLS = {
   gh: null,
   docker: null,
 };
-const IDLE_NOW = { toolsLatest: PINNED_TOOLS, job: null, live: { turns: 0, terminals: 0 } };
+const IDLE_NOW = {
+  toolsLatest: PINNED_TOOLS,
+  job: null,
+  live: { turns: 0, terminals: 0 },
+  updateFailure: null,
+};
 const connected = (
   build: string | null,
   caps: { terminal: boolean; selfUpdate: boolean; tools?: typeof TOOLS } = {

@@ -2,7 +2,7 @@ import { diffFields, type Machine, type TenantDb } from '@mwc/db';
 import { logoRef } from '@mwc/shared/logos';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { type MachinesRepo, machinesRepo } from './repo.ts';
-import { jobView } from './rules/jobs.ts';
+import { failureView, jobView } from './rules/jobs.ts';
 import { machineView } from './rules/machine-view.ts';
 import { isPowered } from './rules/power.ts';
 import { runnerFacts, type ToolsLatest } from './rules/runner.ts';
@@ -69,6 +69,7 @@ const runnerOf = (views: Views, row: Machine, served: string | null) =>
   runnerFacts(views.hub.connected(row.id), served, row.runnerVersion, views.latest(), {
     job: jobView(views.jobs.running(row.id)),
     live: views.hub.live(row.id),
+    failure: failureView(views.jobs.failure(row.id)),
   });
 
 /**

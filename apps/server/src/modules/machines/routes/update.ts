@@ -31,8 +31,10 @@ const updateRoute = (deps: ServerDeps) => {
     description:
       'A connected runner that updates itself downloads the new bundle and PTY, checks their SHA-256, answers and ' +
       'restarts (`self_update`); an Airia devbox runner too old for that is reinstalled by this server over SSH while ' +
-      'the box runs, when the server drives the airia CLI itself (`ssh_reinstall`, up to 3 minutes). Either way the ' +
-      'runner reconnects on its new build moments later. Audited. One job at a time per machine: refused while a tool ' +
+      'the box runs, when the server drives the airia CLI itself (`ssh_reinstall`, up to 3 minutes); a container is ' +
+      'rebuilt by this server with the Docker CLI of the computer running it (`docker_rebuild`, MWC_LOCAL_DOCKER): it ' +
+      'answers at once and rebuilds in the background (`runner.job` shows its progress, `runner.updateFailure` a ' +
+      'failure). Either way the runner reconnects on its new build. Audited. One job at a time per machine: refused while a tool ' +
       'install or another update runs (until the runner is back on its new build), and while chat turns or terminals ' +
       'run on the machine unless `force` (the web never sends it).',
     request: {
@@ -49,7 +51,9 @@ const updateRoute = (deps: ServerDeps) => {
         'Another job runs on the machine, or chat turns or terminals do (`machine_busy`, naming them); the runner is not connected and its box is not running (`machine_offline`), refused for its live work (`runner_busy`), or neither path updates it (`update_unsupported`, with the `command` to run on the machine)',
         RunnerUpdateRefusalSchema,
       ),
-      502: errorResponse('The update was tried and failed (`update_failed`); the runner goes on as it was'),
+      502: errorResponse(
+        'The update was tried and failed, or Docker did not answer (`update_failed`); the runner goes on as it was',
+      ),
     },
   });
 };
@@ -68,6 +72,8 @@ export function runnerUpdateRoutes(
     apiUrl: deps.config.MWC_PUBLIC_URL.replace(/\/+$/, ''),
     apiPort: deps.config.MWC_PORT,
     composeFile: deps.config.NODE_ENV === 'production' ? null : COMPOSE_FILE,
+    docker: deps.localDocker,
+    logger: deps.logger,
   };
   return newRouter().openapi(updateRoute(deps), async (c) => {
     const { principalId } = c.var.membership;

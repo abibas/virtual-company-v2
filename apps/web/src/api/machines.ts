@@ -22,6 +22,9 @@ import { type Loaded, useLoad } from './use-load.ts';
 /** How often the board asks for the stats again; the runners sample once a minute. */
 export const STATS_EVERY_MS = 60_000;
 
+/** How often the Machines page reads the machines again while a job runs on one (an install, a runner update). */
+export const JOBS_EVERY_MS = 3_000;
+
 /**
  * Calls `tick` every `everyMs` while the tab is visible, and at once when it shows again after a longer absence.
  * Nothing while `enabled` is false.
@@ -50,12 +53,20 @@ export function useVisibleInterval(tick: () => void, everyMs: number, enabled = 
   }, [everyMs, enabled]);
 }
 
-/** The machines, by name, and the latest runner the server hands out. */
+/**
+ * The machines, by name, and the latest runner the server hands out. With `follow` (the Machines page) they are read
+ * again every minute while the tab is visible, so a rebuilt runner bundle or a runner that came back shows without a
+ * reload, and every 3 s while a job runs on one (a container's rebuild shows its progress).
+ */
 export function useMachines(
   companyId: string,
+  options: { readonly follow?: boolean } = {},
 ): Loaded<{ readonly machines: readonly Machine[]; readonly latestRunner: LatestRunner }> {
   const api = useApi();
-  return useLoad(`machines:${companyId}`, () => machineCalls(api, companyId).list());
+  const loaded = useLoad(`machines:${companyId}`, () => machineCalls(api, companyId).list());
+  const busy = loaded.data?.machines.some((machine) => machine.runner.job != null) ?? false;
+  useVisibleInterval(loaded.reload, busy ? JOBS_EVERY_MS : STATS_EVERY_MS, options.follow === true);
+  return loaded;
 }
 
 /** Every machine's stats for the board, again every minute while the tab is visible. */

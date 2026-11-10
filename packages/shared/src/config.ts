@@ -37,6 +37,13 @@ export const LoginHelperMode = z.enum(['docker', 'local', 'none']);
 export const LocalPowerMode = z.enum(['auto', 'on', 'off']);
 
 /**
+ * Whether the server rebuilds a container runner's image itself to update its runner, with this computer's Docker CLI
+ * (MWC_LOCAL_DOCKER, docs/machines.md "Updating a runner"): `auto` when `docker` is found and NODE_ENV is development,
+ * `on` whenever it is found (the start fails without it), `off` never (the card shows the command to run instead).
+ */
+export const LocalDockerMode = z.enum(['auto', 'on', 'off']);
+
+/**
  * Whether dictation transcribes with whisper.cpp on the server's own computer (MWC_WHISPER, docs/speech.md): `auto` when
  * its binaries and a model are found, outside production and tests; `off` never (`POST /api/me/speech/transcribe` 503s).
  */
@@ -128,6 +135,8 @@ const EnvSchema = z.object({
   MWC_LOGIN_HELPER: z.preprocess(emptyAsUnset, LoginHelperMode.optional()),
   /** `auto` (the default), `on` or `off`: whether this server drives the airia CLI itself (LocalPowerMode). */
   MWC_LOCAL_POWER: z.preprocess(emptyAsUnset, LocalPowerMode.default('auto')),
+  /** `auto` (the default), `on` or `off`: whether this server rebuilds container runners itself (LocalDockerMode). */
+  MWC_LOCAL_DOCKER: z.preprocess(emptyAsUnset, LocalDockerMode.default('auto')),
   /** `auto` (the default) or `off`: dictation with this computer's whisper.cpp (WhisperMode). */
   MWC_WHISPER: z.preprocess(emptyAsUnset, WhisperMode.default('auto')),
   /** The whisper.cpp model (a ggml-*.bin file; `~/` is the home folder). Unset: the first known one that exists. */
@@ -153,6 +162,7 @@ export type IdentityMode = z.infer<typeof IdentityMode>;
 export type CompanyCreation = z.infer<typeof CompanyCreation>;
 export type LoginHelperMode = z.infer<typeof LoginHelperMode>;
 export type LocalPowerMode = z.infer<typeof LocalPowerMode>;
+export type LocalDockerMode = z.infer<typeof LocalDockerMode>;
 export type WhisperMode = z.infer<typeof WhisperMode>;
 
 /** MWC_IDENTITY when it is set, else clerk for a well-formed Clerk secret key, else none. */

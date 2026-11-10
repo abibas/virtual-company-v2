@@ -29,6 +29,8 @@ export interface HostOptions {
   /** The script the process runs; `<home>/Downloads/runner.mjs` by default. */
   readonly selfPath?: string;
   readonly username?: () => string;
+  /** The machine's hostname; `ihors-mac.local` by default. */
+  readonly hostname?: string;
 }
 
 export const NODE = '/opt/node/bin/node';
@@ -54,7 +56,7 @@ export function testHost(options: HostOptions = {}) {
     selfPath: options.selfPath ?? join(home, 'Downloads', 'runner.mjs'),
     uid: 501,
     version: '0.1.0',
-    hostname: () => 'ihors-mac.local',
+    hostname: () => options.hostname ?? 'ihors-mac.local',
     homedir: () => home,
     username: options.username ?? (() => 'ihor'),
     fs: {

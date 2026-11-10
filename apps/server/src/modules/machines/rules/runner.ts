@@ -4,7 +4,7 @@ import { type InstallableTool, MachineTool, TOOL_PACKAGES } from '@mwc/shared/ma
 import { INSTALL_PORT } from '@mwc/shared/ports';
 import type { RunnerTools } from '@mwc/shared/runner-protocol';
 import { type Refusal, refuse } from '../rules.ts';
-import type { MachineJobView, MachineLiveView } from '../schemas/jobs.ts';
+import type { MachineJobView, MachineLiveView, RunnerUpdateFailureView } from '../schemas/jobs.ts';
 
 /**
  * A machine's runner as the machines API shows it, and how to update one (docs/machines.md, "Updating a runner"; pure):
@@ -34,16 +34,19 @@ export interface RunnerFacts {
   readonly job: MachineJobView | null;
   /** Its chat turns running and terminals open now (none offline). */
   readonly live: MachineLiveView;
+  /** Its last runner update that failed after the answer (a container's rebuild), while remembered; else null. */
+  readonly updateFailure: RunnerUpdateFailureView | null;
 }
 
-/** What runs on a machine now: its job and its live work. */
+/** What runs on a machine now: its job, its live work, and its last update that failed in the background. */
 export interface MachineNow {
   readonly job: MachineJobView | null;
   readonly live: MachineLiveView;
+  readonly failure?: RunnerUpdateFailureView | null;
 }
 
 /** Nothing running. */
-export const IDLE: MachineNow = { job: null, live: { turns: 0, terminals: 0 } };
+export const IDLE: MachineNow = { job: null, live: { turns: 0, terminals: 0 }, failure: null };
 
 /**
  * The versions of Claude Code and Codex a machine is compared with and the install route installs: npm's `latest`
@@ -104,6 +107,7 @@ export function runnerFacts(
     toolsLatest: latest,
     job: now.job,
     live: now.live,
+    updateFailure: now.failure ?? null,
   };
 }
 

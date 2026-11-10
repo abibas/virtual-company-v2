@@ -19,6 +19,10 @@ export const MachineJobSchema = z
       .optional()
       .openapi({ example: '0.167.0', description: 'The version being installed' }),
     path: RunnerUpdatePath.optional().openapi({ description: 'How the runner is being updated' }),
+    progress: z.string().optional().openapi({
+      example: '#12 [bundle 3/3] RUN pnpm install --frozen-lockfile',
+      description: "A container's rebuild: the last line of its output so far",
+    }),
     startedAt: z.string().openapi({ format: 'date-time' }),
   })
   .openapi('MachineJob', {
@@ -26,6 +30,24 @@ export const MachineJobSchema = z
       "The maintenance job holding the machine's lock: another install or a runner update waits for it",
   });
 export type MachineJobView = z.infer<typeof MachineJobSchema>;
+
+export const RunnerUpdateFailureSchema = z
+  .object({
+    path: RunnerUpdatePath,
+    message: z.string().openapi({
+      example:
+        'The container was not rebuilt: failed to solve: process "/bin/sh -c pnpm install" did not complete',
+    }),
+    command: z.string().nullable().openapi({
+      description: 'The command that updates the runner by hand, to see the whole output (no token in it)',
+    }),
+    at: z.string().openapi({ format: 'date-time' }),
+  })
+  .openapi('RunnerUpdateFailure', {
+    description:
+      "A runner update that failed after the answer (a container's rebuild), kept until the next job on the machine or 30 minutes",
+  });
+export type RunnerUpdateFailureView = z.infer<typeof RunnerUpdateFailureSchema>;
 
 export const MachineLiveSchema = z
   .object({

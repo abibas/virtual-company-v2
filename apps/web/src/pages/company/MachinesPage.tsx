@@ -51,7 +51,7 @@ export function MachinesPage() {
   const { companyId } = membership;
   const admin = roleAtLeast(membership.role, 'admin');
   const calls = machineCalls(useApi(), companyId);
-  const machines = useMachines(companyId);
+  const machines = useMachines(companyId, { follow: true });
   const stats = useMachineStats(companyId);
   const reload = () => {
     machines.reload();

@@ -12,8 +12,8 @@ import { machinesRepo } from '../repo.ts';
 import { machineBusy } from '../rules/jobs.ts';
 import { knownTools, type ToolsLatest } from '../rules/runner.ts';
 import {
+  containerOutcome,
   INSTALL_NOT_FOUND,
-  INSTALL_UNSUPPORTED,
   type InstallOutcome,
   installOutcome,
   TOOLS_OUTDATED,
@@ -29,8 +29,9 @@ import type { ToolInstall, ToolInstalls } from './tools/installs.ts';
  * A machine's tools (docs/machines.md, "Tools"): a check through its runner (`tools.check`: it looks for its CLIs again
  * and sends `runner.caps`, so the hub's view and the machines list follow), and an install of Claude Code or Codex at
  * the latest version the machines are compared with (npm's, else the pin; `tools.install`, exact), started at once and carried on in the background: its output lines and its end
- * go to the registry the card reads, and its end to the audit log (who, which machine, which CLI, which result). Not in
- * a container (its image is rebuilt instead). One job at a time per machine (`jobs`): an install holds the machine until
+ * go to the registry the card reads, and its end to the audit log (who, which machine, which CLI, which result). In a
+ * container too, into its own `~/.local` volume; a container runner older than that is told to update the container
+ * (`container_outdated`). One job at a time per machine (`jobs`): an install holds the machine until
  * it ends, refused while another install or a runner update runs; a check is refused only during a runner update.
  */
 
@@ -118,8 +119,9 @@ async function carryOut(
   caller: ToolsCaller,
   install: ToolInstall,
   lease: JobLease,
+  container: boolean,
 ): Promise<void> {
-  const outcome = await askRunner(deps, install);
+  const outcome = containerOutcome(await askRunner(deps, install), container);
   const result = outcome.ok ? 'succeeded' : 'failed';
   try {
     await repo.audit(t, {
@@ -159,7 +161,6 @@ export async function startInstall(
 > {
   const found = await ready(deps, t, target.machineId);
   if (!('machine' in found)) return found;
-  if (found.machine.kind === 'container') return INSTALL_UNSUPPORTED;
   if (found.refusal !== undefined) return found.refusal;
   const { tool } = target;
   const version = deps.latest()[tool];
@@ -173,7 +174,8 @@ export async function startInstall(
     principalId: caller.principalId,
   });
   deps.logger.info({ machineId: install.machineId, tool, version }, 'tools: installing');
-  return { ok: true, install, ended: carryOut(deps, t, caller, install, taken.lease) };
+  const container = found.machine.kind === 'container';
+  return { ok: true, install, ended: carryOut(deps, t, caller, install, taken.lease, container) };
 }
 
 /** An install of the machine as the API shows it, its output from line `from` on. */

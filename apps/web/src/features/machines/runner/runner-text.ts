@@ -38,13 +38,32 @@ export function outOfDateText(latest: LatestRunner): string {
     : 'Runner out of date';
 }
 
+/** True when the runner runs the build the server hands out and opens terminals: the "up to date" badge. */
+export function runnerUpToDate(machine: Pick<Machine, 'runner'>, online: boolean): boolean {
+  return online && machine.runner.current === true && machine.runner.terminal;
+}
+
+/**
+ * True for a container whose runner is out of date: its runner is updated by rebuilding the container, and a runner
+ * that old may not install CLIs in place yet, so the card offers Update container before an install.
+ */
+export function containerFirst(machine: Pick<Machine, 'runner' | 'kind'>, online: boolean): boolean {
+  return machine.kind === 'container' && runnerOutOfDate(machine, online);
+}
+
+/** What Update container does, under the container's Runner row. */
+export const CONTAINER_UPDATE_INFO =
+  'Rebuilds its image with the new runner and recreates it; keeps its enrollment, /work and installed CLIs. Takes a minute or two.';
+
 /** How long after an update the card loads again: the runner restarts about 10 s after it (its service's wait). */
 export const RELOAD_AFTER_MS = 15_000;
 
-/** What the card says once the server did its part. */
-export const UPDATED_TEXT: Readonly<Record<'self_update' | 'ssh_reinstall', string>> = {
+/** What the card says once the server did its part (a container's rebuild goes on after it: the card follows it). */
+export const UPDATED_TEXT: Readonly<Record<'self_update' | 'ssh_reinstall' | 'docker_rebuild', string>> = {
   self_update:
     'The runner put the new build in place and is restarting. This card shows it in a few seconds.',
   ssh_reinstall:
     'The runner was reinstalled on the box and is restarting. This card shows it in a few seconds.',
+  docker_rebuild:
+    'Rebuilding the container with the new runner. This card follows it; it takes a minute or two.',
 };

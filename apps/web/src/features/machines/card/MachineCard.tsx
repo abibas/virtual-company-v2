@@ -104,7 +104,8 @@ function PowerParts({
 /**
  * A machine on the Machines page: who and how it is (`MachineHeader`), its numbers, its power, its tools (the CLIs its
  * runner found; Check again and Install for admins), its log, and its actions (Connect, Terminal for owners, Update
- * runner and Remove for admins). One job at a time per machine: an install or a runner update (the server's
+ * runner and Remove for admins; a container's Update container is in Software). One job at a time per machine: an
+ * install or a runner update (the server's
  * `runner.job`, or one this card started) shows in Software, and the other buttons wait for it; Update runner also
  * waits for the machine's chat turns and terminals.
  */
@@ -142,7 +143,8 @@ export function MachineCard({
   const online = (stats?.status ?? machine.status) === 'online';
   const install = useToolInstall(calls, machine.id, onChanged);
   const update = useRunnerUpdate(() => calls.updateRunner(machine.id), onChanged);
-  const job = busyJob(machine.runner.job, cardJob(machine, install.state, update.state));
+  const container = machine.kind === 'container';
+  const job = busyJob(machine.runner.job, cardJob(machine, install.state, update.state), container);
   const updateBlocked = job?.reason ?? liveReason(machine.runner.live);
   return (
     <Card
@@ -176,6 +178,8 @@ export function MachineCard({
             calls={calls}
             install={install}
             job={job}
+            update={update}
+            updateBlocked={updateBlocked}
             onChanged={onChanged}
           />
         }

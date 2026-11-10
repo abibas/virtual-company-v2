@@ -1,25 +1,30 @@
 import { Download } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import type { Machine, MachineTools as Tools } from '../../../api/types.ts';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
 import type { BusyJob } from '../runner/machine-job.ts';
-import { installQuestion, isInstallable, TOOL_LABELS, type ToolKey, toolState } from './tools-text.ts';
+import {
+  containerFirstText,
+  installQuestion,
+  isInstallable,
+  TOOL_LABELS,
+  type ToolKey,
+  toolState,
+} from './tools-text.ts';
 import type { ToolInstall } from './use-tools.ts';
 
 /** A CLI's row in the card's Software part (docs/machines.md, "Tools"), with Install or Update asked in place. */
 
-/** Install's question in place: what it does, Cancel and Install. */
-function InstallConfirm({
+/** A question in place: what it says, Cancel and the button that goes on. */
+function Ask({
   question,
-  label,
   onCancel,
-  onConfirm,
+  children,
 }: {
   readonly question: string;
-  readonly label: string;
   readonly onCancel: () => void;
-  readonly onConfirm: () => void;
+  readonly children: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-blue-soft px-3 py-2">
@@ -28,15 +33,17 @@ function InstallConfirm({
         <Button size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button size="sm" tone="primary" icon={Download} onClick={onConfirm}>
-          {label}
-        </Button>
+        {children}
       </div>
     </div>
   );
 }
 
-/** One CLI: its name, its version or "not installed", "update available", and Install or Update for admins. */
+/**
+ * One CLI: its name, its version or "not installed", "update available", and Install or Update for admins, asked
+ * first; on a container whose runner is out of date the question is to update the container first (`containerFirst`,
+ * its Update container button).
+ */
 export function ToolRow({
   tool,
   machine,
@@ -44,6 +51,7 @@ export function ToolRow({
   canInstall,
   install,
   job,
+  containerFirst,
 }: {
   readonly tool: ToolKey;
   readonly machine: Machine;
@@ -52,6 +60,8 @@ export function ToolRow({
   readonly install: ToolInstall;
   /** The job running on the machine: Install and Update wait for it. */
   readonly job: BusyJob | undefined;
+  /** Update container, offered instead of the install while the container's runner is out of date. */
+  readonly containerFirst?: ReactNode;
 }) {
   const [asking, setAsking] = useState(false);
   const state = toolState(tools, machine.runner.toolsLatest, tool);
@@ -90,16 +100,28 @@ export function ToolRow({
           </Button>
         )}
       </div>
-      {offered && asking && isInstallable(tool) && (
-        <InstallConfirm
+      {offered && asking && isInstallable(tool) && containerFirst !== undefined && (
+        <Ask question={containerFirstText(tool, state.kind === 'old')} onCancel={() => setAsking(false)}>
+          {containerFirst}
+        </Ask>
+      )}
+      {offered && asking && isInstallable(tool) && containerFirst === undefined && (
+        <Ask
           question={installQuestion(tool, machine.runner.toolsLatest[tool], machine, state.kind === 'old')}
-          label={label}
           onCancel={() => setAsking(false)}
-          onConfirm={() => {
-            setAsking(false);
-            install.start(tool);
-          }}
-        />
+        >
+          <Button
+            size="sm"
+            tone="primary"
+            icon={Download}
+            onClick={() => {
+              setAsking(false);
+              install.start(tool);
+            }}
+          >
+            {label}
+          </Button>
+        </Ask>
       )}
     </li>
   );

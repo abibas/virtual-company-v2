@@ -200,7 +200,7 @@ export class RunnerDaemon implements Runner {
 
   /** What it can do now (the hello's and `runner.caps`'s). */
   #caps(): RunnerCaps {
-    const { harness, processes } = this.#options;
+    const { harness, processes, containerId } = this.#options;
     const tools = this.#tools.current;
     return {
       harnesses: harness && processes ? harness.versions : NO_HARNESSES,
@@ -212,6 +212,7 @@ export class RunnerDaemon implements Runner {
       folders: this.#options.folders !== undefined,
       forks: true,
       ...(tools ? { tools } : {}),
+      ...(containerId ? { containerId } : {}),
     };
   }
 

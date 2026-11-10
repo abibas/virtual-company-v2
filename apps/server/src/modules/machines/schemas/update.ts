@@ -5,18 +5,22 @@ import { z } from '@hono/zod-openapi';
  * "Updating a runner"): what the server did, and the refusal that names the command to run instead.
  */
 
-/** How the runner was updated: by itself over its link, or reinstalled by this server over SSH. */
-export const RunnerUpdatePath = z.enum(['self_update', 'ssh_reinstall']);
+/**
+ * How the runner was updated: by itself over its link, reinstalled by this server over SSH, or (a container) its image
+ * rebuilt and the container recreated by this server with Docker.
+ */
+export const RunnerUpdatePath = z.enum(['self_update', 'ssh_reinstall', 'docker_rebuild']);
 export type RunnerUpdatePath = z.infer<typeof RunnerUpdatePath>;
 
 export const RunnerUpdateSchema = z
   .object({
     path: RunnerUpdatePath.openapi({
       description:
-        '`self_update`: the runner put the new build in place and restarts; `ssh_reinstall`: this server ran its install again on the box',
+        '`self_update`: the runner put the new build in place and restarts; `ssh_reinstall`: this server ran its install again on the box; `docker_rebuild`: this server started rebuilding the container (it goes on in the background, followed in `runner.job`; a failure shows in `runner.updateFailure`)',
     }),
     build: z.string().nullable().openapi({
-      description: 'The build the runner restarts on (`self_update`); null when the reinstall does not say',
+      description:
+        'The build the runner restarts on (`self_update`); null when the reinstall or the rebuild does not say',
     }),
   })
   .openapi('RunnerUpdate');

@@ -176,6 +176,13 @@ describe('what the daemon learns about itself at start', () => {
     expect(selfFacts(host).builtAt).toBe('2026-11-09T16:56:00.000Z');
   });
 
+  it("is the container's id in a container, from its hostname, and none for a hostname set by hand", () => {
+    const env = { MWC_RUNNER_IN_CONTAINER: '1' };
+    expect(selfFacts(testHost({ env, hostname: '22f64abad310' }).host).containerId).toBe('22f64abad310');
+    expect(selfFacts(testHost({ env, hostname: 'runner-box' }).host)).not.toHaveProperty('containerId');
+    expect(selfFacts(testHost({ hostname: '22f64abad310' }).host)).not.toHaveProperty('containerId');
+  });
+
   it('is no build, no build time and no self-update from the sources', () => {
     expect(selfFacts(testHost({ selfPath: '/repo/apps/runner/src/main.ts' }).host)).toEqual({
       build: null,

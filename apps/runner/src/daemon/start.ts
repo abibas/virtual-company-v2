@@ -106,6 +106,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     ...(deps.build === undefined ? {} : { build: deps.build }),
     builtAt: deps.builtAt ?? null,
     ...(deps.update ? { update: deps.update } : {}),
+    ...(deps.containerId ? { containerId: deps.containerId } : {}),
     log,
     hold: holdDriverFor(setup.hold, deps, log),
     sampler: machineSampler(deps, home, log),

@@ -16,7 +16,7 @@ import { FOLDER_RUNNER_FRAMES } from './folders.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
 import { RunnerTools, TOOL_RUNNER_FRAMES } from './tools.ts';
 import { RunnerHarnesses, TURN_RUNNER_FRAMES } from './turns.ts';
-import { RunnerBuild, RunnerBuiltAt, RunnerUpdateResult } from './update.ts';
+import { ContainerId, RunnerBuild, RunnerBuiltAt, RunnerUpdateResult } from './update.ts';
 
 /** The frames a runner sends to the server (docs/runner-protocol.md, "Runner to server"). */
 
@@ -31,7 +31,7 @@ export const ATTENTION_OPTIONS_MAX = 32;
 
 /**
  * What a runner can do: the harnesses it has, its slots, how it holds its machine, the providers it can power, whether
- * it opens terminals, whether it updates itself, whether it browses its folders, and the CLIs it found.
+ * it opens terminals, whether it updates itself, whether it browses its folders, the CLIs it found and its container.
  */
 export const RunnerCaps = protocolObject({
   /**
@@ -59,6 +59,8 @@ export const RunnerCaps = protocolObject({
    * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).
    */
   tools: RunnerTools.optional(),
+  /** Its container's id when it runs in a Docker container (the server rebuilds that one); left out elsewhere. */
+  containerId: ContainerId.optional(),
 });
 export type RunnerCaps = z.infer<typeof RunnerCaps>;
 

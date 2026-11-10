@@ -14,10 +14,11 @@ export type CardJob =
   | { readonly kind: 'tool_install'; readonly tool: InstallableTool; readonly version: string }
   | { readonly kind: 'runner_update' };
 
-/** The job the card shows: its line, and why the other buttons wait. */
+/** The job the card shows: its line (and a rebuild's latest output line), and why the other buttons wait. */
 export interface BusyJob {
   readonly label: string;
   readonly reason: string;
+  readonly detail?: string | undefined;
 }
 
 /** The job the card itself started and still waits on, if any. */
@@ -35,8 +36,15 @@ export function cardJob(
   return undefined;
 }
 
-/** The job running on the machine (the server's first, else the card's own) as the card says it; undefined for none. */
-export function busyJob(server: MachineJob | null, own: CardJob | undefined): BusyJob | undefined {
+/**
+ * The job running on the machine (the server's first, else the card's own) as the card says it; undefined for none. A
+ * container's runner update is its rebuild.
+ */
+export function busyJob(
+  server: MachineJob | null,
+  own: CardJob | undefined,
+  container = false,
+): BusyJob | undefined {
   const job: CardJob | undefined =
     server == null
       ? own
@@ -44,6 +52,13 @@ export function busyJob(server: MachineJob | null, own: CardJob | undefined): Bu
         ? { kind: 'tool_install', tool: server.tool, version: server.version }
         : { kind: 'runner_update' };
   if (job === undefined) return undefined;
+  if (job.kind === 'runner_update' && (container || server?.path === 'docker_rebuild')) {
+    return {
+      label: 'Rebuilding the container with the new runner…',
+      reason: 'The container is being rebuilt: wait for its runner to restart',
+      detail: server?.progress,
+    };
+  }
   if (job.kind === 'runner_update') {
     return { label: 'Updating the runner…', reason: 'The runner is updating: wait for it to restart' };
   }

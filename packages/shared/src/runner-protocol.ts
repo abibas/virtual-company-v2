@@ -204,6 +204,7 @@ export {
   TurnStop,
 } from './runner-protocol/turns.ts';
 export {
+  ContainerId,
   RUNNER_UPDATE_ERRORS,
   RunnerBuild,
   RunnerBuiltAt,

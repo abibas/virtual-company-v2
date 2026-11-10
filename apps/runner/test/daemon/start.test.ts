@@ -244,9 +244,10 @@ describe('after an update', () => {
       apply: async () => ({ build: 'cd'.repeat(32), pty: true }),
     };
     const builtAt = '2026-11-09T16:40:00.000Z';
-    const running = main(['run'], { ...deps, build, builtAt, update });
+    const running = main(['run'], { ...deps, build, builtAt, update, containerId: '22f64abad310' });
     const hello = await server.frames.next('runner.hello');
     expect([hello.build, hello.builtAt, hello.caps.selfUpdate]).toEqual([build, builtAt, true]);
+    expect(hello.caps.containerId).toBe('22f64abad310');
     expect(entries()[0]).toMatchObject({ msg: 'starting', builtAt, build, selfUpdate: 'systemd' });
     await server.frames.next('runner.heartbeat');
     const cmdId = newId();
@@ -269,6 +270,7 @@ describe('after an update', () => {
     const running = main(['run'], deps);
     const hello = await server.frames.next('runner.hello');
     expect([hello.build, hello.builtAt, hello.caps.selfUpdate]).toEqual([undefined, null, false]);
+    expect(hello.caps).not.toHaveProperty('containerId');
     expect(entries()[0]).toMatchObject({ builtAt: null, build: null, selfUpdate: false });
     signals.get('SIGTERM')?.();
     expect(await running).toBe(EXIT.ok);

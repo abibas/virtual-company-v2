@@ -68,6 +68,8 @@ export interface MainDeps {
   readonly build?: string | null;
   /** How it updates itself, for an installed copy under launchd or systemd (`cli.ts`); none otherwise. */
   readonly update?: SelfUpdate;
+  /** Its container's id when it runs in one (`cli.ts`, from the hostname): `caps.containerId`. None elsewhere. */
+  readonly containerId?: string;
   /** The power controller (S4.4b); none by default. */
   readonly power?: PowerExecutor;
   /** Loads the terminal's PTY (`terminal/loader.ts`), once, when the daemon starts. */

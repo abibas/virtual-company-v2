@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { Harness } from '@mwc/shared/enums';
+import { ContainerId } from '@mwc/shared/runner-protocol';
 import { runnerConfigPath } from './config.ts';
 import { EXIT, type MainDeps, main } from './daemon/start.ts';
 import { enrollCommand, enrollOnFirstBoot } from './install/enroll/commands.ts';
-import { harnessCli } from './install/enroll/facts.ts';
+import { harnessCli, machineKind } from './install/enroll/facts.ts';
 import { CommandError, type Env, type Host } from './install/host.ts';
 import { installCommand } from './install/install.ts';
 import { SERVICE_MANAGER_ENV } from './install/launchd.ts';
@@ -101,15 +102,28 @@ export function serviceExit(env: Env, exit: (code: number) => void, log: Log): (
   };
 }
 
+/** In a container, its id: Docker makes it the container's hostname (a hostname set by hand is no id, and is left out). */
+function containerIdOf(host: Host): string | undefined {
+  if (machineKind(host) !== 'container') return undefined;
+  const id = ContainerId.safeParse(host.hostname());
+  return id.success ? id.data : undefined;
+}
+
 /**
  * What the daemon learns about itself once, at start: the build it runs, when that was built (the `runner.json` beside
- * it) and, for an installed copy, its self-update.
+ * it), for an installed copy its self-update, and in a container the container's id (`caps.containerId`).
  */
-export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'builtAt' | 'update'> {
+export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'builtAt' | 'update' | 'containerId'> {
   const target = updateTarget(host);
   const update = target === undefined ? undefined : selfUpdater({ target, fetch: host.fetch, fs: host.fs });
   const builtAt = runnerBuiltAt(host.selfPath, (path) => host.fs.readFile(path));
-  return { build: runnerBuild(host), builtAt, ...(update ? { update } : {}) };
+  const containerId = containerIdOf(host);
+  return {
+    build: runnerBuild(host),
+    builtAt,
+    ...(update ? { update } : {}),
+    ...(containerId ? { containerId } : {}),
+  };
 }
 
 /**

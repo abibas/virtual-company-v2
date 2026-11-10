@@ -81,3 +81,19 @@ export function latestSourceText(latest: ToolsLatest): string {
     ? `Latest from npm, checked ${formatDateTime(latest.checkedAt)}`
     : "npm unreachable: compared with the app's pinned versions";
 }
+
+/** What Install or Update says first on a container whose runner is out of date: update the container, then this. */
+export function containerFirstText(tool: InstallableTool, update: boolean): string {
+  const then = `${update ? 'update' : 'install'} ${TOOL_LABELS[tool]}`;
+  return `This container's runner is out of date: update the container first (it rebuilds with the new runner and keeps its enrollment, /work and installed CLIs), then ${then}.`;
+}
+
+/** True for an install a container's runner refused for being older than installs in a container. */
+export function containerTooOld(error: string | null): boolean {
+  return error !== null && /^(container_outdated|unsupported):/.test(error);
+}
+
+/** What the card says then, with Update container beside it. */
+export function containerTooOldText(tool: InstallableTool): string {
+  return `This container's runner is older than installs in place, so ${TOOL_LABELS[tool]} was not installed. Update the container once (it keeps its enrollment, /work and installed CLIs), then try again.`;
+}

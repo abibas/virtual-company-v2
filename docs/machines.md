@@ -326,7 +326,8 @@ below): the machine's install command without `--token`
 with `--via http://127.0.0.1:9954` and no `--token`)
 downloads the new bundle and PTY and reinstalls them on the enrollment it has; `--server` alone must name the server the
 machine is enrolled on (another is refused with 64). A container is updated by rebuilding its image (the same `up` with
-`--build`, no token: its enrollment is in the state volume).
+`--build`, no token: its enrollment is in the state volume), which its card's **Update container** has the server do
+when it runs on the same computer ("Updating a runner", `docker_rebuild`).
 `node ~/.local/share/mwc-runner/runner.mjs status` shows the enrollment, the service file and what the runner's health
 endpoint (127.0.0.1:9953) says, and exits 0 only when it is connected; `uninstall` removes the service and the
 installed copy and keeps `runner.json` (`--purge` removes it and the state folder); the machine stays on the server until
@@ -380,7 +381,7 @@ wakes a box (a stopped box or a sleeping Mac has no connected runner, so it is o
   file: `node_modules/` beside `runner.mjs`, or the package's own from the sources); when it cannot, it logs `no terminal
   on this machine` with the reason, announces `caps.terminal: false` and answers every `terminal.open` with
   `terminal_unavailable`. A runner installed before this gets its terminal by being updated (the card's **Update
-  runner**, "Updating a runner" below; a container by rebuilding its image); until then the card's Terminal button is
+  runner**, "Updating a runner" below; a container by rebuilding its image, **Update container**); until then the card's Terminal button is
   disabled with "Update the runner to use the terminal".
 
 **A chat's terminal** (S5.1b, docs/harness.md "How a turn runs") uses the same ticket store and socket: an owner's
@@ -483,7 +484,31 @@ from a new one:
      http://127.0.0.1:<apiPort> --via http://127.0.0.1:9954'` (the connector's `updateCommand`, gcloud by its full path,
      its own process group, 3 minutes at most, its last stderr line as the error): the install keeps the enrollment,
      writes the systemd unit again and restarts the runner on the new bundle, which then updates itself next time.
-  3. Otherwise 409 `update_unsupported` with `command`, the one to run by hand (no token in it): a container's
+  3. **`docker_rebuild`** (2026-11-10, Ihor: "if we can update it ONLY by updating a container, there should be button
+     update container shown with info... instead of just an error!"): a container (`kind` container) when this server
+     has the Docker CLI of the computer running it (MWC_LOCAL_DOCKER below). The server finds the container: by the id
+     its runner says (`caps.containerId`, the container's hostname, from runners built since then), else by its compose
+     project `mwc-runner-<slug of its name>` (`docker ps --all --filter label=com.docker.compose.project=<p> --filter
+     label=com.docker.compose.service=runner-local`); each candidate is checked with `docker inspect`: the
+     `runner-local` service of a `mwc-runner-*` project, started from this server's own deploy/compose.yml (outside
+     production; any absolute files otherwise). The machine row's `hostname` is not used (it is the container's at
+     enrollment, and changes with every recreate). None found: today's `update_unsupported` with the command (409
+     `machine_offline` when the runner is not connected either); Docker not answering: 502 `update_failed`. From the
+     inspect it reads the project, compose files and folder (labels), the CPU and memory limits (`HostConfig.NanoCpus`,
+     `Memory`) and only `MWC_SERVER_URL`, `MWC_RUNNER_NAME` and `MWC_RUNNER_SLOTS` from its environment (never its used
+     `MWC_ENROLL_TOKEN`), and answers **202 at once**; in the background it runs `docker compose -p <project> -f <files>
+     --project-directory <folder> --profile runner up -d --build runner-local` with those three settings,
+     `MWC_RUNNER_CPUS`/`MWC_RUNNER_MEMORY` from the limits (so the recreated container keeps them), an empty
+     `MWC_ENROLL_TOKEN` (its runner.json in the state volume keeps the enrollment) and a short environment (the
+     variables Docker reads, Docker's folder first on the PATH; none of the server's settings or secrets), in its own
+     process group, 15 minutes at most. The image is built with the runner of the server's checkout and the container
+     recreated, keeping its volumes (its enrollment, `/work`, the CLIs it installed). While it builds, `runner.job`
+     says `path: docker_rebuild` with `progress` (the build's last output line); once compose is done the update is
+     audited and the lock waits for the runner to reconnect (as above). A failed rebuild releases the machine and is
+     kept as `runner.updateFailure: {path, message, command, at}` (the last line, and the command to run by hand to see
+     all of it) until the next job on the machine or 30 minutes. Answering at once, not after the build: a cold build
+     takes minutes, and the card shows its progress instead of a spinner on a request that long.
+  4. Otherwise 409 `update_unsupported` with `command`, the one to run by hand (no token in it): a container's
      `docker compose -p mwc-runner-<slug of its name> -f <the compose file's absolute path> --profile runner up -d --build
      runner-local` (its own project, as the add sheet started it; the relative path in production, run in the repository
      folder), which keeps its enrollment and volumes; This
@@ -495,6 +520,18 @@ from a new one:
   `update_failed` (the runner's or the reinstall's words; the runner goes on as it was). Each update carried out is an
   `audit_log` row: entity `machine`, action `runner_update`, fields `runnerUpdate` (the path) and `runnerBuild` (the new
   build, when said), the person as the actor.
+- **On the card, a container.** Its runner is updated in the Software part: the Runner row, while out of date, has
+  **Update container** with the line "Rebuilds its image with the new runner and recreates it; keeps its enrollment,
+  /work and installed CLIs. Takes a minute or two." (the action row has no Update runner for it). After the click the
+  card reads the machines every 3 s while a job runs: "Rebuilding the container with the new runner…" with the build's
+  last line, then "up to date" once the new runner reconnects. A refusal shows its message and, for
+  `update_unsupported`, the command; a failed rebuild shows its message and the command. Install / Update of a CLI on
+  a container whose runner is out of date asks to update the container first (with the same button), and an install
+  an old container runner refuses (`container_outdated`, below) says so with the button, never a bare error.
+- **MWC_LOCAL_DOCKER** (`auto` | `on` | `off`, `platform/processes/docker/local.ts`): `auto` uses this computer's
+  `docker` (the PATH, then `/usr/local/bin`, `/opt/homebrew/bin`, Docker Desktop's bin folder; no process started to
+  look) when NODE_ENV is development; `on` whenever it is found (the start fails without it); `off` never (the card
+  shows the command). Precedent: MWC_LOCAL_POWER.
 - **Trust.** It trusts the server over the runner's authenticated link and checks SHA-256 only; the signed self-update
   (Ed25519, release channels) stays in S8. Nothing updates without the click, and containers are rebuilt, never updated
   in place.
@@ -512,8 +549,8 @@ said "Codex 0.167.0 was not installed: the runner went away" beside "The runner 
 restarting"). A machine runs one maintenance job at a time, and a runner update never cuts off live work unasked:
 
 - **The lock.** The server keeps a lock per machine in memory (`service/jobs.ts`, one server process; a restart forgets
-  it): a `tool_install` (with its tool and version) or a `runner_update` (with its path, `self_update` or
-  `ssh_reinstall`). Starting either while another runs is a 409 `machine_busy` naming the running one: "Codex 0.167.0 is
+  it): a `tool_install` (with its tool and version) or a `runner_update` (with its path, `self_update`,
+  `ssh_reinstall` or `docker_rebuild`, and a rebuild's last output line as `progress`). Starting either while another runs is a 409 `machine_busy` naming the running one: "Codex 0.167.0 is
   being installed: wait for it to finish", "The runner is updating: wait for it to restart". Nothing is queued. An
   install releases it when it ends (its result, its failure, its timeout, or its runner going away, which fails it); a
   runner update when it was refused or failed, and once carried out when its runner reconnects (the hub's connect
@@ -526,8 +563,10 @@ restarting"). A machine runs one maintenance job at a time, and a runner update 
 - **On the runner** (defence in depth): `runner.update` answers `busy` while a tool install runs (even when forced), while
   an update is under way, and while runs, chat turns or terminals are live unless the frame says `force`; `tools.install`
   answers `busy` while a self-update is in progress (from its start until the restart).
-- **`GET machines`** answers each machine's `runner.job: {kind, tool?, version?, path?, startedAt} | null` and
-  `runner.live: {turns, terminals}`.
+- **`GET machines`** answers each machine's `runner.job: {kind, tool?, version?, path?, progress?, startedAt} | null`,
+  `runner.live: {turns, terminals}` and `runner.updateFailure: {path, message, command, at} | null` (a container's
+  rebuild that failed after the answer). The Machines page reads them again every minute while the tab is visible, and
+  every 3 s while a job runs on one of them.
 - **On the card.** While a job runs (the server's `runner.job`, or one the card itself started), Software shows it at the
   top ("Installing Codex 0.167.0…", "Updating the runner…"), and Update runner, Install / Update and Check again are
   disabled with a tooltip saying why. Update runner is also disabled, with the reason, while the machine has chat turns
@@ -622,9 +661,12 @@ installs or updates Claude Code or Codex through the runner; the chat header and
 - **Refusals**: 404 another company's or an unknown machine (`install_not_found` for an install), 403 below admin, 409
   `machine_offline`, `runner_outdated` (no `caps.tools`: update the runner first), `machine_busy` (one job at a time per
   machine, another install or a runner update: "One job at a time" above; the runner refuses a second install, and one
-  during its self-update, with `busy` too) and `unsupported` (a container runner built before 2026-11-10: rebuild it
-  once). An install that started can end `failed` with `npm_missing: …` (no npm beside the runner's Node), `timeout:
-  …`, `failed: npm exited with code N (its last line)`, `machine_offline: …` (the runner went away) or `runner_outdated`.
+  during its self-update, with `busy` too). An install that started can end `failed` with `npm_missing: …` (no npm
+  beside the runner's Node), `timeout: …`, `failed: npm exited with code N (its last line)`, `machine_offline: …` (the
+  runner went away), `runner_outdated`, or on a container `container_outdated: …` (its runner, built before
+  2026-11-10, answers `unsupported`: update the container once, Update container on its card). Until then the server
+  refused every container install itself (409 `unsupported`), which is what the card showed even after the runner
+  could install there.
 - **Latest from npm** (2026-11-10, Ihor: Codex's own TUI offered 0.167.0 while the card offered our pin, 0.163.0).
   `service/tools/npm.ts` reads `GET https://registry.npmjs.org/<package>/latest` → `version` for
   `@anthropic-ai/claude-code` and `@openai/codex`, through an injected fetch (`AppDeps.registryFetch`; refused under

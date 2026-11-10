@@ -145,6 +145,10 @@ tests use live in its `test/fixtures/` (e.g. `packages/identity-core/test/fixtur
   `processes/power/local.ts` (S4) is the server's own power driver (MWC_LOCAL_POWER): it finds this computer's
   `airia` and `gcloud`, wires the `@mwc/machine-airia-devbox` connector and the shared tunnel supervisor with node's
   `spawn` injected, and `start.ts` hands it to the machines module's power control (`machinesRuntime` in `app.ts`).
+  `processes/docker/` is this computer's Docker CLI (MWC_LOCAL_DOCKER): `local.ts` finds `docker` without starting a
+  process and gives each command a short environment, `run.ts` runs one to its end in its own process group (its
+  output lines, a time limit), with node's `spawn` injected; `createApp` hands it to the machines module, which rebuilds
+  container runners with it (`service/runner/rebuild.ts`).
   `processes/speech/` (S5.2, docs/speech.md) is dictation's transcription on the server's own computer: `wav.ts` (the
   clip's checks and its voice), `transcript.ts` (whisper.cpp's two JSON answers as text and words), `server.ts` (the warm
   `whisper-server` on 127.0.0.1, started on the first clip, stopped on shutdown), `cli.ts` (`whisper-cli` on a temporary

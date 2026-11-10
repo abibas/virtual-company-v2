@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  failureView,
   jobText,
   jobView,
   liveText,
@@ -23,6 +24,9 @@ describe("a machine's jobs", () => {
       code: 'machine_busy',
       message: 'The runner is updating: wait for it to restart',
     });
+    expect(jobText({ kind: 'runner_update', path: 'docker_rebuild', startedAt: AT })).toBe(
+      'The container is being rebuilt: wait for its runner to restart',
+    );
   });
 
   it('show as the API shows them, null for none', () => {
@@ -37,6 +41,21 @@ describe("a machine's jobs", () => {
       kind: 'runner_update',
       path: 'ssh_reinstall',
       startedAt: AT.toISOString(),
+    });
+    expect(
+      jobView({ kind: 'runner_update', path: 'docker_rebuild', startedAt: AT, progress: '#3 DONE' }),
+    ).toEqual({
+      kind: 'runner_update',
+      path: 'docker_rebuild',
+      startedAt: AT.toISOString(),
+      progress: '#3 DONE',
+    });
+    expect(failureView(undefined)).toBeNull();
+    expect(failureView({ path: 'docker_rebuild', message: 'not rebuilt', command: null, at: AT })).toEqual({
+      path: 'docker_rebuild',
+      message: 'not rebuilt',
+      command: null,
+      at: AT.toISOString(),
     });
   });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { friendlyMessage } from '../../../api/errors.ts';
+import { ApiError, friendlyMessage } from '../../../api/errors.ts';
 import type { MachineCalls } from '../../../api/machines.ts';
 import type { InstallableTool, MachineTools } from '../../../api/types.ts';
 
@@ -48,7 +48,13 @@ export type InstallState =
       readonly tools: MachineTools | null;
       readonly error: string | null;
     }
-  | { readonly kind: 'refused'; readonly tool: InstallableTool; readonly message: string };
+  | {
+      readonly kind: 'refused';
+      readonly tool: InstallableTool;
+      readonly message: string;
+      /** The server's error code (`unsupported`, `machine_busy`…). */
+      readonly code: string | undefined;
+    };
 
 export interface ToolInstall {
   readonly state: InstallState;
@@ -90,7 +96,8 @@ export function useToolInstall(calls: MachineCalls, machineId: string, onEnded: 
       const { installId, version } = await calls.installTool(machineId, tool);
       setState({ kind: 'running', tool, version, installId, lines: [], tools: null, error: null });
     } catch (error) {
-      setState({ kind: 'refused', tool, message: friendlyMessage(error) });
+      const code = error instanceof ApiError ? error.code : undefined;
+      setState({ kind: 'refused', tool, message: friendlyMessage(error), code });
     }
   };
   return { state, start: (tool) => void start(tool), dismiss: () => setState({ kind: 'idle' }) };

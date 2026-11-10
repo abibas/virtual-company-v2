@@ -27,6 +27,7 @@ import { mountWeb } from './platform/http/web.ts';
 import { identityFromConfig } from './platform/identity.ts';
 import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
+import { localDockerFromConfig } from './platform/processes/docker/local.ts';
 import { loginHelperFromConfig } from './platform/processes/login-helper/select.ts';
 import type { LocalPower } from './platform/processes/power/local.ts';
 import { speechFromConfig } from './platform/processes/speech/select.ts';
@@ -73,6 +74,8 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * controllers'; `/api/config` says which (`localPower`). The chats (S5.1b) start their turns through the same hub and
  * share the machines' terminal tickets. Dictation transcribes through the speech passed in (tests: a fake; undefined:
  * off), else this computer's whisper.cpp when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
+ * Container runners are rebuilt with the Docker CLI passed in (tests: a fake; undefined: none), else the one
+ * MWC_LOCAL_DOCKER finds.
  */
 export function createApp(deps: AppOptions) {
   const clock = deps.clock ?? (() => new Date());
@@ -82,6 +85,8 @@ export function createApp(deps: AppOptions) {
   const loginHelper =
     'loginHelper' in deps ? deps.loginHelper : loginHelperFromConfig(deps.config, deps.logger);
   const speech = 'speech' in deps ? deps.speech : speechFromConfig(deps.config, deps.logger);
+  const localDocker =
+    'localDocker' in deps ? deps.localDocker : localDockerFromConfig(deps.config, deps.logger);
   if (speech) server.onShutdown?.(() => speech.close());
   const hub = deps.runnerHub ?? ownHub(server);
   const control =
@@ -111,7 +116,7 @@ export function createApp(deps: AppOptions) {
     .route('/', orgRoutes(server))
     .route('/', credentialsRoutes({ ...server, keyring }))
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
-    .route('/', machinesRoutes({ ...server, hub, control, tickets }))
+    .route('/', machinesRoutes({ ...server, hub, control, tickets, localDocker }))
     .route('/', chatsRoutes({ ...server, hub, tickets, keyring }))
     .route('/', speechRoutes({ ...server, speech }));
   mountDocs(app, deps);
