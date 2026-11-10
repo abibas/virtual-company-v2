@@ -1,6 +1,6 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { ArrowLeft, MessagesSquare } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { chatCalls, useAgentChats } from '../../api/chats.ts';
 import { useApi } from '../../api/context.ts';
 import { useAgentAt, useAgentPlacement } from '../../api/org.ts';
@@ -15,9 +15,10 @@ import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { chatsPath, companyAgentLinks } from '../../features/agents/links.ts';
 import { ChatList } from '../../features/chats/ChatList.tsx';
 import { OpenChat } from '../../features/chats/OpenChat.tsx';
+import { useFillViewport } from '../../features/chats/use-fill-viewport.ts';
 
-/** The two columns' height: the page below the shell's top bar, never shorter than a usable thread. */
-const COLUMN = 'lg:h-[calc(100dvh-9.5rem)] lg:min-h-[32rem]';
+/** The shell's bottom padding on wide screens (`md:pb-10`): the columns end that far above the window's bottom. */
+const BOTTOM_GAP = 40;
 
 /** Why a new chat cannot begin with this agent now, or undefined. */
 function cannotStart(agent: AgentDetail, placement: AgentPlacement | undefined): string | undefined {
@@ -57,12 +58,16 @@ function ChatsOf({
     if (chatId === openId) navigate(hrefOf(), { replace: true });
   };
   const list = { chats, openId, hrefOf, admin, onNew: newChat, onArchive: archive };
+  // On wide screens the two columns fill the window to its bottom exactly, so only the thread and the list scroll.
+  const columns = useRef<HTMLDivElement>(null);
+  const height = useFillViewport(columns, BOTTOM_GAP);
+  const fill = height === undefined ? undefined : { height };
   return (
-    <div className="grid gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <Card padding="sm" className={`flex max-h-[50dvh] flex-col ${COLUMN}`}>
+    <div ref={columns} className="grid gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]" style={fill}>
+      <Card padding="sm" className="flex max-h-[50dvh] min-h-0 flex-col lg:max-h-none">
         <ChatList {...list} cannotStart={cannotStart(agent, placement.data)} />
       </Card>
-      <Card padding="none" className={`flex h-[80dvh] min-h-[28rem] flex-col ${COLUMN}`}>
+      <Card padding="none" className="flex h-[80dvh] min-h-0 flex-col lg:h-auto">
         {openId ? (
           <OpenChat
             key={openId}
