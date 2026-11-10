@@ -162,7 +162,7 @@ export function ChartCard({
       <div className="flex min-w-0 items-start gap-2.5">
         <Face node={node} />
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="truncate text-sm font-bold text-ink">
+          <p className="line-clamp-2 text-sm leading-tight font-bold break-words text-ink" title={name}>
             {href ? (
               <Link
                 to={href}

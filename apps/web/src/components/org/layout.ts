@@ -33,7 +33,7 @@ export interface ChartLayout {
 }
 
 /** Every card's size, in chart pixels. */
-export const CARD = { width: 232, height: 112 } as const;
+export const CARD = { width: 256, height: 112 } as const;
 
 /** The space between levels (`y`), between teams side by side (`x`), between a comb's rows and from its spine. */
 export const GAP = { x: 24, y: 64, row: 16, spine: 24 } as const;
