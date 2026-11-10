@@ -1,10 +1,10 @@
 import { Folder, MessageSquare, Server, SquareTerminal } from 'lucide-react';
 import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../../api/types.ts';
 import type { StreamState } from '../../../api/use-chat-live.ts';
+import { AgentIcon } from '../../../components/feed/AgentIcon.tsx';
 import { SegmentedControl, type SegmentOption } from '../../../components/forms/Segmented.tsx';
 import type { Crumb } from '../../../components/layout/Breadcrumbs.tsx';
 import { harnessLabel } from '../../../components/org/agent-labels.ts';
-import { AgentAvatar } from '../../../components/org/OrgNodeCard.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { ClaudeMark, OpenAIMark } from '../../../components/ui/ProviderLogo.tsx';
 import { ChatBar } from './ChatBar.tsx';
@@ -93,7 +93,7 @@ export function ChatHeader({
   return (
     <ChatBar
       crumbs={crumbs}
-      lead={<AgentAvatar agent={agent} size="sm" />}
+      lead={<AgentIcon agent={agent} size="sm" />}
       facts={
         <>
           <h2 className="sr-only">{chat.title ?? `New chat with ${agent.name}`}</h2>

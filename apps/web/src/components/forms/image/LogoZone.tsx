@@ -6,8 +6,11 @@ import { CompanyLogo } from '../../ui/CompanyLogo.tsx';
 import { ConfirmInline } from '../ConfirmInline.tsx';
 import type { CropShape } from './ImageCropper.tsx';
 
-/** What the picker picks: a company's logo (a rounded tile), a machine's logo (the same tile), or a person's photo (round). */
-export type PickerKind = 'logo' | 'machine' | 'photo';
+/**
+ * What the picker picks: a company's logo (a rounded tile), a machine's logo (the same tile), a person's photo (round)
+ * or an agent's icon image (round).
+ */
+export type PickerKind = 'logo' | 'machine' | 'photo' | 'agent';
 
 interface PickerLook {
   /** The crop frame's mask. */
@@ -63,6 +66,18 @@ export const PICKER_KINDS: Readonly<Record<PickerKind, PickerLook>> = {
     removeQuestion: 'Remove your photo? Your initials show instead.',
     removeConfirm: 'Remove photo',
   },
+  agent: {
+    shape: 'round',
+    zone: 'rounded-full',
+    label: 'Image',
+    empty: 'Add image',
+    add: 'Add an image',
+    replace: 'Replace the image',
+    crop: 'Crop the image',
+    hint: 'PNG, JPEG, WebP or GIF, up to 10 MB. Click, drop a file, or paste an image; then crop it.',
+    removeQuestion: 'Remove the image? The agent wears its face again once you save.',
+    removeConfirm: 'Remove image',
+  },
 };
 
 const OVERLAY =
@@ -94,7 +109,7 @@ export function LogoZone({
     <>
       {shown ? (
         <img src={shown} alt="" className="size-full bg-white object-cover" />
-      ) : kind === 'photo' ? (
+      ) : kind === 'photo' || kind === 'agent' ? (
         <Avatar name={name} size="2xl" tone="gradient" />
       ) : (
         <CompanyLogo name={name} size="xl" />

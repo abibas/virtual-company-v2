@@ -1,3 +1,4 @@
+export * from './agent-icons.ts';
 export * from './api-keys.ts';
 export * from './audit-log.ts';
 export * from './chats.ts';

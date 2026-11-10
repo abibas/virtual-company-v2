@@ -56,6 +56,8 @@ describe('agents', () => {
       instructionsRev: 1,
       maxConcurrentRuns: 1,
       face: 0,
+      iconKind: 'face',
+      iconEmoji: null,
       settings: {},
     });
     expect(agent.createdAt).toBeInstanceOf(Date);
@@ -98,6 +100,13 @@ describe('agents', () => {
       [{ maxConcurrentRuns: 9 }, 'agents_max_concurrent_runs_check'],
       [{ face: -1 }, 'agents_face_check'],
       [{ face: 42 }, 'agents_face_check'],
+      // @ts-expect-error iconKind is typed as AgentIconKind; the database refuses it as well
+      [{ iconKind: 'photo' }, 'agents_icon_kind_check'],
+      [{ iconKind: 'emoji' }, 'agents_icon_emoji_kind_check'],
+      [{ iconEmoji: '🤖' }, 'agents_icon_emoji_kind_check'],
+      [{ iconKind: 'image', iconEmoji: '🤖' }, 'agents_icon_emoji_kind_check'],
+      [{ iconKind: 'emoji', iconEmoji: '' }, 'agents_icon_emoji_check'],
+      [{ iconKind: 'emoji', iconEmoji: 'x'.repeat(17) }, 'agents_icon_emoji_check'],
     ];
     for (const [values, constraint] of checks) {
       expect(await pgError(insertAgent(handle, acme.id, values)), constraint).toMatchObject({
@@ -115,9 +124,16 @@ describe('agents', () => {
       instructionsRev: 7,
       maxConcurrentRuns: 8,
       face: 41,
+      iconKind: 'emoji',
+      iconEmoji: 'x'.repeat(16),
       settings: { worktrees: true },
     });
-    expect(bounds).toMatchObject({ maxConcurrentRuns: 8, face: 41, settings: { worktrees: true } });
+    expect(bounds).toMatchObject({
+      maxConcurrentRuns: 8,
+      face: 41,
+      iconKind: 'emoji',
+      settings: { worktrees: true },
+    });
     expect(bounds.slug).toHaveLength(63);
   });
 

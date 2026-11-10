@@ -138,7 +138,7 @@ function CompanyFrame({
         user={shellUser(me.user, roleName(membership.role))}
         attention={attention.items}
         attentionLoading={attention.loading}
-        agents={agents.data?.agents.map(agentRef) ?? []}
+        agents={agents.data?.agents.map((agent) => ({ ...agentRef(agent), icon: agent.icon })) ?? []}
         quickCreateNote="Tasks arrive in S4"
         banner={
           (provisioning || pendingLogo) && (

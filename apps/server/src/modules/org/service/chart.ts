@@ -7,6 +7,7 @@ import type { ChartNode } from '../rules/chart.ts';
 import type { OrgState } from '../rules/placement.ts';
 import { buildTree, validateChart } from '../rules.ts';
 import type { ChartNodeView, OrgChartView } from '../schemas.ts';
+import { agentIconHashes, iconOf } from './icons.ts';
 import { type ProfileRef, profileExtras, profileRefs } from './profiles.ts';
 import { loadOrg } from './read.ts';
 
@@ -21,6 +22,8 @@ interface Shown {
   readonly people: ReadonlyMap<string, UserProfile>;
   readonly profiles: ReadonlyMap<string, ProfileRef>;
   readonly placements: ReadonlyMap<string, PlacementSummary>;
+  /** Agents' image hashes by agent id, for their icons. */
+  readonly icons: ReadonlyMap<string, string>;
 }
 
 /**
@@ -43,10 +46,11 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
   const { id: agentId, name, slug, roleTitle, status, face } = agent;
   const { profile, runsWith } = profileExtras(shown.profiles, agent.profileId);
   const placement = shown.placements.get(agentId) ?? null;
+  const icon = iconOf(agent, shown.icons.get(agentId));
   return {
     ...base,
     kind: 'agent',
-    agent: { agentId, name, slug, roleTitle, status, face, profile, runsWith, placement },
+    agent: { agentId, name, slug, roleTitle, status, face, icon, profile, runsWith, placement },
   };
 }
 
@@ -74,7 +78,7 @@ export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRe
     const people = await profilesOf(deps.db, userIds);
     const profileIds = [...org.agents.values()].map((agent) => agent.profileId);
     const profiles = await profileRefs(deps, repo, t, profileIds);
-    const shown = { people, profiles, placements: await placementsOf(t) };
+    const shown = { people, profiles, placements: await placementsOf(t), icons: await agentIconHashes(t) };
     warnOnce(t.companyId, org.chart);
     return { nodes: org.chart.map((node) => nodeView(org, node, shown)), tree: buildTree(org.chart) };
   };

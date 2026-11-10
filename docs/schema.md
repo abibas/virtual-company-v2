@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 19, the last is `0018_chat_branch`.
+Tables: 30. Migrations: 20, the last is `0019_agent_icons`.
 
 ```mermaid
 erDiagram
@@ -16,6 +16,17 @@ erDiagram
     uuid gateway_credential_id FK "nullable"
     text model "nullable"
     text effort "nullable, low|medium|high|xhigh|max|ultra"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
+  agent_icons {
+    uuid company_id PK, FK "not null"
+    uuid agent_id PK, FK "not null"
+    text content_type "not null, image/png|image/jpeg|image/webp|image/gif"
+    bytea bytes "not null"
+    integer size "not null"
+    text sha256 "not null"
+    uuid updated_by_principal_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -46,6 +57,8 @@ erDiagram
     integer instructions_rev "not null, default 1"
     integer max_concurrent_runs "not null, default 1"
     smallint face "not null, default 0"
+    text icon_kind "not null, default 'face', face|emoji|image"
+    text icon_emoji "nullable"
     jsonb settings "not null, default '{}'"
     uuid profile_id FK "nullable"
     timestamptz created_at "not null, default now()"
@@ -370,6 +383,9 @@ erDiagram
   access_profiles }o--|| users : "owner_user_id"
   access_profiles }o--o| credentials : "credential_id"
   access_profiles }o--o| credentials : "gateway_credential_id"
+  agent_icons }o--|| companies : "company_id"
+  agent_icons |o--|| agents : "company_id, agent_id"
+  agent_icons }o--o| principals : "company_id, updated_by_principal_id"
   agent_placements }o--|| companies : "company_id"
   agent_placements |o--|| agents : "company_id, agent_id"
   agent_placements }o--|| machines : "company_id, machine_id"
@@ -469,6 +485,32 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `access_profiles_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
 - **Indexes:** none
 
+### `agent_icons`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `agent_id` | `uuid` | no |  | PK, FK |  |
+| `content_type` | `text` | no |  |  | `image/png`, `image/jpeg`, `image/webp`, `image/gif` |
+| `bytes` | `bytea` | no |  |  |  |
+| `size` | `integer` | no |  |  |  |
+| `sha256` | `text` | no |  |  |  |
+| `updated_by_principal_id` | `uuid` | yes |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`, `agent_id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`agent_icons_company_id_companies_id_fk`)
+  - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete cascade (`agent_icons_agent_fk`)
+  - (`company_id`, `updated_by_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`agent_icons_updated_by_principal_fk`)
+- **Unique:** none
+- **Checks:**
+  - `agent_icons_content_type_check`: `content_type` is one of `image/png`, `image/jpeg`, `image/webp`, `image/gif`
+  - `agent_icons_size_check`: `"size" between 1 and 1048576`
+  - `agent_icons_sha256_check`: `"sha256" ~ '^[0-9a-f]{64}$'`
+- **Indexes:** none
+
 ### `agent_placements`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -519,6 +561,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `instructions_rev` | `integer` | no | `1` |  |  |
 | `max_concurrent_runs` | `integer` | no | `1` |  |  |
 | `face` | `smallint` | no | `0` |  |  |
+| `icon_kind` | `text` | no | `'face'` |  | `face`, `emoji`, `image` |
+| `icon_emoji` | `text` | yes |  |  |  |
 | `settings` | `jsonb` | no | `'{}'` |  |  |
 | `profile_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -542,6 +586,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `agents_instructions_rev_check`: `"instructions_rev" >= 1`
   - `agents_max_concurrent_runs_check`: `"max_concurrent_runs" between 1 and 8`
   - `agents_face_check`: `"face" between 0 and 41`
+  - `agents_icon_kind_check`: `icon_kind` is one of `face`, `emoji`, `image`
+  - `agents_icon_emoji_kind_check`: `("icon_kind" = 'emoji') = ("icon_emoji" is not null)`
+  - `agents_icon_emoji_check`: `char_length("icon_emoji") between 1 and 16`
 - **Indexes:**
   - `agents_profile_idx` on (`profile_id`)
 

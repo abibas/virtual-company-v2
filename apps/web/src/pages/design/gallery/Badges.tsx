@@ -1,5 +1,5 @@
 import { KeyRound, Sparkles } from 'lucide-react';
-import { AgentFace } from '../../../components/feed/AgentFace.tsx';
+import { AgentIcon } from '../../../components/feed/AgentIcon.tsx';
 import { ATTENTION_KINDS, KINDS } from '../../../components/feed/kinds.ts';
 import { KbdHint } from '../../../components/forms/KbdHint.tsx';
 import { Avatar, AvatarStack } from '../../../components/ui/Avatar.tsx';
@@ -98,21 +98,25 @@ function AvatarExamples() {
         <Avatar name="Ihor Herasko" size="md" />
         <Avatar name="Olena Marsh" size="lg" />
         <Avatar name="Theo Laurent" size="xl" />
-        <Avatar name="Scout" size="lg" fallback={<AgentFace variant={0} />} />
-        <Avatar name="Mason" size="lg" fallback={<AgentFace variant={1} />} selected />
-        <Avatar name="Juno" size="lg" shape="rounded" fallback={<AgentFace variant={2} />} />
+        <AgentIcon agent={{ name: 'Scout', face: 0 }} size="lg" />
+        <AgentIcon agent={{ name: 'Mason', face: 1 }} size="lg" selected />
+        <AgentIcon agent={{ name: 'Juno', face: 2, status: 'paused' }} size="lg" />
       </Example>
       <Example label="AvatarStack and the drawn faces">
         <AvatarStack people={PEOPLE} max={4} />
         <AvatarStack people={PEOPLE.slice(0, 3)} size="md" />
         {[0, 1, 2, 3, 4, 5].map((variant) => (
-          <Avatar
-            key={variant}
-            name={`Agent ${variant}`}
-            size="lg"
-            fallback={<AgentFace variant={variant} />}
-          />
+          <AgentIcon key={variant} agent={{ name: `Agent ${variant}`, face: variant }} size="lg" />
         ))}
+      </Example>
+      <Example label="AgentIcon: an emoji on its soft tile at each size, and muted">
+        {(['xs', 'sm', 'md', 'lg', 'xl'] as const).map((size) => (
+          <AgentIcon key={size} agent={{ name: 'Scout', icon: { kind: 'emoji', emoji: '🤖' } }} size={size} />
+        ))}
+        <AgentIcon
+          agent={{ name: 'Pip', icon: { kind: 'emoji', emoji: '🧪' }, status: 'paused' }}
+          size="lg"
+        />
       </Example>
       <Example label="CompanyLogo sizes: the initials on the gradient, an image, and inverse on a gradient card">
         {LOGO_SIZES.map((size) => (

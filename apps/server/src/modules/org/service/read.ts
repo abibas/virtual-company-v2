@@ -1,4 +1,5 @@
 import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
+import { agentIconView } from '@mwc/shared/agent-icons';
 import type { OrgRepo } from '../repo.ts';
 import { type OrgState, orgState } from '../rules/placement.ts';
 import type { AgentProfileView, RunsWithView } from '../schemas/profiles.ts';
@@ -15,10 +16,12 @@ export async function loadOrg(repo: OrgRepo, t: TenantDb): Promise<OrgState> {
 type Place = Pick<OrgPosition, 'reportsToPrincipalId' | 'title'> | undefined;
 
 /**
- * What an agent's views show beside its own row: its access profile and what that runs (`profileExtras`), and where it
+ * What an agent's views show beside its own row: its image's hash (for its icon), its access profile and what that runs (`profileExtras`), and where it
  * runs (the machines module's).
  */
 export interface AgentExtras {
+  /** Its image's SHA-256 (`agent_icons`), null or undefined for none: its icon's version. */
+  readonly iconHash: string | null | undefined;
   readonly profile: AgentProfileView | null;
   readonly runsWith: RunsWithView | null;
   readonly placement: AgentPlacementSummaryView | null;
@@ -41,6 +44,7 @@ export function agentView(agent: Agent, place: Place, extras: AgentExtras): Agen
     instructionsRev: agent.instructionsRev,
     maxConcurrentRuns: agent.maxConcurrentRuns,
     face: agent.face,
+    icon: agentIconView(agent.iconKind, agent.iconEmoji, extras.iconHash),
     reportsTo: place?.reportsToPrincipalId ?? null,
     title: place?.title ?? null,
     profile: extras.profile,

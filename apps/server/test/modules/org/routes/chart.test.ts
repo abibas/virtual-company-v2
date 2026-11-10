@@ -100,6 +100,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           roleTitle: 'Coder',
           status: 'active',
           face: lead.face,
+          icon: { kind: 'face' },
           profile: {
             id: work.id,
             name: 'Work',

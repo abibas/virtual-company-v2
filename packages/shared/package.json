@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agent-icons": "./src/agent-icons.ts",
     "./api-keys": "./src/api-keys.ts",
     "./chats": "./src/chats.ts",
     "./config": "./src/config.ts",

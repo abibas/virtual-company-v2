@@ -10,6 +10,7 @@ import {
   POSITION_TITLE_MAX,
 } from '@mwc/shared/org';
 import { SLUG_PATTERN } from '@mwc/shared/slugs';
+import { AgentIconSchema } from './schemas/icons.ts';
 import {
   AgentProfileSchema,
   ProfileChoice,
@@ -76,6 +77,8 @@ export const AgentSchema = z
     instructionsRev: z.number().int(),
     maxConcurrentRuns: z.number().int(),
     face: z.number().int(),
+    /** What stands for it on screen: its face (the default), an emoji or its image (`GET .../icon?v=`). */
+    icon: AgentIconSchema,
     reportsTo: z.string().nullable().openapi({ description: 'Its manager’s principal; null once archived' }),
     title: z.string().nullable(),
     /** The access profile its runs use (S3.4); null for none. */
@@ -184,6 +187,7 @@ export const AgentNodeSchema = z
       roleTitle: z.string(),
       status: AgentStatus,
       face: z.number().int(),
+      icon: AgentIconSchema,
       profile: AgentProfileSchema.nullable(),
       runsWith: RunsWithSchema.nullable(),
       placement: AgentPlacementSummarySchema.nullable(),

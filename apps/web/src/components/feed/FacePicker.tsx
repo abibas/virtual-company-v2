@@ -1,14 +1,9 @@
 import { type KeyboardEvent, useRef } from 'react';
 import { cx } from '../cx.ts';
-import { Avatar, type AvatarSize } from '../ui/Avatar.tsx';
+import type { AvatarSize } from '../ui/Avatar.tsx';
 import { Tooltip } from '../ui/Tooltip.tsx';
-import { AgentFace } from './AgentFace.tsx';
+import { AgentIcon } from './AgentIcon.tsx';
 import type { AgentRef } from './kinds.ts';
-
-/** An agent's face as the feed draws it: its image, else its drawn face. */
-export function agentFallback(agent: AgentRef, muted = false) {
-  return agent.imageUrl ? undefined : <AgentFace variant={agent.face ?? 0} muted={muted} />;
-}
 
 /** One face of the picker: a radio in the ARIA sense, named in a tooltip. */
 function FaceButton({
@@ -48,11 +43,11 @@ function FaceButton({
           disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-105',
         )}
       >
-        <Avatar
-          name={agent.name}
-          src={agent.imageUrl}
-          fallback={agentFallback(agent, disabled)}
+        <AgentIcon
+          agent={agent}
+          previewSrc={agent.imageUrl}
           size={size}
+          muted={disabled}
           selected={selected && !disabled}
         />
       </button>

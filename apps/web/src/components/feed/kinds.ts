@@ -1,3 +1,4 @@
+import type { AgentIconView } from '@mwc/shared/agent-icons';
 import { Ban, CircleCheck, CircleX, Clock, Eye, type LucideIcon, MessageCircleQuestion } from 'lucide-react';
 import type { Tone } from '../ui/Badge.tsx';
 
@@ -10,8 +11,10 @@ export interface AgentRef {
   readonly name: string;
   readonly role?: string;
   readonly imageUrl?: string | null;
-  /** Which of the drawn faces, while agents have no image of their own. */
+  /** Which of the drawn faces: the agent's own, and the fallback of its icon. */
   readonly face?: number;
+  /** Its icon (`AgentIcon`): the face, an emoji or its image; none draws the face. */
+  readonly icon?: AgentIconView;
 }
 
 export interface AttentionItem {

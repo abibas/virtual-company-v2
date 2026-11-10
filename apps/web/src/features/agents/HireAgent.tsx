@@ -1,5 +1,6 @@
 import { ArrowLeft, UserPlus } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
+import { agentIconCalls } from '../../api/agent-icon.ts';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
 import { orgCalls, placementCalls } from '../../api/org.ts';
@@ -20,6 +21,7 @@ import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { type AgentDraft, newAgentOf, type ProfileDefaults, useAgentDraft } from './agent-draft.ts';
 import { runsOf } from './harness-from-profile.ts';
+import { saveNewIcon } from './icon-draft.ts';
 import type { AgentLinks } from './links.ts';
 
 export interface HireAgentProps {
@@ -53,6 +55,7 @@ function previewNode(draft: AgentDraft, runsWith: RunsWith | null): ChartNode {
       roleTitle: values.roleTitle.trim() || 'Its role',
       status: 'active',
       face: draft.face,
+      icon: values.icon.kind === 'emoji' && values.icon.emoji ? values.icon : { kind: 'face' },
       profile: null,
       runsWith,
       placement: null,
@@ -108,8 +111,8 @@ interface HireFormProps {
 }
 
 /**
- * Hiring: `POST /agents`, then where it runs (`PUT` of its placement, when a machine is chosen), then `onHired`; a
- * refusal of the hire shows in the form.
+ * Hiring: `POST /agents`, then where it runs (`PUT` of its placement, when a machine is chosen) and its icon, then
+ * `onHired`; a refusal of the hire shows in the form.
  */
 function useHire(companyId: string, drafts: Pick<HireFormProps, 'draft' | 'placement' | 'onHired'>) {
   const api = useApi();
@@ -128,6 +131,7 @@ function useHire(companyId: string, drafts: Pick<HireFormProps, 'draft' | 'place
           .set(agent.id, step.change)
           .catch(() => undefined);
       }
+      await saveNewIcon(agentIconCalls(api, companyId), agent.id, drafts.draft.values.icon);
       drafts.onHired(agent);
     } catch (failure) {
       setError(friendlyMessage(failure));

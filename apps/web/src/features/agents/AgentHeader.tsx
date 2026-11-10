@@ -5,10 +5,10 @@ import { friendlyMessage } from '../../api/errors.ts';
 import type { OrgCalls } from '../../api/org.ts';
 import type { AgentDetail, ChartNode } from '../../api/types.ts';
 import { formatDate, formatDateTime } from '../../components/data/format.ts';
+import { AgentIcon } from '../../components/feed/AgentIcon.tsx';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { harnessLabel, profileLabel, runsLine } from '../../components/org/agent-labels.ts';
 import { nodeName } from '../../components/org/chart.ts';
-import { AgentAvatar } from '../../components/org/OrgNodeCard.tsx';
 import { StatusPill } from '../../components/ui/Badge.tsx';
 import { Button, type ButtonTone } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
@@ -137,7 +137,7 @@ export function AgentHeader({
     <Card as="section" aria-label={agent.name} padding="lg" className="ring-1 ring-teal/25">
       <span aria-hidden="true" className="absolute inset-x-6 top-0 h-1 rounded-b-full bg-teal" />
       <div className="flex flex-wrap items-start gap-4 md:gap-5">
-        <AgentAvatar agent={agent} size="xl" className="shadow-card" />
+        <AgentIcon agent={agent} size="xl" className="shadow-card" />
         <div className="min-w-0 flex-1">
           <StatusPill status={agent.status} />
           <h2 className="mt-2 text-3xl font-extrabold tracking-[-0.03em] break-words text-ink">

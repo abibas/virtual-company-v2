@@ -88,6 +88,14 @@ export type LogoContentType = z.infer<typeof LogoContentType>;
 export const AgentStatus = z.enum(['active', 'paused', 'archived']);
 export type AgentStatus = z.infer<typeof AgentStatus>;
 
+/** `agents.icon_kind`: what stands for an agent on screen, its drawn face (the default), an emoji, or an uploaded image. */
+export const AgentIconKind = z.enum(['face', 'emoji', 'image']);
+export type AgentIconKind = z.infer<typeof AgentIconKind>;
+
+/** `agent_icons.content_type`: the image types an agent's icon may be, told from the file's own first bytes. */
+export const AgentIconContentType = z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+export type AgentIconContentType = z.infer<typeof AgentIconContentType>;
+
 /** `agents.harness`: the coding harness an agent's runs use. */
 export const Harness = z.enum(['claude_code', 'codex']);
 export type Harness = z.infer<typeof Harness>;

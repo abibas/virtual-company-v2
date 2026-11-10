@@ -10,6 +10,7 @@ import {
 import { slugify } from '@mwc/shared/slugs';
 import { useState } from 'react';
 import type { AgentChanges, AgentDetail, NewAgent } from '../../api/types.ts';
+import { type IconDraft, iconStart, iconValid } from './icon-draft.ts';
 
 /** What the agent form holds. */
 export interface AgentValues {
@@ -17,6 +18,8 @@ export interface AgentValues {
   readonly roleTitle: string;
   /** The face picked; null follows the face of the slug the name makes. */
   readonly face: number | null;
+  /** What stands for it: its face, an emoji or an image (`icon-draft.ts`), sent apart from the fields. */
+  readonly icon: IconDraft;
   /** What runs it: its access profile's provider's harness (its model and effort are the profile's). */
   readonly harness: Harness;
   readonly maxConcurrentRuns: number;
@@ -54,6 +57,7 @@ function startOf(agent: AgentDetail | undefined, reportsTo: string, profileId: s
     name: agent?.name ?? '',
     roleTitle: agent?.roleTitle ?? '',
     face: agent?.face ?? null,
+    icon: iconStart(agent),
     harness: agent?.harness ?? AGENT_DEFAULTS.harness,
     maxConcurrentRuns: agent?.maxConcurrentRuns ?? AGENT_DEFAULTS.maxConcurrentRuns,
     // An archived agent has no place (and no manager) until it is restored.
@@ -84,7 +88,8 @@ export function useAgentDraft(
     valid:
       within(values.name, AGENT_NAME) &&
       within(values.roleTitle, AGENT_ROLE_TITLE) &&
-      values.instructions.length <= AGENT_INSTRUCTIONS_MAX,
+      values.instructions.length <= AGENT_INSTRUCTIONS_MAX &&
+      iconValid(values.icon, agent),
     reset: () => setValues(startOf(agent, reportsTo, defaultProfileId)),
   };
 }

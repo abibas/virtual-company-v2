@@ -25,6 +25,8 @@ const agent: Agent = {
   instructionsRev: 4,
   maxConcurrentRuns: 1,
   face: 9,
+  iconKind: 'face',
+  iconEmoji: null,
   settings: {},
   profileId: null,
   createdAt: new Date('2026-11-05T10:00:00Z'),

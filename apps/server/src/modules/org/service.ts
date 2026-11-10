@@ -8,6 +8,7 @@ import type { AgentListFilter, AgentView, CreateAgent, UpdateAgent, UpdatePositi
 import { type AgentResult, createAgent, shownAgent, updateAgent } from './service/agents.ts';
 import type { Caller } from './service/audit.ts';
 import { chartReader } from './service/chart.ts';
+import { agentIconHashes } from './service/icons.ts';
 import { setPosition } from './service/positions.ts';
 import {
   auditProfileRemoval as auditRemoval,
@@ -58,8 +59,8 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
   const repo = orgRepo();
   return {
     /**
-     * The company's agents, in the order they were created, each with its place on the chart, its profile and where it
-     * runs.
+     * The company's agents, in the order they were created, each with its place on the chart, its profile, where it
+     * runs and its icon.
      */
     async list(t: TenantDb, filter: AgentListFilter): Promise<AgentView[]> {
       const rows = await repo.listAgents(t, LIST_STATUSES[filter ?? 'default']);
@@ -67,10 +68,12 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
       const profileIds = rows.map((agent) => agent.profileId);
       const profiles = await profileRefs(deps, repo, t, profileIds);
       const placements = await placementsOf(t);
+      const icons = await agentIconHashes(t);
       return rows.map((agent) =>
         agentView(agent, places.get(agent.principalId), {
           ...profileExtras(profiles, agent.profileId),
           placement: placements.get(agent.id) ?? null,
+          iconHash: icons.get(agent.id),
         }),
       );
     },

@@ -1,6 +1,6 @@
 import { CircleCheck } from 'lucide-react';
 import { List } from '../data/List.tsx';
-import { AgentFace } from '../feed/AgentFace.tsx';
+import { AgentIconArt } from '../feed/AgentIcon.tsx';
 import { AttentionRow } from '../feed/AttentionRow.tsx';
 import type { AttentionItem } from '../feed/kinds.ts';
 import { AvatarStack } from '../ui/Avatar.tsx';
@@ -33,10 +33,10 @@ const MOMENTS: readonly AttentionItem[] = [
 ];
 
 const FACES = [
-  { name: 'Scout', fallback: <AgentFace variant={0} /> },
-  { name: 'Mason', fallback: <AgentFace variant={1} /> },
-  { name: 'Juno', fallback: <AgentFace variant={2} /> },
-  { name: 'Pip', fallback: <AgentFace variant={3} /> },
+  { name: 'Scout', fallback: <AgentIconArt agent={{ name: 'Scout', face: 0 }} /> },
+  { name: 'Mason', fallback: <AgentIconArt agent={{ name: 'Mason', face: 1 }} /> },
+  { name: 'Juno', fallback: <AgentIconArt agent={{ name: 'Juno', face: 2 }} /> },
+  { name: 'Pip', fallback: <AgentIconArt agent={{ name: 'Pip', face: 3 }} /> },
 ];
 
 /** The composition on the brand panel: a feed card, with a small card of faces floating over its corner. */

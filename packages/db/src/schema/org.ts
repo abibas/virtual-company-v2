@@ -1,4 +1,5 @@
-import { AgentStatus, Harness } from '@mwc/shared/enums';
+import { AGENT_EMOJI_MAX } from '@mwc/shared/agent-icons';
+import { AgentIconKind, AgentStatus, Harness } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import {
   AGENT_FACE,
@@ -60,6 +61,13 @@ export const agents = pgTable(
     maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(1),
     /** The web's drawn face (`AgentFace`): 7 colours × 6 features, 0–41. */
     face: smallint('face').notNull().default(0),
+    /**
+     * What stands for it on screen (migration `0020_agent_icons`): its drawn face (`face`, the default), the emoji in
+     * `icon_emoji`, or its uploaded image (`agent_icons`, which the org service keeps in step: an `image` agent has one).
+     */
+    iconKind: text('icon_kind').$type<AgentIconKind>().notNull().default('face'),
+    /** The emoji of an `emoji` icon (one grapheme, at most 16 code points), null for any other kind. */
+    iconEmoji: text('icon_emoji'),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     /**
      * The access profile its runs use (S3.4): a person's subscription of the provider its harness runs on, given by
@@ -83,6 +91,9 @@ export const agents = pgTable(
     check('agents_instructions_rev_check', sql`${t.instructionsRev} >= 1`),
     check('agents_max_concurrent_runs_check', within(sql`${t.maxConcurrentRuns}`, AGENT_MAX_CONCURRENT_RUNS)),
     check('agents_face_check', within(sql`${t.face}`, AGENT_FACE)),
+    check('agents_icon_kind_check', oneOf(t.iconKind, AgentIconKind.options)),
+    check('agents_icon_emoji_kind_check', sql`(${t.iconKind} = 'emoji') = (${t.iconEmoji} is not null)`),
+    check('agents_icon_emoji_check', sql`char_length(${t.iconEmoji}) between 1 and ${n(AGENT_EMOJI_MAX)}`),
     index('agents_profile_idx').on(t.profileId),
   ],
 );

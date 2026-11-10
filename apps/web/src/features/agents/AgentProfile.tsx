@@ -1,5 +1,6 @@
 import { ArrowLeft, Save } from 'lucide-react';
 import { type FormEvent, useMemo, useState } from 'react';
+import { type AgentIconCalls, agentIconCalls } from '../../api/agent-icon.ts';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
 import {
@@ -26,6 +27,7 @@ import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { AgentHeader } from './AgentHeader.tsx';
 import { type AgentDraft, changesOf, useAgentDraft } from './agent-draft.ts';
+import { iconKey, iconStep, saveIcon } from './icon-draft.ts';
 import type { AgentLinks } from './links.ts';
 
 export interface AgentProfileProps {
@@ -49,11 +51,12 @@ async function savePlacement(calls: PlacementCalls, agentId: string, step: Place
 interface SaveCalls {
   readonly org: OrgCalls;
   readonly placements: PlacementCalls;
+  readonly icons: AgentIconCalls;
 }
 
 /**
- * What Save would send: the changed fields (`PATCH`), a new manager (`PUT` of its place) and where it runs (its
- * placement), in turn.
+ * What Save would send: the changed fields (`PATCH`), a new manager (`PUT` of its place), where it runs (its
+ * placement) and its icon, in turn.
  */
 function useSaveAgent(
   agent: AgentDetail,
@@ -67,6 +70,7 @@ function useSaveAgent(
   const manager = drafts.draft.values.reportsTo;
   const move = agent.status !== 'archived' && manager !== (agent.reportsTo ?? '');
   const step = placementStep(drafts.placement);
+  const icon = iconStep(drafts.draft.values.icon, agent);
   const save = async () => {
     setBusy(true);
     setError(undefined);
@@ -74,6 +78,7 @@ function useSaveAgent(
       const saved = Object.keys(changes).length > 0 ? await calls.org.update(agent.id, changes) : agent;
       if (move) await calls.org.place(agent.principalId, { reportsToPrincipalId: manager });
       await savePlacement(calls.placements, agent.id, step);
+      await saveIcon(calls.icons, agent.id, icon);
       onChanged(saved);
     } catch (failure) {
       setError(friendlyMessage(failure));
@@ -81,7 +86,8 @@ function useSaveAgent(
       setBusy(false);
     }
   };
-  return { busy, error, dirty: Object.keys(changes).length > 0 || move || step.kind !== 'none', save };
+  const dirty = Object.keys(changes).length > 0 || move || step.kind !== 'none' || icon.kind !== 'none';
+  return { busy, error, dirty, save };
 }
 
 /**
@@ -92,6 +98,7 @@ function useProfileForm(agent: AgentDetail, companyId: string, onChanged: (a: Ag
   const api = useApi();
   const org = useMemo(() => orgCalls(api, companyId), [api, companyId]);
   const placements = useMemo(() => placementCalls(api, companyId), [api, companyId]);
+  const icons = useMemo(() => agentIconCalls(api, companyId), [api, companyId]);
   const draft = useAgentDraft(agent, '');
   const saved = useAgentPlacement(companyId, agent.id);
   const placement = usePlacementDraft(saved.data);
@@ -99,7 +106,7 @@ function useProfileForm(agent: AgentDetail, companyId: string, onChanged: (a: Ag
     saved.reload();
     onChanged(a);
   };
-  const saving = useSaveAgent(agent, { draft, placement }, { org, placements }, changed);
+  const saving = useSaveAgent(agent, { draft, placement }, { org, placements, icons }, changed);
   const discard = () => {
     draft.reset();
     placement.reset();
@@ -205,8 +212,8 @@ function ProfileBody({
   );
 }
 
-/** A new manager (a move saved, an archive, a restore) starts the form again from the saved agent. */
-const formKey = (agent: AgentDetail) => `${agent.id}:${agent.reportsTo ?? ''}`;
+/** A new manager (a move saved, an archive, a restore) or a new icon starts the form again from the saved agent. */
+const formKey = (agent: AgentDetail) => `${agent.id}:${agent.reportsTo ?? ''}:${iconKey(agent)}`;
 
 /** An agent's page: back to the agents, then the agent (or why it cannot be shown). */
 export function AgentProfile({ agent, links, ...rest }: AgentProfileProps) {

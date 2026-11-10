@@ -1,13 +1,13 @@
 import { ArrowRight, Network, Plus } from 'lucide-react';
 import type { Agent } from '../../api/types.ts';
-import { AgentFace } from '../../components/feed/AgentFace.tsx';
+import { AgentIconArt } from '../../components/feed/AgentIcon.tsx';
 import { AvatarStack } from '../../components/ui/Avatar.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 
-type TeamAgent = Pick<Agent, 'id' | 'name' | 'face' | 'status'>;
+type TeamAgent = Pick<Agent, 'id' | 'name' | 'face' | 'status' | 'icon'>;
 
 interface TeamCardProps {
   /** The active and paused agents; undefined while they load. */
@@ -58,7 +58,7 @@ export function TeamCard({ agents, href, hireHref }: TeamCardProps) {
   const faces = (agents ?? []).map((agent) => ({
     id: agent.id,
     name: agent.name,
-    fallback: <AgentFace variant={agent.face} muted={agent.status !== 'active'} />,
+    fallback: <AgentIconArt agent={agent} size="md" />,
   }));
   return (
     <Card variant="teal" padding="lg" as="section" aria-labelledby="team-card" className="flex flex-col">

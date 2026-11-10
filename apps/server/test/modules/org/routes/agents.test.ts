@@ -58,6 +58,7 @@ describe('POST /api/companies/:companyId/agents', () => {
       instructionsRev: 1,
       maxConcurrentRuns: 1,
       face: agentFace('slop-box'),
+      icon: { kind: 'face' },
       reportsTo: admin.principalId,
       title: null,
       profile: null,

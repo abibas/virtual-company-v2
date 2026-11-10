@@ -1,3 +1,4 @@
+export { AGENT_EMOJI_MAX, type AgentIconView, agentIconView, isAgentEmoji } from './agent-icons.ts';
 export {
   API_KEY_ALPHABET,
   API_KEY_PATTERN,
@@ -18,6 +19,8 @@ export {
 } from './config.ts';
 export {
   ActorKind,
+  AgentIconContentType,
+  AgentIconKind,
   AgentStatus,
   ApiKeyKind,
   CompanyStatus,

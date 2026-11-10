@@ -28,6 +28,20 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: Agent icons grow three folders already over their limit
+
+- **What happened:** an agent's icon (face, emoji or image) added `apps/web/src/api/agent-icon.ts` (the object-URL
+  cache of the images, as `machine-logo.ts`; `api/` 21 → 22 entries, `big-folder`), `packages/shared/src/agent-icons.ts`
+  (the emoji check both sides use; 21 → 22) and `features/agents/IconChoice.tsx` with `icon-draft.ts` (14 → 16). The
+  shared `AgentIcon` went to `components/feed/` beside `AgentFace`, `EmojiPicker` to `components/forms/`. The org
+  module's icon parts follow its existing split (`routes/`, `service/`, `repo/`, `rules/`, `schemas/icons.ts`).
+  `HireAgent.tsx` stays at 240 lines: the new agent's icon is saved by `saveNewIcon` in `icon-draft.ts`.
+- **Where:** the agent-icons commit.
+- **What was done:** as above.
+- **Suggested change:** at the S5 review, group the web's image caches (`company-logo.ts`, `machine-logo.ts`,
+  `agent-icon.ts`, `pending-logo.ts`) under `api/images/`, one generic versioned store instead of three copies.
+- **Status:** `open`.
+
 ### 2026-11-10: Following Codex's session files while a turn runs, in a new `follow/` folder
 
 - **What happened:** multi-agent v2's subagents and every subagent's own steps come from Codex's session files, read

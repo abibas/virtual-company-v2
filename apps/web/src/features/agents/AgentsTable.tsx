@@ -4,10 +4,10 @@ import type { Loaded } from '../../api/use-load.ts';
 import { Link } from '../../app/router.tsx';
 import { type Column, DataTable, Primary } from '../../components/data/DataTable.tsx';
 import { LoadState } from '../../components/data/LoadState.tsx';
+import { AgentIcon } from '../../components/feed/AgentIcon.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
 import { profileLabel, runsEffortLabel, runsModelLabel } from '../../components/org/agent-labels.ts';
 import { nodeName } from '../../components/org/chart.ts';
-import { AgentAvatar } from '../../components/org/OrgNodeCard.tsx';
 import { Badge, StatusPill } from '../../components/ui/Badge.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
@@ -60,7 +60,7 @@ function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): r
       header: 'Agent',
       cell: (agent) => (
         <div className="flex min-w-0 items-start gap-2.5">
-          <AgentAvatar agent={agent} size="sm" />
+          <AgentIcon agent={agent} size="sm" />
           <Primary
             title={
               <Link to={links.agent(agent)} className="rounded-xs hover:text-teal focus-visible:text-teal">

@@ -1,64 +1,26 @@
-import { AGENT_FACE, AGENT_INSTRUCTIONS_MAX, AGENT_NAME, AGENT_ROLE_TITLE, agentFace } from '@mwc/shared/org';
+import { AGENT_INSTRUCTIONS_MAX, AGENT_NAME, AGENT_ROLE_TITLE } from '@mwc/shared/org';
 import { type ReactNode, useId } from 'react';
 import type { AgentDetail, OrgChart } from '../../api/types.ts';
-import { FacePicker } from '../../components/feed/FacePicker.tsx';
-import type { AgentRef } from '../../components/feed/kinds.ts';
 import { ChoiceField, Field, TextField } from '../../components/forms/Field.tsx';
 import { Select, Textarea } from '../../components/forms/Input.tsx';
 import { PrincipalSelect } from '../../components/org/PrincipalSelect.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import type { AgentDraft } from './agent-draft.ts';
+import { IconChoice } from './IconChoice.tsx';
 import { ModelPanel, type OwnProfiles } from './ModelFields.tsx';
-
-/** Every drawn face, as choices of the face picker. */
-const FACES: readonly AgentRef[] = Array.from(
-  { length: AGENT_FACE.max - AGENT_FACE.min + 1 },
-  (_, index) => ({
-    id: String(AGENT_FACE.min + index),
-    name: `Face ${index + 1}`,
-    face: AGENT_FACE.min + index,
-  }),
-);
 
 interface PartProps {
   readonly draft: AgentDraft;
   readonly readOnly: boolean;
 }
 
-/** The face: drawn from the name until one is picked, and back to the name's on request. */
-function FaceChoice({ draft }: { readonly draft: AgentDraft }) {
-  const named = draft.face === agentFace(draft.slug);
-  const hint = named ? (
-    'Drawn from its name until you pick another.'
-  ) : (
-    <button
-      type="button"
-      onClick={() => draft.set('face', null)}
-      className="cursor-pointer font-semibold text-blue hover:underline"
-    >
-      Use the face of its name
-    </button>
-  );
-  return (
-    <ChoiceField label="Face" hint={hint}>
-      <FacePicker
-        agents={FACES}
-        value={String(draft.face)}
-        onChange={(id) => draft.set('face', Number(id))}
-        label="Face"
-        size="sm"
-        className="gap-1.5"
-      />
-    </ChoiceField>
-  );
-}
-
-/** Who the agent is: its name (and the handle it makes), its job on the chart and its face. */
-function IdentityPanel({ draft, readOnly, isNew }: PartProps & { readonly isNew: boolean }) {
+/** Who the agent is: its name (and the handle it makes), its job on the chart and its icon. */
+function IdentityPanel({ draft, readOnly, agent }: PartProps & { readonly agent: AgentDetail | undefined }) {
   const { values, set } = draft;
+  const isNew = agent === undefined;
   return (
-    <Panel title="Who it is" description="Its name, its job on the chart and its face.">
+    <Panel title="Who it is" description="Its name, its job on the chart and its icon.">
       <div className="flex flex-col gap-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
@@ -91,7 +53,11 @@ function IdentityPanel({ draft, readOnly, isNew }: PartProps & { readonly isNew:
             placeholder="Researcher, Coder, QA…"
           />
         </div>
-        {!readOnly && <FaceChoice draft={draft} />}
+        {!readOnly && (
+          <ChoiceField label="Icon">
+            <IconChoice draft={draft} agent={agent} />
+          </ChoiceField>
+        )}
       </div>
     </Panel>
   );
@@ -228,7 +194,7 @@ export interface AgentFormProps {
 export function AgentForm({ draft, chart, agent, meUserId, readOnly = false, ...parts }: AgentFormProps) {
   return (
     <div className="grid gap-4 md:gap-5">
-      <IdentityPanel draft={draft} readOnly={readOnly} isNew={agent === undefined} />
+      <IdentityPanel draft={draft} readOnly={readOnly} agent={agent} />
       <ModelPanel draft={draft} readOnly={readOnly} agent={agent} meUserId={meUserId} {...parts} />
       <PlacePanel draft={draft} readOnly={readOnly} chart={chart} agent={agent} meUserId={meUserId} />
       <InstructionsPanel draft={draft} readOnly={readOnly} agent={agent} />

@@ -23,6 +23,10 @@ export type AgentDetail = InferResponseType<AgentRoutes[':agentId']['$get'], 200
 export type AgentFilter = NonNullable<InferRequestType<AgentRoutes['$get']>['query']['status']>;
 export type NewAgent = InferRequestType<AgentRoutes['$post']>['json'];
 export type AgentChanges = InferRequestType<AgentRoutes[':agentId']['$patch']>['json'];
+/** An agent's icon as agents and the chart show it: its face, an emoji, or its image by its version. */
+export type AgentIconView = Agent['icon'];
+/** `PATCH /agents/:agentId/icon`: the face, or one emoji. */
+export type AgentIconChoice = InferRequestType<AgentRoutes[':agentId']['icon']['$patch']>['json'];
 export type PositionChange = InferRequestType<
   CompanyRoutes['org']['positions'][':principalId']['$put']
 >['json'];

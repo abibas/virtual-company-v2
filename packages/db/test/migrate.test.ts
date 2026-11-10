@@ -37,6 +37,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
     );
     expect(tables.map((row) => row.table_name)).toEqual([
       'access_profiles',
+      'agent_icons',
       'agent_placements',
       'agents',
       'api_keys',
