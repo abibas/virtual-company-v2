@@ -5,29 +5,24 @@ import {
   isUniqueViolation,
   type OwnedDb,
   owned,
-  tenant,
 } from '@mwc/db';
-import { companiesOf } from '../../identity/service.ts';
-import { agentsUsingProfiles, auditProfileRemoval } from '../../org/service.ts';
+import { auditProfileRemoval } from '../../org/service.ts';
 import { profileRows as repo } from '../repo/profiles.ts';
 import {
   auditedProfile,
+  type CredentialChoice,
+  credentialRefusal,
+  gatewayRefusal,
   PROFILE_NOT_FOUND,
   type ProfileRefusal,
+  partsPutIn,
   profileChanges,
   profileNameTaken,
-  type SlotChoice,
-  slotRefusal,
-  slotsPutIn,
+  providerFixed,
 } from '../rules/profiles.ts';
-import type {
-  AccessProfileView,
-  CreateAccessProfile,
-  ProfileAgentView,
-  SlotSubscriptionView,
-  UpdateAccessProfile,
-} from '../schemas/profiles.ts';
+import type { AccessProfileView, CreateAccessProfile, UpdateAccessProfile } from '../schemas/profiles.ts';
 import type { Caller } from '../service.ts';
+import { agentsByProfile, companiesOfUser, views } from './profiles/views.ts';
 
 type Saved<S extends 404 | 409 | 422> =
   | { readonly ok: true; readonly profile: AccessProfileView }
@@ -35,75 +30,26 @@ type Saved<S extends 404 | 409 | 422> =
 
 const NAME_UNIQUE = 'access_profiles_owner_user_id_name_unique';
 
-/** The companies a person belongs to (not removed, not deleted), as `GET /api/me` lists them. */
-const companiesOfUser = (db: DbHandle, userId: string) =>
-  companiesOf(db, { kind: 'user', via: 'clerk', userId });
-
 /**
- * The agents that use each of these profiles, in the owner's companies (an agent with one of their profiles is in a
- * company they belong to: leaving one takes their profiles off its agents), by profile id.
+ * Why a change may not give a `provider` profile these credentials (`gatewayRefusal`, `credentialRefusal`), read as the
+ * owner; undefined when it may.
  */
-async function agentsByProfile(db: DbHandle, userId: string, profileIds: readonly string[]) {
-  const uses = new Map<string, ProfileAgentView[]>();
-  if (profileIds.length === 0) return uses;
-  for (const company of await companiesOfUser(db, userId)) {
-    for (const use of await agentsUsingProfiles(await tenant(db, company.companyId), profileIds)) {
-      const agent = {
-        companyId: company.companyId,
-        companySlug: company.slug,
-        companyName: company.name,
-        agentId: use.agentId,
-        agentName: use.name,
-        agentSlug: use.slug,
-      };
-      uses.set(use.profileId, [...(uses.get(use.profileId) ?? []), agent]);
-    }
-  }
-  return uses;
-}
-
-const slotsOf = (row: AccessProfile) => [
-  row.claudeCredentialId,
-  row.openaiCredentialId,
-  row.gatewayCredentialId,
-];
-
-/** Profiles as the API shows them: each slot's subscription as metadata (never a secret) and the agents using it. */
-async function views(
+async function choiceRefusal(
   o: OwnedDb,
-  rows: readonly AccessProfile[],
-  uses: ReadonlyMap<string, ProfileAgentView[]>,
-): Promise<AccessProfileView[]> {
-  const slotIds = rows.flatMap(slotsOf).filter((id) => id !== null);
-  const held = new Map<string, SlotSubscriptionView>();
-  for (const credential of await repo.credentialsOf(o, slotIds)) {
-    const { id, kind, label, accountEmail, status } = credential;
-    held.set(id, { id, kind, label, accountEmail, status });
-  }
-  const slotView = (id: string | null) => (id === null ? null : (held.get(id) ?? null));
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    claude: slotView(row.claudeCredentialId),
-    openai: slotView(row.openaiCredentialId),
-    gateway: slotView(row.gatewayCredentialId),
-    agents: uses.get(row.id) ?? [],
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }));
-}
-
-/** Why a change may not put its credentials in the profile's slots (`slotRefusal`), read as the owner. */
-async function slotsRefusal(o: OwnedDb, before: Parameters<typeof slotsPutIn>[0], choice: SlotChoice) {
-  const putIn = slotsPutIn(before, choice);
+  profile: Parameters<typeof partsPutIn>[0] & { readonly provider: AccessProfile['provider'] },
+  choice: CredentialChoice,
+) {
+  const gateway = gatewayRefusal(profile.provider, choice);
+  if (gateway) return gateway;
+  const putIn = partsPutIn(profile, choice);
   if (putIn.length === 0) return undefined;
   const held = await repo.credentialsOf(
     o,
     putIn.map(([, id]) => id),
   );
   const found = new Map(held.map((row) => [row.id, row]));
-  for (const [slot, id] of putIn) {
-    const refusal = slotRefusal(slot, found.get(id));
+  for (const [part, id] of putIn) {
+    const refusal = credentialRefusal(part, profile.provider, found.get(id));
     if (refusal) return refusal;
   }
   return undefined;
@@ -142,7 +88,7 @@ async function shown(db: DbHandle, caller: Caller, row: AccessProfile): Promise<
 
 type Deps = { readonly db: DbHandle };
 
-/** The caller's profiles, oldest first, with their slots and the agents using each. */
+/** The caller's profiles, oldest first, with their credentials and the agents using each. */
 async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileView[]> {
   const o = owned(deps.db, caller.userId);
   const rows = await repo.listProfiles(o);
@@ -151,7 +97,7 @@ async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileVi
   return views(o, rows, uses);
 }
 
-/** A new profile of the caller's, its slots checked (422) and its name unique among theirs (409). */
+/** A new profile of the caller's, its credentials checked against its provider (422), its name unique (409). */
 async function createProfile(
   deps: Deps,
   caller: Caller,
@@ -159,11 +105,10 @@ async function createProfile(
 ): Promise<Saved<409 | 422>> {
   const saved = await namedWrite(body.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
-      const refusal = await slotsRefusal(o, {}, body);
+      const refusal = await choiceRefusal(o, { provider: body.provider }, body);
       if (refusal) return refusal;
-      const { name, claudeCredentialId, openaiCredentialId, gatewayCredentialId } = body;
-      const slots = { claudeCredentialId, openaiCredentialId, gatewayCredentialId };
-      const row = await repo.insertProfile(o, { ...slots, name });
+      const { name, provider, credentialId, gatewayCredentialId } = body;
+      const row = await repo.insertProfile(o, { name, provider, credentialId, gatewayCredentialId });
       await o.audit(entry(caller, row.id, 'create', diffFields(null, auditedProfile(row))));
       return row;
     }),
@@ -171,7 +116,10 @@ async function createProfile(
   return 'ok' in saved ? saved : shown(deps.db, caller, saved);
 }
 
-/** Renames one of the caller's profiles or changes its slots; only what differs is written and audited. */
+/**
+ * Renames one of the caller's profiles or changes its credentials (its provider is fixed: 422 `provider_mismatch`);
+ * only what differs is written and audited.
+ */
 async function updateProfile(
   deps: Deps,
   caller: Caller,
@@ -182,7 +130,8 @@ async function updateProfile(
     owned(deps.db, caller.userId).transaction(async (o) => {
       const row = await repo.getProfile(o, profileId);
       if (row === undefined) return PROFILE_NOT_FOUND;
-      const refusal = await slotsRefusal(o, row, patch);
+      if (patch.provider !== undefined && patch.provider !== row.provider) return providerFixed(row.provider);
+      const refusal = await choiceRefusal(o, row, patch);
       if (refusal) return refusal;
       const set = profileChanges(row, patch);
       if (Object.keys(set).length === 0) return row;
@@ -217,9 +166,10 @@ async function removeProfile(
 }
 
 /**
- * The access profiles API's logic (S3.4), always as the caller (the personal layer): list their profiles, create one,
- * change one, remove one. A slot takes one of the caller's own subscriptions of a kind it fits, never a revoked one
- * (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
+ * The access profiles API's logic (S3.4, one provider each since 2026-11-10), always as the caller (the personal layer):
+ * list their profiles, create one, change one, remove one. A profile's provider is fixed when it is made; its
+ * subscription is one of the caller's own of that provider, its gateway (Claude only) one of their gateways, never a
+ * revoked one (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
  * its `access_profile` audit rows; removing one also writes, in each of the caller's companies, the rows of the agents
  * and defaults it leaves (the org module's `auditProfileRemoval`), before the foreign keys detach it.
  */

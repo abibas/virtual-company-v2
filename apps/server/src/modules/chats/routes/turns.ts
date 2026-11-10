@@ -27,8 +27,9 @@ export const TURN_REFUSALS = {
     'with a `delivery`: ten messages wait already (`queue_full`), or the running turn takes no message now ' +
     '(`now_unsupported`: Codex, or a compaction)',
   422:
-    'No access profile (`profile_missing`), an empty slot for the harness (`profile_slot_empty`), a subscription ' +
-    'that is gone, revoked, signed out or of the wrong kind (`credential_not_found`, `credential_revoked`, ' +
+    'No access profile (`profile_missing`), one of another provider than the harness runs on ' +
+    '(`profile_harness_mismatch`), one without a subscription (`profile_empty`), a subscription that is gone, ' +
+    'revoked, signed out or of the wrong kind (`credential_not_found`, `credential_revoked`, ' +
     "`credential_needs_sign_in`, `credential_unusable`), or the agent's settings cannot start one (`invalid_spec`)",
   503: "The provider did not refresh the login's token (`provider_unavailable`)",
 } as const;
@@ -40,8 +41,9 @@ const startRoute = (deps: ServerDeps) => {
     method: 'post',
     summary: 'Send a prompt: a turn of the agent on its machine (admin and above)',
     description:
-      "The turn runs on the chat's profile (else the agent's): the subscription in the harness's slot, refreshed " +
-      "when due, handed to the runner for this turn only. Its events, and its end, come on the chat's stream.",
+      "The turn runs on the chat's profile (else the agent's), of the provider the harness runs on: its subscription, " +
+      "refreshed when due, handed to the runner for this turn only, with a Claude profile's gateway. Its events, " +
+      "and its end, come on the chat's stream.",
     request: { params: ChatParamsSchema, body: jsonBody(CreateTurnSchema) },
     responses: {
       202: jsonResponse('The turn: running, or waiting (`queued`) with its delivery', ChatTurnSchema),

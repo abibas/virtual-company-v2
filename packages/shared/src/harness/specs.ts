@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { GATEWAY_HEADERS, PROFILE_SLOT_KINDS, SECRET_MAX } from '../credentials.ts';
+import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
 import { type CredentialKind, Effort, Harness, PermissionPolicy } from '../enums.ts';
 import { PlacementPath } from '../machines.ts';
 import { AGENT_MODEL_MAX } from '../org.ts';
@@ -11,10 +11,10 @@ import { protocolObject } from '../runner-protocol/common.ts';
  * line. The events a turn gives back are `events.ts`'s.
  */
 
-/** The credential kinds each harness runs on: an access profile's Claude slot for Claude Code, its OpenAI slot for Codex. */
+/** The credential kinds each harness runs on: a Claude profile's subscription for Claude Code, an OpenAI one's for Codex. */
 export const HARNESS_CREDENTIAL_KINDS = {
-  claude_code: PROFILE_SLOT_KINDS.claude,
-  codex: PROFILE_SLOT_KINDS.openai,
+  claude_code: PROVIDER_KINDS.claude,
+  codex: PROVIDER_KINDS.openai,
 } as const satisfies Record<Harness, readonly CredentialKind[]>;
 
 /** True when a credential of `kind` can power `harness`. */

@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 15, the last is `0014_chat_turn_queue`.
+Tables: 29. Migrations: 16, the last is `0015_profile_provider`.
 
 ```mermaid
 erDiagram
@@ -11,8 +11,8 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     uuid owner_user_id FK "not null"
     text name "not null"
-    uuid claude_credential_id FK "nullable"
-    uuid openai_credential_id FK "nullable"
+    text provider "not null, claude|openai"
+    uuid credential_id FK "nullable"
     uuid gateway_credential_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -317,7 +317,8 @@ erDiagram
     text external_membership_id "nullable"
     text provider_role "nullable"
     uuid invitation_id FK "nullable"
-    uuid default_profile_id FK "nullable"
+    uuid default_claude_profile_id FK "nullable"
+    uuid default_openai_profile_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -364,8 +365,7 @@ erDiagram
     timestamptz updated_at "not null, default now()"
   }
   access_profiles }o--|| users : "owner_user_id"
-  access_profiles }o--o| credentials : "claude_credential_id"
-  access_profiles }o--o| credentials : "openai_credential_id"
+  access_profiles }o--o| credentials : "credential_id"
   access_profiles }o--o| credentials : "gateway_credential_id"
   agent_placements }o--|| companies : "company_id"
   agent_placements |o--|| agents : "company_id, agent_id"
@@ -415,7 +415,8 @@ erDiagram
   machines }o--o| machines : "company_id, controller_machine_id"
   memberships }o--|| companies : "company_id"
   memberships }o--|| users : "user_id"
-  memberships }o--o| access_profiles : "default_profile_id"
+  memberships }o--o| access_profiles : "default_claude_profile_id"
+  memberships }o--o| access_profiles : "default_openai_profile_id"
   memberships |o--|| principals : "company_id, principal_id"
   memberships }o--o| invitations : "company_id, invitation_id"
   org_positions }o--|| companies : "company_id"
@@ -441,8 +442,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `owner_user_id` | `uuid` | no |  | FK |  |
 | `name` | `text` | no |  |  |  |
-| `claude_credential_id` | `uuid` | yes |  | FK |  |
-| `openai_credential_id` | `uuid` | yes |  | FK |  |
+| `provider` | `text` | no |  |  | `claude`, `openai` |
+| `credential_id` | `uuid` | yes |  | FK |  |
 | `gateway_credential_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -450,13 +451,14 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Primary key:** `id`
 - **Foreign keys:**
   - `owner_user_id` → `users` (`id`), on delete no action (`access_profiles_owner_user_id_users_id_fk`)
-  - `claude_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_claude_credential_id_credentials_id_fk`)
-  - `openai_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_openai_credential_id_credentials_id_fk`)
+  - `credential_id` → `credentials` (`id`), on delete set null (`access_profiles_credential_id_credentials_id_fk`)
   - `gateway_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_gateway_credential_id_credentials_id_fk`)
 - **Unique:**
   - `access_profiles_owner_user_id_name_unique` (`owner_user_id`, `name`)
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
+  - `access_profiles_provider_check`: `provider` is one of `claude`, `openai`
+  - `access_profiles_gateway_check`: `"provider" = 'claude' or "gateway_credential_id" is null`
 - **Indexes:** none
 
 ### `agent_placements`
@@ -1117,7 +1119,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `external_membership_id` | `text` | yes |  |  |  |
 | `provider_role` | `text` | yes |  |  |  |
 | `invitation_id` | `uuid` | yes |  | FK |  |
-| `default_profile_id` | `uuid` | yes |  | FK |  |
+| `default_claude_profile_id` | `uuid` | yes |  | FK |  |
+| `default_openai_profile_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 
@@ -1125,7 +1128,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Foreign keys:**
   - `company_id` → `companies` (`id`), on delete no action (`memberships_company_id_companies_id_fk`)
   - `user_id` → `users` (`id`), on delete no action (`memberships_user_id_users_id_fk`)
-  - `default_profile_id` → `access_profiles` (`id`), on delete set null (`memberships_default_profile_id_access_profiles_id_fk`)
+  - `default_claude_profile_id` → `access_profiles` (`id`), on delete set null (`memberships_default_claude_profile_id_access_profiles_id_fk`)
+  - `default_openai_profile_id` → `access_profiles` (`id`), on delete set null (`memberships_default_openai_profile_id_access_profiles_id_fk`)
   - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`memberships_principal_fk`)
   - (`company_id`, `invitation_id`) → `invitations` (`company_id`, `id`), on delete no action (`memberships_invitation_fk`)
 - **Unique:**
@@ -1138,7 +1142,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `memberships_status_check`: `status` is one of `invited`, `active`, `suspended`, `removed`
 - **Indexes:**
   - `memberships_user_id_idx` on (`user_id`)
-  - `memberships_default_profile_idx` on (`default_profile_id`)
+  - `memberships_default_claude_profile_idx` on (`default_claude_profile_id`)
+  - `memberships_default_openai_profile_idx` on (`default_openai_profile_id`)
 
 ### `org_positions`
 

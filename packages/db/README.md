@@ -81,8 +81,8 @@ await o.transaction(async (tx) => tx.audit({ actorKind: 'user', entityType: 'cre
 The user id is the signed-in caller's (`c.var.userId` of a personal route), or the owner a server-side use names;
 another person's rows are never reached through it.
 
-A personal row a company's rows point at (S3.4: `access_profiles`, from `agents.profile_id` and
-`memberships.default_profile_id`) is read and changed in the company's transaction through the bridges, never raw
+A personal row a company's rows point at (S3.4: `access_profiles`, from `agents.profile_id` and the membership's
+defaults per provider) is read and changed in the company's transaction through the bridges, never raw
 access:
 
 ```ts

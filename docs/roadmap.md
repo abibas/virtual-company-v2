@@ -253,6 +253,22 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    **Chats load lazily: done 2026-11-10** (docs/harness.md "Reading a long chat"): the detail holds the current
    conversation (its latest 30 turns) and `earlier`; `GET …/chats/{chatId}/turns?beforeSeq=` pages older turns; the
    page folds each conversation before a Clear into a bar and loads older messages on scroll; no migration.
+   **Access profiles of one provider: done 2026-11-10** (docs/subscriptions.md "Access profiles"; Ihor: one provider per
+   profile, so several profiles can use different subscriptions of one provider). Migration `0015_profile_provider`:
+   `access_profiles.provider` (`claude` | `openai`, fixed), one `credential_id` and `gateway_credential_id` (a CHECK: a
+   gateway only on a Claude profile), the slot columns dropped; `memberships.default_claude_profile_id` and
+   `default_openai_profile_id` replace `default_profile_id`. Its `-- custom:` data step splits a bundle of both
+   subscriptions into the Claude profile and a new "<name> · OpenAI" one that takes its OpenAI subscription, its Codex
+   agents and chats and the OpenAI default of members whose default it was; single-provider and empty profiles keep
+   their rows; agents and chats left on a profile of the other provider lose it; audit rows by the system. Routes:
+   `POST /api/me/access-profiles {name, provider, credentialId?, gatewayCredentialId?}`, `PATCH` keeps the provider
+   (422 `provider_mismatch`, `gateway_not_allowed`); a profile given to an agent or chosen for a chat matches its
+   harness (422 `profile_harness_mismatch`), a harness change takes a misfit off with `profileCleared` in the answer;
+   `PUT /me/default-profile {provider, profileId}`; a turn refuses `profile_harness_mismatch` and `profile_empty`.
+   Web: the profiles in Claude and OpenAI groups, New profile asking the provider first, a default per provider, the
+   agent form and the chat picker offering only matching profiles, "Make one" opening New profile for that provider.
+   Tests: the backfill seeded at `0014` (each case, agents and chats of each harness, defaults, names taken and cut),
+   the constraints, the routes, the harness rules on agents and chats, turn resolution; no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

@@ -194,8 +194,9 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
   Codex reports `declined` gives a `warn` notice.
 - **The trailing `-`** makes Codex read the prompt from stdin (after the thread id on a resume).
 - **Gateway: not supported yet.** A turn with a gateway runs without it and its spec carries the notice
-  `This access profile’s gateway is not used: …`; nothing of the gateway reaches the process. A profile's gateway is
-  an Anthropic endpoint today, and refusing would stop every Codex agent on a profile that has one.
+  `This access profile’s gateway is not used: …`; nothing of the gateway reaches the process. Since 2026-11-10 a Codex
+  agent runs on an OpenAI access profile, which has no gateway, so the server sends none; the driver keeps the notice
+  for a spec that has one.
 - **Parsing** (`--json`): `thread.started` gives `session` (`thread_id`); `item.started` of a command, an MCP call or a
   web search gives `tool` at once; `item.completed` gives `text` (`agent_message`, kept as the reply), `tool` when not
   shown yet and `tool_result` (a command: `exit <code>: <the end of its output>`; a file change: applied or failed; an
@@ -224,8 +225,9 @@ runner's side is `apps/runner/src/turns/` and its terminals.
 2. **A prompt** (`POST …/chats/{chatId}/turns`, at most 20 000 characters) is checked in this order, each refusal
    naming what to fix: the chat not archived, no turn of it running; the agent's placement (none, `container` mode: S5
    proper), its machine's runner connected, newer than chats (`caps.harnesses` with versions) and with the harness's
-   CLI; the profile (the chat's, else the agent's) and the subscription in the harness's slot (Claude Code: the Claude
-   slot and the gateway slot; Codex: the OpenAI slot).
+   CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile,
+   with its gateway; Codex: an OpenAI profile; else `profile_harness_mismatch`), and its subscription (`profile_empty`
+   when it has none).
 3. **The credential** is opened by the credentials module as its owner (`credentialsForHarness`): one
    `credential_uses` row per turn, naming the company, the agent, the chat and who sent the prompt (`chat_turn`;
    `chat_terminal` for a terminal), and one for the gateway. A Claude login whose access token has under 60 minutes left

@@ -165,7 +165,7 @@ describe('Sign in again over HTTP', () => {
 
   it('renews the same subscription: no new one, its secret replaced, active, its name and profiles kept', async () => {
     const old = await stale('claude_oauth', 'ihor@example.test');
-    const profile = await seedProfile(w.t.db, ihor.userId, { claudeCredentialId: old.id });
+    const profile = await seedProfile(w.t.db, ihor.userId, { credentialId: old.id });
     const before = (await subscriptionsOf(ihor)).length;
     const res = await as(ihor, 'req-again')('POST', SIGN_IN, {
       provider: 'claude',
@@ -197,7 +197,7 @@ describe('Sign in again over HTTP', () => {
       secret: { credentials: CLAUDE_CREDENTIALS },
     });
     const profiles = (await as(ihor)('GET', PROFILES)).body as { profiles: AccessProfileView[] };
-    expect(profiles.profiles.find((p) => p.id === profile.id)?.claude).toMatchObject({
+    expect(profiles.profiles.find((p) => p.id === profile.id)?.subscription).toMatchObject({
       id: old.id,
       status: 'active',
     });

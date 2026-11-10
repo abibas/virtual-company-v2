@@ -7,7 +7,7 @@ are S3, machines and placements S4, runs S5, the inbox and the SLOP BOX mileston
 
 - One place to sign in. Ihor adds his Claude and OpenAI subscriptions, API keys and gateways once, here. No machine,
   container or devbox ever signs in to an AI provider itself.
-- Agents get an **access profile**, not a login: a named bundle of the subscriptions a run may use.
+- Agents get an **access profile**, not a login: a named choice of one provider's subscription a run may use.
 - Secrets are readable only by the server, never shown back, and never stored on the machines that run agents.
 - The home page shows each subscription's live 5-hour and weekly limits.
 
@@ -144,36 +144,74 @@ As built in S3.2:
 
 ## Access profiles
 
-A personal, named bundle: the Claude subscription for `claude_code` agents, the OpenAI one for `codex` agents, an
-optional gateway, later the GitHub and Jira sign-ins of S7. Its owner gives it to agents in companies where they are an
-admin or owner (`agents.profile_id`); each person has a default profile per company for the agents they hire. A
-profile never moves a credential into a company: it is a reference the server resolves at run time.
+A personal, named choice of **one provider's subscription** (since 2026-11-10, Ihor: "we should have ONE, so we can use
+different profiles with the single provider/subscription"): a **Claude profile** holds one Claude subscription, for
+`claude_code` agents, and an optional gateway; an **OpenAI profile** holds one OpenAI subscription, for `codex` agents,
+and never a gateway. A person makes as many as they like (two Claude profiles on two Max plans, say). Its owner gives
+it to agents of the matching harness in companies where they are an admin or owner (`agents.profile_id`); each person
+has a default per provider and company for the agents they hire. A profile never moves a credential into a company: it
+is a reference the server resolves at run time.
 
-Built in S3.4 (migration `0008_access_profiles`):
+Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), one provider each since migration
+`0015_profile_provider`:
 
-- **Slots.** `access_profiles` is personal (an owner, no company). Each slot holds one of the owner's own credentials of
-  a kind it takes: Claude `claude_oauth`, `claude_setup_token` or `anthropic_api_key`; OpenAI `codex_oauth` or
-  `openai_api_key`; gateway `gateway` (`PROFILE_SLOT_KINDS` of `@mwc/shared/credentials`). A revoked credential cannot be
-  put in; one revoked while in a slot stays until it is replaced. Removing a credential empties its slots; names are
-  unique per owner.
+- **The row.** `access_profiles` is personal (an owner, no company): `name` (1–80, unique per owner whatever the
+  provider), `provider` (`claude` | `openai`, `ProfileProvider` of `@mwc/shared/enums`, fixed when it is made),
+  `credential_id` (the subscription) and `gateway_credential_id`, both keys to `credentials` with `on delete set null`;
+  `access_profiles_gateway_check` allows a gateway on a Claude profile only. The subscription is one of the owner's own
+  credentials of a kind of the provider: Claude `claude_oauth`, `claude_setup_token` or `anthropic_api_key`; OpenAI
+  `codex_oauth` or `openai_api_key` (`PROVIDER_KINDS`, `fitsProvider`); the gateway a `gateway` (`GATEWAY_KINDS`). A
+  revoked credential cannot be put in; one revoked while in place stays until it is replaced. Removing a credential
+  empties the profile, which then cannot run until its owner chooses another (a turn says `profile_empty`).
 - **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
-  only, like subscriptions. The list shows each slot as subscription metadata and the agents using the profile in the
-  owner's companies.
+  only, like subscriptions. `POST` takes `{ name, provider, credentialId?, gatewayCredentialId? }`; `PATCH` any of
+  `name`, `credentialId` (of the same provider), `gatewayCredentialId` (Claude only), null emptying one, and `provider`
+  only as the profile's own. Refusals, all 422: a subscription of the other provider and another `provider`
+  (`provider_mismatch`), a gateway that is not one (`credential_kind_mismatch`) or on an OpenAI profile
+  (`gateway_not_allowed`), none of the owner's (`credential_not_found`), a revoked one (`credential_revoked`); a taken
+  name is 409. The list shows `provider`, `subscription` and `gateway` as metadata and the agents using each profile in
+  the owner's companies.
 - **Giving one to an agent:** `profileId` on `POST`/`PATCH /api/companies/:companyId/agents`. Only the profile's owner
   gives it, signed in (an API key: 403 `session_required`), in a company where they are an admin or owner; someone
-  else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`. Any admin or owner of the company takes a
-  profile off an agent (`null`), with a session or an API key. Agents and the chart show
-  `profile: {id, name, ownerUserId, ownerName}`, never its subscriptions.
-- **The default:** `PUT /api/companies/:companyId/me/default-profile` sets the caller's own default there (the same
-  rule as giving; clearing it is any active member's), shown as `defaultProfileId` on `GET /api/me`. An agent hired
-  without `profileId` gets the hirer's default, also when hired with an API key: the owner chose it signed in.
+  else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`, one of the other provider than the agent's
+  harness runs on (Claude for `claude_code`, OpenAI for `codex`, `HARNESS_PROVIDER`) 422 `profile_harness_mismatch`. Any
+  admin or owner of the company takes a profile off an agent (`null`), with a session or an API key. Agents and the
+  chart show `profile: {id, name, provider, ownerUserId, ownerName}`, never its subscription.
+- **Changing an agent's harness** takes off a profile that does not fit the new one (anyone's: taking one off is any
+  admin's), with the agent's audit row, and the `PATCH` answer says so in `profileCleared: {profileId, name, message}`; a
+  change that names that same profile with the new harness is refused (422 `profile_harness_mismatch`).
+- **The defaults:** `PUT /api/companies/:companyId/me/default-profile` with `{ provider, profileId }` sets the caller's
+  own default of that provider there (the rule of giving, and 422 `provider_mismatch` for a profile of the other
+  provider; clearing one is any active member's) and answers `{ defaultClaudeProfileId, defaultOpenaiProfileId }`, as
+  `GET /api/me` shows them per membership. An agent hired without `profileId` gets the hirer's default of its harness's
+  provider, also when hired with an API key: the owner chose it signed in.
+- **A chat's own profile** (S5.1b) follows the same rules: only the owner's, of the provider of the chat's harness
+  (`profile_harness_mismatch`); a turn refuses a profile of another provider the same way, and one without a
+  subscription with `profile_empty`. A Claude profile's gateway goes with Claude Code's turns; Codex turns have none.
 - **Leaving a company** (removed, leaving, removed or deleted at the provider, suspended: every path of the org chart's
   lifecycle) takes the person's profiles off the company's agents in the same transaction, so their personal
   subscriptions stop powering a company they left. A re-activation does not put them back.
-- **Removing a profile** takes it off its agents and its owner's defaults through the foreign keys, with the audit rows
-  of each in its company, by the owner.
-- **Audit:** profile create, update and delete (personal rows), an agent's `profileId`, a membership's
-  `defaultProfileId`.
+- **Removing a profile** takes it off its agents, chats and its owner's defaults through the foreign keys, with the
+  audit rows of the agents and defaults in its company, by the owner.
+- **Audit:** profile create, update and delete (personal rows: `name`, `provider`, `credentialId`,
+  `gatewayCredentialId`, `ownerUserId`), an agent's `profileId`, a membership's `defaultClaudeProfileId` and
+  `defaultOpenaiProfileId`.
+- **The web** (Access profiles page): the profiles in two groups, Claude and OpenAI; **New profile** asks the provider
+  first (two big choices), then the name, the subscription of that provider and, for Claude, a gateway; each card shows
+  the provider's badge, the subscription, the gateway (Claude) and the agents using it; **Defaults for agents I hire**
+  has a Claude and an OpenAI select per company. The agent form offers only profiles of its harness's provider (a
+  harness change takes the hirer's default of the new one when hiring, none on an agent's page), with **Make one**
+  opening New profile for that provider (`?new=claude|openai`); the chat's picker lists only the matching profiles.
+
+**From bundles to one provider** (migration `0015_profile_provider`, its `-- custom:` data step, 2026-11-10): a profile
+with only a Claude subscription, or none, became a Claude profile (keeping its gateway); one with only an OpenAI
+subscription an OpenAI profile (its gateway let go: only Claude profiles have one); one with both stayed a Claude
+profile with its gateway, and a new OpenAI profile of the same owner, "<name> · OpenAI" (" · OpenAI 2", " 3"... when
+taken, the name cut to 80 characters), took its OpenAI subscription, its `codex` agents and chats, and the OpenAI default
+of members whose default it was (the Claude default stayed the original). Each member's default moved to its provider's
+column, and an agent or chat left on a profile of the other provider than its harness lost it. The audit log has each
+new profile, agent and chat moved or cleared, OpenAI default set and gateway let go, by the system, with the request id
+`migration:0015_profile_provider`.
 
 ## Security
 

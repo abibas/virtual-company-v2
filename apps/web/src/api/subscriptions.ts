@@ -1,3 +1,4 @@
+import type { ProfileProvider } from '@mwc/shared/enums';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
@@ -121,7 +122,7 @@ export function useSubscriptionLimits(): LiveLimits {
   return { ...loaded, refreshing, refresh };
 }
 
-/** The person's access profiles, each with its slots' subscriptions and the agents that use it. */
+/** The person's access profiles, Claude's and OpenAI's, each with its subscription, gateway and the agents using it. */
 export function useAccessProfiles(): Loaded<{ readonly profiles: readonly AccessProfile[] }> {
   const api = useApi();
   return useLoad('access-profiles', () => call(api.api.me['access-profiles'].$get()));
@@ -150,7 +151,7 @@ export function subscriptionCalls(api: Api) {
 
 export type SubscriptionCalls = ReturnType<typeof subscriptionCalls>;
 
-/** The person's changes to their access profiles, and their default one in a company. */
+/** The person's changes to their access profiles, and their default of each provider in a company. */
 export function profileCalls(api: Api) {
   const profiles = api.api.me['access-profiles'];
   return {
@@ -158,11 +159,11 @@ export function profileCalls(api: Api) {
     update: (profileId: string, changes: AccessProfileChanges) =>
       call(profiles[':profileId'].$patch({ param: { profileId }, json: changes })),
     remove: (profileId: string) => call(profiles[':profileId'].$delete({ param: { profileId } })),
-    setDefault: (companyId: string, profileId: string | null) =>
+    setDefault: (companyId: string, provider: ProfileProvider, profileId: string | null) =>
       call(
         api.api.companies[':companyId'].me['default-profile'].$put({
           param: { companyId },
-          json: { profileId },
+          json: { provider, profileId },
         }),
       ),
   };

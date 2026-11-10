@@ -3,10 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   conversationState,
   endedTurn,
-  HARNESS_SLOT,
   harnessMissing,
   isLive,
-  profileSlotEmpty,
+  profileEmpty,
   titleOf,
   withEvent,
 } from '../../../src/modules/chats/rules.ts';
@@ -128,9 +127,12 @@ describe('conversationState', () => {
 });
 
 describe('the refusals that name what to fix', () => {
-  it('name the harness and the slot', () => {
-    expect(HARNESS_SLOT).toEqual({ claude_code: 'claude', codex: 'openai' });
+  it('name the harness and the profile', () => {
     expect(harnessMissing('claude_code').message).toContain('Claude Code');
-    expect(profileSlotEmpty('openai')).toMatchObject({ status: 422, code: 'profile_slot_empty' });
+    expect(profileEmpty('Work')).toMatchObject({
+      status: 422,
+      code: 'profile_empty',
+      message: expect.stringContaining('Work has no subscription'),
+    });
   });
 });

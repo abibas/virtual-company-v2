@@ -13,19 +13,23 @@ import {
   statusMove,
 } from '../rules/agents.ts';
 import { placeRefusal, type Refusal, type RefusalStatus } from '../rules/placement.ts';
+import type { ProfileClearedView } from '../schemas/profiles.ts';
 import type { AgentDetailView, CreateAgent, UpdateAgent } from '../schemas.ts';
 import { auditEntry, auditPosition, type Caller } from './audit.ts';
 import { moveForStatus } from './lifecycle.ts';
 import { newAgentProfile, profileChange, profileRefs } from './profiles.ts';
 import { agentDetail, loadOrg } from './read.ts';
 
+/** A profile a harness change took off the agent, when one did. */
+type Cleared = { readonly profileCleared?: ProfileClearedView | undefined };
+
 export type AgentResult<S extends RefusalStatus> =
-  | { readonly ok: true; readonly agent: AgentDetailView }
+  | ({ readonly ok: true; readonly agent: AgentDetailView } & Cleared)
   | Refusal<S>;
 
 /** An agent as a change leaves it, with its place (none once archived); the service shows it with its profile. */
 export type AgentRows<S extends RefusalStatus> =
-  | { readonly ok: true; readonly agent: Agent; readonly position: OrgPosition | undefined }
+  | ({ readonly ok: true; readonly agent: Agent; readonly position: OrgPosition | undefined } & Cleared)
   | Refusal<S>;
 
 /**
@@ -39,18 +43,20 @@ export async function shownAgent<S extends RefusalStatus>(
   result: AgentRows<S>,
 ): Promise<AgentResult<S>> {
   if (!result.ok) return result;
-  const { agent, position } = result;
+  const { agent, position, profileCleared } = result;
   const profile = (await profileRefs(deps, repo, t, [agent.profileId])).get(agent.profileId as string);
   const placement = (await placementsOf(t)).get(agent.id) ?? null;
-  return { ok: true, agent: agentDetail(agent, position, { profile: profile ?? null, placement }) };
+  const shown = agentDetail(agent, position, { profile: profile ?? null, placement });
+  return profileCleared ? { ok: true, agent: shown, profileCleared } : { ok: true, agent: shown };
 }
 
 /**
  * Creates an agent in one transaction under the company's lock: its principal (kind `agent`), the agent and its
  * position under `reportsToPrincipalId` (the caller when left out), with their audit rows. The slug is the one
  * chosen (409 when taken) or derived from the name; the face, left out, comes from the slug; the access profile is
- * the one given (only the caller's own: 403, or 422 for none), else the caller's default here (`newAgentProfile`). A
- * refusal is decided before anything is written.
+ * the one given (only the caller's own: 403; 422 for none or one of another provider than the harness's), else the
+ * caller's default here of the harness's provider (`newAgentProfile`). A refusal is decided before anything is
+ * written.
  */
 export function createAgent(
   repo: OrgRepo,
@@ -67,7 +73,7 @@ export function createAgent(
     const reportsTo = reportsToPrincipalId === undefined ? caller.principalId : reportsToPrincipalId;
     const refusal = placeRefusal((await loadOrg(repo, tx)).chart, { principalId, kind: 'agent', reportsTo });
     if (refusal) return refusal;
-    const profile = await newAgentProfile(repo, tx, caller, requested);
+    const profile = await newAgentProfile(repo, tx, caller, { requested, harness: input.harness });
     if (!profile.ok) return profile;
     const values = {
       ...fields,
@@ -91,7 +97,8 @@ export function createAgent(
  * Changes an agent in one transaction under the company's lock: only the fields that differ are written, with one
  * audit row each (new instructions as a bump of `instructionsRev`). A slug another agent has is a 409; archiving
  * and restoring move it on the chart (`moveForStatus`), refused with a 422; giving it an access profile is only for
- * the profile's owner (403, or 422 for none), while any admin or owner takes it off (`profileChange`). A refusal is
+ * the profile's owner (403; 422 for none or one of another provider than its harness's), while any admin or owner
+ * takes it off, and a harness change takes off a profile that no longer fits, saying so (`profileChange`). A refusal is
  * decided before anything is written.
  */
 export function updateAgent(
@@ -104,8 +111,10 @@ export function updateAgent(
     await repo.lock(tx);
     const agent = await repo.getAgent(tx, change.agentId);
     if (agent === undefined) return AGENT_NOT_FOUND;
-    const profile = await profileChange(repo, tx, caller, { agent, requested: change.patch.profileId });
+    const { profileId: requested, harness } = change.patch;
+    const profile = await profileChange(repo, tx, caller, { agent, requested, harness });
     if (!profile.ok) return profile;
+    const { profileCleared } = profile;
     const set = { ...agentChanges(agent, change.patch), ...profile.set };
     if (set.slug !== undefined && (await repo.takenSlugs(tx)).has(set.slug)) return slugTaken(set.slug);
     const moved = await moveForStatus(repo, tx, caller, agent, statusMove(agent.status, set.status));
@@ -116,6 +125,6 @@ export function updateAgent(
       ...auditEntry(caller, 'agent', agent.id, 'update'),
       changes: diffFields(auditedAgent(agent), auditedAgent(after)),
     });
-    return { ok: true as const, agent: after, position: moved.position };
+    return { ok: true as const, agent: after, position: moved.position, profileCleared };
   });
 }

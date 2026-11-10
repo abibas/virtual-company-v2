@@ -302,7 +302,7 @@ scopes every statement to that person (reads, updates and deletes get `owner_use
 and writes their audit rows with no company (`o.audit(entry)`). It is neither tenant data nor raw access, so a module
 uses it without an exemption; the user id is the signed-in caller's (`c.var.userId` of a personal route) or the owner a
 server-side use names. S3.4's `access_profiles` is personal too, and company rows point at it (`agents.profile_id`,
-`memberships.default_profile_id`), so `@mwc/db` bridges the two layers in one transaction: `ownedIn(t, userId)` (a
+`memberships.default_claude_profile_id` and `default_openai_profile_id`), so `@mwc/db` bridges the two layers in one transaction: `ownedIn(t, userId)` (a
 person's layer on a tenant's connection), `ownersOf(t, table, ids)` (whose personal rows these are, nothing more; the
 rows are then read through their owner's layer) and `o.tenant(companyId)` (a company's tenant on a person's
 connection). The org module reads the profiles its agents point at this way; the credentials module asks the org

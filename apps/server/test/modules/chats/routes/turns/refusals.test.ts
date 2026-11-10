@@ -14,7 +14,7 @@ import {
   startedTurn,
 } from '../../../../fixtures/chats/world.ts';
 import { addMember, as } from '../../../../fixtures/members/members.ts';
-import { revokeSubscription, seedProfile } from '../../../../fixtures/org.ts';
+import { putProfile, revokeSubscription, seedProfile } from '../../../../fixtures/org.ts';
 
 let w: ChatsWorld;
 beforeAll(async () => {
@@ -78,19 +78,17 @@ describe('POST chats/:chatId/turns refusals', () => {
     expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([409, 'harness_changed']);
   });
 
-  it('refuses no profile, an empty slot (naming it), and a subscription revoked', async () => {
+  it('refuses no profile, one without a subscription (naming it), and a subscription revoked', async () => {
     const s = await scene(w);
     const owner = as(w, s.company.owner);
     await owner('PATCH', `/api/companies/${s.company.companyId}/agents/${s.agentId}`, { profileId: null });
     expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([422, 'profile_missing']);
     const empty = await scene(w, { kind: null });
     const res = await sendPrompt(w, empty, 'hi');
-    expect(refusal(res)).toEqual([422, 'profile_slot_empty']);
-    expect((res.body as { error: { message: string } }).error.message).toContain('claude slot');
+    expect(refusal(res)).toEqual([422, 'profile_empty']);
+    expect((res.body as { error: { message: string } }).error.message).toContain(empty.profile.name);
     const codex = await scene(w, { harness: 'codex', kind: null });
-    expect((await sendPrompt(w, codex, 'hi')).body).toMatchObject({
-      error: { code: 'profile_slot_empty', message: expect.stringContaining('openai slot') },
-    });
+    expect(refusal(await sendPrompt(w, codex, 'hi'))).toEqual([422, 'profile_empty']);
     const revoked = await scene(w);
     await revokeSubscription(w.t.db, revoked.credential?.id as string);
     expect(refusal(await sendPrompt(w, revoked, 'hi'))).toEqual([422, 'credential_revoked']);
@@ -99,11 +97,11 @@ describe('POST chats/:chatId/turns refusals', () => {
   it("refuses a chat's own profile once the person who chose it is no longer an admin here", async () => {
     const s = await scene(w);
     const admin = await addMember(w, s.company, 'admin');
-    const theirs = await seedProfile(w.t.db, admin.userId, { claudeCredentialId: null });
+    const theirs = await seedProfile(w.t.db, admin.userId, { credentialId: null });
     await as(w, admin)('PATCH', `/api/companies/${s.company.companyId}/chats/${s.chat.id}`, {
       profileId: theirs.id,
     });
-    expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([422, 'profile_slot_empty']);
+    expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([422, 'profile_empty']);
     await rawDb(w.t.db)
       .update(memberships)
       .set({ role: 'member' })
@@ -111,6 +109,18 @@ describe('POST chats/:chatId/turns refusals', () => {
     const res = await sendPrompt(w, s, 'hi');
     expect(refusal(res)).toEqual([422, 'profile_missing']);
     expect((res.body as { error: { message: string } }).error.message).toContain('no longer an admin');
+  });
+
+  it('refuses a profile of another provider than the harness runs on, put there without the rules', async () => {
+    const s = await scene(w, { harness: 'codex' });
+    const claude = await seedProfile(w.t.db, s.company.owner.userId, { provider: 'claude' });
+    await putProfile(w.t.db, s.company.companyId, s.agentId, claude.id);
+    const res = await sendPrompt(w, s, 'hi');
+    expect(refusal(res)).toEqual([422, 'profile_harness_mismatch']);
+    expect((res.body as { error: { message: string } }).error.message).toBe(
+      'A Codex agent needs an OpenAI profile; this access profile is for Claude',
+    );
+    expect(s.runner?.frames.of('turn.start')).toEqual([]);
   });
 
   it("refuses an agent's settings that cannot start a turn, naming the field", async () => {

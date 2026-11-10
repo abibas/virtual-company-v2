@@ -20,7 +20,7 @@ async function ownerOf(t: TenantDb, profileId: string): Promise<string | undefin
   return (await ownersOf(t, accessProfiles, [profileId])).get(profileId);
 }
 
-/** The profile with its slots, as its owner's row; undefined when there is none. */
+/** The profile with its provider and credentials, as its owner's row; undefined when there is none. */
 async function get(t: TenantDb, profileId: string): Promise<AccessProfile | undefined> {
   const owner = await ownerOf(t, profileId);
   if (owner === undefined) return undefined;
@@ -34,4 +34,4 @@ async function membershipOf(t: TenantDb, userId: string): Promise<Membership | u
   return row;
 }
 
-export const profilesRepo = { ownerOf, get, membershipOf };
+export const profilesRepo = { get, membershipOf };

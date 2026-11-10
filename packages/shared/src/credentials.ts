@@ -1,4 +1,4 @@
-import type { CredentialKind } from './enums.ts';
+import type { CredentialKind, Harness, ProfileProvider } from './enums.ts';
 
 /**
  * The personal credential store's contract (docs/subscriptions.md): the limits the API's schemas and the CHECKs of
@@ -38,21 +38,38 @@ export const GATEWAY_HEADERS = { min: 0, max: 20 } as const;
 export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;
 
 /**
- * An access profile's slots and the credential kinds each one takes (S3.4, docs/subscriptions.md): the Claude
- * subscription a `claude_code` agent's runs use, the OpenAI one a `codex` agent's, and an optional gateway. A slot
- * holds one of the profile owner's own credentials, never a revoked one.
+ * The credential kinds an access profile of each provider holds (docs/subscriptions.md): a Claude profile one Claude
+ * subscription, for `claude_code` agents; an OpenAI profile one OpenAI subscription, for `codex` agents. Only a Claude
+ * profile also takes a gateway (`GATEWAY_KINDS`). A profile holds its owner's own credentials, never a revoked one.
  */
-export const PROFILE_SLOT_KINDS = {
+export const PROVIDER_KINDS = {
   claude: ['claude_oauth', 'claude_setup_token', 'anthropic_api_key'],
   openai: ['codex_oauth', 'openai_api_key'],
-  gateway: ['gateway'],
-} as const satisfies Record<string, readonly CredentialKind[]>;
-export type ProfileSlot = keyof typeof PROFILE_SLOT_KINDS;
+} as const satisfies Record<ProfileProvider, readonly CredentialKind[]>;
 
-/** The slots in the order a profile shows them. */
-export const PROFILE_SLOTS = ['claude', 'openai', 'gateway'] as const satisfies readonly ProfileSlot[];
+/** The kinds a Claude profile's gateway takes. */
+export const GATEWAY_KINDS = ['gateway'] as const satisfies readonly CredentialKind[];
 
-/** True when a credential of `kind` may go in `slot`. */
-export function fitsSlot(slot: ProfileSlot, kind: CredentialKind): boolean {
-  return (PROFILE_SLOT_KINDS[slot] as readonly CredentialKind[]).includes(kind);
+/** The providers in the order the profiles page groups them. */
+export const PROFILE_PROVIDERS = ['claude', 'openai'] as const satisfies readonly ProfileProvider[];
+
+/** The provider whose profiles a harness runs on: Claude for Claude Code, OpenAI for Codex. */
+export const HARNESS_PROVIDER = {
+  claude_code: 'claude',
+  codex: 'openai',
+} as const satisfies Record<Harness, ProfileProvider>;
+
+/** True when a credential of `kind` is the subscription of a `provider` profile. */
+export function fitsProvider(provider: ProfileProvider, kind: CredentialKind): boolean {
+  return (PROVIDER_KINDS[provider] as readonly CredentialKind[]).includes(kind);
+}
+
+/** True when a credential of `kind` may be a Claude profile's gateway. */
+export function fitsGateway(kind: CredentialKind): boolean {
+  return (GATEWAY_KINDS as readonly CredentialKind[]).includes(kind);
+}
+
+/** True when a profile of `provider` may power an agent on `harness`. */
+export function profileFitsHarness(provider: ProfileProvider, harness: Harness): boolean {
+  return HARNESS_PROVIDER[harness] === provider;
 }

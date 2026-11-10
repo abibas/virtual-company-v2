@@ -9,7 +9,8 @@ import {
   ownersOf,
   type TenantDb,
 } from '@mwc/db';
-import { asc, eq, inArray } from 'drizzle-orm';
+import type { ProfileProvider } from '@mwc/shared/enums';
+import { asc, eq, inArray, or } from 'drizzle-orm';
 
 /**
  * The org module's reads and writes of access profiles (S3.4): the company's agents and memberships that point at one,
@@ -24,6 +25,13 @@ const profileOwners = (t: TenantDb, ids: readonly string[]): Promise<Map<string,
 /** These profiles of one owner. */
 const ownerProfiles = (t: TenantDb, ownerUserId: string, ids: readonly string[]): Promise<AccessProfile[]> =>
   ownedIn(t, ownerUserId).select(accessProfiles, inArray(accessProfiles.id, [...ids]));
+
+/** One profile, whoever owns it; undefined when there is no such profile. */
+async function profileRow(t: TenantDb, id: string): Promise<AccessProfile | undefined> {
+  const owner = (await profileOwners(t, [id])).get(id);
+  if (owner === undefined) return undefined;
+  return (await ownerProfiles(t, owner, [id]))[0];
+}
 
 /** The ids of every profile a person owns. */
 async function profileIdsOf(t: TenantDb, userId: string): Promise<string[]> {
@@ -57,21 +65,40 @@ async function membershipOfUser(t: TenantDb, userId: string): Promise<Membership
   return row;
 }
 
-/** The memberships of the company whose default is this profile. */
+/** The memberships of the company with this profile as one of their defaults. */
 const defaultsUsing = (t: TenantDb, profileId: string): Promise<Membership[]> =>
-  t.select(memberships, eq(memberships.defaultProfileId, profileId)).orderBy(asc(memberships.id));
+  t
+    .select(
+      memberships,
+      or(
+        eq(memberships.defaultClaudeProfileId, profileId),
+        eq(memberships.defaultOpenaiProfileId, profileId),
+      ),
+    )
+    .orderBy(asc(memberships.id));
 
-async function setDefaultProfile(t: TenantDb, membershipId: string, profileId: string | null) {
+/** The membership column of each provider's default. */
+export const DEFAULT_COLUMNS = {
+  claude: 'defaultClaudeProfileId',
+  openai: 'defaultOpenaiProfileId',
+} as const satisfies Record<ProfileProvider, keyof Membership>;
+
+async function setDefaultProfile(
+  t: TenantDb,
+  membershipId: string,
+  provider: ProfileProvider,
+  profileId: string | null,
+) {
   const where = eq(memberships.id, membershipId);
-  const [row] = (await t.update(memberships, { defaultProfileId: profileId }, where).returning()) as [
-    Membership,
-  ];
+  const set = { [DEFAULT_COLUMNS[provider]]: profileId };
+  const [row] = (await t.update(memberships, set, where).returning()) as [Membership];
   return row;
 }
 
 export const profileRows = {
   profileOwners,
   ownerProfiles,
+  profileRow,
   profileIdsOf,
   agentsUsing,
   clearAgentProfiles,

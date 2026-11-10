@@ -92,6 +92,13 @@ export type AgentStatus = z.infer<typeof AgentStatus>;
 export const Harness = z.enum(['claude_code', 'codex']);
 export type Harness = z.infer<typeof Harness>;
 
+/**
+ * `access_profiles.provider` (docs/subscriptions.md): whose subscription an access profile holds, Claude's for
+ * `claude_code` agents or OpenAI's for `codex` agents. Fixed when the profile is made.
+ */
+export const ProfileProvider = z.enum(['claude', 'openai']);
+export type ProfileProvider = z.infer<typeof ProfileProvider>;
+
 /** `agents.effort`: the reasoning effort the harness runs the agent's model with. */
 export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
 export type Effort = z.infer<typeof Effort>;

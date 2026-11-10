@@ -13,7 +13,6 @@ import {
   endTurn,
   eventRows,
   eventually,
-  GATEWAY_URL,
   HOME,
   scene,
   sendEvents,
@@ -234,9 +233,13 @@ describe('credentials handed to a turn', () => {
     });
   });
 
-  it("passes a Codex agent's gateway as its address alone, so the driver tells it is not used", async () => {
-    const s = await scene(w, { harness: 'codex', gateway: true });
+  it('runs a Codex agent on its OpenAI profile’s subscription, with no gateway: only Claude profiles have one', async () => {
+    const s = await scene(w, { harness: 'codex' });
     const start = await startedTurn(w, s);
-    expect(start.spec.gateway).toEqual({ baseUrl: GATEWAY_URL, headers: {} });
+    expect(start.spec).toMatchObject({
+      harness: 'codex',
+      credential: { kind: 'codex_oauth' },
+      gateway: null,
+    });
   });
 });

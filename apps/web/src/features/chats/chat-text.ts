@@ -1,12 +1,12 @@
-import type { ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import type { ChatTurnStatus } from '@mwc/shared/enums';
 import { ApiError, friendlyMessage } from '../../api/errors.ts';
 import type { Tone } from '../../components/ui/Badge.tsx';
 
-/** What the chat page says (S5.1c): the API's refusals in plain words, the turns' statuses, the harness's slot. Pure. */
+/** What the chat page says (S5.1c): the API's refusals in plain words and the turns' statuses. Pure. */
 
 /**
  * The chat refusals the page words itself (docs/harness.md, "How a turn runs"); any other code shows the server's own
- * message, which already names what to fix (`harness_missing`, `profile_slot_empty` name the CLI and the slot).
+ * message, which already names what to fix (`harness_missing`, `profile_empty` name the CLI and the profile).
  */
 const REFUSALS: Readonly<Record<string, string>> = {
   runner_outdated: "This machine's runner can't run chats yet: update it on the Machines page.",
@@ -64,14 +64,6 @@ export function turnErrorText(error: string): string {
     return `The harness didn't start (${error.replace(/^spawn_failed:?\s*/, '')}).`;
   return error;
 }
-
-/** The access profile slot each harness runs on, and its name. */
-export const HARNESS_SLOT: Readonly<
-  Record<Harness, { readonly key: 'claude' | 'openai'; readonly name: string }>
-> = {
-  claude_code: { key: 'claude', name: 'Claude' },
-  codex: { key: 'openai', name: 'OpenAI' },
-};
 
 /** Tokens as people read them: 1234 → "1.2k". */
 export function tokens(count: number): string {

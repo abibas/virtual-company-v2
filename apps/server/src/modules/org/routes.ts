@@ -5,13 +5,14 @@ import type { ServerDeps } from '../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
-import { DefaultProfileBodySchema, DefaultProfileSchema } from './schemas/profiles.ts';
+import { defaultProfileRoutes } from './routes/defaults.ts';
 import {
   AgentDetailSchema,
   AgentListQuerySchema,
   AgentListSchema,
   AgentParamsSchema,
   AgentsParamsSchema,
+  AgentUpdatedSchema,
   CreateAgentSchema,
   OrgChartSchema,
   PositionParamsSchema,
@@ -19,7 +20,8 @@ import {
   UpdateAgentSchema,
   UpdatePositionSchema,
 } from './schemas.ts';
-import { type Caller, type OrgService, orgService } from './service.ts';
+import { callerOf } from './service/audit.ts';
+import { type OrgService, orgService } from './service.ts';
 
 /**
  * `/api/companies/{companyId}/agents` (list and read: viewer and above; create and change: admin and above),
@@ -44,7 +46,9 @@ const GIVE_REFUSED = errorResponse(
     'API key (`session_required`)',
 );
 const REFUSED_OR_NO_PROFILE = errorResponse(
-  'The org rules refuse the place (their code and sentence), or no such access profile (`profile_not_found`)',
+  'The org rules refuse the place (their code and sentence), no such access profile (`profile_not_found`), or one ' +
+    'of another provider than the harness runs on (`profile_harness_mismatch`: Claude Code takes a Claude profile, ' +
+    'Codex an OpenAI one)',
 );
 
 const route = <P extends CompanyPath>(deps: ServerDeps, role: MembershipRole, path: P, tag: string) =>
@@ -108,11 +112,12 @@ const updateAgentRoute = (deps: ServerDeps) => {
     description:
       'New instructions bump `instructionsRev`. Archiving moves its reports up (to the company’s earliest active ' +
       'owner when nobody above can take an agent) and removes its place; back from the archive it reports to the ' +
-      'caller. There is no hard delete. `profileId`: only its owner gives an access profile, signed in; any admin ' +
-      'takes it off (`null`).',
+      'caller. There is no hard delete. `profileId`: only its owner gives an access profile, signed in, of the ' +
+      'provider the harness runs on; any admin takes it off (`null`). A new `harness` its profile does not fit takes ' +
+      'the profile off, said in `profileCleared`.',
     request: { params: AgentParamsSchema, body: jsonBody(UpdateAgentSchema) },
     responses: {
-      200: jsonResponse('The agent after the change', AgentDetailSchema),
+      200: jsonResponse('The agent after the change', AgentUpdatedSchema),
       400: INVALID,
       401: refusals[401],
       403: GIVE_REFUSED,
@@ -156,39 +161,6 @@ const chartRoute = (deps: ServerDeps) => {
   });
 };
 
-const defaultProfileRoute = (deps: ServerDeps) => {
-  const { base, refusals } = route(deps, 'viewer', '/api/companies/{companyId}/me/default-profile', 'agents');
-  return createRoute({
-    ...base,
-    method: 'put',
-    summary: 'Your default access profile for the agents you hire here, or null for none',
-    description:
-      'Clearing it is any active member’s; a profile must be yours, chosen signed in as an admin or owner.',
-    request: { params: AgentsParamsSchema, body: jsonBody(DefaultProfileBodySchema) },
-    responses: {
-      200: jsonResponse('Your default here', DefaultProfileSchema),
-      400: INVALID,
-      401: refusals[401],
-      403: GIVE_REFUSED,
-      404: refusals[404],
-      422: errorResponse('No such access profile (`profile_not_found`)'),
-    },
-  });
-};
-
-/** Who acts, from the guard's membership, the credential and the request id. */
-const callerOf = (v: {
-  actor: { via: string };
-  membership: { principalId: string; role: MembershipRole; userId: string };
-  requestId: string;
-}): Caller => ({
-  principalId: v.membership.principalId,
-  role: v.membership.role,
-  requestId: v.requestId,
-  userId: v.membership.userId,
-  session: v.actor.via === 'clerk',
-});
-
 function agentRoutes(deps: ServerDeps, org: OrgService) {
   return newRouter()
     .openapi(listAgentsRoute(deps), async (c) =>
@@ -208,7 +180,8 @@ function agentRoutes(deps: ServerDeps, org: OrgService) {
       const { agentId } = c.req.valid('param');
       const result = await org.update(c.var.tenant, callerOf(c.var), agentId, c.req.valid('json'));
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
-      return c.json(result.agent, 200);
+      const { profileCleared } = result;
+      return c.json(profileCleared ? { ...result.agent, profileCleared } : result.agent, 200);
     });
 }
 
@@ -221,12 +194,7 @@ function chartRoutes(deps: ServerDeps, org: OrgService) {
       return c.json(result.position, 200);
     })
     .openapi(chartRoute(deps), async (c) => c.json(await org.chart(c.var.tenant), 200))
-    .openapi(defaultProfileRoute(deps), async (c) => {
-      const { profileId } = c.req.valid('json');
-      const result = await org.setDefaultProfile(c.var.tenant, callerOf(c.var), profileId);
-      if (!result.ok) return errorJson(c, result.status, result.code, result.message);
-      return c.json(result.value, 200);
-    });
+    .route('/', defaultProfileRoutes(deps, org));
 }
 
 /** The org module's routes: the agents, and the chart with its positions. */

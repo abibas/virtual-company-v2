@@ -64,8 +64,9 @@ export const agents = pgTable(
     face: smallint('face').notNull().default(0),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     /**
-     * The access profile its runs use (S3.4): a person's bundle of subscriptions, given by its owner, who is an admin
-     * or owner here; none by default. A personal row, so a plain key: it goes when the profile does.
+     * The access profile its runs use (S3.4): a person's subscription of the provider its harness runs on, given by
+     * its owner, who is an admin or owner here; none by default. A personal row, so a plain key: it goes when the
+     * profile does.
      */
     profileId: uuid('profile_id').references(() => accessProfiles.id, { onDelete: 'set null' }),
     createdAt: createdAt(),

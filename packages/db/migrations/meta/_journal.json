@@ -106,6 +106,13 @@
       "when": 1794264193246,
       "tag": "0014_chat_turn_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794297656118,
+      "tag": "0015_profile_provider",
+      "breakpoints": true
     }
   ]
 }

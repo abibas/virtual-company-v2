@@ -1,3 +1,4 @@
+import type { ProfileProvider } from '@mwc/shared/enums';
 import type { ReactNode } from 'react';
 import { useCompany } from '../../app/company.ts';
 import { useLocation } from '../../app/router.tsx';
@@ -30,7 +31,7 @@ export function SubscriptionsCompanyPage() {
   );
 }
 
-/** `/:slug/gateways`: the person's own AI gateways; `?add=1` (a profile's empty Gateway slot) opens Add gateway. */
+/** `/:slug/gateways`: the person's own AI gateways; `?add=1` (Add a gateway on a Claude profile) opens Add gateway. */
 export function GatewaysCompanyPage() {
   const { search } = useLocation();
   return (
@@ -44,16 +45,27 @@ export function GatewaysCompanyPage() {
   );
 }
 
-/** `/:slug/profiles`: the person's own access profiles, the bundles they give their agents, and their defaults. */
+/** What `?new=` asks of the profiles page: New profile for that provider, or at its provider choice. */
+function newProfileOf(wanted: string | null): ProfileProvider | 'choose' | undefined {
+  if (wanted === null) return undefined;
+  return wanted === 'claude' || wanted === 'openai' ? wanted : 'choose';
+}
+
+/**
+ * `/:slug/profiles`: the person's own access profiles, Claude's and OpenAI's, which they give their agents, and their
+ * defaults; `?new=claude|openai` (an agent form's "Make one") opens New profile for that provider.
+ */
 export function ProfilesCompanyPage() {
   const { me, reload } = useCompany();
+  const { search } = useLocation();
   return (
     <ProfilesTab
       memberships={me.memberships}
       onDefaultChanged={reload}
+      startWith={newProfileOf(search.get('new'))}
       header={header(
         'Access profiles',
-        "Yours, not the company's: what you give an agent, which of your subscriptions its runs use. A profile never moves a subscription into a company.",
+        "Yours, not the company's: what you give an agent, one of your subscriptions, Claude's for Claude Code agents or OpenAI's for Codex agents. A profile never moves a subscription into a company.",
       )}
     />
   );

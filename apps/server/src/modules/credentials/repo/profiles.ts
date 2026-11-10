@@ -12,7 +12,7 @@ import { asc, eq, inArray } from 'drizzle-orm';
 
 /**
  * The access profiles' data access (S3.4), through the personal layer only (`owned(db, userId)`): a person's profiles
- * and the credentials their slots hold, both theirs. The agents and defaults that point at a profile are the org
+ * and the credentials they hold (a subscription, a Claude profile's gateway), both theirs. The agents and defaults that point at a profile are the org
  * module's, reached through its service.
  */
 

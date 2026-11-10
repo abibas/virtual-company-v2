@@ -1,23 +1,24 @@
 import type { AccessProfile, Agent, Chat, TenantDb } from '@mwc/db';
+import { profileFitsHarness } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import type { HarnessCredential, HarnessGateway, TerminalSpec } from '@mwc/shared/harness';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { harnessVersionOf } from '@mwc/shared/runner-protocol';
 import type { CredentialsForHarness, HarnessUse } from '../../credentials/index.ts';
 import { agentPlacement, type RunnerHub } from '../../machines/index.ts';
+import { profileHarnessMismatch } from '../../org/rules/agents.ts';
 import { profilesRepo } from '../repo/profiles.ts';
 import { chatsRepo } from '../repo.ts';
 import {
   CONTAINER_RUNS_LATER,
   HARNESS_CHANGED,
-  HARNESS_SLOT,
   harnessMissing,
   MACHINE_CHANGED,
   MACHINE_OFFLINE,
   PLACEMENT_MISSING,
   PROFILE_MISSING,
   PROFILE_OWNER_GONE,
-  profileSlotEmpty,
+  profileEmpty,
   type Refusal,
   RUNNER_OUTDATED,
   TERMINAL_UNAVAILABLE,
@@ -27,8 +28,8 @@ import {
  * Where and on what a chat's turn or terminal runs (S5.1b, docs/harness.md "How a turn runs"): the agent (its harness
  * must still be the chat's), its placement (on its machine, in host mode, on the chat's machine), the machine's runner
  * (connected, with the harness's CLI, and a terminal for a terminal), the access profile (the chat's own while its owner
- * is still an admin here, else the agent's) and the subscription in the harness's slot, opened as its owner (a
- * `credential_uses` row) and refreshed when due, with the profile's gateway for Claude Code. Read before anything is
+ * is still an admin here, else the agent's; of the provider the harness runs on) and its subscription, opened as its
+ * owner (a `credential_uses` row) and refreshed when due, with a Claude profile's gateway. Read before anything is
  * written; each refusal names what to fix.
  */
 
@@ -84,19 +85,15 @@ async function profileOf(t: TenantDb, chat: Chat, agent: Agent): Promise<AccessP
   return profile ?? PROFILE_MISSING;
 }
 
-/** The profile's gateway for the harness: Claude Code's as it is, Codex's address alone (it runs without it). */
+/** The profile's gateway: only a Claude profile has one (`access_profiles_gateway_check`). */
 async function gatewayOf(
   deps: TargetDeps,
-  chat: Chat,
   profile: AccessProfile,
   use: HarnessUse,
 ): Promise<{ readonly ok: true; readonly gateway: HarnessGateway | null } | Refusal<422 | 503>> {
   if (profile.gatewayCredentialId === null) return { ok: true, gateway: null };
   const opened = await deps.credentials.gateway(profile.gatewayCredentialId, profile.ownerUserId, use);
-  if (!opened.ok) return opened;
-  const gateway =
-    chat.harness === 'codex' ? { baseUrl: opened.gateway.baseUrl, headers: {} } : opened.gateway;
-  return { ok: true, gateway };
+  return opened.ok ? { ok: true, gateway: opened.gateway } : opened;
 }
 
 /** Resolves a chat's turn or terminal (see above). */
@@ -111,9 +108,10 @@ export async function resolveTarget(
   const { agent, placement } = place;
   const profile = await profileOf(t, chat, agent);
   if (!('id' in profile)) return profile;
-  const slot = HARNESS_SLOT[chat.harness];
-  const credentialId = slot === 'claude' ? profile.claudeCredentialId : profile.openaiCredentialId;
-  if (credentialId === null) return profileSlotEmpty(slot);
+  if (!profileFitsHarness(profile.provider, chat.harness))
+    return profileHarnessMismatch(profile.provider, chat.harness);
+  const { credentialId } = profile;
+  if (credentialId === null) return profileEmpty(profile.name);
   const use: HarnessUse = {
     purpose: request.purpose,
     companyId: t.companyId,
@@ -123,7 +121,7 @@ export async function resolveTarget(
   };
   const opened = await deps.credentials.credential(credentialId, profile.ownerUserId, use);
   if (!opened.ok) return opened;
-  const gateway = await gatewayOf(deps, chat, profile, use);
+  const gateway = await gatewayOf(deps, profile, use);
   if (!gateway.ok) return gateway;
   const credential: HarnessCredential = opened.credential;
   const spec: TerminalSpec = {

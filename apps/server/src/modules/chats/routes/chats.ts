@@ -83,7 +83,10 @@ const createChatRoute = (deps: ServerDeps) => {
       409: errorResponse(
         'The agent has no placement (`placement_missing`) or is archived (`agent_archived`)',
       ),
-      422: errorResponse('No such access profile (`profile_not_found`)'),
+      422: errorResponse(
+        'No such access profile (`profile_not_found`), or one of another provider than the chat’s harness runs on ' +
+          '(`profile_harness_mismatch`)',
+      ),
     },
   });
 };
@@ -120,7 +123,10 @@ const updateChatRoute = (deps: ServerDeps) => {
       ...refusals,
       403: PROFILE_REFUSED,
       404: NO_CHAT,
-      422: errorResponse('No such access profile (`profile_not_found`)'),
+      422: errorResponse(
+        'No such access profile (`profile_not_found`), or one of another provider than the chat’s harness runs on ' +
+          '(`profile_harness_mismatch`)',
+      ),
     },
   });
 };

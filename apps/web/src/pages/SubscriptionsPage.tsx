@@ -30,8 +30,8 @@ export function SubscriptionsPage() {
       </ButtonLink>
       <PageHeader title="Subscriptions">
         <p>
-          Sign in to Claude and OpenAI once, here, add API keys and AI gateways, and bundle them into access
-          profiles for the agents you power.
+          Sign in to Claude and OpenAI once, here, add API keys and AI gateways, and choose them in access
+          profiles for the agents you power, one provider each.
         </p>
       </PageHeader>
       <Tabs

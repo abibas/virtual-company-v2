@@ -5,7 +5,7 @@ import type { ChatContextView } from './schemas.ts';
 
 /**
  * The chats' own rules (S5.1b, docs/harness.md "How a turn runs"): their refusals, a chat's title from its first prompt,
- * the access profile slot each harness runs on, how a turn's end becomes its status, reply and usage, and (S5.2) what
+ * how a turn's end becomes its status, reply and usage, and (S5.2) what
  * the chat's conversation runs on and how full it is since its last Clear. Pure.
  */
 
@@ -103,21 +103,12 @@ export const HARNESS_NAMES: Readonly<Record<Harness, string>> = {
   codex: 'Codex',
 };
 
-/** The access profile slot a harness runs on. */
-export type ProfileSlot = 'claude' | 'openai';
-export const HARNESS_SLOT: Readonly<Record<Harness, ProfileSlot>> = {
-  claude_code: 'claude',
-  codex: 'openai',
-};
-
-const SLOT_NAMES: Readonly<Record<ProfileSlot, string>> = { claude: 'Claude', openai: 'OpenAI' };
-
-/** The profile has nothing in the slot the chat's harness needs. */
-export const profileSlotEmpty = (slot: ProfileSlot): Refusal<422> =>
+/** The access profile the turn runs on holds no subscription (made empty, or its subscription removed). */
+export const profileEmpty = (name: string): Refusal<422> =>
   refuse(
     422,
-    'profile_slot_empty',
-    `The access profile has no ${SLOT_NAMES[slot]} subscription (its ${slot} slot is empty): its owner adds one`,
+    'profile_empty',
+    `The access profile ${name} has no subscription: its owner chooses one on their Access profiles page`,
   );
 
 /** A chat's title: the first prompt on one line, cut to 80 characters with an ellipsis. */

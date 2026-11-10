@@ -20,7 +20,7 @@ export const MeUserSchema = z
  * One company the user belongs to: their role and membership status there, the company's status, its organization
  * at the identity provider (null while provisioning; the web makes it Clerk's active organization), its logo's
  * version (for `GET /api/companies/{companyId}/logo?v=<version>`; null when it has none) and their default access
- * profile there.
+ * profiles there, one per provider.
  */
 export const MeMembershipSchema = z
   .object({
@@ -32,8 +32,10 @@ export const MeMembershipSchema = z
     companyStatus: CompanyStatus,
     identityOrgId: z.string().nullable().openapi({ example: 'org_2abc...' }),
     logo: LogoRef.nullable().openapi({ example: { version: '9f86d081884c7d65' } }),
-    /** Your access profile for the agents you hire there (S3.4); null for none. */
-    defaultProfileId: z.string().nullable(),
+    /** Your Claude access profile for the Claude Code agents you hire there (S3.4); null for none. */
+    defaultClaudeProfileId: z.string().nullable(),
+    /** Your OpenAI access profile for the Codex agents you hire there; null for none. */
+    defaultOpenaiProfileId: z.string().nullable(),
   })
   .openapi('MeMembership');
 

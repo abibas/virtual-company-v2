@@ -99,7 +99,7 @@ describe('chats', () => {
     expect(await constraint(insertChat({ sessionId: '' }))).toBe('chats_session_id_check');
     const [profile] = await handle.db
       .insert(accessProfiles)
-      .values({ ownerUserId: owner.user.id, name: unique('profile') })
+      .values({ ownerUserId: owner.user.id, name: unique('profile'), provider: 'claude' })
       .returning();
     const profileId = profile?.id as string;
     expect(await constraint(insertChat({ profileId }))).toBe('chats_profile_set_by_check');

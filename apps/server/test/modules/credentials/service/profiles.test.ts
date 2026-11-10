@@ -106,23 +106,33 @@ describe('removing a profile', () => {
     const other = (
       await seedAgent(w.t.db, home.companyId, { reportsTo: owner.principalId, profileId: stays.id })
     ).agent;
+    const codex = await seedProfile(w.t.db, owner.userId, { provider: 'openai' });
     await putDefault(w.t.db, owner.membershipId, gone.id);
+    await putDefault(w.t.db, owner.membershipId, codex.id, 'openai');
     const res = await as(w, owner, 'req-profile-gone')('DELETE', `${PROFILES}/${gone.id}`);
     expect(res.status).toBe(204);
     expect(await agentProfileOf(w.t.db, here.id)).toBeNull();
     expect(await agentProfileOf(w.t.db, there.id)).toBeNull();
     expect(await agentProfileOf(w.t.db, other.id)).toBe(stays.id);
     expect(await defaultProfileOf(w.t.db, owner.membershipId)).toBeNull();
+    expect(await defaultProfileOf(w.t.db, owner.membershipId, 'openai')).toBe(codex.id);
     expect(await fieldAudit(w.t.db, 'agent', here.id, 'profileId')).toEqual([
       [home.companyId, 'update', owner.principalId, 'req-profile-gone', gone.id, null],
     ]);
     expect(await fieldAudit(w.t.db, 'agent', there.id, 'profileId')).toEqual([
       [second.companyId, 'update', ownerInSecond, 'req-profile-gone', gone.id, null],
     ]);
-    expect(await fieldAudit(w.t.db, 'membership', owner.membershipId, 'defaultProfileId')).toEqual([
+    expect(await fieldAudit(w.t.db, 'membership', owner.membershipId, 'defaultClaudeProfileId')).toEqual([
       [home.companyId, 'update', owner.principalId, 'req-profile-gone', gone.id, null],
     ]);
+    expect(await fieldAudit(w.t.db, 'membership', owner.membershipId, 'defaultOpenaiProfileId')).toEqual([]);
     expect(await fieldAudit(w.t.db, 'agent', other.id, 'profileId')).toEqual([]);
-    expect((await listOf(owner)).map((profile) => profile.id)).toEqual([stays.id]);
+    expect((await listOf(owner)).map((profile) => profile.id)).toEqual([stays.id, codex.id]);
+    // An OpenAI default goes the same way, under its own field.
+    expect((await as(w, owner, 'req-codex-gone')('DELETE', `${PROFILES}/${codex.id}`)).status).toBe(204);
+    expect(await defaultProfileOf(w.t.db, owner.membershipId, 'openai')).toBeNull();
+    expect(await fieldAudit(w.t.db, 'membership', owner.membershipId, 'defaultOpenaiProfileId')).toEqual([
+      [home.companyId, 'update', owner.principalId, 'req-codex-gone', codex.id, null],
+    ]);
   });
 });

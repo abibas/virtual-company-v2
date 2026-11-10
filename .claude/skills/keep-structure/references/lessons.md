@@ -28,6 +28,23 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: Access profiles of one provider, and a migration whose data step sits between two generated parts
+
+- **What happened:** `0015_profile_provider` needed its data step after the new columns and before the old slot
+  columns are dropped, and drizzle-kit asks (interactively) whether a column added beside a dropped one is a rename.
+  It was generated in two runs (the additions, then the drops), joined into one file with the `-- custom:` step between
+  them and the second run's snapshot kept; the routine says the custom part is "appended". On the web,
+  `apps/web/src/features/subscriptions/` grew from 14 to 18 entries (`big-folder`: `NewProfile.tsx`, `Providers.tsx`,
+  `profile-options.ts`, `DefaultProfiles.tsx`) and `apps/web/src/features/agents/` from 12 to 13 (`ProfileFields.tsx`,
+  split out of `ModelFields.tsx`). The org module's default-profile route went to `modules/org/routes/defaults.ts`
+  (routes.ts was at 243 lines) and its profile service to `service/profiles/{give,removal}.ts` (279 lines in one).
+- **Where:** the access-profiles-provider commit.
+- **What was done:** as above.
+- **Suggested change:** the database routine: "a data step that needs old and new columns at once: generate the
+  additions, append the `-- custom:` step, then generate the drops into the same file"; group the profile files of
+  `features/subscriptions/` under `profiles/` at the S5 review.
+- **Status:** `open`.
+
 ### 2026-11-10: S5.2 step 4's runner MCP server under `turns/ask/`
 
 - **What happened:** the runner's MCP tool server (`runner.mjs mcp`: JSON-RPC, the socket client) and each turn's

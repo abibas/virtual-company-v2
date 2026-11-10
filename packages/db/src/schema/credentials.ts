@@ -1,5 +1,5 @@
 import { ACCESS_PROFILE_NAME, CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
+import { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import {
@@ -104,19 +104,22 @@ export const credentialUses = pgTable(
   ],
 );
 
-/** A slot of an access profile: one of its owner's credentials, emptied when that credential is removed. */
-const slot = (name: string) => uuid(name).references(() => credentials.id, { onDelete: 'set null' });
+/** A credential an access profile holds: one of its owner's, let go when that credential is removed. */
+const held = (name: string) => uuid(name).references(() => credentials.id, { onDelete: 'set null' });
 
 /**
- * Access profiles (S3.4, docs/subscriptions.md): a person's named bundles of their own subscriptions, which they give
- * to agents (`agents.profile_id`) and choose as their default for the agents they hire in a company
- * (`memberships.default_profile_id`). A personal table like `credentials`, reached through `owned(db, userId)`. A
- * profile never moves a credential into a company: it is a reference the server resolves at run time.
+ * Access profiles (S3.4, one provider each since 2026-11-10, docs/subscriptions.md): a person's named choice of one of
+ * their own subscriptions, which they give to agents (`agents.profile_id`) and choose as their default for the agents
+ * they hire in a company (`memberships.default_claude_profile_id`, `default_openai_profile_id`). A personal table like
+ * `credentials`, reached through `owned(db, userId)`. A profile never moves a credential into a company: it is a
+ * reference the server resolves at run time.
  *
- * Each slot holds one of the owner's credentials of a kind that fits it (`PROFILE_SLOT_KINDS` of
- * `@mwc/shared/credentials`), never a revoked one: the credentials module checks that, since SQL cannot read another
- * row's owner or kind here. Removing a credential empties its slots; removing a profile takes it off its agents and
- * defaults (both `on delete set null`).
+ * A profile's `provider` is fixed when it is made: a Claude profile holds a Claude subscription (for `claude_code`
+ * agents) and an optional gateway, an OpenAI profile an OpenAI subscription (for `codex` agents) and never a gateway
+ * (`access_profiles_gateway_check`). Its credentials are its owner's, of kinds that fit (`PROVIDER_KINDS`,
+ * `GATEWAY_KINDS` of `@mwc/shared/credentials`), never revoked ones: the credentials module checks that, since SQL
+ * cannot read another row's owner or kind here. Removing a credential empties the profile (it cannot run until its
+ * owner chooses another); removing a profile takes it off its agents, chats and defaults (all `on delete set null`).
  */
 export const accessProfiles = pgTable(
   'access_profiles',
@@ -127,18 +130,23 @@ export const accessProfiles = pgTable(
       .references(() => users.id),
     /** What its owner calls it ("Work"), unique among theirs. */
     name: text('name').notNull(),
-    /** The Claude subscription of `claude_code` agents: `claude_oauth`, `claude_setup_token` or `anthropic_api_key`. */
-    claudeCredentialId: slot('claude_credential_id'),
-    /** The OpenAI one of `codex` agents: `codex_oauth` or `openai_api_key`. */
-    openaiCredentialId: slot('openai_credential_id'),
-    /** An optional gateway the runs send their AI requests through. */
-    gatewayCredentialId: slot('gateway_credential_id'),
+    /** Whose subscription it holds: `claude` or `openai`, fixed when it is made. */
+    provider: text('provider').$type<ProfileProvider>().notNull(),
+    /**
+     * The subscription: `claude_oauth`, `claude_setup_token` or `anthropic_api_key` for Claude; `codex_oauth` or
+     * `openai_api_key` for OpenAI. Null while it has none (made empty, or its subscription removed).
+     */
+    credentialId: held('credential_id'),
+    /** A Claude profile's optional gateway, which its runs send their AI requests through. */
+    gatewayCredentialId: held('gateway_credential_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('access_profiles_owner_user_id_name_unique').on(t.ownerUserId, t.name),
     check('access_profiles_name_check', lengthWithin(t.name, ACCESS_PROFILE_NAME)),
+    check('access_profiles_provider_check', oneOf(t.provider, ProfileProvider.options)),
+    check('access_profiles_gateway_check', sql`${t.provider} = 'claude' or ${t.gatewayCredentialId} is null`),
   ],
 );
 

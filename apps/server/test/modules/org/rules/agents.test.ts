@@ -4,7 +4,10 @@ import {
   agentChanges,
   auditedAgent,
   chooseSlug,
+  defaultProviderMismatch,
   giveRefusal,
+  profileClearedMessage,
+  profileHarnessMismatch,
   profileStep,
   statusMove,
 } from '../../../../src/modules/org/rules/agents.ts';
@@ -139,5 +142,27 @@ describe('profileStep', () => {
     expect(profileStep('p1', 'p1')).toBe('none');
     expect(profileStep(null, null)).toBe('none');
     expect(profileStep('p1', undefined)).toBe('none');
+  });
+});
+
+describe('which profiles fit', () => {
+  it('names the profile an agent on each harness needs, and the one a default of each provider takes', () => {
+    expect(profileHarnessMismatch('openai', 'claude_code')).toEqual({
+      ok: false,
+      status: 422,
+      code: 'profile_harness_mismatch',
+      message: 'A Claude Code agent needs a Claude profile; this access profile is for OpenAI',
+    });
+    expect(profileHarnessMismatch('claude', 'codex').message).toBe(
+      'A Codex agent needs an OpenAI profile; this access profile is for Claude',
+    );
+    expect(defaultProviderMismatch('claude', 'openai')).toMatchObject({
+      status: 422,
+      code: 'provider_mismatch',
+      message: 'Your OpenAI default is an OpenAI profile; this access profile is for Claude',
+    });
+    expect(profileClearedMessage('Home', 'openai', 'claude_code')).toBe(
+      'Its access profile Home is for OpenAI, so it was taken off: a Claude Code agent needs a Claude profile',
+    );
   });
 });

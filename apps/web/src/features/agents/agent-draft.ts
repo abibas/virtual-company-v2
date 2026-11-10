@@ -1,4 +1,5 @@
-import type { Effort, Harness } from '@mwc/shared/enums';
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
+import type { Effort, Harness, ProfileProvider } from '@mwc/shared/enums';
 import {
   AGENT_DEFAULTS,
   AGENT_INSTRUCTIONS_MAX,
@@ -31,8 +32,13 @@ export interface AgentValues {
   readonly profileId: string | null;
 }
 
+/** The hirer's default access profile of each provider in the company (the hire form only). */
+export type ProfileDefaults = Readonly<Record<ProfileProvider, string | null>>;
+
 export interface AgentDraft {
   readonly values: AgentValues;
+  /** The hirer's defaults a new agent starts from, and a harness change picks from; none on an agent's page. */
+  readonly profileDefaults: ProfileDefaults | undefined;
   set<K extends keyof AgentValues>(key: K, value: AgentValues[K]): void;
   /** The slug the name makes, as the server derives it for a new agent. */
   readonly slug: string;
@@ -68,17 +74,19 @@ function startOf(agent: AgentDetail | undefined, reportsTo: string, profileId: s
 
 /**
  * The agent form's state: its values, the slug and face they lead to, and whether the API would take them. A new
- * agent starts with `defaultProfileId`, the hirer's default access profile in the company.
+ * agent starts with the hirer's default access profile of its harness's provider (`profileDefaults`).
  */
 export function useAgentDraft(
   agent: AgentDetail | undefined,
   reportsTo: string,
-  defaultProfileId: string | null = null,
+  profileDefaults?: ProfileDefaults,
 ): AgentDraft {
+  const defaultProfileId = profileDefaults?.[HARNESS_PROVIDER[AGENT_DEFAULTS.harness]] ?? null;
   const [values, setValues] = useState(() => startOf(agent, reportsTo, defaultProfileId));
   const slug = slugify(values.name, 'agent');
   return {
     values,
+    profileDefaults,
     set: (key, value) => setValues((current) => ({ ...current, [key]: value })),
     slug,
     face: values.face ?? agentFace(slug),

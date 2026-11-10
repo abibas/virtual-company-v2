@@ -1,5 +1,6 @@
 import type { Agent } from '@mwc/db';
-import type { AgentStatus, MembershipRole } from '@mwc/shared/enums';
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
+import type { AgentStatus, Harness, MembershipRole, ProfileProvider } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { slugify, withSuffix } from '@mwc/shared/slugs';
 import { type Refusal, refuse } from './placement.ts';
@@ -103,8 +104,10 @@ export function auditedAgent(agent: Agent) {
 }
 
 // Who may put an access profile on an agent, or choose it as their default for the agents they hire (S3.4,
-// docs/subscriptions.md): only its owner, signed in to the web app, in a company where they are an admin or an owner.
-// Taking a profile off an agent is any admin's or owner's (the agent routes are theirs). Pure.
+// docs/subscriptions.md): only its owner, signed in to the web app, in a company where they are an admin or an owner;
+// and which profiles fit: one of the provider the agent's harness runs on (Claude for Claude Code, OpenAI for Codex),
+// a default of its own provider. Taking a profile off an agent is any admin's or owner's (the agent routes are
+// theirs). Pure.
 
 export const PROFILE_NOT_FOUND = refuse(422, 'profile_not_found', 'No such access profile');
 
@@ -146,6 +149,37 @@ export function giveRefusal(giver: Giver, ownerUserId: string | undefined): Refu
   if (ownerUserId !== giver.userId) return PROFILE_NOT_YOURS;
   return undefined;
 }
+
+const PROVIDER_NAMES: Readonly<Record<ProfileProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
+const A_PROFILE: Readonly<Record<ProfileProvider, string>> = {
+  claude: 'a Claude profile',
+  openai: 'an OpenAI profile',
+};
+const AN_AGENT: Readonly<Record<Harness, string>> = {
+  claude_code: 'a Claude Code agent',
+  codex: 'a Codex agent',
+};
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** A profile of another provider than the one the agent's harness runs on (422 `profile_harness_mismatch`). */
+export const profileHarnessMismatch = (provider: ProfileProvider, harness: Harness): Refusal<422> =>
+  refuse(
+    422,
+    'profile_harness_mismatch',
+    `${capital(AN_AGENT[harness])} needs ${A_PROFILE[HARNESS_PROVIDER[harness]]}; this access profile is for ${PROVIDER_NAMES[provider]}`,
+  );
+
+/** A default of one provider given a profile of the other (422 `provider_mismatch`). */
+export const defaultProviderMismatch = (provider: ProfileProvider, wanted: ProfileProvider): Refusal<422> =>
+  refuse(
+    422,
+    'provider_mismatch',
+    `Your ${PROVIDER_NAMES[wanted]} default is ${A_PROFILE[wanted]}; this access profile is for ${PROVIDER_NAMES[provider]}`,
+  );
+
+/** What the answer to a harness change says of the profile it took off the agent. */
+export const profileClearedMessage = (name: string, provider: ProfileProvider, harness: Harness): string =>
+  `Its access profile ${name} is for ${PROVIDER_NAMES[provider]}, so it was taken off: ${AN_AGENT[harness]} needs ${A_PROFILE[HARNESS_PROVIDER[harness]]}`;
 
 /** What a requested profile does to the one an agent (or a default) has: give one, take it off, or nothing. */
 export type ProfileStep = 'give' | 'remove' | 'none';

@@ -141,7 +141,9 @@ describe('owned()', () => {
 
 describe('the bridges between the personal and the tenant layer', () => {
   const addProfile = async (o: OwnedDb) => {
-    const [inserted] = await o.insert(accessProfiles, { name: unique('profile') }).returning();
+    const [inserted] = await o
+      .insert(accessProfiles, { name: unique('profile'), provider: 'claude' })
+      .returning();
     return inserted as typeof accessProfiles.$inferSelect;
   };
 

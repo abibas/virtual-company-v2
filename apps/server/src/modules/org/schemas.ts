@@ -18,7 +18,7 @@ import {
   POSITION_TITLE_MAX,
 } from '@mwc/shared/org';
 import { SLUG_PATTERN } from '@mwc/shared/slugs';
-import { AgentProfileSchema, ProfileChoice } from './schemas/profiles.ts';
+import { AgentProfileSchema, ProfileChoice, ProfileClearedSchema } from './schemas/profiles.ts';
 
 const pathParam = (name: string, example: string) =>
   z.string().openapi({ param: { name, in: 'path' }, example });
@@ -95,6 +95,11 @@ export const AgentSchema = z
 
 /** One agent with its standing instructions. */
 export const AgentDetailSchema = AgentSchema.extend({ instructions: z.string() }).openapi('AgentDetail');
+
+/** An agent after a change, with the profile a harness change took off it, when one did. */
+export const AgentUpdatedSchema = AgentDetailSchema.extend({
+  profileCleared: ProfileClearedSchema.optional(),
+}).openapi('AgentUpdated');
 
 export const AgentListSchema = z.object({ agents: z.array(AgentSchema) }).openapi('AgentList');
 

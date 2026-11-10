@@ -19,6 +19,19 @@ export interface Caller {
  */
 export type AuditBy = Pick<AuditEntry, 'actorKind' | 'actorPrincipalId' | 'requestId'>;
 
+/** Who acts, from a route's guard: the membership, how they signed in (`actor.via`) and the request id. */
+export const callerOf = (v: {
+  actor: { via: string };
+  membership: { principalId: string; role: MembershipRole; userId: string };
+  requestId: string;
+}): Caller => ({
+  principalId: v.membership.principalId,
+  role: v.membership.role,
+  requestId: v.requestId,
+  userId: v.membership.userId,
+  session: v.actor.via === 'clerk',
+});
+
 export const byCaller = (caller: Caller): AuditBy => ({
   actorKind: 'user',
   actorPrincipalId: caller.principalId,

@@ -12,7 +12,7 @@ import { KindBadge } from './KindBadge.tsx';
 
 interface GatewayCardProps {
   readonly gateway: Subscription;
-  /** The person's access profiles that have it in their gateway slot; undefined while they load. */
+  /** The person's Claude profiles that have it as their gateway; undefined while they load. */
   readonly profiles: readonly AccessProfile[] | undefined;
   /** Renames it (`PATCH`), then the list is read again. */
   readonly rename: (label: string) => Promise<unknown>;

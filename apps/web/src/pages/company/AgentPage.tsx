@@ -70,7 +70,7 @@ export function AgentPage({ address }: { readonly address: string }) {
       chart={chart}
       meUserId={me.user.id}
       links={links}
-      defaultProfileId={membership.defaultProfileId}
+      defaults={{ claude: membership.defaultClaudeProfileId, openai: membership.defaultOpenaiProfileId }}
       onHired={(agent) => {
         team.reload();
         navigate(links.agent(agent));

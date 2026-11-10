@@ -50,6 +50,7 @@ describe('giving an access profile to an agent', () => {
     const shown = {
       id: profile.id,
       name: 'Work',
+      provider: 'claude',
       ownerUserId: company.owner.userId,
       ownerName: await ownerName(company.owner),
     };
@@ -126,7 +127,12 @@ describe('POST /api/companies/:companyId/agents with a profile', () => {
     const chosen = await seedProfile(w.t.db, hirer.userId);
     expect((await makeAgent(w, company, hirer, { name: 'No default' })).profile).toBeNull();
     expect(
-      (await as(w, hirer)('PUT', defaultPath(company.companyId), { profileId: preferred.id })).status,
+      (
+        await as(w, hirer)('PUT', defaultPath(company.companyId), {
+          provider: 'claude',
+          profileId: preferred.id,
+        })
+      ).status,
     ).toBe(200);
     const byDefault = await makeAgent(w, company, hirer, { name: 'Default' });
     expect(byDefault.profile?.id).toBe(preferred.id);
@@ -167,7 +173,10 @@ describe('POST /api/companies/:companyId/agents with a profile', () => {
   it('puts the default on an agent hired with an API key: the owner chose it signed in', async () => {
     const hirer = await placedMember(w, company, 'admin');
     const preferred = await seedProfile(w.t.db, hirer.userId);
-    await as(w, hirer)('PUT', defaultPath(company.companyId), { profileId: preferred.id });
+    await as(w, hirer)('PUT', defaultPath(company.companyId), {
+      provider: 'claude',
+      profileId: preferred.id,
+    });
     const { key } = await seedApiKey(w.t.db, {
       companyId: company.companyId,
       principalId: hirer.principalId,
@@ -184,52 +193,90 @@ describe('PUT /api/companies/:companyId/me/default-profile', () => {
     await joinCompany(w.t.db, elsewhere.companyId, person.userId, 'admin');
     const profile = await seedProfile(w.t.db, person.userId);
     const path = defaultPath(company.companyId);
-    const set = await as(w, person, 'req-default-1')('PUT', path, { profileId: profile.id });
-    expect(set).toMatchObject({ status: 200, body: { defaultProfileId: profile.id } });
+    const codex = await seedProfile(w.t.db, person.userId, { provider: 'openai' });
+    const set = await as(w, person, 'req-default-1')('PUT', path, {
+      provider: 'claude',
+      profileId: profile.id,
+    });
+    expect(set).toMatchObject({
+      status: 200,
+      body: { defaultClaudeProfileId: profile.id, defaultOpenaiProfileId: null },
+    });
+    const both = await as(w, person, 'req-default-o')('PUT', path, {
+      provider: 'openai',
+      profileId: codex.id,
+    });
+    expect(both).toMatchObject({
+      status: 200,
+      body: { defaultClaudeProfileId: profile.id, defaultOpenaiProfileId: codex.id },
+    });
     const me = (await as(w, person)('GET', '/api/me')).body as Me;
-    const defaults = new Map(me.memberships.map((m) => [m.companyId, m.defaultProfileId]));
+    const defaults = new Map(
+      me.memberships.map((m) => [m.companyId, [m.defaultClaudeProfileId, m.defaultOpenaiProfileId]]),
+    );
     expect(defaults).toEqual(
       new Map([
-        [company.companyId, profile.id],
-        [elsewhere.companyId, null],
+        [company.companyId, [profile.id, codex.id]],
+        [elsewhere.companyId, [null, null]],
       ]),
     );
-    expect(await as(w, person, 'req-default-2')('PUT', path, { profileId: profile.id })).toMatchObject({
-      status: 200,
-      body: { defaultProfileId: profile.id },
+    expect(
+      await as(w, person, 'req-default-2')('PUT', path, { provider: 'claude', profileId: profile.id }),
+    ).toMatchObject({ status: 200, body: { defaultClaudeProfileId: profile.id } });
+    const cleared = await as(w, person, 'req-default-3')('PUT', path, {
+      provider: 'claude',
+      profileId: null,
     });
-    const cleared = await as(w, person, 'req-default-3')('PUT', path, { profileId: null });
-    expect(cleared).toMatchObject({ status: 200, body: { defaultProfileId: null } });
+    expect(cleared).toMatchObject({
+      status: 200,
+      body: { defaultClaudeProfileId: null, defaultOpenaiProfileId: codex.id },
+    });
     expect(await defaultProfileOf(w.t.db, person.membershipId)).toBeNull();
-    expect(await fieldAudit(w.t.db, 'membership', person.membershipId, 'defaultProfileId')).toEqual([
+    expect(await defaultProfileOf(w.t.db, person.membershipId, 'openai')).toBe(codex.id);
+    expect(await fieldAudit(w.t.db, 'membership', person.membershipId, 'defaultClaudeProfileId')).toEqual([
       [company.companyId, 'update', person.principalId, 'req-default-1', null, profile.id],
       [company.companyId, 'update', person.principalId, 'req-default-3', profile.id, null],
     ]);
+    expect(await fieldAudit(w.t.db, 'membership', person.membershipId, 'defaultOpenaiProfileId')).toEqual([
+      [company.companyId, 'update', person.principalId, 'req-default-o', null, codex.id],
+    ]);
   });
 
-  it('refuses someone else’s profile, none, a member or viewer choosing one, and an API key', async () => {
+  it('refuses someone else’s profile, none, one of the other provider, a member or viewer choosing one, and an API key', async () => {
     const path = defaultPath(company.companyId);
     const theirs = await seedProfile(w.t.db, admin.userId);
-    expect(await as(w, company.owner)('PUT', path, { profileId: theirs.id })).toMatchObject({
+    const claude = { provider: 'claude' } as const;
+    expect(await as(w, company.owner)('PUT', path, { ...claude, profileId: theirs.id })).toMatchObject({
       status: 403,
       body: { error: { code: 'profile_not_yours' } },
     });
-    expect(await as(w, company.owner)('PUT', path, { profileId: MISSING })).toMatchObject({
+    expect(await as(w, company.owner)('PUT', path, { ...claude, profileId: MISSING })).toMatchObject({
       status: 422,
       body: { error: { code: 'profile_not_found' } },
     });
+    const codex = await seedProfile(w.t.db, company.owner.userId, { provider: 'openai' });
+    expect(await as(w, company.owner)('PUT', path, { ...claude, profileId: codex.id })).toMatchObject({
+      status: 422,
+      body: {
+        error: {
+          code: 'provider_mismatch',
+          message: 'Your Claude default is a Claude profile; this access profile is for OpenAI',
+        },
+      },
+    });
+    expect(await defaultProfileOf(w.t.db, company.owner.membershipId)).toBeNull();
     for (const role of ['member', 'viewer'] as const) {
       const person = await placedMember(w, company, role);
       const own = await seedProfile(w.t.db, person.userId);
-      expect(await as(w, person)('PUT', path, { profileId: own.id })).toMatchObject({
+      expect(await as(w, person)('PUT', path, { ...claude, profileId: own.id })).toMatchObject({
         status: 403,
         body: { error: { code: 'forbidden' } },
       });
       // Clearing is anyone's: a member left with a default from when they were an admin may drop it.
       await putDefault(w.t.db, person.membershipId, own.id);
-      expect(await as(w, person)('PUT', path, { profileId: null })).toMatchObject({
+      expect(await as(w, person)('PUT', path, { ...claude, profileId: null })).toMatchObject({
         status: 200,
-        body: { defaultProfileId: null },
+        body: { defaultClaudeProfileId: null },
       });
     }
     const mine = await seedProfile(w.t.db, company.owner.userId);
@@ -237,17 +284,20 @@ describe('PUT /api/companies/:companyId/me/default-profile', () => {
       companyId: company.companyId,
       principalId: company.owner.principalId,
     });
-    expect(await call(w, key)('PUT', path, { profileId: mine.id })).toMatchObject({
+    expect(await call(w, key)('PUT', path, { ...claude, profileId: mine.id })).toMatchObject({
       status: 403,
       body: { error: { code: 'session_required' } },
     });
-    expect(await call(w, key)('PUT', path, { profileId: null })).toMatchObject({ status: 200 });
+    expect(await call(w, key)('PUT', path, { ...claude, profileId: null })).toMatchObject({ status: 200 });
   });
 
-  it('answers 404 to a non-member and 400 without a profileId', async () => {
+  it('answers 404 to a non-member and 400 without a provider or a profileId', async () => {
     const stranger = await membersCompany(w);
     const path = defaultPath(company.companyId);
-    expect(await as(w, stranger.owner)('PUT', path, { profileId: null })).toMatchObject({ status: 404 });
-    expect(await as(w, company.owner)('PUT', path, {})).toMatchObject({ status: 400 });
+    expect(await as(w, stranger.owner)('PUT', path, { provider: 'claude', profileId: null })).toMatchObject({
+      status: 404,
+    });
+    expect(await as(w, company.owner)('PUT', path, { provider: 'claude' })).toMatchObject({ status: 400 });
+    expect(await as(w, company.owner)('PUT', path, { profileId: null })).toMatchObject({ status: 400 });
   });
 });

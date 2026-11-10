@@ -48,8 +48,10 @@ export interface UserCompany {
   readonly status: typeof memberships.$inferSelect.status;
   /** The SHA-256 of the company's logo (its version and ETag), null when it has none; never the image. */
   readonly logoSha256: string | null;
-  /** The person's default access profile for the agents they hire there (S3.4); null for none. */
-  readonly defaultProfileId: string | null;
+  /** The person's default Claude access profile for the `claude_code` agents they hire there (S3.4); null for none. */
+  readonly defaultClaudeProfileId: string | null;
+  /** Their default OpenAI access profile for the `codex` agents they hire there; null for none. */
+  readonly defaultOpenaiProfileId: string | null;
 }
 
 /**
@@ -78,7 +80,8 @@ export async function listUserCompanies(
       role: memberships.role,
       status: memberships.status,
       logoSha256: companyLogos.sha256,
-      defaultProfileId: memberships.defaultProfileId,
+      defaultClaudeProfileId: memberships.defaultClaudeProfileId,
+      defaultOpenaiProfileId: memberships.defaultOpenaiProfileId,
     })
     .from(memberships)
     .innerJoin(companies, eq(companies.id, memberships.companyId))

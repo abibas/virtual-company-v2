@@ -1,5 +1,5 @@
 import type { TenantDb } from '@mwc/db';
-import type { AgentStatus } from '@mwc/shared/enums';
+import type { AgentStatus, ProfileProvider } from '@mwc/shared/enums';
 import type { ServerDeps } from '../../platform/env.ts';
 import { placementsOf } from '../machines/service/placement.ts';
 import { orgRepo } from './repo.ts';
@@ -50,7 +50,7 @@ const LIST_STATUSES: Readonly<Record<string, readonly AgentStatus[] | undefined>
 /**
  * The org module's logic: the agents (list, read, create, change, archive: `service/agents.ts`,
  * `service/lifecycle.ts`), the positions (`service/positions.ts`), the chart (`service/chart.ts`) and the access
- * profiles agents use, with a member's default (`service/profiles.ts`). Every change runs under the company row's lock,
+ * profiles agents use, with a member's defaults (`service/profiles.ts`). Every change runs under the company row's lock,
  * so two changes never pass the org rules each on a chart the other changes.
  */
 export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
@@ -91,8 +91,11 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
       shownAgent(deps, repo, t, await updateAgent(repo, t, caller, { agentId, patch })),
     setPosition: (t: TenantDb, caller: Caller, principalId: string, body: UpdatePosition) =>
       setPosition(repo, t, caller, { principalId, body }),
-    setDefaultProfile: (t: TenantDb, caller: Caller, profileId: string | null) =>
-      setDefaultProfile(repo, t, caller, profileId),
+    setDefaultProfile: (
+      t: TenantDb,
+      caller: Caller,
+      choice: { readonly provider: ProfileProvider; readonly profileId: string | null },
+    ) => setDefaultProfile(repo, t, caller, choice),
     chart: chartReader(deps, repo),
   };
 }

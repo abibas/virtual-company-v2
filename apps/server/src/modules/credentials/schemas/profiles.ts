@@ -1,10 +1,11 @@
 import { z } from '@hono/zod-openapi';
 import { ACCESS_PROFILE_NAME } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
+import { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
 
 /**
- * The access profiles API's shapes (`/api/me/access-profiles`, S3.4): a person's named bundles of their own
- * subscriptions. A slot shows its subscription's metadata, never a secret.
+ * The access profiles API's shapes (`/api/me/access-profiles`, S3.4, one provider each since 2026-11-10): a person's
+ * named choice of one of their own subscriptions, Claude's or OpenAI's, with a gateway for a Claude one. A credential
+ * shows its subscription's metadata, never a secret.
  */
 
 export const AccessProfileParamsSchema = z.object({
@@ -21,11 +22,14 @@ const name = z
   .max(ACCESS_PROFILE_NAME.max, `A name is at most ${ACCESS_PROFILE_NAME.max} characters`)
   .openapi({ example: 'Work' });
 
-/** One of your subscriptions for a slot, or null to empty it. */
-const slot = z.string().nullable().openapi({ example: '019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b' });
+/** Whose subscription it holds: fixed when it is made. */
+const provider = ProfileProvider;
 
-/** A slot's subscription as a profile shows it: what it is and whose account, never its secret. */
-export const SlotSubscriptionSchema = z
+/** One of your subscriptions, or null to empty the profile's. */
+const choice = z.string().nullable().openapi({ example: '019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b' });
+
+/** A profile's subscription or gateway as it shows it: what it is and whose account, never its secret. */
+export const ProfileSubscriptionSchema = z
   .object({
     id: z.string(),
     kind: CredentialKind,
@@ -33,7 +37,7 @@ export const SlotSubscriptionSchema = z
     accountEmail: z.string().nullable().openapi({ example: 'ihor@example.com' }),
     status: CredentialStatus,
   })
-  .openapi('ProfileSlotSubscription');
+  .openapi('ProfileSubscription');
 
 /** An agent that uses the profile, and its company. */
 export const ProfileAgentSchema = z
@@ -51,12 +55,12 @@ export const AccessProfileSchema = z
   .object({
     id: z.string(),
     name: z.string().openapi({ example: 'Work' }),
-    /** The Claude subscription of `claude_code` agents. */
-    claude: SlotSubscriptionSchema.nullable(),
-    /** The OpenAI subscription of `codex` agents. */
-    openai: SlotSubscriptionSchema.nullable(),
-    /** The gateway the runs send their AI requests through. */
-    gateway: SlotSubscriptionSchema.nullable(),
+    /** Claude for `claude_code` agents, OpenAI for `codex` agents. */
+    provider: ProfileProvider,
+    /** Its subscription of that provider; null while it has none (it cannot run until it does). */
+    subscription: ProfileSubscriptionSchema.nullable(),
+    /** A Claude profile's gateway, which its runs send their AI requests through; always null for OpenAI. */
+    gateway: ProfileSubscriptionSchema.nullable(),
     /** The agents that use it, in your companies. */
     agents: z.array(ProfileAgentSchema),
     createdAt: z.string().openapi({ format: 'date-time' }),
@@ -68,29 +72,35 @@ export const AccessProfileListSchema = z
   .object({ profiles: z.array(AccessProfileSchema) })
   .openapi('AccessProfileList');
 
-/** A new profile: a name and, for each slot, one of your subscriptions of a kind it takes (or none). */
+/**
+ * A new profile: a name, its provider and, optionally, one of your subscriptions of that provider and (Claude only) one
+ * of your gateways.
+ */
 export const CreateAccessProfileSchema = z
   .object({
     name,
-    claudeCredentialId: slot.optional(),
-    openaiCredentialId: slot.optional(),
-    gatewayCredentialId: slot.optional(),
+    provider,
+    credentialId: choice.optional(),
+    gatewayCredentialId: choice.optional(),
   })
   .openapi('CreateAccessProfile');
 
-/** A new name, a slot changed (null empties it), or both. */
+/**
+ * A new name, another subscription of the same provider, a gateway (Claude only), any of them (null empties one). The
+ * provider is fixed: given, it must be the profile's own.
+ */
 export const UpdateAccessProfileSchema = z
   .object({
     name: name.optional(),
-    claudeCredentialId: slot.optional(),
-    openaiCredentialId: slot.optional(),
-    gatewayCredentialId: slot.optional(),
+    provider: provider.optional(),
+    credentialId: choice.optional(),
+    gatewayCredentialId: choice.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, 'Give at least one field to change')
   .openapi('UpdateAccessProfile');
 
 export type AccessProfileView = z.infer<typeof AccessProfileSchema>;
-export type SlotSubscriptionView = z.infer<typeof SlotSubscriptionSchema>;
+export type ProfileSubscriptionView = z.infer<typeof ProfileSubscriptionSchema>;
 export type ProfileAgentView = z.infer<typeof ProfileAgentSchema>;
 export type CreateAccessProfile = z.infer<typeof CreateAccessProfileSchema>;
 export type UpdateAccessProfile = z.infer<typeof UpdateAccessProfileSchema>;

@@ -15,11 +15,11 @@ describe('profilesRepo', () => {
   it("reads a profile through its owner's layer, and nothing for an unknown one", async () => {
     const { company, owner } = await seedCompany(t.db);
     const scoped = await tenant(t.db, company.id);
-    const profile = await seedProfile(t.db, owner.user.id);
-    expect(await profilesRepo.ownerOf(scoped, profile.id)).toBe(owner.user.id);
+    const profile = await seedProfile(t.db, owner.user.id, { provider: 'openai' });
     expect(await profilesRepo.get(scoped, profile.id)).toMatchObject({
       id: profile.id,
       ownerUserId: owner.user.id,
+      provider: 'openai',
     });
     expect(await profilesRepo.get(scoped, newId())).toBeUndefined();
     expect(await profilesRepo.membershipOf(scoped, owner.user.id)).toMatchObject({ role: 'owner' });

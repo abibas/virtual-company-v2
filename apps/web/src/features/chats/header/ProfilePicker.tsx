@@ -1,15 +1,17 @@
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { Harness } from '@mwc/shared/enums';
 import type { AccessProfile, Chat } from '../../../api/types.ts';
 import { Select, type SelectOption } from '../../../components/forms/Input.tsx';
-import { HARNESS_SLOT } from '../chat-text.ts';
+import { PROVIDER_STYLES } from '../../subscriptions/Providers.tsx';
 import { useAction } from '../use-action.ts';
 
 /** The agent's profile: the empty value, so choosing it sends `profileId: null`. */
 const AGENTS = '';
 
 /**
- * The choices: the agent's own profile, then the person's own profiles, those with nothing in the harness's slot shown
- * but not choosable; a profile of someone else that the chat runs on stays listed as the current choice.
+ * The choices: the agent's own profile, then the person's own profiles of the provider the chat's harness runs on
+ * (Claude for Claude Code, OpenAI for Codex), those without a subscription shown but not choosable; a profile of
+ * someone else that the chat runs on stays listed as the current choice.
  */
 export function profileOptions(
   harness: Harness,
@@ -17,20 +19,22 @@ export function profileOptions(
   mine: readonly AccessProfile[],
   current: string | null,
 ): readonly SelectOption[] {
-  const slot = HARNESS_SLOT[harness];
+  const provider = HARNESS_PROVIDER[harness];
+  const fitting = mine.filter((profile) => profile.provider === provider);
+  const group = `Your ${PROVIDER_STYLES[provider].name} profiles`;
   const options: SelectOption[] = [
     { value: AGENTS, label: `Agent's profile (${agentProfileName ?? 'none'})` },
-    ...mine.map((profile) => {
-      const empty = profile[slot.key] === null;
+    ...fitting.map((profile) => {
+      const empty = profile.subscription === null;
       return {
         value: profile.id,
-        label: empty ? `${profile.name} (no ${slot.name} subscription)` : profile.name,
+        label: empty ? `${profile.name} (no subscription)` : profile.name,
         disabled: empty,
-        group: 'Your access profiles',
+        group,
       };
     }),
   ];
-  if (current !== null && !mine.some((profile) => profile.id === current)) {
+  if (current !== null && !fitting.some((profile) => profile.id === current)) {
     options.push({ value: current, label: "Another person's profile", disabled: true });
   }
   return options;

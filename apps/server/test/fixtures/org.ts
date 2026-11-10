@@ -22,7 +22,7 @@ import {
   tenant,
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import type { CredentialKind, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
+import type { CredentialKind, MembershipRole, MembershipStatus, ProfileProvider } from '@mwc/shared/enums';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { captureLogger, getJson, seedAgent, testConfig } from '@mwc/testkit';
 import { and, asc, eq } from 'drizzle-orm';
@@ -318,7 +318,7 @@ export async function revokeSubscription(db: DbHandle, id: string): Promise<void
   await rawDb(db).update(credentials).set({ status: 'revoked' }).where(eq(credentials.id, id));
 }
 
-/** A profile of a person's, straight through the personal layer (no rules checked). */
+/** A profile of a person's (a Claude one unless `provider` says), straight through the personal layer (no rules checked). */
 export async function seedProfile(
   db: DbHandle,
   userId: string,
@@ -326,7 +326,7 @@ export async function seedProfile(
 ): Promise<AccessProfile> {
   const name = `Profile ${randomBytes(3).toString('hex')}`;
   const [row] = await owned(db, userId)
-    .insert(accessProfiles, { name, ...values })
+    .insert(accessProfiles, { name, provider: 'claude', ...values })
     .returning();
   return row as AccessProfile;
 }
@@ -336,11 +336,19 @@ export async function putProfile(db: DbHandle, companyId: string, agentId: strin
   await (await tenant(db, companyId)).update(agents, { profileId }, eq(agents.id, agentId));
 }
 
-/** Sets a membership's default profile straight in the table (no rules checked). */
-export async function putDefault(db: DbHandle, membershipId: string, profileId: string | null) {
+/** The membership column of each provider's default profile. */
+const DEFAULT_FIELDS = { claude: 'defaultClaudeProfileId', openai: 'defaultOpenaiProfileId' } as const;
+
+/** Sets a membership's default profile of a provider (Claude by default) straight in the table (no rules checked). */
+export async function putDefault(
+  db: DbHandle,
+  membershipId: string,
+  profileId: string | null,
+  provider: ProfileProvider = 'claude',
+) {
   await rawDb(db)
     .update(memberships)
-    .set({ defaultProfileId: profileId })
+    .set({ [DEFAULT_FIELDS[provider]]: profileId })
     .where(eq(memberships.id, membershipId));
 }
 
@@ -348,9 +356,15 @@ export async function putDefault(db: DbHandle, membershipId: string, profileId: 
 export const agentProfileOf = async (db: DbHandle, agentId: string) =>
   (await rawDb(db).select().from(agents).where(eq(agents.id, agentId)))[0]?.profileId;
 
-/** The default profile a membership holds, as stored. */
-export const defaultProfileOf = async (db: DbHandle, membershipId: string) =>
-  (await rawDb(db).select().from(memberships).where(eq(memberships.id, membershipId)))[0]?.defaultProfileId;
+/** The default profile of a provider (Claude by default) a membership holds, as stored. */
+export const defaultProfileOf = async (
+  db: DbHandle,
+  membershipId: string,
+  provider: ProfileProvider = 'claude',
+) =>
+  (await rawDb(db).select().from(memberships).where(eq(memberships.id, membershipId)))[0]?.[
+    DEFAULT_FIELDS[provider]
+  ];
 
 /** One field's audit rows of an entity, oldest first, as `[companyId, action, by, requestId, old, new]`. */
 export async function fieldAudit(db: DbHandle, entityType: string, entityId: string, field: string) {

@@ -66,10 +66,14 @@ export const memberships = pgTable(
     /** The invitation this membership came from. */
     invitationId: uuid('invitation_id'),
     /**
-     * The person's own access profile for the agents they hire here (S3.4); none by default. A personal row, so a
-     * plain key: it goes when the profile does.
+     * The person's own Claude access profile for the `claude_code` agents they hire here (S3.4, one per provider since
+     * 2026-11-10); none by default. A personal row, so a plain key: it goes when the profile does.
      */
-    defaultProfileId: uuid('default_profile_id').references(() => accessProfiles.id, {
+    defaultClaudeProfileId: uuid('default_claude_profile_id').references(() => accessProfiles.id, {
+      onDelete: 'set null',
+    }),
+    /** Their OpenAI access profile for the `codex` agents they hire here; none by default. */
+    defaultOpenaiProfileId: uuid('default_openai_profile_id').references(() => accessProfiles.id, {
       onDelete: 'set null',
     }),
     createdAt: createdAt(),
@@ -85,7 +89,8 @@ export const memberships = pgTable(
     check('memberships_granted_role_check', oneOf(t.grantedRole, MembershipRole.options)),
     check('memberships_status_check', oneOf(t.status, MembershipStatus.options)),
     index('memberships_user_id_idx').on(t.userId),
-    index('memberships_default_profile_idx').on(t.defaultProfileId),
+    index('memberships_default_claude_profile_idx').on(t.defaultClaudeProfileId),
+    index('memberships_default_openai_profile_idx').on(t.defaultOpenaiProfileId),
   ],
 );
 

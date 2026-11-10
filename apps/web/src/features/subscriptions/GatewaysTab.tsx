@@ -30,7 +30,7 @@ const SKELETON = (
 const WHAT_IT_IS =
   "An address your agents' Claude Code requests go through, like your own proxy on port 8300; a profile can include one.";
 
-/** The profiles whose gateway slot holds `id`; undefined while the profiles load. */
+/** The Claude profiles whose gateway is `id`; undefined while the profiles load. */
 const profilesWith = (profiles: readonly AccessProfile[] | undefined, id: string) =>
   profiles?.filter((profile) => profile.gateway?.id === id);
 
@@ -80,8 +80,8 @@ function GatewayList({ gateways, profiles, calls, onChanged, onAdd }: ListProps)
 
 /**
  * The AI gateways tab: the person's gateways (credentials of kind `gateway`) as cards, with the profiles that include
- * each, rename and remove; Add gateway opens the gateway form in a sheet. `addOnOpen` (`&add=1`, from a profile's empty
- * Gateway slot) opens that sheet at once, and leaves the address without it. `header` puts Add gateway in the page's
+ * each, rename and remove; Add gateway opens the gateway form in a sheet. `addOnOpen` (`&add=1`, from a Claude profile's
+ * Add a gateway) opens that sheet at once, and leaves the address without it. `header` puts Add gateway in the page's
  * header.
  */
 export function GatewaysTab({

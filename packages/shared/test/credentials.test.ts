@@ -3,15 +3,19 @@ import {
   ACCESS_PROFILE_NAME,
   CREDENTIAL_LABEL,
   CREDENTIAL_PURPOSE,
-  fitsSlot,
+  fitsGateway,
+  fitsProvider,
   GATEWAY_HEADERS,
+  GATEWAY_KINDS,
+  HARNESS_PROVIDER,
   PASTED_CREDENTIAL_KINDS,
-  PROFILE_SLOT_KINDS,
-  PROFILE_SLOTS,
+  PROFILE_PROVIDERS,
+  PROVIDER_KINDS,
+  profileFitsHarness,
   SECRET_MAX,
   SECRET_PREFIXES,
 } from '../src/credentials.ts';
-import { CredentialKind } from '../src/enums.ts';
+import { CredentialKind, Harness, ProfileProvider } from '../src/enums.ts';
 
 describe('the credential store contract', () => {
   it('holds the limits the credentials and credential_uses CHECKs hold', () => {
@@ -45,19 +49,35 @@ describe('the credential store contract', () => {
     expect(ACCESS_PROFILE_NAME).toEqual({ min: 1, max: 80 });
   });
 
-  it('puts every kind in exactly one slot of an access profile', () => {
-    expect(PROFILE_SLOTS).toEqual(Object.keys(PROFILE_SLOT_KINDS));
+  it('gives every kind to exactly one part of a profile: a provider’s subscription or a Claude profile’s gateway', () => {
+    expect(PROFILE_PROVIDERS).toEqual(ProfileProvider.options);
+    expect(PROFILE_PROVIDERS).toEqual(Object.keys(PROVIDER_KINDS));
     for (const kind of CredentialKind.options) {
-      expect(PROFILE_SLOTS.filter((slot) => fitsSlot(slot, kind))).toHaveLength(1);
+      const fits = [
+        ...PROFILE_PROVIDERS.filter((provider) => fitsProvider(provider, kind)),
+        fitsGateway(kind),
+      ];
+      expect(fits.filter(Boolean), kind).toHaveLength(1);
     }
-    expect(PROFILE_SLOTS.filter((slot) => fitsSlot(slot, 'claude_oauth'))).toEqual(['claude']);
-    expect(fitsSlot('claude', 'claude_setup_token')).toBe(true);
-    expect(fitsSlot('claude', 'anthropic_api_key')).toBe(true);
-    expect(fitsSlot('openai', 'codex_oauth')).toBe(true);
-    expect(fitsSlot('openai', 'openai_api_key')).toBe(true);
-    expect(fitsSlot('gateway', 'gateway')).toBe(true);
-    expect(fitsSlot('claude', 'openai_api_key')).toBe(false);
-    expect(fitsSlot('openai', 'gateway')).toBe(false);
-    expect(fitsSlot('gateway', 'claude_oauth')).toBe(false);
+    expect(GATEWAY_KINDS).toEqual(['gateway']);
+    expect(fitsProvider('claude', 'claude_oauth')).toBe(true);
+    expect(fitsProvider('claude', 'claude_setup_token')).toBe(true);
+    expect(fitsProvider('claude', 'anthropic_api_key')).toBe(true);
+    expect(fitsProvider('openai', 'codex_oauth')).toBe(true);
+    expect(fitsProvider('openai', 'openai_api_key')).toBe(true);
+    expect(fitsProvider('claude', 'openai_api_key')).toBe(false);
+    expect(fitsProvider('openai', 'claude_oauth')).toBe(false);
+    expect(fitsProvider('openai', 'gateway')).toBe(false);
+    expect(fitsGateway('gateway')).toBe(true);
+    expect(fitsGateway('claude_oauth')).toBe(false);
+  });
+
+  it('runs each harness on profiles of one provider', () => {
+    expect(HARNESS_PROVIDER).toEqual({ claude_code: 'claude', codex: 'openai' });
+    for (const harness of Harness.options) {
+      expect(PROFILE_PROVIDERS.filter((provider) => profileFitsHarness(provider, harness))).toEqual([
+        HARNESS_PROVIDER[harness],
+      ]);
+    }
   });
 });

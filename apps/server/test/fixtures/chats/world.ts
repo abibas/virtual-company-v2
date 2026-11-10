@@ -148,9 +148,9 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
   const credential =
     kind === null ? undefined : await addSubscription(w, w.keyring, company.owner.userId, kind);
   const gateway = options.gateway ? await addGateway(w, company.owner.userId) : undefined;
-  const slot = harness === 'codex' ? 'openaiCredentialId' : 'claudeCredentialId';
   const profile = await seedProfile(w.t.db, company.owner.userId, {
-    [slot]: credential?.id ?? null,
+    provider: harness === 'codex' ? 'openai' : 'claude',
+    credentialId: credential?.id ?? null,
     gatewayCredentialId: gateway?.id ?? null,
   });
   await (await tenant(w.t.db, company.companyId)).update(

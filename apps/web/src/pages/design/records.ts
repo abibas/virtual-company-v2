@@ -28,7 +28,8 @@ export const SAMPLE_MEMBERSHIP: Membership = {
   companyStatus: 'active',
   identityOrgId: 'org_sample',
   logo: null,
-  defaultProfileId: null,
+  defaultClaudeProfileId: null,
+  defaultOpenaiProfileId: null,
 };
 
 /** `GET /api/me` for the gallery: the person with two companies, the sample one first. */
@@ -45,7 +46,8 @@ export const SAMPLE_SESSION: Me = {
       companyStatus: 'active',
       identityOrgId: 'org_sample_2',
       logo: null,
-      defaultProfileId: null,
+      defaultClaudeProfileId: null,
+      defaultOpenaiProfileId: null,
     },
   ],
   session: { via: 'clerk', pending: false },
