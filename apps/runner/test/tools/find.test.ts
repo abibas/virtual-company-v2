@@ -58,7 +58,7 @@ describe("the machine's CLIs", () => {
 });
 
 describe("the tools' host", () => {
-  it('finds the npm beside the runner’s Node, installs under the home, and knows a container', async () => {
+  it('finds the npm beside the runner’s Node, and installs under the home', async () => {
     const { host, home } = testHost();
     const node = executable(join(home, 'node', 'bin'), 'node');
     const tools = toolsHost({ ...host, execPath: node });
@@ -67,8 +67,6 @@ describe("the tools' host", () => {
     expect(tools.npm()).toBe(npm);
     expect(tools.home).toBe(home);
     expect(tools.env).toBe(host.env);
-    expect(tools.container).toBe(false);
     expect((await tools.find()).versions).toEqual(NONE);
-    expect(toolsHost(testHost({ files: ['/.dockerenv'] }).host).container).toBe(true);
   });
 });

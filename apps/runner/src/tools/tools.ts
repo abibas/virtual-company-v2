@@ -17,7 +17,7 @@ import { npmInstallArgs, type RunningInstall, startNpmInstall } from './install.
 /**
  * The daemon's tools (docs/machines.md, "Tools"; docs/runner-protocol.md, "Tools"): the versions its hello says
  * (`caps.tools`), `tools.check` (look again) and `tools.install` (npm installs Claude Code or Codex into `~/.local`, one
- * at a time, never while the runner updates itself, never in a container), each answered by `tools.result` after the versions are read again. When they were
+ * at a time, never while the runner updates itself; in a container too, into its `~/.local` volume), each answered by `tools.result` after the versions are read again. When they were
  * read again, the harnesses look again for a harness CLI found now (so a turn drives it and `caps.harnesses` says so)
  * and `changed` sends `runner.caps`, before the answer, so the server's view is fresh when it comes.
  */
@@ -100,12 +100,6 @@ export class Tools {
     const { host, processes } = this.#deps;
     if (host === undefined || processes === undefined) {
       return this.#refuse(frame, 'unsupported: this runner does not install tools');
-    }
-    if (host.container) {
-      return this.#refuse(
-        frame,
-        'unsupported: a container gets its CLIs from its image; rebuild the image instead',
-      );
     }
     if (this.#installing) return this.#refuse(frame, `busy: ${this.#installing.tool} is being installed`);
     if (this.#deps.updating?.()) return this.#refuse(frame, 'busy: the runner is updating itself');

@@ -26,7 +26,6 @@ function toolsHost(searches: FoundTools[], overrides: Partial<ToolsHost> = {}) {
     npm: () => NPM,
     home: '/home/ihor',
     env: { HOME: '/home/ihor', PATH: '/usr/bin' },
-    container: false,
     ...overrides,
   };
   return { host, asked };
@@ -178,11 +177,7 @@ describe('the runner’s tools', () => {
     expect(some.installing).toBeUndefined();
   });
 
-  it('install nothing in a container, without npm, or without a way to start a process', async () => {
-    const container = toolsHost([{ versions: NONE, clis: {} }], { container: true });
-    expect((await tools({ host: container.host, found: NONE }).tools.handle(install())).error).toBe(
-      'unsupported: a container gets its CLIs from its image; rebuild the image instead',
-    );
+  it('install nothing without npm or without a way to start a process', async () => {
     const noNpm = toolsHost([{ versions: NONE, clis: {} }], { npm: () => undefined });
     const without = tools({ host: noNpm.host, found: NONE });
     expect((await without.tools.handle(install())).error).toBe(

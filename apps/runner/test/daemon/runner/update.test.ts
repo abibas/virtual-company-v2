@@ -24,7 +24,6 @@ const linuxTools = (): ToolsHost => ({
   npm: () => NPM,
   home: '/home/ihor',
   env: { HOME: '/home/ihor', PATH: '/usr/bin' },
-  container: false,
 });
 
 /** Resolves once `ready` holds, looking again every few milliseconds. */

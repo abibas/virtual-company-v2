@@ -33,7 +33,6 @@ function machine(): ToolsHost {
     },
     home: '/home/ihor',
     env: { HOME: '/home/ihor', PATH: '/usr/bin' },
-    container: false,
   };
 }
 

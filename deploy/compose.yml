@@ -6,7 +6,7 @@
 #   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
 #     docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d runner-local
 #   docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner down -v   # removes that runner
-#   (-v also drops its volumes: its runner key and its agents' home folders in /work)
+#   (-v also drops its volumes: its runner key, its agents' home folders in /work and the CLIs it installed)
 #
 # The prod-like stack (server image, migrate step, its own Postgres) is deploy/compose.prod.yml.
 name: mwc-v2
@@ -38,7 +38,8 @@ services:
   # runner is its own compose project (-p mwc-runner-<slug>), so each has its own container and state volume; the add
   # sheet chooses its CPUs, memory (Docker caps it there) and runs at once (MWC_RUNNER_SLOTS, read when it enrolls).
   # Its agents' home folders live in the runner-work volume at /work, the only folders it browses and makes, so they
-  # survive restarts and image rebuilds (down -v removes them with the runner).
+  # survive restarts and image rebuilds (down -v removes them with the runner). The CLIs its card installs or updates
+  # live in the runner-cli volume (/home/runner/.local, first on the PATH), so they outlast rebuilds too.
   runner-local:
     profiles: [runner]
     image: mwc-v2/runner:local
@@ -61,6 +62,7 @@ services:
     volumes:
       - runner-state:/var/lib/mwc-runner
       - runner-work:/work
+      - runner-cli:/home/runner/.local
     healthcheck:
       test:
         [
@@ -81,3 +83,4 @@ volumes:
   pgdata:
   runner-state:
   runner-work:
+  runner-cli:

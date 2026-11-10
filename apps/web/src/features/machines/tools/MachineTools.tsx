@@ -75,7 +75,7 @@ function NoTools({ online }: { readonly online: boolean }) {
  * The card's Tools part (docs/machines.md, "Tools"): each CLI its runner found with its version or "not installed",
  * an older Claude Code or Codex marked "update available" (against npm's latest, or the app's pins when npm cannot be
  * read, said in a quiet line under the list); for admins Check again, and Install or Update of Claude Code
- * and Codex (asked first, never in a container) with npm's output and the result. The job running on the machine (an
+ * and Codex (asked first) with npm's output and the result. The job running on the machine (an
  * install or a runner update, `job`) shows at the top, and Check again, Install and Update wait for it.
  * `/:slug/machines?machine=<id>#tools` scrolls here.
  */
@@ -132,18 +132,15 @@ export function MachineTools({
         <RunnerRow machine={machine} latest={latestRunner} online={online} />
         {tools !== null &&
           TOOL_ORDER.map((tool) => (
-            <ToolRow
-              key={tool}
-              {...{ tool, machine, tools, install, job }}
-              canInstall={admin && !container}
-            />
+            <ToolRow key={tool} {...{ tool, machine, tools, install, job }} canInstall={admin} />
           ))}
       </ul>
       {tools !== null && <p className="text-2xs text-dim">{latestSourceText(machine.runner.toolsLatest)}</p>}
       {tools === null && <NoTools online={online} />}
       {tools && container && (
         <p className="text-xs text-dim">
-          In a container its CLIs come from its image: rebuild it to add or update one.
+          In a container, installs and updates go to its own volume (~/.local), so they outlast image
+          rebuilds.
         </p>
       )}
       {state.kind === 'running' && <InstallLog lines={state.lines} />}

@@ -609,7 +609,11 @@ installs or updates Claude Code or Codex through the runner; the chat header and
   background. The runner runs `npm install -g --prefix ~/.local @anthropic-ai/claude-code@<version>` (or
   `@openai/codex@<version>`) with the npm beside its own Node, as its user (never sudo), from its home, in its own process
   group, with npm's folder first on the PATH and its own `MWC_*` settings left out. The command lands in
-  `~/.local/bin`, which the CLI search and the service's PATH already have. npm's lines (both streams, each cut to 500
+  `~/.local/bin`, which the CLI search and the service's PATH already have. A container installs too (2026-11-10, Ihor:
+  its card had "update available" and no Update): its `/home/runner/.local` is its own volume (`runner-cli` in
+  `deploy/compose.yml`, declared in `deploy/Dockerfile.runner`), first on its PATH, so the installed CLI comes before the
+  image's pinned one and outlasts rebuilds (a later image with newer pins is still shadowed by an older install there:
+  the card says "update available" and Update fixes it). npm's lines (both streams, each cut to 500
   characters, 500 lines at most, then one notice) come back as `tools.output`; after 10 minutes npm's group is killed.
   `GET …/tools/install/:installId?from=N` → `{ id, tool, version, status running|succeeded|failed, lines (from N),
   next, tools, error, startedAt, finishedAt }`; the card reads it every second. The server keeps installs in memory an
@@ -618,8 +622,8 @@ installs or updates Claude Code or Codex through the runner; the chat header and
 - **Refusals**: 404 another company's or an unknown machine (`install_not_found` for an install), 403 below admin, 409
   `machine_offline`, `runner_outdated` (no `caps.tools`: update the runner first), `machine_busy` (one job at a time per
   machine, another install or a runner update: "One job at a time" above; the runner refuses a second install, and one
-  during its self-update, with `busy` too) and `unsupported` (a container: its CLIs come from its image, rebuilt
-  instead). An install that started can end `failed` with `npm_missing: …` (no npm beside the runner's Node), `timeout:
+  during its self-update, with `busy` too) and `unsupported` (a container runner built before 2026-11-10: rebuild it
+  once). An install that started can end `failed` with `npm_missing: …` (no npm beside the runner's Node), `timeout:
   …`, `failed: npm exited with code N (its last line)`, `machine_offline: …` (the runner went away) or `runner_outdated`.
 - **Latest from npm** (2026-11-10, Ihor: Codex's own TUI offered 0.167.0 while the card offered our pin, 0.163.0).
   `service/tools/npm.ts` reads `GET https://registry.npmjs.org/<package>/latest` → `version` for
@@ -638,7 +642,7 @@ installs or updates Claude Code or Codex through the runner; the chat header and
   installed", "update available · <latest>" for an older Claude Code or Codex, and for admins **Check again** and
   **Install** / **Update** (asked first: "Updates Codex to 0.167.0 for <user> on <machine> with npm, into ~/.local/bin"),
   npm's output in a small log box and the result; a quiet line under the list says "Latest from npm, checked <time>" or
-  "npm unreachable: compared with the app's pinned versions"; a container says to rebuild its image. The folded card has the line
+  "npm unreachable: compared with the app's pinned versions"; a container says its installs go to its own volume. The folded card has the line
   "Claude Code 2.1.319 · Codex —". `/:slug/machines?machine=<id>` opens and scrolls to that card, `#tools` to its Tools
   part. The chat header shows the chat's harness CLI on the agent's machine ("Codex 0.162.1 · Airia devbox"; amber
   "update available", red "not installed", "runner out of date", "offline") linking there, and the agent form warns
