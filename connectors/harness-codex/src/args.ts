@@ -32,10 +32,18 @@ export function configArg(key: string, value: string): string[] {
   return ['-c', `${key}=${JSON.stringify(value)}`];
 }
 
-/** The model and the reasoning effort. */
+/** The model id that means "Codex's own default" (the agent form's choice for a Codex agent). */
+export const CODEX_DEFAULT_MODEL = 'codex-default';
+
+/** A model Codex can be given: not its default marker, and not a Claude id (left over from a harness change). */
+const codexModel = (model: string | null): string | null =>
+  model === null || model === CODEX_DEFAULT_MODEL || model.startsWith('claude-') ? null : model;
+
+/** The model (none for Codex's default or a Claude id) and the reasoning effort. */
 export function modelArgs(spec: TerminalSpec): string[] {
+  const model = codexModel(spec.model);
   return [
-    ...(spec.model === null ? [] : ['--model', spec.model]),
+    ...(model === null ? [] : ['--model', model]),
     ...(spec.effort === undefined ? [] : configArg('model_reasoning_effort', spec.effort)),
   ];
 }

@@ -38,6 +38,11 @@ describe('configArg and modelArgs', () => {
       'model_reasoning_effort="max"',
     ]);
   });
+
+  it('leave the model to Codex for its default marker and for a Claude id', () => {
+    expect(modelArgs(fakeTerminalSpec('codex', { model: 'codex-default' }))).toEqual([]);
+    expect(modelArgs(fakeTerminalSpec('codex', { model: 'claude-opus-5-5' }))).toEqual([]);
+  });
 });
 
 describe('permissionArgs', () => {

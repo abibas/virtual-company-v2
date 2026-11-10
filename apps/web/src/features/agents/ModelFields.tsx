@@ -4,13 +4,15 @@ import type { ReactNode } from 'react';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import { ChoiceField, SelectField, TextField } from '../../components/forms/Field.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
-import { EFFORT_OPTIONS, HARNESS_OPTIONS, MODELS } from '../../components/org/agent-labels.ts';
+import { CODEX_MODELS, EFFORT_OPTIONS, HARNESS_OPTIONS, MODELS } from '../../components/org/agent-labels.ts';
 import { Panel } from '../../components/ui/Panel.tsx';
 import type { AgentDraft } from './agent-draft.ts';
 import { ProfileChoice, type ProfileProps, profileForHarness } from './ProfileFields.tsx';
 
 const CUSTOM = 'custom';
-const MODEL_OPTIONS = [...MODELS, { value: CUSTOM, label: 'Another model (type its id)' }];
+const ANOTHER = { value: CUSTOM, label: 'Another model (type its id)' };
+/** The models a harness offers: Claude's for Claude Code, Codex's default for Codex; and any id typed in. */
+const modelOptions = (harness: Harness) => [...(harness === 'codex' ? CODEX_MODELS : MODELS), ANOTHER];
 
 /** 1 to 8, as the choices of a segmented control. */
 const RUN_OPTIONS: readonly SegmentOption<string>[] = Array.from(
@@ -35,7 +37,7 @@ function ModelChoice({ draft, readOnly }: { readonly draft: AgentDraft; readonly
           set('customModel', custom);
           set('model', custom ? '' : event.target.value);
         }}
-        options={MODEL_OPTIONS}
+        options={modelOptions(values.harness)}
       />
       {values.customModel && (
         <TextField
@@ -46,7 +48,7 @@ function ModelChoice({ draft, readOnly }: { readonly draft: AgentDraft; readonly
           required
           maxLength={AGENT_MODEL_MAX}
           spellCheck={false}
-          placeholder="claude-opus-5-5"
+          placeholder={values.harness === 'codex' ? 'gpt-5-codex' : 'claude-opus-5-5'}
         />
       )}
     </div>
@@ -65,6 +67,12 @@ export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?
   const profiles = useAccessProfiles();
   const changeHarness = (harness: Harness) => {
     set('harness', harness);
+    // A known model of the other harness makes no sense here: take this harness's first one.
+    const known = (harness === 'codex' ? CODEX_MODELS : MODELS).some(
+      (option) => option.value === values.model,
+    );
+    if (!values.customModel && !known)
+      set('model', (harness === 'codex' ? CODEX_MODELS : MODELS)[0]?.value ?? '');
     const mine = profiles.data?.profiles ?? [];
     set('profileId', profileForHarness(harness, values.profileId, { mine, agent }, draft.profileDefaults));
   };
@@ -89,7 +97,7 @@ export function ModelPanel({ where, ...props }: ProfileProps & { readonly where?
           />
         </ChoiceField>
         <div className="flex flex-wrap gap-x-8 gap-y-5">
-          <ChoiceField label="Harness" hint="What runs it on a machine. Codex comes later.">
+          <ChoiceField label="Harness" hint="What runs it on a machine: Claude Code or OpenAI's Codex.">
             <SegmentedControl
               label="Harness"
               options={HARNESS_OPTIONS}

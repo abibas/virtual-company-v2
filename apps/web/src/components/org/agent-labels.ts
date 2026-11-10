@@ -11,9 +11,14 @@ export const MODELS: readonly { readonly value: string; readonly label: string }
   { value: 'claude-fable-5-1', label: 'Fable 5.1' },
 ];
 
+/** The models offered for a Codex agent: Codex's own default (from its config and the subscription's plan). */
+export const CODEX_MODELS: readonly { readonly value: string; readonly label: string }[] = [
+  { value: 'codex-default', label: "Codex's default model" },
+];
+
 /** A model as people read it: "Opus 5.5" for a known id, the id itself for a custom one. */
 export function modelLabel(model: string): string {
-  return MODELS.find((known) => known.value === model)?.label ?? model;
+  return [...MODELS, ...CODEX_MODELS].find((known) => known.value === model)?.label ?? model;
 }
 
 const EFFORT_WORDS: Readonly<Record<Effort, string>> = {
@@ -41,7 +46,7 @@ export const harnessLabel = (harness: Harness): string => HARNESS_WORDS[harness]
 /** The harnesses: Claude Code now, Codex shown and kept for later (S7). */
 export const HARNESS_OPTIONS: readonly SegmentOption<Harness>[] = [
   { value: 'claude_code', label: HARNESS_WORDS.claude_code },
-  { value: 'codex', label: HARNESS_WORDS.codex, disabled: true, note: 'later' },
+  { value: 'codex', label: HARNESS_WORDS.codex },
 ];
 
 /** The model and the effort in one short line ("Opus 5.5 · High"), the small type of a card or a row. */
