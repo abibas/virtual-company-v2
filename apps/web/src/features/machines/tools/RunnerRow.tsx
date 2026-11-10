@@ -26,6 +26,9 @@ export function RunnerRow({
   readonly update?: { readonly run: RunnerUpdate; readonly blocked: string | undefined } | undefined;
 }) {
   const old = runnerOutOfDate(machine, online);
+  // The badge names a newer version only (a newer build of the same one is in its tooltip and the header's badge), so the
+  // row's own version and build stay readable.
+  const newer = latest && latest.version !== machine.runner.version ? latest.version : undefined;
   const offered = update !== undefined && (old || update.run.state.kind !== 'idle');
   return (
     <li className="flex flex-col gap-1 py-2">
@@ -35,9 +38,11 @@ export function RunnerRow({
           {versionText(machine.runner.version, machine.runner.builtAt)}
         </span>
         {old && (
-          <Badge size="sm" tone="input">
-            update available{latest ? ` · ${versionText(latest.version, latest.builtAt)}` : ''}
-          </Badge>
+          <span title={latest ? `Latest ${versionText(latest.version, latest.builtAt)}` : undefined}>
+            <Badge size="sm" tone="input">
+              update available{newer ? ` · ${newer}` : ''}
+            </Badge>
+          </span>
         )}
         {runnerUpToDate(machine, online) && (
           <Badge size="sm" tone="done">
