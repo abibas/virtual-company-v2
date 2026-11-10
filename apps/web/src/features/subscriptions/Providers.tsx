@@ -1,9 +1,11 @@
 import { PROFILE_PROVIDERS } from '@mwc/shared/credentials';
 import type { ProfileProvider } from '@mwc/shared/enums';
-import { Aperture, Asterisk, ChevronRight, type LucideIcon } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Badge, type Tone } from '../../components/ui/Badge.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { IconTile } from '../../components/ui/IconTile.tsx';
+import type { IconComponent } from '../../components/ui/icon.ts';
+import { ClaudeMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
 
 /**
  * The two access profile providers as the pages show them: how each looks and what it is for (Claude in violet,
@@ -13,7 +15,8 @@ import { IconTile } from '../../components/ui/IconTile.tsx';
 interface ProviderStyle {
   readonly name: string;
   readonly tone: Tone;
-  readonly icon: LucideIcon;
+  /** Its logo (tiles show it on a neutral tile). */
+  readonly icon: IconComponent;
   /** The agents its profiles power. */
   readonly agents: string;
   /** What a profile of it holds, as New profile's choice says it. */
@@ -24,14 +27,14 @@ export const PROVIDER_STYLES: Readonly<Record<ProfileProvider, ProviderStyle>> =
   claude: {
     name: 'Claude',
     tone: 'review',
-    icon: Asterisk,
+    icon: ClaudeMark,
     agents: 'Claude Code agents',
     holds: 'One Claude subscription, and a gateway if you want one.',
   },
   openai: {
     name: 'OpenAI',
     tone: 'teal',
-    icon: Aperture,
+    icon: OpenAIMark,
     agents: 'Codex agents',
     holds: 'One OpenAI subscription. Codex runs without a gateway.',
   },
@@ -76,7 +79,7 @@ export function ProviderChoice({
               onClick={() => onChoose(provider)}
               className="group flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-line-2 hover:bg-surface-2"
             >
-              <IconTile icon={style.icon} tone={style.tone} size="xl" />
+              <IconTile icon={style.icon} size="xl" />
               <span className="min-w-0 flex-1">
                 <span className="block text-md font-bold text-ink">{style.name}</span>
                 <span className="block text-xs font-semibold text-ink-2">For {style.agents}</span>

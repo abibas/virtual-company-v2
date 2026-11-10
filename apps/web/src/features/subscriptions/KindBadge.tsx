@@ -1,15 +1,18 @@
-import { KeyRound, type LucideIcon, Sparkles, Ticket, Waypoints } from 'lucide-react';
+import { Waypoints } from 'lucide-react';
 import type { SignInProvider, Subscription, SubscriptionKind } from '../../api/types.ts';
 import { Badge, type Tone } from '../../components/ui/Badge.tsx';
+import type { IconComponent } from '../../components/ui/icon.ts';
+import { ClaudeMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
 
 /**
  * What each kind of subscription is called and looks like: Anthropic's kinds in violet, OpenAI's in teal, gateways
- * neutral; the logins and the setup-token have plan limits, keys and gateways are pay as you go.
+ * neutral, each provider's kinds with its logo; the logins and the setup-token have plan limits, keys and gateways
+ * are pay as you go.
  */
 interface KindStyle {
   readonly label: string;
   readonly tone: Tone;
-  readonly icon: LucideIcon;
+  readonly icon: IconComponent;
   /** The provider has plan limits for it (5-hour and weekly windows). */
   readonly limited: boolean;
   /** The sign-in that adds it again, for the two logins. */
@@ -20,31 +23,28 @@ const KINDS: Readonly<Record<SubscriptionKind, KindStyle>> = {
   claude_oauth: {
     label: 'Claude subscription',
     tone: 'review',
-    icon: Sparkles,
+    icon: ClaudeMark,
     limited: true,
     signIn: 'claude',
   },
-  claude_setup_token: { label: 'Claude token', tone: 'review', icon: Ticket, limited: true },
-  anthropic_api_key: { label: 'Anthropic API key', tone: 'review', icon: KeyRound, limited: false },
+  claude_setup_token: { label: 'Claude token', tone: 'review', icon: ClaudeMark, limited: true },
+  anthropic_api_key: { label: 'Anthropic API key', tone: 'review', icon: ClaudeMark, limited: false },
   codex_oauth: {
     label: 'OpenAI subscription',
     tone: 'teal',
-    icon: Sparkles,
+    icon: OpenAIMark,
     limited: true,
     signIn: 'openai',
   },
-  openai_api_key: { label: 'OpenAI API key', tone: 'teal', icon: KeyRound, limited: false },
+  openai_api_key: { label: 'OpenAI API key', tone: 'teal', icon: OpenAIMark, limited: false },
   gateway: { label: 'Gateway', tone: 'neutral', icon: Waypoints, limited: false },
 };
 
 /** The kind as people read it ("Claude subscription"). */
 export const kindLabel = (kind: SubscriptionKind): string => KINDS[kind].label;
 
-/** The kind's icon (the add sheet's choices use the same ones). */
-export const kindIcon = (kind: SubscriptionKind): LucideIcon => KINDS[kind].icon;
-
-/** The kind's tone. */
-export const kindTone = (kind: SubscriptionKind): Tone => KINDS[kind].tone;
+/** The kind's icon (the add sheet's choices show the same logos, on neutral tiles). */
+export const kindIcon = (kind: SubscriptionKind): IconComponent => KINDS[kind].icon;
 
 /** True when the provider sets plan limits for it; keys and gateways are pay as you go. */
 export const hasLimits = (kind: SubscriptionKind): boolean => KINDS[kind].limited;

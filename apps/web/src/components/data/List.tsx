@@ -1,9 +1,9 @@
-import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
 import type { Tone } from '../ui/Badge.tsx';
 import { IconTile } from '../ui/IconTile.tsx';
+import type { IconComponent } from '../ui/icon.ts';
 
 /** Rows, separated by hairlines or by a little air. */
 export function List({
@@ -20,7 +20,7 @@ export function List({
 
 export interface ListRowProps {
   /** The tile's icon and tone; `leading` replaces the tile (an avatar). */
-  readonly icon?: LucideIcon;
+  readonly icon?: IconComponent;
   readonly tone?: Tone;
   readonly leading?: ReactNode;
   readonly title: ReactNode;

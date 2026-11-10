@@ -1,6 +1,6 @@
-import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cx } from '../cx.ts';
+import type { IconComponent } from './icon.ts';
 
 /** The status palette: the six attention kinds, the brand colours, neutral, and `inverse` for the gradient cards. */
 export type Tone =
@@ -36,7 +36,7 @@ export interface BadgeProps {
   readonly size?: 'sm' | 'md' | undefined;
   /** A coloured dot before the words (colour is never the only signal: the words are). */
   readonly dot?: boolean;
-  readonly icon?: LucideIcon | undefined;
+  readonly icon?: IconComponent | undefined;
   readonly className?: string;
   readonly children: ReactNode;
 }

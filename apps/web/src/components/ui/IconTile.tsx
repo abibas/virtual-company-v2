@@ -1,6 +1,6 @@
-import type { LucideIcon } from 'lucide-react';
 import { cx } from '../cx.ts';
 import type { Tone } from './Badge.tsx';
+import type { IconComponent } from './icon.ts';
 
 const TONES: Readonly<Record<Tone, string>> = {
   neutral: 'bg-surface-3 text-ink-2',
@@ -29,7 +29,7 @@ export function IconTile({
   size = 'md',
   className,
 }: {
-  readonly icon: LucideIcon;
+  readonly icon: IconComponent;
   readonly tone?: Tone;
   readonly size?: keyof typeof SIZES;
   readonly className?: string;

@@ -114,7 +114,7 @@ function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: Fo
   return (
     <form onSubmit={(event) => void form.submit(event)} className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <IconTile icon={style.icon} tone={style.tone} size="md" />
+        <IconTile icon={style.icon} size="md" />
         <div className="min-w-0">
           <h2 className="text-md font-bold text-ink">New {style.name} profile</h2>
           <p className="text-sm text-dim">For {style.agents}.</p>

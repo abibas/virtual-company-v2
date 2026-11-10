@@ -5,6 +5,7 @@ import { SegmentedControl, type SegmentOption } from '../../../components/forms/
 import { harnessLabel } from '../../../components/org/agent-labels.ts';
 import { AgentAvatar } from '../../../components/org/OrgNodeCard.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
+import { ClaudeMark, OpenAIMark } from '../../../components/ui/ProviderLogo.tsx';
 import { OpenInClaudeCode } from './OpenInClaudeCode.tsx';
 import { ProfilePicker } from './ProfilePicker.tsx';
 
@@ -90,7 +91,9 @@ export function ChatHeader({
           <h3 className="truncate text-md font-bold text-ink">
             {chat.title ?? `New chat with ${agent.name}`}
           </h3>
-          <Badge size="sm">{harnessLabel(chat.harness)}</Badge>
+          <Badge size="sm" icon={chat.harness === 'codex' ? OpenAIMark : ClaudeMark}>
+            {harnessLabel(chat.harness)}
+          </Badge>
           {streamWords && (
             <Badge size="sm" tone={stream === 'gone' ? 'failed' : 'pending'} dot>
               {streamWords}

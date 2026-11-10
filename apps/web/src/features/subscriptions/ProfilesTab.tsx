@@ -48,7 +48,7 @@ function ProviderGroup({
     <section aria-label={`${style.name} profiles`} className="flex flex-col gap-3">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <IconTile icon={style.icon} tone={style.tone} size="sm" />
+          <IconTile icon={style.icon} size="sm" />
           <div>
             <h2 className="text-sm font-bold text-ink">{style.name} profiles</h2>
             <p className="text-xs text-dim">For {style.agents}</p>

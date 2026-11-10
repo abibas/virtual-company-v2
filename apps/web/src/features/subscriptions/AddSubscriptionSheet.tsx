@@ -5,7 +5,7 @@ import type { SignInProvider, Subscription, SubscriptionKind } from '../../api/t
 import { List, ListRow } from '../../components/data/List.tsx';
 import { Sheet } from '../../components/layout/Drawer.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
-import { kindIcon, kindTone } from './KindBadge.tsx';
+import { kindIcon } from './KindBadge.tsx';
 import { PasteForm, pasteTitle } from './PasteForm.tsx';
 import { SignInFlow } from './SignInFlow.tsx';
 import { type SignInControl, useSignIn } from './sign-in.ts';
@@ -119,7 +119,6 @@ function Choices({ adding }: { readonly adding: AddSubscription }) {
     <ListRow
       key={item.kind}
       icon={kindIcon(item.kind)}
-      tone={kindTone(item.kind)}
       title={item.title}
       subtitle={item.subtitle}
       onClick={onClick}
