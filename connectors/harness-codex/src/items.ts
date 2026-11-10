@@ -97,8 +97,8 @@ function toolOf(item: JsonRecord): TurnEventOf<'tool'> | null {
   }
 }
 
-/** `exit 1: <the end of the output>`, `declined`, or the status. */
-function commandResult(item: JsonRecord, id: string): TurnEventOf<'tool_result'> {
+/** `exit 1: <the end of the output>`, `declined`, or the status (also a session file's `CommandExecution`). */
+export function commandResult(item: JsonRecord, id: string): TurnEventOf<'tool_result'> {
   const exit = typeof item.exit_code === 'number' ? item.exit_code : null;
   const head = item.status === 'declined' ? 'declined' : exit === null ? String(item.status) : `exit ${exit}`;
   const output = stringOf(item.aggregated_output)?.trim() ?? '';

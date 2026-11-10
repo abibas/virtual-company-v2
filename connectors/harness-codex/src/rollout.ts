@@ -6,7 +6,8 @@ import { type CodexReading, scanReading } from './reading.ts';
  * rollout-<time>-<thread id>.jsonl`, in the folder of the day the thread began; `codex exec resume` and the TUI's
  * `resume` append to it, `codex exec fork` starts a new thread with its own file. It only grows (a long thread's is
  * megabytes, a line can be hundreds of kilobytes), so it is read from its end: 1 MiB, then four times more until the
- * reading is whole or 16 MiB were read. Synchronous file calls only, no process.
+ * reading is whole or 16 MiB were read. While a turn runs, the subagents' files are followed from an offset
+ * (`follow/`). Synchronous file calls only, no process.
  */
 
 /** The file calls the reading needs; the runner gives Node's (`turns/files.ts`), tests a fake. */
@@ -15,6 +16,12 @@ export interface RolloutFs {
   list(dir: string): readonly string[];
   /** The last `bytes` bytes of a file as UTF-8, with the file's size; undefined when it cannot be read. */
   tail(path: string, bytes: number): { readonly text: string; readonly size: number } | undefined;
+  /** At most `bytes` bytes of a file from byte `offset`, with the file's size; undefined when it cannot be read. */
+  readAt(
+    path: string,
+    offset: number,
+    bytes: number,
+  ): { readonly data: Uint8Array; readonly size: number } | undefined;
 }
 
 /** Codex's sessions folder in its home folder. */
@@ -35,12 +42,22 @@ const newest = (fs: RolloutFs, dir: string, pattern: RegExp): string[] =>
     .reverse()
     .map((name) => join(dir, name));
 
-/** The thread's session file in `home`, looked for from the newest day back; undefined when there is none. */
-export function findRollout(fs: RolloutFs, home: string, threadId: string): string | undefined {
+/**
+ * The thread's session file in `home`, looked for from the newest day back, in at most `days` day folders (a thread
+ * that began during this turn is in the newest one or two); undefined when there is none.
+ */
+export function findRollout(
+  fs: RolloutFs,
+  home: string,
+  threadId: string,
+  days = Infinity,
+): string | undefined {
   const suffix = `-${threadId}.jsonl`;
+  let left = days;
   for (const year of newest(fs, join(home, SESSIONS_DIR), YEAR)) {
     for (const month of newest(fs, year, TWO_DIGITS)) {
       for (const day of newest(fs, month, TWO_DIGITS)) {
+        if (left-- <= 0) return undefined;
         const name = fs.list(day).find((entry) => entry.startsWith('rollout-') && entry.endsWith(suffix));
         if (name !== undefined) return join(day, name);
       }

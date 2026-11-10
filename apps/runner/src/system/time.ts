@@ -22,6 +22,19 @@ export const SYSTEM_CLOCK: Clock = {
   monotonic: () => performance.now(),
 };
 
+/** Runs `run` every `ms` (each after the last one ran) until the returned stop is called. */
+export function every(timers: Timers, ms: number, run: () => void): () => void {
+  let handle: unknown;
+  const next = () => {
+    handle = timers.setTimeout(() => {
+      run();
+      next();
+    }, ms);
+  };
+  next();
+  return () => timers.clearTimeout(handle);
+}
+
 /** Node's timers, kept referenced: a reconnect waiting in its backoff keeps the daemon alive. */
 export const SYSTEM_TIMERS: Timers = {
   setTimeout: (callback, ms) => setTimeout(callback, ms),

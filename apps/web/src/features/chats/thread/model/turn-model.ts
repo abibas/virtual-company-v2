@@ -129,16 +129,22 @@ function addEvent(build: Build, { seq, event, at }: ChatEvent) {
 
 /** What the latest event of the turn means (who it came from, and what it does). */
 function currentOf(events: readonly ChatEvent[], build: Build): CurrentActivity {
+  // Codex's whole messages and a subagent's end leave the main agent waiting while background subagents work.
+  const running = [...build.subagents.values()].filter((state) => state.event.status === 'running').length;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const { seq, event } = events[index] as ChatEvent;
     if (!['text', 'thinking', 'tool', 'tool_result', 'subagent'].includes(event.type)) continue;
     const owner = 'parentId' in event ? event.parentId : undefined;
     const subagent = owner ? build.subagents.get(owner) : undefined;
-    if (event.type === 'text') return { activity: { kind: 'writing' }, subagent, seq };
+    const waiting = running > 0 && subagent === undefined;
+    if (event.type === 'text')
+      return { activity: waiting ? { kind: 'waiting', count: running } : { kind: 'writing' }, subagent, seq };
     if (event.type === 'subagent' && event.status === 'running') {
       const own = build.subagents.get(event.id);
       return { activity: { kind: 'step', text: event.lastStep ?? event.description }, subagent: own, seq };
     }
+    if (event.type === 'subagent' && waiting)
+      return { activity: { kind: 'waiting', count: running }, subagent: undefined, seq };
     if (event.type === 'tool') {
       const call = build.calls.get(event.id);
       const agentType = build.subagents.get(event.id)?.event.agentType;

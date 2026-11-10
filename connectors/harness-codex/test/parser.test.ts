@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { LiveSubagents } from '../src/follow/live.ts';
 import { CodexLineParser } from '../src/parser.ts';
-import { READING } from './fixtures/rollout.ts';
+import type { RolloutFs } from '../src/rollout.ts';
+import {
+  activityItem,
+  execCall,
+  meta,
+  ownTurn,
+  PARENT,
+  pathOf,
+  SINCE,
+  SOL,
+  TERRA,
+  taskStarted,
+} from './fixtures/follow.ts';
+import { memoryRollouts, READING } from './fixtures/rollout.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const line = (event: object) => JSON.stringify(event);
@@ -264,5 +278,96 @@ describe('CodexLineParser: subagents', () => {
     const events = parser.end(1, 'killed');
     expect(events[0]).toEqual(child('interrupted', { model: 'gpt-5.5' }));
     expect(events[1]).toMatchObject({ type: 'result', ok: false });
+  });
+});
+
+describe('CodexLineParser: following the session files while the turn runs', () => {
+  const HOME = '/state/codex/abc';
+  const started = line({ type: 'thread.started', thread_id: PARENT });
+  const sub = (id: string, agentType: string, status: string, more: object = {}) => ({
+    type: 'subagent',
+    id,
+    agentType,
+    description: '',
+    background: true,
+    status,
+    ...more,
+  });
+
+  /** A parser following files in memory, the agent's file there from the start. */
+  function following(fs?: RolloutFs) {
+    const files: Record<string, string> = { [pathOf(HOME, PARENT)]: `${meta(PARENT)}\n` };
+    const memory = memoryRollouts(files);
+    const parser = new CodexLineParser(
+      undefined,
+      undefined,
+      (state) => new LiveSubagents({ fs: fs ?? memory.fs, home: HOME, since: SINCE }, state),
+    );
+    const append = (id: string, lines: readonly string[]) => {
+      files[pathOf(HOME, id)] = (files[pathOf(HOME, id)] ?? '') + lines.map((text) => `${text}\n`).join('');
+    };
+    return { parser, append, memory };
+  }
+
+  it('gives nothing on a tick without following, or before the thread started', () => {
+    expect(new CodexLineParser().tick()).toEqual([]);
+    expect(following().parser.tick()).toEqual([]);
+  });
+
+  it('gives subagents and their steps between lines, and reads once more as the turn ends', () => {
+    const { parser, append } = following();
+    expect(parser.feed(started)).toEqual([{ type: 'session', sessionId: PARENT }]);
+    append(PARENT, [
+      taskStarted(),
+      activityItem('c1', SOL, '/root/sleep_sol', 'started', 'gpt-6.1-sol', 'high'),
+    ]);
+    const sol = sub(SOL, 'sleep_sol', 'running', { model: 'gpt-6.1-sol', effort: 'high' });
+    expect(parser.tick()).toEqual([sol]);
+    append(SOL, [meta(SOL, 'paginated', PARENT), ownTurn(), execCall('k1', 'sleep 45')]);
+    expect(parser.tick()).toEqual([
+      { type: 'tool', id: `${SOL}:k1`, name: 'command', summary: 'sleep 45', parentId: SOL },
+    ]);
+    parser.feed(completed);
+    append(PARENT, [
+      activityItem('c2', TERRA, '/root/sleep_terra', 'started'),
+      activityItem('d2', TERRA, '/root/sleep_terra', 'completed'),
+    ]);
+    expect(parser.end(0, '')).toEqual([
+      context(20, 80, 7),
+      sub(TERRA, 'sleep_terra', 'running'),
+      sub(TERRA, 'sleep_terra', 'done'),
+      { ...sol, status: 'interrupted' },
+      { type: 'result', ok: true },
+    ]);
+    expect(parser.tick()).toEqual([]);
+  });
+
+  it('reads once more before turn.failed’s result, and not after it', () => {
+    const { parser, append } = following();
+    parser.feed(started);
+    append(PARENT, [taskStarted(), activityItem('c1', SOL, '/root/sleep_sol', 'started')]);
+    expect(parser.feed(line({ type: 'turn.failed', error: { message: 'stream disconnected' } }))).toEqual([
+      sub(SOL, 'sleep_sol', 'running'),
+      sub(SOL, 'sleep_sol', 'interrupted'),
+      { type: 'result', ok: false, error: 'stream disconnected' },
+    ]);
+    append(PARENT, [activityItem('c2', TERRA, '/root/sleep_terra', 'started')]);
+    expect(parser.tick()).toEqual([]);
+    expect(parser.end(1, '')).toEqual([]);
+  });
+
+  it('stops following when reading fails, never the turn', () => {
+    const failing: RolloutFs = {
+      list: () => {
+        throw new Error('EACCES');
+      },
+      tail: () => undefined,
+      readAt: () => undefined,
+    };
+    const { parser } = following(failing);
+    expect(parser.feed(started)).toEqual([{ type: 'session', sessionId: PARENT }]);
+    expect(parser.tick()).toEqual([]);
+    parser.feed(completed);
+    expect(parser.end(0, '')).toEqual([context(20, 80, 7), { type: 'result', ok: true }]);
   });
 });

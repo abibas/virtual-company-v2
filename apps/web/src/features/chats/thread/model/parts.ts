@@ -53,6 +53,8 @@ export type Activity =
   | { readonly kind: 'writing' }
   /** A subagent's own report of what it does now. */
   | { readonly kind: 'step'; readonly text: string }
+  /** The main agent went quiet after its message, or a subagent ended, while `count` subagents still run. */
+  | { readonly kind: 'waiting'; readonly count: number }
   | { readonly kind: 'tool'; readonly call: ToolCall; readonly agentType: string | undefined };
 
 export interface CurrentActivity {

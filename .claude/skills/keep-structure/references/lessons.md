@@ -28,6 +28,21 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: Following Codex's session files while a turn runs, in a new `follow/` folder
+
+- **What happened:** multi-agent v2's subagents and every subagent's own steps come from Codex's session files, read
+  while the turn runs (6 files: `file.ts` 75 lines, `lines.ts` 50, `parent.ts` 123, `child.ts` 127, `steps.ts` 127,
+  `live.ts` 223). They went to a new `connectors/harness-codex/src/follow/`, the 13th entry of
+  `connectors/harness-codex/src/` (`big-folder`, was 12), and its tests to `test/follow/`, the 13th of
+  `connectors/harness-codex/test/`. The v1 parts (`subagents.ts`, `children.ts`) stayed where they were. The runner's
+  repeating timer went to `apps/runner/src/system/time.ts` (`every`) so `apps/runner/src/turns/turn.ts` stays at 235
+  lines (231 before; 244 with the timer inline).
+- **Where:** the codex-v2-subagents commit.
+- **What was done:** as above.
+- **Suggested change:** at the S5 review, group the Codex connector's subagent parts (`subagents.ts`, `children.ts`,
+  `follow/`) under one `subagents/` folder.
+- **Status:** `open`.
+
 ### 2026-11-10: The model catalogue, and a second data step between two generated parts
 
 - **What happened:** `apps/web/src/features/subscriptions/` went from 19 to 20 entries (`big-folder`: `RunsFields.tsx`,

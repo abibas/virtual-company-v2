@@ -23,7 +23,7 @@ const STATUS_TONE = {
   interrupted: 'text-dim',
 } as const;
 
-/** What it does now: the step its harness reported, else its latest call (Codex reports neither while it runs). */
+/** What it does now: the step its harness reported, else its latest call, else "Working…". */
 function latestStep(state: SubagentState, parts: readonly Part[]): ToolWords {
   if (state.event.lastStep) return { verb: state.event.lastStep };
   const calls = parts.flatMap((part) => (part.kind === 'tools' ? part.calls : []));
@@ -72,7 +72,10 @@ function StatusLine({ state }: { readonly state: SubagentState }) {
   );
 }
 
-/** The folded block's face: the type and chips, the status, the description, the latest step or the step count. */
+/**
+ * The folded block's face: the type, the model (with its effort) and background chips, the status, the description,
+ * the latest step or the step count.
+ */
 function SubagentSummary({
   state,
   parts,
@@ -80,7 +83,7 @@ function SubagentSummary({
   readonly state: SubagentState;
   readonly parts: readonly Part[];
 }) {
-  const { agentType, description, model, background, status } = state.event;
+  const { agentType, description, model, effort, background, status } = state.event;
   return (
     <span className="grid min-w-0 flex-1 gap-1">
       <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -88,7 +91,7 @@ function SubagentSummary({
           <Bot size={12} aria-hidden="true" />
         </span>
         <span className="text-sm font-semibold text-ink">{agentType}</span>
-        {model && <Chip>{modelLabel(model)}</Chip>}
+        {model && <Chip>{effort ? `${modelLabel(model)} · ${effort}` : modelLabel(model)}</Chip>}
         {background && <Chip>background</Chip>}
         <StatusLine state={state} />
       </span>
@@ -113,8 +116,8 @@ function SubagentSummary({
 }
 
 /**
- * Opened with no steps of its own: Codex's subagents never stream theirs (they run in their own threads), so its last
- * command when it was read, else whether more may come.
+ * Opened with no steps of its own: a Codex subagent's steps come from its own session file (none yet, or a runner that
+ * does not follow it), so its last command when it was read, else whether more may come.
  */
 function NoSteps({ state }: { readonly state: SubagentState }) {
   const { lastStep, status } = state.event;

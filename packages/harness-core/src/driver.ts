@@ -99,9 +99,17 @@ export interface LineParser {
    * nothing waits), so stdin may close. Left out: true after any result.
    */
   settled?(): boolean;
+  /**
+   * What the harness wrote elsewhere since the last call (Codex's subagents in its session files): the runner calls it
+   * every `PARSER_TICK_MS` while the process runs, between lines, and never after `end`. Left out: nothing to follow.
+   */
+  tick?(): TurnEvent[];
 }
 
-/** Where a turn's harness keeps its state, for a parser that reads the harness's own files when the turn ends. */
+/** How often the runner calls a parser's `tick`. */
+export const PARSER_TICK_MS = 1000;
+
+/** Where a turn's harness keeps its state, for a parser that reads the harness's own files while and after the turn. */
 export interface ParserContext {
   /** The turn's private folder (Codex's `CODEX_HOME`), when it has one. */
   readonly privateDir?: string;

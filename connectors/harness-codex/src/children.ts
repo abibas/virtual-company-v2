@@ -28,7 +28,7 @@ const wanted = (line: string): JsonRecord | null =>
   WANTED.some((marker) => line.includes(marker)) ? parseJsonLine(line) : null;
 
 /** A command's argv as the line it ran: the script of `zsh -lc '<script>'`, else the words joined. */
-function commandLine(argv: unknown): string | undefined {
+export function commandLine(argv: unknown): string | undefined {
   if (typeof argv === 'string') return argv.trim() || undefined;
   if (!Array.isArray(argv)) return undefined;
   const words = argv.filter((word): word is string => typeof word === 'string');

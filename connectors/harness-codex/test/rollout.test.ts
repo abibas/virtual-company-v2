@@ -31,6 +31,16 @@ describe('findRollout', () => {
     ]);
   });
 
+  it('looks in the newest day folders only when asked to', () => {
+    const { fs } = memoryRollouts({
+      [at('2026/11/08')]: '',
+      [at('2026/11/09', 'rollout-x-other.jsonl')]: '',
+      [at('2026/11/10', 'rollout-y-other.jsonl')]: '',
+    });
+    expect(findRollout(fs, HOME, THREAD, 2)).toBeUndefined();
+    expect(findRollout(fs, HOME, THREAD, 3)).toBe(at('2026/11/08'));
+  });
+
   it('is nothing without the file, or without a sessions folder', () => {
     expect(
       findRollout(memoryRollouts({ [at('2026/11/09', 'rollout-x-other.jsonl')]: '' }).fs, HOME, THREAD),

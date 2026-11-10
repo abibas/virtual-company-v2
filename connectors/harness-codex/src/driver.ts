@@ -10,6 +10,7 @@ import {
 import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
 import { CODEX_COMMAND, CODEX_HOME_ENV, codexAccount, terminalArgs, turnArgs, unsetFor } from './args.ts';
 import { readChild } from './children.ts';
+import { LiveSubagents } from './follow/live.ts';
 import { gatewayEnv } from './gateway.ts';
 import { CodexLineParser } from './parser.ts';
 import { type RolloutFs, readRollout } from './rollout.ts';
@@ -22,6 +23,8 @@ export interface CodexDriverOptions {
    * ends (`children.ts`); without them, the estimate only and subagents without their model.
    */
   readonly rollouts?: RolloutFs;
+  /** The wall clock in milliseconds (`Date.now`): when a turn's parser was made is when its turn started. */
+  readonly now?: () => number;
 }
 
 /**
@@ -33,17 +36,20 @@ export interface CodexDriverOptions {
  * The access profile's gateway is a custom model provider in config overrides, its headers' values in the environment
  * (`gateway.ts`); without one, Codex's built-in OpenAI provider. With `rollouts`, a turn's parser reads the thread's
  * session file in that home folder when the turn ends, for Codex's own context reading, and each subagent's own file
- * once it ends, for its model, role and last command.
+ * once it ends, for its model, role and last command; while the turn runs it follows the thread's file and its
+ * subagents' (`follow/`): multi-agent v2's subagents and every subagent's own commands, live.
  */
 export class CodexDriver implements HarnessDriver {
   readonly harness = 'codex' as const;
   readonly versionArgs = ['--version'] as const;
   readonly command: string;
   readonly #rollouts: RolloutFs | undefined;
+  readonly #now: () => number;
 
   constructor(options: CodexDriverOptions = {}) {
     this.command = options.command ?? CODEX_COMMAND;
     this.#rollouts = options.rollouts;
+    this.#now = options.now ?? Date.now;
   }
 
   turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec {
@@ -61,9 +67,11 @@ export class CodexDriver implements HarnessDriver {
     const fs = this.#rollouts;
     const home = context.privateDir;
     if (fs === undefined || home === undefined) return new CodexLineParser();
+    const since = this.#now();
     return new CodexLineParser(
       (thread) => readRollout(fs, home, thread),
       (thread) => readChild(fs, home, thread),
+      (state) => new LiveSubagents({ fs, home, since }, state),
     );
   }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SYSTEM_CLOCK, SYSTEM_TIMERS } from '../../src/system/time.ts';
+import { every, SYSTEM_CLOCK, SYSTEM_TIMERS } from '../../src/system/time.ts';
+import { FakeTime } from '../fixtures/time.ts';
 
 describe("the system's clocks and timers", () => {
   it('reads the wall clock and a monotonic clock', () => {
@@ -14,5 +15,20 @@ describe("the system's clocks and timers", () => {
     SYSTEM_TIMERS.clearTimeout(cleared);
     await new Promise<void>((resolve) => SYSTEM_TIMERS.setTimeout(resolve, 5));
     expect(fired).toEqual([]);
+  });
+
+  it('runs something every interval until it is stopped', async () => {
+    const time = new FakeTime();
+    let runs = 0;
+    const stop = every(time, 1000, () => {
+      runs += 1;
+    });
+    await time.advance(999);
+    expect(runs).toBe(0);
+    await time.advance(2001);
+    expect(runs).toBe(3);
+    stop();
+    await time.advance(5000);
+    expect([runs, time.pending]).toEqual([3, []]);
   });
 });

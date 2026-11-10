@@ -15,12 +15,22 @@ import {
   type TurnEvent,
   type TurnEventOf,
 } from '@mwc/shared/harness';
+import type { LiveSubagents } from './follow/live.ts';
 import { completedEvents, newItemState, startedEvents, todoEvents } from './items.ts';
 import { type CodexReading, readingEvent } from './reading.ts';
-import { collabEvents, endedSubagents, newCollabState, type ReadChild } from './subagents.ts';
+import {
+  type CollabState,
+  collabEvents,
+  endedSubagents,
+  newCollabState,
+  type ReadChild,
+} from './subagents.ts';
 
 /** Codex's own reading of a thread (its session file, `rollout.ts`); undefined when there is none. */
 export type ReadThread = (threadId: string) => CodexReading | undefined;
+
+/** Follows the session files while the turn runs (`follow/live.ts`), on the parser's own subagents. */
+export type FollowSubagents = (state: CollabState) => LiveSubagents;
 
 /**
  * Reads `codex exec --json`: one thread event per line. `thread.started` gives the session (the thread id), the items
@@ -33,14 +43,17 @@ export type ReadThread = (threadId: string) => CodexReading | undefined;
  * its own: a clean exit after `turn.completed` ends the turn with the last agent message as the reply. An `error` event
  * is a notice (Codex also reports the retries it recovers from this way); the turn fails only when it did not complete.
  * A `collab_tool_call` item starts or moves a subagent (`subagents.ts`), read from its own session file with
- * `readChild` once it ends; those still running when the turn ends become `interrupted` before its result. Anything
- * else, and any line that is not a JSON object, gives nothing.
+ * `readChild` once it ends; those still running when the turn ends become `interrupted` before its result. With
+ * `follow`, `tick` gives what the session files say while the turn runs (multi-agent v2's subagents, which the stream
+ * never names, and every subagent's own steps), and the turn's end reads them once more before ending its subagents.
+ * Anything else, and any line that is not a JSON object, gives nothing.
  */
 export class CodexLineParser implements LineParser {
   readonly #items = newItemState();
   readonly #collab = newCollabState();
   readonly #readThread: ReadThread | undefined;
   readonly #readChild: ReadChild | undefined;
+  #live: LiveSubagents | undefined;
   #threadId: string | undefined;
   #estimate: TurnEventOf<'context'> | undefined;
   #completed = false;
@@ -49,9 +62,15 @@ export class CodexLineParser implements LineParser {
   /** The last line that was not JSON: what the turn's failure says when nothing else does. */
   #stray: string | undefined;
 
-  constructor(readThread?: ReadThread, readChild?: ReadChild) {
+  constructor(readThread?: ReadThread, readChild?: ReadChild, follow?: FollowSubagents) {
     this.#readThread = readThread;
     this.#readChild = readChild;
+    this.#live = follow?.(this.#collab);
+  }
+
+  /** What the session files say since the last tick (nothing without `follow`). */
+  tick(): TurnEvent[] {
+    return this.#following((live) => live.poll());
   }
 
   feed(line: string): TurnEvent[] {
@@ -65,6 +84,10 @@ export class CodexLineParser implements LineParser {
         const id = stringOf(event.thread_id);
         if (id === undefined || !SESSION_ID_PATTERN.test(id)) return [];
         this.#threadId = id;
+        this.#following((live) => {
+          live.thread(id);
+          return [];
+        });
         return [{ type: 'session', sessionId: id }];
       }
       case 'item.started':
@@ -84,7 +107,11 @@ export class CodexLineParser implements LineParser {
           said || this.#lastError || 'Codex reported that the turn failed.',
           RESULT_ERROR_MAX,
         );
-        return [...this.#endSubagents(), { type: 'result', ok: false, error }];
+        return [
+          ...this.#following((live) => live.finish()),
+          ...this.#endSubagents(),
+          { type: 'result', ok: false, error },
+        ];
       }
       case 'error': {
         const message = stringOf(event.message)?.trim();
@@ -101,7 +128,7 @@ export class CodexLineParser implements LineParser {
     const context = this.#reading() ?? this.#estimate;
     const events: TurnEvent[] = context === undefined ? [] : [context];
     if (this.#failed) return events;
-    events.push(...this.#endSubagents());
+    events.push(...this.#following((live) => live.finish()), ...this.#endSubagents());
     if (this.#completed && exitCode === 0) {
       const text = this.#items.lastMessage;
       return [...events, { type: 'result', ok: true, ...(text === undefined ? {} : { text }) }];
@@ -115,6 +142,17 @@ export class CodexLineParser implements LineParser {
     if (type === 'item.started') return startedEvents(item, this.#items);
     if (type === 'item.updated') return todoEvents(item, this.#items);
     return completedEvents(item, this.#items);
+  }
+
+  /** What following the session files gives; a failure stops following, never the turn. */
+  #following(read: (live: LiveSubagents) => TurnEvent[]): TurnEvent[] {
+    if (this.#live === undefined) return [];
+    try {
+      return read(this.#live);
+    } catch {
+      this.#live = undefined;
+      return [];
+    }
   }
 
   /** The subagents as the turn ends them. */

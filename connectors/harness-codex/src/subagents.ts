@@ -11,7 +11,8 @@ import {
 import type { CodexChild } from './children.ts';
 
 /**
- * Codex's subagents (docs/harness.md, "Codex subagents"): its `collab_tool_call` items. A `spawn_agent` call names the
+ * Codex's subagents (docs/harness.md, "Codex subagents"): its multi-agent v1 `collab_tool_call` items (v2's come from
+ * its session file while the turn runs, `follow/`, into the same state, so a thread is one subagent either way). A `spawn_agent` call names the
  * new threads in `receiver_thread_ids` once it completes, each a subagent (`running`, in the background: it works
  * until the agent `wait`s for it), its description the first line of the call's `prompt`. Every collab call's
  * `agents_states` (`spawn_agent`, `send_input`, `wait`, `close_agent`) moves its subagents: `completed` → `done` with its
@@ -21,7 +22,8 @@ import type { CodexChild } from './children.ts';
  * when the turn ends is `interrupted`.
  */
 
-type Subagent = Omit<TurnEventOf<'subagent'>, 'type'>;
+/** A subagent's whole state, as its event carries it. */
+export type Subagent = Omit<TurnEventOf<'subagent'>, 'type'>;
 
 /** A subagent's own reading, by its thread id; undefined when there is none. */
 export type ReadChild = (threadId: string) => CodexChild | undefined;
@@ -100,7 +102,7 @@ function withReading(state: CollabState, subagent: Subagent, readChild: ReadChil
 }
 
 /** Sets a subagent; its event when something changed. */
-function put(state: CollabState, after: Subagent): TurnEventOf<'subagent'>[] {
+export function putSubagent(state: CollabState, after: Subagent): TurnEventOf<'subagent'>[] {
   const before = state.subagents.get(after.id);
   if (before !== undefined && JSON.stringify(before) === JSON.stringify(after)) return [];
   state.subagents.set(after.id, after);
@@ -114,7 +116,7 @@ function move(state: CollabState, id: string, value: unknown, readChild: ReadChi
   const { status, summary } = stateOf(value);
   if (status === undefined || status === 'running') return [];
   const ended: Subagent = { ...before, status, ...(summary === undefined ? {} : { summary }) };
-  return put(state, withReading(state, ended, readChild));
+  return putSubagent(state, withReading(state, ended, readChild));
 }
 
 /** A completed `spawn_agent`'s new subagents: as their state says, `running` until then, `failed` if the call failed. */
@@ -132,7 +134,10 @@ function spawned(item: JsonRecord, receivers: readonly string[], state: CollabSt
       status: failed ? 'failed' : (status ?? 'running'),
       ...(summary === undefined ? {} : { summary }),
     };
-    return put(state, subagent.status === 'running' ? subagent : withReading(state, subagent, readChild));
+    return putSubagent(
+      state,
+      subagent.status === 'running' ? subagent : withReading(state, subagent, readChild),
+    );
   });
 }
 
@@ -167,6 +172,6 @@ export function collabEvents(item: JsonRecord, state: CollabState, readChild?: R
 export function endedSubagents(state: CollabState, readChild?: ReadChild): TurnEventOf<'subagent'>[] {
   return [...state.subagents.values()].flatMap((subagent) => {
     const ended: Subagent = subagent.status === 'running' ? { ...subagent, status: 'interrupted' } : subagent;
-    return put(state, withReading(state, ended, readChild));
+    return putSubagent(state, withReading(state, ended, readChild));
   });
 }

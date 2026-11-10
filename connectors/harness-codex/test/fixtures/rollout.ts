@@ -75,10 +75,15 @@ export const READING: CodexReading = {
   model: 'gpt-6.1-sol',
 };
 
-/** A file system in memory: folders by path, files by path; it counts what it was asked. */
+/**
+ * A file system in memory: folders by path, files by path (a test may change or add a file between reads); it counts
+ * what it was asked.
+ */
 export function memoryRollouts(files: Record<string, string>) {
   const reads: number[] = [];
   const listed: string[] = [];
+  /** Each `readAt`: the path, the offset and the bytes asked. */
+  const readsAt: [string, number, number][] = [];
   const fs: RolloutFs = {
     list: (dir) => {
       listed.push(dir);
@@ -98,6 +103,13 @@ export function memoryRollouts(files: Record<string, string>) {
         size: buffer.length,
       };
     },
+    readAt: (path, offset, bytes) => {
+      const text = files[path];
+      if (text === undefined) return undefined;
+      readsAt.push([path, offset, bytes]);
+      const buffer = Buffer.from(text, 'utf8');
+      return { data: buffer.subarray(offset, offset + bytes), size: buffer.length };
+    },
   };
-  return { fs, reads, listed };
+  return { fs, reads, listed, readsAt };
 }

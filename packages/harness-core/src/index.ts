@@ -16,6 +16,7 @@ export {
   ASK_TOKEN_ENV,
   type HarnessDriver,
   type LineParser,
+  PARSER_TICK_MS,
   type ParserContext,
   type PrivateDir,
   type PrivateFile,

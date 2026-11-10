@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { LineParser, ProcessSpec } from '@mwc/harness-core';
+import { type LineParser, PARSER_TICK_MS, type ProcessSpec } from '@mwc/harness-core';
 import type { AskQuestions, TurnEvent } from '@mwc/shared/harness';
 import {
   TURN_STOP_KILL_MS,
@@ -9,7 +9,7 @@ import {
 } from '@mwc/shared/runner-protocol';
 import type { Log } from '../system/log.ts';
 import type { ChildLike, KillGroup, Spawn } from '../system/process.ts';
-import type { Timers } from '../system/time.ts';
+import { every, type Timers } from '../system/time.ts';
 import type { AskBridge } from './ask/bridge.ts';
 import { ASK_REPLY, type AskReply } from './ask/tool.ts';
 import { EventBatcher } from './batch.ts';
@@ -20,7 +20,7 @@ import { type PrivateLease, releaseLogin } from './private-dir.ts';
 /**
  * One chat turn's process (docs/harness.md, "How a turn runs"): started from the driver's process spec in the agent's
  * folder as its own process group, the prompt written to its stdin and closed (or kept open for the person's messages
- * while it runs, `input.ts`, S5.2 step 6), its stdout read line by line through the driver's parser into events (the driver's notices first), batched to the link, and the end of its stderr kept. When
+ * while it runs, `input.ts`, S5.2 step 6), its stdout read line by line through the driver's parser into events (the driver's notices first; a parser's `tick` every `PARSER_TICK_MS`, between lines), batched to the link, and the end of its stderr kept. When
  * it ends: the parser's last events, the private folder released (a Codex login it rewrote goes back as `authJson`),
  * then `turn.end` once. `stop` walks the ladder: SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT.
  * With the runner's tools, a question the agent asks through its bridge goes out as `turn.question`, numbered among the
@@ -78,6 +78,7 @@ export class TurnProcess {
   #result: Extract<TurnEvent, { type: 'result' }> | undefined;
   #stopped: StopReason | undefined;
   #timers: unknown[] = [];
+  #stopTicks: (() => void) | undefined;
   #ended = false;
 
   constructor(turnId: string, launch: TurnLaunch, deps: TurnDeps) {
@@ -122,6 +123,8 @@ export class TurnProcess {
     child.once('error', (error) => this.#finish(null, `spawn_failed: ${messageOf(error)}`));
     child.once('close', (code) => this.#finish(code));
     this.#input.begin(process.stdin);
+    const tick = parser.tick?.bind(parser);
+    if (tick) this.#stopTicks = every(this.#deps.timers, PARSER_TICK_MS, () => this.#events(tick()));
     this.#deps.log.info('turn started', { turnId: this.turnId, command: process.command, pid: child.pid });
   }
 
@@ -188,6 +191,7 @@ export class TurnProcess {
     this.#ended = true;
     this.#launch.bridge?.close();
     for (const timer of this.#timers) this.#deps.timers.clearTimeout(timer);
+    this.#stopTicks?.();
     const last = this.#stdout.end();
     if (last !== undefined) this.#line(last);
     (this.#input as TurnInput).close();

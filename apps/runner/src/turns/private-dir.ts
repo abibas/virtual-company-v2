@@ -18,7 +18,8 @@ import { CodexAuthJson } from '@mwc/shared/harness';
 
 /**
  * The file operations the folders need, synchronous (`nodePrivateFs`, `files.ts`); with the reads of Codex's session
- * file when a turn or a terminal ends (`RolloutFs`: a folder's names, a file's end).
+ * files while a turn runs and when it or a terminal ends (`RolloutFs`: a folder's names, a file's end, its bytes from
+ * an offset).
  */
 export interface PrivateFs extends RolloutFs {
   isDirectory(path: string): boolean;

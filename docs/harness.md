@@ -34,9 +34,12 @@ TurnTools    { dir /* the turn's own folder, 0700 */, command, args /* <node> <r
                env /* MWC_ASK_SOCKET, MWC_ASK_TOKEN */ }
 
 HarnessDriver { harness; versionArgs; turn(TurnSpec, TurnTools?): ProcessSpec; terminal(TerminalSpec): ProcessSpec;
-                parser(): LineParser; inputLine?(text, id): string /* a message mid-turn's stdin line */ }
+                parser(ParserContext?): LineParser; inputLine?(text, id): string /* a message mid-turn's stdin line */ }
+ParserContext { privateDir?: string /* the turn's private folder: Codex's CODEX_HOME */ }
 LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: string): TurnEvent[];
-                settled?(): boolean /* every message taken answered: stdin may close */ }
+                settled?(): boolean /* every message taken answered: stdin may close */;
+                tick?(): TurnEvent[] /* what the harness wrote elsewhere since the last tick */ }
+PARSER_TICK_MS = 1000
 ```
 
 - **Starting it.** The runner starts `command` with `args` (no shell) in `cwd`, from its own environment minus `MWC_*`
@@ -61,7 +64,10 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 - **Parsing.** One parser per process, never throwing: a blank, partial or garbled line and an unknown type give
   nothing. `end` gives a failing `result` when the output gave none: how the process ended (`exited with code 1`,
   `was stopped before it finished the turn`, `ended without finishing the turn`) and the first detail that says
-  something (the harness's own last error, the end of stderr, the last stray line), cut to fit.
+  something (the harness's own last error, the end of stderr, the last stray line), cut to fit. A parser with `tick`
+  follows what its harness writes outside its output (Codex's session files, "Codex subagents"): the runner calls it
+  every `PARSER_TICK_MS` while the process runs, so its events come between lines and while the output is quiet, and
+  never after `end`.
 
 ## Events
 
@@ -74,7 +80,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `tool`        | `id`, `name`, `summary` (one line, ≤ 200), `parentId?`    | the input in one line: the command, file, pattern, address  |
 | `tool_result` | `id`, `ok`, `summary` (≤ 500), `parentId?`                | the start of the result (Claude), the exit code and the end of the output (Codex commands) |
 | `todo`        | `items` (≤ 100: `text` ≤ 300, `status` `pending` \| `in_progress` \| `completed`), `parentId?` | the whole to-do list as it is now (the latest replaces the one before): Claude's `TodoWrite` input (its `tool` event comes too), Codex's `todo_list` item (done or not: `completed` or `pending`) |
-| `subagent`    | `id` (its Agent call's id), `agentType` (≤ 100), `description` (≤ 200), `model?`, `background?`, `status` (`running` \| `done` \| `failed` \| `interrupted`), `summary?` (≤ 4000, cut with the marker), `lastStep?` (≤ 200), `parentId?` | a subagent's whole state, each time it changes (the latest per `id` counts); Claude's Agent calls (`id` the call's), Codex's collab calls (`id` the subagent's thread id; see "Codex subagents") |
+| `subagent`    | `id` (its Agent call's id), `agentType` (≤ 100), `description` (≤ 200), `model?`, `effort?` (≤ 50), `background?`, `status` (`running` \| `done` \| `failed` \| `interrupted`), `summary?` (≤ 4000, cut with the marker), `lastStep?` (≤ 200), `parentId?` | a subagent's whole state, each time it changes (the latest per `id` counts); Claude's Agent calls (`id` the call's), Codex's subagents (`id` the subagent's thread id, with its model and effort when Codex names them; see "Codex subagents") |
 | `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | the turn's sum; input counts cached tokens too; Claude adds its cache writes and reads |
 | `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown), `estimate?` (`true`), `usedTokens?`, `model?` (≤ 200), `baselineTokens?`, `rateLimits?` | the last request of the main agent; the conversation's size is `usedTokens` when the harness counts it itself, else `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude's is exact, Codex's is its own reading from its session file (with the model it ran, its baseline and the plan's limits), or an `estimate` from the turn's total when that cannot be read (see "Codex's context reading") |
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
@@ -283,7 +289,8 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
   `thinking`; the `todo_list` item gives `todo` when it starts, on each `item.updated` that changes it and when it
   completes (its `items`' `text`, `completed` → `completed`, else `pending`). Codex has no result event: a clean exit
   (0) after `turn.completed` gives `result` ok with the last agent message. A `collab_tool_call` item gives `subagent`
-  events ("Codex subagents" below); no event has a `parentId`, since a subagent's own work never reaches the stream.
+  events ("Codex subagents" below); a subagent's own work never reaches the stream, so its events (with its thread id
+  as their `parentId`) and multi-agent v2's subagents come from the session files, on the parser's `tick`.
 - **Context and cost** (checked in Codex 0.167.0's binary, 2026-11-10: the exec stream's events are `thread.started
   {thread_id}`, `turn.started`, `turn.completed {usage}`, `turn.failed`, `item.*` and `error`; the usage is
   `input_tokens` (cached ones included), `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`,
@@ -366,9 +373,83 @@ its JSON test `collab_spawn_begin_and_end_emit_item_events`, and `lib.rs`):
   `session_meta`, `turn_context`, `CommandExecution` or `exec_command_end` parsed) and adds `model` (its last
   `turn_context`), `agentType` "Codex <role>" for a role other than `default` (an `explorer`, a `worker`, a custom
   agent), and `lastStep` "Ran <command>" (the script of a `zsh -lc '…'`, else the argv joined). A missing or unreadable
-  file adds nothing. While a subagent runs nothing more is known (the parent's stream is quiet during a `wait`), so the
-  web shows "Working…" for it, and once it ends the model chip, its answer and its last step ("Last step: Ran …" where a
-  Claude subagent would show its step count).
+  file adds nothing. While a subagent runs, its own file is followed for its commands and messages (below); without
+  them (an older runner, a file not found) the web shows "Working…" for it, and once it ends the model chip, its answer
+  and its last step ("Last step: Ran …" where a Claude subagent would show its step count).
+
+#### v1 and v2: where each comes from
+
+Built 2026-11-10, the same evening (Ihor asked again: Codex 0.167.0 on his devbox, GPT-6.1-Sol, three subagents on
+different models each sleeping 30–60 s; Codex's own TUI showed "Started `/root/sleep_sol`" and later "Completed", our
+chat only the first message and "Writing the reply…"; the server held one `session` and one `text` event). Checked
+against Codex 0.167.0's source (`rust-v0.167.0`: `core/src/tools/handlers/multi_agents_v2.rs` and `…/spawn.rs`,
+`core/src/agent/control/completion.rs`, `protocol/src/items.rs`, `protocol/src/protocol.rs`,
+`protocol/src/legacy_events.rs`, `protocol/src/agent_path.rs`, `rollout/src/policy.rs`, `history/src/rollout_payload.rs`,
+`exec/src/event_processor_with_jsonl_output.rs`, `tui/src/multi_agents.rs`), and against the key names and line types
+of Codex 0.160–0.166 session files on a Mac (structure only; none of them had a v2 subagent):
+
+- **Multi-agent v1** (the collab tools above) reports subagents as `CollabAgentToolCall` items, which `codex exec --json`
+  prints as `collab_tool_call`. **Multi-agent v2** (tools `spawn_agent`, `send_message`, `followup_task`,
+  `wait_agent`, `interrupt_agent`, `list_agents` in the `collaboration` namespace; agents addressed by path,
+  `/root/<task_name>`) still builds collab items, but only for analytics (`tui/src/multi_agents.rs`: "V2 uses
+  SubAgentActivity for display; these variants are analytics-only"); what it shows is a `SubAgentActivity` item, which
+  the exec JSON processor drops (`_ => None`). So under v2 `codex exec --json` carries nothing of the subagents, and
+  the parser reads Codex's own session files instead, while the turn runs.
+- **The agent's file** (`rollout.ts`'s finder, by the `thread.started` thread id). A v2 activity is
+  `SubAgentActivityItem { id, kind: started | interacted | interrupted | completed, agent_thread_id, agent_path, model,
+  reasoning_effort }` (`model` and `reasoning_effort` resolved at the spawn, null otherwise). Each is emitted as an item
+  started and completed; the file keeps, by the thread's `history_mode` (`session_meta`), an `event_msg`
+  `{ type: "sub_agent_activity", event_id, occurred_at_ms, agent_thread_id, agent_path, kind, model, reasoning_effort }`
+  (legacy: every kind but `completed`) or an `event_msg` `{ type: "item_completed", thread_id, turn_id, item: { type:
+  "SubAgentActivity", … }, completed_at_ms }` (paginated: every kind; legacy: `completed`). `started` comes from the
+  spawn with the call's id as its `id`; `completed` from the child's terminal turn when it completed (an errored child
+  sends none; its own file says so); `interacted` from `send_message` / `followup_task`; `interrupted` from
+  `interrupt_agent`. The spawn's own call is a `response_item` `{ type: "function_call", name: "spawn_agent",
+  namespace: "collaboration", arguments: "<JSON>", call_id }`, its arguments `{ task_name, message, agent_type?,
+  model?, reasoning_effort?, fork_turns? }`.
+- **A subagent's own file** (`rollout-<time>-<agent_thread_id>.jsonl`, in the same home folder): `session_meta` (its
+  `source.subagent.thread_spawn` with `parent_thread_id`, `agent_path`, its `history_mode`), then, by default
+  (`fork_turns: "all"`), the parent's history copied in (`core/src/agent/history.rs`: its event messages, the running
+  turn's `task_started` and messages included; its calls too with `preserve_fork_prefix`), then its own turns:
+  `event_msg` `task_started { turn_id, root_turn_id, started_at }` (Unix seconds; `root_turn_id` equals `turn_id` only
+  in the root thread, confirmed on disk), `turn_context { model, effort }`, a command's call as a `response_item` `function_call`
+  (`exec_command` with `cmd`; `shell` / `container.exec` with an argv `command`; `shell_command` with a line;
+  `local_shell_call`), its end as `item_completed` of a `CommandExecution { id (the call's), command (argv), status,
+  exit_code, aggregated_output (cut to 64 KiB) }` (paginated; also for a command code mode ran; legacy files keep only
+  the call's `function_call_output`, since `exec_command_end` is not persisted), its messages as `item_completed`
+  `AgentMessage { content: [{ type: "Text", text }] }` (paginated) or `agent_message { message }` (legacy), and
+  `task_complete { last_agent_message, error? }` at each turn's end.
+- **Following** (`connectors/harness-codex/src/follow/`; the runner calls the parser's `tick` every second while the
+  process runs, and the turn's end reads once more). `file.ts` reads a file from a byte offset with one open and one
+  read (`RolloutFs.readAt`, Node's `openSync`/`readSync` in the runner), keeps only whole lines (a line still being
+  written waits for the next poll) and skips a line over 1 MiB. Only lines naming a marker are parsed. The agent's file,
+  when it is there at `thread.started` (a resumed thread, a fork), is followed from its end; one that appears later is
+  looked for in the newest two day folders and read from its start. Lines count only after a `task_started` of this
+  turn (`started_at` no earlier than the second the runner made the parser) and, in a subagent's file, of its own (not
+  a root turn: `root_turn_id` ≠ `turn_id`), so a resumed or forked thread's history and the parent turns copied into a
+  subagent's file, the running one too, never show. Bounds: 1 MiB per file and 4 MiB in all per poll (the
+  agent's first, the rest waits for the next poll), 16 subagents' files, a subagent's file looked for during 30 polls,
+  200 commands and messages shown per subagent, 64 spawn calls kept. No process starts.
+- **The mapping** (`follow/parent.ts`, `follow/live.ts`). A `started` (or `interacted`) activity for a thread not seen
+  yet is a `subagent` with the thread id as its `id`, `agentType` its path under the root (`/root/sleep_sol` →
+  `sleep_sol`), `description` the first non-empty line of the spawn call's `message` (filled when the call comes after
+  the activity), `model` and `effort` from the activity (else the call's arguments), `background: true`, `running`.
+  `interacted` → `running`, `completed` → `done`, `interrupted` → `interrupted`; a `completed` or `interrupted` of a
+  thread this turn never started (an earlier turn's subagent) is ignored. Every subagent, v1's collab ones too, has its
+  own file followed (`follow/child.ts`, `follow/steps.ts`): a command is a `tool` named `command` (the call's `cmd`, or
+  the script of `bash -lc '…'`) with the subagent as `parentId` and `<thread id>:<call id>` as its id, its end a
+  `tool_result` (`exit <code>: <the end of its output>`, as the stream's commands; a legacy output by its "Process
+  exited with code N" or "Exit code: N", none while "Process running with session ID"), a message a `text`; its turn's
+  `task_complete` gives the subagent's `summary` (its last message, or its error), and moves a v2 subagent still
+  `running` to `done` (or `failed` with an error). A v2 subagent is not read again when the turn ends (its file was
+  followed). Those still running when the turn ends become `interrupted`, after the last read.
+- **One subagent per thread.** v1's collab items and v2's activities write into one state keyed by the thread id: a
+  thread both report is one block, an activity only moving its status and adding the model and effort it lacked.
+- **The web** shows them as Claude's: the block's chip "gpt-6.1-sol · high", its nested commands and messages under it
+  (opened), "N steps" once folded, its answer as the Result; the status line names the subagent doing the latest step
+  ("sleep_sol · Running `sleep 45`"), and "Waiting for N agents…" when the main agent's last event is a message or a
+  subagent's end while others still run (instead of "Writing the reply…"). After a reload the stored events give the
+  same thread.
 
 ## How a turn runs
 
@@ -412,8 +493,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    agent's folder, with its own environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the private folder's
    variable; writes the prompt to stdin and closes it (Claude Code's turns keep it open for the person's messages until
    their result, "Delivery while a turn runs"); sends the driver's notices as the first events; reads stdout line
-   by line into the driver's parser and keeps the last 4 KB of stderr. Events go as `turn.events` about 100 ms after the
-   first, or at once from 32 KB or 100 events, numbered from 1; a text event over 16 KB is split, a result's text cut to
+   by line into the driver's parser (and asks a parser with `tick` every second, "The port") and keeps the last 4 KB of
+   stderr. Events go as `turn.events` about 100 ms after the first, or at once from 32 KB or 100 events, numbered from 1; a text event over 16 KB is split, a result's text cut to
    fit. On exit, `parser.end` gives the last events, then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the
    result's, `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the
    SIGINT) or `runner_stopping`. Live turns hold the machine as live runs do and make the self-update say `busy`.
@@ -690,7 +771,10 @@ after `--fork-session` names the new session, are read from the CLIs' own code a
   `denied`, `error`, `resume`, `subagent` (a plan with `TodoWrite`, an Explore subagent with its own steps and `task_*`
   messages, one in the background ended by `task_notification`) and `compact`; Codex's `answer`, `tool`, `denied`,
   `error`, `resume` and `plan` (its to-do list started, updated and completed, reasoning). The runner's tests reuse them
-  from `@mwc/harness-claude-code/fixtures` and `@mwc/harness-codex/fixtures`.
+  from `@mwc/harness-claude-code/fixtures` and `@mwc/harness-codex/fixtures`. Codex's session-file lines
+  (`test/fixtures/follow.ts`) are built to its serializers: v2 activities in both persisted forms, spawn calls with
+  their JSON arguments, a subagent's file forked with the parent's history, partial lines across polls; the runner
+  follows them in a temporary `CODEX_HOME` on fake time.
 - The delivery (S5.2 step 6) is tested without a real CLI: the Claude driver's arguments and stdin lines, its parser's
   echoes, results that say a message waits and a turn that goes on after its result; the runner's stdin (closed for a
   harness without input, the first message, `turn.input` written once, echoes kept or dropped, closed after a settled

@@ -1,4 +1,5 @@
 import { Bot, Brain, type LucideIcon, PenLine, Sparkles } from 'lucide-react';
+import { plural } from './format.ts';
 import type { CurrentActivity, Part, SubagentState, ToolCall, TurnModel } from './parts.ts';
 import { addUp, familyOf, type ToolWords, toolIcon, toolWords } from './tool-kinds.ts';
 
@@ -25,6 +26,8 @@ export function currentAction({ activity, subagent }: CurrentActivity): ActionLi
     return { icon: PenLine, words: { verb: subagent ? 'Writing its answer…' : 'Writing the reply…' }, by };
   if (activity.kind === 'thinking') return { icon: Brain, words: { verb: 'Thinking…' }, by };
   if (activity.kind === 'step') return { icon: Bot, words: { verb: activity.text || 'Working…' }, by };
+  if (activity.kind === 'waiting')
+    return { icon: Bot, words: { verb: `Waiting for ${plural(activity.count, 'agent', 'agents')}…` }, by };
   return { icon: Sparkles, words: { verb: 'Starting…' }, by };
 }
 

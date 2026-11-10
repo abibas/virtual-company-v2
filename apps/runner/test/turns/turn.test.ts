@@ -1,12 +1,13 @@
 import { ClaudeCodeDriver } from '@mwc/harness-claude-code';
 import { CLAUDE_SCENARIOS, CLAUDE_SESSION_ID } from '@mwc/harness-claude-code/fixtures';
+import { type LineParser, PARSER_TICK_MS } from '@mwc/harness-core';
 import { FakeHarnessDriver, fakeLines, fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import type { TurnRunnerFrame } from '@mwc/shared/runner-protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { TurnProcess } from '../../src/turns/turn.ts';
 import { memoryLog } from '../fixtures/log.ts';
-import { FakeSpawn } from '../fixtures/spawn.ts';
+import { type FakeChild, FakeSpawn } from '../fixtures/spawn.ts';
 import { FakeTime } from '../fixtures/time.ts';
 
 /** One turn process on a fake spawn, with what it sent. */
@@ -72,6 +73,53 @@ describe('one turn process', () => {
     expect(t.end()).toEqual({ type: 'turn.end', turnId: t.turn.turnId, ok: false, exitCode: 1 });
     await t.turn.stop('stopped');
     expect(t.spawn.groupKills).toEqual([]);
+  });
+
+  it('asks a following parser every second while the process runs, between its lines, and never after its end', async () => {
+    const spawn = new FakeSpawn();
+    const time = new FakeTime();
+    const sent: TurnRunnerFrame[] = [];
+    let ticks = 0;
+    const parser: LineParser = {
+      feed: (text) => [{ type: 'text', text }],
+      end: () => [{ type: 'result', ok: true }],
+      tick: () => {
+        ticks += 1;
+        return ticks === 2 ? [{ type: 'notice', level: 'info', message: 'a subagent started' }] : [];
+      },
+    };
+    const process = new FakeHarnessDriver({ command: 'fake' }).turn(fakeTurnSpec('claude_code'));
+    const turn = new TurnProcess(
+      newId(),
+      { process, cwd: '/home/agent/work', env: {}, parser, lease: undefined },
+      {
+        spawn: spawn.spawn,
+        killGroup: spawn.killGroup,
+        timers: time,
+        log: memoryLog().log,
+        send: (frame) => sent.push(frame) > 0,
+        ended: () => undefined,
+      },
+    );
+    turn.start();
+    const child = spawn.calls[0]?.child as FakeChild;
+    child.stdout?.write('one\n');
+    await time.advance(PARSER_TICK_MS);
+    await time.advance(PARSER_TICK_MS);
+    child.stdout?.write('two\n');
+    child.exit(0);
+    await turn.done;
+    await time.advance(5 * PARSER_TICK_MS);
+    expect(ticks).toBe(2);
+    expect(
+      sent.flatMap((frame) => (frame.type === 'turn.events' ? frame.events.map((i) => i.event) : [])),
+    ).toEqual([
+      { type: 'text', text: 'one' },
+      { type: 'notice', level: 'info', message: 'a subagent started' },
+      { type: 'text', text: 'two' },
+      { type: 'result', ok: true },
+    ]);
+    expect(time.pending).toEqual([]);
   });
 
   it('plays a recorded-style Claude Code turn through the real parser', async () => {

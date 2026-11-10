@@ -6,6 +6,7 @@ import { CodexDriver } from '../src/driver.ts';
 import { CODEX_SCENARIOS } from '../src/fixtures.ts';
 import { CodexLineParser } from '../src/parser.ts';
 import { CHILD_A, childLines, childPath } from './fixtures/children.ts';
+import { activityItem, meta, NOW_S, PARENT, pathOf, SINCE, SOL, taskStarted } from './fixtures/follow.ts';
 import { FILE_NAME, memoryRollouts, THREAD as ROLLOUT_THREAD, TURN_LINES } from './fixtures/rollout.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
@@ -272,5 +273,32 @@ describe('CodexDriver', () => {
       lastStep: 'Ran python3 wait.py',
       summary: 'Slept 41 seconds.',
     });
+  });
+
+  it("gives a parser that follows the thread's file while the turn runs, from when it was made", () => {
+    const home = '/state/codex/abc';
+    const files: Record<string, string> = { [pathOf(home, PARENT)]: `${meta(PARENT)}\n` };
+    const { fs } = memoryRollouts(files);
+    const parser = new CodexDriver({ rollouts: fs, now: () => SINCE }).parser({ privateDir: home });
+    parser.feed(JSON.stringify({ type: 'thread.started', thread_id: PARENT }));
+    files[pathOf(home, PARENT)] += [
+      // A turn begun before this parser was made is not this one.
+      taskStarted(NOW_S - 1),
+      activityItem('old', SOL, '/root/old', 'started'),
+      taskStarted(NOW_S),
+      activityItem('c1', SOL, '/root/sleep_sol', 'started'),
+      '',
+    ].join('\n');
+    expect(parser.tick?.()).toEqual([
+      {
+        type: 'subagent',
+        id: SOL,
+        agentType: 'sleep_sol',
+        description: '',
+        background: true,
+        status: 'running',
+      },
+    ]);
+    expect(new CodexDriver({ rollouts: fs }).parser().tick?.()).toEqual([]);
   });
 });

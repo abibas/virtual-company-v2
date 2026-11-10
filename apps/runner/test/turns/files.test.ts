@@ -37,4 +37,16 @@ describe("the private folders' file system", () => {
     expect(fs.tail(join(dir, 'none'), 10)).toBeUndefined();
     expect(fs.tail(join(dir, '2026'), 10)).toBeUndefined();
   });
+
+  it("reads a file's bytes from an offset with its size, nothing past its end or for what is missing", () => {
+    const fs = nodePrivateFs();
+    const file = join(tempDir(), 'rollout.jsonl');
+    writeFileSync(file, 'first line\nlast ✓ line\n');
+    const text = (got: ReturnType<typeof fs.readAt>) => got && [Buffer.from(got.data).toString(), got.size];
+    expect(text(fs.readAt(file, 11, 8))).toEqual(['last ✓', 25]);
+    expect(text(fs.readAt(file, 11, 1000))).toEqual(['last ✓ line\n', 25]);
+    expect(text(fs.readAt(file, 25, 10))).toEqual(['', 25]);
+    expect(text(fs.readAt(file, 40, 10))).toEqual(['', 25]);
+    expect(fs.readAt(join(tempDir(), 'none'), 0, 10)).toBeUndefined();
+  });
 });

@@ -117,6 +117,8 @@ export const TurnEvent = z.discriminatedUnion('type', [
     description: z.string().max(SUBAGENT_DESCRIPTION_MAX),
     /** The model asked for; absent: the main agent's. */
     model: Model.optional(),
+    /** Its reasoning effort, when the harness names it (Codex's subagents). */
+    effort: z.string().min(1).max(EVENT_EFFORT_MAX).optional(),
     background: z.boolean().optional(),
     status: SubagentStatus,
     /** Its answer, once it ended. */

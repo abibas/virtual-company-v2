@@ -19,6 +19,7 @@ export {
 export { type CodexChild, readChild, scanChild } from './children.ts';
 export { configArg, configFlagArg, configListArg, configTableArg } from './config.ts';
 export { CodexDriver, type CodexDriverOptions } from './driver.ts';
+export { type LiveOptions, LiveSubagents } from './follow/live.ts';
 export {
   DIRECT_PROVIDER_ID,
   GATEWAY_HEADER_ENV_PREFIX,
@@ -28,7 +29,7 @@ export {
   providerArgs,
 } from './gateway.ts';
 export { completedEvents, type ItemState, newItemState, startedEvents, todoEvents } from './items.ts';
-export { CodexLineParser, type ReadThread } from './parser.ts';
+export { CodexLineParser, type FollowSubagents, type ReadThread } from './parser.ts';
 export {
   CODEX_BASELINE_TOKENS,
   type CodexReading,
