@@ -192,3 +192,14 @@ export function conversationState(turns: readonly TurnWithEvents[]): Conversatio
   }
   return state;
 }
+
+/**
+ * The model a turn hands its harness: the agent's, except the agent form's "Codex's default model" marker
+ * (`codex-default`) and a Claude id on a Codex agent (left over from a profile change), which the harness's own default
+ * replaces (null): Codex rejects an id it does not know with a 400. Any other id goes as it is, and the turn's spec
+ * check refuses a malformed one by name.
+ */
+export function turnModel(harness: 'claude_code' | 'codex', model: string): string | null {
+  if (model === 'codex-default') return null;
+  return harness === 'codex' && model.startsWith('claude') ? null : model;
+}

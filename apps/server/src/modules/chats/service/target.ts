@@ -22,6 +22,7 @@ import {
   type Refusal,
   RUNNER_OUTDATED,
   TERMINAL_UNAVAILABLE,
+  turnModel,
 } from '../rules.ts';
 
 /**
@@ -128,7 +129,7 @@ export async function resolveTarget(
     harness: chat.harness,
     cwd: placement.home,
     sessionId: chat.sessionId,
-    model: agent.model,
+    model: turnModel(chat.harness, agent.model),
     effort: agent.effort,
     permissionPolicy: placement.permissionPolicy,
     configDir: placement.configDir,

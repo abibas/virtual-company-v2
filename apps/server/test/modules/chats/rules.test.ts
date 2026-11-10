@@ -7,6 +7,7 @@ import {
   isLive,
   profileEmpty,
   titleOf,
+  turnModel,
   withEvent,
 } from '../../../src/modules/chats/rules.ts';
 
@@ -134,5 +135,16 @@ describe('the refusals that name what to fix', () => {
       code: 'profile_empty',
       message: expect.stringContaining('Work has no subscription'),
     });
+  });
+});
+
+describe('turnModel', () => {
+  it('hands Codex its own default for the marker or a Claude id, and Claude Code its model', () => {
+    expect(turnModel('codex', 'codex-default')).toBeNull();
+    expect(turnModel('codex', 'claude-opus-5-5')).toBeNull();
+    expect(turnModel('codex', 'gpt-6.1-sol')).toBe('gpt-6.1-sol');
+    expect(turnModel('claude_code', 'claude-opus-5-5')).toBe('claude-opus-5-5');
+    expect(turnModel('claude_code', 'codex-default')).toBeNull();
+    expect(turnModel('claude_code', 'claude opus')).toBe('claude opus');
   });
 });
