@@ -33,8 +33,8 @@ const TREE =
   '├── Bob · CTO · admin\n' +
   '│   └── ann@acme.test · viewer\n' +
   '└── ◆ SLOP BOX · Coder · active · claude-opus-5-5/xhigh\n' +
-  '    └── ◆ Reviewer · Code reviewer · paused · claude-opus-5-5/high\n' +
-  '◆ Lost · Tester · active · claude-opus-5-5/high [orphan]\n';
+  '    └── ◆ Reviewer · Code reviewer · paused · default/default\n' +
+  '◆ Lost · Tester · active · no profile [orphan]\n';
 
 /** A fetch whose `GET /api/me` lists Acme and another company, as a login that reaches several would see it. */
 const twoCompanies: Fetch = async (url, init) => {
@@ -179,10 +179,11 @@ describe('mwc org tree', () => {
   });
 });
 
-const HEAD = 'NAME      SLUG      ROLE           STATUS  MODEL            EFFORT  REPORTS TO\n';
-const SLOP = 'SLOP BOX  slop-box  Coder          active  claude-opus-5-5  xhigh   Olga\n';
-const REVIEWER = 'Reviewer  reviewer  Code reviewer  paused  claude-opus-5-5  high    SLOP BOX\n';
-const LOST = 'Lost      lost      Tester         active  claude-opus-5-5  high    (off the chart)\n';
+// Each agent's model and effort are its access profile's: `default` for the provider's, `no profile` without one.
+const HEAD = 'NAME      SLUG      ROLE           STATUS  MODEL            EFFORT   REPORTS TO\n';
+const SLOP = 'SLOP BOX  slop-box  Coder          active  claude-opus-5-5  xhigh    Olga\n';
+const REVIEWER = 'Reviewer  reviewer  Code reviewer  paused  default          default  SLOP BOX\n';
+const LOST = 'Lost      lost      Tester         active  no profile       -        (off the chart)\n';
 
 describe('mwc agents list', () => {
   it('prints the active and paused agents as an aligned table, with whom each reports to by name', async () => {
@@ -195,21 +196,21 @@ describe('mwc agents list', () => {
   it('lists one status, or all of them, with --status', async () => {
     const all = await agents(['list', '--status', 'all']);
     expect(all.out()).toBe(
-      'NAME      SLUG      ROLE           STATUS    MODEL            EFFORT  REPORTS TO\n' +
-        'SLOP BOX  slop-box  Coder          active    claude-opus-5-5  xhigh   Olga\n' +
-        'Reviewer  reviewer  Code reviewer  paused    claude-opus-5-5  high    SLOP BOX\n' +
-        'Old QA    old-qa    QA             archived  claude-opus-5-5  high    -\n' +
-        'Lost      lost      Tester         active    claude-opus-5-5  high    (off the chart)\n',
+      'NAME      SLUG      ROLE           STATUS    MODEL            EFFORT   REPORTS TO\n' +
+        'SLOP BOX  slop-box  Coder          active    claude-opus-5-5  xhigh    Olga\n' +
+        'Reviewer  reviewer  Code reviewer  paused    default          default  SLOP BOX\n' +
+        'Old QA    old-qa    QA             archived  no profile       -        -\n' +
+        'Lost      lost      Tester         active    no profile       -        (off the chart)\n',
     );
     const archived = await agents(['list', '--status', 'archived']);
     expect(archived.out()).toBe(
-      'NAME    SLUG    ROLE  STATUS    MODEL            EFFORT  REPORTS TO\n' +
-        'Old QA  old-qa  QA    archived  claude-opus-5-5  high    -\n',
+      'NAME    SLUG    ROLE  STATUS    MODEL       EFFORT  REPORTS TO\n' +
+        'Old QA  old-qa  QA    archived  no profile  -       -\n',
     );
     const paused = await agents(['list', '--status=paused']);
     expect(paused.out()).toBe(
-      'NAME      SLUG      ROLE           STATUS  MODEL            EFFORT  REPORTS TO\n' +
-        'Reviewer  reviewer  Code reviewer  paused  claude-opus-5-5  high    SLOP BOX\n',
+      'NAME      SLUG      ROLE           STATUS  MODEL    EFFORT   REPORTS TO\n' +
+        'Reviewer  reviewer  Code reviewer  paused  default  default  SLOP BOX\n',
     );
   });
 
@@ -231,8 +232,7 @@ describe('mwc agents list', () => {
       roleTitle: 'Coder',
       status: 'active',
       harness: 'claude_code',
-      model: 'claude-opus-5-5',
-      effort: 'xhigh',
+      runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
       reportsTo: w.principals.olga,
       maxConcurrentRuns: 1,
     });

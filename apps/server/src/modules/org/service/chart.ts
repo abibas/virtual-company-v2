@@ -6,9 +6,8 @@ import type { OrgRepo } from '../repo.ts';
 import type { ChartNode } from '../rules/chart.ts';
 import type { OrgState } from '../rules/placement.ts';
 import { buildTree, validateChart } from '../rules.ts';
-import type { AgentProfileView } from '../schemas/profiles.ts';
 import type { ChartNodeView, OrgChartView } from '../schemas.ts';
-import { profileRefs } from './profiles.ts';
+import { type ProfileRef, profileExtras, profileRefs } from './profiles.ts';
 import { loadOrg } from './read.ts';
 
 /** Who a member is when their profile is missing (never, while `memberships.user_id` keeps its key). */
@@ -20,13 +19,13 @@ const UNKNOWN_PERSON = { displayName: null, primaryEmail: '', imageUrl: null } a
  */
 interface Shown {
   readonly people: ReadonlyMap<string, UserProfile>;
-  readonly profiles: ReadonlyMap<string, AgentProfileView>;
+  readonly profiles: ReadonlyMap<string, ProfileRef>;
   readonly placements: ReadonlyMap<string, PlacementSummary>;
 }
 
 /**
- * One node of the chart with what the web shows of it (a person's name, email and photo, an agent's access profile),
- * so the chart needs no other call.
+ * One node of the chart with what the web shows of it (a person's name, email and photo, an agent's access profile and
+ * the model and effort it runs), so the chart needs no other call.
  */
 function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
   const position = org.positions.get(node.principalId) as OrgPosition;
@@ -41,13 +40,13 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
     };
   }
   const agent = org.agents.get(node.principalId) as Agent;
-  const { id: agentId, name, slug, roleTitle, status, face, model, effort } = agent;
-  const profile = shown.profiles.get(agent.profileId as string) ?? null;
+  const { id: agentId, name, slug, roleTitle, status, face } = agent;
+  const { profile, runsWith } = profileExtras(shown.profiles, agent.profileId);
   const placement = shown.placements.get(agentId) ?? null;
   return {
     ...base,
     kind: 'agent',
-    agent: { agentId, name, slug, roleTitle, status, face, model, effort, profile, placement },
+    agent: { agentId, name, slug, roleTitle, status, face, profile, runsWith, placement },
   };
 }
 

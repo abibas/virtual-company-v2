@@ -17,7 +17,7 @@ import type { ProfileClearedView } from '../schemas/profiles.ts';
 import type { AgentDetailView, CreateAgent, UpdateAgent } from '../schemas.ts';
 import { auditEntry, auditPosition, type Caller } from './audit.ts';
 import { moveForStatus } from './lifecycle.ts';
-import { newAgentProfile, profileChange, profileRefs } from './profiles.ts';
+import { newAgentProfile, profileChange, profileExtras, profileRefs } from './profiles.ts';
 import { agentDetail, loadOrg } from './read.ts';
 
 /** A profile a harness change took off the agent, when one did. */
@@ -33,8 +33,8 @@ export type AgentRows<S extends RefusalStatus> =
   | Refusal<S>;
 
 /**
- * An agent a change left, as the API shows it: with its access profile and where it runs, read after the change's
- * transaction.
+ * An agent a change left, as the API shows it: with its access profile, what that runs and where it runs, read after
+ * the change's transaction.
  */
 export async function shownAgent<S extends RefusalStatus>(
   deps: Pick<ServerDeps, 'db'>,
@@ -44,9 +44,9 @@ export async function shownAgent<S extends RefusalStatus>(
 ): Promise<AgentResult<S>> {
   if (!result.ok) return result;
   const { agent, position, profileCleared } = result;
-  const profile = (await profileRefs(deps, repo, t, [agent.profileId])).get(agent.profileId as string);
+  const profile = profileExtras(await profileRefs(deps, repo, t, [agent.profileId]), agent.profileId);
   const placement = (await placementsOf(t)).get(agent.id) ?? null;
-  const shown = agentDetail(agent, position, { profile: profile ?? null, placement });
+  const shown = agentDetail(agent, position, { ...profile, placement });
   return profileCleared ? { ok: true, agent: shown, profileCleared } : { ok: true, agent: shown };
 }
 

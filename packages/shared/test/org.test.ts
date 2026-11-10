@@ -18,10 +18,8 @@ describe('the org chart contract', () => {
     expect(AGENT_FACE).toEqual({ min: 0, max: 41 });
   });
 
-  it('gives a new agent Opus at high effort on Claude Code, one run at a time and no instructions', () => {
+  it('gives a new agent Claude Code, one run at a time and no instructions (its model is its profile’s)', () => {
     expect(AGENT_DEFAULTS).toEqual({
-      model: 'claude-opus-5-5',
-      effort: 'high',
       harness: 'claude_code',
       instructions: '',
       maxConcurrentRuns: 1,

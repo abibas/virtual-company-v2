@@ -52,8 +52,6 @@ describe('agents', () => {
       roleTitle: 'Coder',
       status: 'active',
       harness: 'claude_code',
-      model: 'claude-opus-5-5',
-      effort: 'high',
       instructions: '',
       instructionsRev: 1,
       maxConcurrentRuns: 1,
@@ -113,7 +111,6 @@ describe('agents', () => {
       slug: unique('a').padEnd(63, 'x'),
       status: 'archived',
       harness: 'codex',
-      effort: 'xhigh',
       instructions: 'Ship small commits.',
       instructionsRev: 7,
       maxConcurrentRuns: 8,
@@ -137,7 +134,6 @@ describe('agents', () => {
   it.each([
     ['status', 'agents_status_check'],
     ['harness', 'agents_harness_check'],
-    ['effort', 'agents_effort_check'],
   ] as const)('refuses an unknown %s', async (column, constraint) => {
     expect(await pgError(insertAgent(handle, acme.id, { [column]: 'turbo' }))).toMatchObject({
       code: '23514',
@@ -217,7 +213,6 @@ describe('the org tables through the tenant layer', () => {
         name: 'Reviewer',
         slug: unique('reviewer'),
         roleTitle: 'Code reviewer',
-        model: 'claude-opus-5-5',
       })
       .returning();
     expect(agent?.companyId).toBe(acme.id);

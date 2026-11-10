@@ -10,6 +10,7 @@ import {
   seedApiKey,
   seedCompany,
   seedMember,
+  seedProfile,
   type TestApp,
 } from '@mwc/testkit';
 import type { Fetch } from '../../src/api/client.ts';
@@ -70,23 +71,34 @@ async function seedPeople(t: TestApp) {
     email: 'ann@acme.test',
     reportsTo: bob.principal.id,
   });
-  return { id, key, olga, bob: bob.principal.id, ann: ann.principal.id };
+  return { id, key, olgaUserId: owner.user.id, olga, bob: bob.principal.id, ann: ann.principal.id };
 }
 
-/** Acme's agents: SLOP BOX under Olga, the paused Reviewer under it, the archived Old QA, Lost whose manager left. */
-async function seedAgents(t: TestApp, id: string, olga: string) {
+/**
+ * Acme's agents: SLOP BOX under Olga (on her profile of Opus 5.5 at xhigh), the paused Reviewer under it (on her OpenAI
+ * profile, the provider's defaults), the archived Old QA, Lost whose manager left (both without a profile).
+ */
+async function seedAgents(t: TestApp, id: string, olga: { principalId: string; userId: string }) {
   const named = (name: string, slug: string, roleTitle: string) => ({ name, slug, roleTitle });
+  const opus = await seedProfile(t.db, olga.userId, { model: 'claude-opus-5-5', effort: 'xhigh' });
+  const codex = await seedProfile(t.db, olga.userId, { provider: 'openai' });
   const slop = await seedAgent(t.db, id, {
     ...named('SLOP BOX', 'slop-box', 'Coder'),
-    effort: 'xhigh',
-    reportsTo: olga,
+    profileId: opus.id,
+    reportsTo: olga.principalId,
   });
   const reviewer = await seedAgent(t.db, id, {
     ...named('Reviewer', 'reviewer', 'Code reviewer'),
+    harness: 'codex',
     status: 'paused',
+    profileId: codex.id,
     reportsTo: slop.principal.id,
   });
-  await seedAgent(t.db, id, { ...named('Old QA', 'old-qa', 'QA'), status: 'archived', reportsTo: olga });
+  await seedAgent(t.db, id, {
+    ...named('Old QA', 'old-qa', 'QA'),
+    status: 'archived',
+    reportsTo: olga.principalId,
+  });
   const gone = await seedMember(t.db, id, { status: 'removed', reportsTo: null });
   const lost = await seedAgent(t.db, id, {
     ...named('Lost', 'lost', 'Tester'),
@@ -102,8 +114,8 @@ async function seedAgents(t: TestApp, id: string, olga: string) {
  */
 export async function orgWorld(): Promise<OrgWorld> {
   const t = await createTestApp({ identity: new FakeIdentityProvider() });
-  const { id, key, ...people } = await seedPeople(t);
-  const agents = await seedAgents(t, id, people.olga);
+  const { id, key, olgaUserId, ...people } = await seedPeople(t);
+  const agents = await seedAgents(t, id, { principalId: people.olga, userId: olgaUserId });
   const suspended = await seedMember(t.db, id, { status: 'suspended', reportsTo: null });
   const globex = await seedCompany(t.db, { slug: 'globex', name: 'Globex' });
   return {

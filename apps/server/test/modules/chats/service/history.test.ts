@@ -103,6 +103,20 @@ describe('GET chats/:chatId: the current conversation', () => {
     });
   });
 
+  it("sizes a conversation whose events name no window by what the chat's access profile runs", async () => {
+    const unsized: TurnEvent = { ...CONTEXT, window: null };
+    const codex = await scene(w, { harness: 'codex', offline: true, model: null });
+    await seedTurns(w, codex, [{ events: [unsized] }]);
+    expect((await detailOf(w, codex)).context).toMatchObject({
+      usedTokens: 152_003,
+      window: 272_000,
+      model: null,
+    });
+    const typed = await scene(w, { offline: true, model: 'claude-haiku-4-5' });
+    await seedTurns(w, typed, [{ events: [unsized] }]);
+    expect((await detailOf(w, typed)).context).toMatchObject({ window: 200_000 });
+  });
+
   it('leaves nothing out of a conversation of exactly 30 turns', async () => {
     const s = await scene(w, { offline: true });
     await seedTurns(w, s, messages(30));

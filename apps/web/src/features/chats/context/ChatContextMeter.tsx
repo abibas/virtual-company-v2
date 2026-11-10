@@ -1,4 +1,4 @@
-import { contextWindowOf } from '@mwc/shared/harness';
+import { contextWindowOf, profileWindowOf } from '@mwc/shared/harness';
 import { useMemo, useState } from 'react';
 import { isLiveTurn } from '../../../api/chat-turns.ts';
 import type { ChatCalls } from '../../../api/chats.ts';
@@ -6,7 +6,7 @@ import type { Chat } from '../../../api/types.ts';
 import type { ChatLive } from '../../../api/use-chat-live.ts';
 import { ContextMeter } from './ContextMeter.tsx';
 import type { ConversationControls } from './ConversationActions.tsx';
-import { type ConversationView, conversationView } from './context-state.ts';
+import { type ChatRuns, type ConversationView, conversationView } from './context-state.ts';
 import { conversationRefusal } from './context-text.ts';
 
 const WAIT_FOR_TURN = 'Wait for the current turn to finish.';
@@ -64,25 +64,29 @@ export function ChatContextMeter({
   live,
   chat,
   closed,
-  agentModel,
+  runs,
 }: {
   readonly calls: ChatCalls;
   readonly live: ChatLive;
   readonly chat: Chat;
   /** Why the chat takes no message now (archived, not an admin, placed nowhere). */
   readonly closed: string | undefined;
-  /** The agent's model: before the first reading, its window frames an empty meter ("Context 0 / 1M · 0%"). */
-  readonly agentModel?: string;
+  /**
+   * What the chat runs (its access profile's model, `chatRuns`): before the first reading, its window frames an empty
+   * meter ("Context 0 / 1M · 0%").
+   */
+  readonly runs?: ChatRuns | undefined;
 }) {
   const { turns } = live;
   const detail = live.detail.data;
   const view = useMemo(() => {
     const read = conversationView(turns, detail);
     if (read.used !== undefined) return read;
-    const model = read.model ?? agentModel ?? null;
-    const window = read.window ?? contextWindowOf(model);
+    const model = read.model ?? runs?.model ?? null;
+    const window =
+      read.window ?? (runs ? profileWindowOf(runs.provider, runs.model) : contextWindowOf(model));
     return { ...read, model, window, used: 0, percent: window ? 0 : undefined };
-  }, [turns, detail, agentModel]);
+  }, [turns, detail, runs]);
   const running = turns.some(isLiveTurn);
   const controls = useControls(calls, live, chat, blockedWhy(view, running, closed));
   return (

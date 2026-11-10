@@ -74,7 +74,9 @@ describe('RunSpec', () => {
     expect(issuesOf(RunSpec, { ...RUN_SPEC, harness: 'cursor' })).toEqual(['harness']);
     expect(issuesOf(RunSpec, { ...RUN_SPEC, model: '' })).toEqual(['model']);
     expect(issuesOf(RunSpec, { ...RUN_SPEC, model: 'm'.repeat(101) })).toEqual(['model']);
-    expect(issuesOf(RunSpec, { ...RUN_SPEC, effort: 'ultra' })).toEqual(['effort']);
+    // Every provider's levels are a run's (Codex's ultra too); a word that is none of them is not.
+    expect(issuesOf(RunSpec, { ...RUN_SPEC, effort: 'ultra' })).toEqual([]);
+    expect(issuesOf(RunSpec, { ...RUN_SPEC, effort: 'extreme' })).toEqual(['effort']);
     expect(issuesOf(RunSpec, { ...RUN_SPEC, permissionPolicy: 'yolo' })).toEqual(['permissionPolicy']);
     expect(issuesOf(RunSpec, { ...RUN_SPEC, inputs: [{ inputId: RUN_SPEC.runId, text: '' }] })).toEqual([
       'inputs.0.text',

@@ -10,8 +10,8 @@ thread, task status, the inbox; `docs/architecture.md`, §5).
 | Tool          | Arguments                                          | Returns |
 | ------------- | -------------------------------------------------- | ------- |
 | `me`          | none                                               | who the key acts as: the server, your user, the key's prefix and where it came from, and the companies it reaches with your role and membership status |
-| `org_chart`   | `company` (optional slug or id)                    | the chart as a readable tree (people `name · title · role`, agents `◆ name · role title · status · model/effort`, `[orphan]` for a manager off the chart), then the nodes as compact JSON (principal id, kind, manager, title, and the person's or agent's fields) |
-| `agents_list` | `company` (optional), `status` (`active`, `paused`, `archived` or `all`; default active and paused) | the agents as a table (name, slug, role, status, model, effort, reports to), then compact JSON with each agent's setup, its manager's principal id and name |
+| `org_chart`   | `company` (optional slug or id)                    | the chart as a readable tree (people `name · title · role`, agents `◆ name · role title · status · model/effort` of their access profile (`default`, `no profile`), `[orphan]` for a manager off the chart), then the nodes as compact JSON (principal id, kind, manager, title, and the person's or agent's fields) |
+| `agents_list` | `company` (optional), `status` (`active`, `paused`, `archived` or `all`; default active and paused) | the agents as a table (name, slug, role, status, its access profile's model and effort, reports to), then compact JSON with each agent's setup (`runsWith: {model, effort, provider}` or null), its manager's principal id and name |
 
 Each answer is two text blocks: the readable text first, then the same as one line of JSON. A refusal (not logged in,
 a key the server refuses, a company the key cannot reach, any error the server answers) comes back as an MCP tool

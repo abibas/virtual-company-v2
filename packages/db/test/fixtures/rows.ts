@@ -4,7 +4,9 @@
  * database.
  */
 import { randomBytes } from 'node:crypto';
-import type { RawDbHandle } from '../../src/handle.ts';
+import { newId } from '@mwc/shared/ids';
+import { sql } from 'drizzle-orm';
+import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
 import {
   type Agent,
@@ -133,11 +135,43 @@ export async function insertAgent(
         name: slug,
         slug,
         roleTitle: 'Coder',
-        model: 'claude-opus-5-5',
         ...values,
       })
       .returning(),
   );
+}
+
+/** What an agent row held before migration `0017_profile_model`: its own model and effort. */
+export interface AgentBefore0017 {
+  readonly harness?: Agent['harness'];
+  readonly profileId?: string | null;
+  readonly model?: string;
+  readonly effort?: string;
+  readonly createdAt?: Date;
+}
+
+/**
+ * An agent written with the columns `agents` had before migration `0017_profile_model` (a model and an effort of its
+ * own), for a data-step test seeded at an older migration; `createdAt` orders agents in a tie.
+ */
+export async function insertAgentBefore0017(
+  handle: RawDbHandle,
+  companyId: string,
+  values: AgentBefore0017 = {},
+): Promise<{ id: string }> {
+  const principalId = (await insertPrincipal(handle, companyId, 'agent')).id;
+  const slug = unique('agent');
+  const createdAt = (values.createdAt ?? new Date()).toISOString();
+  const [row] = await queryRows<{ id: string }>(
+    handle,
+    sql`insert into agents (id, company_id, principal_id, name, slug, role_title, harness, model, effort, profile_id,
+          created_at)
+        values (${newId()}, ${companyId}, ${principalId}, ${slug}, ${slug}, 'Coder', ${values.harness ?? 'claude_code'},
+                ${values.model ?? 'claude-opus-5-5'}, ${values.effort ?? 'high'}, ${values.profileId ?? null},
+                ${createdAt})
+        returning id`,
+  );
+  return one(row ? [row] : []);
 }
 
 /** A machine in a company (a laptop with no provider, offline), its name unique unless given. */

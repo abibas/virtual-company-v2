@@ -16,7 +16,7 @@ import {
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { GatewayProvider } from '@mwc/shared/credentials';
-import type { CredentialKind, Harness } from '@mwc/shared/enums';
+import type { CredentialKind, Effort, Harness } from '@mwc/shared/enums';
 import type { TurnEvent } from '@mwc/shared/harness';
 import type { RunnerCaps, TurnEnd, TurnStart } from '@mwc/shared/runner-protocol';
 import type { FakeRunner } from '@mwc/testkit/runner';
@@ -72,6 +72,9 @@ export interface SceneOptions {
   /** The placement's permission policy and configuration folder. */
   readonly permissionPolicy?: 'ask' | 'bypass';
   readonly configDir?: string | null;
+  /** What the profile runs (stored as it is, no rules checked): Opus 5.5 (GPT-6.1 Sol for Codex) at high by default. */
+  readonly model?: string | null;
+  readonly effort?: Effort | null;
 }
 
 export interface Scene {
@@ -140,8 +143,7 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
   const runner = options.offline
     ? undefined
     : await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, ...options.caps } });
-  const model = harness === 'codex' ? 'gpt-5.6-codex' : 'claude-opus-5-5';
-  const agent = await makeAgent(w, company, company.owner, { harness, model });
+  const agent = await makeAgent(w, company, company.owner, { harness });
   const configDir = options.configDir ?? null;
   await place(w, company, agent.id, {
     machineId,
@@ -158,6 +160,9 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
     provider: harness === 'codex' ? 'openai' : 'claude',
     credentialId: credential?.id ?? null,
     gatewayCredentialId: gateway?.id ?? null,
+    model:
+      options.model === undefined ? (harness === 'codex' ? 'gpt-6.1-sol' : 'claude-opus-5-5') : options.model,
+    effort: options.effort === undefined ? 'high' : options.effort,
   });
   await (await tenant(w.t.db, company.companyId)).update(
     agents,

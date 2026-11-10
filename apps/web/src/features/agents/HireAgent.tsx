@@ -3,10 +3,12 @@ import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
 import { orgCalls, placementCalls } from '../../api/org.ts';
+import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, ChartNode, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
+import type { RunsWith } from '../../components/org/agent-labels.ts';
 import { nodesById, personNode } from '../../components/org/chart.ts';
 import { OrgNodeCard } from '../../components/org/OrgNodeCard.tsx';
 import { OrgTree } from '../../components/org/OrgTree.tsx';
@@ -17,6 +19,7 @@ import { type PlacementDraft, placementStep, usePlacementDraft } from '../placem
 import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { type AgentDraft, newAgentOf, type ProfileDefaults, useAgentDraft } from './agent-draft.ts';
+import { runsOf } from './harness-from-profile.ts';
 import type { AgentLinks } from './links.ts';
 
 export interface HireAgentProps {
@@ -35,8 +38,8 @@ export interface HireAgentProps {
 
 const PREVIEW = 'preview';
 
-/** The new agent as its card will read, from what the form holds so far. */
-function previewNode(draft: AgentDraft): ChartNode {
+/** The new agent as its card will read, from what the form holds so far and what its profile runs. */
+function previewNode(draft: AgentDraft, runsWith: RunsWith | null): ChartNode {
   const { values } = draft;
   return {
     principalId: PREVIEW,
@@ -50,9 +53,8 @@ function previewNode(draft: AgentDraft): ChartNode {
       roleTitle: values.roleTitle.trim() || 'Its role',
       status: 'active',
       face: draft.face,
-      model: values.model.trim() || '…',
-      effort: values.effort,
       profile: null,
+      runsWith,
       placement: null,
     },
   };
@@ -63,9 +65,12 @@ function ChartPreview({
   draft,
   chart,
   meUserId,
-}: Omit<HireFormProps, 'companyId' | 'links' | 'onHired' | 'placement'>) {
+  runsWith,
+}: Omit<HireFormProps, 'companyId' | 'links' | 'onHired' | 'placement'> & {
+  readonly runsWith: RunsWith | null;
+}) {
   const manager = nodesById(chart.nodes).get(draft.values.reportsTo);
-  const node = previewNode(draft);
+  const node = previewNode(draft, runsWith);
   const leaf = { principalId: PREVIEW, kind: 'agent' as const, orphan: false, children: [] };
   const tree = manager
     ? [{ principalId: manager.principalId, kind: manager.kind, orphan: false, children: [leaf] }]
@@ -135,6 +140,8 @@ function useHire(companyId: string, drafts: Pick<HireFormProps, 'draft' | 'place
 /** The form with its live preview and the Hire button. */
 function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired }: HireFormProps) {
   const { busy, error, submit } = useHire(companyId, { draft, placement, onHired });
+  const profiles = useAccessProfiles();
+  const runsWith = runsOf(draft.values.profileId, profiles.data?.profiles) ?? null;
   const where = (
     <WhereItRuns
       draft={placement}
@@ -163,6 +170,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
           }
           chart={chart}
           meUserId={meUserId}
+          profiles={profiles}
         />
         <FormActions
           status="It joins the chart at once and works only on the tasks it is given."
@@ -183,7 +191,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
         </FormActions>
       </div>
       <aside className="sticky top-5 max-lg:hidden">
-        <ChartPreview draft={draft} chart={chart} meUserId={meUserId} />
+        <ChartPreview draft={draft} chart={chart} meUserId={meUserId} runsWith={runsWith} />
       </aside>
     </form>
   );

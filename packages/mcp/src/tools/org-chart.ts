@@ -7,12 +7,14 @@ import { answer, inCompany, type ToolDeps, toolError } from './result.ts';
 export const ORG_CHART_DESCRIPTION =
   'The org chart of your company in Most Wanted Corp: every active person and every AI agent that is not archived, ' +
   'and who reports to whom. Returns two texts. First a readable indented tree: a person as "name · title · role", an ' +
-  'agent as "◆ name · role title · status · model/effort", "[orphan]" after someone whose manager is not on the ' +
+  'agent as "◆ name · role title · status · model/effort" (its access profile\'s, "default" for the provider\'s, or ' +
+  '"no profile"), "[orphan]" after someone whose manager is not on the ' +
   'chart. Then compact JSON {company: {id, slug, name}, nodes: [...]}, one node per principal in chart order with ' +
   'principalId, kind ("person" or "agent"), reportsTo (the principalId of their manager, null at the top), title ' +
   '(their title on the chart, or null) and orphan: true when it applies; a person adds name, email and role (owner, ' +
-  'admin, member, viewer), an agent adds agentId, name, slug, roleTitle, status (active or paused), model and ' +
-  "effort. Use it to answer who works for whom, who leads an agent, and who is on a team. By default the key's own " +
+  'admin, member, viewer), an agent adds agentId, name, slug, roleTitle, status (active or paused) and runsWith ' +
+  '({model, effort, provider} of its access profile, null without one). Use it to answer who works for whom, who ' +
+  "leads an agent, and who is on a team. By default the key's own " +
   'company.';
 
 export const COMPANY_DESCRIPTION =
@@ -30,8 +32,8 @@ export function compactNode(node: ChartNode, orphans: ReadonlySet<string>) {
   if (node.kind === 'person') {
     return { ...place, name: nodeName(node), email: node.person.email, role: node.person.role };
   }
-  const { agentId, name, slug, roleTitle, status, model, effort } = node.agent;
-  return { ...place, agentId, name, slug, roleTitle, status, model, effort };
+  const { agentId, name, slug, roleTitle, status, runsWith } = node.agent;
+  return { ...place, agentId, name, slug, roleTitle, status, runsWith };
 }
 
 /** `org_chart`: the company's chart from `GET /api/companies/:companyId/org/chart`, as a tree and as compact JSON. */

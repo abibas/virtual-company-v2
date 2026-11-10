@@ -24,12 +24,10 @@ beforeAll(async () => {
 afterAll(() => w.t.close());
 
 const AUDITED = [
-  'effort',
   'face',
   'harness',
   'instructionsRev',
   'maxConcurrentRuns',
-  'model',
   'name',
   'principalId',
   'roleTitle',
@@ -57,14 +55,13 @@ describe('POST /api/companies/:companyId/agents', () => {
       roleTitle: 'Coder',
       status: 'active',
       harness: 'claude_code',
-      model: 'claude-opus-5-5',
-      effort: 'high',
       instructionsRev: 1,
       maxConcurrentRuns: 1,
       face: agentFace('slop-box'),
       reportsTo: admin.principalId,
       title: null,
       profile: null,
+      runsWith: null,
       placement: null,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt,
@@ -96,7 +93,7 @@ describe('POST /api/companies/:companyId/agents', () => {
     ]);
   });
 
-  it('takes every field it is given, an agent as its manager too', async () => {
+  it('takes every field it is given, an agent as its manager too; a model and effort are its profile’s, not its own', async () => {
     const company = await membersCompany(w);
     const lead = await makeAgent(w, company, company.owner, { name: 'Lead' });
     const agent = await makeAgent(w, company, company.owner, {
@@ -111,12 +108,13 @@ describe('POST /api/companies/:companyId/agents', () => {
       face: 41,
       reportsToPrincipalId: lead.principalId,
     });
+    expect(agent).not.toHaveProperty('model');
+    expect(agent).not.toHaveProperty('effort');
     expect(agent).toMatchObject({
       slug: 'code-reviewer',
       roleTitle: 'Code Reviewer',
-      model: 'claude-fable-5',
-      effort: 'xhigh',
       harness: 'codex',
+      runsWith: null,
       instructions: 'Review every change.',
       instructionsRev: 1,
       maxConcurrentRuns: 8,
@@ -203,8 +201,6 @@ describe('POST /api/companies/:companyId/agents', () => {
       { name: 'X' },
       { name: 'X', roleTitle: 'y'.repeat(81) },
       { name: 'X', roleTitle: 'Coder', slug: 'Not A Slug' },
-      { name: 'X', roleTitle: 'Coder', model: '' },
-      { name: 'X', roleTitle: 'Coder', effort: 'huge' },
       { name: 'X', roleTitle: 'Coder', harness: 'vim' },
       { name: 'X', roleTitle: 'Coder', maxConcurrentRuns: 0 },
       { name: 'X', roleTitle: 'Coder', maxConcurrentRuns: 9 },

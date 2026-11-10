@@ -99,8 +99,12 @@ export type Harness = z.infer<typeof Harness>;
 export const ProfileProvider = z.enum(['claude', 'openai']);
 export type ProfileProvider = z.infer<typeof ProfileProvider>;
 
-/** `agents.effort`: the reasoning effort the harness runs the agent's model with. */
-export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
+/**
+ * `access_profiles.effort` (docs/subscriptions.md, "Model and effort"): the reasoning effort a profile's harness runs its
+ * model with. Every provider's levels together; each provider's own set, and each model's, are `@mwc/shared/models`'s
+ * (Claude Code takes low to max, Codex low to ultra).
+ */
+export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
 export type Effort = z.infer<typeof Effort>;
 
 /**

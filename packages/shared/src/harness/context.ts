@@ -1,14 +1,18 @@
+import type { ProfileProvider } from '../enums.ts';
+import { catalogueModel, DEFAULT_WINDOWS } from '../models.ts';
+
 /**
  * The context window of a model (docs/harness.md, "Events"), for a turn's `context` event when the harness does not
  * report it: Claude Code reports it only at the turn's end (`result.modelUsage[].contextWindow`), and Codex not at all.
- * The longest matching prefix wins; an id naming a 1M window (`[1m]`) is 1M; unknown models are null.
+ * The model catalogue's own window first (`@mwc/shared/models`), else the longest matching prefix below; an id naming
+ * a 1M window (`[1m]`) is 1M; unknown models are null.
  */
 
 const MILLION = 1_000_000;
 
 /**
  * Model id prefixes and their windows: Anthropic's models list (2026-10) and Claude Code's aliases, which name the
- * current models; OpenAI's models as Codex sizes them (272k for the GPT-5 family, its usable input).
+ * current models; OpenAI's models as Codex sizes them (272k for the GPT-5 and GPT-6 families, its usable input).
  */
 export const CONTEXT_WINDOWS: readonly (readonly [prefix: string, window: number])[] = [
   ['claude-fable-5', MILLION],
@@ -27,6 +31,7 @@ export const CONTEXT_WINDOWS: readonly (readonly [prefix: string, window: number
   ['opus', MILLION],
   ['sonnet', MILLION],
   ['haiku', MILLION],
+  ['gpt-6', 272_000],
   ['gpt-5', 272_000],
   ['gpt-4.1', 1_047_576],
   ['o3', 200_000],
@@ -43,9 +48,19 @@ export function contextWindowOf(model: string | null | undefined): number | null
   const id = model?.trim().toLowerCase().replace(PROVIDER_PREFIX, '') ?? '';
   if (id === '') return null;
   if (id.includes('[1m]')) return MILLION;
+  const known = catalogueModel(id);
+  if (known) return known.window;
   let best: readonly [string, number] | undefined;
   for (const entry of CONTEXT_WINDOWS) {
     if (id.startsWith(entry[0]) && (best === undefined || entry[0].length > best[0].length)) best = entry;
   }
   return best?.[1] ?? null;
+}
+
+/**
+ * The window of what an access profile runs: its model's (`contextWindowOf`), or for none (the provider's default) the
+ * window every current model of its provider has.
+ */
+export function profileWindowOf(provider: ProfileProvider, model: string | null | undefined): number | null {
+  return model == null ? DEFAULT_WINDOWS[provider] : contextWindowOf(model);
 }

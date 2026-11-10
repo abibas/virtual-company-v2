@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
+import { newId } from '@mwc/shared/ids';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RawDbHandle } from '../../src/handle.ts';
+import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
-import { accessProfiles, credentials, type NewAccessProfile } from '../../src/schema/index.ts';
+import { credentials } from '../../src/schema/index.ts';
 import { createTestDb, pgError, type TestDb, testDbKind } from '../../src/testing.ts';
 import { migrateUpTo } from '../fixtures/migrations.ts';
 import { insertUser, unique } from '../fixtures/rows.ts';
@@ -41,20 +43,23 @@ beforeAll(async () => {
 });
 afterAll(() => testDb.close());
 
-const openaiProfile = (values: Partial<NewAccessProfile> = {}) =>
-  handle.db
-    .insert(accessProfiles)
-    .values({ ownerUserId: ownerId, name: unique('profile'), provider: 'openai', ...values })
-    .returning();
+/** An OpenAI profile holding this gateway, written with the columns `access_profiles` had at `0015`. */
+const openaiProfile = (gatewayCredentialId: string) =>
+  queryRows(
+    handle,
+    sql`insert into access_profiles (id, owner_user_id, name, provider, gateway_credential_id)
+        values (${newId()}, ${ownerId}, ${unique('profile')}, 'openai', ${gatewayCredentialId})
+        returning provider, gateway_credential_id`,
+  );
 
 describe(`0016_gateway_provider on ${testDbKind()}: an OpenAI profile may hold a gateway`, () => {
   it('refuses an OpenAI profile’s gateway at 0015, and takes it once 0016 dropped the CHECK', async () => {
-    expect(await pgError(openaiProfile({ gatewayCredentialId: gatewayId }))).toMatchObject({
+    expect(await pgError(openaiProfile(gatewayId))).toMatchObject({
       code: '23514',
       constraint: 'access_profiles_gateway_check',
     });
     await migrateToLatest(handle);
-    const [row] = await openaiProfile({ gatewayCredentialId: gatewayId });
-    expect(row).toMatchObject({ provider: 'openai', gatewayCredentialId: gatewayId });
+    const [row] = await openaiProfile(gatewayId);
+    expect(row).toMatchObject({ provider: 'openai', gateway_credential_id: gatewayId });
   });
 });

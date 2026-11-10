@@ -1,11 +1,12 @@
 import { z } from '@hono/zod-openapi';
 import { ACCESS_PROFILE_NAME } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
+import { CredentialKind, CredentialStatus, Effort, ProfileProvider } from '@mwc/shared/enums';
+import { MODEL_ID_MAX, MODEL_ID_PATTERN } from '@mwc/shared/models';
 
 /**
  * The access profiles API's shapes (`/api/me/access-profiles`, S3.4, one provider each since 2026-11-10): a person's
- * named choice of one of their own subscriptions, Claude's or OpenAI's, with an optional gateway of that provider. A
- * credential shows its subscription's metadata, never a secret.
+ * named choice of one of their own subscriptions, Claude's or OpenAI's, with an optional gateway of that provider, and
+ * (since 2026-11-10) the model and effort its runs use. A credential shows its subscription's metadata, never a secret.
  */
 
 export const AccessProfileParamsSchema = z.object({
@@ -24,6 +25,19 @@ const name = z
 
 /** Whose subscription it holds: fixed when it is made. */
 const provider = ProfileProvider;
+
+/** A model id (one of the catalogue's of the profile's provider, or another), or null for the provider's default. */
+const model = z
+  .string()
+  .trim()
+  .min(1, 'A model id is required')
+  .max(MODEL_ID_MAX, `A model id is at most ${MODEL_ID_MAX} characters`)
+  .regex(MODEL_ID_PATTERN, 'A model id is one word of letters, digits and ._:/@[]-')
+  .nullable()
+  .openapi({ example: 'claude-opus-5-5' });
+
+/** A reasoning effort its model takes, or null for the provider's default. */
+const effort = Effort.nullable().openapi({ example: 'high' });
 
 /** One of your subscriptions, or null to empty the profile's. */
 const choice = z.string().nullable().openapi({ example: '019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b' });
@@ -61,6 +75,14 @@ export const AccessProfileSchema = z
     subscription: ProfileSubscriptionSchema.nullable(),
     /** Its gateway (of its provider), which its runs send their AI requests through; null for none. */
     gateway: ProfileSubscriptionSchema.nullable(),
+    model: z.string().nullable().openapi({
+      description:
+        "The model its runs use: one of its provider's in the catalogue, or another id; null: the provider's default",
+      example: 'claude-opus-5-5',
+    }),
+    effort: Effort.nullable().openapi({
+      description: "The reasoning effort its runs use, one its model takes; null: the provider's default",
+    }),
     /** The agents that use it, in your companies. */
     agents: z.array(ProfileAgentSchema),
     createdAt: z.string().openapi({ format: 'date-time' }),
@@ -74,7 +96,8 @@ export const AccessProfileListSchema = z
 
 /**
  * A new profile: a name, its provider and, optionally, one of your subscriptions and one of your gateways of that
- * provider (an `anthropic` gateway for Claude, an `openai` one for OpenAI).
+ * provider (an `anthropic` gateway for Claude, an `openai` one for OpenAI), a model and an effort (none: the provider's
+ * defaults).
  */
 export const CreateAccessProfileSchema = z
   .object({
@@ -82,12 +105,14 @@ export const CreateAccessProfileSchema = z
     provider,
     credentialId: choice.optional(),
     gatewayCredentialId: choice.optional(),
+    model: model.optional(),
+    effort: effort.optional(),
   })
   .openapi('CreateAccessProfile');
 
 /**
- * A new name, another subscription or gateway of the same provider, any of them (null empties one). The provider is
- * fixed: given, it must be the profile's own.
+ * A new name, another subscription or gateway of the same provider, another model or effort, any of them (null empties
+ * one, or goes back to the provider's default). The provider is fixed: given, it must be the profile's own.
  */
 export const UpdateAccessProfileSchema = z
   .object({
@@ -95,6 +120,8 @@ export const UpdateAccessProfileSchema = z
     provider: provider.optional(),
     credentialId: choice.optional(),
     gatewayCredentialId: choice.optional(),
+    model: model.optional(),
+    effort: effort.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, 'Give at least one field to change')
   .openapi('UpdateAccessProfile');

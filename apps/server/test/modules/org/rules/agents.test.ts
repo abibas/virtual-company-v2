@@ -21,8 +21,6 @@ const agent: Agent = {
   roleTitle: 'Coder',
   status: 'active',
   harness: 'claude_code',
-  model: 'claude-opus-5-5',
-  effort: 'high',
   instructions: 'v1',
   instructionsRev: 4,
   maxConcurrentRuns: 1,
@@ -71,10 +69,10 @@ describe('agentChanges', () => {
   it('keeps only the fields that differ, and bumps instructionsRev with new instructions', () => {
     expect(agentChanges(agent, { name: 'SLOP BOX', face: 9, instructions: 'v1' })).toEqual({});
     expect(
-      agentChanges(agent, { name: 'New', effort: 'max', status: 'paused', maxConcurrentRuns: 3 }),
+      agentChanges(agent, { name: 'New', harness: 'codex', status: 'paused', maxConcurrentRuns: 3 }),
     ).toEqual({
       name: 'New',
-      effort: 'max',
+      harness: 'codex',
       status: 'paused',
       maxConcurrentRuns: 3,
     });
@@ -97,8 +95,6 @@ describe('auditedAgent', () => {
       roleTitle: 'Coder',
       status: 'active',
       harness: 'claude_code',
-      model: 'claude-opus-5-5',
-      effort: 'high',
       instructionsRev: 4,
       maxConcurrentRuns: 1,
       face: 9,

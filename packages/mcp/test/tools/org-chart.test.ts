@@ -21,7 +21,7 @@ const TREE =
   'Olga · owner\n' +
   '├── Bob · CTO · admin\n' +
   '└── ◆ SLOP BOX · Coder · active · claude-opus-5-5/xhigh\n' +
-  '◆ Lost · Tester · active · claude-opus-5-5/high [orphan]\n';
+  '◆ Lost · Tester · active · no profile [orphan]\n';
 
 describe('org_chart', () => {
   it('answers the readable tree, then the nodes as compact JSON', async () => {
@@ -62,8 +62,7 @@ describe('org_chart', () => {
           slug: 'slop-box',
           roleTitle: 'Coder',
           status: 'active',
-          model: 'claude-opus-5-5',
-          effort: 'xhigh',
+          runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
         },
         expect.objectContaining({ principalId: lost, kind: 'agent', orphan: true, name: 'Lost' }),
       ],

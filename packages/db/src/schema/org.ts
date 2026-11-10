@@ -1,4 +1,4 @@
-import { AgentStatus, Effort, Harness } from '@mwc/shared/enums';
+import { AgentStatus, Harness } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import {
   AGENT_FACE,
@@ -52,10 +52,8 @@ export const agents = pgTable(
     /** Its job on the chart ("Coder"), 1–80 characters. */
     roleTitle: text('role_title').notNull(),
     status: text('status').$type<AgentStatus>().notNull().default('active'),
+    /** What runs it: its access profile's provider's own harness, set when the profile is given (the web follows it). */
     harness: text('harness').$type<Harness>().notNull().default('claude_code'),
-    /** The harness's model id (`claude-opus-5-5`). */
-    model: text('model').notNull(),
-    effort: text('effort').$type<Effort>().notNull().default('high'),
     /** Its standing instructions (the system prompt's own part); `instructions_rev` counts their versions. */
     instructions: text('instructions').notNull().default(''),
     instructionsRev: integer('instructions_rev').notNull().default(1),
@@ -66,7 +64,7 @@ export const agents = pgTable(
     /**
      * The access profile its runs use (S3.4): a person's subscription of the provider its harness runs on, given by
      * its owner, who is an admin or owner here; none by default. A personal row, so a plain key: it goes when the
-     * profile does.
+     * profile does. Its model and effort are the profile's (migration `0017_profile_model`).
      */
     profileId: uuid('profile_id').references(() => accessProfiles.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
@@ -82,7 +80,6 @@ export const agents = pgTable(
     check('agents_role_title_check', within(sql`char_length(${t.roleTitle})`, AGENT_ROLE_TITLE)),
     check('agents_status_check', oneOf(t.status, AgentStatus.options)),
     check('agents_harness_check', oneOf(t.harness, Harness.options)),
-    check('agents_effort_check', oneOf(t.effort, Effort.options)),
     check('agents_instructions_rev_check', sql`${t.instructionsRev} >= 1`),
     check('agents_max_concurrent_runs_check', within(sql`${t.maxConcurrentRuns}`, AGENT_MAX_CONCURRENT_RUNS)),
     check('agents_face_check', within(sql`${t.face}`, AGENT_FACE)),

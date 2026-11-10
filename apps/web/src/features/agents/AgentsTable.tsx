@@ -5,7 +5,7 @@ import { Link } from '../../app/router.tsx';
 import { type Column, DataTable, Primary } from '../../components/data/DataTable.tsx';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
-import { effortLabel, modelLabel, profileLabel } from '../../components/org/agent-labels.ts';
+import { profileLabel, runsEffortLabel, runsModelLabel } from '../../components/org/agent-labels.ts';
 import { nodeName } from '../../components/org/chart.ts';
 import { AgentAvatar } from '../../components/org/OrgNodeCard.tsx';
 import { Badge, StatusPill } from '../../components/ui/Badge.tsx';
@@ -84,9 +84,14 @@ function agentColumns(links: AgentLinks, managerOf: (agent: Agent) => string): r
       key: 'model',
       header: 'Model',
       className: 'whitespace-nowrap font-mono text-xs leading-[1.6]',
-      cell: (agent) => modelLabel(agent.model),
+      cell: (agent) => (agent.runsWith ? runsModelLabel(agent.runsWith) : 'No profile'),
     },
-    { key: 'effort', header: 'Effort', hide: 'sm', cell: (agent) => effortLabel(agent.effort) },
+    {
+      key: 'effort',
+      header: 'Effort',
+      hide: 'sm',
+      cell: (agent) => (agent.runsWith ? runsEffortLabel(agent.runsWith.effort) : '—'),
+    },
     {
       key: 'profile',
       header: 'Profile',

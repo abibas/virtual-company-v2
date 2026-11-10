@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Effort, Harness } from '../enums.ts';
-import { AGENT_MODEL_MAX } from '../org.ts';
+import { MODEL_ID_MAX } from '../models.ts';
 import { protocolObject, Uuid } from './common.ts';
 
 /**
@@ -76,7 +76,7 @@ export const RunSpec = protocolObject({
   harness: Harness,
   placement: RunPlacement,
   session: RunSession,
-  model: z.string().min(1).max(AGENT_MODEL_MAX),
+  model: z.string().min(1).max(MODEL_ID_MAX),
   effort: Effort,
   permissionPolicy: PermissionPolicy,
   /** Appended to the harness's own system prompt (`--append-system-prompt-file`). */

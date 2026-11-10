@@ -9,6 +9,7 @@ import {
   placementCalls,
   useAgentPlacement,
 } from '../../api/org.ts';
+import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
@@ -171,6 +172,7 @@ function ProfileBody({
   readonly chatsHref: string;
 }) {
   const form = useProfileForm(agent, companyId, onChanged);
+  const profiles = useAccessProfiles();
   const manager = agent.reportsTo ? nodesById(chart.data?.nodes ?? []).get(agent.reportsTo) : undefined;
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -195,6 +197,7 @@ function ProfileBody({
           agent={agent}
           meUserId={meUserId}
           readOnly={!admin}
+          profiles={profiles}
         />
         {admin && <ProfileActions form={form} />}
       </form>

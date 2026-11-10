@@ -1,6 +1,7 @@
 import { ACCESS_PROFILE_NAME, CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
+import { CredentialKind, CredentialStatus, Effort, ProfileProvider } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
+import { MODEL_ID_MAX } from '@mwc/shared/models';
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
@@ -122,6 +123,11 @@ const held = (name: string) => uuid(name).references(() => credentials.id, { onD
  * never revoked ones: the credentials module checks that, since SQL cannot read another row's owner, kind or account
  * details here. Removing a credential empties the profile (it cannot run until its
  * owner chooses another); removing a profile takes it off its agents, chats and defaults (all `on delete set null`).
+ *
+ * Since migration `0017_profile_model` a profile also says what its runs run: a `model` (one of the catalogue's of its
+ * provider or another id, `@mwc/shared/models`) and an `effort`, each null for the provider's default. Agents have no
+ * model or effort of their own any more. SQL keeps only the stored levels and the id's length: which levels a model
+ * takes is the credentials module's rule.
  */
 export const accessProfiles = pgTable(
   'access_profiles',
@@ -141,6 +147,10 @@ export const accessProfiles = pgTable(
     credentialId: held('credential_id'),
     /** The profile's optional gateway (of its own provider), which its runs send their AI requests through. */
     gatewayCredentialId: held('gateway_credential_id'),
+    /** The model its runs use (`claude-opus-5-5`, `gpt-6.1-sol`); null for its provider's default (its harness picks). */
+    model: text('model'),
+    /** The reasoning effort its runs use, one its model takes; null for its provider's default. */
+    effort: text('effort').$type<Effort>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -148,6 +158,8 @@ export const accessProfiles = pgTable(
     unique('access_profiles_owner_user_id_name_unique').on(t.ownerUserId, t.name),
     check('access_profiles_name_check', lengthWithin(t.name, ACCESS_PROFILE_NAME)),
     check('access_profiles_provider_check', oneOf(t.provider, ProfileProvider.options)),
+    check('access_profiles_model_check', lengthWithin(t.model, { min: 1, max: MODEL_ID_MAX })),
+    check('access_profiles_effort_check', oneOf(t.effort, Effort.options)),
   ],
 );
 

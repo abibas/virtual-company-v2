@@ -1,6 +1,8 @@
 import { CHAT_TITLE } from '@mwc/shared/chats';
-import type { ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
+import type { ChatTurnKind, ChatTurnStatus, Effort, Harness } from '@mwc/shared/enums';
 import { contextWindowOf, type InitEvent, type TurnEvent } from '@mwc/shared/harness';
+import { PROVIDER_EFFORTS } from '@mwc/shared/models';
 import type { ChatContextView } from './schemas.ts';
 
 /**
@@ -169,9 +171,13 @@ export interface ConversationState {
 /**
  * The chat's conversation since its last Clear (a `clear` turn forgets everything before it): its last `init`, and its
  * size, from the last `context` (input, cache reads and cache writes of the last request) or a later `compact` that
- * says its size after; the window is the `context`'s, else the model table's for the last `init`'s model.
+ * says its size after; the window is the `context`'s, else the model table's for the last `init`'s model, else
+ * `profileWindow`, the window of what the chat's access profile runs (`profileWindowOf`).
  */
-export function conversationState(turns: readonly TurnWithEvents[]): ConversationState {
+export function conversationState(
+  turns: readonly TurnWithEvents[],
+  profileWindow: number | null = null,
+): ConversationState {
   const state: { init: InitEvent | null; context: ChatContextView | null } = { init: null, context: null };
   for (const turn of turns) {
     if (turn.kind === 'clear') {
@@ -183,9 +189,10 @@ export function conversationState(turns: readonly TurnWithEvents[]): Conversatio
       if (event.type === 'init') state.init = event;
       else if (event.type === 'context') {
         const usedTokens = event.inputTokens + event.cacheReadTokens + event.cacheCreationTokens;
-        state.context = { usedTokens, window: event.window ?? contextWindowOf(model), model, at };
+        const window = event.window ?? contextWindowOf(model) ?? profileWindow;
+        state.context = { usedTokens, window, model, at };
       } else if (event.type === 'compact' && event.postTokens !== null) {
-        const window = state.context?.window ?? contextWindowOf(model);
+        const window = state.context?.window ?? contextWindowOf(model) ?? profileWindow;
         state.context = { usedTokens: event.postTokens, window, model, at };
       }
     }
@@ -194,12 +201,20 @@ export function conversationState(turns: readonly TurnWithEvents[]): Conversatio
 }
 
 /**
- * The model a turn hands its harness: the agent's, except the agent form's "Codex's default model" marker
- * (`codex-default`) and a Claude id on a Codex agent (left over from a profile change), which the harness's own default
- * replaces (null): Codex rejects an id it does not know with a 400. Any other id goes as it is, and the turn's spec
- * check refuses a malformed one by name.
+ * The model a turn hands its harness: its access profile's (since 2026-11-10; the chat's own profile, else the agent's),
+ * except none (the provider's default), the old form's "Codex's default model" marker (`codex-default`) and a Claude id
+ * on a Codex agent, which the harness's own default replaces (null): Codex rejects an id it does not know with a 400.
+ * Any other id goes as it is, and the turn's spec check refuses a malformed one by name.
  */
-export function turnModel(harness: 'claude_code' | 'codex', model: string): string | null {
-  if (model === 'codex-default') return null;
+export function turnModel(harness: Harness, model: string | null): string | null {
+  if (model === null || model === 'codex-default') return null;
   return harness === 'codex' && model.startsWith('claude') ? null : model;
+}
+
+/**
+ * The effort a turn hands its harness: its access profile's, when its harness takes that level (Claude Code low to max,
+ * Codex low to ultra); else none, the harness's own default.
+ */
+export function turnEffort(harness: Harness, effort: Effort | null): Effort | undefined {
+  return effort !== null && PROVIDER_EFFORTS[HARNESS_PROVIDER[harness]].includes(effort) ? effort : undefined;
 }

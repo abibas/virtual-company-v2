@@ -88,10 +88,11 @@ split into several `text` events, each keeping its `parentId`.
 - **`parentId`** (S5.2) is the id of the Agent (or Task) call that started the subagent the event belongs to (Claude's
   `parent_tool_use_id`, the direct parent: a subagent's own subagent names it); the main agent's events have none. A
   reader that shows the main reply skips events with a `parentId` and folds them under that subagent instead.
-- **The context window** is `contextWindowOf(model)` of `@mwc/shared/harness` (`harness/context.ts`): the longest
+- **The context window** is `contextWindowOf(model)` of `@mwc/shared/harness` (`harness/context.ts`): the model
+  catalogue's own window first (`@mwc/shared/models`, docs/subscriptions.md "Model and effort"), else the longest
   matching prefix of a table of the Claude models (the 5 family and Opus/Sonnet 4.6+ at 1M, the older 4.x at 200k,
   Claude Code's aliases `opus`, `sonnet`, `haiku`, `fable` at 1M, an id with `[1m]` at 1M, Bedrock and router prefixes
-  stripped) and the OpenAI ones as Codex sizes them (the GPT-5 family 272k, `gpt-4.1` 1 047 576, `o3`, `o4-mini` and
+  stripped) and the OpenAI ones as Codex sizes them (the GPT-5 and GPT-6 families 272k, `gpt-4.1` 1 047 576, `o3`, `o4-mini` and
   `codex-mini` 200k, `gpt-oss` 131 072); unknown models are null. Claude's `result.modelUsage[].contextWindow`, when it
   differs and is not smaller than what the conversation already holds, gives the last `context` again with it.
 - **Old events stay valid**: every field added in S5.2 is optional, and the new types are new.
@@ -280,7 +281,9 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    proper), its machine's runner connected, newer than chats (`caps.harnesses` with versions) and with the harness's
    CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile;
    Codex: an OpenAI profile; else `profile_harness_mismatch`), with its gateway, and its subscription (`profile_empty`
-   when it has none).
+   when it has none). The spec's model and effort are that profile's (since 2026-11-10; docs/subscriptions.md "Model
+   and effort"): none for the provider's default, and Codex's old marker `codex-default`, a Claude id on Codex or an
+   effort the harness does not take give way to the harness's own default (`turnModel`, `turnEffort`).
 3. **The credential** is opened by the credentials module as its owner (`credentialsForHarness`): one
    `credential_uses` row per turn, naming the company, the agent, the chat and who sent the prompt (`chat_turn`;
    `chat_terminal` for a terminal), and one for the gateway. A Claude login whose access token has under 60 minutes left
@@ -496,7 +499,8 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
   divider. It is not audited: the turn row names who cleared and when, as a prompt's turn does.
 - **The detail** (`GET …/chats/{chatId}`) adds `init` (the last `init` event since the chat's last Clear) and `context`
   (`{usedTokens, window, model, at}`: the last `context` event's input + cache reads + cache writes, or a later
-  `compact`'s `postTokens`; the window from the event, else `contextWindowOf` of `init`'s model; null before anything
+  `compact`'s `postTokens`; the window from the event, else `contextWindowOf` of `init`'s model, else the window of what
+  the chat's access profile runs, `profileWindowOf`; null before anything
   measured the conversation since the last Clear), from the chat's events (the chats module's `conversationState`). A
   page following the stream applies the same rule to the events it gets.
 

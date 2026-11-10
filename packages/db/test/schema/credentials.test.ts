@@ -214,6 +214,8 @@ describe('access_profiles', () => {
       provider: 'claude',
       credentialId: null,
       gatewayCredentialId: null,
+      model: null,
+      effort: null,
     });
     const [claude] = await insert({ kind: 'claude_oauth' });
     const [openai] = await insert({ kind: 'codex_oauth' });
@@ -226,6 +228,14 @@ describe('access_profiles', () => {
     expect(full).toMatchObject({ credentialId: claude?.id, gatewayCredentialId: gateway?.id });
     const codex = await profile({ provider: 'openai', credentialId: openai?.id });
     expect(codex).toMatchObject({ provider: 'openai', credentialId: openai?.id, gatewayCredentialId: null });
+  });
+
+  it('holds a model id of 1 to 100 characters and any stored level; which fit is the credentials module’s rule', async () => {
+    const claude = await profile({ model: 'claude-opus-5-5', effort: 'max' });
+    expect(claude).toMatchObject({ model: 'claude-opus-5-5', effort: 'max' });
+    const codex = await profile({ provider: 'openai', model: 'm'.repeat(100), effort: 'ultra' });
+    expect(codex).toMatchObject({ provider: 'openai', effort: 'ultra' });
+    expect(codex.model).toHaveLength(100);
   });
 
   it('keeps names unique per owner, whatever the provider; another owner may use the same one', async () => {
@@ -256,6 +266,9 @@ describe('access_profiles', () => {
     ['a name over 80 characters', { name: 'x'.repeat(81) }, '23514', 'access_profiles_name_check'],
     ['another provider', { provider: 'gemini' as 'claude' }, '23514', 'access_profiles_provider_check'],
     ['no provider', { provider: null as unknown as 'claude' }, '23502', undefined],
+    ['an empty model', { model: '' }, '23514', 'access_profiles_model_check'],
+    ['a model over 100 characters', { model: 'm'.repeat(101) }, '23514', 'access_profiles_model_check'],
+    ['an unknown effort', { effort: 'turbo' as 'high' }, '23514', 'access_profiles_effort_check'],
     [
       'an owner who is not a user',
       { ownerUserId: MISSING_ID },
@@ -342,11 +355,13 @@ describe('access_profiles', () => {
     }
   });
 
-  it('is a personal table: an owner, no company, a subscription and a gateway', () => {
+  it('is a personal table: an owner, no company, a subscription, a gateway, a model and an effort', () => {
     const config = getTableConfig(accessProfiles);
     expect(config.columns.some((c) => c.name === 'company_id')).toBe(false);
     expect(config.columns.find((c) => c.name === 'owner_user_id')?.notNull).toBe(true);
     expect(config.columns.find((c) => c.name === 'provider')?.notNull).toBe(true);
+    for (const name of ['model', 'effort'])
+      expect(config.columns.find((c) => c.name === name)?.notNull, name).toBe(false);
     const refs = config.foreignKeys.map((fk) => {
       const ref = fk.reference();
       return [ref.columns.map((c) => c.name), getTableConfig(ref.foreignTable).name, fk.onDelete];

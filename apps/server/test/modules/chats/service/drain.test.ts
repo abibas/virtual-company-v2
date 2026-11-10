@@ -10,7 +10,6 @@ import { chatsLive } from '../../../../src/modules/chats/service/live.ts';
 import { credentialsForHarness } from '../../../../src/modules/credentials/index.ts';
 import type { RunnerHub } from '../../../../src/modules/machines/index.ts';
 import { type ChatsWorld, chatsWorld, type Scene, scene, turnRow } from '../../../fixtures/chats/world.ts';
-import { as } from '../../../fixtures/members/members.ts';
 
 // What the routes cannot reach: a waiting turn that goes or loses its start to another one while its checks run, a
 // runner gone between the checks and the send, settings that no longer make a spec, and a queue that fails.
@@ -111,12 +110,9 @@ describe('the chats’ queue', () => {
     expect((await (s.runner as FakeRunner).frames.next('turn.start')).turnId).toBe(second);
   });
 
-  it("fails a turn the agent's settings no longer make a spec for, naming the field", async () => {
-    const s = await scene(w);
+  it("fails a turn the profile's settings no longer make a spec for, naming the field", async () => {
+    const s = await scene(w, { model: 'claude opus' });
     const t = await tenant(w.t.db, s.company.companyId);
-    await as(w, s.company.owner)('PATCH', `/api/companies/${s.company.companyId}/agents/${s.agentId}`, {
-      model: 'claude opus',
-    });
     const id = await waiting(t, s);
     const { drain } = depsWith();
     await chatQueue(drain).startNext(t, s.chat.id);

@@ -123,11 +123,8 @@ describe('POST chats/:chatId/turns refusals', () => {
     expect(s.runner?.frames.of('turn.start')).toEqual([]);
   });
 
-  it("refuses an agent's settings that cannot start a turn, naming the field", async () => {
-    const s = await scene(w);
-    await as(w, s.company.owner)('PATCH', `/api/companies/${s.company.companyId}/agents/${s.agentId}`, {
-      model: 'claude opus',
-    });
+  it("refuses a profile's settings that cannot start a turn (stored without the rules), naming the field", async () => {
+    const s = await scene(w, { model: 'claude opus' });
     const res = await sendPrompt(w, s, 'hi');
     expect(refusal(res)).toEqual([422, 'invalid_spec']);
     expect((res.body as { error: { message: string } }).error.message).toContain('model');

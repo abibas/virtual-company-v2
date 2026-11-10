@@ -1,24 +1,21 @@
 import { z } from '@hono/zod-openapi';
-import {
-  AgentStatus,
-  Effort,
-  Harness,
-  MembershipRole,
-  PlacementMode,
-  PrincipalKind,
-} from '@mwc/shared/enums';
+import { AgentStatus, Harness, MembershipRole, PlacementMode, PrincipalKind } from '@mwc/shared/enums';
 import {
   AGENT_DEFAULTS,
   AGENT_FACE,
   AGENT_INSTRUCTIONS_MAX,
   AGENT_MAX_CONCURRENT_RUNS,
-  AGENT_MODEL_MAX,
   AGENT_NAME,
   AGENT_ROLE_TITLE,
   POSITION_TITLE_MAX,
 } from '@mwc/shared/org';
 import { SLUG_PATTERN } from '@mwc/shared/slugs';
-import { AgentProfileSchema, ProfileChoice, ProfileClearedSchema } from './schemas/profiles.ts';
+import {
+  AgentProfileSchema,
+  ProfileChoice,
+  ProfileClearedSchema,
+  RunsWithSchema,
+} from './schemas/profiles.ts';
 
 const pathParam = (name: string, example: string) =>
   z.string().openapi({ param: { name, in: 'path' }, example });
@@ -55,7 +52,6 @@ const Slug = z
   .string()
   .regex(SLUG_PATTERN, 'lower-case letters, digits and dashes, 1 to 63 characters, no dash at either end')
   .openapi({ example: 'slop-box' });
-const Model = z.string().trim().min(1).max(AGENT_MODEL_MAX).openapi({ example: AGENT_DEFAULTS.model });
 const Instructions = z.string().max(AGENT_INSTRUCTIONS_MAX);
 const MaxRuns = z.number().int().min(AGENT_MAX_CONCURRENT_RUNS.min).max(AGENT_MAX_CONCURRENT_RUNS.max);
 const Face = z.number().int().min(AGENT_FACE.min).max(AGENT_FACE.max);
@@ -77,8 +73,6 @@ export const AgentSchema = z
     roleTitle: z.string(),
     status: AgentStatus,
     harness: Harness,
-    model: z.string(),
-    effort: Effort,
     instructionsRev: z.number().int(),
     maxConcurrentRuns: z.number().int(),
     face: z.number().int(),
@@ -86,6 +80,10 @@ export const AgentSchema = z
     title: z.string().nullable(),
     /** The access profile its runs use (S3.4); null for none. */
     profile: AgentProfileSchema.nullable(),
+    runsWith: RunsWithSchema.nullable().openapi({
+      description:
+        "What its runs run: its access profile's model and effort (null each: the provider's default); null without a profile",
+    }),
     /** Where it runs (S4.7); null until it is placed on a machine. */
     placement: AgentPlacementSummarySchema.nullable(),
     createdAt: at,
@@ -105,15 +103,14 @@ export const AgentListSchema = z.object({ agents: z.array(AgentSchema) }).openap
 
 /**
  * A new agent. Left out: the slug is derived from the name (with `-2`, `-3`, ... when taken), the face from the slug,
- * the manager is the caller, and the profile is the caller's default here (`profileId: null` for none).
+ * the manager is the caller, and the profile is the caller's default here (`profileId: null` for none). Its model and
+ * effort are its profile's (since 2026-11-10): an agent has none of its own.
  */
 export const CreateAgentSchema = z
   .object({
     name: Name,
     slug: Slug.optional(),
     roleTitle: RoleTitle,
-    model: Model.default(AGENT_DEFAULTS.model),
-    effort: Effort.default(AGENT_DEFAULTS.effort),
     harness: Harness.default(AGENT_DEFAULTS.harness),
     instructions: Instructions.default(AGENT_DEFAULTS.instructions),
     maxConcurrentRuns: MaxRuns.default(AGENT_DEFAULTS.maxConcurrentRuns),
@@ -132,8 +129,6 @@ export const UpdateAgentSchema = z
     name: Name.optional(),
     slug: Slug.optional(),
     roleTitle: RoleTitle.optional(),
-    model: Model.optional(),
-    effort: Effort.optional(),
     harness: Harness.optional(),
     instructions: Instructions.optional(),
     maxConcurrentRuns: MaxRuns.optional(),
@@ -189,9 +184,8 @@ export const AgentNodeSchema = z
       roleTitle: z.string(),
       status: AgentStatus,
       face: z.number().int(),
-      model: z.string(),
-      effort: Effort,
       profile: AgentProfileSchema.nullable(),
+      runsWith: RunsWithSchema.nullable(),
       placement: AgentPlacementSummarySchema.nullable(),
     }),
   })

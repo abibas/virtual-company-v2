@@ -6,7 +6,7 @@ import { cx } from '../cx.ts';
 import { AgentFace } from '../feed/AgentFace.tsx';
 import { Avatar, type AvatarSize, initials } from '../ui/Avatar.tsx';
 import { Badge, roleName, StatusPill } from '../ui/Badge.tsx';
-import { modelLine } from './agent-labels.ts';
+import { runsLine } from './agent-labels.ts';
 import { nodeName, nodeSubtitle } from './chart.ts';
 
 export interface OrgNodeCardProps {
@@ -50,7 +50,10 @@ export function NodeAvatar({ node, size = 'md' }: { readonly node: ChartNode; re
   return <Avatar name={name} src={node.person.imageUrl} size={size} fallback={blue} />;
 }
 
-/** What a card says under its name: a person's role; an agent's status, model and effort; a missing manager. */
+/**
+ * What a card says under its name: a person's role; an agent's status and its access profile's model and effort ("No
+ * profile" without one); a missing manager.
+ */
 function NodeFacts({ node, orphan }: { readonly node: ChartNode; readonly orphan: boolean }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-3">
@@ -62,7 +65,7 @@ function NodeFacts({ node, orphan }: { readonly node: ChartNode; readonly orphan
         <>
           <StatusPill status={node.agent.status} size="sm" />
           <span className="min-w-0 truncate font-mono text-2xs text-dim">
-            {modelLine(node.agent.model, node.agent.effort)}
+            {runsLine(node.agent.runsWith)}
           </span>
         </>
       )}

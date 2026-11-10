@@ -16,7 +16,7 @@ describe('agents_list', () => {
       'Agents of Acme (acme):\n' +
         'NAME      SLUG      ROLE    STATUS  MODEL            EFFORT  REPORTS TO\n' +
         'SLOP BOX  slop-box  Coder   active  claude-opus-5-5  xhigh   Olga\n' +
-        'Lost      lost      Tester  active  claude-opus-5-5  high    (off the chart)\n',
+        'Lost      lost      Tester  active  no profile       -       (off the chart)\n',
     );
     const body = JSON.parse(r.texts[1] ?? '');
     expect(body.company).toEqual(w.company);
@@ -28,14 +28,13 @@ describe('agents_list', () => {
       roleTitle: 'Coder',
       status: 'active',
       harness: 'claude_code',
-      model: 'claude-opus-5-5',
-      effort: 'xhigh',
+      runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
       maxConcurrentRuns: 1,
       reportsTo: w.principals.olga,
       reportsToName: 'Olga',
       title: null,
     });
-    expect(body.agents[1]).toMatchObject({ slug: 'lost', reportsToName: null });
+    expect(body.agents[1]).toMatchObject({ slug: 'lost', reportsToName: null, runsWith: null });
   });
 
   it('lists one status or all of them, and says so when there are none', async () => {

@@ -7,6 +7,7 @@ import {
   isLive,
   profileEmpty,
   titleOf,
+  turnEffort,
   turnModel,
   withEvent,
 } from '../../../src/modules/chats/rules.ts';
@@ -117,6 +118,16 @@ describe('conversationState', () => {
     expect(fresh.context).toEqual({ usedTokens: 4, window: null, model: null, at: at(0) });
   });
 
+  it("falls back to the window of what the chat's profile runs when the events and the model table say none", () => {
+    const unknownModel = [turn('message', init('llama-4'), context(1000, null))];
+    expect(conversationState(unknownModel, 272_000).context).toMatchObject({ window: 272_000 });
+    expect(conversationState(unknownModel).context).toMatchObject({ window: null });
+    const known = [turn('message', init('claude-haiku-4-5'), context(1000, null))];
+    expect(conversationState(known, 1_000_000).context).toMatchObject({ window: 200_000 });
+    const compactOnly = [turn('compact', { type: 'compact', preTokens: 9, postTokens: 4 })];
+    expect(conversationState(compactOnly, 272_000).context).toMatchObject({ usedTokens: 4, window: 272_000 });
+  });
+
   it('starts over after a Clear', () => {
     const before = turn('message', init('opus'), context(150_000, 1_000_000));
     expect(conversationState([before, turn('clear')])).toEqual({ init: null, context: null });
@@ -146,5 +157,16 @@ describe('turnModel', () => {
     expect(turnModel('claude_code', 'claude-opus-5-5')).toBe('claude-opus-5-5');
     expect(turnModel('claude_code', 'codex-default')).toBeNull();
     expect(turnModel('claude_code', 'claude opus')).toBe('claude opus');
+    expect(turnModel('codex', null)).toBeNull();
+    expect(turnModel('claude_code', null)).toBeNull();
+  });
+});
+
+describe('turnEffort', () => {
+  it("hands each harness the profile's effort when it takes that level, else none (its own default)", () => {
+    expect(turnEffort('codex', 'ultra')).toBe('ultra');
+    expect(turnEffort('claude_code', 'max')).toBe('max');
+    expect(turnEffort('claude_code', 'ultra')).toBeUndefined();
+    expect(turnEffort('codex', null)).toBeUndefined();
   });
 });

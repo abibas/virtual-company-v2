@@ -12,6 +12,7 @@ import { setPosition } from './service/positions.ts';
 import {
   auditProfileRemoval as auditRemoval,
   type ProfileUse,
+  profileExtras,
   profileRefs,
   profileUses,
   setDefaultProfile,
@@ -68,7 +69,7 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
       const placements = await placementsOf(t);
       return rows.map((agent) =>
         agentView(agent, places.get(agent.principalId), {
-          profile: profiles.get(agent.profileId as string) ?? null,
+          ...profileExtras(profiles, agent.profileId),
           placement: placements.get(agent.id) ?? null,
         }),
       );

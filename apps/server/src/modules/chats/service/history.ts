@@ -1,6 +1,8 @@
-import type { ChatTurn, TenantDb } from '@mwc/db';
+import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
 import { CHAT_WINDOW } from '@mwc/shared/chats';
+import { profileWindowOf } from '@mwc/shared/harness';
 import { historyRepo } from '../repo/history.ts';
+import { profilesRepo } from '../repo/profiles.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { conversationsBefore } from '../rules/history.ts';
@@ -14,7 +16,7 @@ import { eventView, turnView } from './views.ts';
  * conversation (the turns since its last Clear, that Clear first), the latest `CHAT_WINDOW` of them, and says what it
  * left out (`earlier`); the older turns page in by number. What the conversation runs on and how full it is
  * (`conversationState`) still reads the whole current conversation: the left-out turns' `init`, `context` and `compact`
- * events only.
+ * events only; when they name no window, the window is that of what the chat's access profile runs.
  */
 
 /** The turns with their events, in order. */
@@ -44,8 +46,16 @@ export interface CurrentConversation {
   readonly state: ConversationState;
 }
 
+/** The window of what the chat runs (its own access profile, else its agent's); null without one. */
+async function profileWindow(t: TenantDb, chat: Chat): Promise<number | null> {
+  const profileId = chat.profileId ?? (await chatsRepo.agentOf(t, chat.agentId))?.profileId ?? null;
+  const profile = profileId === null ? undefined : await profilesRepo.get(t, profileId);
+  return profile === undefined ? null : profileWindowOf(profile.provider, profile.model);
+}
+
 /** The chat's current conversation, its latest turns with their events, and what is left out (see above). */
-export async function currentConversation(t: TenantDb, chatId: string): Promise<CurrentConversation> {
+export async function currentConversation(t: TenantDb, chat: Chat): Promise<CurrentConversation> {
+  const chatId = chat.id;
   const clears = await historyRepo.clearsOf(t, chatId);
   const fromSeq = clears.at(-1)?.seq ?? 1;
   const rows = await historyRepo.latestOf(t, chatId, { fromSeq }, CHAT_WINDOW);
@@ -61,7 +71,7 @@ export async function currentConversation(t: TenantDb, chatId: string): Promise<
   );
   return {
     turns,
-    state: conversationState([...before, ...turns]),
+    state: conversationState([...before, ...turns], await profileWindow(t, chat)),
     earlier: {
       before: leftOut === 0 ? null : first,
       turns: leftOut,

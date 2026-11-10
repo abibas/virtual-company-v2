@@ -28,6 +28,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: The model catalogue, and a second data step between two generated parts
+
+- **What happened:** `apps/web/src/features/subscriptions/` went from 19 to 20 entries (`big-folder`: `RunsFields.tsx`,
+  a profile's Model and Effort, shared by `ProfileCard.tsx` and `NewProfile.tsx`; split into four parts so no function
+  passes 60 lines, and kept off `Providers.tsx`, which would have reached 8 importers). `AgentForm.tsx` came to 237
+  lines (`near-limit` starts at 240). Migration `0017_profile_model` needed its data step between the new columns and the
+  dropped ones again: generated twice and joined, as `0015` was; the old backfill tests that seed `agents` or
+  `access_profiles` through Drizzle before 0017 failed on the changed columns, so `insertAgentBefore0017` and raw SQL
+  seed them now. A seeding helper several packages' tests use went to `packages/testkit/src/seed/profiles.ts`.
+- **Where:** the profile-model commit.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a migration's data step between generated parts: generate the additions, append
+  the `-- custom:` step, generate the drops and join them into one file"; tests seeding at an older migration write raw
+  SQL for the tables a later migration changes. Grouping `features/subscriptions/` stays an open S5 review item.
+- **Status:** `open`.
+
 ### 2026-11-10: Gateways for Codex grow two folders already over their limit
 
 - **What happened:** `apps/web/src/features/subscriptions/` went from 18 to 19 entries (`big-folder`: `GatewayFields.tsx`,

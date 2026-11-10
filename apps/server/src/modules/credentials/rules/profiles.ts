@@ -5,12 +5,12 @@ import {
   PROFILE_GATEWAY_PROVIDER,
   PROVIDER_KINDS,
 } from '@mwc/shared/credentials';
-import type { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
+import type { CredentialKind, CredentialStatus, Effort, ProfileProvider } from '@mwc/shared/enums';
 
 // Access profiles' own rules (S3.4, one provider each since 2026-11-10, docs/subscriptions.md): what a profile's
 // subscription and gateway take (a gateway of the profile's own provider since migration 0016), what a change writes,
-// and what the audit log keeps of a profile. Who gives a profile to an agent, and to which harness it fits, is the org
-// module's rule. Pure.
+// and what the audit log keeps of a profile; which model and effort it may run is `profile-model.ts`'s. Who gives a
+// profile to an agent, and to which harness it fits, is the org module's rule. Pure.
 
 /** A profile's two credentials: its subscription and its gateway. */
 export type ProfilePart = 'subscription' | 'gateway';
@@ -26,8 +26,19 @@ type PartColumn = (typeof PART_COLUMNS)[ProfilePart];
 /** A profile's credentials as a request gives them: a credential id, null to empty one, or left out to keep it. */
 export type CredentialChoice = { readonly [C in PartColumn]?: string | null | undefined };
 
-/** A profile's name and credentials as stored. */
-export type ProfileFields = { readonly name: string } & { readonly [C in PartColumn]: string | null };
+/** What a profile runs: a model and an effort, each null for the provider's default. */
+export interface ProfileRuns {
+  readonly model: string | null;
+  readonly effort: Effort | null;
+}
+
+/** A profile's name, credentials, model and effort as stored. */
+export type ProfileFields = { readonly name: string } & {
+  readonly [C in PartColumn]: string | null;
+} & ProfileRuns;
+
+/** A change of what a profile runs, as a request gives it: a value, null for the default, or left out to keep it. */
+export type RunsChoice = { readonly [K in keyof ProfileRuns]?: ProfileRuns[K] | undefined };
 
 type RefusalStatus = 404 | 409 | 422;
 
@@ -39,7 +50,11 @@ export interface ProfileRefusal<S extends RefusalStatus = RefusalStatus> {
   readonly message: string;
 }
 
-const refuse = <S extends RefusalStatus>(status: S, code: string, message: string): ProfileRefusal<S> => ({
+export const refuse = <S extends RefusalStatus>(
+  status: S,
+  code: string,
+  message: string,
+): ProfileRefusal<S> => ({
   ok: false,
   status,
   code,
@@ -53,7 +68,10 @@ export const profileNameTaken = (name: string) =>
   refuse(409, 'access_profile_name_taken', `You have an access profile named ${name} already`);
 
 /** Each provider's name with its article, as messages show it: "a Claude", "an OpenAI". */
-const A_PROVIDER: Readonly<Record<ProfileProvider, string>> = { claude: 'a Claude', openai: 'an OpenAI' };
+export const A_PROVIDER: Readonly<Record<ProfileProvider, string>> = {
+  claude: 'a Claude',
+  openai: 'an OpenAI',
+};
 
 /** A change that names another provider than the profile's: it is fixed when the profile is made. */
 export const providerFixed = (provider: ProfileProvider) =>
@@ -63,7 +81,7 @@ export const providerFixed = (provider: ProfileProvider) =>
     `This is ${A_PROVIDER[provider]} profile, and a profile's provider is fixed: make a new profile for the other one`,
   );
 
-const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+export const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 const PART_NAMES: Readonly<Record<ProfilePart, string>> = {
   subscription: 'its subscription',
@@ -146,18 +164,18 @@ export function partsPutIn(
 /** The fields of a change that differ from the profile: an unchanged field writes nothing. */
 export function profileChanges(
   profile: ProfileFields,
-  patch: CredentialChoice & { readonly name?: string | undefined },
+  patch: CredentialChoice & RunsChoice & { readonly name?: string | undefined },
 ): Partial<ProfileFields> {
   const set: Record<string, string | null> = {};
   if (patch.name !== undefined && patch.name !== profile.name) set.name = patch.name;
-  for (const column of Object.values(PART_COLUMNS)) {
+  for (const column of [...Object.values(PART_COLUMNS), 'model', 'effort'] as const) {
     const value = patch[column];
     if (value !== undefined && value !== profile[column]) set[column] = value;
   }
   return set as Partial<ProfileFields>;
 }
 
-/** The fields a profile's audit rows record: its owner, name, provider and the ids of its credentials. */
+/** The fields a profile's audit rows record: its owner, name, provider, the ids of its credentials, its model and effort. */
 export function auditedProfile(
   row: ProfileFields & { readonly ownerUserId: string; readonly provider: ProfileProvider },
 ) {
@@ -167,5 +185,7 @@ export function auditedProfile(
     provider: row.provider,
     credentialId: row.credentialId,
     gatewayCredentialId: row.gatewayCredentialId,
+    model: row.model,
+    effort: row.effort,
   };
 }

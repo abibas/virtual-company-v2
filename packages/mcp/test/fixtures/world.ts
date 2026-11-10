@@ -17,6 +17,7 @@ import {
   seedApiKey,
   seedCompany,
   seedMember,
+  seedProfile,
   type TestApp,
 } from '@mwc/testkit';
 import { onTestFinished } from 'vitest';
@@ -48,8 +49,9 @@ export function tempConfig() {
 }
 
 /**
- * Acme: Olga (owner) at the top, Bob (admin, CTO) and the agent SLOP BOX under her, the archived agent Old QA off the
- * chart, and the agent Lost, whose manager left (an orphan). Globex is another company the key cannot reach.
+ * Acme: Olga (owner) at the top, Bob (admin, CTO) and the agent SLOP BOX under her (on her access profile of Opus 5.5 at
+ * xhigh), the archived agent Old QA off the chart, and the agent Lost, whose manager left (an orphan), with no profile.
+ * Globex is another company the key cannot reach.
  */
 export async function mcpWorld(): Promise<McpWorld> {
   const t = await createTestApp({ identity: new FakeIdentityProvider() });
@@ -67,11 +69,12 @@ export async function mcpWorld(): Promise<McpWorld> {
     reportsTo: olga,
     title: 'CTO',
   });
+  const opus = await seedProfile(t.db, owner.user.id, { model: 'claude-opus-5-5', effort: 'xhigh' });
   const slop = await seedAgent(t.db, id, {
     name: 'SLOP BOX',
     slug: 'slop-box',
     roleTitle: 'Coder',
-    effort: 'xhigh',
+    profileId: opus.id,
     reportsTo: olga,
   });
   await seedAgent(t.db, id, {

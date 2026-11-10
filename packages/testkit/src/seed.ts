@@ -27,7 +27,8 @@ import {
   apiKeyPrefix,
 } from '@mwc/shared/api-keys';
 import type { CompanyStatus, MembershipRole, MembershipStatus } from '@mwc/shared/enums';
-import { AGENT_DEFAULTS } from '@mwc/shared/org';
+
+export { type SeedProfileOptions, seedProfile } from './seed/profiles.ts';
 
 export interface SeedCompanyOptions {
   readonly slug?: string;
@@ -123,7 +124,6 @@ export async function seedAgent(
       name: `Agent ${tag}`,
       slug: `agent-${tag}`,
       roleTitle: 'Coder',
-      model: AGENT_DEFAULTS.model,
       ...fields,
       principalId: principal.id,
     })

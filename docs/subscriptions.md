@@ -184,8 +184,10 @@ different profiles with the single provider/subscription"): a **Claude profile**
 `claude_code` agents; an **OpenAI profile** holds one OpenAI subscription, for `codex` agents; either takes an optional
 gateway of its provider ("Gateways" above). A person makes as many as they like (two Claude profiles on two Max plans, say). Its owner gives
 it to agents of the matching harness in companies where they are an admin or owner (`agents.profile_id`); each person
-has a default per provider and company for the agents they hire. A profile never moves a credential into a company: it
-is a reference the server resolves at run time.
+has a default per provider and company for the agents they hire. Since 2026-11-10 a profile also says **what its runs
+run**, a model and an effort (Ihor: the model "should be part of the PROFILE as well… NOT agent config for sure"): an
+agent has none of its own. A profile never moves a credential into a company: it is a reference the server resolves at
+run time.
 
 Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), one provider each since migration
 `0015_profile_provider`:
@@ -198,22 +200,29 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
   `claude_setup_token` or `anthropic_api_key`; OpenAI `codex_oauth` or `openai_api_key` (`PROVIDER_KINDS`,
   `fitsProvider`); the gateway a `gateway` (`GATEWAY_KINDS`) of the profile's provider (`gatewayFitsProfile`). A
   revoked credential cannot be put in; one revoked while in place stays until it is replaced. Removing a credential
-  empties the profile, which then cannot run until its owner chooses another (a turn says `profile_empty`).
+  empties the profile, which then cannot run until its owner chooses another (a turn says `profile_empty`). Since
+  migration `0017_profile_model`: `model` (text, 1–100, null for the provider's default) and `effort` (null for the
+  provider's default; the CHECK holds the union of every provider's levels, "Model and effort" below).
 - **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
-  only, like subscriptions. `POST` takes `{ name, provider, credentialId?, gatewayCredentialId? }`; `PATCH` any of
-  `name`, `credentialId` and `gatewayCredentialId` (both of the same provider), null emptying one, and `provider` only
-  as the profile's own. Refusals, all 422: a subscription of the other provider and another `provider`
-  (`provider_mismatch`), a gateway that is not one (`credential_kind_mismatch`) or of the other provider
-  (`gateway_provider_mismatch`; `gateway_not_allowed` before 2026-11-10's gateways for Codex), none of the owner's
-  (`credential_not_found`), a revoked one (`credential_revoked`); a taken
-  name is 409. The list shows `provider`, `subscription` and `gateway` as metadata and the agents using each profile in
-  the owner's companies.
+  only, like subscriptions. `POST` takes `{ name, provider, credentialId?, gatewayCredentialId?, model?, effort? }`;
+  `PATCH` any of `name`, `credentialId`, `gatewayCredentialId` (both of the same provider), `model` and `effort`, null
+  emptying one (or going back to the provider's default), and `provider` only as the profile's own. A model id that does
+  not look like one (one word of letters, digits and `._:/@[]-`, 1–100) and an effort that is no provider's are 400.
+  Refusals, all 422: a subscription of the other provider and another `provider` (`provider_mismatch`), a gateway that
+  is not one (`credential_kind_mismatch`) or of the other provider (`gateway_provider_mismatch`; `gateway_not_allowed`
+  before 2026-11-10's gateways for Codex), none of the owner's (`credential_not_found`), a revoked one
+  (`credential_revoked`), a model of the other provider (`model_provider_mismatch`), an effort the model does not take
+  (`effort_unsupported`, checked against what the profile runs after the change, so a new model whose levels lack the
+  stored effort needs an effort with it); a taken name is 409. The list shows `provider`, `subscription` and `gateway`
+  as metadata, `model` and `effort`, and the agents using each profile in the owner's companies.
 - **Giving one to an agent:** `profileId` on `POST`/`PATCH /api/companies/:companyId/agents`. Only the profile's owner
   gives it, signed in (an API key: 403 `session_required`), in a company where they are an admin or owner; someone
   else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`, one of the other provider than the agent's
   harness runs on (Claude for `claude_code`, OpenAI for `codex`, `HARNESS_PROVIDER`) 422 `profile_harness_mismatch`. Any
   admin or owner of the company takes a profile off an agent (`null`), with a session or an API key. Agents and the
-  chart show `profile: {id, name, provider, ownerUserId, ownerName}`, never its subscription.
+  chart show `profile: {id, name, provider, ownerUserId, ownerName}`, never its subscription, and what it runs,
+  `runsWith: {model, effort, provider}` (null without a profile). An agent's `harness` stays on the agent, the harness of
+  its profile's provider, which the web sets with the profile.
 - **Changing an agent's harness** takes off a profile that does not fit the new one (anyone's: taking one off is any
   admin's), with the agent's audit row, and the `PATCH` answer says so in `profileCleared: {profileId, name, message}`; a
   change that names that same profile with the new harness is refused (422 `profile_harness_mismatch`).
@@ -225,22 +234,27 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
 - **A chat's own profile** (S5.1b) follows the same rules: only the owner's, of the provider of the chat's harness
   (`profile_harness_mismatch`); a turn refuses a profile of another provider the same way, and one without a
   subscription with `profile_empty`. The profile's gateway goes with every turn and terminal of its harness and
-  decides where its requests go ("Gateways" above).
+  decides where its requests go ("Gateways" above), and its model and effort are the turn's (the chat's own profile's,
+  else the agent's).
 - **Leaving a company** (removed, leaving, removed or deleted at the provider, suspended: every path of the org chart's
   lifecycle) takes the person's profiles off the company's agents in the same transaction, so their personal
   subscriptions stop powering a company they left. A re-activation does not put them back.
 - **Removing a profile** takes it off its agents, chats and its owner's defaults through the foreign keys, with the
   audit rows of the agents and defaults in its company, by the owner.
 - **Audit:** profile create, update and delete (personal rows: `name`, `provider`, `credentialId`,
-  `gatewayCredentialId`, `ownerUserId`), an agent's `profileId`, a membership's `defaultClaudeProfileId` and
-  `defaultOpenaiProfileId`.
+  `gatewayCredentialId`, `model`, `effort`, `ownerUserId`), an agent's `profileId`, a membership's
+  `defaultClaudeProfileId` and `defaultOpenaiProfileId`.
 - **The web** (Access profiles page): the profiles in two groups, Claude and OpenAI; **New profile** asks the provider
-  first (two big choices), then the name, the subscription of that provider and, for Claude, a gateway; each card shows
-  the provider's badge, the subscription, the gateway (a select of the person's gateways of that provider, for both
-  providers since 2026-11-10) and the agents using it; **Defaults for agents I hire**
+  first (two big choices), then the name, the subscription of that provider, a gateway, and **Model** and **Effort**;
+  each card shows the provider's badge, the subscription, the gateway (a select of the person's gateways of that
+  provider, for both providers since 2026-11-10), Model and Effort (saved as they change) and the agents using it;
+  **Defaults for agents I hire**
   has a Claude and an OpenAI select per company. The agent form offers only profiles of its harness's provider (a
   harness change takes the hirer's default of the new one when hiring, none on an agent's page), with **Make one**
   opening New profile for that provider (`?new=claude|openai`); the chat's picker lists only the matching profiles.
+  The agent form has no Model or Effort (it keeps Runs at once, Access profile and Where it runs): a quiet line under
+  the profile says "Runs <model> at <effort>"; agent cards, the agents table, the agent's header and the chart show the
+  profile's model and effort ("No profile" without one), and a chat's context meter is sized by its profile's model.
 
 **From bundles to one provider** (migration `0015_profile_provider`, its `-- custom:` data step, 2026-11-10): a profile
 with only a Claude subscription, or none, became a Claude profile (keeping its gateway); one with only an OpenAI
@@ -251,6 +265,37 @@ of members whose default it was (the Claude default stayed the original). Each m
 column, and an agent or chat left on a profile of the other provider than its harness lost it. The audit log has each
 new profile, agent and chat moved or cleared, OpenAI default set and gateway let go, by the system, with the request id
 `migration:0015_profile_provider`.
+
+### Model and effort
+
+The catalogue is `@mwc/shared/models` (`MODEL_CATALOGUE`): for each provider the models offered by name, each with its
+context window and the efforts it takes, and the provider's own levels (`PROVIDER_EFFORTS`). The forms offer those, the
+provider's default (null: the harness picks), or another id typed in. `contextWindowOf` reads the catalogue's windows
+first; a profile with no model is sized by `DEFAULT_WINDOWS` (`profileWindowOf`).
+
+| Provider | Models (id, label) | Window | Efforts |
+| --- | --- | --- | --- |
+| Claude (Claude Code's `--effort`) | `claude-opus-5-5` Opus 5.5, `claude-sonnet-5-5` Sonnet 5.5, `claude-haiku-5-5` Haiku 5.5, `claude-fable-5-1` Fable 5.1 | 1M | low, medium, high, xhigh, max |
+| OpenAI (Codex's `model_reasoning_effort`) | `gpt-6.1-sol` GPT-6.1 Sol, `gpt-6-astra` GPT-6 Astra, `gpt-6-sol` GPT-6 Sol, `gpt-5.6-sol` GPT-5.6 Sol, `gpt-5.6-terra` GPT-5.6 Terra | 272k | low, medium, high, xhigh, max, ultra |
+| | `gpt-6-luna` GPT-6 Luna, `gpt-5.6-luna` GPT-5.6 Luna | 272k | low to max |
+| | `gpt-5.5` GPT-5.5 | 272k | low to xhigh |
+
+OpenAI's list is what Codex 0.162.1 shows a ChatGPT sign-in: the model presets compiled into its binary
+(`visibility: list`, in its priority order; the hidden cyber and auto-review models are left out), each with its
+`supported_reasoning_levels` and its `context_window` (272k; `max_context_window` 872k is not used). Codex's config also
+knows `none` and `minimal`, which none of its listed models takes. `ultra` is the deepest level and hands parts of the
+task to helpers. The stored levels are the union (`Effort` of `@mwc/shared/enums`); a profile's effort is one its model
+takes, or its provider's for a typed-in model or the default. A turn and a terminal hand the harness the profile's model
+and effort (none: the harness's own default); Codex's old default marker `codex-default` and a Claude id on Codex still
+become Codex's own default (`turnModel`), and an effort the harness does not take is left out (`turnEffort`).
+
+**From agents to profiles** (migration `0017_profile_model`, its `-- custom:` data step, 2026-11-10): each profile took
+the model most used by the agents that had it (archived ones too) and, counted on its own, the effort most used by them,
+a tie going to the newest agent's; the model became null (the provider's default) when it was Codex's marker
+`codex-default` or a model of the other provider (a Claude id or alias on an OpenAI profile, a GPT, o-series or Codex id
+on a Claude one). A profile no agent used kept both null. Then `agents.model` and `agents.effort` were dropped
+(`agents.harness` stays). The audit log has each value set, by the system, with the request id
+`migration:0017_profile_model`.
 
 ## Security
 

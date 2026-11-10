@@ -17,6 +17,7 @@
     "./ids": "./src/ids.ts",
     "./logos": "./src/logos.ts",
     "./machines": "./src/machines.ts",
+    "./models": "./src/models.ts",
     "./org": "./src/org.ts",
     "./ports": "./src/ports.ts",
     "./resume": "./src/resume.ts",

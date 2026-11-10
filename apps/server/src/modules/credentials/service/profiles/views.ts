@@ -53,6 +53,8 @@ export async function views(
     provider: row.provider,
     subscription: shownAs(row.credentialId),
     gateway: shownAs(row.gatewayCredentialId),
+    model: row.model,
+    effort: row.effort,
     agents: uses.get(row.id) ?? [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

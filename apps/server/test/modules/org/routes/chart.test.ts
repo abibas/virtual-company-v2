@@ -9,6 +9,7 @@ import {
   type OrgChartView,
   placedMember,
   positionPath,
+  seedProfile,
 } from '../../../fixtures/org.ts';
 import { type AuthWorld, addPerson, authWorld } from '../../../fixtures/platform/auth.ts';
 
@@ -35,7 +36,12 @@ describe('GET /api/companies/:companyId/org/chart', () => {
     const admin = await placedMember(w, company, 'admin');
     const viewer = await placedMember(w, company, 'viewer', { reportsTo: admin.principalId });
     await as(w, company.owner)('PUT', positionPath(company, admin.principalId), { title: 'CTO' });
-    const lead = await makeAgent(w, company, admin, { name: 'Lead', effort: 'xhigh' });
+    const work = await seedProfile(w.t.db, admin.userId, {
+      name: 'Work',
+      model: 'claude-opus-5-5',
+      effort: 'xhigh',
+    });
+    const lead = await makeAgent(w, company, admin, { name: 'Lead', profileId: work.id });
     const coder = await makeAgent(w, company, admin, {
       name: 'Coder',
       reportsToPrincipalId: lead.principalId,
@@ -94,13 +100,22 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           roleTitle: 'Coder',
           status: 'active',
           face: lead.face,
-          model: 'claude-opus-5-5',
-          effort: 'xhigh',
-          profile: null,
+          profile: {
+            id: work.id,
+            name: 'Work',
+            provider: 'claude',
+            ownerUserId: admin.userId,
+            ownerName: admin.subject,
+          },
+          runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
           placement: null,
         },
       },
-      expect.objectContaining({ principalId: coder.principalId, reportsTo: lead.principalId }),
+      expect.objectContaining({
+        principalId: coder.principalId,
+        reportsTo: lead.principalId,
+        agent: expect.objectContaining({ profile: null, runsWith: null }),
+      }),
       expect.objectContaining({
         principalId: paused.principalId,
         agent: expect.objectContaining({ status: 'paused' }),

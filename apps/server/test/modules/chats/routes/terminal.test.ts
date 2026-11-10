@@ -61,7 +61,7 @@ describe('POST chats/:chatId/terminal-tickets', () => {
 
 describe("a chat's terminal socket", () => {
   it("opens the harness's TUI on the runner with the chat's spec, and relays it like the machine terminal", async () => {
-    const s = await scene(w);
+    const s = await scene(w, { effort: 'max' });
     const { ticket } = (await askTicket(s)).body as TerminalTicketView;
     const browser = await openTerminal(terminalUrl(w, { ticket, cols: 100, rows: 30 }));
     const runner = s.runner as FakeRunner;
@@ -74,6 +74,7 @@ describe("a chat's terminal socket", () => {
         cwd: HOME,
         sessionId: null,
         model: 'claude-opus-5-5',
+        effort: 'max',
         permissionPolicy: 'ask',
         credential: { kind: 'claude_setup_token' },
         gateway: null,

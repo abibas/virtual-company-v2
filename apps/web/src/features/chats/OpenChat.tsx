@@ -17,6 +17,7 @@ import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
+import { chatRuns } from './context/context-state.ts';
 import { AFTER_ONLY, deliveryChoices, splitQueue } from './delivery/delivery.ts';
 import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
@@ -172,7 +173,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
                 live={live}
                 chat={chat}
                 closed={closed}
-                agentModel={agent.model}
+                runs={chatRuns(chat, agent, rest.profiles)}
               />
             }
           />

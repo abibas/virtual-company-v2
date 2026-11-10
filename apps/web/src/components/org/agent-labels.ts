@@ -1,24 +1,19 @@
-import { Effort, type Harness } from '@mwc/shared/enums';
+import type { Effort, Harness, ProfileProvider } from '@mwc/shared/enums';
+import { catalogueModel, effortsOf } from '@mwc/shared/models';
 import type { Agent } from '../../api/types.ts';
 import type { AgentRef } from '../feed/kinds.ts';
 import type { SegmentOption } from '../forms/Segmented.tsx';
 
-/** The models the agent form offers by name; any other id is a custom model, shown as it is. */
-export const MODELS: readonly { readonly value: string; readonly label: string }[] = [
-  { value: 'claude-opus-5-5', label: 'Opus 5.5' },
-  { value: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
-  { value: 'claude-haiku-5-5', label: 'Haiku 5.5' },
-  { value: 'claude-fable-5-1', label: 'Fable 5.1' },
-];
+/** Each provider's name, as the model and effort lines say it ("Claude's default"). */
+const PROVIDER_WORDS: Readonly<Record<ProfileProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
 
-/** The models offered for a Codex agent: Codex's own default (from its config and the subscription's plan). */
-export const CODEX_MODELS: readonly { readonly value: string; readonly label: string }[] = [
-  { value: 'codex-default', label: "Codex's default model" },
-];
+/** What a profile with no model runs: "Claude's default", "OpenAI's default". */
+export const defaultModelLabel = (provider: ProfileProvider): string =>
+  `${PROVIDER_WORDS[provider]}'s default`;
 
-/** A model as people read it: "Opus 5.5" for a known id, the id itself for a custom one. */
+/** A model as people read it: "Opus 5.5" for one of the catalogue's, the id itself for another. */
 export function modelLabel(model: string): string {
-  return [...MODELS, ...CODEX_MODELS].find((known) => known.value === model)?.label ?? model;
+  return catalogueModel(model)?.label ?? model;
 }
 
 const EFFORT_WORDS: Readonly<Record<Effort, string>> = {
@@ -27,16 +22,29 @@ const EFFORT_WORDS: Readonly<Record<Effort, string>> = {
   high: 'High',
   xhigh: 'X-high',
   max: 'Max',
+  ultra: 'Ultra',
 };
 
-/** How hard the agent thinks, as people read it. */
+/** How hard a profile's runs think, as people read it. */
 export const effortLabel = (effort: Effort): string => EFFORT_WORDS[effort];
 
-/** The efforts in their order, low to max, for a segmented control. */
-export const EFFORT_OPTIONS: readonly SegmentOption<Effort>[] = Effort.options.map((value) => ({
-  value,
-  label: EFFORT_WORDS[value],
-}));
+/** What each level does, as the effort control's hint says it (Codex's own words for its levels). */
+export const EFFORT_HINTS: Readonly<Record<Effort, string>> = {
+  low: 'Fast answers with lighter reasoning.',
+  medium: 'Balances speed and depth for everyday tasks.',
+  high: 'Deeper reasoning for complex problems; suits most work.',
+  xhigh: 'Extra-deep reasoning for complex problems.',
+  max: 'The deepest reasoning, for the hardest problems; costs the most.',
+  ultra: 'The deepest reasoning, and it hands parts of the task to helpers.',
+};
+
+/** The levels a profile of `provider` may run `model` at, low to high, for a segmented control. */
+export function effortOptions(
+  provider: ProfileProvider,
+  model: string | null,
+): readonly SegmentOption<Effort>[] {
+  return effortsOf(provider, model).map((value) => ({ value, label: EFFORT_WORDS[value] }));
+}
 
 const HARNESS_WORDS: Readonly<Record<Harness, string>> = { claude_code: 'Claude Code', codex: 'Codex' };
 
@@ -49,9 +57,23 @@ export const HARNESS_OPTIONS: readonly SegmentOption<Harness>[] = [
   { value: 'codex', label: HARNESS_WORDS.codex },
 ];
 
-/** The model and the effort in one short line ("Opus 5.5 · High"), the small type of a card or a row. */
-export const modelLine = (model: string, effort: Effort): string =>
-  `${modelLabel(model)} · ${effortLabel(effort)}`;
+/** What an agent runs: its access profile's model and effort (null each for the provider's default). */
+export type RunsWith = NonNullable<Agent['runsWith']>;
+
+/** The model a profile runs as people read it: its label, or the provider's default. */
+export const runsModelLabel = (runs: Pick<RunsWith, 'model' | 'provider'>): string =>
+  runs.model === null ? defaultModelLabel(runs.provider) : modelLabel(runs.model);
+
+/** The effort a profile runs at as people read it: its level, or the default. */
+export const runsEffortLabel = (effort: Effort | null): string =>
+  effort === null ? 'Default effort' : effortLabel(effort);
+
+/**
+ * What an agent runs in one short line ("Opus 5.5 · High", "OpenAI's default · Default effort"), its access profile's
+ * model and effort, the small type of a card or a row; "No profile" without one.
+ */
+export const runsLine = (runs: RunsWith | null): string =>
+  runs === null ? 'No profile' : `${runsModelLabel(runs)} · ${runsEffortLabel(runs.effort)}`;
 
 /** The access profile an agent's runs use, with its owner ("Work · Ihor Herasko"), or "None". */
 export const profileLabel = (profile: Agent['profile']): string =>

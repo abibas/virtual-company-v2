@@ -61,13 +61,15 @@ const shown = (view: { id: string; kind: string; label: string; status: string }
 });
 
 describe('POST /api/me/access-profiles', () => {
-  it('makes a Claude profile of a subscription and a gateway, shown as metadata only, and audits it', async () => {
+  it('makes a Claude profile of a subscription, a gateway, a model and an effort, shown as metadata only, and audits it', async () => {
     const [claude, gateway] = [await sub(ihor, 'claude_setup_token'), await sub(ihor, 'gateway')];
     const res = await as(ihor, 'req-profile-1')('POST', PROFILES, {
       name: '  Work ',
       provider: 'claude',
       credentialId: claude.id,
       gatewayCredentialId: gateway.id,
+      model: ' claude-opus-5-5 ',
+      effort: 'xhigh',
     });
     expect(res.status).toBe(201);
     const view = res.body as AccessProfileView;
@@ -77,6 +79,8 @@ describe('POST /api/me/access-profiles', () => {
       provider: 'claude',
       subscription: shown(claude),
       gateway: shown(gateway),
+      model: 'claude-opus-5-5',
+      effort: 'xhigh',
       agents: [],
       createdAt: view.createdAt,
       updatedAt: view.updatedAt,
@@ -86,7 +90,9 @@ describe('POST /api/me/access-profiles', () => {
     expect(audit).toEqual(
       [
         ['credentialId', claude.id],
+        ['effort', 'xhigh'],
         ['gatewayCredentialId', gateway.id],
+        ['model', 'claude-opus-5-5'],
         ['name', 'Work'],
         ['ownerUserId', ihor.userId],
         ['provider', 'claude'],
@@ -112,7 +118,13 @@ describe('POST /api/me/access-profiles', () => {
       credentialId: openai.id,
       gatewayCredentialId: null,
     });
-    expect(view).toMatchObject({ provider: 'openai', subscription: shown(openai), gateway: null });
+    expect(view).toMatchObject({
+      provider: 'openai',
+      subscription: shown(openai),
+      gateway: null,
+      model: null,
+      effort: null,
+    });
   });
 
   it('gives each provider a gateway of its own: Anthropic for Claude, OpenAI for Codex, never the other (422)', async () => {

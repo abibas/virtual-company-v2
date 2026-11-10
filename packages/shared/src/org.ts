@@ -1,4 +1,4 @@
-import type { Effort, Harness } from './enums.ts';
+import type { Harness } from './enums.ts';
 
 /**
  * The org chart's contract (docs/architecture.md, section 6): the limits of an agent and of a place on the chart,
@@ -21,22 +21,18 @@ export const AGENT_MAX_CONCURRENT_RUNS = { min: 1, max: 8 } as const;
 /** The web's drawn faces (`AgentFace`, 7 colours × 6 features): 0 to 41 (`agents_face_check`). */
 export const AGENT_FACE = { min: 0, max: 41 } as const;
 
-/** The longest model id the API takes (no CHECK: the harness decides which ids exist). */
-export const AGENT_MODEL_MAX = 100;
-
 /** The longest standing instructions the API takes, in characters (no CHECK). */
 export const AGENT_INSTRUCTIONS_MAX = 100_000;
 
-/** What a new agent gets for the fields it is created without (its face comes from its slug, `agentFace`). */
+/**
+ * What a new agent gets for the fields it is created without (its face comes from its slug, `agentFace`). Its model and
+ * effort are its access profile's (`@mwc/shared/models`).
+ */
 export const AGENT_DEFAULTS: {
-  readonly model: string;
-  readonly effort: Effort;
   readonly harness: Harness;
   readonly instructions: string;
   readonly maxConcurrentRuns: number;
 } = {
-  model: 'claude-opus-5-5',
-  effort: 'high',
   harness: 'claude_code',
   instructions: '',
   maxConcurrentRuns: 1,

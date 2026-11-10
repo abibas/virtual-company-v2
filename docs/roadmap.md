@@ -305,6 +305,29 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    spawn: its exact arguments, output and caps, success, failure, busy, timeout, container, npm missing) and wire, the
    hub's `runner.caps` and `tools.output`, the routes (roles, offline, outdated, busy, container, audit); no real install,
    no frontend tests.
+   **Model and effort live in the access profile: done 2026-11-10** (docs/subscriptions.md "Model and effort"; Ihor: the
+   model "should be part of the PROFILE as well… NOT agent config for sure", "list of models is needed for sure!!…
+   reasoning could be different from Claude as well"). `@mwc/shared/models`: the catalogue, Claude's Claude 5 family
+   (Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1; 1M; low to max) and the models Codex 0.162.1 shows a ChatGPT sign-in,
+   read from the presets compiled into its binary without running a turn (GPT-6.1 Sol, GPT-6 Astra, GPT-6 Sol, GPT-6
+   Luna, GPT-5.6 Sol, Terra and Luna, GPT-5.5; 272k; each with its own levels of low, medium, high, xhigh, max and
+   ultra); `Effort` is the union, `PROVIDER_EFFORTS` each provider's, `contextWindowOf` reads the catalogue first and
+   `profileWindowOf` sizes a profile on the provider's default. Migration `0017_profile_model`:
+   `access_profiles.model` and `effort` (null: the provider's default); its `-- custom:` data step gives each profile
+   its agents' most used model and most used effort (a tie: the newest agent's; `codex-default` and a model of the
+   other provider become null; unused profiles stay null), audited by the system; then `agents.model` and
+   `agents.effort` go (`agents.harness` stays). Routes: profiles take `model` and `effort` (422
+   `model_provider_mismatch`, `effort_unsupported`; a malformed id 400); agents no longer take or return them and show
+   `runsWith: {model, effort, provider} | null` on their views and the chart; turns and terminals run the effective
+   profile's model and effort (`turnModel`'s marker rules kept, `turnEffort`), and a chat's detail sizes its window by
+   its profile when the events do not. `mwc agents list`, `mwc org tree` and the MCP's `agents_list` and `org_chart`
+   show the profile's model and effort (`default`, `no profile`); `seedProfile` in `@mwc/testkit`. Web: the profile card
+   and New profile get Model (the provider's list, "<Provider>'s default", another id) and Effort (its levels, with a
+   hint); the agent form drops Model and Effort and says "Runs <model> at <effort>" under the profile; cards, the table,
+   the header and the chart show the profile's; the context meter is sized by the profile's model. Tests: the
+   catalogue, the backfill seeded at `0016` (several agents per profile, ties, a cross-provider model, `codex-default`,
+   unused profiles, the dropped columns), the profile routes per provider, `runsWith`, turns on the chat's or the
+   agent's profile, the CLI and MCP output; no real turn run, no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

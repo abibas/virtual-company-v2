@@ -9,7 +9,7 @@ import { PrincipalSelect } from '../../components/org/PrincipalSelect.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import type { AgentDraft } from './agent-draft.ts';
-import { ModelPanel } from './ModelFields.tsx';
+import { ModelPanel, type OwnProfiles } from './ModelFields.tsx';
 
 /** Every drawn face, as choices of the face picker. */
 const FACES: readonly AgentRef[] = Array.from(
@@ -217,6 +217,8 @@ export interface AgentFormProps {
   readonly meUserId: string;
   /** Viewers and members: the same fields, shown and not changeable. */
   readonly readOnly?: boolean;
+  /** The person's own access profiles (`useAccessProfiles`), for the profile's choices and what it runs. */
+  readonly profiles: OwnProfiles;
 }
 
 /**

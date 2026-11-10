@@ -1,9 +1,8 @@
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
-import type { Effort, Harness, ProfileProvider } from '@mwc/shared/enums';
+import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import {
   AGENT_DEFAULTS,
   AGENT_INSTRUCTIONS_MAX,
-  AGENT_MODEL_MAX,
   AGENT_NAME,
   AGENT_ROLE_TITLE,
   agentFace,
@@ -11,7 +10,6 @@ import {
 import { slugify } from '@mwc/shared/slugs';
 import { useState } from 'react';
 import type { AgentChanges, AgentDetail, NewAgent } from '../../api/types.ts';
-import { MODELS } from '../../components/org/agent-labels.ts';
 
 /** What the agent form holds. */
 export interface AgentValues {
@@ -19,10 +17,7 @@ export interface AgentValues {
   readonly roleTitle: string;
   /** The face picked; null follows the face of the slug the name makes. */
   readonly face: number | null;
-  readonly model: string;
-  /** The model is typed as an id instead of picked from the known ones. */
-  readonly customModel: boolean;
-  readonly effort: Effort;
+  /** What runs it: its access profile's provider's harness (its model and effort are the profile's). */
   readonly harness: Harness;
   readonly maxConcurrentRuns: number;
   /** The manager's principal id. */
@@ -55,14 +50,10 @@ const within = (text: string, limits: { readonly min: number; readonly max: numb
 
 /** The form's start: the agent's own values, or a new agent's defaults under `reportsTo` with `profileId`. */
 function startOf(agent: AgentDetail | undefined, reportsTo: string, profileId: string | null): AgentValues {
-  const model = agent?.model ?? AGENT_DEFAULTS.model;
   return {
     name: agent?.name ?? '',
     roleTitle: agent?.roleTitle ?? '',
     face: agent?.face ?? null,
-    model,
-    customModel: !MODELS.some((known) => known.value === model),
-    effort: agent?.effort ?? AGENT_DEFAULTS.effort,
     harness: agent?.harness ?? AGENT_DEFAULTS.harness,
     maxConcurrentRuns: agent?.maxConcurrentRuns ?? AGENT_DEFAULTS.maxConcurrentRuns,
     // An archived agent has no place (and no manager) until it is restored.
@@ -93,7 +84,6 @@ export function useAgentDraft(
     valid:
       within(values.name, AGENT_NAME) &&
       within(values.roleTitle, AGENT_ROLE_TITLE) &&
-      within(values.model, { min: 1, max: AGENT_MODEL_MAX }) &&
       values.instructions.length <= AGENT_INSTRUCTIONS_MAX,
     reset: () => setValues(startOf(agent, reportsTo, defaultProfileId)),
   };
@@ -106,8 +96,6 @@ export function newAgentOf(draft: AgentDraft): NewAgent {
     name: values.name.trim(),
     roleTitle: values.roleTitle.trim(),
     face: draft.face,
-    model: values.model.trim(),
-    effort: values.effort,
     harness: values.harness,
     maxConcurrentRuns: values.maxConcurrentRuns,
     instructions: values.instructions,
@@ -123,8 +111,6 @@ export function changesOf(draft: AgentDraft, agent: AgentDetail): Partial<AgentC
     name: values.name.trim(),
     roleTitle: values.roleTitle.trim(),
     face: draft.face,
-    model: values.model.trim(),
-    effort: values.effort,
     harness: values.harness,
     maxConcurrentRuns: values.maxConcurrentRuns,
     instructions: values.instructions,

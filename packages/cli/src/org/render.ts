@@ -3,7 +3,7 @@
  * indented tree and an aligned table. `mwc org tree`, `mwc agents list` and the `@mwc/mcp` tools print these;
  * exported as `@mwc/cli/org/render`.
  */
-import type { Agent, ChartNode, OrgChart, TreeEntry } from '../api/org.ts';
+import type { Agent, ChartNode, OrgChart, RunsWith, TreeEntry } from '../api/org.ts';
 
 /** The company a text is about, as `GET /api/me` names it. */
 export interface CompanyRef {
@@ -34,15 +34,29 @@ export function principalNames(chart: OrgChart): ReadonlyMap<string, string> {
   return new Map(chart.nodes.map((node) => [node.principalId, nodeName(node)]));
 }
 
+/** What an agent without an access profile runs: nothing yet. */
+export const NO_PROFILE = 'no profile';
+
+/** What an agent runs, as the tree and the table say it: its profile's model or `default`, and the same of its effort. */
+export function runsParts(runsWith: RunsWith | null): { readonly model: string; readonly effort: string } {
+  if (runsWith === null) return { model: NO_PROFILE, effort: '-' };
+  return { model: runsWith.model ?? 'default', effort: runsWith.effort ?? 'default' };
+}
+
 function nodeParts(node: ChartNode): string[] {
   if (node.kind === 'person') {
     return [nodeName(node), ...(node.title ? [node.title] : []), node.person.role];
   }
   const { agent } = node;
-  return [`${AGENT_MARK} ${agent.name}`, agent.roleTitle, agent.status, `${agent.model}/${agent.effort}`];
+  const runs = runsParts(agent.runsWith);
+  const runsOn = agent.runsWith === null ? NO_PROFILE : `${runs.model}/${runs.effort}`;
+  return [`${AGENT_MARK} ${agent.name}`, agent.roleTitle, agent.status, runsOn];
 }
 
-/** One entry of the tree: `Olga · CEO · owner`, `◆ SLOP BOX · Coder · active · claude-opus-5-5/xhigh`. */
+/**
+ * One entry of the tree: `Olga · CEO · owner`, `◆ SLOP BOX · Coder · active · claude-opus-5-5/xhigh` (its access
+ * profile's model and effort, `default` for the provider's, `no profile` without one).
+ */
 export function nodeLabel(node: ChartNode | undefined, entry: TreeEntry): string {
   const label = node === undefined ? `? ${entry.principalId}` : nodeParts(node).join(' · ');
   return entry.orphan ? `${label} ${ORPHAN_MARK}` : label;
@@ -96,7 +110,10 @@ const HEADERS = ['NAME', 'SLUG', 'ROLE', 'STATUS', 'MODEL', 'EFFORT', 'REPORTS T
 const filtered = (status: string | undefined) =>
   status === undefined ? 'active or paused agents' : status === 'all' ? 'agents' : `${status} agents`;
 
-/** The agents as a table (name, slug, role, status, model, effort, reports to), or a sentence when there are none. */
+/**
+ * The agents as a table (name, slug, role, status, model and effort of its access profile, reports to), or a sentence
+ * when there are none.
+ */
 export function agentsText(
   company: CompanyRef,
   agents: readonly Agent[],
@@ -107,6 +124,9 @@ export function agentsText(
   const names = principalNames(chart);
   return alignRows([
     HEADERS,
-    ...agents.map((a) => [a.name, a.slug, a.roleTitle, a.status, a.model, a.effort, managerLabel(a, names)]),
+    ...agents.map((a) => {
+      const runs = runsParts(a.runsWith);
+      return [a.name, a.slug, a.roleTitle, a.status, runs.model, runs.effort, managerLabel(a, names)];
+    }),
   ]);
 }

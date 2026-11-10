@@ -3,7 +3,7 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { profilesOf, type UserProfile } from '../../identity/service.ts';
 import type { profileRows } from '../repo/profiles.ts';
 import type { giveRefusal } from '../rules/agents.ts';
-import type { AgentProfileView } from '../schemas/profiles.ts';
+import type { AgentProfileView, RunsWithView } from '../schemas/profiles.ts';
 
 // Access profiles on the chart (S3.4, one provider each since 2026-11-10, docs/subscriptions.md): which profile an
 // agent's runs use, who may give it and which fit its harness, and a member's defaults, one per provider, for the agents
@@ -19,36 +19,45 @@ export type ProfileRepo = typeof profileRows & {
 
 export type Given<T> = ({ readonly ok: true } & T) | NonNullable<ReturnType<typeof giveRefusal>>;
 
+/** A profile as agents show it, and what its runs run. */
+export interface ProfileRef {
+  readonly profile: AgentProfileView;
+  readonly runsWith: RunsWithView;
+}
+
 /**
- * The profiles of these ids that exist, as agents show them (name, provider and owner, no subscription), by id.
- * People's names come from the identity module's service on the handle, so this runs outside any transaction.
+ * The profiles of these ids that exist, as agents show them (name, provider and owner, no subscription) with the model
+ * and effort they run, by id. People's names come from the identity module's service on the handle, so this runs
+ * outside any transaction.
  */
 export async function profileRefs(
   deps: Pick<ServerDeps, 'db'>,
   repo: ProfileRepo,
   t: TenantDb,
   ids: readonly (string | null)[],
-): Promise<Map<string, AgentProfileView>> {
+): Promise<Map<string, ProfileRef>> {
   const wanted = ids.filter((id): id is string => id !== null);
   const owners = await repo.profileOwners(t, wanted);
   const byOwner = new Map<string, string[]>();
   for (const [id, owner] of owners) byOwner.set(owner, [...(byOwner.get(owner) ?? []), id]);
   const people = await profilesOf(deps.db, [...byOwner.keys()]);
-  const refs = new Map<string, AgentProfileView>();
+  const refs = new Map<string, ProfileRef>();
   for (const [owner, theirs] of byOwner) {
     // A profile's owner is a user while `access_profiles.owner_user_id` keeps its key.
     const { displayName, primaryEmail } = people.get(owner) as UserProfile;
     for (const row of await repo.ownerProfiles(t, owner, theirs)) {
-      refs.set(row.id, {
-        id: row.id,
-        name: row.name,
-        provider: row.provider,
-        ownerUserId: owner,
-        ownerName: displayName ?? primaryEmail,
-      });
+      const { id, name, provider, model, effort } = row;
+      const profile = { id, name, provider, ownerUserId: owner, ownerName: displayName ?? primaryEmail };
+      refs.set(id, { profile, runsWith: { model, effort, provider } });
     }
   }
   return refs;
+}
+
+/** An agent's profile and what it runs, from `profileRefs`; both null without one (or one that no longer exists). */
+export function profileExtras(refs: ReadonlyMap<string, ProfileRef>, profileId: string | null) {
+  const ref = profileId === null ? undefined : refs.get(profileId);
+  return { profile: ref?.profile ?? null, runsWith: ref?.runsWith ?? null };
 }
 
 /** An agent of a company that uses one of a person's profiles, for their list of profiles. */

@@ -8,6 +8,7 @@ import {
 } from '@mwc/db';
 import { auditProfileRemoval } from '../../org/service.ts';
 import { profileRows as repo } from '../repo/profiles.ts';
+import { runsAfter, runsRefusal } from '../rules/profile-model.ts';
 import {
   auditedProfile,
   type CredentialChoice,
@@ -91,18 +92,25 @@ async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileVi
   return views(o, rows, uses);
 }
 
-/** A new profile of the caller's, its credentials checked against its provider (422), its name unique (409). */
+/**
+ * A new profile of the caller's, its model and effort and its credentials checked against its provider (422), its name
+ * unique (409).
+ */
 async function createProfile(
   deps: Deps,
   caller: Caller,
   body: CreateAccessProfile,
 ): Promise<Saved<409 | 422>> {
+  const runs = { model: body.model ?? null, effort: body.effort ?? null };
+  const refused = runsRefusal(body.provider, runs);
+  if (refused) return refused;
   const saved = await namedWrite(body.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
       const refusal = await choiceRefusal(o, { provider: body.provider }, body);
       if (refusal) return refusal;
       const { name, provider, credentialId, gatewayCredentialId } = body;
-      const row = await repo.insertProfile(o, { name, provider, credentialId, gatewayCredentialId });
+      const values = { name, provider, credentialId, gatewayCredentialId, ...runs };
+      const row = await repo.insertProfile(o, values);
       await o.audit(entry(caller, row.id, 'create', diffFields(null, auditedProfile(row))));
       return row;
     }),
@@ -111,8 +119,8 @@ async function createProfile(
 }
 
 /**
- * Renames one of the caller's profiles or changes its credentials (its provider is fixed: 422 `provider_mismatch`);
- * only what differs is written and audited.
+ * Renames one of the caller's profiles or changes its credentials, model or effort (its provider is fixed: 422
+ * `provider_mismatch`; a model and effort it may run, `runsRefusal`); only what differs is written and audited.
  */
 async function updateProfile(
   deps: Deps,
@@ -129,6 +137,9 @@ async function updateProfile(
       if (refusal) return refusal;
       const set = profileChanges(row, patch);
       if (Object.keys(set).length === 0) return row;
+      const refused =
+        'model' in set || 'effort' in set ? runsRefusal(row.provider, runsAfter(row, set)) : undefined;
+      if (refused) return refused;
       const after = await repo.updateProfile(o, row.id, set);
       await o.audit(entry(caller, row.id, 'update', diffFields(auditedProfile(row), auditedProfile(after))));
       return after;
@@ -163,7 +174,7 @@ async function removeProfile(
  * The access profiles API's logic (S3.4, one provider each since 2026-11-10), always as the caller (the personal layer):
  * list their profiles, create one, change one, remove one. A profile's provider is fixed when it is made; its
  * subscription is one of the caller's own of that provider, its gateway one of their gateways of that provider, never a
- * revoked one (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
+ * revoked one, its model one of that provider's and its effort one its model takes (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
  * its `access_profile` audit rows; removing one also writes, in each of the caller's companies, the rows of the agents
  * and defaults it leaves (the org module's `auditProfileRemoval`), before the foreign keys detach it.
  */

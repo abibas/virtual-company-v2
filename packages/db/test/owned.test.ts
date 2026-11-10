@@ -203,5 +203,5 @@ describe('the bridges between the personal and the tenant layer', () => {
 async function insertAgentIn(t: TenantDb, name: string) {
   const [principal] = await t.insert(principals, { kind: 'agent' }).returning();
   const principalId = (principal as { id: string }).id;
-  await t.insert(agents, { principalId, name, slug: unique('agent'), roleTitle: 'Coder', model: 'm' });
+  await t.insert(agents, { principalId, name, slug: unique('agent'), roleTitle: 'Coder' });
 }

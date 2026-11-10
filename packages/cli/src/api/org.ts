@@ -26,6 +26,14 @@ export interface PersonNode extends NodeBase {
   };
 }
 
+/** What an agent's runs run: its access profile's model and effort, each null for the provider's default. */
+export interface RunsWith {
+  readonly model: string | null;
+  readonly effort: string | null;
+  /** `claude` or `openai`. */
+  readonly provider: string;
+}
+
 /** An agent on the chart. */
 export interface AgentNode extends NodeBase {
   readonly kind: 'agent';
@@ -36,8 +44,8 @@ export interface AgentNode extends NodeBase {
     readonly roleTitle: string;
     readonly status: string;
     readonly face: number;
-    readonly model: string;
-    readonly effort: string;
+    /** Null without an access profile. */
+    readonly runsWith: RunsWith | null;
   };
 }
 
@@ -66,8 +74,8 @@ export interface Agent {
   readonly roleTitle: string;
   readonly status: string;
   readonly harness: string;
-  readonly model: string;
-  readonly effort: string;
+  /** Its access profile's model and effort; null without a profile. */
+  readonly runsWith: RunsWith | null;
   readonly instructionsRev: number;
   readonly maxConcurrentRuns: number;
   readonly face: number;

@@ -8,6 +8,7 @@ import {
   nodeLabel,
   nodeName,
   principalNames,
+  runsParts,
   treeLines,
 } from '../../src/org/render.ts';
 
@@ -46,8 +47,7 @@ const agentNode = (principalId: string, reportsTo: string | null, name: string) 
       roleTitle: 'Coder',
       status: 'active',
       face: 3,
-      model: 'claude-opus-5-5',
-      effort: 'max',
+      runsWith: { model: 'claude-opus-5-5', effort: 'max', provider: 'claude' },
     },
   }) satisfies AgentNode;
 
@@ -66,8 +66,7 @@ const agent = (fields: Partial<Agent>): Agent => ({
   roleTitle: 'Coder',
   status: 'active',
   harness: 'claude_code',
-  model: 'claude-opus-5-5',
-  effort: 'high',
+  runsWith: { model: 'claude-opus-5-5', effort: 'high', provider: 'claude' },
   instructionsRev: 1,
   maxConcurrentRuns: 1,
   face: 0,
@@ -92,6 +91,20 @@ describe('the org chart as text', () => {
       '◆ Ana · Coder · active · claude-opus-5-5/max [orphan]',
     );
     expect(nodeLabel(undefined, entry('p9'))).toBe('? p9');
+  });
+
+  it("says what an agent runs: its profile's model and effort, default for the provider's, or no profile", () => {
+    const ana = agentNode('p2', null, 'Ana');
+    const runs = (runsWith: AgentNode['agent']['runsWith']) =>
+      nodeLabel({ ...ana, agent: { ...ana.agent, runsWith } }, entry('p2'));
+    expect(runs({ model: null, effort: 'ultra', provider: 'openai' })).toBe(
+      '◆ Ana · Coder · active · default/ultra',
+    );
+    expect(runs({ model: 'gpt-6.1-sol', effort: null, provider: 'openai' })).toBe(
+      '◆ Ana · Coder · active · gpt-6.1-sol/default',
+    );
+    expect(runs(null)).toBe('◆ Ana · Coder · active · no profile');
+    expect(runsParts(null)).toEqual({ model: 'no profile', effort: '-' });
   });
 
   it('draws guides for deep and wide trees and puts every top at the margin', () => {
@@ -150,6 +163,15 @@ describe('the agents as text', () => {
     expect(agentsText(ACME, [agent({ reportsTo: 'p1' })], chart)).toBe(
       'NAME      SLUG      ROLE   STATUS  MODEL            EFFORT  REPORTS TO\n' +
         'SLOP BOX  slop-box  Coder  active  claude-opus-5-5  high    Olga\n',
+    );
+    const mixed = [
+      agent({ name: 'Codex', slug: 'codex', runsWith: { model: null, effort: null, provider: 'openai' } }),
+      agent({ name: 'Bare', slug: 'bare', runsWith: null }),
+    ];
+    expect(agentsText(ACME, mixed, chart)).toBe(
+      'NAME   SLUG   ROLE   STATUS  MODEL       EFFORT   REPORTS TO\n' +
+        'Codex  codex  Coder  active  default     default  -\n' +
+        'Bare   bare   Coder  active  no profile  -        -\n',
     );
   });
 });

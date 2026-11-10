@@ -118,7 +118,7 @@ export async function getChat(
 ): Promise<{ ok: true; chat: ChatDetailView } | Refusal> {
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
-  const { turns, earlier, state } = await currentConversation(t, chat.id);
+  const { turns, earlier, state } = await currentConversation(t, chat);
   const queue = turns.filter((turn) => turn.status === 'queued').sort(queueOrder);
   const question = openQuestion(turns);
   const detail = { ...chatView(chat), turns, earlier, ...state, question };

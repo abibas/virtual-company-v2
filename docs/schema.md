@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 17, the last is `0016_gateway_provider`.
+Tables: 29. Migrations: 18, the last is `0017_profile_model`.
 
 ```mermaid
 erDiagram
@@ -14,6 +14,8 @@ erDiagram
     text provider "not null, claude|openai"
     uuid credential_id FK "nullable"
     uuid gateway_credential_id FK "nullable"
+    text model "nullable"
+    text effort "nullable, low|medium|high|xhigh|max|ultra"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -40,8 +42,6 @@ erDiagram
     text role_title "not null"
     text status "not null, default 'active', active|paused|archived"
     text harness "not null, default 'claude_code', claude_code|codex"
-    text model "not null"
-    text effort "not null, default 'high', low|medium|high|xhigh|max"
     text instructions "not null, default ''"
     integer instructions_rev "not null, default 1"
     integer max_concurrent_runs "not null, default 1"
@@ -445,6 +445,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `provider` | `text` | no |  |  | `claude`, `openai` |
 | `credential_id` | `uuid` | yes |  | FK |  |
 | `gateway_credential_id` | `uuid` | yes |  | FK |  |
+| `model` | `text` | yes |  |  |  |
+| `effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 
@@ -458,6 +460,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
   - `access_profiles_provider_check`: `provider` is one of `claude`, `openai`
+  - `access_profiles_model_check`: `char_length("model") between 1 and 100`
+  - `access_profiles_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
 - **Indexes:** none
 
 ### `agent_placements`
@@ -506,8 +510,6 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `role_title` | `text` | no |  |  |  |
 | `status` | `text` | no | `'active'` |  | `active`, `paused`, `archived` |
 | `harness` | `text` | no | `'claude_code'` |  | `claude_code`, `codex` |
-| `model` | `text` | no |  |  |  |
-| `effort` | `text` | no | `'high'` |  | `low`, `medium`, `high`, `xhigh`, `max` |
 | `instructions` | `text` | no | `''` |  |  |
 | `instructions_rev` | `integer` | no | `1` |  |  |
 | `max_concurrent_runs` | `integer` | no | `1` |  |  |
@@ -532,7 +534,6 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `agents_role_title_check`: `char_length("role_title") between 1 and 80`
   - `agents_status_check`: `status` is one of `active`, `paused`, `archived`
   - `agents_harness_check`: `harness` is one of `claude_code`, `codex`
-  - `agents_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`
   - `agents_instructions_rev_check`: `"instructions_rev" >= 1`
   - `agents_max_concurrent_runs_check`: `"max_concurrent_runs" between 1 and 8`
   - `agents_face_check`: `"face" between 0 and 41`

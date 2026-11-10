@@ -1,7 +1,7 @@
 import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
 import type { OrgRepo } from '../repo.ts';
 import { type OrgState, orgState } from '../rules/placement.ts';
-import type { AgentProfileView } from '../schemas/profiles.ts';
+import type { AgentProfileView, RunsWithView } from '../schemas/profiles.ts';
 import type { AgentDetailView, AgentPlacementSummaryView, AgentView, PositionView } from '../schemas.ts';
 
 /** The company's chart as stored (in the caller's transaction when it is one). */
@@ -14,15 +14,20 @@ export async function loadOrg(repo: OrgRepo, t: TenantDb): Promise<OrgState> {
 
 type Place = Pick<OrgPosition, 'reportsToPrincipalId' | 'title'> | undefined;
 
-/** What an agent's views show beside its own row: its access profile and where it runs (the machines module's). */
+/**
+ * What an agent's views show beside its own row: its access profile and what that runs (`profileExtras`), and where it
+ * runs (the machines module's).
+ */
 export interface AgentExtras {
   readonly profile: AgentProfileView | null;
+  readonly runsWith: RunsWithView | null;
   readonly placement: AgentPlacementSummaryView | null;
 }
 
 /**
- * An agent as lists show it, with its place on the chart (none once archived), its access profile (`profile`, read
- * by `profileRefs`) and where it runs (`placement`, from the machines module): never its instructions.
+ * An agent as lists show it, with its place on the chart (none once archived), its access profile and the model and
+ * effort that runs (`profile`, `runsWith`, read by `profileRefs`) and where it runs (`placement`, from the machines
+ * module): never its instructions.
  */
 export function agentView(agent: Agent, place: Place, extras: AgentExtras): AgentView {
   return {
@@ -33,14 +38,13 @@ export function agentView(agent: Agent, place: Place, extras: AgentExtras): Agen
     roleTitle: agent.roleTitle,
     status: agent.status,
     harness: agent.harness,
-    model: agent.model,
-    effort: agent.effort,
     instructionsRev: agent.instructionsRev,
     maxConcurrentRuns: agent.maxConcurrentRuns,
     face: agent.face,
     reportsTo: place?.reportsToPrincipalId ?? null,
     title: place?.title ?? null,
     profile: extras.profile,
+    runsWith: extras.runsWith,
     placement: extras.placement,
     createdAt: agent.createdAt.toISOString(),
     updatedAt: agent.updatedAt.toISOString(),

@@ -41,6 +41,7 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
       name: 'SLOP BOX 2',
       slug: 'slop-box-two',
       roleTitle: 'Senior Coder',
+      // No longer the agent's own (its profile's): left out.
       model: 'claude-fable-5',
       effort: 'max',
       harness: 'codex',
@@ -54,8 +55,6 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
         name: 'SLOP BOX 2',
         slug: 'slop-box-two',
         roleTitle: 'Senior Coder',
-        model: 'claude-fable-5',
-        effort: 'max',
         harness: 'codex',
         maxConcurrentRuns: 2,
         face: 3,
@@ -64,11 +63,10 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
       },
     });
     const rows = (await auditRows(w.t.db, 'agent', agent.id)).filter((row) => row.action === 'update');
+    expect(res.body).not.toHaveProperty('model');
     expect(rows.map((row) => [row.field, row.oldValue, row.newValue])).toEqual([
-      ['effort', 'high', 'max'],
       ['face', agent.face, 3],
       ['harness', 'claude_code', 'codex'],
-      ['model', 'claude-opus-5-5', 'claude-fable-5'],
       ['name', 'SLOP BOX', 'SLOP BOX 2'],
       ['roleTitle', 'Coder', 'Senior Coder'],
       ['slug', 'slop-box', 'slop-box-two'],
@@ -87,7 +85,7 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
     expect(again).toMatchObject({ status: 200, body: { name: 'SLOP BOX 2' } });
     expect(
       (await auditRows(w.t.db, 'agent', agent.id)).filter((row) => row.action === 'update'),
-    ).toHaveLength(7);
+    ).toHaveLength(5);
   });
 
   it('bumps instructionsRev when the instructions change, and audits the revision, never the text', async () => {

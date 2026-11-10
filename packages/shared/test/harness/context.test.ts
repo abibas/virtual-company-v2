@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CONTEXT_WINDOWS, contextWindowOf } from '../../src/harness/context.ts';
+import { CONTEXT_WINDOWS, contextWindowOf, profileWindowOf } from '../../src/harness/context.ts';
+import { MODEL_CATALOGUE } from '../../src/models.ts';
 
 describe('contextWindowOf', () => {
   it('knows the Claude 5 family, the 4.6+ models at 1M and the older ones at 200k', () => {
@@ -40,6 +41,21 @@ describe('contextWindowOf', () => {
     expect(contextWindowOf('o4-mini')).toBe(200_000);
     expect(contextWindowOf('codex-mini-latest')).toBe(200_000);
     expect(contextWindowOf('gpt-oss-120b')).toBe(131_072);
+  });
+
+  it("reads the catalogue's own windows first, and the GPT-6 family as Codex sizes it", () => {
+    for (const model of [...MODEL_CATALOGUE.claude, ...MODEL_CATALOGUE.openai])
+      expect(contextWindowOf(model.id), model.id).toBe(model.window);
+    expect(contextWindowOf('GPT-6.1-Sol')).toBe(272_000);
+    expect(contextWindowOf('gpt-6-nova')).toBe(272_000);
+  });
+
+  it("sizes a profile's model, and for none the provider's default", () => {
+    expect(profileWindowOf('claude', null)).toBe(1_000_000);
+    expect(profileWindowOf('openai', undefined)).toBe(272_000);
+    expect(profileWindowOf('openai', 'gpt-6-luna')).toBe(272_000);
+    expect(profileWindowOf('claude', 'claude-haiku-4-5')).toBe(200_000);
+    expect(profileWindowOf('claude', 'llama-4')).toBeNull();
   });
 
   it('is null for no model and for one it does not know', () => {

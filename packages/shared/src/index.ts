@@ -30,7 +30,7 @@ export {
   PrincipalKind,
   UserStatus,
 } from './enums.ts';
-export { CONTEXT_WINDOWS, contextWindowOf } from './harness/context.ts';
+export { CONTEXT_WINDOWS, contextWindowOf, profileWindowOf } from './harness/context.ts';
 export {
   EpochMs,
   ExternalInvitation,
@@ -57,7 +57,6 @@ export {
   AGENT_FACE,
   AGENT_INSTRUCTIONS_MAX,
   AGENT_MAX_CONCURRENT_RUNS,
-  AGENT_MODEL_MAX,
   AGENT_NAME,
   AGENT_ROLE_TITLE,
   agentFace,

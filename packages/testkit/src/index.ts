@@ -59,10 +59,12 @@ export {
   type SeededCompany,
   type SeededMember,
   type SeedMemberOptions,
+  type SeedProfileOptions,
   seedAgent,
   seedApiKey,
   seedCompany,
   seedMember,
+  seedProfile,
 } from './seed.ts';
 // The IdentityStore contract (S1.3): the port, the projector's convergence and reconcile on a store, run
 // against the in-memory store here and against the database store in @mwc/server. Also importable alone,

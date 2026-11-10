@@ -12,6 +12,7 @@ import { Card } from '../../components/ui/Card.tsx';
 import { IconTile } from '../../components/ui/IconTile.tsx';
 import { PROVIDER_STYLES, ProviderChoice } from './Providers.tsx';
 import { gatewayOptions, hasGateway, subscriptionOptions } from './profile-options.ts';
+import { type Runs, RunsFields } from './RunsFields.tsx';
 
 /** The hint under the subscription select: what it is for, or where to add one of the provider's. */
 function SubscriptionHint({
@@ -76,11 +77,12 @@ interface FormProps {
   readonly onCancel: () => void;
 }
 
-/** What the form holds, and its submit: the profile as `POST` takes it, with its optional gateway. */
+/** What the form holds, and its submit: the profile as `POST` takes it, with its optional gateway, model and effort. */
 function useNewProfile(provider: ProfileProvider, create: FormProps['create']) {
   const [name, setName] = useState('');
   const [credentialId, setCredentialId] = useState('');
   const [gatewayCredentialId, setGateway] = useState('');
+  const [runs, setRuns] = useState<Runs>({ model: null, effort: null });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const submit = async (event: FormEvent) => {
@@ -93,6 +95,7 @@ function useNewProfile(provider: ProfileProvider, create: FormProps['create']) {
         provider,
         credentialId: credentialId || null,
         gatewayCredentialId: gatewayCredentialId || null,
+        ...runs,
       });
     } catch (failure) {
       setError(friendlyMessage(failure));
@@ -106,13 +109,15 @@ function useNewProfile(provider: ProfileProvider, create: FormProps['create']) {
     setCredentialId,
     gatewayCredentialId,
     setGateway,
+    runs,
+    changeRuns: (change: Partial<Runs>) => setRuns((current) => ({ ...current, ...change })),
     busy,
     error,
     submit,
   };
 }
 
-/** The second step: its name, its subscription of the provider and, for Claude, an optional gateway. */
+/** The second step: its name, its subscription of the provider, an optional gateway, and its model and effort. */
 function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: FormProps) {
   const form = useNewProfile(provider, create);
   const style = PROVIDER_STYLES[provider];
@@ -151,6 +156,9 @@ function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: Fo
           onChange={form.setGateway}
         />
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <RunsFields provider={provider} runs={form.runs} onChange={form.changeRuns} live />
+      </div>
       <div className="flex flex-wrap justify-between gap-2">
         <Button tone="quiet" icon={ArrowLeft} disabled={form.busy} onClick={onBack}>
           Other provider
@@ -170,8 +178,8 @@ function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: Fo
 
 /**
  * New profile, on its own card above the list: the provider first (two big choices; `provider` preselects one, as
- * "Make one" on an agent's form does), then its name, its subscription and, for Claude, a gateway. A refusal (a name
- * taken) shows on the form.
+ * "Make one" on an agent's form does), then its name, its subscription, a gateway, and the model and effort its runs
+ * use (the provider's defaults until chosen). A refusal (a name taken) shows on the form.
  */
 export function NewProfileForm({
   provider: preselected,

@@ -46,8 +46,6 @@ export interface AgentPatch {
   readonly name?: string | undefined;
   readonly slug?: string | undefined;
   readonly roleTitle?: string | undefined;
-  readonly model?: string | undefined;
-  readonly effort?: Agent['effort'] | undefined;
   readonly harness?: Agent['harness'] | undefined;
   readonly instructions?: string | undefined;
   readonly maxConcurrentRuns?: number | undefined;
@@ -59,8 +57,6 @@ const EDITABLE = [
   'name',
   'slug',
   'roleTitle',
-  'model',
-  'effort',
   'harness',
   'instructions',
   'maxConcurrentRuns',
@@ -86,7 +82,7 @@ export function agentChanges(agent: Agent, patch: AgentPatch): AgentSet {
 
 /** The agent fields the audit log follows: its instructions by their revision, never their text; its profile's id. */
 export function auditedAgent(agent: Agent) {
-  const { principalId, name, slug, roleTitle, status, harness, model, effort } = agent;
+  const { principalId, name, slug, roleTitle, status, harness } = agent;
   return {
     principalId,
     name,
@@ -94,8 +90,6 @@ export function auditedAgent(agent: Agent) {
     roleTitle,
     status,
     harness,
-    model,
-    effort,
     instructionsRev: agent.instructionsRev,
     maxConcurrentRuns: agent.maxConcurrentRuns,
     face: agent.face,

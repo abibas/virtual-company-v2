@@ -22,6 +22,7 @@ import {
   type Refusal,
   RUNNER_OUTDATED,
   TERMINAL_UNAVAILABLE,
+  turnEffort,
   turnModel,
 } from '../rules.ts';
 
@@ -31,7 +32,8 @@ import {
  * (connected, with the harness's CLI, and a terminal for a terminal), the access profile (the chat's own while its owner
  * is still an admin here, else the agent's; of the provider the harness runs on) and its subscription, opened as its
  * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (Claude Code's or Codex's, of
- * the profile's provider). Read before anything is written; each refusal names what to fix.
+ * the profile's provider) and the profile's model and effort (since 2026-11-10; none: the harness's own default). Read
+ * before anything is written; each refusal names what to fix.
  */
 
 /** What resolving needs: the hub and the credentials module's side. */
@@ -129,8 +131,8 @@ export async function resolveTarget(
     harness: chat.harness,
     cwd: placement.home,
     sessionId: chat.sessionId,
-    model: turnModel(chat.harness, agent.model),
-    effort: agent.effort,
+    model: turnModel(chat.harness, profile.model),
+    effort: turnEffort(chat.harness, profile.effort),
     permissionPolicy: placement.permissionPolicy,
     configDir: placement.configDir,
     credential,

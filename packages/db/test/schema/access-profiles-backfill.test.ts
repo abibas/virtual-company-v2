@@ -17,7 +17,7 @@ import {
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
 import { journal, migrateUpTo } from '../fixtures/migrations.ts';
 import {
-  insertAgent,
+  insertAgentBefore0017,
   insertCompany,
   insertMachine,
   insertPrincipal,
@@ -99,11 +99,11 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
   let companyId: string;
 
   async function agentOn(name: string, harness: Harness, profileId: string) {
-    ids[name] = (await insertAgent(handle, companyId, { harness, profileId })).id;
+    ids[name] = (await insertAgentBefore0017(handle, companyId, { harness, profileId })).id;
   }
 
   async function chatOn(name: string, harness: Harness, profileId: string, setBy: string) {
-    const agent = await insertAgent(handle, companyId, { harness });
+    const agent = await insertAgentBefore0017(handle, companyId, { harness });
     const machine = await insertMachine(handle, companyId);
     const creator = await insertPrincipal(handle, companyId);
     const [row] = await handle.db
@@ -198,7 +198,14 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
     handle.db
       .select()
       .from(auditLog)
-      .where(and(eq(auditLog.entityType, entityType), eq(auditLog.entityId, entityId as string)))
+      // This migration's rows: a later one (`0017_profile_model`) writes its own about the same profiles.
+      .where(
+        and(
+          eq(auditLog.entityType, entityType),
+          eq(auditLog.entityId, entityId as string),
+          eq(auditLog.requestId, BY),
+        ),
+      )
       .orderBy(auditLog.field);
   const sibling = async (name: string) => (await named(name))[0] as AccessProfile;
 

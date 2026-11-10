@@ -13,6 +13,7 @@ import { Card } from '../../components/ui/Card.tsx';
 import { companyAgentLinks } from '../agents/links.ts';
 import { PROVIDER_STYLES, ProviderBadge } from './Providers.tsx';
 import { gatewayOptions, hasGateway, subscriptionOptions } from './profile-options.ts';
+import { RunsFields } from './RunsFields.tsx';
 
 interface CardProps {
   readonly profile: AccessProfile;
@@ -110,6 +111,19 @@ function ProfileCredentials({ profile, subscriptions, update }: Omit<CardProps, 
   );
 }
 
+/** What the profile's runs use: its model and effort, of its provider, each saved as soon as it changes. */
+function ProfileRuns({ profile, update }: Pick<CardProps, 'profile' | 'update'>) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <RunsFields
+        provider={profile.provider}
+        runs={{ model: profile.model, effort: profile.effort }}
+        onChange={(change) => update(change)}
+      />
+    </div>
+  );
+}
+
 /** The agents that use the profile, each a link to its page in its company. */
 function ProfileAgents({ agents }: { readonly agents: AccessProfile['agents'] }) {
   if (agents.length === 0) {
@@ -140,8 +154,8 @@ function ProfileAgents({ agents }: { readonly agents: AccessProfile['agents'] })
 }
 
 /**
- * One access profile: its name (renamed in place) with its provider's badge, its subscription and gateway,
- * the agents that use it, and Delete, confirmed in place. A change saves at once.
+ * One access profile: its name (renamed in place) with its provider's badge, its subscription and gateway, the model
+ * and effort its runs use, the agents that use it, and Delete, confirmed in place. A change saves at once.
  */
 export function ProfileCard({ profile, subscriptions, update, remove }: CardProps) {
   const users = profile.agents.length;
@@ -171,6 +185,7 @@ export function ProfileCard({ profile, subscriptions, update, remove }: CardProp
         />
       </header>
       <ProfileCredentials profile={profile} subscriptions={subscriptions} update={update} />
+      <ProfileRuns key={profile.id} profile={profile} update={update} />
       <ProfileAgents agents={profile.agents} />
     </Card>
   );

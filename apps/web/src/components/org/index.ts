@@ -1,13 +1,17 @@
 export {
   agentRef,
-  EFFORT_OPTIONS,
+  defaultModelLabel,
+  EFFORT_HINTS,
   effortLabel,
+  effortOptions,
   HARNESS_OPTIONS,
   harnessLabel,
-  MODELS,
   modelLabel,
-  modelLine,
   profileLabel,
+  type RunsWith,
+  runsEffortLabel,
+  runsLine,
+  runsModelLabel,
 } from './agent-labels.ts';
 export {
   below,

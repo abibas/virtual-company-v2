@@ -1,19 +1,16 @@
-import type { Harness } from '@mwc/shared/enums';
-import { AGENT_MAX_CONCURRENT_RUNS, AGENT_MODEL_MAX } from '@mwc/shared/org';
+import { AGENT_MAX_CONCURRENT_RUNS } from '@mwc/shared/org';
 import type { ReactNode } from 'react';
-import { useAccessProfiles } from '../../api/subscriptions.ts';
-import { ChoiceField, SelectField, TextField } from '../../components/forms/Field.tsx';
+import type { AccessProfile } from '../../api/types.ts';
+import type { Loaded } from '../../api/use-load.ts';
+import { ChoiceField } from '../../components/forms/Field.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
-import { EFFORT_OPTIONS } from '../../components/org/agent-labels.ts';
+import { effortLabel, type RunsWith, runsModelLabel } from '../../components/org/agent-labels.ts';
 import { Panel } from '../../components/ui/Panel.tsx';
-import type { AgentDraft } from './agent-draft.ts';
-import { modelsOf } from './harness-from-profile.ts';
+import { runsOf } from './harness-from-profile.ts';
 import { ProfileChoice, type ProfileProps } from './ProfileFields.tsx';
 
-const CUSTOM = 'custom';
-const ANOTHER = { value: CUSTOM, label: 'Another model (type its id)' };
-/** The models a harness offers: Claude's for Claude Code, Codex's default for Codex; and any id typed in. */
-const modelOptions = (harness: Harness) => [...modelsOf(harness), ANOTHER];
+/** The person's own access profiles, as the page loads them once (`useAccessProfiles`). */
+export type OwnProfiles = Loaded<{ readonly profiles: readonly AccessProfile[] }>;
 
 /** 1 to 8, as the choices of a segmented control. */
 const RUN_OPTIONS: readonly SegmentOption<string>[] = Array.from(
@@ -24,57 +21,42 @@ const RUN_OPTIONS: readonly SegmentOption<string>[] = Array.from(
   },
 );
 
-/** The model: one of the known ones, or an id typed in. */
-function ModelChoice({ draft, readOnly }: { readonly draft: AgentDraft; readonly readOnly: boolean }) {
-  const { values, set } = draft;
+/** "Runs Opus 5.5 at high effort": what the chosen profile runs, in a quiet line under it (nothing while unknown). */
+function RunsNote({ runs }: { readonly runs: RunsWith | null | undefined }) {
+  if (!runs) return null;
+  const model = runs.model === null ? `${runsModelLabel(runs)} model` : runsModelLabel(runs);
+  const effort =
+    runs.effort === null ? 'its default effort' : `${effortLabel(runs.effort).toLowerCase()} effort`;
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <SelectField
-        label="Model"
-        value={values.customModel ? CUSTOM : values.model}
-        disabled={readOnly}
-        onChange={(event) => {
-          const custom = event.target.value === CUSTOM;
-          set('customModel', custom);
-          set('model', custom ? '' : event.target.value);
-        }}
-        options={modelOptions(values.harness)}
-      />
-      {values.customModel && (
-        <TextField
-          label="Model id"
-          value={values.model}
-          readOnly={readOnly}
-          onChange={(event) => set('model', event.target.value)}
-          required
-          maxLength={AGENT_MODEL_MAX}
-          spellCheck={false}
-          placeholder={values.harness === 'codex' ? 'gpt-5-codex' : 'claude-opus-5-5'}
-        />
-      )}
-    </div>
+    <p className="-mt-3 text-xs text-dim">
+      Runs {model} at {effort}. Its profile decides both.
+    </p>
   );
 }
 
 /**
  * How the agent works, in the order it is decided: how many runs at once, whose subscription it runs on (an access
- * profile, which also decides what runs it: Claude Code for a Claude profile, Codex for an OpenAI one), its model
- * (that harness's), its effort, and where it runs (`where`, the form's "Where it runs"); `profileNote` under the profile
- * says when that harness's CLI is missing on the chosen machine. There is no harness choice: each provider's own harness
- * is the only one today.
+ * profile, which also decides what runs it, Claude Code for a Claude profile and Codex for an OpenAI one, and its model
+ * and effort, said in a line under it), and where it runs (`where`, the form's "Where it runs"); `profileNote` under the
+ * profile says when that harness's CLI is missing on the chosen machine. There is no harness, model or effort choice
+ * here: the profile holds them.
  */
 export function ModelPanel({
   where,
   profileNote,
+  profiles,
   ...props
-}: ProfileProps & { readonly where?: ReactNode; readonly profileNote?: ReactNode }) {
-  const { draft, readOnly } = props;
+}: ProfileProps & {
+  readonly where?: ReactNode;
+  readonly profileNote?: ReactNode;
+  readonly profiles: OwnProfiles;
+}) {
+  const { draft, readOnly, agent } = props;
   const { values, set } = draft;
-  const profiles = useAccessProfiles();
   return (
     <Panel
       title="How it works"
-      description="How many tasks at once, whose subscription it runs on (which also decides what runs it), its model, how hard it thinks, and where."
+      description="How many tasks at once, whose subscription it runs on (which also decides what runs it, its model and its effort), and where."
     >
       <div className="flex flex-col gap-5">
         <ChoiceField label="Runs at once" hint="How many tasks it may work on at the same time.">
@@ -91,17 +73,7 @@ export function ModelPanel({
           <ProfileChoice {...props} profiles={profiles} />
         </div>
         {profileNote}
-        <ModelChoice draft={draft} readOnly={readOnly} />
-        <ChoiceField label="Effort" hint="More effort thinks longer and costs more; high suits most work.">
-          <SegmentedControl
-            label="Effort"
-            options={EFFORT_OPTIONS}
-            value={values.effort}
-            onChange={(effort) => set('effort', effort)}
-            disabled={readOnly}
-            className="max-w-full overflow-x-auto"
-          />
-        </ChoiceField>
+        <RunsNote runs={runsOf(values.profileId, profiles.data?.profiles, agent)} />
         {where}
       </div>
     </Panel>

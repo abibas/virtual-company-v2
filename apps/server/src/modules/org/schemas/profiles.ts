@@ -1,10 +1,10 @@
 import { z } from '@hono/zod-openapi';
-import { ProfileProvider } from '@mwc/shared/enums';
+import { Effort, ProfileProvider } from '@mwc/shared/enums';
 
 /**
  * The org API's shapes of access profiles (S3.4, one provider each since 2026-11-10): the profile an agent's runs use,
- * as agents and the chart show it (never a subscription of it), a member's defaults for the agents they hire (one per
- * provider), and the note of a profile a harness change took off an agent.
+ * as agents and the chart show it (never a subscription of it) with what it runs, a member's defaults for the agents they
+ * hire (one per provider), and the note of a profile a harness change took off an agent.
  */
 
 /** The access profile an agent uses: its name, provider and whose it is, never its subscriptions. */
@@ -19,6 +19,18 @@ export const AgentProfileSchema = z
     ownerName: z.string().openapi({ example: 'Ihor Herasko' }),
   })
   .openapi('AgentProfile');
+
+/**
+ * What an agent's runs run (since 2026-11-10, docs/subscriptions.md "Model and effort"): its access profile's model and
+ * effort, each null for the provider's default, and the provider.
+ */
+export const RunsWithSchema = z
+  .object({
+    model: z.string().nullable().openapi({ example: 'claude-opus-5-5' }),
+    effort: Effort.nullable().openapi({ example: 'high' }),
+    provider: ProfileProvider,
+  })
+  .openapi('RunsWith');
 
 /** A profile in a change: one of yours to give (of the agent's harness's provider), or null for none. */
 export const ProfileChoice = z
@@ -55,5 +67,6 @@ export const ProfileClearedSchema = z
   .openapi('ProfileCleared');
 
 export type AgentProfileView = z.infer<typeof AgentProfileSchema>;
+export type RunsWithView = z.infer<typeof RunsWithSchema>;
 export type DefaultProfileView = z.infer<typeof DefaultProfileSchema>;
 export type ProfileClearedView = z.infer<typeof ProfileClearedSchema>;

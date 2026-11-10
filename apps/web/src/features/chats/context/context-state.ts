@@ -1,5 +1,12 @@
 import { contextWindowOf } from '@mwc/shared/harness';
-import type { ChatDetail, ChatTurnWithEvents, TurnEvent } from '../../../api/types.ts';
+import type {
+  AccessProfile,
+  AgentDetail,
+  Chat,
+  ChatDetail,
+  ChatTurnWithEvents,
+  TurnEvent,
+} from '../../../api/types.ts';
 
 /**
  * How full the chat's conversation is, for its context meter (docs/harness.md, "Compact and Clear"), read from the live
@@ -150,4 +157,20 @@ export function conversationView(
     commands: init?.slashCommands?.length,
     hasConversation: walk.hasSession || (!cleared && Boolean(detail?.sessionId)),
   };
+}
+
+/** What a chat's turns run, for its meter before the first reading: the model (null: the provider's default). */
+export type ChatRuns = Pick<NonNullable<AgentDetail['runsWith']>, 'model' | 'provider'>;
+
+/**
+ * What the chat runs: its own access profile's when it has one (known when it is one of the viewer's), else the
+ * agent's; undefined when that is not known.
+ */
+export function chatRuns(
+  chat: Pick<Chat, 'profileId'>,
+  agent: Pick<AgentDetail, 'runsWith'>,
+  mine: readonly AccessProfile[] | undefined,
+): ChatRuns | undefined {
+  if (chat.profileId === null) return agent.runsWith ?? undefined;
+  return mine?.find((profile) => profile.id === chat.profileId);
 }

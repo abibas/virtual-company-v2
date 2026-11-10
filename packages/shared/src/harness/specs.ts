@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
 import { type CredentialKind, Effort, Harness, PermissionPolicy } from '../enums.ts';
 import { PlacementPath } from '../machines.ts';
-import { AGENT_MODEL_MAX } from '../org.ts';
+import { MODEL_ID_PATTERN, ModelId } from '../models.ts';
 import { protocolObject } from '../runner-protocol/common.ts';
 
 /**
@@ -81,9 +81,9 @@ export type HarnessGateway = z.infer<typeof HarnessGateway>;
 export const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 export const HarnessSessionId = z.string().regex(SESSION_ID_PATTERN, 'a session id');
 
-/** A model id or alias (`opus`, `claude-opus-5-5[1m]`, `gpt-5.6-codex`), on the command line too. */
-export const HARNESS_MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/@[\]-]*$/;
-export const HarnessModel = z.string().max(AGENT_MODEL_MAX).regex(HARNESS_MODEL_PATTERN, 'a model id');
+/** A model id or alias (`opus`, `claude-opus-5-5[1m]`, `gpt-6.1-sol`), on the command line too (the catalogue's). */
+export const HARNESS_MODEL_PATTERN = MODEL_ID_PATTERN;
+export const HarnessModel = ModelId;
 
 const sessionFields = {
   harness: Harness,

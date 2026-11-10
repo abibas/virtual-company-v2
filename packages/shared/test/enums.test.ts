@@ -53,7 +53,7 @@ describe('enums', () => {
     expect(LogoContentType.options).toEqual(['image/png', 'image/jpeg', 'image/webp']);
     expect(AgentStatus.options).toEqual(['active', 'paused', 'archived']);
     expect(Harness.options).toEqual(['claude_code', 'codex']);
-    expect(Effort.options).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+    expect(Effort.options).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
     expect(CredentialKind.options).toEqual([
       'claude_oauth',
       'claude_setup_token',

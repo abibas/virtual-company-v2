@@ -90,8 +90,6 @@ describe('seedCompany', () => {
       principalId: lead.principal.id,
       roleTitle: 'Coder',
       status: 'active',
-      model: 'claude-opus-5-5',
-      effort: 'high',
       face: 0,
     });
     expect(lead.agent.slug).toMatch(/^agent-[0-9a-f]{8}$/);

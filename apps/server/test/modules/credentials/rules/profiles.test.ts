@@ -11,7 +11,13 @@ import {
   providerFixed,
 } from '../../../../src/modules/credentials/rules/profiles.ts';
 
-const profile = { name: 'Work', credentialId: 'c1', gatewayCredentialId: 'g1' };
+const profile = {
+  name: 'Work',
+  credentialId: 'c1',
+  gatewayCredentialId: 'g1',
+  model: 'claude-opus-5-5',
+  effort: 'high' as const,
+};
 
 /** A credential as the rules read it: its kind, state and account details (none by default). */
 const held = (kind: CredentialKind, status: CredentialStatus = 'active', accountMeta = {}) => ({
@@ -126,8 +132,11 @@ describe('partsPutIn', () => {
 });
 
 describe('profileChanges', () => {
-  it('keeps only what differs: a name, a subscription or gateway changed or emptied', () => {
-    expect(profileChanges(profile, { name: 'Work', credentialId: 'c1' })).toEqual({});
+  it('keeps only what differs: a name, a subscription or gateway changed or emptied, a model or effort', () => {
+    expect(profileChanges(profile, { name: 'Work', credentialId: 'c1', model: 'claude-opus-5-5' })).toEqual(
+      {},
+    );
+    expect(profileChanges(profile, { model: null, effort: 'max' })).toEqual({ model: null, effort: 'max' });
     expect(profileChanges(profile, {})).toEqual({});
     expect(profileChanges(profile, { name: 'Home', credentialId: null, gatewayCredentialId: 'g2' })).toEqual({
       name: 'Home',
@@ -154,7 +163,7 @@ describe('a profile’s refusals and audit fields', () => {
     expect(providerFixed('claude').message).toContain('This is a Claude profile');
   });
 
-  it('audits its owner, name, provider and credentials, nothing else', () => {
+  it('audits its owner, name, provider, credentials, model and effort, nothing else', () => {
     const row = {
       ...profile,
       id: 'p1',
