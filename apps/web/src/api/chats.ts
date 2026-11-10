@@ -1,3 +1,4 @@
+import { CHAT_PAGE } from '@mwc/shared/chats';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
@@ -6,9 +7,16 @@ import { type Loaded, useLoad } from './use-load.ts';
 
 /**
  * Chats with an agent on its machine (S5.1c, docs/harness.md "How a turn runs"): an agent's chats, one chat with its
- * turns, the changes admins make (begin, rename or choose the profile, archive), prompts and Stop, an owner's terminal
+ * current conversation and its older turns a page at a time, the changes admins make (begin, rename or choose the profile, archive), prompts and Stop, an owner's terminal
  * ticket, the waiting messages (S5.2 step 6), and the chat's stream (Server-Sent Events read with the client's own Bearer header, never `EventSource`).
  */
+
+/** A page of older turns: before `beforeSeq`, after `afterSeq` (0: from the start), at most `limit`. */
+export interface OlderPage {
+  readonly beforeSeq: number;
+  readonly afterSeq: number;
+  readonly limit?: number;
+}
 
 /** An agent's chats, the latest first (archived ones are left out). */
 export function useAgentChats(
@@ -29,6 +37,18 @@ export function chatCalls(api: Api, companyId: string) {
     create: (agentId: string, profileId: string | null = null) =>
       call(agentChats.$post({ param: { companyId, agentId }, json: { profileId } })),
     get: (chatId: string) => call(one.$get(param(chatId))),
+    /** Older turns, the latest `limit` before `beforeSeq` and after `afterSeq` (both exclusive), in order. */
+    older: (chatId: string, page: OlderPage) =>
+      call(
+        one.turns.$get({
+          ...param(chatId),
+          query: {
+            beforeSeq: String(page.beforeSeq),
+            afterSeq: String(page.afterSeq),
+            limit: String(page.limit ?? CHAT_PAGE.default),
+          },
+        }),
+      ),
     update: (chatId: string, changes: ChatChanges) => call(one.$patch({ ...param(chatId), json: changes })),
     archive: (chatId: string) => call(one.$delete(param(chatId))),
     /** A prompt; with a `delivery` while a turn runs (S5.2 step 6): into it, after it, or interrupting it. */

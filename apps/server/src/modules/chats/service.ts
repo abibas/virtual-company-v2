@@ -3,23 +3,16 @@ import { queueOrder } from '@mwc/shared/chats';
 import { agentPlacement } from '../machines/index.ts';
 import { giveRefusal } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
-import { turnsRepo } from './repo/turns.ts';
 import { chatsRepo } from './repo.ts';
 import { openQuestion } from './rules/questions.ts';
-import {
-  AGENT_NOT_FOUND,
-  CHAT_NOT_FOUND,
-  conversationState,
-  PLACEMENT_MISSING,
-  type Refusal,
-  refuse,
-} from './rules.ts';
+import { AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal, refuse } from './rules.ts';
 import type { ChatDetailView, ChatView, CreateChat, UpdateChat } from './schemas.ts';
-import { chatView, eventView, turnView } from './service/views.ts';
+import { currentConversation } from './service/history.ts';
+import { chatView } from './service/views.ts';
 
 /**
  * The chats with an agent (S5.1b): list an agent's, begin one (on the agent's harness and its placement's machine,
- * with the caller's own access profile when they choose one), read one with its turns and their events, rename it,
+ * with the caller's own access profile when they choose one), read one with its current conversation, rename it,
  * choose its profile (only one's own, the rule of giving a profile to an agent; any admin takes it off) and archive it.
  * Every change is audited (entity `chat`). The turns are `service/turns.ts`'s.
  */
@@ -105,9 +98,9 @@ export async function createChat(
 }
 
 /**
- * One chat with its turns and their events, in order (archived ones too), its conversation since its last Clear (the
- * last `init` and how full it is), its open question and its waiting turns in the order they start; 404 for an unknown
- * one.
+ * One chat (archived ones too) with its current conversation: the turns since its last Clear, the latest 30 with their
+ * events, and what is left out (`service/history.ts`); what that conversation runs on and how full it is (the last
+ * `init`, its size), its open question and its waiting turns in the order they start; 404 for an unknown one.
  */
 export async function getChat(
   t: TenantDb,
@@ -115,18 +108,10 @@ export async function getChat(
 ): Promise<{ ok: true; chat: ChatDetailView } | Refusal> {
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
-  const turns = await turnsRepo.ofChat(t, chat.id);
-  const events = await turnsRepo.eventsOf(
-    t,
-    turns.map((turn) => turn.id),
-  );
-  const shown = turns.map((turn) => ({
-    ...turnView(turn),
-    events: events.filter((event) => event.turnId === turn.id).map(eventView),
-  }));
-  const question = openQuestion(shown);
-  const queue = shown.filter((turn) => turn.status === 'queued').sort(queueOrder);
-  const detail = { ...chatView(chat), turns: shown, ...conversationState(shown), question };
+  const { turns, earlier, state } = await currentConversation(t, chat.id);
+  const queue = turns.filter((turn) => turn.status === 'queued').sort(queueOrder);
+  const question = openQuestion(turns);
+  const detail = { ...chatView(chat), turns, earlier, ...state, question };
   return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id) } };
 }
 

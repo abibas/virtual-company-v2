@@ -1,9 +1,9 @@
-import type { ChatStreamEvent, ChatTurn, ChatTurnWithEvents } from './types.ts';
+import type { ChatDetail, ChatStreamEvent, ChatTurn, ChatTurnWithEvents } from './types.ts';
 
 /**
  * A chat's turns kept in step with its stream (S5.1c): a turn message replaces the turn's fields and keeps its events,
- * an event goes into its turn once, in order, a waiting message that went leaves (S5.2 step 6), and the last position
- * is what a reconnect sends as `Last-Event-ID`. Pure.
+ * an event goes into its turn once, in order, a waiting message that went leaves (S5.2 step 6), the last position
+ * is what a reconnect sends as `Last-Event-ID`, and older turns loaded a page at a time stay across a fresh detail. Pure.
  */
 
 /**
@@ -57,3 +57,23 @@ export function lastEventId(turns: readonly ChatTurnWithEvents[]): string {
 /** A turn that runs or waits for its machine. */
 export const isLiveTurn = (turn: Pick<ChatTurn, 'status'>): boolean =>
   turn.status === 'queued' || turn.status === 'running';
+
+/** The number the current conversation starts at: its Clear's (the latest), else 1. */
+export const conversationStart = (detail: Pick<ChatDetail, 'earlier'>): number =>
+  detail.earlier.conversations[0]?.clearSeq ?? 1;
+
+/**
+ * The older turns of the current conversation a page loaded earlier, kept across a fresh detail: the turns shown before
+ * (`shown`, older pages first) that come before the detail's window and from its Clear on, kept only while they still
+ * reach the window (a long drop can leave a gap: then they go, and load again).
+ */
+export function carryOlder(
+  shown: readonly ChatTurnWithEvents[],
+  detail: Pick<ChatDetail, 'id' | 'earlier' | 'turns'>,
+): readonly ChatTurnWithEvents[] {
+  const first = detail.turns[0]?.seq;
+  const last = shown.at(-1)?.seq;
+  if (first === undefined || last === undefined || last < first - 1) return [];
+  const start = conversationStart(detail);
+  return shown.filter((turn) => turn.chatId === detail.id && turn.seq >= start && turn.seq < first);
+}

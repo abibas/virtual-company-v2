@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addEvent, lastEventId, removeTurn, upsertTurn } from './chat-turns.ts';
+import {
+  addEvent,
+  carryOlder,
+  conversationStart,
+  lastEventId,
+  removeTurn,
+  upsertTurn,
+} from './chat-turns.ts';
 import { type ChatCalls, chatCalls } from './chats.ts';
 import { useApi } from './context.ts';
 import { readEventStream, type StreamMessage } from './event-stream.ts';
-import type { Chat, ChatDetail, ChatStreamEvent, ChatTurn, ChatTurnWithEvents } from './types.ts';
+import type {
+  Chat,
+  ChatConversation,
+  ChatDetail,
+  ChatStreamEvent,
+  ChatTurn,
+  ChatTurnWithEvents,
+} from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
 
 /**
- * One chat, live (S5.1c): its detail, then its stream from where the detail stands (`Last-Event-ID`), each turn and
- * event merged in. A dropped stream (an error, the end, 50 s of silence) reloads the detail a little later, and the
- * fresh detail opens the stream again from its own position, so nothing is missed or shown twice.
+ * One chat, live (S5.1c): its detail (the current conversation's latest turns), then its stream from where the detail
+ * stands (`Last-Event-ID`), each turn and event merged in, and the current conversation's older turns a page at a time.
+ * A dropped stream (an error, the end, 50 s of silence) reloads the detail a little later, and the fresh detail opens
+ * the stream again from its own position, so nothing is missed or shown twice; older pages stay while they still reach
+ * it. A Clear reloads the detail too, so the conversation it ended becomes one of its folded `conversations`.
  */
 
 /** `live`: the stream is open; `reconnecting`: it dropped and comes back; `gone`: the chat is not there any more. */
@@ -19,7 +35,9 @@ export interface ChatLive {
   readonly detail: Loaded<ChatDetail>;
   /** The chat's fields: the detail's, or the last change the page made. */
   readonly chat: Chat | undefined;
+  /** The current conversation as loaded: older pages, the detail's window, then what the stream added. */
   readonly turns: readonly ChatTurnWithEvents[];
+  readonly earlier: ChatEarlierLive;
   readonly stream: StreamState;
   /** A turn the page started or stopped (the API's answer), shown before the stream says so. */
   putTurn(turn: ChatTurn): void;
@@ -29,10 +47,28 @@ export interface ChatLive {
   putChat(chat: Chat): void;
 }
 
+/** What the detail left out, and the loading of the current conversation's older turns. */
+export interface ChatEarlierLive {
+  /** The conversations before each Clear, newest first (their turns load apart: `useEarlierConversations`). */
+  readonly conversations: readonly ChatConversation[];
+  /** Older turns of the current conversation are left out. */
+  readonly more: boolean;
+  /** About how many: the detail's count less the pages loaded since. */
+  readonly left: number;
+  readonly loading: boolean;
+  readonly error: unknown;
+  loadOlder(): Promise<void>;
+}
+
 interface Merged {
   readonly from: ChatDetail | undefined;
+  /** The detail's window, with what the stream and the page added. */
   readonly turns: readonly ChatTurnWithEvents[];
   readonly chat: Chat | undefined;
+  /** Older turns of the current conversation loaded a page at a time, before the window. */
+  readonly older: readonly ChatTurnWithEvents[];
+  /** Older turns of the current conversation are still left out. */
+  readonly more: boolean;
 }
 
 /** The wait before the next try: 1 s, doubled after each failure in a row, at most 15 s. */
@@ -115,27 +151,87 @@ function useStream(calls: ChatCalls, chatId: string, detail: Loaded<ChatDetail>,
   return stream;
 }
 
+/** Where the merged turns stand on a fresh detail: its window, and the older pages still shown before it. */
+function rebase(m: Merged, base: ChatDetail | undefined): Merged {
+  if (base === undefined) return { from: base, turns: [], chat: undefined, older: [], more: false };
+  const older = carryOlder([...m.older, ...m.turns], base);
+  return { from: base, turns: base.turns, chat: undefined, older, more: base.earlier.turns > older.length };
+}
+
+const NOTHING: Merged = { from: undefined, turns: [], chat: undefined, older: [], more: false };
+
+/**
+ * "Load older messages": the page before the first turn shown, inside the current conversation, put before it unless
+ * the turns moved meanwhile (a fresh detail); one load at a time.
+ */
+function useOlder(
+  calls: ChatCalls,
+  chatId: string,
+  base: ChatDetail | undefined,
+  first: number | undefined,
+  apply: Apply,
+) {
+  const [state, setState] = useState<{ loading: boolean; error: unknown }>({
+    loading: false,
+    error: undefined,
+  });
+  const busy = useRef(false);
+  const load = useCallback(async () => {
+    if (busy.current || base === undefined || first === undefined) return;
+    busy.current = true;
+    setState({ loading: true, error: undefined });
+    try {
+      const page = await calls.older(chatId, { beforeSeq: first, afterSeq: conversationStart(base) - 1 });
+      apply((m) =>
+        (m.older[0] ?? m.turns[0])?.seq === first
+          ? { ...m, older: [...page.turns, ...m.older], more: page.more }
+          : m,
+      );
+      setState({ loading: false, error: undefined });
+    } catch (error) {
+      setState({ loading: false, error });
+    } finally {
+      busy.current = false;
+    }
+  }, [calls, chatId, base, first, apply]);
+  return { ...state, load };
+}
+
 export function useChatLive(companyId: string, chatId: string): ChatLive {
   const api = useApi();
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const detail = useLoad(`chat:${companyId}:${chatId}`, () => calls.get(chatId));
   const base = detail.data;
-  const [merged, setMerged] = useState<Merged>({ from: undefined, turns: [], chat: undefined });
+  const [merged, setMerged] = useState<Merged>(NOTHING);
   // Every change starts from the turns of the detail on screen: a fresh detail replaces what the stream had added.
   const apply = useCallback<Apply>(
-    (change) =>
-      setMerged((m) =>
-        change(m.from === base ? m : { from: base, turns: base?.turns ?? [], chat: undefined }),
-      ),
+    (change) => setMerged((m) => change(m.from === base ? m : rebase(m, base))),
     [base],
   );
   const stream = useStream(calls, chatId, detail, apply);
-  const current = merged.from === base ? merged : { turns: base?.turns ?? [], chat: undefined };
+  const current = merged.from === base ? merged : rebase(merged, base);
+  const turns = useMemo(() => [...current.older, ...current.turns], [current.older, current.turns]);
+  const older = useOlder(calls, chatId, base, turns[0]?.seq, apply);
+  // A Clear made since the detail loaded: the detail again, so the cleared conversation folds into its bar.
+  const start = base === undefined ? undefined : conversationStart(base);
+  const cleared = start !== undefined && turns.some((turn) => turn.kind === 'clear' && turn.seq > start);
+  const { reload } = detail;
+  useEffect(() => {
+    if (cleared) reload();
+  }, [cleared, reload]);
   return {
     detail,
     chat: current.chat ?? base,
-    turns: current.turns,
+    turns,
     stream,
+    earlier: {
+      conversations: base?.earlier.conversations ?? [],
+      more: current.more,
+      left: Math.max(0, (base?.earlier.turns ?? 0) - current.older.length),
+      loading: older.loading,
+      error: older.error,
+      loadOlder: older.load,
+    },
     putTurn: (turn) => apply((m) => ({ ...m, turns: upsertTurn(m.turns, turn) })),
     dropTurn: (turnId) => apply((m) => ({ ...m, turns: removeTurn(m.turns, turnId) })),
     putChat: (chat) => apply((m) => ({ ...m, chat })),

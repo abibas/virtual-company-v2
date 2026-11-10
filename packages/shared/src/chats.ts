@@ -10,6 +10,13 @@ export const CHAT_TITLE = { min: 1, max: 80 } as const;
 /** One prompt: 1 to 20 000 characters. */
 export const CHAT_PROMPT = { min: 1, max: 20_000 } as const;
 
+/**
+ * How much of a chat its detail holds (`GET …/chats/{chatId}`): the latest 30 turns of its current conversation; the
+ * older ones page in from `GET …/chats/{chatId}/turns`, 20 at a time by default and at most 50.
+ */
+export const CHAT_WINDOW = 30;
+export const CHAT_PAGE = { min: 1, default: 20, max: 50 } as const;
+
 /** The most messages a chat keeps waiting for its running turn (S5.2 step 6). */
 export const CHAT_QUEUE_MAX = 10;
 

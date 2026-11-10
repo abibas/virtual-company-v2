@@ -156,10 +156,8 @@ describe('POST chats/:chatId/clear', () => {
       messages.some((m) => m.event === 'turn' && (m.data as { turn: ChatTurnView }).turn.kind === 'clear'),
     );
     const chat = await detail(s);
-    expect(chat.turns.map((t) => [t.seq, t.kind, t.events.length])).toEqual([
-      [1, 'message', 6],
-      [2, 'clear', 0],
-    ]);
+    expect(chat.turns.map((t) => [t.seq, t.kind, t.events.length])).toEqual([[2, 'clear', 0]]);
+    expect(chat.earlier.conversations).toMatchObject([{ clearTurnId: turn.id, clearSeq: 2, turns: 1 }]);
     expect([chat.sessionId, chat.init, chat.context]).toEqual([null, null, null]);
     const next = await startedTurn(w, s, 'Start over');
     expect(next.spec.sessionId).toBeNull();

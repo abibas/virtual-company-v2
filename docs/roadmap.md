@@ -250,6 +250,9 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    routes on PGlite with `FakeRunner`, the drain's races, the index, the runner's stdin in input mode, the driver's
    arguments and the parser's echoes, the `input` event and frame, the commands' quoting read back through `/bin/sh`; no
    real turn run, no frontend tests.
+   **Chats load lazily: done 2026-11-10** (docs/harness.md "Reading a long chat"): the detail holds the current
+   conversation (its latest 30 turns) and `earlier`; `GET …/chats/{chatId}/turns?beforeSeq=` pages older turns; the
+   page folds each conversation before a Clear into a bar and loads older messages on scroll; no migration.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

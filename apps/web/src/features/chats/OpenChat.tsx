@@ -11,6 +11,7 @@ import type {
   ChatTurnWithEvents,
   QuestionAnswer,
 } from '../../api/types.ts';
+import { useEarlierConversations } from '../../api/use-chat-earlier.ts';
 import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
@@ -119,6 +120,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   const api = useApi();
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const live = useChatLive(companyId, chatId);
+  const folds = useEarlierConversations(calls, chatId);
   const [mode, setMode] = useState<ChatMode>('chat');
   const chat = live.chat;
   if (chat === undefined) {
@@ -154,6 +156,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
             agentName={agent.name}
             chatInit={live.detail.data?.init ?? undefined}
             answering={{ answer: actions.answer, closed }}
+            history={{ live: live.earlier, folds }}
           />
           <Composer
             running={running !== undefined}

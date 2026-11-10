@@ -4,7 +4,8 @@ import type { ChatDetail, ChatTurnWithEvents, TurnEvent } from '../../../api/typ
 /**
  * How full the chat's conversation is, for its context meter (docs/harness.md, "Compact and Clear"), read from the live
  * turns the way the server reads its detail (`conversationState`): everything since the last Clear, the size from the
- * last main-agent `context` or a later `compact`'s size after, else the detail's own `context`. Pure.
+ * last main-agent `context` or a later `compact`'s size after, else the detail's own `context` (read by the server from
+ * the whole current conversation, so a long chat's left-out turns count there). The totals count the loaded turns. Pure.
  */
 
 type Of<T extends TurnEvent['type']> = Extract<TurnEvent, { type: T }>;
@@ -116,12 +117,14 @@ function totals(work: readonly ChatTurnWithEvents[], cleared: boolean) {
 /** The conversation as the meter shows it, from the live turns and the loaded detail. */
 export function conversationView(
   turns: readonly ChatTurnWithEvents[],
-  detail: Pick<ChatDetail, 'init' | 'context' | 'sessionId'> | undefined,
+  detail: Pick<ChatDetail, 'init' | 'context' | 'sessionId' | 'earlier'> | undefined,
 ): ConversationView {
   const lastClear = turns.findLastIndex((turn) => turn.kind === 'clear');
   const cleared = lastClear >= 0;
   const since = turns.slice(lastClear + 1);
-  const walk: Walk = { init: undefined, used: undefined, window: null, base: undefined, hasSession: false };
+  // Without a Clear among the turns, the detail's `init` may come from turns a long chat left out: it names the model.
+  const seed = cleared ? undefined : (detail?.init ?? undefined);
+  const walk: Walk = { init: seed, used: undefined, window: null, base: undefined, hasSession: false };
   for (const turn of since) for (const { event } of turn.events) step(walk, event);
   // Nothing measured in the turns and no Clear among them: the detail's own reading stands.
   const init = walk.init ?? (cleared ? undefined : (detail?.init ?? undefined));
@@ -129,9 +132,11 @@ export function conversationView(
   const used = walk.used ?? fallback?.usedTokens;
   const model = init?.model ?? fallback?.model ?? null;
   const window = walk.used !== undefined ? walk.window : (fallback?.window ?? contextWindowOf(model));
+  // The current conversation's Clear may be left out of a long chat's loaded turns: the detail still lists it.
+  const afterClear = cleared || (detail?.earlier.conversations.length ?? 0) > 0;
   const { session, lastTurn } = totals(
     since.filter((turn) => turn.kind !== 'clear'),
-    cleared,
+    afterClear,
   );
   return {
     used,

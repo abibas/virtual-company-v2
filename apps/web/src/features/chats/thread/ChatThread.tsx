@@ -1,6 +1,12 @@
 import { ArrowDown, MessagesSquare } from 'lucide-react';
+import type { RefObject } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
+import type { EarlierConversations as Folds } from '../../../api/use-chat-earlier.ts';
+import type { ChatEarlierLive } from '../../../api/use-chat-live.ts';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
+import { EarlierConversations } from './earlier/EarlierConversations.tsx';
+import { LoadOlder } from './earlier/LoadOlder.tsx';
+import { useKeepScroll } from './earlier/use-keep-scroll.ts';
 import type { Answering } from './question/QuestionCard.tsx';
 import { answerTurnIds } from './question/question-model.ts';
 import { sentTurnIds } from './question/use-question-draft.ts';
@@ -21,49 +27,100 @@ function JumpToLatest({ onClick }: { readonly onClick: () => void }) {
   );
 }
 
+/** What the thread shows above the current conversation: its older turns left out, the conversations before Clears. */
+export interface ThreadHistory {
+  readonly live: ChatEarlierLive;
+  readonly folds: Folds;
+}
+
+/** The current conversation: from the last Clear on (a Clear made just now, until the fresh detail folds what it ended). */
+function currentOf(turns: readonly ChatTurnWithEvents[]) {
+  const from = turns.findLastIndex((turn) => turn.kind === 'clear');
+  return from > 0 ? turns.slice(from) : turns;
+}
+
 /**
  * The chat's turns as a thread (S5.1c, S5.2), scrolled to the latest on open and following the live output while the
- * person is at the bottom (`useFollow`). Scrolling up to read stops the following and shows "Jump to latest".
+ * person is at the bottom (`useFollow`). Scrolling up to read stops the following and shows "Jump to latest". Above
+ * the current conversation: a bar for each conversation before a Clear (folded), and "Load older messages" while older
+ * turns of the current one are left out, which keeps the reader's place as they go in.
  */
-export function ChatThread({
-  turns,
-  agentName,
-  chatInit,
-  answering,
-}: {
+export interface ChatThreadProps {
   readonly turns: readonly ChatTurnWithEvents[];
   readonly agentName: string;
   readonly chatInit: RunsOn | undefined;
   /** How the person answers the agent's questions (S5.2 step 4). */
   readonly answering: Answering | undefined;
+  readonly history: ThreadHistory;
+}
+
+/** Above the current conversation: the folded conversations before Clears, then "Load older messages" when due. */
+function Above({
+  history,
+  root,
+  onLoadOlder,
+  agentName,
+}: {
+  readonly history: ThreadHistory;
+  readonly root: RefObject<HTMLDivElement | null>;
+  readonly onLoadOlder: () => void;
+  readonly agentName: string;
 }) {
-  const streaming = turns.some((turn) => turn.status === 'running');
-  const answers = new Set([...answerTurnIds(turns), ...sentTurnIds()]);
-  const follow = useFollow(turns, streaming);
+  const { live, folds } = history;
+  return (
+    <>
+      <EarlierConversations conversations={live.conversations} earlier={folds} agentName={agentName} />
+      {live.more && (
+        <LoadOlder
+          root={root}
+          left={live.left}
+          loading={live.loading}
+          failed={live.error !== undefined}
+          onLoad={onLoadOlder}
+        />
+      )}
+    </>
+  );
+}
+
+export function ChatThread({ turns, agentName, chatInit, answering, history }: ChatThreadProps) {
+  const current = currentOf(turns);
+  const streaming = current.some((turn) => turn.status === 'running');
+  const answers = new Set([...answerTurnIds(current), ...sentTurnIds()]);
+  const follow = useFollow(current, streaming);
+  const hold = useKeepScroll(follow.box, follow.content, current[0]?.id);
+  const loadOlder = () => {
+    hold();
+    void history.live.loadOlder();
+  };
+  const empty = current.length === 0 && history.live.conversations.length === 0;
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={follow.box}
         onScroll={follow.onScroll}
         aria-busy={streaming || undefined}
-        className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6"
+        className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 py-5 [overflow-anchor:none] md:px-6"
       >
-        {turns.length === 0 ? (
+        {empty ? (
           <EmptyState icon={MessagesSquare} tone="blue" title="No messages yet" size="sm">
             Write to {agentName} below. It answers from its folder on its machine, with its own tools.
           </EmptyState>
         ) : (
-          <ol ref={follow.content} className="mx-auto grid max-w-3xl gap-7">
-            {turns.map((turn, index) => (
-              <TurnView
-                key={turn.id}
-                turn={turn}
-                agentName={agentName}
-                chatInit={chatInit}
-                place={{ last: index === turns.length - 1, answer: answers.has(turn.id), answering }}
-              />
-            ))}
-          </ol>
+          <div className="mx-auto grid max-w-3xl gap-7">
+            <Above history={history} root={follow.box} onLoadOlder={loadOlder} agentName={agentName} />
+            <ol ref={follow.content} className="grid gap-7">
+              {current.map((turn, index) => (
+                <TurnView
+                  key={turn.id}
+                  turn={turn}
+                  agentName={agentName}
+                  chatInit={chatInit}
+                  place={{ last: index === current.length - 1, answer: answers.has(turn.id), answering }}
+                />
+              ))}
+            </ol>
+          </div>
         )}
       </div>
       {follow.away && <JumpToLatest onClick={follow.jump} />}

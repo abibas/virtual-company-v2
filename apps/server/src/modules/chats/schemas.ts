@@ -2,6 +2,7 @@ import { z } from '@hono/zod-openapi';
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
 import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
 import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared/harness';
+import { ChatEarlierSchema } from './schemas/history.ts';
 
 /**
  * The chats' shapes (S5.1b, docs/harness.md "How a turn runs"): a chat with an agent, its turns and their events, the
@@ -143,7 +144,11 @@ export const OpenQuestionSchema = z
   .openapi('OpenQuestion');
 
 export const ChatDetailSchema = ChatSchema.extend({
-  turns: z.array(ChatTurnWithEventsSchema),
+  turns: z.array(ChatTurnWithEventsSchema).openapi({
+    description:
+      "The current conversation: the turns since the chat's last Clear (that Clear's turn first), the latest 30 of them",
+  }),
+  earlier: ChatEarlierSchema,
   /** The last `init` event since the chat's last Clear (model, effort, folder, slash commands); null before one. */
   init: InitEvent.nullable(),
   context: ChatContextSchema.nullable().openapi({
@@ -159,6 +164,11 @@ export const ChatDetailSchema = ChatSchema.extend({
       'or a plain message closes it)',
   }),
 }).openapi('ChatDetail');
+
+/** A page of older turns (`GET …/chats/{chatId}/turns`), in order, and whether older ones exist in its range. */
+export const OlderTurnsSchema = z
+  .object({ turns: z.array(ChatTurnWithEventsSchema), more: z.boolean() })
+  .openapi('ChatOlderTurns');
 
 export const ChatListSchema = z.object({ chats: z.array(ChatSchema) }).openapi('ChatList');
 
@@ -206,6 +216,7 @@ export type ChatView = z.infer<typeof ChatSchema>;
 export type ChatTurnView = z.infer<typeof ChatTurnSchema>;
 export type ChatEventView = z.infer<typeof ChatEventSchema>;
 export type ChatDetailView = z.infer<typeof ChatDetailSchema>;
+export type ChatTurnWithEventsView = z.infer<typeof ChatTurnWithEventsSchema>;
 export type ChatContextView = z.infer<typeof ChatContextSchema>;
 export type CreateChat = z.infer<typeof CreateChatSchema>;
 export type UpdateChat = z.infer<typeof UpdateChatSchema>;

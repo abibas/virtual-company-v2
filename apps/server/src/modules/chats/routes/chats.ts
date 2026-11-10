@@ -93,11 +93,14 @@ const getChatRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'get',
-    summary: 'A chat with its turns and their events (member and above)',
+    summary: 'A chat with its current conversation: its latest turns and their events (member and above)',
     description:
-      'Each turn says its `kind` (a `clear` turn is the marker of a Clear). `init` is the last `init` event since the ' +
-      "chat's last Clear (model, effort, folder, slash commands) and `context` how full its conversation is " +
-      '(`usedTokens`, `window`, `model`, `at`); both null before anything said so since then.',
+      "`turns` is the current conversation: the turns since the chat's last Clear (that Clear's turn first, its `kind` " +
+      '`clear`), the latest 30 of them. `earlier` says what is left out: `before` and `turns`, the older turns of the ' +
+      'current conversation (page them with `GET …/turns?beforeSeq=`), and `conversations`, the conversations before ' +
+      'each Clear, newest first, with their size and time span. `init` is the last `init` event of the current ' +
+      'conversation (model, effort, folder, slash commands) and `context` how full it is (`usedTokens`, `window`, ' +
+      '`model`, `at`), both read from all of it, left-out turns too; null before anything said so since the last Clear.',
     request: { params: ChatParamsSchema },
     responses: { 200: jsonResponse('The chat', ChatDetailSchema), ...refusals, 404: NO_CHAT },
   });

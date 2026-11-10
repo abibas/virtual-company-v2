@@ -442,6 +442,31 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
   measured the conversation since the last Clear), from the chat's events (the chats module's `conversationState`). A
   page following the stream applies the same rule to the events it gets.
 
+### Reading a long chat
+
+Built 2026-11-10 (Ihor: "Whenever I'm doing CLEAR context, those OLD [messages] should automatically collapse, with an
+ability to expand… lazy loading"). The detail no longer carries every turn:
+
+- **The detail** (`GET …/chats/{chatId}`) holds the **current conversation**: the turns after the last `clear` turn,
+  that Clear first, the latest 30 (`CHAT_WINDOW`) with their events. `earlier` says what it left out: `before` (the
+  first returned turn's number while older turns of the current conversation are left out, else null), `turns` (how
+  many), and `conversations` (one per Clear, newest first: `clearTurnId`, `clearSeq`, `clearedAt`, `turns` without the
+  Clears, `from`/`to` the first and last turn's times). `init`, `context`, `question` and `queue` read as before;
+  `init` and `context` still read the whole current conversation (the left-out turns' `init`, `context` and `compact`
+  events only).
+- **Older turns** (`GET …/chats/{chatId}/turns?beforeSeq=&afterSeq=&limit=`, members and above): the latest `limit`
+  (1–50, default 20) before `beforeSeq` and after `afterSeq` (both exclusive, `afterSeq` 0 by default), in order with
+  their events, and `more`. The web pages back from `earlier.before` with `afterSeq` one before the last Clear, and loads
+  a conversation with its `clearSeq` and the next older one's.
+- Every query rides the turns' unique `(company_id, chat_id, seq)` index and the events' key: no migration. The stream
+  and its `Last-Event-ID` replay are unchanged; a page reconnects from its window's last event, never from a paged one.
+- **The page** folds each conversation before a Clear into a bar ("Earlier conversation · 12 messages · 21:02–23:38",
+  cleared at its time) that loads its turns once and opens them in place, softer; a "Load older messages" row at the top
+  of the current conversation loads the next page by itself when it scrolls into view and keeps the reader's place. A
+  Clear made on the page reloads the detail, so what it ended folds at once. The context meter and the turn model read
+  only the current conversation (the meter's totals count its loaded turns). Not yet: events loaded lazily inside a
+  huge turn, search.
+
 ## Tests
 
 - Each connector's tests run every argument and environment combination and parse its fixtures, written from the

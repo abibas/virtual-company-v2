@@ -83,6 +83,9 @@ type ChatRoutes = CompanyRoutes['chats'][':chatId'];
 export type Chat = InferResponseType<AgentRoutes[':agentId']['chats']['$get'], 200>['chats'][number];
 export type ChatDetail = InferResponseType<ChatRoutes['$get'], 200>;
 export type ChatTurnWithEvents = ChatDetail['turns'][number];
+/** What a chat's detail leaves out: older turns of its current conversation, the conversations before each Clear. */
+export type ChatEarlier = ChatDetail['earlier'];
+export type ChatConversation = ChatEarlier['conversations'][number];
 export type ChatTurn = InferResponseType<ChatRoutes['turns']['$post'], 202>;
 export type ChatEvent = ChatTurnWithEvents['events'][number];
 export type TurnEvent = ChatEvent['event'];
