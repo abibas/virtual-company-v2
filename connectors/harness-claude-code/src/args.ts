@@ -5,9 +5,9 @@ import {
   ASK_TOOL,
   ASK_TOOL_CALLS,
   type HarnessCredential,
-  type HarnessGateway,
   type TerminalSpec,
 } from '@mwc/shared/harness';
+import { customHeaders } from './settings.ts';
 
 /** Claude Code's command line and environment for a turn or a terminal (docs/harness.md, "Claude Code"). */
 
@@ -89,14 +89,10 @@ export function credentialEnv(credential: HarnessCredential): Record<string, str
   }
 }
 
-/** `ANTHROPIC_CUSTOM_HEADERS`: one `Name: value` per line. */
-export function customHeaders(headers: HarnessGateway['headers']): string {
-  return Object.entries(headers)
-    .map(([name, value]) => `${name}: ${value}`)
-    .join('\n');
-}
-
-/** The variables to add: the credential's, the config folder, the gateway's address and headers. */
+/**
+ * The variables to add: the credential's, the config folder, the gateway's address and headers (the private settings
+ * file, `settings.ts`, says the same, so a machine's own settings cannot override them).
+ */
 export function claudeEnv(spec: TerminalSpec): Record<string, string> {
   const env = credentialEnv(spec.credential);
   if (spec.configDir !== null) env.CLAUDE_CONFIG_DIR = spec.configDir;

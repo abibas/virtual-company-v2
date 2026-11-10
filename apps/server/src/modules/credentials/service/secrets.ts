@@ -53,7 +53,7 @@ export type StoreCredentialInput = KindSecret & {
   /** Trimmed here; 1 to 80 characters. */
   readonly label: string;
   readonly accountEmail?: string | null;
-  /** Non-secret details only: plan, organization, scopes, a gateway's base URL. */
+  /** Non-secret details only: plan, organization, scopes, a gateway's base URL and provider. */
   readonly accountMeta?: AccountMeta;
   readonly requestId?: string | null;
 };

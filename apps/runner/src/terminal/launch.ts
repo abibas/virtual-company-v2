@@ -1,7 +1,7 @@
 import type { ProcessSpec } from '@mwc/harness-core';
 import type { TerminalSpec } from '@mwc/shared/harness';
 import { processEnv } from '../turns/env.ts';
-import type { PrivateLease } from '../turns/private-dir.ts';
+import { type PrivateLease, withPrivateDir } from '../turns/private-dir.ts';
 import type { HarnessHost } from '../turns/turns.ts';
 import { type Env, LOGIN_FLAG, loginShell, terminalEnv } from './shell.ts';
 
@@ -9,7 +9,8 @@ import { type Env, LOGIN_FLAG, loginShell, terminalEnv } from './shell.ts';
  * What a terminal starts (docs/machines.md, "Terminal"; docs/harness.md, "How a turn runs"): the user's login shell in
  * the home folder, or, for a chat's terminal (`terminal.open` with `harness`), the harness's own TUI from its driver,
  * in the agent's folder, with the terminal's environment less what the driver unsets plus its own, and its private
- * folder (a Codex login, for the session's lifetime). The driver's notices are printed above the TUI.
+ * folder (a Codex login, Claude Code's settings file, for the session's lifetime). The driver's notices are printed
+ * above the TUI.
  */
 
 export interface TerminalLaunch {
@@ -62,19 +63,19 @@ export function harnessLaunch(
   const driver = harness?.drivers[spec.harness];
   if (harness === undefined || driver === undefined) return { refused: 'unsupported' };
   if (!harness.isDirectory(spec.cwd)) return { refused: 'home_missing' };
-  let process: ProcessSpec;
+  let built: ProcessSpec;
   try {
-    process = driver.terminal(spec);
+    built = driver.terminal(spec);
   } catch (error) {
     return { refused: `invalid_spec: ${messageOf(error)}` };
   }
   let lease: PrivateLease | undefined;
   try {
-    lease = process.privateDir && harness.dirs.acquire(process.privateDir, spec.harness, spec.cwd);
+    lease = built.privateDir && harness.dirs.acquire(built.privateDir, spec.harness, spec.cwd);
   } catch (error) {
     return { refused: `spawn_failed: ${messageOf(error)}` };
   }
-  const extra = lease && process.privateDir ? { [process.privateDir.env]: lease.path } : {};
+  const { process, env: extra } = withPrivateDir(built, lease);
   const banner = bannerOf(process);
   return {
     file: process.command,

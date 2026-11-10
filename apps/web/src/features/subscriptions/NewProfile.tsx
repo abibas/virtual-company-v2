@@ -33,12 +33,14 @@ function SubscriptionHint({
   );
 }
 
-/** The Claude profile's optional gateway, with where to add one when the person has none. */
+/** The profile's optional gateway of its provider, with where to add one when the person has none. */
 function GatewayField({
+  provider,
   subscriptions,
   value,
   onChange,
 }: {
+  readonly provider: ProfileProvider;
   readonly subscriptions: readonly Subscription[];
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -48,10 +50,10 @@ function GatewayField({
     <SelectField
       label="Gateway"
       value={value}
-      options={gatewayOptions(subscriptions)}
+      options={gatewayOptions(subscriptions, null, provider)}
       onChange={(event) => onChange(event.target.value)}
       hint={
-        hasGateway(subscriptions) ? (
+        hasGateway(subscriptions, provider) ? (
           'Optional: where its runs send their AI requests'
         ) : (
           <>
@@ -74,7 +76,7 @@ interface FormProps {
   readonly onCancel: () => void;
 }
 
-/** What the form holds, and its submit: the profile as `POST` takes it (a gateway for Claude only). */
+/** What the form holds, and its submit: the profile as `POST` takes it, with its optional gateway. */
 function useNewProfile(provider: ProfileProvider, create: FormProps['create']) {
   const [name, setName] = useState('');
   const [credentialId, setCredentialId] = useState('');
@@ -86,8 +88,12 @@ function useNewProfile(provider: ProfileProvider, create: FormProps['create']) {
     setBusy(true);
     setError(undefined);
     try {
-      const gateway = provider === 'claude' ? { gatewayCredentialId: gatewayCredentialId || null } : {};
-      await create({ name: name.trim(), provider, credentialId: credentialId || null, ...gateway });
+      await create({
+        name: name.trim(),
+        provider,
+        credentialId: credentialId || null,
+        gatewayCredentialId: gatewayCredentialId || null,
+      });
     } catch (failure) {
       setError(friendlyMessage(failure));
       setBusy(false);
@@ -138,13 +144,12 @@ function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: Fo
           onChange={(event) => form.setCredentialId(event.target.value)}
           hint={<SubscriptionHint provider={provider} count={choices.length} />}
         />
-        {provider === 'claude' && (
-          <GatewayField
-            subscriptions={subscriptions}
-            value={form.gatewayCredentialId}
-            onChange={form.setGateway}
-          />
-        )}
+        <GatewayField
+          provider={provider}
+          subscriptions={subscriptions}
+          value={form.gatewayCredentialId}
+          onChange={form.setGateway}
+        />
       </div>
       <div className="flex flex-wrap justify-between gap-2">
         <Button tone="quiet" icon={ArrowLeft} disabled={form.busy} onClick={onBack}>

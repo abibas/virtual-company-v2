@@ -1,11 +1,18 @@
-import { fitsGateway, fitsProvider, PROVIDER_KINDS } from '@mwc/shared/credentials';
+import {
+  fitsGateway,
+  fitsProvider,
+  gatewayFitsProfile,
+  PROFILE_GATEWAY_PROVIDER,
+  PROVIDER_KINDS,
+} from '@mwc/shared/credentials';
 import type { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
 
 // Access profiles' own rules (S3.4, one provider each since 2026-11-10, docs/subscriptions.md): what a profile's
-// subscription and gateway take, what a change writes, and what the audit log keeps of a profile. Who gives a profile
-// to an agent, and to which harness it fits, is the org module's rule. Pure.
+// subscription and gateway take (a gateway of the profile's own provider since migration 0016), what a change writes,
+// and what the audit log keeps of a profile. Who gives a profile to an agent, and to which harness it fits, is the org
+// module's rule. Pure.
 
-/** A profile's two credentials: its subscription and a Claude profile's gateway. */
+/** A profile's two credentials: its subscription and its gateway. */
 export type ProfilePart = 'subscription' | 'gateway';
 
 /** The column that holds each part's credential. */
@@ -56,13 +63,6 @@ export const providerFixed = (provider: ProfileProvider) =>
     `This is ${A_PROVIDER[provider]} profile, and a profile's provider is fixed: make a new profile for the other one`,
   );
 
-/** A gateway given to an OpenAI profile. */
-export const GATEWAY_CLAUDE_ONLY = refuse(
-  422,
-  'gateway_not_allowed',
-  'Only a Claude profile has a gateway; Codex runs without one',
-);
-
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 const PART_NAMES: Readonly<Record<ProfilePart, string>> = {
@@ -70,26 +70,35 @@ const PART_NAMES: Readonly<Record<ProfilePart, string>> = {
   gateway: 'its gateway',
 };
 
-/** Why the change gives an OpenAI profile a gateway (undefined when it does not): only Claude profiles have one. */
-export function gatewayRefusal(
-  provider: ProfileProvider,
-  choice: CredentialChoice,
-): ProfileRefusal<422> | undefined {
-  return provider === 'openai' && typeof choice.gatewayCredentialId === 'string'
-    ? GATEWAY_CLAUDE_ONLY
-    : undefined;
+/** What each gateway provider's gateways are for, as messages say it. */
+const GATEWAY_FOR = { anthropic: 'Claude Code', openai: 'Codex' } as const;
+
+/** A gateway of the other provider than the profile's: a Claude profile takes one for Claude Code, OpenAI for Codex. */
+export const gatewayProviderMismatch = (provider: ProfileProvider) => {
+  const wanted = PROFILE_GATEWAY_PROVIDER[provider];
+  const other = wanted === 'anthropic' ? 'openai' : 'anthropic';
+  const message = `profile takes a gateway for ${GATEWAY_FOR[wanted]}, not one for ${GATEWAY_FOR[other]}`;
+  return refuse(422, 'gateway_provider_mismatch', `${capital(A_PROVIDER[provider])} ${message}`);
+};
+
+/** What the rules read of a credential: its kind, its state and its account details (a gateway's provider). */
+export interface HeldCredential {
+  readonly kind: CredentialKind;
+  readonly status: CredentialStatus;
+  readonly accountMeta: Readonly<Record<string, unknown>>;
 }
 
 /**
  * Why a credential may not be a `provider` profile's subscription or gateway, or undefined when it may. `credential` is
  * the profile owner's own credential of that id, undefined when they have none (another person's is the same, so nobody
  * learns which exist): 422 `credential_not_found`, `provider_mismatch` (a subscription of another provider),
- * `credential_kind_mismatch` (a gateway that is not one) or `credential_revoked`.
+ * `credential_kind_mismatch` (a gateway that is not one), `gateway_provider_mismatch` (a gateway of the other provider)
+ * or `credential_revoked`.
  */
 export function credentialRefusal(
   part: ProfilePart,
   provider: ProfileProvider,
-  credential: { readonly kind: CredentialKind; readonly status: CredentialStatus } | undefined,
+  credential: HeldCredential | undefined,
 ): ProfileRefusal<422> | undefined {
   const where = PART_NAMES[part];
   if (credential === undefined) {
@@ -110,6 +119,9 @@ export function credentialRefusal(
       'credential_kind_mismatch',
       `A profile's gateway is a gateway, not one of kind ${credential.kind}`,
     );
+  }
+  if (part === 'gateway' && !gatewayFitsProfile(provider, credential.accountMeta)) {
+    return gatewayProviderMismatch(provider);
   }
   if (credential.status === 'revoked') {
     return refuse(422, 'credential_revoked', `A revoked subscription cannot be ${where}; add it again`);

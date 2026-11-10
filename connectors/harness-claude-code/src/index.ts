@@ -6,7 +6,6 @@ export {
   CLAUDE_COMMAND,
   claudeEnv,
   credentialEnv,
-  customHeaders,
   MCP_CONFIG_FILE,
   mcpConfig,
   sharedArgs,
@@ -19,6 +18,14 @@ export { ClaudeCodeDriver, type ClaudeCodeDriverOptions } from './driver.ts';
 export { INPUT_ARGS, inputEvent, isReplay, userLine } from './input.ts';
 export { assistantEvents, resultEvents, todoEvent, userEvents } from './messages.ts';
 export { ClaudeLineParser } from './parser.ts';
+export {
+  customHeaders,
+  DIRECT_BASE_URL,
+  SETTINGS_OPTION,
+  settingsDir,
+  settingsEnv,
+  settingsFile,
+} from './settings.ts';
 export { type ClaudeState, newClaudeState, parentOf, type SubagentState } from './state.ts';
 export {
   interruptedSubagents,

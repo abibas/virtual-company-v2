@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 16, the last is `0015_profile_provider`.
+Tables: 29. Migrations: 17, the last is `0016_gateway_provider`.
 
 ```mermaid
 erDiagram
@@ -458,7 +458,6 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
   - `access_profiles_provider_check`: `provider` is one of `claude`, `openai`
-  - `access_profiles_gateway_check`: `"provider" = 'claude' or "gateway_credential_id" is null`
 - **Indexes:** none
 
 ### `agent_placements`

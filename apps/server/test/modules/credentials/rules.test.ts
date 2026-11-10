@@ -41,18 +41,19 @@ describe('pastedCredential', () => {
     });
   });
 
-  it("seals a gateway's headers and shows its address", () => {
+  it("seals a gateway's headers and shows its address and provider", () => {
     const body = {
       kind: 'gateway',
       label: 'G',
-      baseUrl: 'http://localhost:8300',
+      provider: 'openai',
+      baseUrl: 'http://localhost:8300/v1',
       headers: { 'x-api-key': 'k' },
     } as const;
     expect(pastedCredential(body)).toEqual({
       kind: 'gateway',
       secret: { headers: { 'x-api-key': 'k' } },
       label: 'G',
-      accountMeta: { baseUrl: 'http://localhost:8300' },
+      accountMeta: { baseUrl: 'http://localhost:8300/v1', provider: 'openai' },
     });
   });
 });

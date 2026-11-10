@@ -269,6 +269,27 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    agent form and the chat picker offering only matching profiles, "Make one" opening New profile for that provider.
    Tests: the backfill seeded at `0014` (each case, agents and chats of each harness, defaults, names taken and cut),
    the constraints, the routes, the harness rules on agents and chats, turn resolution; no frontend tests.
+   **Gateways for Codex, and the profile's gateway decides: done 2026-11-10** (docs/subscriptions.md "Gateways",
+   docs/harness.md "Credentials and gateways"; Ihor: "Codex runs without a gateway… it should run through the gateway as
+   well… push the profile to the session/folder the agent starts in on the end machine"). A gateway has a provider,
+   `anthropic` (Claude Code) or `openai` (Codex), in its account details (`accountMeta.provider`; older gateways read as
+   `anthropic`, no data step); `POST /api/me/subscriptions {kind: 'gateway', provider?, baseUrl, headers}`. Migration
+   `0016_gateway_provider` drops the CHECK that kept gateways on Claude profiles: an OpenAI profile takes one too, and a
+   profile takes only a gateway of its provider (422 `gateway_provider_mismatch`, replacing `gateway_not_allowed`). The
+   Codex driver gives the gateway as a custom model provider in config overrides (`model_provider="mwc_gateway"`, its
+   `name`, `base_url`, `wire_api="responses"`, `requires_openai_auth=true` for a login or `env_key="CODEX_API_KEY"` for a
+   key in `codex exec`, the headers as `env_http_headers` naming `MWC_GATEWAY_SECRET_HEADER_<n>` variables), and
+   `model_provider="openai"` without one; each key checked against Codex 0.162.1's own config loading (`codex mcp list`
+   with a scratch `CODEX_HOME`). The Claude Code driver gives every turn and terminal a private settings file
+   (`--settings <path>`, 0600 in the runner's folder for the harness and the agent's folder, removed with the process's
+   other private files): the gateway's `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS`, or Anthropic's own address
+   and no headers, so a machine's `~/.claude/settings.json` gateway no longer captures a turn (flag settings rank above
+   user, project and local settings in Claude Code 2.1.322's own source order). `PrivateFile.option` (the runner names
+   the file on the command line) and an optional `PrivateDir.env` in `@mwc/harness-core`. Web: the gateway form asks
+   "For Claude Code" or "For Codex" first, with the addresses to try; gateway cards show it; every profile card has a
+   Gateway slot listing only its provider's gateways. Tests: the migration's constraint change, the provider rules, the
+   routes, both drivers' arguments, environment and settings, the runner writing, naming and removing the settings file
+   in turns and terminals; no real turn run, no frontend tests.
 2. Run folder, detached spawn, journal, re-attach, stop ladder — runner integration with the fake `claude`.
 3. Server: tables, state machine, scheduler, reaper, `run_inputs`, `task_sessions`, SSE, `agent_placements` — API integration.
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.

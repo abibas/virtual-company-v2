@@ -206,7 +206,7 @@ const profileRow = async (id: string) =>
   (await handle.db.select().from(accessProfiles).where(eq(accessProfiles.id, id)))[0];
 
 describe('access_profiles', () => {
-  it('names one provider’s subscription of its owner, and a Claude one’s gateway, both empty by default', async () => {
+  it('names one provider’s subscription of its owner and a gateway, both empty by default', async () => {
     const row = await profile({ name: 'Work' });
     expect(row).toMatchObject({
       ownerUserId: ownerId,
@@ -239,21 +239,16 @@ describe('access_profiles', () => {
     expect((await profile({ name, ownerUserId: other })).name).toBe(name);
   });
 
-  it('gives only a Claude profile a gateway', async () => {
-    const [gateway] = await insert({ kind: 'gateway' });
-    expect(await pgError(profile({ provider: 'openai', gatewayCredentialId: gateway?.id }))).toMatchObject({
-      code: '23514',
-      constraint: 'access_profiles_gateway_check',
+  it('gives a profile of either provider a gateway; which gateway fits is the credentials module’s rule', async () => {
+    const [anthropic] = await insert({ kind: 'gateway', accountMeta: { baseUrl: 'http://127.0.0.1:8300' } });
+    const [openai] = await insert({
+      kind: 'gateway',
+      accountMeta: { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', provider: 'openai' },
     });
-    const claude = await profile({ gatewayCredentialId: gateway?.id });
-    const turned = handle.db
-      .update(accessProfiles)
-      .set({ provider: 'openai' })
-      .where(eq(accessProfiles.id, claude.id));
-    expect(await pgError(turned)).toMatchObject({
-      code: '23514',
-      constraint: 'access_profiles_gateway_check',
-    });
+    const codex = await profile({ provider: 'openai', gatewayCredentialId: openai?.id });
+    expect(codex).toMatchObject({ provider: 'openai', gatewayCredentialId: openai?.id });
+    const claude = await profile({ gatewayCredentialId: anthropic?.id });
+    expect(claude).toMatchObject({ provider: 'claude', gatewayCredentialId: anthropic?.id });
   });
 
   it.each([

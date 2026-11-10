@@ -36,7 +36,7 @@ export const PROVIDER_STYLES: Readonly<Record<ProfileProvider, ProviderStyle>> =
     tone: 'teal',
     icon: OpenAIMark,
     agents: 'Codex agents',
-    holds: 'One OpenAI subscription. Codex runs without a gateway.',
+    holds: 'One OpenAI subscription, and an optional gateway for Codex.',
   },
 };
 

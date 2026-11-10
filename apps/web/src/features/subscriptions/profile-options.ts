@@ -1,4 +1,10 @@
-import { fitsGateway, fitsProvider, GATEWAY_KINDS, PROVIDER_KINDS } from '@mwc/shared/credentials';
+import {
+  fitsGateway,
+  fitsProvider,
+  GATEWAY_KINDS,
+  gatewayFitsProfile,
+  PROVIDER_KINDS,
+} from '@mwc/shared/credentials';
 import type { ProfileProvider } from '@mwc/shared/enums';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
 import type { SelectOption } from '../../components/forms/Input.tsx';
@@ -14,11 +20,11 @@ type Held = AccessProfile['subscription'];
 function options(
   subscriptions: readonly Subscription[],
   current: Held,
-  wanted: { readonly kinds: readonly string[]; readonly fits: (kind: Subscription['kind']) => boolean },
+  wanted: { readonly kinds: readonly string[]; readonly fits: (subscription: Subscription) => boolean },
   none: string,
 ): SelectOption[] {
   const fitting = subscriptions
-    .filter((s) => wanted.fits(s.kind) && (s.status !== 'revoked' || s.id === current?.id))
+    .filter((s) => wanted.fits(s) && (s.status !== 'revoked' || s.id === current?.id))
     .sort((a, b) => wanted.kinds.indexOf(a.kind) - wanted.kinds.indexOf(b.kind));
   const choices = current && !fitting.some((s) => s.id === current.id) ? [current, ...fitting] : fitting;
   return [
@@ -41,19 +47,27 @@ export const subscriptionOptions = (
   options(
     subscriptions,
     current,
-    { kinds: PROVIDER_KINDS[provider], fits: (kind) => fitsProvider(provider, kind) },
+    { kinds: PROVIDER_KINDS[provider], fits: (s) => fitsProvider(provider, s.kind) },
     none,
   );
 
-/** The choices of a Claude profile's gateway: None, then the person's gateways. */
+/** True when `s` is a gateway of the provider a `provider` profile takes (Claude Code's for Claude, Codex's for OpenAI). */
+const gatewayFor = (provider: ProfileProvider, s: Subscription): boolean =>
+  fitsGateway(s.kind) && gatewayFitsProfile(provider, s.accountMeta);
+
+/** The choices of a `provider` profile's gateway (Claude unless said): None, then the person's gateways of it. */
 export const gatewayOptions = (
   subscriptions: readonly Subscription[],
   current: Held = null,
-): SelectOption[] => options(subscriptions, current, { kinds: GATEWAY_KINDS, fits: fitsGateway }, 'None');
+  provider: ProfileProvider = 'claude',
+): SelectOption[] =>
+  options(subscriptions, current, { kinds: GATEWAY_KINDS, fits: (s) => gatewayFor(provider, s) }, 'None');
 
-/** True when the person has a gateway that a profile can take. */
-export const hasGateway = (subscriptions: readonly Subscription[]): boolean =>
-  subscriptions.some((s) => fitsGateway(s.kind) && s.status !== 'revoked');
+/** True when the person has a gateway that a `provider` profile (Claude unless said) can take. */
+export const hasGateway = (
+  subscriptions: readonly Subscription[],
+  provider: ProfileProvider = 'claude',
+): boolean => subscriptions.some((s) => gatewayFor(provider, s) && s.status !== 'revoked');
 
 /** The profiles of one provider, in the order the list has them. */
 export const profilesOf = (profiles: readonly AccessProfile[], provider: ProfileProvider): AccessProfile[] =>

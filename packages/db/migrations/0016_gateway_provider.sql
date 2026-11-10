@@ -1,0 +1,1 @@
+ALTER TABLE "access_profiles" DROP CONSTRAINT "access_profiles_gateway_check";

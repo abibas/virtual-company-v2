@@ -28,6 +28,21 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: Gateways for Codex grow two folders already over their limit
+
+- **What happened:** `apps/web/src/features/subscriptions/` went from 18 to 19 entries (`big-folder`: `GatewayFields.tsx`,
+  the gateway's provider choice, address and headers, split out so `PasteForm.tsx` stays at 220 lines and under the
+  60-line function smell) and `connectors/harness-claude-code/src/` from 13 to 14 (`settings.ts`, Claude Code's private
+  `--settings` file). The Codex provider overrides went to `connectors/harness-codex/src/gateway.ts` and the TOML
+  writers to `config.ts` (9 entries). `Providers.tsx` would have reached 8 importers (`fan-in`); `GatewayCard.tsx` reads
+  the profile name through `GatewayFields.tsx` instead.
+- **Where:** the codex-gateway commit.
+- **What was done:** as above.
+- **Suggested change:** none beyond the open S5 review items: group `features/subscriptions/` (profiles, gateways) and
+  the Claude Code connector's parser files (`messages.ts`, `subagents.ts`, `system.ts`, `summary.ts`, `context.ts`)
+  under `parse/`.
+- **Status:** `open`.
+
 ### 2026-11-10: Access profiles of one provider, and a migration whose data step sits between two generated parts
 
 - **What happened:** `0015_profile_provider` needed its data step after the new columns and before the old slot

@@ -20,6 +20,7 @@ import {
 } from './args.ts';
 import { INPUT_ARGS, userLine } from './input.ts';
 import { ClaudeLineParser } from './parser.ts';
+import { settingsDir } from './settings.ts';
 
 export interface ClaudeCodeDriverOptions {
   /** The `claude` program's full path, when the runner found it; `claude` on PATH otherwise. */
@@ -33,7 +34,9 @@ export interface ClaudeCodeDriverOptions {
  * which stays open for the person's messages while the turn runs (`inputLine`, `input.ts`); a terminal is the same
  * without the print-mode arguments, the TUI.
  * With the runner's tools a turn also gets its MCP server (`--mcp-config <dir>/mcp.json`, the file written by the runner),
- * the question tool allowed and one line of system prompt (`toolArgs`).
+ * the question tool allowed and one line of system prompt (`toolArgs`). Every turn and terminal gets a private settings
+ * file the runner writes and names with `--settings <path>` (`settings.ts`): the profile's gateway, or Anthropic's own
+ * address, over whatever the machine's settings say.
  */
 export class ClaudeCodeDriver implements HarnessDriver {
   readonly harness = 'claude_code' as const;
@@ -69,6 +72,7 @@ export class ClaudeCodeDriver implements HarnessDriver {
 
   #process(args: string[], spec: TerminalSpec, stdin: string | null): ProcessSpec {
     const env = claudeEnv(spec);
-    return { command: this.command, args, env, unsetEnv: unsetFor(env), stdin, notices: [] };
+    const privateDir = settingsDir(spec.gateway);
+    return { command: this.command, args, env, unsetEnv: unsetFor(env), stdin, privateDir, notices: [] };
   }
 }

@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ClaudeCodeDriver } from '@mwc/harness-claude-code';
 import { HarnessError } from '@mwc/harness-core';
 import { FakeHarnessDriver, fakeTerminalSpec } from '@mwc/harness-core/fake';
 import { describe, expect, it } from 'vitest';
@@ -70,6 +71,25 @@ describe('what a terminal starts', () => {
     expect(launch).not.toHaveProperty('banner');
     launch.lease?.release();
     expect(existsSync(join(home, 'auth.json'))).toBe(false);
+  });
+
+  it("gives Claude Code's TUI the profile's gateway in a 0600 settings file named by --settings, for the session", () => {
+    const driver = new ClaudeCodeDriver({ command: FAKE_COMMAND });
+    const { host, cwd, stateDir } = fakeHarnessHost({ drivers: { claude_code: driver } });
+    const gateway = { baseUrl: 'http://127.0.0.1:8300', headers: { 'x-memory-agent': 'slop' } };
+    const launch = harnessLaunch(fakeTerminalSpec('claude_code', { cwd, gateway }), host, MACHINE);
+    if ('refused' in launch) throw new Error(launch.refused);
+    const path = launch.args.at(-1) as string;
+    expect(launch.args).toEqual(['--settings', path]);
+    expect(path.startsWith(join(stateDir, 'claude_code'))).toBe(true);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+      env: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:8300', ANTHROPIC_CUSTOM_HEADERS: 'x-memory-agent: slop' },
+    });
+    expect(launch.env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:8300' });
+    expect(launch.env).not.toHaveProperty('ANTHROPIC_API_KEY');
+    launch.lease?.release();
+    expect(existsSync(path)).toBe(false);
   });
 
   it('refuses a harness it does not have, a missing folder, a spec the driver refuses and a folder it cannot make', () => {

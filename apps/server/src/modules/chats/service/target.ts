@@ -30,8 +30,8 @@ import {
  * must still be the chat's), its placement (on its machine, in host mode, on the chat's machine), the machine's runner
  * (connected, with the harness's CLI, and a terminal for a terminal), the access profile (the chat's own while its owner
  * is still an admin here, else the agent's; of the provider the harness runs on) and its subscription, opened as its
- * owner (a `credential_uses` row) and refreshed when due, with a Claude profile's gateway. Read before anything is
- * written; each refusal names what to fix.
+ * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (Claude Code's or Codex's, of
+ * the profile's provider). Read before anything is written; each refusal names what to fix.
  */
 
 /** What resolving needs: the hub and the credentials module's side. */
@@ -86,7 +86,7 @@ async function profileOf(t: TenantDb, chat: Chat, agent: Agent): Promise<AccessP
   return profile ?? PROFILE_MISSING;
 }
 
-/** The profile's gateway: only a Claude profile has one (`access_profiles_gateway_check`). */
+/** The profile's gateway, of its provider (the credentials module's rule), or null for none. */
 async function gatewayOf(
   deps: TargetDeps,
   profile: AccessProfile,

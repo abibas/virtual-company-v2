@@ -1,5 +1,5 @@
 import type { Credential } from '@mwc/db';
-import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE, gatewayProviderOf } from '@mwc/shared/credentials';
 import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import type { KindSecret } from './schemas/secrets.ts';
 import type { AccountMeta, AddSubscription, SubscriptionView } from './schemas.ts';
@@ -19,7 +19,7 @@ export function credentialAad(credential: {
 /** A credential as the store takes it: its kind and secret, its name, and its non-secret account details. */
 export type CredentialInput = KindSecret & { readonly label: string; readonly accountMeta: AccountMeta };
 
-/** A pasted subscription split into what is sealed (the secret) and what is shown (a gateway's address). */
+/** A pasted subscription split into what is sealed (the secret) and what is shown (a gateway's address and provider). */
 export function pastedCredential(body: AddSubscription): CredentialInput {
   switch (body.kind) {
     case 'claude_setup_token':
@@ -32,7 +32,7 @@ export function pastedCredential(body: AddSubscription): CredentialInput {
         kind: body.kind,
         secret: { headers: body.headers },
         label: body.label,
-        accountMeta: { baseUrl: body.baseUrl },
+        accountMeta: { baseUrl: body.baseUrl, provider: body.provider },
       };
   }
 }
@@ -64,14 +64,20 @@ export function audited(row: {
   };
 }
 
-/** A credential as the API shows it: metadata only, never its secret or sealed columns. */
+/** A gateway's account details with its provider said (`anthropic` for one added before gateways had one). */
+const shownMeta = (row: Credential): AccountMeta =>
+  row.kind === 'gateway'
+    ? { ...row.accountMeta, provider: gatewayProviderOf(row.accountMeta) }
+    : row.accountMeta;
+
+/** A credential as the API shows it: metadata only (a gateway with its provider), never its secret or sealed columns. */
 export function credentialView(row: Credential): SubscriptionView {
   return {
     id: row.id,
     kind: row.kind,
     label: row.label,
     accountEmail: row.accountEmail,
-    accountMeta: row.accountMeta,
+    accountMeta: shownMeta(row),
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

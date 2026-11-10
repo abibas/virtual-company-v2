@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { CREDENTIAL_LABEL } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL, GATEWAY_PROVIDERS } from '@mwc/shared/credentials';
 import { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import { AnthropicApiKey, GatewayHeaders, OpenAiApiKey, SetupToken } from './schemas/secrets.ts';
 
@@ -22,10 +22,10 @@ const label = z
   .max(CREDENTIAL_LABEL.max, `A name is at most ${CREDENTIAL_LABEL.max} characters`)
   .openapi({ example: 'Max at home' });
 
-/** Non-secret details of the account: plan, organization, scopes, a gateway's base URL. */
+/** Non-secret details of the account: plan, organization, scopes, a gateway's base URL and provider. */
 export const AccountMetaSchema = z
   .record(z.string(), z.unknown())
-  .openapi('SubscriptionAccount', { example: { baseUrl: 'http://localhost:8300' } });
+  .openapi('SubscriptionAccount', { example: { baseUrl: 'http://localhost:8300', provider: 'anthropic' } });
 
 /** A subscription as the API shows it: what it is, whose account, its state. Never its secret. */
 export const SubscriptionSchema = z
@@ -56,15 +56,30 @@ const GatewayUrl = z
   .openapi({ example: 'http://localhost:8300' });
 
 /**
- * A pasted subscription: its kind, a name and its secret (a setup-token, an API key, or a gateway's address and
- * headers). The two logins are added by signing in, not here.
+ * Whose API a gateway speaks: `anthropic` for Claude Code, `openai` for Codex (`anthropic` when left out, as gateways
+ * were before they had one).
+ */
+const GatewayProviderSchema = z
+  .enum(GATEWAY_PROVIDERS)
+  .default('anthropic')
+  .openapi({ description: '`anthropic` for Claude Code profiles, `openai` for Codex (OpenAI) profiles' });
+
+/**
+ * A pasted subscription: its kind, a name and its secret (a setup-token, an API key, or a gateway's provider, address
+ * and headers). The two logins are added by signing in, not here.
  */
 export const AddSubscriptionSchema = z
   .discriminatedUnion('kind', [
     z.object({ kind: z.literal('claude_setup_token'), label, token: SetupToken }),
     z.object({ kind: z.literal('anthropic_api_key'), label, apiKey: AnthropicApiKey }),
     z.object({ kind: z.literal('openai_api_key'), label, apiKey: OpenAiApiKey }),
-    z.object({ kind: z.literal('gateway'), label, baseUrl: GatewayUrl, headers: GatewayHeaders }),
+    z.object({
+      kind: z.literal('gateway'),
+      label,
+      provider: GatewayProviderSchema,
+      baseUrl: GatewayUrl,
+      headers: GatewayHeaders,
+    }),
   ])
   .openapi('AddSubscription');
 

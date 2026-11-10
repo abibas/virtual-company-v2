@@ -1,5 +1,7 @@
-import { HarnessError, type PrivateFile, type TurnNotice, type TurnTools } from '@mwc/harness-core';
+import { HarnessError, type PrivateFile, type TurnTools } from '@mwc/harness-core';
 import { ASK_SERVER, type HarnessCredential, type TerminalSpec, type TurnSpec } from '@mwc/shared/harness';
+import { configArg, configListArg } from './config.ts';
+import { providerArgs } from './gateway.ts';
 
 /** Codex's command line, environment and home folder for a turn or a terminal (docs/harness.md, "Codex"). */
 
@@ -12,6 +14,9 @@ export const CODEX_HOME_ENV = 'CODEX_HOME';
 /** The login file in Codex's home folder. */
 export const CODEX_AUTH_FILE = 'auth.json';
 
+/** The variable `codex exec` reads an API key from (its documented one). */
+export const CODEX_API_KEY_ENV = 'CODEX_API_KEY';
+
 /**
  * The variables that pick Codex's account or endpoint. The ones a turn does not set are removed from the runner's own
  * environment, so the access profile alone decides.
@@ -23,14 +28,7 @@ export const CODEX_ACCOUNT_VARS = [
   'OPENAI_BASE_URL',
 ] as const;
 
-/** The notice of a turn whose access profile has a gateway: Codex does not use one yet. */
-export const GATEWAY_NOTICE =
-  'This access profile’s gateway is not used: Codex does not support a gateway yet, so this connects to OpenAI directly.';
-
-/** A `-c key=value` override; the value is a TOML string. */
-export function configArg(key: string, value: string): string[] {
-  return ['-c', `${key}=${JSON.stringify(value)}`];
-}
+export { configArg, configListArg } from './config.ts';
 
 /** The model id that means "Codex's own default" (the agent form's choice for a Codex agent). */
 export const CODEX_DEFAULT_MODEL = 'codex-default';
@@ -59,11 +57,6 @@ export function permissionArgs(spec: TerminalSpec, mode: 'exec' | 'tui'): string
   return [...configArg('sandbox_mode', 'workspace-write'), ...configArg('approval_policy', 'never')];
 }
 
-/** A `-c key=value` override whose value is a TOML array of strings. */
-export function configListArg(key: string, values: readonly string[]): string[] {
-  return ['-c', `${key}=${JSON.stringify(values)}`];
-}
-
 /**
  * A turn's overrides for the runner's tools: its MCP server's command and arguments, the variables Codex hands it from
  * its own environment (`env_vars`: the socket and the token, so the token is not on the command line), and its tools
@@ -81,8 +74,16 @@ export function toolArgs(tools: TurnTools): string[] {
 }
 
 /**
- * `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn; the prompt comes on stdin. With
- * the runner's tools, their overrides come after the permissions.
+ * The variable an API key is in for this mode (`codex exec` reads `CODEX_API_KEY`), which a gateway's provider names as
+ * its `env_key`; undefined when the credential is in the login file (a ChatGPT login, an API key in the TUI).
+ */
+export const keyEnvOf = (credential: HarnessCredential, mode: 'exec' | 'tui'): string | undefined =>
+  credential.kind === 'openai_api_key' && mode === 'exec' ? CODEX_API_KEY_ENV : undefined;
+
+/**
+ * `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn; the prompt comes on stdin. The
+ * provider (the profile's gateway, or OpenAI directly, `gateway.ts`) comes after the permissions, then the runner's
+ * tools when it offers them.
  */
 export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
   const options = [
@@ -90,6 +91,7 @@ export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
     '--skip-git-repo-check',
     ...modelArgs(spec),
     ...permissionArgs(spec, 'exec'),
+    ...providerArgs(spec.gateway, keyEnvOf(spec.credential, 'exec')),
     ...(tools === undefined ? [] : toolArgs(tools)),
   ];
   return spec.sessionId === null
@@ -97,9 +99,13 @@ export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
     : ['exec', 'resume', ...options, spec.sessionId, '-'];
 }
 
-/** `codex …` for a new conversation, `codex resume … <id>` for an existing one. */
+/** `codex …` for a new conversation, `codex resume … <id>` for an existing one, with the same provider as a turn. */
 export function terminalArgs(spec: TerminalSpec): string[] {
-  const options = [...modelArgs(spec), ...permissionArgs(spec, 'tui')];
+  const options = [
+    ...modelArgs(spec),
+    ...permissionArgs(spec, 'tui'),
+    ...providerArgs(spec.gateway, keyEnvOf(spec.credential, 'tui')),
+  ];
   return spec.sessionId === null ? options : ['resume', ...options, spec.sessionId];
 }
 
@@ -122,7 +128,7 @@ export function codexAccount(credential: HarnessCredential, mode: 'exec' | 'tui'
       return { env: {}, files: [authFile(credential.authJson)] };
     case 'openai_api_key':
       return mode === 'exec'
-        ? { env: { CODEX_API_KEY: credential.key }, files: [] }
+        ? { env: { [CODEX_API_KEY_ENV]: credential.key }, files: [] }
         : { env: {}, files: [authFile(JSON.stringify({ OPENAI_API_KEY: credential.key }))] };
     default:
       throw new HarnessError('credential_mismatch', `A ${credential.kind} subscription cannot power Codex.`);
@@ -132,9 +138,4 @@ export function codexAccount(credential: HarnessCredential, mode: 'exec' | 'tui'
 /** The account variables `env` does not set. */
 export function unsetFor(env: Readonly<Record<string, string>>): string[] {
   return CODEX_ACCOUNT_VARS.filter((name) => !(name in env));
-}
-
-/** A notice when the turn has a gateway Codex cannot use. */
-export function gatewayNotices(spec: TerminalSpec): TurnNotice[] {
-  return spec.gateway === null ? [] : [{ type: 'notice', level: 'warn', message: GATEWAY_NOTICE }];
 }

@@ -94,7 +94,7 @@ describe('POST /api/me/subscriptions', () => {
       'openai_api_key',
       'gateway',
     ]);
-    expect(gw.accountMeta).toEqual({ baseUrl: 'http://localhost:8300' });
+    expect(gw.accountMeta).toEqual({ baseUrl: 'http://localhost:8300', provider: 'anthropic' });
     noSecret([anthropic, openai, gw]);
     const secrets = credentialSecrets({ db: w.t.db, keyring, clock: w.clock });
     const opened = await secrets.useCredentialSecret(openai.id, ihor.userId, 'test');
@@ -123,6 +123,31 @@ describe('POST /api/me/subscriptions', () => {
     noSecret(rows);
   });
 
+  it('adds a gateway for Codex with its provider, and shows an older gateway saying none as an Anthropic one', async () => {
+    const codex = await add(ihor, {
+      ...gateway,
+      label: 'Codex 8300',
+      provider: 'openai',
+      baseUrl: 'http://127.0.0.1:8300/backend-api/codex',
+    });
+    expect(codex.accountMeta).toEqual({
+      baseUrl: 'http://127.0.0.1:8300/backend-api/codex',
+      provider: 'openai',
+    });
+    const older = await add(ihor, { ...gateway, label: 'Older gateway' });
+    await rawDb(w.t.db)
+      .update(credentials)
+      .set({ accountMeta: { baseUrl: 'http://localhost:8300' } })
+      .where(eq(credentials.id, older.id));
+    const res = await getJson(w.t.app, PATH, { authorization: `Bearer ${ihor.token}` });
+    const listed = (res.body as { subscriptions: SubscriptionView[] }).subscriptions;
+    expect(listed.find((s) => s.id === older.id)?.accountMeta).toEqual({
+      baseUrl: 'http://localhost:8300',
+      provider: 'anthropic',
+    });
+    expect(listed.find((s) => s.id === codex.id)?.accountMeta).toMatchObject({ provider: 'openai' });
+  });
+
   it('adds a gateway without headers (a local proxy that needs none)', async () => {
     const res = await as(ihor)('POST', PATH, { ...gateway, label: 'Memory gateway', headers: {} });
     expect(res.status).toBe(201);
@@ -147,6 +172,7 @@ describe('POST /api/me/subscriptions', () => {
       'starts with sk-',
     ],
     ['a gateway that is not http(s)', { ...gateway, baseUrl: 'ftp://gateway.test' }, 'http or https URL'],
+    ['a gateway of another provider', { ...gateway, provider: 'gemini' }, 'provider'],
     [
       'a gateway with 21 headers',
       {

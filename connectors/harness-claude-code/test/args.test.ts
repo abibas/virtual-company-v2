@@ -6,7 +6,6 @@ import {
   CLAUDE_ACCOUNT_VARS,
   claudeEnv,
   credentialEnv,
-  customHeaders,
   mcpConfig,
   sharedArgs,
   toolArgs,
@@ -98,8 +97,6 @@ describe('claudeEnv', () => {
       CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token',
       ANTHROPIC_BASE_URL: 'https://gw.example.com',
     });
-    expect(customHeaders({})).toBe('');
-    expect(customHeaders({ A: '1' })).toBe('A: 1');
   });
 });
 

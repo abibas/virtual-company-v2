@@ -12,7 +12,6 @@ import {
   auditedProfile,
   type CredentialChoice,
   credentialRefusal,
-  gatewayRefusal,
   PROFILE_NOT_FOUND,
   type ProfileRefusal,
   partsPutIn,
@@ -30,17 +29,12 @@ type Saved<S extends 404 | 409 | 422> =
 
 const NAME_UNIQUE = 'access_profiles_owner_user_id_name_unique';
 
-/**
- * Why a change may not give a `provider` profile these credentials (`gatewayRefusal`, `credentialRefusal`), read as the
- * owner; undefined when it may.
- */
+/** Why a change may not give a `provider` profile these credentials (`credentialRefusal`), read as the owner. */
 async function choiceRefusal(
   o: OwnedDb,
   profile: Parameters<typeof partsPutIn>[0] & { readonly provider: AccessProfile['provider'] },
   choice: CredentialChoice,
 ) {
-  const gateway = gatewayRefusal(profile.provider, choice);
-  if (gateway) return gateway;
   const putIn = partsPutIn(profile, choice);
   if (putIn.length === 0) return undefined;
   const held = await repo.credentialsOf(
@@ -168,7 +162,7 @@ async function removeProfile(
 /**
  * The access profiles API's logic (S3.4, one provider each since 2026-11-10), always as the caller (the personal layer):
  * list their profiles, create one, change one, remove one. A profile's provider is fixed when it is made; its
- * subscription is one of the caller's own of that provider, its gateway (Claude only) one of their gateways, never a
+ * subscription is one of the caller's own of that provider, its gateway one of their gateways of that provider, never a
  * revoked one (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
  * its `access_profile` audit rows; removing one also writes, in each of the caller's companies, the rows of the agents
  * and defaults it leaves (the org module's `auditProfileRemoval`), before the foreign keys detach it.

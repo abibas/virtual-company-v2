@@ -3,7 +3,7 @@ import type { KindSecret } from '../schemas/secrets.ts';
 import type { AccountMeta } from '../schemas.ts';
 
 /**
- * A subscription as a chat's turn or terminal takes it (S5.1b, docs/harness.md "Credentials"): each sealed kind's
+ * A subscription as a chat's turn or terminal takes it (S5.1b, docs/harness.md "Credentials and gateways"): each sealed kind's
  * secret mapped to the wire's `HarnessCredential`, a gateway's to `HarnessGateway`, and why one cannot be handed out.
  * Pure: the opening and the refresh are `service/harness.ts`'s.
  */

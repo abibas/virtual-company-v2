@@ -4,8 +4,8 @@ import { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/e
 
 /**
  * The access profiles API's shapes (`/api/me/access-profiles`, S3.4, one provider each since 2026-11-10): a person's
- * named choice of one of their own subscriptions, Claude's or OpenAI's, with a gateway for a Claude one. A credential
- * shows its subscription's metadata, never a secret.
+ * named choice of one of their own subscriptions, Claude's or OpenAI's, with an optional gateway of that provider. A
+ * credential shows its subscription's metadata, never a secret.
  */
 
 export const AccessProfileParamsSchema = z.object({
@@ -59,7 +59,7 @@ export const AccessProfileSchema = z
     provider: ProfileProvider,
     /** Its subscription of that provider; null while it has none (it cannot run until it does). */
     subscription: ProfileSubscriptionSchema.nullable(),
-    /** A Claude profile's gateway, which its runs send their AI requests through; always null for OpenAI. */
+    /** Its gateway (of its provider), which its runs send their AI requests through; null for none. */
     gateway: ProfileSubscriptionSchema.nullable(),
     /** The agents that use it, in your companies. */
     agents: z.array(ProfileAgentSchema),
@@ -73,8 +73,8 @@ export const AccessProfileListSchema = z
   .openapi('AccessProfileList');
 
 /**
- * A new profile: a name, its provider and, optionally, one of your subscriptions of that provider and (Claude only) one
- * of your gateways.
+ * A new profile: a name, its provider and, optionally, one of your subscriptions and one of your gateways of that
+ * provider (an `anthropic` gateway for Claude, an `openai` one for OpenAI).
  */
 export const CreateAccessProfileSchema = z
   .object({
@@ -86,8 +86,8 @@ export const CreateAccessProfileSchema = z
   .openapi('CreateAccessProfile');
 
 /**
- * A new name, another subscription of the same provider, a gateway (Claude only), any of them (null empties one). The
- * provider is fixed: given, it must be the profile's own.
+ * A new name, another subscription or gateway of the same provider, any of them (null empties one). The provider is
+ * fixed: given, it must be the profile's own.
  */
 export const UpdateAccessProfileSchema = z
   .object({

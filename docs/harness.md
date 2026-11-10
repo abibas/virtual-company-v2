@@ -26,7 +26,7 @@ TerminalSpec  the same without `prompt`
 
 ProcessSpec  { command, args, env /* to add or override */, unsetEnv /* to remove */, stdin: string|null,
                stdinOpen? /* S5.2 step 6: stdin stays open for messages mid-turn */,
-               privateDir?: { env, path: string|null, files: { name, contents, mode }[] },
+               privateDir?: { env?, path: string|null, files: { name, contents, mode, option? }[] },
                turnFiles?: { name, contents, mode }[] /* written in TurnTools.dir */, notices: TurnEvent<'notice'>[] }
 TurnTools    { dir /* the turn's own folder, 0700 */, command, args /* <node> <runner.mjs> mcp */,
                env /* MWC_ASK_SOCKET, MWC_ASK_TOKEN */ }
@@ -44,12 +44,14 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 - **The prompt is never an argument.** It goes on stdin: an argument would show in `ps` to every user of the machine,
   hit the argument length limit, and a one-word message such as `update`, `install` or `purge` would run that
   subcommand of `claude` (Commander dispatches on the first operand, even after `--`), `review` that of `codex exec`.
-- **`privateDir`** (Codex): the folder a harness keeps its state in. The runner makes it private (0700) when missing,
-  sets `env` to its path, writes `files` before the start and removes them when the last process using the folder
-  exits, so the login is on disk only while a process runs. The folder is kept: Codex records its threads there, so a
-  resume needs the same folder. `path` is the turn's `configDir`, or null for the runner's own private folder for this
-  harness and `cwd`. A file of that name already there that the runner did not write must be set aside and put back,
-  never overwritten (the runner's step).
+- **`privateDir`** (Codex's home, Claude Code's settings file): the folder a harness keeps its state or a process's
+  private files in. The runner makes it private (0700) when missing, sets `env` to its path when there is one
+  (`CODEX_HOME`; Claude Code has none), writes `files` before the start, adds `<option> <full path>` after `args` for
+  each file with an `option` (Claude Code's `--settings`; only the runner knows the folder), and removes the files when
+  the last process using the folder exits, so a secret is on disk only while a process runs. The folder is kept: Codex
+  records its threads there, so a resume needs the same folder. `path` is the turn's `configDir`, or null for the
+  runner's own private folder for this harness and `cwd`. A file of that name already there that the runner did not
+  write must be set aside and put back, never overwritten (the runner's step).
 - **Errors.** `turn` and `terminal` throw only `HarnessError`: `credential_mismatch` (a credential of the other
   harness's family) or `invalid_spec` (another harness's turn, an empty prompt, a session id or model that is not one
   word, which would be read as an option, a gateway header on two lines). The wire schemas hold the same rules; the
@@ -74,7 +76,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | the turn's sum; input counts cached tokens too; Claude adds its cache writes and reads |
 | `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude only |
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
-| `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request, a gateway not used |
+| `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request |
 | `input`       | `text` (1–20 000), `inputId?` (the message's id, `turn.input`'s) | a message the person sent into the running turn, where the harness took it (S5.2 step 6): Claude Code's echo of it, kept by the runner only for a message it wrote |
 | `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | the last event of the harness's output                     |
 | `question`    | `id` (the runner's UUID), `questions` (1–4, "Asking the person") | the agent asked the person through the runner's tool: a `turn.question` frame, never a parser's |
@@ -97,7 +99,7 @@ split into several `text` events, each keeping its `parentId`.
   among the turn's events (it sends the ones before it first), and the server writes `answered` after the turn ended,
   numbered after its last event, so a reader shows them in place.
 
-## Credentials
+## Credentials and gateways
 
 | Credential           | Claude Code                             | Codex                                                                  |
 | -------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
@@ -112,9 +114,24 @@ Every account variable a turn does not set is in `unsetEnv`, so the access profi
 `CLAUDE_CODE_USE_BEDROCK|VERTEX|FOUNDRY`, `CLAUDE_CONFIG_DIR` (an API key left in the machine's environment would win over
 the profile's subscription); Codex's `CODEX_API_KEY`, `OPENAI_API_KEY`, `CODEX_ACCESS_TOKEN`, `OPENAI_BASE_URL`.
 
+The profile's gateway (docs/subscriptions.md, "Gateways"; a Claude profile's is for Claude Code, an OpenAI profile's for
+Codex) decides where a turn's and a terminal's AI requests go, over the machine's own settings (since 2026-11-10):
+
+| Credential + gateway          | Arguments                                                                                 | Environment                                         | Private files (0600, removed after the process) |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------- |
+| Claude Code, any, gateway     | `--settings <file>`                                                                       | the credential's; `ANTHROPIC_BASE_URL=<baseUrl>`, `ANTHROPIC_CUSTOM_HEADERS` when it has headers | `settings-<12 hex>.json`: `{"env":{"ANTHROPIC_BASE_URL":"<baseUrl>","ANTHROPIC_CUSTOM_HEADERS":"<Name: value lines>"}}` |
+| Claude Code, any, none        | `--settings <file>`                                                                       | the credential's; both variables unset              | the same file: `{"env":{"ANTHROPIC_BASE_URL":"https://api.anthropic.com","ANTHROPIC_CUSTOM_HEADERS":""}}` |
+| Codex, `codex_oauth`, gateway | `-c model_provider="mwc_gateway"`, `…name="Most Wanted gateway"`, `…base_url="<baseUrl>"`, `…wire_api="responses"`, `…requires_openai_auth=true` | `MWC_GATEWAY_SECRET_HEADER_<n>` per header | `auth.json` (the login) |
+| Codex, `openai_api_key`, gateway | the same with `…env_key="CODEX_API_KEY"` in a turn; `…requires_openai_auth=true` in the terminal (its key is in `auth.json`) | turn: `CODEX_API_KEY`; `MWC_GATEWAY_SECRET_HEADER_<n>` | terminal: `auth.json` with the key |
+| Codex, any, none              | `-c model_provider="openai"` (Codex's built-in provider)                                   | the credential's                                    | as without a gateway                            |
+
+`…` is `model_providers.mwc_gateway.`. A Codex gateway's headers go as `…env_http_headers={ "<name>" = "MWC_GATEWAY_SECRET_HEADER_<n>" }`
+(an inline TOML table, `<n>` from 1 in the headers' order), their values only in the process's environment: no header
+value, key or token is ever an argument, where every user of the machine would see it in `ps`.
+
 ## Claude Code
 
-Verified against `claude --help` 2.1.319; the input mode against 2.1.321 (S5.2 step 6).
+Verified against `claude --help` 2.1.319; the input mode against 2.1.321 (S5.2 step 6); `--settings` against 2.1.322.
 
 ```
 turn:      claude -p --output-format stream-json --verbose --input-format stream-json --replay-user-messages
@@ -125,9 +142,26 @@ turn:      claude -p --output-format stream-json --verbose --input-format stream
                   --append-system-prompt "When the person must choose between options, ask them with the
                   ask_user_question tool, then end your turn: their answer comes as their next message."
 terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
+both:      and always, last:  --settings <runner state>/claude_code/<16 hex of sha256(cwd)>/settings-<12 hex>.json
 env:       the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; with a gateway
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
 ```
+
+- **The profile's gateway wins** (`settings.ts`, 2026-11-10). A machine's `~/.claude/settings.json` `env` (Ihor's Mac:
+  his memory gateway with `x-memory-*` headers; the devbox: the Airia dev gateway with an `x-airia-key` header), or a
+  project's, is applied over the process's environment, so the turn's variables alone did not decide. Every turn and
+  terminal therefore gets a private settings file named with `--settings` (`claude --help` 2.1.322: `--settings
+  <file-or-json>`, "Path to a settings JSON file or a JSON string to load additional settings from"): with a gateway
+  `{"env":{"ANTHROPIC_BASE_URL":<baseUrl>,"ANTHROPIC_CUSTOM_HEADERS":<Name: value lines>}}`, without one Anthropic's own
+  address and no headers. Settings given this way (Claude Code's `flagSettings`) rank above user, project and local
+  settings; only managed (policy) settings rank higher: Claude Code 2.1.322's own setting sources are ordered `userSettings`,
+  `projectSettings`, `localSettings`, `flagSettings`, `policySettings`, "low-to-high priority — later entries override
+  earlier ones", and each source's `env` is assigned over the process's environment in that order. The variables stay
+  as well (a host that withholds settings' provider variables still gets them). The file is the driver's
+  (`settings-<12 random hex>.json`, its own per process, so two chats on one agent folder with different profiles do not
+  share one), written 0600 by the runner in its private folder for Claude Code and the agent's folder (never
+  `CLAUDE_CONFIG_DIR`), named after the other arguments, and removed when the last process using that folder ends.
+  Other provider settings a machine may set (`ANTHROPIC_AUTH_TOKEN`, `apiKeyHelper`) are not overridden by it.
 
 - **Input mode** (S5.2 step 6, `input.ts`): every turn reads its messages as stream-json, one user message a line,
   `{"type":"user","uuid":<id>,"session_id":"","parent_tool_use_id":null,"message":{"role":"user","content":[{"type":
@@ -186,6 +220,14 @@ terminal:       codex [resume] [--model <m>] [-c …] <permissions> [<threadId>]
 permissions:    bypass  --dangerously-bypass-approvals-and-sandbox
                 ask     turn: -c sandbox_mode="workspace-write" -c approval_policy="never"
                         terminal: --sandbox workspace-write --ask-for-approval on-request
+provider:       gateway   -c model_provider="mwc_gateway" -c model_providers.mwc_gateway.name="Most Wanted gateway"
+                          -c model_providers.mwc_gateway.base_url="<baseUrl>"
+                          -c model_providers.mwc_gateway.wire_api="responses"
+                          -c model_providers.mwc_gateway.requires_openai_auth=true     (a login; a key in the TUI)
+                       or -c model_providers.mwc_gateway.env_key="CODEX_API_KEY"         (a key in codex exec)
+                          [-c model_providers.mwc_gateway.env_http_headers={ "<name>" = "MWC_GATEWAY_SECRET_HEADER_<n>", … }]
+                none      -c model_provider="openai"
+                after the permissions, before the tools (turn: … <permissions> <provider> [<tools>] [<threadId>] -)
 home:           privateDir CODEX_HOME = configDir, or the runner's own folder for this cwd
 ```
 
@@ -193,10 +235,21 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
   forms. With approvals off, what the workspace-write sandbox does not allow fails and the model is told; a command
   Codex reports `declined` gives a `warn` notice.
 - **The trailing `-`** makes Codex read the prompt from stdin (after the thread id on a resume).
-- **Gateway: not supported yet.** A turn with a gateway runs without it and its spec carries the notice
-  `This access profile’s gateway is not used: …`; nothing of the gateway reaches the process. Since 2026-11-10 a Codex
-  agent runs on an OpenAI access profile, which has no gateway, so the server sends none; the driver keeps the notice
-  for a spec that has one.
+- **The gateway** (`gateway.ts`, 2026-11-10) is a custom model provider given as config overrides, which win over any
+  `config.toml` in Codex's home folder; Ihor's own `~/.codex/config.toml` (his `memory-gateway` provider) is never read,
+  since `CODEX_HOME` is the runner's folder. Each key was checked against Codex 0.162.1's own config loading
+  (`CODEX_HOME=<an empty scratch folder> codex -c … mcp list`, which loads the config and makes no network call): the
+  exact overrides of each case load; `model_provider` naming an undefined provider fails ("Model provider `x` not
+  found"); a wrong type fails naming the key (`model_providers.mwc_gateway.name`, `.base_url`, `.env_key` and the
+  `env_http_headers` values must be strings, `env_http_headers` a map, `requires_openai_auth` a boolean); `wire_api`
+  takes `responses` only; an unknown key is ignored silently (so the type checks are what prove the names). A ChatGPT
+  login authenticates with `requires_openai_auth=true`, as Ihor's own config does; an API key in `codex exec` with
+  `env_key` naming `CODEX_API_KEY`, the variable it is already in; the TUI reads its key from `auth.json`, so it also
+  uses `requires_openai_auth=true`. Headers go as `env_http_headers`, each naming a variable `MWC_GATEWAY_SECRET_HEADER_<n>`
+  whose value is in the process's environment (the runner strips its own `MWC_*` variables, never the driver's).
+  Without a gateway the turn names `model_provider="openai"`, the built-in provider, so a placement's config folder
+  cannot send it elsewhere (its `openai_base_url`, if it sets one, is not overridden). No notice: the old "gateway is
+  not used" notice is gone.
 - **Parsing** (`--json`): `thread.started` gives `session` (`thread_id`); `item.started` of a command, an MCP call or a
   web search gives `tool` at once; `item.completed` gives `text` (`agent_message`, kept as the reply), `tool` when not
   shown yet and `tool_result` (a command: `exit <code>: <the end of its output>`; a file change: applied or failed; an
@@ -225,8 +278,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
 2. **A prompt** (`POST …/chats/{chatId}/turns`, at most 20 000 characters) is checked in this order, each refusal
    naming what to fix: the chat not archived, no turn of it running; the agent's placement (none, `container` mode: S5
    proper), its machine's runner connected, newer than chats (`caps.harnesses` with versions) and with the harness's
-   CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile,
-   with its gateway; Codex: an OpenAI profile; else `profile_harness_mismatch`), and its subscription (`profile_empty`
+   CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile;
+   Codex: an OpenAI profile; else `profile_harness_mismatch`), with its gateway, and its subscription (`profile_empty`
    when it has none).
 3. **The credential** is opened by the credentials module as its owner (`credentialsForHarness`): one
    `credential_uses` row per turn, naming the company, the agent, the chat and who sent the prompt (`chat_turn`;
@@ -234,10 +287,10 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    is refreshed first (Claude Code's own refresh call, the new token set sealed again); a Codex login whose token is near
    its end the same way as its usage check. A refused refresh marks the login `needs_sign_in`
    (`credential_needs_sign_in`); a provider that does not answer keeps a token that still works, else
-   `provider_unavailable` (503). The secret goes with this turn only, in `turn.start` over the runner's link: nothing on
-   the machine's disk for Claude (the token is the process's `CLAUDE_CODE_OAUTH_TOKEN`), and Codex's `auth.json` only
-   while its process runs. A Codex chat's gateway goes as its address alone (no headers), so the driver says it is not
-   used and nothing of its secret leaves the server.
+   `provider_unavailable` (503). The secret goes with this turn only, in `turn.start` over the runner's link: Claude's
+   token is the process's `CLAUDE_CODE_OAUTH_TOKEN`, never on disk; Codex's `auth.json` and Claude Code's settings file
+   (the gateway's headers) are on disk only while their process runs. The gateway goes with its headers to either
+   harness ("Credentials and gateways").
 4. **The turn** is recorded `running` (with the profile and credential it runs on; the first prompt is the chat's title,
    80 characters), its sink is put in place, and `turn.start {turnId, spec}` goes to the runner. The answer is 202 with
    the turn.
@@ -253,10 +306,12 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    fit. On exit, `parser.end` gives the last events, then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the
    result's, `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the
    SIGINT) or `runner_stopping`. Live turns hold the machine as live runs do and make the self-update say `busy`.
-6. **Codex's private folder** (`turns/private-dir.ts`): the placement's `configDir` when it has one, else
-   `<runner state dir>/<harness>/<first 16 hex of sha256(home)>/`, never the machine's `~/.codex`; made 0700. `auth.json`
-   is written 0600 before the process (a marker file first; a file of that name the runner did not write is set aside
-   and put back) and removed when the last process using the folder ends. When the process rewrote it (its own token
+6. **The private folder** (`turns/private-dir.ts`): Codex's is the placement's `configDir` when it has one, else
+   `<runner state dir>/<harness>/<first 16 hex of sha256(home)>/`, never the machine's `~/.codex`; Claude Code's is always
+   the runner's own (`<state>/claude_code/<16 hex>/`), never `CLAUDE_CONFIG_DIR`; made 0700. `auth.json` and Claude
+   Code's `settings-<12 hex>.json` are written 0600 before the process (a marker file first; a file of that name the
+   runner did not write is set aside and put back), the settings file named on the command line (`--settings <path>`,
+   `withPrivateDir`), and removed when the last process using the folder ends. When the process rewrote it (its own token
    refresh), the new text goes back in `turn.end.authJson` (a terminal's in `terminal.exit.authJson`) and the server
    seals it into the credential again; the browser never sees it.
 7. **The server** stores each event (`chat_events`, a resend kept once), saves the chat's `session_id` from the

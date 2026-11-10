@@ -1,14 +1,14 @@
 import { isHarnessError } from '@mwc/harness-core';
 import { FAKE_CREDENTIALS, fakeTerminalSpec, fakeTurnSpec } from '@mwc/harness-core/fake';
-import { TurnEvent } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { CODEX_ACCOUNT_VARS, GATEWAY_NOTICE } from '../src/args.ts';
+import { CODEX_ACCOUNT_VARS } from '../src/args.ts';
 import { CodexDriver } from '../src/driver.ts';
 import { CodexLineParser } from '../src/parser.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const ASK_EXEC = ['-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"'];
 const LOGIN_FILE = { name: 'auth.json', contents: FAKE_CREDENTIALS.codex_oauth.authJson, mode: 0o600 };
+const DIRECT = ['-c', 'model_provider="openai"'];
 
 describe('CodexDriver.turn', () => {
   const driver = new CodexDriver();
@@ -16,7 +16,7 @@ describe('CodexDriver.turn', () => {
   it('starts a new thread with its login in the runner’s own home folder and the prompt on stdin', () => {
     expect(driver.turn(fakeTurnSpec('codex'))).toEqual({
       command: 'codex',
-      args: ['exec', '--json', '--skip-git-repo-check', ...ASK_EXEC, '-'],
+      args: ['exec', '--json', '--skip-git-repo-check', ...ASK_EXEC, ...DIRECT, '-'],
       env: {},
       unsetEnv: [...CODEX_ACCOUNT_VARS],
       stdin: 'What is 2 + 2?',
@@ -45,6 +45,7 @@ describe('CodexDriver.turn', () => {
       '-c',
       'model_reasoning_effort="high"',
       '--dangerously-bypass-approvals-and-sandbox',
+      ...DIRECT,
       THREAD,
       '-',
     ]);
@@ -63,12 +64,50 @@ describe('CodexDriver.turn', () => {
     expect(process.privateDir).toEqual({ env: 'CODEX_HOME', path: null, files: [] });
   });
 
-  it('runs without the gateway, saying so in a valid notice', () => {
-    const gateway = { baseUrl: 'http://127.0.0.1:8300', headers: { 'X-Api-Key': 'gw' } };
+  it('runs a ChatGPT login through the gateway as a custom provider, with no notice', () => {
+    const gateway = { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', headers: {} };
     const process = driver.turn(fakeTurnSpec('codex', { gateway }));
-    expect(process.notices).toEqual([{ type: 'notice', level: 'warn', message: GATEWAY_NOTICE }]);
-    expect(TurnEvent.parse(process.notices[0])).toEqual(process.notices[0]);
-    expect(JSON.stringify(process)).not.toContain('8300');
+    expect(process.args).toEqual([
+      'exec',
+      '--json',
+      '--skip-git-repo-check',
+      ...ASK_EXEC,
+      '-c',
+      'model_provider="mwc_gateway"',
+      '-c',
+      'model_providers.mwc_gateway.name="Most Wanted gateway"',
+      '-c',
+      'model_providers.mwc_gateway.base_url="http://127.0.0.1:8300/backend-api/codex"',
+      '-c',
+      'model_providers.mwc_gateway.wire_api="responses"',
+      '-c',
+      'model_providers.mwc_gateway.requires_openai_auth=true',
+      '-',
+    ]);
+    expect(process.env).toEqual({});
+    expect(process.privateDir?.files).toEqual([LOGIN_FILE]);
+    expect(process.notices).toEqual([]);
+  });
+
+  it('runs an API key through the gateway from CODEX_API_KEY, its headers’ values only in the environment', () => {
+    const gateway = {
+      baseUrl: 'http://127.0.0.1:8300/v1',
+      headers: { 'X-Api-Key': 'gw-secret', 'x-team': 'core' },
+    };
+    const credential = FAKE_CREDENTIALS.openai_api_key;
+    const process = driver.turn(fakeTurnSpec('codex', { gateway, credential }));
+    expect(process.args).toContain('model_providers.mwc_gateway.env_key="CODEX_API_KEY"');
+    expect(process.args).toContain(
+      'model_providers.mwc_gateway.env_http_headers={ "X-Api-Key" = "MWC_GATEWAY_SECRET_HEADER_1", "x-team" = "MWC_GATEWAY_SECRET_HEADER_2" }',
+    );
+    expect(process.env).toEqual({
+      CODEX_API_KEY: 'sk-fake-openai-key',
+      MWC_GATEWAY_SECRET_HEADER_1: 'gw-secret',
+      MWC_GATEWAY_SECRET_HEADER_2: 'core',
+    });
+    expect(process.args.join(' ')).not.toMatch(/gw-secret|sk-fake-openai-key/);
+    expect(process.unsetEnv).toEqual(['OPENAI_API_KEY', 'CODEX_ACCESS_TOKEN', 'OPENAI_BASE_URL']);
+    expect(process.notices).toEqual([]);
   });
 
   it('gives a turn with the runner’s tools their overrides and the server’s variables in its environment', () => {
@@ -120,7 +159,7 @@ describe('CodexDriver.terminal', () => {
   it('opens the TUI asking on request, or resumes the thread, with no prompt', () => {
     expect(driver.terminal(fakeTerminalSpec('codex'))).toEqual({
       command: 'codex',
-      args: ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request'],
+      args: ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request', ...DIRECT],
       env: {},
       unsetEnv: [...CODEX_ACCOUNT_VARS],
       stdin: null,
@@ -133,9 +172,37 @@ describe('CodexDriver.terminal', () => {
       configDir: '/c',
     });
     expect(driver.terminal(spec)).toMatchObject({
-      args: ['resume', '--dangerously-bypass-approvals-and-sandbox', THREAD],
+      args: ['resume', '--dangerously-bypass-approvals-and-sandbox', ...DIRECT, THREAD],
       privateDir: { path: '/c' },
     });
+  });
+
+  it('opens the TUI through the gateway: OpenAI auth from its auth.json, the headers in the environment', () => {
+    const gateway = { baseUrl: 'http://127.0.0.1:8300/v1', headers: { 'x-memory-agent': 'slop' } };
+    const credential = FAKE_CREDENTIALS.openai_api_key;
+    const process = driver.terminal(fakeTerminalSpec('codex', { gateway, credential, sessionId: THREAD }));
+    expect(process.args).toEqual([
+      'resume',
+      '--sandbox',
+      'workspace-write',
+      '--ask-for-approval',
+      'on-request',
+      '-c',
+      'model_provider="mwc_gateway"',
+      '-c',
+      'model_providers.mwc_gateway.name="Most Wanted gateway"',
+      '-c',
+      'model_providers.mwc_gateway.base_url="http://127.0.0.1:8300/v1"',
+      '-c',
+      'model_providers.mwc_gateway.wire_api="responses"',
+      '-c',
+      'model_providers.mwc_gateway.requires_openai_auth=true',
+      '-c',
+      'model_providers.mwc_gateway.env_http_headers={ "x-memory-agent" = "MWC_GATEWAY_SECRET_HEADER_1" }',
+      THREAD,
+    ]);
+    expect(process.env).toEqual({ MWC_GATEWAY_SECRET_HEADER_1: 'slop' });
+    expect(process.notices).toEqual([]);
   });
 
   it('gives an API key to the TUI as auth.json, and refuses a Claude credential', () => {

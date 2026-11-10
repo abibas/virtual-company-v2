@@ -7,15 +7,8 @@ import {
   type TurnTools,
 } from '@mwc/harness-core';
 import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
-import {
-  CODEX_COMMAND,
-  CODEX_HOME_ENV,
-  codexAccount,
-  gatewayNotices,
-  terminalArgs,
-  turnArgs,
-  unsetFor,
-} from './args.ts';
+import { CODEX_COMMAND, CODEX_HOME_ENV, codexAccount, terminalArgs, turnArgs, unsetFor } from './args.ts';
+import { gatewayEnv } from './gateway.ts';
 import { CodexLineParser } from './parser.ts';
 
 export interface CodexDriverOptions {
@@ -29,6 +22,8 @@ export interface CodexDriverOptions {
  * Codex always runs in a home folder the runner manages (`CODEX_HOME`: the turn's `configDir`, or the runner's own per
  * `cwd`), where its threads stay between turns and its login is written for the process's lifetime only. With the
  * runner's tools a turn also gets its MCP server as config overrides, and the server's variables in its environment.
+ * The access profile's gateway is a custom model provider in config overrides, its headers' values in the environment
+ * (`gateway.ts`); without one, Codex's built-in OpenAI provider.
  */
 export class CodexDriver implements HarnessDriver {
   readonly harness = 'codex' as const;
@@ -59,11 +54,11 @@ export class CodexDriver implements HarnessDriver {
     return {
       command: this.command,
       args,
-      env: account.env,
+      env: { ...account.env, ...gatewayEnv(spec.gateway) },
       unsetEnv: unsetFor(account.env),
       stdin,
       privateDir: { env: CODEX_HOME_ENV, path: spec.configDir, files: account.files },
-      notices: gatewayNotices(spec),
+      notices: [],
     };
   }
 }

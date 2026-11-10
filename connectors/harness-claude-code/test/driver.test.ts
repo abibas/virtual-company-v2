@@ -1,4 +1,4 @@
-import { isHarnessError } from '@mwc/harness-core';
+import { isHarnessError, type ProcessSpec } from '@mwc/harness-core';
 import { FAKE_CREDENTIALS, fakeTerminalSpec, fakeTurnSpec } from '@mwc/harness-core/fake';
 import { describe, expect, it } from 'vitest';
 import { ASK_PROMPT, CLAUDE_ACCOUNT_VARS } from '../src/args.ts';
@@ -19,6 +19,24 @@ const TURN = [
 /** The user message a stdin line holds. */
 const messageOf = (stdin: string | null) => JSON.parse(stdin ?? 'null');
 
+/** The private settings file every turn and terminal gets: Anthropic's own address and no headers without a gateway. */
+const SETTINGS_DIR = {
+  path: null,
+  files: [
+    {
+      name: expect.stringMatching(/^settings-[0-9a-f]{12}\.json$/),
+      contents: JSON.stringify({
+        env: { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_CUSTOM_HEADERS: '' },
+      }),
+      mode: 0o600,
+      option: '--settings',
+    },
+  ],
+};
+
+/** The settings a process's private file holds. */
+const settingsOf = (process: ProcessSpec) => JSON.parse(process.privateDir?.files[0]?.contents ?? 'null');
+
 describe('ClaudeCodeDriver.turn', () => {
   const driver = new ClaudeCodeDriver();
 
@@ -31,6 +49,7 @@ describe('ClaudeCodeDriver.turn', () => {
       unsetEnv: CLAUDE_ACCOUNT_VARS.filter((name) => name !== 'CLAUDE_CODE_OAUTH_TOKEN'),
       stdin: expect.stringMatching(/\n$/),
       stdinOpen: true,
+      privateDir: SETTINGS_DIR,
       notices: [],
     });
     expect(messageOf(process.stdin)).toEqual({
@@ -93,8 +112,29 @@ describe('ClaudeCodeDriver.turn', () => {
       expect(process.unsetEnv).not.toContain(variable);
       expect(process.unsetEnv).not.toContain('CLAUDE_CONFIG_DIR');
       expect(process.env.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Api-Key: gw');
-      expect(process.privateDir).toBeUndefined();
+      expect(settingsOf(process)).toEqual({
+        env: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:8300', ANTHROPIC_CUSTOM_HEADERS: 'X-Api-Key: gw' },
+      });
+      expect(process.privateDir).not.toHaveProperty('env');
     }
+  });
+
+  it('lets the profile’s gateway decide: its settings file, never the headers on the command line', () => {
+    const gateway = { baseUrl: 'http://127.0.0.1:8300', headers: { 'x-airia-key': 'secret-gw' } };
+    const process = driver.turn(fakeTurnSpec('claude_code', { gateway }));
+    expect(process.privateDir?.files).toEqual([
+      expect.objectContaining({ option: '--settings', mode: 0o600 }),
+    ]);
+    expect(settingsOf(process).env.ANTHROPIC_CUSTOM_HEADERS).toBe('x-airia-key: secret-gw');
+    expect(process.args.join(' ')).not.toContain('secret-gw');
+    expect(process.args).not.toContain('--settings');
+    const direct = driver.turn(fakeTurnSpec('claude_code'));
+    expect(settingsOf(direct)).toEqual({
+      env: { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_CUSTOM_HEADERS: '' },
+    });
+    expect(direct.unsetEnv).toEqual(
+      expect.arrayContaining(['ANTHROPIC_BASE_URL', 'ANTHROPIC_CUSTOM_HEADERS']),
+    );
   });
 
   it('gives a turn with the runner’s tools its MCP config to write, the tool allowed and the line, after the rest', () => {
@@ -163,6 +203,7 @@ describe('ClaudeCodeDriver.terminal', () => {
       env: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token' },
       unsetEnv: CLAUDE_ACCOUNT_VARS.filter((name) => name !== 'CLAUDE_CODE_OAUTH_TOKEN'),
       stdin: null,
+      privateDir: SETTINGS_DIR,
       notices: [],
     });
     const spec = fakeTerminalSpec('claude_code', {
@@ -177,6 +218,19 @@ describe('ClaudeCodeDriver.terminal', () => {
       'opus',
       '--dangerously-skip-permissions',
     ]);
+  });
+
+  it('gives the TUI the gateway’s settings file and variables too', () => {
+    const gateway = { baseUrl: 'http://127.0.0.1:8300', headers: { 'x-memory-agent': 'slop' } };
+    const process = driver.terminal(fakeTerminalSpec('claude_code', { gateway }));
+    expect(settingsOf(process)).toEqual({
+      env: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:8300', ANTHROPIC_CUSTOM_HEADERS: 'x-memory-agent: slop' },
+    });
+    expect(process.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:8300',
+      ANTHROPIC_CUSTOM_HEADERS: 'x-memory-agent: slop',
+    });
+    expect(process.args).toEqual([]);
   });
 
   it('refuses a credential of the other family', () => {

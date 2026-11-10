@@ -7,8 +7,12 @@ import {
   fitsProvider,
   GATEWAY_HEADERS,
   GATEWAY_KINDS,
+  GATEWAY_PROVIDERS,
+  gatewayFitsProfile,
+  gatewayProviderOf,
   HARNESS_PROVIDER,
   PASTED_CREDENTIAL_KINDS,
+  PROFILE_GATEWAY_PROVIDER,
   PROFILE_PROVIDERS,
   PROVIDER_KINDS,
   profileFitsHarness,
@@ -49,7 +53,7 @@ describe('the credential store contract', () => {
     expect(ACCESS_PROFILE_NAME).toEqual({ min: 1, max: 80 });
   });
 
-  it('gives every kind to exactly one part of a profile: a provider’s subscription or a Claude profile’s gateway', () => {
+  it('gives every kind to exactly one part of a profile: a provider’s subscription or its gateway', () => {
     expect(PROFILE_PROVIDERS).toEqual(ProfileProvider.options);
     expect(PROFILE_PROVIDERS).toEqual(Object.keys(PROVIDER_KINDS));
     for (const kind of CredentialKind.options) {
@@ -70,6 +74,20 @@ describe('the credential store contract', () => {
     expect(fitsProvider('openai', 'gateway')).toBe(false);
     expect(fitsGateway('gateway')).toBe(true);
     expect(fitsGateway('claude_oauth')).toBe(false);
+  });
+
+  it('gives each profile provider the gateways of its own API, older gateways being Anthropic ones', () => {
+    expect(GATEWAY_PROVIDERS).toEqual(['anthropic', 'openai']);
+    expect(PROFILE_GATEWAY_PROVIDER).toEqual({ claude: 'anthropic', openai: 'openai' });
+    expect(gatewayProviderOf({ baseUrl: 'http://127.0.0.1:8300' })).toBe('anthropic');
+    expect(gatewayProviderOf({ provider: 'anthropic' })).toBe('anthropic');
+    expect(gatewayProviderOf({ provider: 'openai' })).toBe('openai');
+    expect(gatewayProviderOf({ provider: 'gemini' })).toBe('anthropic');
+    expect(gatewayFitsProfile('claude', {})).toBe(true);
+    expect(gatewayFitsProfile('claude', { provider: 'openai' })).toBe(false);
+    expect(gatewayFitsProfile('openai', { provider: 'openai' })).toBe(true);
+    expect(gatewayFitsProfile('openai', { provider: 'anthropic' })).toBe(false);
+    expect(gatewayFitsProfile('openai', {})).toBe(false);
   });
 
   it('runs each harness on profiles of one provider', () => {

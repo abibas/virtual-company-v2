@@ -11,7 +11,7 @@ import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Timers } from '../system/time.ts';
 import { type AskBridge, type AskHost, turnTools } from './ask/bridge.ts';
 import { type Env, processEnv } from './env.ts';
-import type { PrivateDirs, PrivateLease } from './private-dir.ts';
+import { type PrivateDirs, type PrivateLease, withPrivateDir } from './private-dir.ts';
 import { type StopReason, type TurnLaunch, TurnProcess } from './turn.ts';
 
 /**
@@ -176,22 +176,22 @@ export class Turns {
     if (this.#live.size >= this.#deps.slots()) return { refused: 'busy' };
     if (!host.isDirectory(spec.cwd)) return { refused: 'home_missing' };
     const bridge = this.#openBridge(host, frame.turnId);
-    let process: ProcessSpec;
+    let built: ProcessSpec;
     try {
-      process = driver.turn(spec, bridge && host.ask && turnTools(host.ask, bridge));
+      built = driver.turn(spec, bridge && host.ask && turnTools(host.ask, bridge));
     } catch (error) {
       bridge?.close();
       return { refused: `invalid_spec: ${messageOf(error)}` };
     }
     let lease: PrivateLease | undefined;
     try {
-      for (const file of process.turnFiles ?? []) bridge?.write(file);
-      lease = process.privateDir && host.dirs.acquire(process.privateDir, spec.harness, spec.cwd);
+      for (const file of built.turnFiles ?? []) bridge?.write(file);
+      lease = built.privateDir && host.dirs.acquire(built.privateDir, spec.harness, spec.cwd);
     } catch (error) {
       bridge?.close();
       return { refused: `spawn_failed: ${messageOf(error)}` };
     }
-    const extra = lease && process.privateDir ? { [process.privateDir.env]: lease.path } : {};
+    const { process, env: extra } = withPrivateDir(built, lease);
     const env = processEnv(host.env, process, extra);
     const inputLine = process.stdinOpen ? driver.inputLine?.bind(driver) : undefined;
     const launch = { process, cwd: spec.cwd, env, parser: driver.parser(), lease, bridge, inputLine };

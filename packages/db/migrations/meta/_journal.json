@@ -113,6 +113,13 @@
       "when": 1794297656118,
       "tag": "0015_profile_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794301942227,
+      "tag": "0016_gateway_provider",
+      "breakpoints": true
     }
   ]
 }

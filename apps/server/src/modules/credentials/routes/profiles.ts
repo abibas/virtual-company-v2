@@ -15,9 +15,9 @@ import { accessProfilesService } from '../service/profiles.ts';
 
 /**
  * `/api/me/access-profiles` (S3.4, one provider each since 2026-11-10): the caller's own access profiles, each one of
- * their Claude subscriptions (with an optional gateway) or one of their OpenAI ones, which they give to agents of the
- * matching harness in companies where they are an admin or owner (the agent routes) and choose as their default there,
- * one per provider. Personal, and managed only signed in to the web app: an API key is refused (403
+ * their Claude subscriptions or one of their OpenAI ones with an optional gateway of that provider, which they give to
+ * agents of the matching harness in companies where they are an admin or owner (the agent routes) and choose as their
+ * default there, one per provider. Personal, and managed only signed in to the web app: an API key is refused (403
  * `session_required`).
  */
 
@@ -30,8 +30,9 @@ const NAME_TAKEN = errorResponse('You have a profile of that name already (`acce
 const CREDENTIAL_REFUSED = errorResponse(
   'None of your subscriptions (`credential_not_found`); a subscription of another provider than the profile’s ' +
     '(`provider_mismatch`: Claude takes `claude_oauth`, `claude_setup_token`, `anthropic_api_key`; OpenAI ' +
-    '`codex_oauth`, `openai_api_key`); a gateway that is not one (`credential_kind_mismatch`) or given to an OpenAI ' +
-    'profile (`gateway_not_allowed`); a revoked one (`credential_revoked`)',
+    '`codex_oauth`, `openai_api_key`); a gateway that is not one (`credential_kind_mismatch`) or of the other ' +
+    'provider (`gateway_provider_mismatch`: Claude takes an `anthropic` gateway, OpenAI an `openai` one); a revoked ' +
+    'one (`credential_revoked`)',
 );
 const UPDATE_REFUSED = errorResponse(
   'As for a new profile, or another provider than the profile’s, which is fixed (`provider_mismatch`)',
@@ -56,8 +57,7 @@ const createProfileRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'post',
-    summary:
-      'Make an access profile: its provider (fixed), one of your subscriptions of it, a gateway for Claude',
+    summary: 'Make an access profile: its provider (fixed), one of your subscriptions of it, a gateway of it',
     request: { body: jsonBody(CreateAccessProfileSchema) },
     responses: {
       201: jsonResponse('The new profile', AccessProfileSchema),
@@ -75,7 +75,7 @@ const updateProfileRoute = (deps: ServerDeps) => {
     ...base,
     method: 'patch',
     summary:
-      'Rename one of your access profiles, or change its subscription (same provider) or gateway (Claude)',
+      'Rename one of your access profiles, or change its subscription or gateway (both of its provider)',
     request: { params: AccessProfileParamsSchema, body: jsonBody(UpdateAccessProfileSchema) },
     responses: {
       200: jsonResponse('The profile after the change', AccessProfileSchema),

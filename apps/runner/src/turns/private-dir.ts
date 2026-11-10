@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { CODEX_AUTH_FILE } from '@mwc/harness-codex';
-import type { PrivateDir } from '@mwc/harness-core';
+import type { PrivateDir, ProcessSpec } from '@mwc/harness-core';
 import type { Harness } from '@mwc/shared/enums';
 import { CodexAuthJson } from '@mwc/shared/harness';
 
 /**
- * The folders a harness keeps its state in (docs/harness.md, "The port": Codex's `CODEX_HOME`). The folder is the
- * placement's configuration folder, or the runner's own one for the harness and the agent's folder
- * (`<state>/<harness>/<first 16 hex of sha256(cwd)>/`), never the machine's `~/.codex`. The runner makes it (0700) when
+ * The folders a harness keeps its state in (docs/harness.md, "The port": Codex's `CODEX_HOME`, Claude Code's private
+ * settings files). The folder is the placement's configuration folder, or the runner's own one for the harness and the
+ * agent's folder (`<state>/<harness>/<first 16 hex of sha256(cwd)>/`), never the machine's `~/.codex` or `~/.claude`. The runner makes it (0700) when
  * missing and keeps it (the threads a resume needs live there). It writes the driver's files (the login, 0600) before
  * the process and removes them when the last process using the folder ends, so a login is on disk only while a process
  * runs; a file of that name it did not write is set aside and put back, never overwritten. A file whose text changed
@@ -61,6 +61,22 @@ export function releaseLogin(lease: PrivateLease | undefined): string | 'invalid
   const changed = lease?.release()[CODEX_AUTH_FILE];
   if (changed === undefined) return undefined;
   return CodexAuthJson.safeParse(changed).success ? changed : 'invalid';
+}
+
+/**
+ * A process spec once its private folder is ready: each file with an `option` named after the spec's arguments with its
+ * full path (Claude Code's `--settings <path>`), and the folder's variable (`CODEX_HOME`) for its environment. Without a
+ * lease, the spec as it is.
+ */
+export function withPrivateDir(
+  process: ProcessSpec,
+  lease: PrivateLease | undefined,
+): { readonly process: ProcessSpec; readonly env: Readonly<Record<string, string>> } {
+  const dir = process.privateDir;
+  if (dir === undefined || lease === undefined) return { process, env: {} };
+  const named = dir.files.flatMap((file) => (file.option ? [file.option, join(lease.path, file.name)] : []));
+  const env = dir.env === undefined ? {} : { [dir.env]: lease.path };
+  return { process: named.length === 0 ? process : { ...process, args: [...process.args, ...named] }, env };
 }
 
 /** The folder of a private dir: the driver's (the placement's configuration folder), else the runner's own. */

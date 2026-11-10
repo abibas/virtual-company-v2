@@ -63,9 +63,34 @@ function SavedSelect({
   );
 }
 
-/** The profile's subscription of its provider, and a Claude profile's gateway. */
-function ProfileCredentials({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
+/** The profile's gateway: the person's gateways of its provider (Claude Code's or Codex's), or where to add one. */
+function GatewaySlot({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
   const addGatewayHref = usePersonalHref('gateways', true);
+  const { provider } = profile;
+  return (
+    <SavedSelect
+      label="Gateway"
+      hint={
+        hasGateway(subscriptions, provider) || profile.gateway ? (
+          'Where its runs send their AI requests'
+        ) : (
+          <>
+            You have none for {PROVIDER_STYLES[provider].agents} yet.{' '}
+            <Link to={addGatewayHref} className="font-semibold text-blue hover:underline">
+              Add a gateway
+            </Link>
+          </>
+        )
+      }
+      value={profile.gateway?.id ?? ''}
+      options={gatewayOptions(subscriptions, profile.gateway, provider)}
+      save={(gatewayCredentialId) => update({ gatewayCredentialId })}
+    />
+  );
+}
+
+/** The profile's subscription and gateway, both of its provider. */
+function ProfileCredentials({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
   const style = PROVIDER_STYLES[profile.provider];
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -80,28 +105,7 @@ function ProfileCredentials({ profile, subscriptions, update }: Omit<CardProps, 
         options={subscriptionOptions(profile.provider, subscriptions, profile.subscription)}
         save={(credentialId) => update({ credentialId })}
       />
-      {profile.provider === 'claude' ? (
-        <SavedSelect
-          label="Gateway"
-          hint={
-            hasGateway(subscriptions) || profile.gateway ? (
-              'Where its runs send their AI requests'
-            ) : (
-              <>
-                You have none yet.{' '}
-                <Link to={addGatewayHref} className="font-semibold text-blue hover:underline">
-                  Add a gateway
-                </Link>
-              </>
-            )
-          }
-          value={profile.gateway?.id ?? ''}
-          options={gatewayOptions(subscriptions, profile.gateway)}
-          save={(gatewayCredentialId) => update({ gatewayCredentialId })}
-        />
-      ) : (
-        <p className="self-center text-xs text-dim">Codex runs without a gateway.</p>
-      )}
+      <GatewaySlot profile={profile} subscriptions={subscriptions} update={update} />
     </div>
   );
 }
@@ -136,7 +140,7 @@ function ProfileAgents({ agents }: { readonly agents: AccessProfile['agents'] })
 }
 
 /**
- * One access profile: its name (renamed in place) with its provider's badge, its subscription and (Claude) gateway,
+ * One access profile: its name (renamed in place) with its provider's badge, its subscription and gateway,
  * the agents that use it, and Delete, confirmed in place. A change saves at once.
  */
 export function ProfileCard({ profile, subscriptions, update, remove }: CardProps) {

@@ -36,7 +36,7 @@ company. Kinds:
 | `codex_oauth`         | **Sign in with OpenAI**: `codex login --device-auth` in the sign-in helper       | the login's `auth.json`                   | `GET chatgpt.com/backend-api/wham/usage`  |
 | `anthropic_api_key`   | paste                                                                            | the key                                   | none (pay as you go)                      |
 | `openai_api_key`      | paste                                                                            | the key                                   | none                                      |
-| `gateway`             | an address and headers (for example Ihor's gateway on port 8300)                 | the headers                               | none                                      |
+| `gateway`             | for Claude Code or for Codex, an address and headers (for example Ihor's gateway on port 8300) | the headers (the address and provider are account details) | none |
 
 "Subscription login" (Ihor, 2026-11-05): adding a subscription obtains **and stores** its login token and config,
 so nothing has to be signed in again on a machine.
@@ -142,12 +142,47 @@ As built in S3.2:
 4. The page shows the new subscription, named "Claude · <email>" or "OpenAI · <email>" (rename it on the page). Cancel
    or wait 10 minutes to give up; nothing is stored then.
 
+## Gateways
+
+An AI gateway is an address a harness sends its AI requests to instead of the provider, with optional headers (Ihor's
+memory gateway on port 8300 serves both harnesses). Since 2026-11-10 (Ihor: "Codex runs without a gateway… it should run
+through the gateway as well") each gateway has a **provider**: `anthropic`, for Claude Code (its `ANTHROPIC_BASE_URL`),
+or `openai`, for Codex (a custom model provider). It is kept in the gateway's account details (`accountMeta.provider`,
+`GATEWAY_PROVIDERS` and `gatewayProviderOf` of `@mwc/shared/credentials`); a gateway added before then says none and
+reads as `anthropic` (no data step: the API shows `provider` on every gateway). The headers are its secret, sealed like
+any other; the address and the provider are not secret.
+
+- **Adding one:** `POST /api/me/subscriptions {kind: 'gateway', label, provider, baseUrl, headers}`, `provider`
+  `anthropic` when left out; 0 to 20 headers, each one line with a plain name. The web's form asks **For Claude Code**
+  or **For Codex** first, then the name, the address and the headers, with the addresses to try on port 8300:
+
+  | For         | Sign-in of the profile | Address                                   |
+  | ----------- | ---------------------- | ----------------------------------------- |
+  | Claude Code | any                    | `http://127.0.0.1:8300`                   |
+  | Codex       | ChatGPT (`codex_oauth`) | `http://127.0.0.1:8300/backend-api/codex` |
+  | Codex       | OpenAI API key         | `http://127.0.0.1:8300/v1`                |
+
+  Each gateway card shows its provider ("For Claude Code", "For Codex") and the profiles that include it.
+- **In a profile:** a Claude profile takes an `anthropic` gateway, an OpenAI profile an `openai` one (`gatewayFitsProfile`,
+  `PROFILE_GATEWAY_PROVIDER`); another is 422 `gateway_provider_mismatch`. The credentials module checks it on every
+  write, since the provider lives in the gateway's account details and SQL cannot read them from `access_profiles`
+  (migration `0016_gateway_provider` dropped the CHECK that kept gateways on Claude profiles).
+- **The profile decides.** The profile's gateway, or none, decides for every turn and chat terminal of its agents on
+  any machine, whatever that machine's own Claude Code or Codex settings say: Claude Code gets a private settings file
+  (`--settings`, the gateway's address and headers, or Anthropic's own address and no headers without one) over a
+  machine's `~/.claude/settings.json`; Codex gets the gateway as a custom model provider in config overrides (or its
+  built-in OpenAI provider without one), which win over a `config.toml` in its home folder (the runner's own, so the
+  machine's `~/.codex` is never read, or the placement's config folder). How each reaches the process: docs/harness.md,
+  "Credentials and gateways".
+- **Not yet:** the `x-memory-*` headers set per chat (a later step); reaching a gateway on Ihor's Mac from the devbox
+  (`127.0.0.1` there is the devbox itself).
+
 ## Access profiles
 
 A personal, named choice of **one provider's subscription** (since 2026-11-10, Ihor: "we should have ONE, so we can use
 different profiles with the single provider/subscription"): a **Claude profile** holds one Claude subscription, for
-`claude_code` agents, and an optional gateway; an **OpenAI profile** holds one OpenAI subscription, for `codex` agents,
-and never a gateway. A person makes as many as they like (two Claude profiles on two Max plans, say). Its owner gives
+`claude_code` agents; an **OpenAI profile** holds one OpenAI subscription, for `codex` agents; either takes an optional
+gateway of its provider ("Gateways" above). A person makes as many as they like (two Claude profiles on two Max plans, say). Its owner gives
 it to agents of the matching harness in companies where they are an admin or owner (`agents.profile_id`); each person
 has a default per provider and company for the agents they hire. A profile never moves a credential into a company: it
 is a reference the server resolves at run time.
@@ -157,18 +192,20 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
 
 - **The row.** `access_profiles` is personal (an owner, no company): `name` (1–80, unique per owner whatever the
   provider), `provider` (`claude` | `openai`, `ProfileProvider` of `@mwc/shared/enums`, fixed when it is made),
-  `credential_id` (the subscription) and `gateway_credential_id`, both keys to `credentials` with `on delete set null`;
-  `access_profiles_gateway_check` allows a gateway on a Claude profile only. The subscription is one of the owner's own
-  credentials of a kind of the provider: Claude `claude_oauth`, `claude_setup_token` or `anthropic_api_key`; OpenAI
-  `codex_oauth` or `openai_api_key` (`PROVIDER_KINDS`, `fitsProvider`); the gateway a `gateway` (`GATEWAY_KINDS`). A
+  `credential_id` (the subscription) and `gateway_credential_id`, both keys to `credentials` with `on delete set null`
+  (until migration `0016_gateway_provider`, `access_profiles_gateway_check` allowed a gateway on a Claude profile only).
+  The subscription is one of the owner's own credentials of a kind of the provider: Claude `claude_oauth`,
+  `claude_setup_token` or `anthropic_api_key`; OpenAI `codex_oauth` or `openai_api_key` (`PROVIDER_KINDS`,
+  `fitsProvider`); the gateway a `gateway` (`GATEWAY_KINDS`) of the profile's provider (`gatewayFitsProfile`). A
   revoked credential cannot be put in; one revoked while in place stays until it is replaced. Removing a credential
   empties the profile, which then cannot run until its owner chooses another (a turn says `profile_empty`).
 - **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
   only, like subscriptions. `POST` takes `{ name, provider, credentialId?, gatewayCredentialId? }`; `PATCH` any of
-  `name`, `credentialId` (of the same provider), `gatewayCredentialId` (Claude only), null emptying one, and `provider`
-  only as the profile's own. Refusals, all 422: a subscription of the other provider and another `provider`
-  (`provider_mismatch`), a gateway that is not one (`credential_kind_mismatch`) or on an OpenAI profile
-  (`gateway_not_allowed`), none of the owner's (`credential_not_found`), a revoked one (`credential_revoked`); a taken
+  `name`, `credentialId` and `gatewayCredentialId` (both of the same provider), null emptying one, and `provider` only
+  as the profile's own. Refusals, all 422: a subscription of the other provider and another `provider`
+  (`provider_mismatch`), a gateway that is not one (`credential_kind_mismatch`) or of the other provider
+  (`gateway_provider_mismatch`; `gateway_not_allowed` before 2026-11-10's gateways for Codex), none of the owner's
+  (`credential_not_found`), a revoked one (`credential_revoked`); a taken
   name is 409. The list shows `provider`, `subscription` and `gateway` as metadata and the agents using each profile in
   the owner's companies.
 - **Giving one to an agent:** `profileId` on `POST`/`PATCH /api/companies/:companyId/agents`. Only the profile's owner
@@ -187,7 +224,8 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
   provider, also when hired with an API key: the owner chose it signed in.
 - **A chat's own profile** (S5.1b) follows the same rules: only the owner's, of the provider of the chat's harness
   (`profile_harness_mismatch`); a turn refuses a profile of another provider the same way, and one without a
-  subscription with `profile_empty`. A Claude profile's gateway goes with Claude Code's turns; Codex turns have none.
+  subscription with `profile_empty`. The profile's gateway goes with every turn and terminal of its harness and
+  decides where its requests go ("Gateways" above).
 - **Leaving a company** (removed, leaving, removed or deleted at the provider, suspended: every path of the org chart's
   lifecycle) takes the person's profiles off the company's agents in the same transaction, so their personal
   subscriptions stop powering a company they left. A re-activation does not put them back.
@@ -198,14 +236,15 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
   `defaultOpenaiProfileId`.
 - **The web** (Access profiles page): the profiles in two groups, Claude and OpenAI; **New profile** asks the provider
   first (two big choices), then the name, the subscription of that provider and, for Claude, a gateway; each card shows
-  the provider's badge, the subscription, the gateway (Claude) and the agents using it; **Defaults for agents I hire**
+  the provider's badge, the subscription, the gateway (a select of the person's gateways of that provider, for both
+  providers since 2026-11-10) and the agents using it; **Defaults for agents I hire**
   has a Claude and an OpenAI select per company. The agent form offers only profiles of its harness's provider (a
   harness change takes the hirer's default of the new one when hiring, none on an agent's page), with **Make one**
   opening New profile for that provider (`?new=claude|openai`); the chat's picker lists only the matching profiles.
 
 **From bundles to one provider** (migration `0015_profile_provider`, its `-- custom:` data step, 2026-11-10): a profile
 with only a Claude subscription, or none, became a Claude profile (keeping its gateway); one with only an OpenAI
-subscription an OpenAI profile (its gateway let go: only Claude profiles have one); one with both stayed a Claude
+subscription an OpenAI profile (its gateway let go: only Claude profiles had one then); one with both stayed a Claude
 profile with its gateway, and a new OpenAI profile of the same owner, "<name> · OpenAI" (" · OpenAI 2", " 3"... when
 taken, the name cut to 80 characters), took its OpenAI subscription, its `codex` agents and chats, and the OpenAI default
 of members whose default it was (the Claude default stayed the original). Each member's default moved to its provider's
@@ -226,8 +265,8 @@ new profile, agent and chat moved or cleared, OpenAI default set and gateway let
   container or a box finds nothing reusable. The fallback hands the credential to the run's environment over the
   runner's connection, never to disk, where root on that machine could read it while the run lives. Chats (S5.1b, Ihor's choice
   of 2026-11-09) use the fallback: each turn's credential goes in its `turn.start` over the runner's link, refreshed by
-  the server first; nothing is on disk for Claude, and Codex's `auth.json` only while its process runs
-  (docs/harness.md, "How a turn runs").
+  the server first; on disk only while its process runs: Codex's `auth.json`, and Claude Code's settings file with the
+  gateway's headers (0600, in a 0700 folder of the runner's; docs/harness.md, "How a turn runs").
 - **Audit:** every add, change, removal and assignment, and every server-side use of a secret (a usage check, later a
   run), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
   subscription is removed (S3.1).

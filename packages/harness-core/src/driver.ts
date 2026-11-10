@@ -1,24 +1,30 @@
 import type { Harness } from '@mwc/shared/enums';
 import type { TerminalSpec, TurnEvent, TurnEventOf, TurnSpec } from '@mwc/shared/harness';
 
-/** A file a process reads from its private folder (Codex's `auth.json`). */
+/** A file a process reads from its private folder (Codex's `auth.json`, Claude Code's settings). */
 export interface PrivateFile {
   /** A plain file name, no folders. */
   readonly name: string;
   readonly contents: string;
   /** Its permission bits, `0o600` for a secret. */
   readonly mode: number;
+  /**
+   * The option the process gets this file's full path with (Claude Code's `--settings`): the runner adds `option path`
+   * after the spec's `args`, since only it knows the folder. Left out, the process finds the file by itself.
+   */
+  readonly option?: string;
 }
 
 /**
- * The folder a harness keeps its state in, when the driver needs the runner to manage it (Codex's `CODEX_HOME`, where
- * its login and its threads live). The runner makes it private (0700) when missing, puts its path in `env`, writes
- * `files` before the start and removes them when the last process using the folder exits, so no secret stays on disk
- * between turns. The folder itself is kept: a thread lives in it, so a resume needs the same folder.
+ * The folder a harness keeps its state in, or the files of a process, when the driver needs the runner to manage it
+ * (Codex's `CODEX_HOME`, where its login and its threads live; Claude Code's private settings file). The runner makes it
+ * private (0700) when missing, puts its path in `env` when there is one, writes `files` before the start (each with an
+ * `option` named on the command line) and removes them when the last process using the folder exits, so no secret stays
+ * on disk between turns. The folder itself is kept: a Codex thread lives in it, so a resume needs the same folder.
  */
 export interface PrivateDir {
-  /** The variable that gets the folder's path, e.g. `CODEX_HOME`. */
-  readonly env: string;
+  /** The variable that gets the folder's path, e.g. `CODEX_HOME`; left out, none. */
+  readonly env?: string;
   /**
    * The folder: the turn's `configDir` (the agent's own), or null for the runner's own private folder for this harness
    * and `cwd` (docs/harness.md).

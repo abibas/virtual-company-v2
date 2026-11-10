@@ -1,20 +1,25 @@
 import {
   CREDENTIAL_LABEL,
-  GATEWAY_HEADERS,
+  type GatewayProvider,
   type PastedCredentialKind,
   SECRET_PREFIXES,
 } from '@mwc/shared/credentials';
-import { Plus, X } from 'lucide-react';
-import { type FormEvent, type ReactNode, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
 import { subscriptionCalls } from '../../api/subscriptions.ts';
 import type { NewSubscription, Subscription } from '../../api/types.ts';
-import { SECRET_INPUT, SecretField, TextField } from '../../components/forms/Field.tsx';
-import { Input } from '../../components/forms/Input.tsx';
+import { SecretField, TextField } from '../../components/forms/Field.tsx';
 import { Button } from '../../components/ui/Button.tsx';
-import { IconButton } from '../../components/ui/IconButton.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
+import {
+  GATEWAY_STYLES,
+  GatewayAddress,
+  GatewayProviderChoice,
+  GatewayProviderLine,
+  type HeaderRow,
+  HeaderRows,
+} from './GatewayFields.tsx';
 
 /** What each paste form is called, its starting name, its secret's label and where the secret comes from. */
 interface PasteCopy {
@@ -52,23 +57,24 @@ const COPY: Readonly<Record<PastedCredentialKind, PasteCopy>> = {
     title: 'Add an AI gateway',
     name: 'Gateway',
     secret: 'Headers',
-    hint: 'The address runs send their AI requests to, and the headers it needs with each one.',
+    hint: 'Whose requests it takes, the address runs send them to, and the headers it needs with each one.',
   },
 };
+
+/** The names a gateway starts with: a choice of provider names it after the provider unless the person renamed it. */
+const STARTING_NAMES: readonly string[] = [
+  COPY.gateway.name,
+  ...Object.values(GATEWAY_STYLES).map((style) => style.name),
+];
 
 /** The sheet's title for a paste form. */
 export const pasteTitle = (kind: PastedCredentialKind): string => COPY[kind].title;
 
-interface HeaderRow {
-  readonly id: number;
-  readonly name: string;
-  readonly value: string;
-}
-
-/** What the form holds: a name, and a secret or a gateway's address and headers. */
+/** What the form holds: a name, and a secret or a gateway's provider (asked first), address and headers. */
 interface PasteValues {
   readonly label: string;
   readonly secret: string;
+  readonly provider: GatewayProvider | undefined;
   readonly baseUrl: string;
   readonly headers: readonly HeaderRow[];
 }
@@ -80,7 +86,9 @@ function bodyOf(kind: PastedCredentialKind, values: PasteValues): NewSubscriptio
   const named = values.headers.filter((row) => row.name.trim() !== '');
   const headers = Object.fromEntries(named.map((row) => [row.name.trim(), row.value]));
   if (kind === 'claude_setup_token') return { kind, label, token: secret };
-  if (kind === 'gateway') return { kind, label, baseUrl: values.baseUrl.trim(), headers };
+  if (kind === 'gateway') {
+    return { kind, label, provider: values.provider ?? 'anthropic', baseUrl: values.baseUrl.trim(), headers };
+  }
   return { kind, label, apiKey: secret };
 }
 
@@ -88,7 +96,8 @@ function bodyOf(kind: PastedCredentialKind, values: PasteValues): NewSubscriptio
 const isReady = (kind: PastedCredentialKind, values: PasteValues): boolean =>
   values.label.trim() !== '' &&
   (kind === 'gateway'
-    ? values.baseUrl.trim() !== '' &&
+    ? values.provider !== undefined &&
+      values.baseUrl.trim() !== '' &&
       values.headers.every((row) => (row.name.trim() === '') === (row.value === ''))
     : values.secret.trim() !== '');
 
@@ -98,6 +107,7 @@ function usePasteForm(kind: PastedCredentialKind, onAdded: (subscription: Subscr
   const [values, setValues] = useState<PasteValues>(() => ({
     label: COPY[kind].name,
     secret: '',
+    provider: undefined,
     baseUrl: '',
     headers: [{ id: 0, name: '', value: '' }],
   }));
@@ -118,56 +128,42 @@ function usePasteForm(kind: PastedCredentialKind, onAdded: (subscription: Subscr
       setBusy(false);
     }
   };
-  return { values, set, busy, error, ready: isReady(kind, values), save };
+  /** Chooses a gateway's provider (or none, to choose again), naming it after the provider unless renamed. */
+  const choose = (provider: GatewayProvider | undefined) =>
+    setValues((v) => ({
+      ...v,
+      provider,
+      label: provider && STARTING_NAMES.includes(v.label) ? GATEWAY_STYLES[provider].name : v.label,
+    }));
+  return { values, set, choose, busy, error, ready: isReady(kind, values), save };
 }
 
-/** A gateway's headers: name and value rows (values as secrets), none to 20; an empty row is left out. */
-function HeaderRows({
-  rows,
-  onChange,
-}: {
-  readonly rows: readonly HeaderRow[];
-  readonly onChange: (rows: readonly HeaderRow[]) => void;
-}) {
-  const nextId = useRef(rows.length);
-  const set = (id: number, change: Partial<HeaderRow>) =>
-    onChange(rows.map((row) => (row.id === id ? { ...row, ...change } : row)));
-  const add = () => onChange([...rows, { id: nextId.current++, name: '', value: '' }]);
+type PasteState = ReturnType<typeof usePasteForm>;
+
+/** The secret of a paste (typed as dots), or a gateway's address and headers. */
+function PastedSecret({ kind, form }: { readonly kind: PastedCredentialKind; readonly form: PasteState }) {
+  const { provider } = form.values;
+  if (kind === 'gateway' && provider !== undefined) {
+    return (
+      <>
+        <GatewayAddress
+          provider={provider}
+          value={form.values.baseUrl}
+          onChange={(baseUrl) => form.set('baseUrl', baseUrl)}
+        />
+        <HeaderRows rows={form.values.headers} onChange={(rows) => form.set('headers', rows)} />
+      </>
+    );
+  }
+  const copy = COPY[kind];
   return (
-    <fieldset className="flex min-w-0 flex-col gap-2">
-      <legend className="mb-1.5 text-sm font-semibold text-ink-2">Headers (optional)</legend>
-      {rows.map((row, index) => (
-        <div key={row.id} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-2">
-          <Input
-            aria-label={`Header ${index + 1} name`}
-            value={row.name}
-            placeholder="x-api-key"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(event) => set(row.id, { name: event.target.value })}
-          />
-          <Input
-            aria-label={`Header ${index + 1} value`}
-            value={row.value}
-            placeholder="Value"
-            {...SECRET_INPUT}
-            onChange={(event) => set(row.id, { value: event.target.value })}
-          />
-          <IconButton
-            label={`Remove header ${index + 1}`}
-            icon={X}
-            size="sm"
-            onClick={() => onChange(rows.filter((other) => other.id !== row.id))}
-          />
-        </div>
-      ))}
-      {rows.length < GATEWAY_HEADERS.max && (
-        <Button size="sm" tone="quiet" icon={Plus} onClick={add} className="-ml-2 self-start">
-          Add a header
-        </Button>
-      )}
-      <p className="text-xs text-dim">The values are stored encrypted and never shown again.</p>
-    </fieldset>
+    <SecretField
+      label={copy.secret}
+      value={form.values.secret}
+      onChange={(event) => form.set('secret', event.target.value)}
+      required
+      hint={copy.hint}
+    />
   );
 }
 
@@ -178,19 +174,43 @@ interface PasteFormProps {
   readonly onBack: () => void;
 }
 
+/** The gateway form's first step: whose requests it takes, before anything else; Back closes the sheet. */
+function GatewayStart({
+  onChoose,
+  onBack,
+}: {
+  readonly onChoose: (provider: GatewayProvider) => void;
+  readonly onBack: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <GatewayProviderChoice onChoose={onChoose} />
+      <div className="flex justify-end">
+        <Button onClick={onBack}>Back</Button>
+      </div>
+    </div>
+  );
+}
+
 /**
- * Add a pasted subscription: its name and its secret (a setup-token or an API key, typed as dots), or a gateway's
- * address and headers. The secret goes to the server once and never comes back; a refusal shows here in plain words.
+ * Add a pasted subscription: its name and its secret (a setup-token or an API key, typed as dots), or a gateway: first
+ * whose requests it takes (Claude Code's or Codex's), then its name, address and headers. The secret goes to the server
+ * once and never comes back; a refusal shows here in plain words.
  */
 export function PasteForm({ kind, onAdded, onBack }: PasteFormProps) {
   const form = usePasteForm(kind, onAdded);
-  const copy = COPY[kind];
+  const { provider } = form.values;
   const submit = (event: FormEvent) => {
     event.preventDefault();
     void form.save();
   };
+  if (kind === 'gateway' && provider === undefined)
+    return <GatewayStart onBack={onBack} onChoose={form.choose} />;
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {provider !== undefined && (
+        <GatewayProviderLine provider={provider} onChange={() => form.choose(undefined)} />
+      )}
       <TextField
         label="Name"
         value={form.values.label}
@@ -199,31 +219,7 @@ export function PasteForm({ kind, onAdded, onBack }: PasteFormProps) {
         maxLength={CREDENTIAL_LABEL.max}
         hint="How it shows on your cards and in your access profiles."
       />
-      {kind === 'gateway' ? (
-        <>
-          <TextField
-            label="Address"
-            type="url"
-            inputMode="url"
-            value={form.values.baseUrl}
-            onChange={(event) => form.set('baseUrl', event.target.value)}
-            required
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="http://localhost:8300"
-            hint={copy.hint}
-          />
-          <HeaderRows rows={form.values.headers} onChange={(rows) => form.set('headers', rows)} />
-        </>
-      ) : (
-        <SecretField
-          label={copy.secret}
-          value={form.values.secret}
-          onChange={(event) => form.set('secret', event.target.value)}
-          required
-          hint={copy.hint}
-        />
-      )}
+      <PastedSecret kind={kind} form={form} />
       {form.error && <Notice tone="error">{form.error}</Notice>}
       <div className="flex flex-wrap justify-end gap-2">
         <Button disabled={form.busy} onClick={onBack}>

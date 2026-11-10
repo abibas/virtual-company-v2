@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PrivateDir } from '@mwc/harness-core';
+import type { PrivateDir, ProcessSpec } from '@mwc/harness-core';
 import { describe, expect, it } from 'vitest';
 import { nodePrivateFs } from '../../src/turns/files.ts';
 import {
@@ -11,6 +11,7 @@ import {
   privatePath,
   releaseLogin,
   WRITTEN_MARKER,
+  withPrivateDir,
 } from '../../src/turns/private-dir.ts';
 import { tempDir } from '../fixtures/runner.ts';
 
@@ -119,5 +120,41 @@ describe('the private folders', () => {
     expect(releaseLogin(write('[1]'))).toBe('invalid');
     expect(releaseLogin(write(LOGIN))).toBeUndefined();
     expect(releaseLogin(undefined)).toBeUndefined();
+  });
+});
+
+describe('withPrivateDir', () => {
+  const SETTINGS = { name: 'settings-0a1b.json', contents: '{"env":{}}', mode: 0o600, option: '--settings' };
+  const spec = (privateDir?: PrivateDir): ProcessSpec => ({
+    command: 'claude',
+    args: ['-p'],
+    env: {},
+    unsetEnv: [],
+    stdin: null,
+    notices: [],
+    ...(privateDir ? { privateDir } : {}),
+  });
+
+  it('names each file with an option after the arguments by its full path, and gives no variable without one', () => {
+    const { dirs } = world();
+    const process = spec({ path: null, files: [SETTINGS, { name: 'plain', contents: 'x', mode: 0o600 }] });
+    const lease = dirs.acquire(process.privateDir as PrivateDir, 'claude_code', '/home/agent');
+    const ready = withPrivateDir(process, lease);
+    expect(ready.process.args).toEqual(['-p', '--settings', join(lease.path, 'settings-0a1b.json')]);
+    expect(ready.env).toEqual({});
+    expect(readFileSync(join(lease.path, 'settings-0a1b.json'), 'utf8')).toBe('{"env":{}}');
+    lease.release();
+    expect(existsSync(join(lease.path, 'settings-0a1b.json'))).toBe(false);
+  });
+
+  it('gives the folder’s variable, and leaves a spec without files to name, or without a folder, as it is', () => {
+    const { dirs } = world();
+    const codex = spec(dirOf(null));
+    const lease = dirs.acquire(codex.privateDir as PrivateDir, 'codex', '/home/agent');
+    const ready = withPrivateDir(codex, lease);
+    expect(ready).toEqual({ process: codex, env: { CODEX_HOME: lease.path } });
+    expect(withPrivateDir(spec(), undefined)).toEqual({ process: spec(), env: {} });
+    expect(withPrivateDir(codex, undefined)).toEqual({ process: codex, env: {} });
+    lease.release();
   });
 });

@@ -1,4 +1,4 @@
-import { CREDENTIAL_LABEL } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL, type GatewayProvider, gatewayProviderOf } from '@mwc/shared/credentials';
 import { Lock } from 'lucide-react';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
 import { usePersonalHref } from '../../app/company.ts';
@@ -8,11 +8,12 @@ import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
 import { StatusPill } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
+import { GatewayProviderBadge, gatewayProfilesName } from './GatewayFields.tsx';
 import { KindBadge } from './KindBadge.tsx';
 
 interface GatewayCardProps {
   readonly gateway: Subscription;
-  /** The person's Claude profiles that have it as their gateway; undefined while they load. */
+  /** The person's profiles that have it as their gateway; undefined while they load. */
   readonly profiles: readonly AccessProfile[] | undefined;
   /** Renames it (`PATCH`), then the list is read again. */
   readonly rename: (label: string) => Promise<unknown>;
@@ -26,14 +27,24 @@ const addressOf = (gateway: Subscription): string | undefined => {
   return typeof value === 'string' && value !== '' ? value : undefined;
 };
 
-/** The profiles that include it, each a link to the Access profiles tab. */
-function GatewayProfiles({ profiles }: { readonly profiles: readonly AccessProfile[] | undefined }) {
+/** The profiles that include it, each a link to the Access profiles tab; with none, which profiles can. */
+function GatewayProfiles({
+  provider,
+  profiles,
+}: {
+  readonly provider: GatewayProvider;
+  readonly profiles: readonly AccessProfile[] | undefined;
+}) {
   const profilesHref = usePersonalHref('profiles');
   if (profiles === undefined) return <p className="text-xs text-dim">Checking your access profiles…</p>;
-  if (profiles.length === 0)
+  if (profiles.length === 0) {
+    const kind = gatewayProfilesName(provider);
     return (
-      <p className="text-xs text-dim">No access profile includes it yet. Choose it in a profile’s Gateway.</p>
+      <p className="text-xs text-dim">
+        No access profile includes it yet. Choose it in a {kind} profile’s Gateway.
+      </p>
     );
+  }
   return (
     <div>
       <p className="text-xs font-semibold text-dim">In {profiles.length === 1 ? 'profile' : 'profiles'}</p>
@@ -54,17 +65,20 @@ function GatewayProfiles({ profiles }: { readonly profiles: readonly AccessProfi
 }
 
 /**
- * One AI gateway: its name (renamed in place), its address, a note that its headers are sealed (never their names or
- * values), the access profiles that include it, and Remove, confirmed in place.
+ * One AI gateway: whose requests it takes (for Claude Code or for Codex), its name (renamed in place), its address, a
+ * note that its headers are sealed (never their names or values), the access profiles that include it, and Remove,
+ * confirmed in place.
  */
 export function GatewayCard({ gateway, profiles, rename, remove }: GatewayCardProps) {
   const address = addressOf(gateway);
+  const provider = gatewayProviderOf(gateway.accountMeta);
   const { createdAt, lastUsedAt } = gateway;
   return (
     <Card as="article" aria-label={gateway.label} className="flex flex-col gap-4">
       <header className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <KindBadge kind={gateway.kind} />
+          <GatewayProviderBadge provider={provider} />
           {gateway.status !== 'active' && <StatusPill status={gateway.status} size="sm" />}
         </div>
         <InlineEdit
@@ -82,7 +96,7 @@ export function GatewayCard({ gateway, profiles, rename, remove }: GatewayCardPr
           Its headers are stored encrypted and never shown.
         </p>
       </header>
-      <GatewayProfiles profiles={profiles} />
+      <GatewayProfiles provider={provider} profiles={profiles} />
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <p className="min-w-0 text-xs text-dim">
           Added <time dateTime={createdAt}>{formatDate(createdAt)}</time>

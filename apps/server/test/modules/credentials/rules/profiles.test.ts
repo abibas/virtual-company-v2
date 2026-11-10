@@ -1,9 +1,9 @@
+import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import { describe, expect, it } from 'vitest';
 import {
   auditedProfile,
   credentialRefusal,
-  GATEWAY_CLAUDE_ONLY,
-  gatewayRefusal,
+  gatewayProviderMismatch,
   PROFILE_NOT_FOUND,
   partsPutIn,
   profileChanges,
@@ -13,6 +13,13 @@ import {
 
 const profile = { name: 'Work', credentialId: 'c1', gatewayCredentialId: 'g1' };
 
+/** A credential as the rules read it: its kind, state and account details (none by default). */
+const held = (kind: CredentialKind, status: CredentialStatus = 'active', accountMeta = {}) => ({
+  kind,
+  status,
+  accountMeta,
+});
+
 describe('credentialRefusal', () => {
   it.each([
     ['claude', 'claude_oauth'],
@@ -21,8 +28,8 @@ describe('credentialRefusal', () => {
     ['openai', 'codex_oauth'],
     ['openai', 'openai_api_key'],
   ] as const)('lets a %s profile take an active or signed-out %s subscription', (provider, kind) => {
-    expect(credentialRefusal('subscription', provider, { kind, status: 'active' })).toBeUndefined();
-    expect(credentialRefusal('subscription', provider, { kind, status: 'needs_sign_in' })).toBeUndefined();
+    expect(credentialRefusal('subscription', provider, held(kind))).toBeUndefined();
+    expect(credentialRefusal('subscription', provider, held(kind, 'needs_sign_in'))).toBeUndefined();
   });
 
   it.each([
@@ -33,7 +40,7 @@ describe('credentialRefusal', () => {
     ['openai', 'anthropic_api_key'],
     ['openai', 'gateway'],
   ] as const)('refuses a %s profile a %s subscription: another provider', (provider, kind) => {
-    expect(credentialRefusal('subscription', provider, { kind, status: 'active' })).toMatchObject({
+    expect(credentialRefusal('subscription', provider, held(kind))).toMatchObject({
       ok: false,
       status: 422,
       code: 'provider_mismatch',
@@ -41,8 +48,8 @@ describe('credentialRefusal', () => {
   });
 
   it('takes only a gateway as a gateway', () => {
-    expect(credentialRefusal('gateway', 'claude', { kind: 'gateway', status: 'active' })).toBeUndefined();
-    expect(credentialRefusal('gateway', 'claude', { kind: 'claude_oauth', status: 'active' })).toEqual({
+    expect(credentialRefusal('gateway', 'claude', held('gateway'))).toBeUndefined();
+    expect(credentialRefusal('gateway', 'claude', held('claude_oauth'))).toEqual({
       ok: false,
       status: 422,
       code: 'credential_kind_mismatch',
@@ -57,14 +64,12 @@ describe('credentialRefusal', () => {
       code: 'credential_not_found',
       message: 'No such subscription of yours for its subscription',
     });
-    expect(credentialRefusal('gateway', 'claude', { kind: 'gateway', status: 'revoked' })).toMatchObject({
+    expect(credentialRefusal('gateway', 'claude', held('gateway', 'revoked'))).toMatchObject({
       status: 422,
       code: 'credential_revoked',
       message: expect.stringContaining('its gateway'),
     });
-    expect(
-      credentialRefusal('subscription', 'claude', { kind: 'openai_api_key', status: 'revoked' }),
-    ).toEqual({
+    expect(credentialRefusal('subscription', 'claude', held('openai_api_key', 'revoked'))).toEqual({
       ok: false,
       status: 422,
       code: 'provider_mismatch',
@@ -75,13 +80,34 @@ describe('credentialRefusal', () => {
   });
 });
 
-describe('gatewayRefusal', () => {
-  it('refuses a gateway put in an OpenAI profile, and nothing else', () => {
-    expect(gatewayRefusal('openai', { gatewayCredentialId: 'g1' })).toBe(GATEWAY_CLAUDE_ONLY);
-    expect(GATEWAY_CLAUDE_ONLY).toMatchObject({ status: 422, code: 'gateway_not_allowed' });
-    expect(gatewayRefusal('openai', { gatewayCredentialId: null, credentialId: 'o1' })).toBeUndefined();
-    expect(gatewayRefusal('openai', {})).toBeUndefined();
-    expect(gatewayRefusal('claude', { gatewayCredentialId: 'g1' })).toBeUndefined();
+describe('a gateway’s provider', () => {
+  const anthropic = { baseUrl: 'http://127.0.0.1:8300', provider: 'anthropic' };
+  const openai = { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', provider: 'openai' };
+
+  it('gives a Claude profile an Anthropic gateway (one from before gateways had a provider too) and OpenAI an OpenAI one', () => {
+    expect(credentialRefusal('gateway', 'claude', held('gateway', 'active', anthropic))).toBeUndefined();
+    expect(
+      credentialRefusal('gateway', 'claude', held('gateway', 'active', { baseUrl: 'http://x' })),
+    ).toBeUndefined();
+    expect(credentialRefusal('gateway', 'openai', held('gateway', 'active', openai))).toBeUndefined();
+  });
+
+  it('refuses a gateway of the other provider with 422 gateway_provider_mismatch, before a revoked one', () => {
+    expect(credentialRefusal('gateway', 'claude', held('gateway', 'active', openai))).toEqual({
+      ok: false,
+      status: 422,
+      code: 'gateway_provider_mismatch',
+      message: 'A Claude profile takes a gateway for Claude Code, not one for Codex',
+    });
+    expect(credentialRefusal('gateway', 'openai', held('gateway', 'revoked', anthropic))).toEqual(
+      gatewayProviderMismatch('openai'),
+    );
+    expect(gatewayProviderMismatch('openai').message).toBe(
+      'An OpenAI profile takes a gateway for Codex, not one for Claude Code',
+    );
+    expect(credentialRefusal('gateway', 'openai', held('gateway', 'active', {}))).toMatchObject({
+      code: 'gateway_provider_mismatch',
+    });
   });
 });
 

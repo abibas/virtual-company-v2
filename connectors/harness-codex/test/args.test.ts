@@ -6,8 +6,7 @@ import {
   codexAccount,
   configArg,
   configListArg,
-  GATEWAY_NOTICE,
-  gatewayNotices,
+  keyEnvOf,
   modelArgs,
   permissionArgs,
   terminalArgs,
@@ -19,6 +18,8 @@ import {
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const ASK_EXEC = ['-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"'];
 const BYPASS = ['--dangerously-bypass-approvals-and-sandbox'];
+/** No gateway: Codex's built-in OpenAI provider, whatever a config.toml says. */
+const DIRECT = ['-c', 'model_provider="openai"'];
 
 describe('configArg and modelArgs', () => {
   it('write a TOML string override', () => {
@@ -71,6 +72,7 @@ describe('turnArgs', () => {
       '--json',
       '--skip-git-repo-check',
       ...ASK_EXEC,
+      ...DIRECT,
       '-',
     ]);
   });
@@ -92,6 +94,7 @@ describe('turnArgs', () => {
       '-c',
       'model_reasoning_effort="low"',
       ...BYPASS,
+      ...DIRECT,
       THREAD,
       '-',
     ]);
@@ -129,10 +132,41 @@ describe('the runner’s tools', () => {
       '--json',
       '--skip-git-repo-check',
       ...ASK_EXEC,
+      ...DIRECT,
       ...TOOL_ARGS,
       '-',
     ]);
     expect(turnArgs(fakeTurnSpec('codex', { sessionId: THREAD }), TOOLS).slice(-2)).toEqual([THREAD, '-']);
+  });
+});
+
+describe('a gateway in the arguments', () => {
+  const gateway = {
+    baseUrl: 'http://127.0.0.1:8300/backend-api/codex',
+    headers: { 'x-memory-agent': 'gw-secret' },
+  };
+
+  it('comes after the permissions and before the tools, the thread and the stdin marker, in a turn and the TUI', () => {
+    const turn = turnArgs(fakeTurnSpec('codex', { gateway, sessionId: THREAD }), TOOLS);
+    const provider = turn.indexOf('model_provider="mwc_gateway"');
+    expect(provider).toBe(turn.indexOf('approval_policy="never"') + 2);
+    expect(turn.indexOf('mcp_servers.mwc.command="/usr/local/bin/node"')).toBeGreaterThan(provider);
+    expect(turn.slice(-2)).toEqual([THREAD, '-']);
+    expect(turn.join(' ')).not.toContain('gw-secret');
+    const tui = terminalArgs(fakeTerminalSpec('codex', { gateway, sessionId: THREAD }));
+    expect(tui).toContain('model_providers.mwc_gateway.requires_openai_auth=true');
+    expect(tui.at(-1)).toBe(THREAD);
+    expect(tui.join(' ')).not.toContain('gw-secret');
+  });
+
+  it('authenticates an API key from CODEX_API_KEY in codex exec, from its auth.json in the TUI', () => {
+    const credential = FAKE_CREDENTIALS.openai_api_key;
+    expect(turnArgs(fakeTurnSpec('codex', { gateway, credential }))).toContain(
+      'model_providers.mwc_gateway.env_key="CODEX_API_KEY"',
+    );
+    expect(terminalArgs(fakeTerminalSpec('codex', { gateway, credential }))).toContain(
+      'model_providers.mwc_gateway.requires_openai_auth=true',
+    );
   });
 });
 
@@ -143,9 +177,10 @@ describe('terminalArgs', () => {
       'workspace-write',
       '--ask-for-approval',
       'on-request',
+      ...DIRECT,
     ]);
     const spec = fakeTerminalSpec('codex', { sessionId: THREAD, model: 'o4', permissionPolicy: 'bypass' });
-    expect(terminalArgs(spec)).toEqual(['resume', '--model', 'o4', ...BYPASS, THREAD]);
+    expect(terminalArgs(spec)).toEqual(['resume', '--model', 'o4', ...BYPASS, ...DIRECT, THREAD]);
   });
 });
 
@@ -184,7 +219,7 @@ describe('codexAccount', () => {
   });
 });
 
-describe('unsetFor and gatewayNotices', () => {
+describe('unsetFor and keyEnvOf', () => {
   it('remove the account variables the turn does not set', () => {
     expect(unsetFor({})).toEqual([...CODEX_ACCOUNT_VARS]);
     expect(unsetFor({ CODEX_API_KEY: 'k' })).toEqual([
@@ -194,11 +229,9 @@ describe('unsetFor and gatewayNotices', () => {
     ]);
   });
 
-  it('warn when the turn has a gateway Codex cannot use', () => {
-    expect(gatewayNotices(fakeTerminalSpec('codex'))).toEqual([]);
-    const gateway = { baseUrl: 'http://127.0.0.1:8300', headers: { 'X-Api-Key': 'gw' } };
-    expect(gatewayNotices(fakeTerminalSpec('codex', { gateway }))).toEqual([
-      { type: 'notice', level: 'warn', message: GATEWAY_NOTICE },
-    ]);
+  it('name the variable an API key is in for codex exec, and none for a login file', () => {
+    expect(keyEnvOf(FAKE_CREDENTIALS.openai_api_key, 'exec')).toBe('CODEX_API_KEY');
+    expect(keyEnvOf(FAKE_CREDENTIALS.openai_api_key, 'tui')).toBeUndefined();
+    expect(keyEnvOf(FAKE_CREDENTIALS.codex_oauth, 'exec')).toBeUndefined();
   });
 });

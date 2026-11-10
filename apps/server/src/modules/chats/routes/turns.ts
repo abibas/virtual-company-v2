@@ -42,7 +42,7 @@ const startRoute = (deps: ServerDeps) => {
     summary: 'Send a prompt: a turn of the agent on its machine (admin and above)',
     description:
       "The turn runs on the chat's profile (else the agent's), of the provider the harness runs on: its subscription, " +
-      "refreshed when due, handed to the runner for this turn only, with a Claude profile's gateway. Its events, " +
+      "refreshed when due, handed to the runner for this turn only, with the profile's gateway. Its events, " +
       "and its end, come on the chat's stream.",
     request: { params: ChatParamsSchema, body: jsonBody(CreateTurnSchema) },
     responses: {

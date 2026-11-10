@@ -33,7 +33,7 @@ const lengthWithin = (column: AnyPgColumn, range: { readonly min: number; readon
  * The secret is sealed by the server with AES-256-GCM (`key_version` names the master key, `iv` is 12 random bytes per
  * seal, `auth_tag` 16 bytes) and the additional data `credential|<id>|<owner_user_id>|<kind>`, so a row copied onto
  * another id, owner or kind does not open. Everything else is metadata the API shows: never a secret
- * (`account_meta`: plan, organization, scopes, a gateway's base URL).
+ * (`account_meta`: plan, organization, scopes, a gateway's base URL and provider).
  */
 export const credentials = pgTable(
   'credentials',
@@ -115,10 +115,12 @@ const held = (name: string) => uuid(name).references(() => credentials.id, { onD
  * reference the server resolves at run time.
  *
  * A profile's `provider` is fixed when it is made: a Claude profile holds a Claude subscription (for `claude_code`
- * agents) and an optional gateway, an OpenAI profile an OpenAI subscription (for `codex` agents) and never a gateway
- * (`access_profiles_gateway_check`). Its credentials are its owner's, of kinds that fit (`PROVIDER_KINDS`,
- * `GATEWAY_KINDS` of `@mwc/shared/credentials`), never revoked ones: the credentials module checks that, since SQL
- * cannot read another row's owner or kind here. Removing a credential empties the profile (it cannot run until its
+ * agents), an OpenAI profile an OpenAI subscription (for `codex` agents), and either an optional gateway of its own
+ * provider (an `anthropic` gateway for Claude, an `openai` one for OpenAI; since migration `0016_gateway_provider`,
+ * which dropped the CHECK that kept gateways on Claude profiles). Its credentials are its owner's, of kinds and a
+ * gateway provider that fit (`PROVIDER_KINDS`, `GATEWAY_KINDS`, `gatewayFitsProfile` of `@mwc/shared/credentials`),
+ * never revoked ones: the credentials module checks that, since SQL cannot read another row's owner, kind or account
+ * details here. Removing a credential empties the profile (it cannot run until its
  * owner chooses another); removing a profile takes it off its agents, chats and defaults (all `on delete set null`).
  */
 export const accessProfiles = pgTable(
@@ -137,7 +139,7 @@ export const accessProfiles = pgTable(
      * `openai_api_key` for OpenAI. Null while it has none (made empty, or its subscription removed).
      */
     credentialId: held('credential_id'),
-    /** A Claude profile's optional gateway, which its runs send their AI requests through. */
+    /** The profile's optional gateway (of its own provider), which its runs send their AI requests through. */
     gatewayCredentialId: held('gateway_credential_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -146,7 +148,6 @@ export const accessProfiles = pgTable(
     unique('access_profiles_owner_user_id_name_unique').on(t.ownerUserId, t.name),
     check('access_profiles_name_check', lengthWithin(t.name, ACCESS_PROFILE_NAME)),
     check('access_profiles_provider_check', oneOf(t.provider, ProfileProvider.options)),
-    check('access_profiles_gateway_check', sql`${t.provider} = 'claude' or ${t.gatewayCredentialId} is null`),
   ],
 );
 
