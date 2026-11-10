@@ -6,6 +6,7 @@ import {
   TURN_EVENT_TYPES,
   TurnEvent,
 } from '../../src/harness/events.ts';
+import { PLAN_TYPE_MAX } from '../../src/harness/limits.ts';
 import { QUESTION } from '../fixtures/runner-protocol/frames.ts';
 
 const QUESTION_ID = '019a6c1d-2b3c-7d4e-8f5a-6b7c8d9e0f1a';
@@ -122,5 +123,37 @@ describe('TurnEvent', () => {
     }
     expect(TurnEvent.safeParse({ ...subagent }).success).toBe(true);
     expect(TurnEvent.safeParse({ ...context, window: null }).success).toBe(true);
+  });
+
+  it("takes a harness's own reading: its size, model, baseline and the plan's limits, within their limits", () => {
+    const reading = {
+      type: 'context',
+      inputTokens: 2257,
+      cacheReadTokens: 33_152,
+      cacheCreationTokens: 0,
+      outputTokens: 456,
+      window: 475_000,
+      usedTokens: 35_865,
+      model: 'gpt-6.1-sol',
+      baselineTokens: 12_000,
+      rateLimits: {
+        primary: { usedPercent: 12.5, windowMinutes: 300, resetsAt: '2026-11-10T18:00:00.000Z' },
+        secondary: { usedPercent: 40 },
+        planType: 'pro',
+      },
+    };
+    expect(TurnEvent.parse(reading)).toEqual(reading);
+    expect(TurnEvent.safeParse({ ...reading, rateLimits: {} }).success).toBe(true);
+    for (const bad of [
+      { ...reading, usedTokens: -1 },
+      { ...reading, model: '' },
+      { ...reading, baselineTokens: 1.5 },
+      { ...reading, rateLimits: { primary: { usedPercent: 101 } } },
+      { ...reading, rateLimits: { primary: { usedPercent: 1, windowMinutes: 0 } } },
+      { ...reading, rateLimits: { primary: { usedPercent: 1, resetsAt: 'soon' } } },
+      { ...reading, rateLimits: { planType: 'x'.repeat(PLAN_TYPE_MAX + 1) } },
+    ]) {
+      expect(TurnEvent.safeParse(bad).success).toBe(false);
+    }
   });
 });

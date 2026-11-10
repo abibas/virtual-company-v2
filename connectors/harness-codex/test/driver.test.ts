@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { CODEX_ACCOUNT_VARS } from '../src/args.ts';
 import { CodexDriver } from '../src/driver.ts';
 import { CodexLineParser } from '../src/parser.ts';
+import { FILE_NAME, memoryRollouts, THREAD as ROLLOUT_THREAD, TURN_LINES } from './fixtures/rollout.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const ASK_EXEC = ['-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"'];
@@ -232,5 +233,25 @@ describe('CodexDriver', () => {
     const parser = driver.parser();
     expect(parser).toBeInstanceOf(CodexLineParser);
     expect(driver.parser()).not.toBe(parser);
+  });
+
+  it("gives a parser that reads the thread's session file in the turn's home folder when it ends", () => {
+    const home = '/state/codex/abc';
+    const { fs } = memoryRollouts({ [`${home}/sessions/2026/11/09/${FILE_NAME}`]: TURN_LINES.join('\n') });
+    const started = JSON.stringify({ type: 'thread.started', thread_id: ROLLOUT_THREAD });
+    const reading = new CodexDriver({ rollouts: fs }).parser({ privateDir: home });
+    reading.feed(started);
+    expect(reading.end(null, '')[0]).toMatchObject({
+      type: 'context',
+      usedTokens: 35_865,
+      model: 'gpt-6.1-sol',
+    });
+    for (const parser of [
+      new CodexDriver({ rollouts: fs }).parser(),
+      new CodexDriver().parser({ privateDir: home }),
+    ]) {
+      parser.feed(started);
+      expect(parser.end(null, '')[0]).toMatchObject({ type: 'result', ok: false });
+    }
   });
 });

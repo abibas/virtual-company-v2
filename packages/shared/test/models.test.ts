@@ -3,6 +3,7 @@ import { Effort } from '../src/enums.ts';
 import {
   ClaudeEffort,
   catalogueModel,
+  codexWindow,
   DEFAULT_WINDOWS,
   effortsOf,
   MODEL_CATALOGUE,
@@ -30,10 +31,11 @@ describe('the model catalogue', () => {
     }
   });
 
-  it('offers the models Codex lists for a ChatGPT sign-in, in its order, at 272k, each with its own levels', () => {
+  it('offers the models Codex lists for a ChatGPT sign-in, in its order, at the window it shows, with their levels', () => {
     expect(MODEL_CATALOGUE.openai.map(({ id, label }) => [id, label])).toEqual([
       ['gpt-6.1-sol', 'GPT-6.1 Sol'],
       ['gpt-6-astra', 'GPT-6 Astra'],
+      ['gpt-6.1-terra', 'GPT-6.1 Terra'],
       ['gpt-6-sol', 'GPT-6 Sol'],
       ['gpt-6-luna', 'GPT-6 Luna'],
       ['gpt-5.6-sol', 'GPT-5.6 Sol'],
@@ -41,9 +43,18 @@ describe('the model catalogue', () => {
       ['gpt-5.6-luna', 'GPT-5.6 Luna'],
       ['gpt-5.5', 'GPT-5.5'],
     ]);
-    for (const model of MODEL_CATALOGUE.openai) expect(model.window).toBe(272_000);
+    // Codex's `context_window` × its 95%: 500k for GPT-6.1, 272k for the rest.
+    for (const model of MODEL_CATALOGUE.openai)
+      expect(model.window, model.id).toBe(model.id.startsWith('gpt-6.1') ? 475_000 : 258_400);
     const all = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
-    for (const id of ['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-5.6-sol', 'gpt-5.6-terra'])
+    for (const id of [
+      'gpt-6.1-sol',
+      'gpt-6-astra',
+      'gpt-6.1-terra',
+      'gpt-6-sol',
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+    ])
       expect(efforts(id), id).toEqual(all);
     for (const id of ['gpt-6-luna', 'gpt-5.6-luna']) expect(efforts(id), id).toEqual(all.slice(0, 5));
     expect(efforts('gpt-5.5')).toEqual(all.slice(0, 4));
@@ -70,8 +81,10 @@ describe('the model catalogue', () => {
     expect(ClaudeEffort.safeParse('ultra').success).toBe(false);
   });
 
-  it('sizes a profile without a model as every current model of its provider', () => {
-    expect(DEFAULT_WINDOWS).toEqual({ claude: 1_000_000, openai: 272_000 });
+  it("sizes a profile without a model as its provider's default model (Codex's first, GPT-6.1 Sol)", () => {
+    expect(DEFAULT_WINDOWS).toEqual({ claude: 1_000_000, openai: 475_000 });
+    expect(codexWindow(500_000)).toBe(475_000);
+    expect(codexWindow(272_000)).toBe(258_400);
   });
 });
 

@@ -27,4 +27,20 @@ export {
   providerArgs,
 } from './gateway.ts';
 export { completedEvents, type ItemState, newItemState, startedEvents, todoEvents } from './items.ts';
-export { CodexLineParser } from './parser.ts';
+export { CodexLineParser, type ReadThread } from './parser.ts';
+export {
+  CODEX_BASELINE_TOKENS,
+  type CodexReading,
+  type CodexUsage,
+  rateLimitsOf,
+  readingEvent,
+  scanReading,
+} from './reading.ts';
+export {
+  findRollout,
+  ROLLOUT_FIRST_READ,
+  ROLLOUT_MAX_READ,
+  type RolloutFs,
+  readRollout,
+  SESSIONS_DIR,
+} from './rollout.ts';

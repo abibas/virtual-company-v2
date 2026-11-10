@@ -1,4 +1,4 @@
-import { contextWindowOf, profileWindowOf } from '@mwc/shared/harness';
+import { contextPercent, contextWindowOf, profileWindowOf } from '@mwc/shared/harness';
 import { useMemo, useState } from 'react';
 import { isLiveTurn } from '../../../api/chat-turns.ts';
 import type { ChatCalls } from '../../../api/chats.ts';
@@ -81,12 +81,13 @@ export function ChatContextMeter({
   const detail = live.detail.data;
   const view = useMemo(() => {
     const read = conversationView(turns, detail);
-    // What the harness did not say (Codex never names its model or window) comes from what the chat runs.
+    // What the harness did not say yet (Codex names its model and window only once a turn ended) comes from what
+    // the chat runs.
     const window =
       read.window ?? (runs ? profileWindowOf(runs.provider, runs.model) : contextWindowOf(read.model));
     const model = read.model ?? runsModel(chat.harness, runs) ?? null;
     const used = read.used ?? 0;
-    const percent = window ? Math.round((used / window) * 100) : undefined;
+    const percent = contextPercent(used, window, read.baseline);
     return { ...read, model, window, used, percent };
   }, [turns, detail, runs, chat.harness]);
   const running = turns.some(isLiveTurn);

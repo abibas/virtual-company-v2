@@ -1,15 +1,20 @@
 import { CHAT_TITLE } from '@mwc/shared/chats';
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
-import type { ChatTurnKind, ChatTurnStatus, CredentialKind, Effort, Harness } from '@mwc/shared/enums';
-import { contextWindowOf, type InitEvent, type TurnEvent } from '@mwc/shared/harness';
+import type { ChatTurnStatus, CredentialKind, Effort, Harness } from '@mwc/shared/enums';
+import type { TurnEvent } from '@mwc/shared/harness';
 import { PROVIDER_EFFORTS } from '@mwc/shared/models';
-import type { ChatContextView } from './schemas.ts';
 
 /**
  * The chats' own rules (S5.1b, docs/harness.md "How a turn runs"): their refusals, a chat's title from its first prompt,
  * how a turn's end becomes its status, reply and usage, and (S5.2) what
- * the chat's conversation runs on and how full it is since its last Clear. Pure.
+ * the chat's conversation runs on and how full it is since its last Clear (`rules/conversation.ts`). Pure.
  */
+
+export {
+  type ConversationState,
+  conversationState,
+  type TurnWithEvents,
+} from './rules/conversation.ts';
 
 export type RefusalStatus = 403 | 404 | 409 | 422 | 503;
 
@@ -176,50 +181,6 @@ export function endedTurn(end: TurnEnd, outcome: TurnOutcome, stopRequested: boo
 
 /** A turn that runs or waits for its machine. */
 export const isLive = (status: ChatTurnStatus): boolean => status === 'queued' || status === 'running';
-
-/** A turn with its events, in order, as the chat's detail reads them. */
-export interface TurnWithEvents {
-  readonly kind: ChatTurnKind;
-  readonly events: readonly { readonly event: TurnEvent; readonly at: string }[];
-}
-
-/** What the chat's conversation runs on and how full it is (docs/harness.md, "Compact and Clear"). */
-export interface ConversationState {
-  readonly init: InitEvent | null;
-  readonly context: ChatContextView | null;
-}
-
-/**
- * The chat's conversation since its last Clear (a `clear` turn forgets everything before it): its last `init`, and its
- * size, from the last `context` (input, cache reads and cache writes of the last request; an `estimate` from a turn's
- * total stays marked) or a later `compact` that says its size after; the window is the `context`'s, else the model table's for the last `init`'s model, else
- * `profileWindow`, the window of what the chat's access profile runs (`profileWindowOf`).
- */
-export function conversationState(
-  turns: readonly TurnWithEvents[],
-  profileWindow: number | null = null,
-): ConversationState {
-  const state: { init: InitEvent | null; context: ChatContextView | null } = { init: null, context: null };
-  for (const turn of turns) {
-    if (turn.kind === 'clear') {
-      state.init = null;
-      state.context = null;
-    }
-    for (const { event, at } of turn.events) {
-      const model = state.init?.model ?? null;
-      if (event.type === 'init') state.init = event;
-      else if (event.type === 'context') {
-        const usedTokens = event.inputTokens + event.cacheReadTokens + event.cacheCreationTokens;
-        const window = event.window ?? contextWindowOf(model) ?? profileWindow;
-        state.context = { usedTokens, window, model, at, ...(event.estimate ? { estimate: true } : {}) };
-      } else if (event.type === 'compact' && event.postTokens !== null) {
-        const window = state.context?.window ?? contextWindowOf(model) ?? profileWindow;
-        state.context = { usedTokens: event.postTokens, window, model, at };
-      }
-    }
-  }
-  return state;
-}
 
 /**
  * The model a turn hands its harness: its access profile's (since 2026-11-10; the chat's own profile, else the agent's),

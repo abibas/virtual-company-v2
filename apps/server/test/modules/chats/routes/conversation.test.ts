@@ -187,3 +187,32 @@ describe('POST chats/:chatId/clear', () => {
     expect(await clear(codex)).toMatchObject({ status: 200, body: { kind: 'clear' } });
   });
 });
+
+describe("a Codex chat's context reading", () => {
+  it("shows Codex's own reading in the detail, its rate limits kept on the stored event", async () => {
+    const codex = await scene(w, { harness: 'codex' });
+    const reading: TurnEvent = {
+      type: 'context',
+      inputTokens: 2257,
+      cacheReadTokens: 33_152,
+      cacheCreationTokens: 0,
+      outputTokens: 456,
+      window: 475_000,
+      usedTokens: 35_865,
+      model: 'gpt-6.1-sol',
+      baselineTokens: 12_000,
+      rateLimits: { primary: { usedPercent: 12.5, windowMinutes: 300 }, planType: 'pro' },
+    };
+    await answered(codex, [reading]);
+    const chat = await detail(codex);
+    expect(chat.context).toEqual({
+      usedTokens: 35_865,
+      window: 475_000,
+      model: 'gpt-6.1-sol',
+      at: expect.any(String),
+      baselineTokens: 12_000,
+    });
+    const stored = chat.turns[0]?.events.find((item) => item.event.type === 'context');
+    expect(stored?.event).toEqual(reading);
+  });
+});

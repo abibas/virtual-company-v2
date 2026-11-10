@@ -7,10 +7,11 @@ import { Effort, type ProfileProvider } from './enums.ts';
  * profile names one of these, another id typed in, or none: the provider's default, which its harness picks.
  *
  * Claude's are Anthropic's Claude 5 family (its models list, 2026-11): a 1M window each and the five levels Claude
- * Code's `--effort` takes. OpenAI's are the models Codex 0.162.1 lists for a ChatGPT sign-in (the model presets
- * compiled into its binary, those it shows, in its order), with the levels each takes (`model_reasoning_effort`) and
- * the 272k window Codex gives them (its `context_window`). A profile's effort is one of its model's levels, or of its
- * provider's for a typed-in model or the default.
+ * Code's `--effort` takes. OpenAI's are the models Codex 0.166 lists for a ChatGPT sign-in (its `models_cache.json`,
+ * those it shows, in its order), with the levels each takes (`model_reasoning_effort`) and the window Codex itself
+ * shows for them: its `context_window` times its `effective_context_window_percent` (95), so 475k for GPT-6.1 Sol and
+ * Terra (500k) and 258.4k for the others (272k), as Codex's `/status` and each turn's reading (`model_context_window`)
+ * say. A profile's effort is one of its model's levels, or of its provider's for a typed-in model or the default.
  */
 
 /** The longest model id the API takes (`access_profiles_model_check`), on a command line too. */
@@ -48,7 +49,14 @@ export interface CatalogueModel {
 }
 
 const MILLION = 1_000_000;
-const CODEX_WINDOW = 272_000;
+/** The share of a model's window Codex lets a conversation use (`effective_context_window_percent`). */
+export const CODEX_EFFECTIVE_PERCENT = 95;
+/** The window Codex shows for a model of this `context_window`. */
+export const codexWindow = (contextWindow: number): number =>
+  Math.floor((contextWindow * CODEX_EFFECTIVE_PERCENT) / 100);
+/** GPT-6.1's window as Codex shows it (500k × 95%), and the other current models' (272k × 95%). */
+export const CODEX_LARGE_WINDOW = codexWindow(500_000);
+export const CODEX_WINDOW = codexWindow(272_000);
 const UP_TO_MAX = OpenaiEffort.exclude(['ultra']).options;
 const UP_TO_XHIGH = OpenaiEffort.exclude(['max', 'ultra']).options;
 
@@ -59,12 +67,12 @@ const claude = (id: string, label: string): CatalogueModel => ({
   efforts: ClaudeEffort.options,
 });
 
-const openai = (id: string, label: string, efforts: readonly Effort[] = OpenaiEffort.options) => ({
-  id,
-  label,
-  window: CODEX_WINDOW,
-  efforts,
-});
+const openai = (
+  id: string,
+  label: string,
+  efforts: readonly Effort[] = OpenaiEffort.options,
+  window = CODEX_WINDOW,
+): CatalogueModel => ({ id, label, window, efforts });
 
 /** The models each provider offers by name, in the order the forms list them. */
 export const MODEL_CATALOGUE: Readonly<Record<ProfileProvider, readonly CatalogueModel[]>> = {
@@ -75,8 +83,9 @@ export const MODEL_CATALOGUE: Readonly<Record<ProfileProvider, readonly Catalogu
     claude('claude-fable-5-1', 'Fable 5.1'),
   ],
   openai: [
-    openai('gpt-6.1-sol', 'GPT-6.1 Sol'),
+    openai('gpt-6.1-sol', 'GPT-6.1 Sol', OpenaiEffort.options, CODEX_LARGE_WINDOW),
     openai('gpt-6-astra', 'GPT-6 Astra'),
+    openai('gpt-6.1-terra', 'GPT-6.1 Terra', OpenaiEffort.options, CODEX_LARGE_WINDOW),
     openai('gpt-6-sol', 'GPT-6 Sol'),
     openai('gpt-6-luna', 'GPT-6 Luna', UP_TO_MAX),
     openai('gpt-5.6-sol', 'GPT-5.6 Sol'),
@@ -86,10 +95,13 @@ export const MODEL_CATALOGUE: Readonly<Record<ProfileProvider, readonly Catalogu
   ],
 };
 
-/** The window of a profile that names no model: every current model of the provider has it. */
+/**
+ * The window of a profile that names no model: every current Claude model's; for OpenAI, the window of the first model
+ * Codex lists (GPT-6.1 Sol, its default for a ChatGPT sign-in). A turn's reading names the model Codex really ran.
+ */
 export const DEFAULT_WINDOWS: Readonly<Record<ProfileProvider, number>> = {
   claude: MILLION,
-  openai: CODEX_WINDOW,
+  openai: CODEX_LARGE_WINDOW,
 };
 
 const normal = (id: string) => id.trim().toLowerCase();

@@ -73,10 +73,15 @@ function Heading({ view }: { readonly view: ConversationView }) {
       )}
       {view.estimate && (
         <p className="text-xs text-dim">
-          An estimate: Codex reports only each turn's total, so a turn with several model calls reads higher
-          than the conversation is.
+          An estimate: this turn's own reading from Codex could not be read, so this is the turn's total,
+          which reads higher than the conversation when the turn made several model calls.
         </p>
       )}
+      {view.baseline > 0 && view.window ? (
+        <p className="text-xs text-dim">
+          As Codex counts it: the share leaves out its {short(view.baseline)} of instructions and tools.
+        </p>
+      ) : null}
     </div>
   );
 }

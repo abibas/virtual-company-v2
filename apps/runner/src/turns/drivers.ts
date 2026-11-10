@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { ClaudeCodeDriver } from '@mwc/harness-claude-code';
-import { CodexDriver } from '@mwc/harness-codex';
+import { CodexDriver, type RolloutFs } from '@mwc/harness-codex';
 import type { HarnessDriver } from '@mwc/harness-core';
 import type { Harness } from '@mwc/shared/enums';
 import type { HarnessVersions } from '@mwc/shared/runner-protocol';
@@ -29,11 +29,16 @@ export type HarnessClis = Partial<Record<Harness, HarnessCli>>;
 /** The name each harness's CLI has on the PATH. */
 export const HARNESS_COMMANDS: Readonly<Record<Harness, string>> = { claude_code: 'claude', codex: 'codex' };
 
-/** The drivers of the CLIs found. */
-export function harnessDrivers(clis: HarnessClis): Partial<Record<Harness, HarnessDriver>> {
+/** The drivers of the CLIs found; with `rollouts`, Codex's turns end with its own context reading. */
+export function harnessDrivers(
+  clis: HarnessClis,
+  rollouts?: RolloutFs,
+): Partial<Record<Harness, HarnessDriver>> {
   return {
     ...(clis.claude_code ? { claude_code: new ClaudeCodeDriver({ command: clis.claude_code.path }) } : {}),
-    ...(clis.codex ? { codex: new CodexDriver({ command: clis.codex.path }) } : {}),
+    ...(clis.codex
+      ? { codex: new CodexDriver({ command: clis.codex.path, ...(rollouts ? { rollouts } : {}) }) }
+      : {}),
   };
 }
 
@@ -73,7 +78,7 @@ export function harnessHost(
   log: Log,
 ): HarnessHost {
   const clis: HarnessClis = { ...machine.clis };
-  const drivers = harnessDrivers(clis);
+  const drivers = harnessDrivers(clis, machine.fs);
   const searches = new Map<Harness, Promise<boolean>>();
   const { find } = machine;
   log.info('harnesses', harnessVersions(clis));
@@ -82,7 +87,7 @@ export function harnessHost(
     searches.delete(harness);
     if (cli === undefined) return false;
     clis[harness] = cli;
-    Object.assign(drivers, harnessDrivers({ [harness]: cli }));
+    Object.assign(drivers, harnessDrivers({ [harness]: cli }, machine.fs));
     log.info('harness found', { harness, version: cli.version });
     return true;
   };

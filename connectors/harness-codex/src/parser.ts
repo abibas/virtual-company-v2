@@ -7,26 +7,45 @@ import {
   parseJsonLine,
   stringOf,
 } from '@mwc/harness-core';
-import { NOTICE_MAX, RESULT_ERROR_MAX, SESSION_ID_PATTERN, type TurnEvent } from '@mwc/shared/harness';
+import {
+  NOTICE_MAX,
+  RESULT_ERROR_MAX,
+  SESSION_ID_PATTERN,
+  type TurnEvent,
+  type TurnEventOf,
+} from '@mwc/shared/harness';
 import { completedEvents, newItemState, startedEvents, todoEvents } from './items.ts';
+import { type CodexReading, readingEvent } from './reading.ts';
+
+/** Codex's own reading of a thread (its session file, `rollout.ts`); undefined when there is none. */
+export type ReadThread = (threadId: string) => CodexReading | undefined;
 
 /**
  * Reads `codex exec --json`: one thread event per line. `thread.started` gives the session (the thread id), the items
  * the text, thinking, tools and to-do list (`items.ts`), `turn.completed` the usage, `turn.failed` the failing end.
- * Codex's stream names no model (no `init`) and gives no last request's usage or window (checked in Codex 0.167.0's
- * exec events): `turn.completed`'s usage, the turn's sum, also gives a `context` marked `estimate`, which a turn with
- * several model calls overstates; the server sizes its window from the access profile's model. Codex has no result
- * event of its own: a clean exit after `turn.completed` ends the turn with the last agent message as the reply. An
- * `error` event is a notice (Codex also reports the retries it recovers from this way); the turn fails only when it
- * did not complete. Anything else, and any line that is not a JSON object, gives nothing.
+ * Codex's stream names no model and gives no last request's usage or window (checked in Codex 0.167.0's exec events),
+ * so when the turn ends, cleanly or not, its `context` is Codex's own reading from its session file (`readThread`,
+ * docs/harness.md, "Codex's context reading"): the model it ran, its window and the conversation's size as `/status`
+ * shows them. Without one (no file, nothing in it yet, or no `readThread`), `turn.completed`'s usage, the turn's sum,
+ * gives a `context` marked `estimate`, which a turn with several model calls overstates. Codex has no result event of
+ * its own: a clean exit after `turn.completed` ends the turn with the last agent message as the reply. An `error` event
+ * is a notice (Codex also reports the retries it recovers from this way); the turn fails only when it did not complete.
+ * Anything else, and any line that is not a JSON object, gives nothing.
  */
 export class CodexLineParser implements LineParser {
   readonly #items = newItemState();
+  readonly #readThread: ReadThread | undefined;
+  #threadId: string | undefined;
+  #estimate: TurnEventOf<'context'> | undefined;
   #completed = false;
   #failed = false;
   #lastError: string | undefined;
   /** The last line that was not JSON: what the turn's failure says when nothing else does. */
   #stray: string | undefined;
+
+  constructor(readThread?: ReadThread) {
+    this.#readThread = readThread;
+  }
 
   feed(line: string): TurnEvent[] {
     const event = parseJsonLine(line);
@@ -37,7 +56,9 @@ export class CodexLineParser implements LineParser {
     switch (event.type) {
       case 'thread.started': {
         const id = stringOf(event.thread_id);
-        return id !== undefined && SESSION_ID_PATTERN.test(id) ? [{ type: 'session', sessionId: id }] : [];
+        if (id === undefined || !SESSION_ID_PATTERN.test(id)) return [];
+        this.#threadId = id;
+        return [{ type: 'session', sessionId: id }];
       }
       case 'item.started':
         return isRecord(event.item) ? startedEvents(event.item, this.#items) : [];
@@ -45,9 +66,12 @@ export class CodexLineParser implements LineParser {
         return isRecord(event.item) ? todoEvents(event.item, this.#items) : [];
       case 'item.completed':
         return isRecord(event.item) ? completedEvents(event.item, this.#items) : [];
-      case 'turn.completed':
+      case 'turn.completed': {
         this.#completed = true;
-        return usageEvents(event.usage);
+        const { usage, estimate } = usageOf(event.usage);
+        this.#estimate = estimate;
+        return usage;
+      }
       case 'turn.failed': {
         this.#failed = true;
         const said = isRecord(event.error) ? stringOf(event.error.message)?.trim() : undefined;
@@ -69,21 +93,35 @@ export class CodexLineParser implements LineParser {
   }
 
   end(exitCode: number | null, stderrTail: string): TurnEvent[] {
-    if (this.#failed) return [];
+    const context = this.#reading() ?? this.#estimate;
+    const events: TurnEvent[] = context === undefined ? [] : [context];
+    if (this.#failed) return events;
     if (this.#completed && exitCode === 0) {
       const text = this.#items.lastMessage;
-      return [{ type: 'result', ok: true, ...(text === undefined ? {} : { text }) }];
+      return [...events, { type: 'result', ok: true, ...(text === undefined ? {} : { text }) }];
     }
-    return [failedResult('codex', exitCode, [this.#lastError, stderrTail, this.#stray])];
+    return [...events, failedResult('codex', exitCode, [this.#lastError, stderrTail, this.#stray])];
+  }
+
+  /** Codex's own reading of the thread, when it can be read; a failure to read is no reading. */
+  #reading(): TurnEventOf<'context'> | undefined {
+    if (this.#readThread === undefined || this.#threadId === undefined) return undefined;
+    try {
+      const reading = this.#readThread(this.#threadId);
+      return reading === undefined ? undefined : readingEvent(reading);
+    } catch {
+      return undefined;
+    }
   }
 }
 
 /**
  * `turn.completed`'s usage: input tokens (cached ones included, as Codex counts them), cached, output; and, when it
- * names its input, the conversation's size estimated from it (the uncached input and the cache reads; no cache writes).
+ * names its input, the conversation's size estimated from it (the uncached input and the cache reads; no cache writes),
+ * the fallback when Codex's own reading cannot be read.
  */
-function usageEvents(usage: unknown): TurnEvent[] {
-  if (!isRecord(usage)) return [];
+function usageOf(usage: unknown): { usage: TurnEvent[]; estimate?: TurnEventOf<'context'> } {
+  if (!isRecord(usage)) return { usage: [] };
   const input = countOf(usage.input_tokens);
   const cached = countOf(usage.cached_input_tokens);
   const output = countOf(usage.output_tokens) ?? 0;
@@ -95,16 +133,18 @@ function usageEvents(usage: unknown): TurnEvent[] {
       ...(cached === undefined ? {} : { cachedInputTokens: cached }),
     },
   ];
-  if (input === undefined) return events;
+  if (input === undefined) return { usage: events };
   const cacheRead = Math.min(cached ?? 0, input);
-  events.push({
-    type: 'context',
-    inputTokens: input - cacheRead,
-    cacheReadTokens: cacheRead,
-    cacheCreationTokens: 0,
-    outputTokens: output,
-    window: null,
-    estimate: true,
-  });
-  return events;
+  return {
+    usage: events,
+    estimate: {
+      type: 'context',
+      inputTokens: input - cacheRead,
+      cacheReadTokens: cacheRead,
+      cacheCreationTokens: 0,
+      outputTokens: output,
+      window: null,
+      estimate: true,
+    },
+  };
 }

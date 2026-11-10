@@ -9,7 +9,7 @@ conversation.
 
 | Package                       | What                                                                                          |
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `@mwc/shared/harness`         | the wire contracts (zod): `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway` (`harness/specs.ts`), `TurnEvent` and its limits (`harness/events.ts`), `contextWindowOf` (`harness/context.ts`), the question tool's input and the answers (`harness/questions.ts`) |
+| `@mwc/shared/harness`         | the wire contracts (zod): `TurnSpec`, `TerminalSpec`, `HarnessCredential`, `HarnessGateway` (`harness/specs.ts`), `TurnEvent` and its limits (`harness/events.ts`), `contextWindowOf` and `contextPercent` (`harness/context.ts`), a reading's `RateLimits` (`harness/limits.ts`), the question tool's input and the answers (`harness/questions.ts`) |
 | `@mwc/harness-core`           | the port: `HarnessDriver`, `ProcessSpec`, `PrivateDir`, `TurnTools`, `LineParser`, `HarnessError`, the shared checks and text helpers (`clipMarked` for long texts) |
 | `@mwc/harness-core/fake`      | `FakeHarnessDriver`, the fake binary (`FAKE_HARNESS_BIN`, `runFakeHarness`), fake specs and credentials |
 | `@mwc/harness-claude-code`    | `ClaudeCodeDriver` (`claude`), its parser; `/fixtures`: seven recorded-style turns             |
@@ -76,7 +76,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `todo`        | `items` (≤ 100: `text` ≤ 300, `status` `pending` \| `in_progress` \| `completed`), `parentId?` | the whole to-do list as it is now (the latest replaces the one before): Claude's `TodoWrite` input (its `tool` event comes too), Codex's `todo_list` item (done or not: `completed` or `pending`) |
 | `subagent`    | `id` (its Agent call's id), `agentType` (≤ 100), `description` (≤ 200), `model?`, `background?`, `status` (`running` \| `done` \| `failed` \| `interrupted`), `summary?` (≤ 4000, cut with the marker), `lastStep?` (≤ 200), `parentId?` | a subagent's whole state, each time it changes (the latest per `id` counts); Claude only |
 | `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | the turn's sum; input counts cached tokens too; Claude adds its cache writes and reads |
-| `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown), `estimate?` (`true`) | the last request of the main agent; the conversation's size is `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude's is exact, Codex's an `estimate` from the turn's total (see "Codex") |
+| `context`     | `inputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `window` (null: unknown), `estimate?` (`true`), `usedTokens?`, `model?` (≤ 200), `baselineTokens?`, `rateLimits?` | the last request of the main agent; the conversation's size is `usedTokens` when the harness counts it itself, else `inputTokens + cacheReadTokens + cacheCreationTokens`; Claude's is exact, Codex's is its own reading from its session file (with the model it ran, its baseline and the plan's limits), or an `estimate` from the turn's total when that cannot be read (see "Codex's context reading") |
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
 | `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request |
 | `input`       | `text` (1–20 000), `inputId?` (the message's id, `turn.input`'s) | a message the person sent into the running turn, where the harness took it (S5.2 step 6): Claude Code's echo of it, kept by the runner only for a message it wrote |
@@ -94,9 +94,12 @@ split into several `text` events, each keeping its `parentId`.
   catalogue's own window first (`@mwc/shared/models`, docs/subscriptions.md "Model and effort"), else the longest
   matching prefix of a table of the Claude models (the 5 family and Opus/Sonnet 4.6+ at 1M, the older 4.x at 200k,
   Claude Code's aliases `opus`, `sonnet`, `haiku`, `fable` at 1M, an id with `[1m]` at 1M, Bedrock and router prefixes
-  stripped) and the OpenAI ones as Codex sizes them (the GPT-5 and GPT-6 families 272k, `gpt-4.1` 1 047 576, `o3`, `o4-mini` and
-  `codex-mini` 200k, `gpt-oss` 131 072); unknown models are null. Claude's `result.modelUsage[].contextWindow`, when it
+  stripped) and the OpenAI ones as Codex shows them, 95% of their `context_window` (GPT-6.1 475k, the rest of the GPT-6
+  and the GPT-5 families 258.4k, `gpt-4.1` 1 047 576, `o3`, `o4-mini` and `codex-mini` 200k, `gpt-oss` 131 072);
+  unknown models are null. Claude's `result.modelUsage[].contextWindow`, when it
   differs and is not smaller than what the conversation already holds, gives the last `context` again with it.
+- **How full** is `contextPercent(used, window, baselineTokens)`: `used / window`, or with a baseline (Codex's 12k)
+  `(used − baseline) / (window − baseline)`, which is how Codex's `/status` computes its "% left".
 - **Old events stay valid**: every field added in S5.2 is optional, and the new types are new.
 - **Questions** (S5.2 step 4): a harness's parser never gives `question` or `answered`. The runner numbers a question
   among the turn's events (it sends the ones before it first), and the server writes `answered` after the turn ended,
@@ -283,16 +286,49 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
 - **Context and cost** (checked in Codex 0.167.0's binary, 2026-11-10: the exec stream's events are `thread.started
   {thread_id}`, `turn.started`, `turn.completed {usage}`, `turn.failed`, `item.*` and `error`; the usage is
   `input_tokens` (cached ones included), `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`,
-  `reasoning_output_tokens`). The per-request `last_token_usage`, `token_count` events and `model_context_window` exist
-  only in Codex's own protocol and TUI, never in `exec --json`, and no event names the model. So `turn.completed` also
-  gives a `context` with `estimate: true`: `inputTokens` = input − cached, `cacheReadTokens` = cached,
-  `cacheCreationTokens` 0, `window` null (the server takes the model table's window for the access profile's model, else
-  272k, Codex's default; the meter too). It is the turn's sum over its model calls, so a turn with several (each command
-  or tool call is another request) reads higher than the conversation is; a one-call turn is exact. The meter shows
-  "≈" before the size and says so in its popover, and names the profile's model or "Codex's default" (no `init`).
+  `reasoning_output_tokens`). `turn.completed`'s usage is the turn's sum over its model calls (each command or tool call
+  is another request), so it gives the `usage` event only; the turn's `context` is Codex's own reading, read when the
+  turn ends ("Codex's context reading" below). Only when that cannot be read (no session file, no reading in it yet, an
+  older runner) does `turn.completed`'s usage give a `context` with `estimate: true` at the turn's end: `inputTokens` =
+  input − cached, `cacheReadTokens` = cached, `cacheCreationTokens` 0, `window` null (the server takes the model table's
+  window for the access profile's model; the meter too). The meter shows "≈" before such a size and says so in its
+  popover, and names the profile's model or "Codex's default" until a reading names the model.
   Codex gives no cost: a turn on a login (`codex_oauth`, and Claude's `claude_oauth` and `claude_setup_token`) keeps
   `includedInPlan: true` in its stored usage (`endedTurn`), and the popover and the turn's footer say "included in your
   plan" instead of a dash or $0.00; only API keys and gateways show money, when the harness gives it.
+
+### Codex's context reading
+
+Built 2026-11-10 (Ihor: the meter read "≈249k / 272k · 92%" after one turn of 5 commands and 3 web searches, while
+Codex's `/status` said "35.9K used / 475K", 95% left). Codex writes a session file per thread in its home folder,
+`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<thread id>.jsonl` (the day the thread began; `codex exec resume` and
+the TUI's `resume` append to it, checked on a runner's own folder; `codex exec fork` starts a new thread and file). Each
+line is `{timestamp, ordinal, type, payload}`:
+
+- `event_msg` with `payload.type` `token_count`, after each model request: `payload.info` (null on some lines) has
+  `last_token_usage` (`input_tokens`, `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`,
+  `reasoning_output_tokens`, `total_tokens`), `total_token_usage` (the thread's sum) and `model_context_window`, the
+  window Codex shows (its catalogue's `context_window` × `effective_context_window_percent`, 95: 475 000 for GPT-6.1 Sol
+  and Terra, 258 400 for the other current models); `payload.rate_limits` has `primary` and `secondary` (`used_percent`,
+  `window_minutes`, `resets_at` in Unix seconds), `plan_type` and more (all null through a gateway).
+- `turn_context`, at each turn's start: `payload.model` (the model Codex really ran, also when the profile names none)
+  and `payload.effort`.
+
+When a Codex turn ends, cleanly or not, its parser (`connectors/harness-codex/src/parser.ts`) asks the driver's reader
+(`rollout.ts`, `reading.ts`) for the thread's reading in the turn's `CODEX_HOME` (the private folder the runner leased,
+`ParserContext.privateDir`): it finds the file by the thread id of `thread.started` (day folders newest first), reads it
+from its end (1 MiB, then four times more up to 16 MiB until the `turn_context` is in; the first, cut line dropped; only
+lines naming `token_count` or `turn_context` are parsed) and takes the last `token_count` with `info`, with the model of
+the last `turn_context` before it. Synchronous file calls only (the runner's `PrivateFs`: `list`, `tail`), no process.
+The `context` event it gives is exact: `usedTokens` = `last_token_usage.total_tokens` (input and output of the last
+request: what `/status` calls used, "35.9K"), `window` = `model_context_window`, `model`, `inputTokens` = input − cached
+− cache writes, `cacheReadTokens`, `cacheCreationTokens`, `outputTokens`, `baselineTokens` 12 000 and, when Codex gave
+them, `rateLimits` (`{primary?, secondary?: {usedPercent, windowMinutes?, resetsAt?}, planType?}`, optional data that
+nothing shows yet). Codex's "% left" leaves out a fixed 12 000-token baseline (instructions and tools, its
+`BASELINE_TOKENS`): 35 865 of 475 000 is 95% left by its rule and 92% without it, so the meter computes its share with
+`contextPercent` and the baseline. The server reads the last `context` as before (`conversationState`: `usedTokens` and
+the event's `model` when given), so a new turn's exact reading replaces an older turn's estimate, and stored estimates
+keep their "≈". A machine reads it only once its runner is updated; until then its Codex turns keep the estimate.
 
 ## How a turn runs
 
@@ -530,7 +566,8 @@ Built in S5.2 step 1 (2026-11-09), for the chat page's Compact and Clear. A chat
   detail, the stream and its `Last-Event-ID` replay carry it with no new message type, and the thread draws it as a
   divider. It is not audited: the turn row names who cleared and when, as a prompt's turn does.
 - **The detail** (`GET …/chats/{chatId}`) adds `init` (the last `init` event since the chat's last Clear) and `context`
-  (`{usedTokens, window, model, at}`: the last `context` event's input + cache reads + cache writes, or a later
+  (`{usedTokens, window, model, at, estimate?, baselineTokens?}`: the last `context` event's `usedTokens`, else its
+  input + cache reads + cache writes, its `model` else `init`'s, or a later
   `compact`'s `postTokens`; the window from the event, else `contextWindowOf` of `init`'s model, else the window of what
   the chat's access profile runs, `profileWindowOf`; null before anything
   measured the conversation since the last Clear), from the chat's events (the chats module's `conversationState`). A
@@ -640,6 +677,10 @@ after `--fork-session` names the new session, are read from the CLIs' own code a
 - A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
   before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
   later one writes its login over a token the first may have just refreshed (the server seals again what comes back).
+- A Codex chat's Terminal tab adds newer readings to the session file, but the meter updates only with the chat's next
+  turn: nothing reads the file when that terminal closes (it would need a reading on `terminal.exit` and the server
+  adding an event to an ended turn). Before a chat's first turn the window is the static table's, not the machine's
+  `models_cache.json`.
 - Codex takes no message mid-turn (`codex exec` reads its prompt once): Now is hidden for it. A Claude Code turn that
   takes a message after its result reports that result's usage as Claude Code counts it, and the parser's first-result
   bookkeeping (a background subagent still running becomes `interrupted`) is not redone for the extra turn.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CHAT_PROMPT } from '../chats.ts';
 import { protocolObject, Uuid } from '../runner-protocol/common.ts';
+import { RateLimits } from './limits.ts';
 import { AnsweredEvent, QuestionEvent } from './questions.ts';
 import { HarnessMessageId, HarnessSessionId } from './specs.ts';
 
@@ -142,10 +143,24 @@ export const TurnEvent = z.discriminatedUnion('type', [
     /** The model's context window; null when it is not known. */
     window: z.int().positive().nullable(),
     /**
-     * True when the harness gives no last request's usage and this is the turn's total instead (Codex): a turn with
-     * several model calls reads higher than the conversation is.
+     * True when the harness gives no last request's usage and this is the turn's total instead (Codex without its
+     * session file): a turn with several model calls reads higher than the conversation is.
      */
     estimate: z.literal(true).optional(),
+    /**
+     * The conversation's size as the harness itself counts it, when that differs from the sum above (Codex: its last
+     * request's input and output, `last_token_usage.total_tokens`, what its `/status` calls used).
+     */
+    usedTokens: Count.optional(),
+    /** The model this reading is of, when the harness names it here (Codex's session file: the model it really ran). */
+    model: Model.optional(),
+    /**
+     * Tokens the harness never counts against the window in its own percentage (Codex: 12k of instructions and tools,
+     * `contextPercent`).
+     */
+    baselineTokens: Count.optional(),
+    /** The subscription's usage limits at that moment, when the harness said (`limits.ts`). */
+    rateLimits: RateLimits.optional(),
   }),
   protocolObject({
     type: z.literal('compact'),

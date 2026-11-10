@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CodexLineParser } from '../src/parser.ts';
+import { READING } from './fixtures/rollout.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const line = (event: object) => JSON.stringify(event);
@@ -34,7 +35,6 @@ describe('CodexLineParser.feed', () => {
   it('gives the usage of turn.completed, with or without cached tokens, and none without usage', () => {
     expect(new CodexLineParser().feed(completed)).toEqual([
       { type: 'usage', inputTokens: 100, outputTokens: 7, cachedInputTokens: 80 },
-      context(20, 80, 7),
     ]);
     expect(new CodexLineParser().feed(line({ type: 'turn.completed', usage: { output_tokens: 3 } }))).toEqual(
       [{ type: 'usage', inputTokens: 0, outputTokens: 3 }],
@@ -42,16 +42,20 @@ describe('CodexLineParser.feed', () => {
     expect(new CodexLineParser().feed(line({ type: 'turn.completed' }))).toEqual([]);
   });
 
-  it("estimates the context from the turn's total: no cached tokens, or more cached than input, stay in bounds", () => {
-    const usage = (fields: object) =>
-      new CodexLineParser().feed(line({ type: 'turn.completed', usage: fields }));
-    expect(usage({ input_tokens: 500, output_tokens: 2 })).toEqual([
-      { type: 'usage', inputTokens: 500, outputTokens: 2 },
+  it("estimates the context from the turn's total at the end: no cached tokens, or more cached than input, stay in bounds", () => {
+    const ended = (fields: object) => {
+      const parser = new CodexLineParser();
+      parser.feed(line({ type: 'turn.completed', usage: fields }));
+      return parser.end(0, '');
+    };
+    expect(ended({ input_tokens: 500, output_tokens: 2 })).toEqual([
       context(500, 0, 2),
+      { type: 'result', ok: true },
     ]);
-    expect(usage({ input_tokens: 10, cached_input_tokens: 40, output_tokens: 1 })[1]).toEqual(
+    expect(ended({ input_tokens: 10, cached_input_tokens: 40, output_tokens: 1 })[0]).toEqual(
       context(0, 10, 1),
     );
+    expect(ended({ output_tokens: 3 })).toEqual([{ type: 'result', ok: true }]);
   });
 
   it('reads items, and skips items that are no object', () => {
@@ -120,16 +124,17 @@ describe('CodexLineParser.end', () => {
     parser.feed(message('First.'));
     parser.feed(message('Second.'));
     parser.feed(completed);
-    expect(parser.end(0, '')).toEqual([{ type: 'result', ok: true, text: 'Second.' }]);
+    expect(parser.end(0, '')).toEqual([context(20, 80, 7), { type: 'result', ok: true, text: 'Second.' }]);
     const silent = new CodexLineParser();
     silent.feed(completed);
-    expect(silent.end(0, '')).toEqual([{ type: 'result', ok: true }]);
+    expect(silent.end(0, '')).toEqual([context(20, 80, 7), { type: 'result', ok: true }]);
   });
 
   it('fails a completed turn that exits non-zero, with stderr', () => {
     const parser = new CodexLineParser();
     parser.feed(completed);
     expect(parser.end(1, 'panicked at main.rs')).toEqual([
+      context(20, 80, 7),
       { type: 'result', ok: false, error: 'Codex exited with code 1: panicked at main.rs' },
     ]);
   });
@@ -151,5 +156,66 @@ describe('CodexLineParser.end', () => {
     expect(new CodexLineParser().end(0, '')[0]).toMatchObject({
       error: 'Codex ended without finishing the turn',
     });
+  });
+});
+
+describe("CodexLineParser with Codex's own reading", () => {
+  const started = line({ type: 'thread.started', thread_id: THREAD });
+  const exact = {
+    type: 'context',
+    inputTokens: 2257,
+    cacheReadTokens: 33_152,
+    cacheCreationTokens: 0,
+    outputTokens: 456,
+    window: 475_000,
+    usedTokens: 35_865,
+    baselineTokens: 12_000,
+    model: 'gpt-6.1-sol',
+  };
+
+  it("ends the turn with the thread's reading in place of the estimate", () => {
+    const asked: string[] = [];
+    const parser = new CodexLineParser((thread) => {
+      asked.push(thread);
+      return READING;
+    });
+    parser.feed(started);
+    parser.feed(completed);
+    expect(parser.end(0, '')).toEqual([exact, { type: 'result', ok: true }]);
+    expect(asked).toEqual([THREAD]);
+  });
+
+  it('reads it for a turn that failed or was stopped too', () => {
+    const failed = new CodexLineParser(() => READING);
+    failed.feed(started);
+    failed.feed(line({ type: 'turn.failed', error: { message: 'stream disconnected' } }));
+    expect(failed.end(1, '')).toEqual([exact]);
+    const stopped = new CodexLineParser(() => READING);
+    stopped.feed(started);
+    expect(stopped.end(null, '')).toEqual([
+      exact,
+      { type: 'result', ok: false, error: 'Codex was stopped before it finished the turn' },
+    ]);
+  });
+
+  it('keeps the estimate when there is no reading, the read fails, or no thread started', () => {
+    const none = new CodexLineParser(() => undefined);
+    none.feed(started);
+    none.feed(completed);
+    expect(none.end(0, '')[0]).toEqual(context(20, 80, 7));
+    const throwing = new CodexLineParser(() => {
+      throw new Error('EACCES');
+    });
+    throwing.feed(started);
+    throwing.feed(completed);
+    expect(throwing.end(0, '')[0]).toEqual(context(20, 80, 7));
+    const asked: string[] = [];
+    const threadless = new CodexLineParser((thread) => {
+      asked.push(thread);
+      return READING;
+    });
+    threadless.feed(completed);
+    expect(threadless.end(0, '')[0]).toEqual(context(20, 80, 7));
+    expect(asked).toEqual([]);
   });
 });

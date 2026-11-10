@@ -194,7 +194,8 @@ export class Turns {
     const { process, env: extra } = withPrivateDir(built, lease);
     const env = processEnv(host.env, process, extra);
     const inputLine = process.stdinOpen ? driver.inputLine?.bind(driver) : undefined;
-    const launch = { process, cwd: spec.cwd, env, parser: driver.parser(), lease, bridge, inputLine };
+    const parser = driver.parser(lease === undefined ? {} : { privateDir: lease.path });
+    const launch = { process, cwd: spec.cwd, env, parser, lease, bridge, inputLine };
     return { launch, processes };
   }
 

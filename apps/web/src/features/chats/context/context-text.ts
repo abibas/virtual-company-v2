@@ -43,7 +43,7 @@ export function money(usd: number): string {
 
 /**
  * The meter's one line: "Context 476k / 1M · 48%", the size alone for an unknown window, "Context —" before any; an
- * estimate (Codex) reads "Context ≈45k / 272k · 17%".
+ * estimate (an older Codex turn) reads "Context ≈45k / 258k · 17%".
  */
 export function meterLine(
   used: number | undefined,

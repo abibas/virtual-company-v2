@@ -109,7 +109,7 @@ describe('GET chats/:chatId: the current conversation', () => {
     await seedTurns(w, codex, [{ events: [unsized] }]);
     expect((await detailOf(w, codex)).context).toMatchObject({
       usedTokens: 152_003,
-      window: 272_000,
+      window: 475_000,
       model: null,
     });
     const typed = await scene(w, { offline: true, model: 'claude-haiku-4-5' });

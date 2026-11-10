@@ -1,8 +1,13 @@
 import {
   chmodSync,
+  closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
+  openSync,
+  readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   statSync,
@@ -38,5 +43,33 @@ export function nodePrivateFs(): PrivateFs {
     },
     rename: (from, to) => renameSync(from, to),
     remove: (path) => rmSync(path, { force: true }),
+    list: (dir) => {
+      try {
+        return readdirSync(dir);
+      } catch {
+        return [];
+      }
+    },
+    tail: (path, bytes) => {
+      try {
+        return tailOf(path, bytes);
+      } catch {
+        return undefined;
+      }
+    },
   };
+}
+
+/** The last `bytes` bytes of a file as UTF-8, and its size: one open, one read, never the whole of a big file. */
+function tailOf(path: string, bytes: number): { text: string; size: number } {
+  const fd = openSync(path, 'r');
+  try {
+    const { size } = fstatSync(fd);
+    const length = Math.min(size, bytes);
+    const buffer = Buffer.alloc(length);
+    const read = readSync(fd, buffer, 0, length, size - length);
+    return { text: buffer.toString('utf8', 0, read), size };
+  } finally {
+    closeSync(fd);
+  }
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CONTEXT_WINDOWS, contextWindowOf, profileWindowOf } from '../../src/harness/context.ts';
+import {
+  CONTEXT_WINDOWS,
+  contextPercent,
+  contextWindowOf,
+  profileWindowOf,
+} from '../../src/harness/context.ts';
 import { MODEL_CATALOGUE } from '../../src/models.ts';
 
 describe('contextWindowOf', () => {
@@ -33,9 +38,9 @@ describe('contextWindowOf', () => {
     expect(contextWindowOf(' claude-opus-4-5@20251101 ')).toBe(200_000);
   });
 
-  it('sizes the GPT and Codex models as Codex does', () => {
+  it('sizes the GPT and Codex models as Codex shows them (95% of their window)', () => {
     for (const model of ['gpt-5', 'gpt-5-codex', 'gpt-5.6-codex', 'gpt-5-mini', 'openai/gpt-5'])
-      expect(contextWindowOf(model)).toBe(272_000);
+      expect(contextWindowOf(model)).toBe(258_400);
     expect(contextWindowOf('gpt-4.1')).toBe(1_047_576);
     expect(contextWindowOf('o3')).toBe(200_000);
     expect(contextWindowOf('o4-mini')).toBe(200_000);
@@ -46,14 +51,17 @@ describe('contextWindowOf', () => {
   it("reads the catalogue's own windows first, and the GPT-6 family as Codex sizes it", () => {
     for (const model of [...MODEL_CATALOGUE.claude, ...MODEL_CATALOGUE.openai])
       expect(contextWindowOf(model.id), model.id).toBe(model.window);
-    expect(contextWindowOf('GPT-6.1-Sol')).toBe(272_000);
-    expect(contextWindowOf('gpt-6-nova')).toBe(272_000);
+    expect(contextWindowOf('GPT-6.1-Sol')).toBe(475_000);
+    expect(contextWindowOf('gpt-6.1-terra')).toBe(475_000);
+    expect(contextWindowOf('gpt-6.1-nova')).toBe(475_000);
+    expect(contextWindowOf('gpt-6-nova')).toBe(258_400);
   });
 
   it("sizes a profile's model, and for none the provider's default", () => {
     expect(profileWindowOf('claude', null)).toBe(1_000_000);
-    expect(profileWindowOf('openai', undefined)).toBe(272_000);
-    expect(profileWindowOf('openai', 'gpt-6-luna')).toBe(272_000);
+    expect(profileWindowOf('openai', undefined)).toBe(475_000);
+    expect(profileWindowOf('openai', 'gpt-6.1-sol')).toBe(475_000);
+    expect(profileWindowOf('openai', 'gpt-6-luna')).toBe(258_400);
     expect(profileWindowOf('claude', 'claude-haiku-4-5')).toBe(200_000);
     expect(profileWindowOf('claude', 'llama-4')).toBeNull();
   });
@@ -66,5 +74,25 @@ describe('contextWindowOf', () => {
   it('lists each prefix once', () => {
     const prefixes = CONTEXT_WINDOWS.map(([prefix]) => prefix);
     expect(new Set(prefixes).size).toBe(prefixes.length);
+  });
+});
+
+describe('contextPercent', () => {
+  it('is the share of the window, rounded, and nothing without a window', () => {
+    expect(contextPercent(476_000, 1_000_000)).toBe(48);
+    expect(contextPercent(0, 475_000)).toBe(0);
+    expect(contextPercent(1000, null)).toBeUndefined();
+    expect(contextPercent(1000, 0)).toBeUndefined();
+  });
+
+  it("leaves out a baseline as Codex's /status does (35.9k of 475k: 95% left)", () => {
+    expect(contextPercent(35_865, 475_000, 12_000)).toBe(5);
+    expect(contextPercent(35_865, 475_000)).toBe(8);
+    expect(contextPercent(5000, 475_000, 12_000)).toBe(0);
+    expect(contextPercent(475_000, 475_000, 12_000)).toBe(100);
+  });
+
+  it('is full when the baseline takes the whole window', () => {
+    expect(contextPercent(10, 12_000, 12_000)).toBe(100);
   });
 });

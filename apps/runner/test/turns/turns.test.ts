@@ -1,12 +1,14 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ClaudeCodeDriver } from '@mwc/harness-claude-code';
+import { CodexDriver } from '@mwc/harness-codex';
 import { HarnessError } from '@mwc/harness-core';
 import { FAKE_CREDENTIALS, FakeHarnessDriver, fakeTurnSpec } from '@mwc/harness-core/fake';
 import type { TurnSpec } from '@mwc/shared/harness';
 import { newId } from '@mwc/shared/ids';
 import { TURN_STOP_KILL_MS, TURN_STOP_TERM_MS } from '@mwc/shared/runner-protocol';
 import { describe, expect, it, vi } from 'vitest';
+import { nodePrivateFs } from '../../src/turns/files.ts';
 import { settle } from '../fixtures/time.ts';
 import { answerLines, FAKE_COMMAND, fakeHarnessHost, turnsWorld } from '../fixtures/turns.ts';
 
@@ -314,5 +316,53 @@ describe("a Claude Code turn's settings file", () => {
     });
     expect(w.spawn.calls[0]?.options.env).not.toHaveProperty('ANTHROPIC_BASE_URL');
     expect(host.dirs.inUse).toEqual([]);
+  });
+});
+
+describe("a Codex turn's context reading", () => {
+  const THREAD = '01a1c212-3068-7e90-8f9c-95e922ca6d88';
+  const line = (type: string, payload: object) =>
+    JSON.stringify({ timestamp: 't', ordinal: 0, type, payload });
+  /** Codex's session file of the thread: its turn's model, then a request's reading. */
+  const ROLLOUT = [
+    line('turn_context', { model: 'gpt-6.1-sol', effort: 'xhigh' }),
+    line('event_msg', {
+      type: 'token_count',
+      info: {
+        last_token_usage: {
+          input_tokens: 35_409,
+          cached_input_tokens: 33_152,
+          output_tokens: 456,
+          total_tokens: 35_865,
+        },
+        model_context_window: 475_000,
+      },
+      rate_limits: null,
+    }),
+  ].join('\n');
+  const STDOUT = [
+    JSON.stringify({ type: 'thread.started', thread_id: THREAD }),
+    JSON.stringify({
+      type: 'turn.completed',
+      usage: { input_tokens: 249_000, cached_input_tokens: 225_000, output_tokens: 1500 },
+    }),
+  ].join('\n');
+
+  it("ends with Codex's own reading from the thread's file in the turn's home folder", async () => {
+    const driver = new CodexDriver({ command: FAKE_COMMAND, rollouts: nodePrivateFs() });
+    const { host, cwd } = fakeHarnessHost({ drivers: { codex: driver } });
+    const w = turnsWorld({ host });
+    w.spawn.when(FAKE_COMMAND, (child) => {
+      const day = join(w.spawn.calls[0]?.options.env?.CODEX_HOME as string, 'sessions', '2026', '11', '09');
+      mkdirSync(day, { recursive: true });
+      writeFileSync(join(day, `rollout-2026-11-09T22-48-54-${THREAD}.jsonl`), ROLLOUT);
+      child.finish(`${STDOUT}\n`, 0);
+    });
+    start(w, fakeTurnSpec('codex', { cwd }));
+    await vi.waitFor(() => expect(w.ends()).toHaveLength(1));
+    const context = w.events().find((item) => item.event.type === 'context')?.event;
+    expect(context).toMatchObject({ usedTokens: 35_865, window: 475_000, model: 'gpt-6.1-sol' });
+    expect(context).not.toHaveProperty('estimate');
+    expect(w.ends()[0]).toMatchObject({ ok: true });
   });
 });

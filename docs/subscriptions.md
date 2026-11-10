@@ -288,13 +288,18 @@ first; a profile with no model is sized by `DEFAULT_WINDOWS` (`profileWindowOf`)
 | Provider | Models (id, label) | Window | Efforts |
 | --- | --- | --- | --- |
 | Claude (Claude Code's `--effort`) | `claude-opus-5-5` Opus 5.5, `claude-sonnet-5-5` Sonnet 5.5, `claude-haiku-5-5` Haiku 5.5, `claude-fable-5-1` Fable 5.1 | 1M | low, medium, high, xhigh, max |
-| OpenAI (Codex's `model_reasoning_effort`) | `gpt-6.1-sol` GPT-6.1 Sol, `gpt-6-astra` GPT-6 Astra, `gpt-6-sol` GPT-6 Sol, `gpt-5.6-sol` GPT-5.6 Sol, `gpt-5.6-terra` GPT-5.6 Terra | 272k | low, medium, high, xhigh, max, ultra |
-| | `gpt-6-luna` GPT-6 Luna, `gpt-5.6-luna` GPT-5.6 Luna | 272k | low to max |
-| | `gpt-5.5` GPT-5.5 | 272k | low to xhigh |
+| OpenAI (Codex's `model_reasoning_effort`) | `gpt-6.1-sol` GPT-6.1 Sol, `gpt-6.1-terra` GPT-6.1 Terra | 475k | low, medium, high, xhigh, max, ultra |
+| | `gpt-6-astra` GPT-6 Astra, `gpt-6-sol` GPT-6 Sol, `gpt-5.6-sol` GPT-5.6 Sol, `gpt-5.6-terra` GPT-5.6 Terra | 258.4k | low, medium, high, xhigh, max, ultra |
+| | `gpt-6-luna` GPT-6 Luna, `gpt-5.6-luna` GPT-5.6 Luna | 258.4k | low to max |
+| | `gpt-5.5` GPT-5.5 | 258.4k | low to xhigh |
 
-OpenAI's list is what Codex 0.162.1 shows a ChatGPT sign-in: the model presets compiled into its binary
-(`visibility: list`, in its priority order; the hidden cyber and auto-review models are left out), each with its
-`supported_reasoning_levels` and its `context_window` (272k; `max_context_window` 872k is not used). Codex's config also
+OpenAI's list is what Codex shows a ChatGPT sign-in: the model presets compiled into its 0.162.1 binary, with GPT-6.1
+Terra from 0.166's `models_cache.json` (`visibility: list`, in its priority order; the hidden reserve and auto-review
+models are left out; GPT-5.5 is no longer in 0.166's list and stays for profiles that name it), each with its
+`supported_reasoning_levels` and the window Codex shows: its `context_window` (500k for GPT-6.1, 272k for the rest;
+`max_context_window` 872k is not used) times `effective_context_window_percent` (95). A profile with no model is sized
+as GPT-6.1 Sol, the first of Codex's list; a turn's own reading names the model Codex ran (docs/harness.md, "Codex's
+context reading"). Codex's config also
 knows `none` and `minimal`, which none of its listed models takes. `ultra` is the deepest level and hands parts of the
 task to helpers. The stored levels are the union (`Effort` of `@mwc/shared/enums`); a profile's effort is one its model
 takes, or its provider's for a typed-in model or the default. A turn and a terminal hand the harness the profile's model

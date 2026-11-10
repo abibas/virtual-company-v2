@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { CODEX_AUTH_FILE } from '@mwc/harness-codex';
+import { CODEX_AUTH_FILE, type RolloutFs } from '@mwc/harness-codex';
 import type { PrivateDir, ProcessSpec } from '@mwc/harness-core';
 import type { Harness } from '@mwc/shared/enums';
 import { CodexAuthJson } from '@mwc/shared/harness';
@@ -16,8 +16,11 @@ import { CodexAuthJson } from '@mwc/shared/harness';
  * a crash the next use knows them as its own and puts the folder back first. Contents are never logged.
  */
 
-/** The file operations the folders need, synchronous (`nodePrivateFs`, `files.ts`). */
-export interface PrivateFs {
+/**
+ * The file operations the folders need, synchronous (`nodePrivateFs`, `files.ts`); with the reads of Codex's session
+ * file when a turn or a terminal ends (`RolloutFs`: a folder's names, a file's end).
+ */
+export interface PrivateFs extends RolloutFs {
   isDirectory(path: string): boolean;
   exists(path: string): boolean;
   /** Makes a folder and its parents; new ones get 0700. */

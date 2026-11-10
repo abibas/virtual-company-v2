@@ -3,7 +3,10 @@ import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
 import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
 import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared/harness';
 import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
+import { ChatContextSchema } from './schemas/context.ts';
 import { ChatEarlierSchema } from './schemas/history.ts';
+
+export { ChatContextSchema, type ChatContextView } from './schemas/context.ts';
 
 /**
  * The chats' shapes (S5.1b, docs/harness.md "How a turn runs"): a chat with an agent, its turns and their events, the
@@ -115,32 +118,6 @@ export const ChatTurnWithEventsSchema = ChatTurnSchema.extend({ events: z.array(
   'ChatTurnWithEvents',
 );
 
-/** How full the chat's conversation is, for its context meter (`rules.ts`, `chatContext`). */
-export const ChatContextSchema = z
-  .object({
-    usedTokens: z
-      .number()
-      .int()
-      .min(0)
-      .openapi({
-        description:
-          "The conversation's size: the last request's input, cache reads and cache writes, or the size after a later " +
-          'compaction',
-      }),
-    window: z
-      .number()
-      .int()
-      .min(1)
-      .nullable()
-      .openapi({ description: "The model's context window; null: unknown" }),
-    model: z.string().nullable().openapi({ description: 'The model the last `init` named' }),
-    at: dateTime.openapi({ description: 'When it was measured: the time of the event it comes from' }),
-    estimate: z.literal(true).optional().openapi({
-      description: "Estimated from a turn's total usage (Codex): a turn of several model calls reads high",
-    }),
-  })
-  .openapi('ChatContext');
-
 /** The question the agent asked that waits for the person (S5.2 step 4, `rules/questions.ts`). */
 export const OpenQuestionSchema = z
   .object({
@@ -229,7 +206,6 @@ export type ChatTurnView = z.infer<typeof ChatTurnSchema>;
 export type ChatEventView = z.infer<typeof ChatEventSchema>;
 export type ChatDetailView = z.infer<typeof ChatDetailSchema>;
 export type ChatTurnWithEventsView = z.infer<typeof ChatTurnWithEventsSchema>;
-export type ChatContextView = z.infer<typeof ChatContextSchema>;
 export type CreateChat = z.infer<typeof CreateChatSchema>;
 export type UpdateChat = z.infer<typeof UpdateChatSchema>;
 export type AnswerQuestion = z.infer<typeof AnswerQuestionSchema>;

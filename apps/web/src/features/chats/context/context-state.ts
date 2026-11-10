@@ -1,4 +1,4 @@
-import { contextWindowOf } from '@mwc/shared/harness';
+import { contextPercent, contextWindowOf } from '@mwc/shared/harness';
 import type {
   AccessProfile,
   AgentDetail,
@@ -11,8 +11,9 @@ import type {
 /**
  * How full the chat's conversation is, for its context meter (docs/harness.md, "Compact and Clear"), read from the live
  * turns the way the server reads its detail (`conversationState`): everything since the last Clear, the size from the
- * last main-agent `context` or a later `compact`'s size after, else the detail's own `context` (read by the server from
- * the whole current conversation, so a long chat's left-out turns count there). The totals count the loaded turns. Pure.
+ * last main-agent `context` (the size the harness counts, as Codex's own reading, else its last request's) or a later
+ * `compact`'s size after, else the detail's own `context` (read by the server from the whole current conversation, so a
+ * long chat's left-out turns count there). The totals count the loaded turns. Pure.
  */
 
 type Of<T extends TurnEvent['type']> = Extract<TurnEvent, { type: T }>;
@@ -55,9 +56,11 @@ export interface ConversationView {
   readonly used: number | undefined;
   /** The model's window; null when unknown. */
   readonly window: number | null;
-  /** 0–100, rounded; undefined without a size or a window. */
+  /** 0–100, rounded, as the harness shows it (`contextPercent`); undefined without a size or a window. */
   readonly percent: number | undefined;
-  /** The size is estimated from a turn's total (Codex), not read from its last request. */
+  /** Tokens the harness leaves out of its percentage (Codex's 12k); 0 for none. */
+  readonly baseline: number;
+  /** The size is estimated from a turn's total (an older Codex turn), not the harness's own reading. */
   readonly estimate: boolean;
   readonly model: string | null;
   readonly effort: string | undefined;
@@ -72,7 +75,7 @@ export interface ConversationView {
 
 const num = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 const sizeOf = (event: Of<'context'>) =>
-  event.inputTokens + event.cacheReadTokens + event.cacheCreationTokens;
+  event.usedTokens ?? event.inputTokens + event.cacheReadTokens + event.cacheCreationTokens;
 
 /** A turn's tokens: its `usage` event, else the usage the server kept on the turn; undefined without either. */
 function turnTokens(turn: ChatTurnWithEvents): TurnTokens | undefined {
@@ -99,6 +102,9 @@ interface Walk {
   init: Init | undefined;
   used: number | undefined;
   window: number | null;
+  /** The model the last reading named (Codex's own), when it named one. */
+  model: string | undefined;
+  baseline: number;
   base: ContextBase | undefined;
   estimate: boolean;
   hasSession: boolean;
@@ -106,17 +112,20 @@ interface Walk {
 
 /** Folds one event of the conversation since the last Clear into what the meter shows. */
 function step(walk: Walk, event: TurnEvent) {
-  const model = walk.init?.model ?? null;
+  const model = walk.model ?? walk.init?.model ?? null;
   if (event.type === 'init') walk.init = event;
   else if (event.type === 'session') walk.hasSession = true;
   else if (event.type === 'context') {
     walk.used = sizeOf(event);
     walk.estimate = event.estimate === true;
-    walk.window = event.window ?? contextWindowOf(model);
+    walk.model = event.model ?? walk.model;
+    walk.baseline = event.baselineTokens ?? 0;
+    walk.window = event.window ?? contextWindowOf(event.model ?? model);
     walk.base ??= { tokens: walk.used, after: 'start' };
   } else if (event.type === 'compact' && event.postTokens !== null) {
     walk.used = event.postTokens;
     walk.estimate = false;
+    walk.baseline = 0;
     walk.window = walk.window ?? contextWindowOf(model);
     walk.base = { tokens: event.postTokens, after: 'compaction' };
   }
@@ -151,6 +160,8 @@ export function conversationView(
     init: seed,
     used: undefined,
     window: null,
+    model: undefined,
+    baseline: 0,
     base: undefined,
     estimate: false,
     hasSession: false,
@@ -160,8 +171,9 @@ export function conversationView(
   const init = walk.init ?? (cleared ? undefined : (detail?.init ?? undefined));
   const fallback = walk.used === undefined && !cleared ? detail?.context : undefined;
   const used = walk.used ?? fallback?.usedTokens;
-  const model = init?.model ?? fallback?.model ?? null;
+  const model = walk.model ?? init?.model ?? fallback?.model ?? null;
   const window = walk.used !== undefined ? walk.window : (fallback?.window ?? contextWindowOf(model));
+  const baseline = walk.used !== undefined ? walk.baseline : (fallback?.baselineTokens ?? 0);
   // The current conversation's Clear may be left out of a long chat's loaded turns: the detail still lists it.
   const afterClear = cleared || (detail?.earlier.conversations.length ?? 0) > 0;
   const { session, lastTurn } = totals(
@@ -171,7 +183,8 @@ export function conversationView(
   return {
     used,
     window,
-    percent: used !== undefined && window ? Math.round((used / window) * 100) : undefined,
+    percent: used === undefined ? undefined : contextPercent(used, window, baseline),
+    baseline,
     estimate: walk.used !== undefined ? walk.estimate : fallback?.estimate === true,
     model,
     effort: init?.effort,

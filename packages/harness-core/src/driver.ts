@@ -101,6 +101,12 @@ export interface LineParser {
   settled?(): boolean;
 }
 
+/** Where a turn's harness keeps its state, for a parser that reads the harness's own files when the turn ends. */
+export interface ParserContext {
+  /** The turn's private folder (Codex's `CODEX_HOME`), when it has one. */
+  readonly privateDir?: string;
+}
+
 /**
  * The harness driver port (docs/harness.md): what a runner loads to run a harness's CLI. Pure: it builds process
  * specs and parsers, and never spawns anything. `turn` and `terminal` throw a `HarnessError` only (a credential of
@@ -114,8 +120,8 @@ export interface HarnessDriver {
   turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec;
   /** The interactive TUI on the conversation (resumed, or a new one when `sessionId` is null). */
   terminal(spec: TerminalSpec): ProcessSpec;
-  /** A new parser for one turn's output. */
-  parser(): LineParser;
+  /** A new parser for one turn's output; `context` says where the turn's harness keeps its state. */
+  parser(context?: ParserContext): LineParser;
   /**
    * The stdin line that gives a running turn of a `stdinOpen` process the person's message `text` (S5.2 step 6). The
    * harness's echo of it once it takes it is an `input` event with `inputId` = `id`. Left out: no message mid-turn.
