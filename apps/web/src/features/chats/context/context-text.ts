@@ -42,8 +42,8 @@ export function money(usd: number): string {
 }
 
 /**
- * The meter's one line: "Context 476k / 1M · 48%", the size alone for an unknown window, "Context —" before any; an
- * estimate (an older Codex turn) reads "Context ≈45k / 258k · 17%".
+ * The meter's one line: "Context 476k / 1M · 48% used", the size alone for an unknown window, "Context —" before any; an
+ * estimate (an older Codex turn) reads "Context ≈45k / 258k · 17% used".
  */
 export function meterLine(
   used: number | undefined,
@@ -54,7 +54,7 @@ export function meterLine(
   if (used === undefined) return 'Context —';
   const size = `${estimate ? '≈' : ''}${short(used)}`;
   if (!window || percent === undefined) return `Context ${size}`;
-  return `Context ${size} / ${short(window)} · ${percent}%`;
+  return `Context ${size} / ${short(window)} · ${percent}% used`;
 }
 
 const REFUSALS: Readonly<Record<string, string>> = {
