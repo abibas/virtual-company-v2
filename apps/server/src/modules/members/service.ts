@@ -8,7 +8,6 @@ import type { InvitationView, MemberView } from './schemas.ts';
 import {
   createInvitation,
   type InvitationChange,
-  type InvitationResult,
   type NewInvitation,
   type Resend,
   resendInvitation,
@@ -82,6 +81,7 @@ export function invitationView(row: Invitation, now: Date): InvitationView {
     expiresAt: row.expiresAt.toISOString(),
     sent: row.externalInvitationId !== null,
     invitedByPrincipalId: row.invitedByPrincipalId,
+    reportsToPrincipalId: row.reportsToPrincipalId,
     acceptedByUserId: row.acceptedByUserId,
     createdAt: row.createdAt.toISOString(),
   };
@@ -89,17 +89,20 @@ export function invitationView(row: Invitation, now: Date): InvitationView {
 
 /** A call the routes make without the redirect URL, which the service adds from the configuration. */
 type FromRoute<T> = Omit<T, 'redirectUrl'>;
-type ViewResult = { readonly ok: true; readonly invitation: InvitationView } | Refusal;
+type Viewed<R> = { readonly ok: true; readonly invitation: InvitationView } | R;
 
 /**
  * The invitations' logic: the list, and creating, resending and revoking one (`service/invitations.ts`); the outbox
  * handlers are in `service/invitation-provider.ts`. The provider's emailed link lands on the web's
- * `/accept-invitation` (`MWC_WEB_ORIGIN`).
+ * `/accept-invitation` (`MWC_WEB_ORIGIN`). An invitation's manager is checked against the org chart through `chart`.
  */
-export function invitationsService(deps: Pick<ServerDeps, 'db' | 'config'>) {
+export function invitationsService(deps: Pick<ServerDeps, 'db' | 'config'> & ChartDeps) {
   const repo = membersRepo();
   const redirectUrl = `${deps.config.MWC_WEB_ORIGIN}/accept-invitation`;
-  const view = async (now: Date, work: Promise<InvitationResult>): Promise<ViewResult> => {
+  const view = async <R extends { readonly ok: false }>(
+    now: Date,
+    work: Promise<{ readonly ok: true; readonly invitation: Invitation } | R>,
+  ): Promise<Viewed<R>> => {
     const result = await work;
     return result.ok ? { ok: true, invitation: invitationView(result.invitation, now) } : result;
   };
@@ -113,7 +116,7 @@ export function invitationsService(deps: Pick<ServerDeps, 'db' | 'config'>) {
     },
 
     create: (t: TenantDb, call: FromRoute<NewInvitation>) =>
-      view(call.now, createInvitation(deps.db, repo, t, { ...call, redirectUrl })),
+      view(call.now, createInvitation(deps, repo, t, { ...call, redirectUrl })),
 
     resend: (t: TenantDb, call: FromRoute<Resend>) =>
       view(call.now, resendInvitation(repo, t, { ...call, redirectUrl })),

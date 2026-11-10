@@ -1,5 +1,6 @@
-import type { PrincipalKind } from '@mwc/shared/enums';
+import type { PrincipalKind } from './enums.ts';
 import {
+  applyMoves,
   type Chart,
   type ChartIndex,
   type ChartMove,
@@ -10,16 +11,22 @@ import {
   personAtOrAbove,
   reportsOf,
   subtreeOf,
-} from './rules/chart.ts';
-import { type ChartViolation, type ChartViolationCode, violation, violationsOf } from './rules/violations.ts';
+} from './org-chart/chart.ts';
+import {
+  type ChartViolation,
+  type ChartViolationCode,
+  violation,
+  violationsOf,
+} from './org-chart/violations.ts';
 
-export { applyMoves, type Chart, type ChartMove, type ChartNode } from './rules/chart.ts';
-export type { ChartViolation, ChartViolationCode } from './rules/violations.ts';
+export { applyMoves, type Chart, type ChartMove, type ChartNode } from './org-chart/chart.ts';
+export type { ChartViolation, ChartViolationCode } from './org-chart/violations.ts';
 
 // The org chart's invariants (docs/architecture.md, section 6): no loops, agents never at the top, every agent's
-// chain reaches a person, agents never manage people. Pure functions over one company's chart; the API and the web
-// show the refusal and violation codes. The chart model and its walks are in rules/chart.ts, the per-principal
-// violations in rules/violations.ts.
+// chain reaches a person, agents never manage people. Pure functions over one company's chart, shared so the server
+// (which judges every change) and the web (which shows where a dragged card may go) decide with one implementation;
+// both show the refusal and violation codes. The chart model and its walks are in org-chart/chart.ts, the
+// per-principal violations in org-chart/violations.ts.
 
 /** Why a move is refused. */
 export type MoveRefusalCode =
@@ -94,6 +101,30 @@ export function validateMove(chart: Chart, principalId: string, newReportsTo: st
     );
   }
   return { ok: true };
+}
+
+/** The invariants `after` breaks that `before` did not (by code and principal), in chart order. */
+export function addedViolations(before: Chart, after: Chart): ChartViolation[] {
+  const known = new Set(validateChart(before).map((v) => `${v.code} ${v.principalId}`));
+  return validateChart(after).filter((v) => !known.has(`${v.code} ${v.principalId}`));
+}
+
+/** A move's verdict as the API gives it: allowed, or refused with a move code or the invariant it would break. */
+export type MoveVerdict =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly code: MoveRefusalCode | ChartViolationCode; readonly message: string };
+
+/**
+ * Whether the API takes `principalId` reporting to `newReportsTo` (null: the top): `validateMove`, then no invariant
+ * the chart after the move breaks that it did not break before (a chart stored with a flaw, such as an orphan, still
+ * takes moves that add none). What `PUT /org/positions` answers, and what the web's drag and drop shows before it
+ * asks; moving someone to the manager they have is allowed (it changes nothing).
+ */
+export function moveVerdict(chart: Chart, principalId: string, newReportsTo: string | null): MoveVerdict {
+  const check = validateMove(chart, principalId, newReportsTo);
+  if (!check.ok) return check;
+  const [added] = addedViolations(chart, applyMoves(chart, [{ principalId, reportsTo: newReportsTo }]));
+  return added ? { ok: false, code: added.code, message: added.message } : { ok: true };
 }
 
 /**

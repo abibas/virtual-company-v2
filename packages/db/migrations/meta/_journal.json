@@ -148,6 +148,13 @@
       "when": 1794332653488,
       "tag": "0020_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794333398766,
+      "tag": "0021_invitation_manager",
+      "breakpoints": true
     }
   ]
 }

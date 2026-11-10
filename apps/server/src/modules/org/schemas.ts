@@ -165,6 +165,8 @@ export const PersonNodeSchema = z
     kind: z.literal('person'),
     person: z.object({
       userId: z.string(),
+      /** Their membership, for the member routes (a role change from the chart). */
+      membershipId: z.string(),
       /** Their first and last name; null while they have not given one (show the email). */
       displayName: z.string().nullable(),
       email: z.string(),
@@ -186,6 +188,7 @@ export const AgentNodeSchema = z
       slug: z.string(),
       roleTitle: z.string(),
       status: AgentStatus,
+      harness: Harness,
       face: z.number().int(),
       icon: AgentIconSchema,
       profile: AgentProfileSchema.nullable(),

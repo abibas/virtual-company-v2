@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addedViolations,
   applyMoves,
   buildTree,
   type Chart,
   type ChartNode,
   descendants,
   directReports,
+  moveVerdict,
   nearestPersonUp,
   type OrgTreeNode,
   reparentOnRemoval,
   validateChart,
   validateMove,
-} from '../../../src/modules/org/rules.ts';
+} from '../src/org-chart.ts';
 
 // A small chart builder: a person or an agent and whom it reports to.
 const node = (kind: ChartNode['kind'], principalId: string, reportsTo: string | null): ChartNode => ({
@@ -136,6 +138,43 @@ describe('validateMove', () => {
     expect(validateMove(broken, 'stray', 'olga')).toEqual({ ok: true }); // the move that repairs it
     expect(validateMove(broken, 'loop1', 'ihor')).toEqual({ ok: true });
     expect(validateMove(broken, 'loop1', 'loop2')).toMatchObject({ code: 'cycle' });
+  });
+});
+
+describe('addedViolations', () => {
+  it('lists only the flaws the second chart adds, in its order', () => {
+    const before = [{ principalId: 'a', kind: 'agent', reportsTo: null }] as const;
+    const after = [...before, { principalId: 'b', kind: 'agent', reportsTo: null }] as const;
+    expect(addedViolations(before, after)).toMatchObject([{ code: 'agent_root', principalId: 'b' }]);
+    expect(addedViolations(after, before)).toEqual([]);
+  });
+});
+
+describe('moveVerdict', () => {
+  it('allows what validateMove allows when the move adds no flaw, the manager it has already included', () => {
+    expect(moveVerdict(company, 'pm', 'dana')).toEqual({ ok: true });
+    expect(moveVerdict(company, 'olga', 'ihor')).toEqual({ ok: true });
+    expect(moveVerdict(company, 'max', null)).toEqual({ ok: true });
+  });
+
+  it("refuses with validateMove's code and sentence first", () => {
+    expect(moveVerdict(company, 'olga', 'pm')).toEqual(validateMove(company, 'olga', 'pm'));
+    expect(moveVerdict(company, 'pm', null)).toMatchObject({ ok: false, code: 'agent_root' });
+    expect(moveVerdict(company, 'ihor', 'tester')).toMatchObject({ ok: false, code: 'cycle' });
+  });
+
+  it('still takes moves on a flawed chart that add no flaw, and refuses one that adds a flaw', () => {
+    expect(moveVerdict(broken, 'max', 'dana')).toEqual({ ok: true });
+    // An agent at the top already, hanging a second agent under it: the second one has no person above it.
+    const flawed: Chart = [person('p'), agent('top-bot', null), agent('bot', 'p')];
+    expect(moveVerdict(flawed, 'bot', 'top-bot')).toEqual({
+      ok: false,
+      code: 'chain_without_person',
+      message: 'Every agent needs a person above it, and this move would leave an agent without one.',
+    });
+    // Under an orphan (its manager is off the chart): the orphan's own flaw was there before, so it is not counted.
+    const orphaned: Chart = [person('p'), person('lost', 'ghost'), person('q', 'p')];
+    expect(moveVerdict(orphaned, 'q', 'lost')).toEqual({ ok: true });
   });
 });
 

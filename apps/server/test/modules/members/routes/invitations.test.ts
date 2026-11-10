@@ -1,3 +1,4 @@
+import { seedAgent } from '@mwc/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InvitationView } from '../../../../src/modules/members/schemas.ts';
 import { auditFields, auditOf, call } from '../../../fixtures/companies/companies.ts';
@@ -10,6 +11,7 @@ import {
   runOutbox,
 } from '../../../fixtures/members/invitations.ts';
 import { addMember, as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
+import { placedMember } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld, WEB_ORIGIN } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
@@ -41,6 +43,7 @@ describe('POST /api/companies/:companyId/invitations', () => {
       expiresAt: inDays(14).toISOString(),
       sent: false,
       invitedByPrincipalId: company.owner.principalId,
+      reportsToPrincipalId: null,
       acceptedByUserId: null,
       createdAt: row?.createdAt.toISOString(),
     });
@@ -132,6 +135,79 @@ describe('POST /api/companies/:companyId/invitations', () => {
       }),
     ).toMatchObject({ status: 409, body: { error: { code: 'invitation_pending' } } });
     expect(await outboxRows(w, company.companyId, 'invite')).toHaveLength(1);
+  });
+});
+
+describe('POST /api/companies/:companyId/invitations with a manager (S2.8)', () => {
+  const kid = (company: MembersCompany, reportsToPrincipalId: unknown, by = company.owner) =>
+    as(w, by, 'req-manager')('POST', invitationsPath(company), {
+      email: 'kid@x.test',
+      role: 'member',
+      reportsToPrincipalId,
+    });
+
+  it('keeps the person on the chart the invitee will report to, audited and listed', async () => {
+    const company = await membersCompany(w);
+    const lead = await placedMember(w, company, 'admin');
+    const res = await kid(company, lead.principalId);
+    expect(res.status).toBe(201);
+    const view = res.body as InvitationView;
+    expect(view.reportsToPrincipalId).toBe(lead.principalId);
+    expect(await invitationRow(w, view.id)).toMatchObject({ reportsToPrincipalId: lead.principalId });
+    expect(await invitationAudit(company.companyId)).toContainEqual(
+      expect.objectContaining({
+        entityId: view.id,
+        field: 'reportsToPrincipalId',
+        oldValue: null,
+        newValue: lead.principalId,
+      }),
+    );
+    const listed = await as(w, company.owner)('GET', invitationsPath(company));
+    expect((listed.body as { invitations: InvitationView[] }).invitations).toEqual([view]);
+  });
+
+  it('takes null as no manager, as when it is left out (no audit row for it)', async () => {
+    const company = await membersCompany(w);
+    const res = await kid(company, null);
+    expect(res).toMatchObject({ status: 201, body: { reportsToPrincipalId: null } });
+    const fields = (await invitationAudit(company.companyId)).map((row) => row.field);
+    expect(fields).toEqual(['email', 'expiresAt', 'role', 'status']);
+  });
+
+  it('refuses an agent (422 agent_manages_person) and anyone off the chart (422 unknown_principal)', async () => {
+    const company = await membersCompany(w);
+    const agent = await seedAgent(w.t.db, company.companyId, { reportsTo: company.owner.principalId });
+    expect(await kid(company, agent.principal.id)).toMatchObject({
+      status: 422,
+      body: {
+        error: {
+          code: 'agent_manages_person',
+          message: 'A person cannot report to an agent; people report only to people.',
+        },
+      },
+    });
+    const gone = await placedMember(w, company, 'member', { status: 'removed' });
+    const other = await membersCompany(w);
+    const unknown = '019a4f0c-0000-7000-8000-000000000000';
+    for (const id of [gone.principalId, other.owner.principalId, unknown, 'not-a-principal']) {
+      expect(await kid(company, id)).toMatchObject({
+        status: 422,
+        body: { error: { code: 'unknown_principal' } },
+      });
+    }
+    expect(await outboxRows(w, company.companyId, 'invite')).toEqual([]);
+    expect(await invitationAudit(company.companyId)).toEqual([]);
+  });
+
+  it('checks the role rules first: an admin naming a manager for an owner is still a 403', async () => {
+    const company = await membersCompany(w);
+    const admin = await addMember(w, company, 'admin');
+    const res = await as(w, admin)('POST', invitationsPath(company), {
+      email: 'boss@x.test',
+      role: 'owner',
+      reportsToPrincipalId: 'not-a-principal',
+    });
+    expect(res).toMatchObject({ status: 403, body: { error: { code: 'forbidden' } } });
   });
 });
 

@@ -1,8 +1,15 @@
 import type { Agent, Membership, OrgPosition } from '@mwc/db';
 import type { MembershipRole } from '@mwc/shared/enums';
+import {
+  addedViolations,
+  applyMoves,
+  type Chart,
+  type ChartMove,
+  type ChartNode,
+  moveVerdict,
+  validateMove,
+} from '@mwc/shared/org-chart';
 import { roleAtLeast } from '@mwc/shared/roles';
-import { type ChartViolation, validateChart, validateMove } from '../rules.ts';
-import { applyMoves, type Chart, type ChartMove, type ChartNode } from './chart.ts';
 
 // The org API's decisions over a company's stored chart: who is on it, whether a placement or a removal keeps it
 // valid, and who may change a position. Pure; the service reads the rows and writes what these allow.
@@ -82,12 +89,6 @@ export function earliestOwner(memberList: readonly Membership[]): string | null 
   return owners[0]?.principalId ?? null;
 }
 
-/** The invariants `after` breaks that `before` did not (by code and principal), in chart order. */
-export function addedViolations(before: Chart, after: Chart): ChartViolation[] {
-  const known = new Set(validateChart(before).map((v) => `${v.code} ${v.principalId}`));
-  return validateChart(after).filter((v) => !known.has(`${v.code} ${v.principalId}`));
-}
-
 /**
  * The first invariant `after` breaks that `before` did not, as a 422, or undefined. A chart stored with a flaw
  * already (an orphan left by a removed member) still takes changes that add none.
@@ -97,15 +98,17 @@ export function chartRefusal(before: Chart, after: Chart): Refusal<422> | undefi
   return added && refuse(422, added.code, added.message);
 }
 
-/** Why `principalId` may not move under `reportsTo` (null: the top), as a 422 with the rules' code, or undefined. */
+/**
+ * Why `principalId` may not move under `reportsTo` (null: the top), as a 422 with the rules' code, or undefined: the
+ * shared `moveVerdict`, which the web's drag and drop shows before it asks.
+ */
 export function moveRefusal(
   chart: Chart,
   principalId: string,
   reportsTo: string | null,
 ): Refusal<422> | undefined {
-  const check = validateMove(chart, principalId, reportsTo);
-  if (!check.ok) return refuse(422, check.code, check.message);
-  return chartRefusal(chart, applyMoves(chart, [{ principalId, reportsTo }]));
+  const verdict = moveVerdict(chart, principalId, reportsTo);
+  return verdict.ok ? undefined : refuse(422, verdict.code, verdict.message);
 }
 
 /** Why a principal not on the chart yet (a new or returning agent) may not be placed under `reportsTo`. */

@@ -64,6 +64,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
         title: null,
         person: {
           userId: owner.userId,
+          membershipId: owner.membershipId,
           displayName: `Owner ${owner.subject}`,
           email: `${owner.subject}@owners.test`,
           imageUrl: null,
@@ -77,6 +78,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
         title: 'CTO',
         person: {
           userId: admin.userId,
+          membershipId: admin.membershipId,
           displayName: admin.subject,
           email: `${admin.subject}@people.test`,
           imageUrl: null,
@@ -99,6 +101,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           slug: lead.slug,
           roleTitle: 'Coder',
           status: 'active',
+          harness: 'claude_code',
           face: lead.face,
           icon: { kind: 'face' },
           profile: {
@@ -159,6 +162,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
       title: null,
       person: {
         userId: ann.user.id,
+        membershipId: ann.membership.id,
         displayName: null,
         email: 'ann@photos.test',
         imageUrl: 'https://img.test/ann.png',

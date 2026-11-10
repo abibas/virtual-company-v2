@@ -123,9 +123,23 @@ describe('invitations', () => {
       status: 'pending',
       externalInvitationId: null,
       invitedByPrincipalId: inviter.id,
+      reportsToPrincipalId: null,
       acceptedByUserId: null,
     });
     expect(invitation.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("keeps whom the invitee will report to, and refuses another company's principal there", async () => {
+    const manager = await insertPrincipal(handle, acme.id);
+    const invitation = await insertInvitation(handle, acme.id, { reportsToPrincipalId: manager.id });
+    expect(invitation.reportsToPrincipalId).toBe(manager.id);
+    const theirs = await insertPrincipal(handle, globex.id);
+    expect(
+      await pgError(insertInvitation(handle, acme.id, { reportsToPrincipalId: theirs.id })),
+    ).toMatchObject({ code: '23503', constraint: 'invitations_reports_to_principal_fk' });
+    expect(
+      await pgError(insertInvitation(handle, acme.id, { reportsToPrincipalId: MISSING_ID })),
+    ).toMatchObject({ code: '23503', constraint: 'invitations_reports_to_principal_fk' });
   });
 
   it('allows one pending invitation per email and company (a partial unique index)', async () => {

@@ -4,6 +4,7 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
+import type { ChartDeps } from '../../identity/service.ts';
 import {
   CreateInvitationSchema,
   InvitationListQuerySchema,
@@ -44,7 +45,8 @@ const createInvitationRoute = (deps: ServerDeps) => {
     summary: 'Invite someone by email (admin and above)',
     description:
       'An owner may invite with any role, an admin with any role but owner. The invitation expires in 14 days; ' +
-      'the identity provider emails it through the outbox (`invite`), with a link to `/accept-invitation`.',
+      'the identity provider emails it through the outbox (`invite`), with a link to `/accept-invitation`. With ' +
+      '`reportsToPrincipalId`, the invitee joins the org chart under that person (while they are still on it).',
     request: { params: MembersParamsSchema, body: jsonBody(CreateInvitationSchema) },
     responses: {
       201: jsonResponse('The invitation, pending', InvitationSchema),
@@ -54,6 +56,10 @@ const createInvitationRoute = (deps: ServerDeps) => {
       404: refusals[404],
       409: errorResponse(
         'The email belongs to a member (`already_member`) or has a pending invitation (`invitation_pending`)',
+      ),
+      422: errorResponse(
+        'The manager named is not on the org chart (`unknown_principal`) or is an agent, and people report only to ' +
+          'people (`agent_manages_person`)',
       ),
     },
   });
@@ -117,13 +123,13 @@ const revokeInvitationRoute = (deps: ServerDeps) => {
   });
 };
 
-export function invitationRoutes(deps: ServerDeps) {
+export function invitationRoutes(deps: ServerDeps & ChartDeps) {
   const invitations = invitationsService(deps);
   return newRouter()
     .openapi(createInvitationRoute(deps), async (c) => {
       const { tenant, membership, requestId, clock } = c.var;
-      const { email, role } = c.req.valid('json');
-      const call = { actorId: membership.id, email, role, requestId, now: clock() };
+      const { email, role, reportsToPrincipalId } = c.req.valid('json');
+      const call = { actorId: membership.id, email, role, reportsToPrincipalId, requestId, now: clock() };
       const result = await invitations.create(tenant, call);
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.invitation, 201);

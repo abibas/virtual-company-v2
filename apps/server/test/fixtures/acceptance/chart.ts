@@ -3,8 +3,9 @@
  * system with the acceptance's request id; an agent they make reports to them; and once they are removed they are off
  * the chart and their agent reports to the owner.
  */
+
+import { validateChart } from '@mwc/shared/org-chart';
 import { expect } from 'vitest';
-import { validateChart } from '../../../src/modules/org/rules.ts';
 import type { AgentDetailView, OrgChartView } from '../../../src/modules/org/schemas.ts';
 import { auditOf } from '../companies/companies.ts';
 import type { Founded } from './steps.ts';

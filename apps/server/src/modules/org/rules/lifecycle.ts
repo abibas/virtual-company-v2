@@ -1,5 +1,12 @@
-import { applyMoves, type Chart, type ChartMove, type ChartViolation, reparentOnRemoval } from '../rules.ts';
-import { addedViolations, earliestOwner, type OrgState } from './placement.ts';
+import {
+  addedViolations,
+  applyMoves,
+  type Chart,
+  type ChartMove,
+  type ChartViolation,
+  reparentOnRemoval,
+} from '@mwc/shared/org-chart';
+import { earliestOwner, type OrgState } from './placement.ts';
 
 // What a membership's start and end do on the chart (S2.4): where a person who joins goes, and how the reports of a
 // person who leaves move up. Pure; `service/lifecycle.ts` reads the rows and writes what these decide.
@@ -19,13 +26,28 @@ export function earliestOwnerBut(org: OrgState, principalId: string): string | n
   );
 }
 
+/** What a newcomer's invitation says about their place: who sent it, and the manager it names (S2.8). */
+export interface JoiningInvitation {
+  readonly invitedBy: string | null;
+  readonly reportsTo: string | null;
+}
+
 /**
- * Whom a person whose membership became active reports to: whoever invited them, when that is a person on the chart
- * (not themselves); else the company's earliest active owner on the chart other than them; else nobody (the top).
- * Owners included: a person at the top is valid, and a company's first owner is placed when it is created.
+ * Whom a person whose membership became active reports to: the manager their invitation names, when that is still a
+ * person on the chart (not themselves); else whoever invited them, on the same terms; else the company's earliest active
+ * owner on the chart other than them; else nobody (the top). Owners included: a person at the top is valid, and a
+ * company's first owner is placed when it is created.
  */
-export function joiningManager(org: OrgState, principalId: string, inviter: string | null): string | null {
-  if (inviter !== null && inviter !== principalId && peopleOn(org).has(inviter)) return inviter;
+export function joiningManager(
+  org: OrgState,
+  principalId: string,
+  invitation: JoiningInvitation | undefined,
+): string | null {
+  const people = peopleOn(org);
+  const usable = (id: string | null | undefined): id is string =>
+    id !== null && id !== undefined && id !== principalId && people.has(id);
+  if (usable(invitation?.reportsTo)) return invitation.reportsTo;
+  if (usable(invitation?.invitedBy)) return invitation.invitedBy;
   return earliestOwnerBut(org, principalId);
 }
 

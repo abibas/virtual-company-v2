@@ -66,6 +66,18 @@ describe.each(LEARNING_PATHS)('a membership that becomes active, learned by %s',
     expect(await positionAudit(w, principalId)).toHaveLength(1);
   });
 
+  it('places the person under the manager their invitation names, ahead of whoever invited them', async () => {
+    const company = await orgCompany(w);
+    const lead = await placedMember(w, company, 'member', { reportsTo: company.admin.principalId });
+    const joiner = await acceptedFrom(w, company, company.owner, 'member', lead.principalId);
+    const requestId = await learnBy(w, company, path, { ...joiner, label: 'join' });
+    const principalId = await principalOf(company, joiner.email);
+    expect(await managersOf(w, company, [principalId])).toEqual([lead.principalId]);
+    expect(await positionAudit(w, principalId)).toEqual([
+      ['create', 'system', requestId, null, lead.principalId],
+    ]);
+  });
+
   it('places them under the earliest owner when whoever invited them has left meanwhile', async () => {
     const company = await orgCompany(w);
     const joiner = await acceptedFrom(w, company, company.admin);
@@ -80,6 +92,17 @@ describe.each(LEARNING_PATHS)('a membership that becomes active, learned by %s',
 });
 
 describe('placing a person who joins', () => {
+  it("falls back on whoever invited them when the invitation's manager has left meanwhile", async () => {
+    const company = await orgCompany(w);
+    const lead = await placedMember(w, company, 'member');
+    const joiner = await acceptedFrom(w, company, company.admin, 'member', lead.principalId);
+    const removal = await as(w, company.owner)('DELETE', memberPath(company, lead));
+    expect(removal.status).toBe(204);
+    await deliverEvents(w, joiner.events);
+    const principalId = await principalOf(company, joiner.email);
+    expect(await managersOf(w, company, [principalId])).toEqual([company.admin.principalId]);
+  });
+
   it('puts an owner invited by an owner under them, not at the top', async () => {
     const company = await membersCompany(w);
     const second = await placedMember(w, company, 'owner');

@@ -1,4 +1,4 @@
-import type { PrincipalKind } from '@mwc/shared/enums';
+import type { PrincipalKind } from '../enums.ts';
 
 /** One principal on a company's org chart: a person or an agent, and whom it reports to (null: at the top). */
 export interface ChartNode {

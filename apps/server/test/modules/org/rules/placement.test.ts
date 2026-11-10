@@ -1,7 +1,7 @@
 import type { Agent, Membership, OrgPosition } from '@mwc/db';
 import type { MembershipRole } from '@mwc/shared/enums';
+import type { ChartNode } from '@mwc/shared/org-chart';
 import { describe, expect, it } from 'vitest';
-import type { ChartNode } from '../../../../src/modules/org/rules/chart.ts';
 import {
   archiveMoves,
   chartRefusal,

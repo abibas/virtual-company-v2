@@ -3,7 +3,7 @@ import type { MembershipRole } from '@mwc/shared/enums';
 import { invitationStatusAt } from '@mwc/shared/identity';
 import { newId } from '@mwc/shared/ids';
 import { enqueueOutbox, outboxKey } from '../../../platform/jobs/outbox.ts';
-import { profilesOf } from '../../identity/service.ts';
+import { type MemberChart, profilesOf } from '../../identity/service.ts';
 import type { MembersRepo } from '../repo.ts';
 import {
   ALREADY_MEMBER,
@@ -38,6 +38,8 @@ interface Sending {
 export interface NewInvitation extends InvitationCall, Sending {
   readonly email: string;
   readonly role: MembershipRole;
+  /** The person on the chart the invitee will report to (S2.8); null or left out for the inviter's rule. */
+  readonly reportsToPrincipalId?: string | null | undefined;
 }
 
 export interface InvitationChange extends InvitationCall {
@@ -48,10 +50,19 @@ export interface Resend extends InvitationChange, Sending {}
 
 export type InvitationResult = { readonly ok: true; readonly invitation: Invitation } | Refusal;
 
-/** The invitation fields an audit row reports when it is created. */
+/** An invitation's manager refused by the org rules (S2.8), with their code and sentence. */
+export interface ManagerRefusal {
+  readonly ok: false;
+  readonly status: 422;
+  readonly code: string;
+  readonly message: string;
+}
+
+/** The invitation fields an audit row reports when it is created (its manager only when it names one). */
 const audited = (row: Invitation) => ({
   email: row.emailNormalized,
   expiresAt: row.expiresAt,
+  ...(row.reportsToPrincipalId === null ? {} : { reportsToPrincipalId: row.reportsToPrincipalId }),
   role: row.role,
   status: row.status,
 });
@@ -87,26 +98,40 @@ async function expireOverdue(repo: MembersRepo, t: TenantDb, now: Date) {
   }
 }
 
+/** Why the invitation's manager may not take the newcomer (the org rules' 422), or undefined; none named is fine. */
+async function managerRefusal(
+  chart: MemberChart,
+  t: TenantDb,
+  reportsTo: string | null | undefined,
+): Promise<ManagerRefusal | undefined> {
+  if (reportsTo === null || reportsTo === undefined) return undefined;
+  const refusal = await chart.managerRefusal(t, reportsTo);
+  return refusal && { ok: false, status: 422, code: refusal.code, message: refusal.message };
+}
+
 /**
  * `POST .../invitations`: invites an email with a role. Under the company's lock: the acting member must still be
- * active (403), an admin may not invite an owner (403), a member's email (read just before) is a 409 `already_member`,
- * and an email with a pending invitation a 409 `invitation_pending` (overdue ones are stored as expired first, so
- * they do not count).
+ * active (403), an admin may not invite an owner (403), a manager named for the invitee must be a person on the org
+ * chart (422 with the org rules' code: `unknown_principal`, `agent_manages_person`), a member's email (read just
+ * before) is a 409 `already_member`, and an email with a pending invitation a 409 `invitation_pending` (overdue ones are
+ * stored as expired first, so they do not count).
  * Then the invitation (pending, expiring in 14 days) with its audit rows and the outbox `invite` call. Every
  * invitation change of a company runs under its lock, so the one-pending-per-email index is never what refuses.
  */
 export async function createInvitation(
-  db: DbHandle,
+  deps: { readonly db: DbHandle; readonly chart: MemberChart },
   repo: MembersRepo,
   t: TenantDb,
   call: NewInvitation,
-): Promise<InvitationResult> {
+): Promise<InvitationResult | ManagerRefusal> {
   const email = normalizeEmail(call.email);
-  const members = await memberEmails(db, repo, t);
+  const members = await memberEmails(deps.db, repo, t);
   return t.transaction(async (tx) => {
     const actor = await repo.lockedActor(tx, call.actorId);
     if (actor?.status !== 'active') return NOT_ACTIVE;
-    const refusal = inviteRefusal(actor.role, call.role);
+    const refusal =
+      inviteRefusal(actor.role, call.role) ??
+      (await managerRefusal(deps.chart, tx, call.reportsToPrincipalId));
     if (refusal) return refusal;
     if (members.has(email)) return ALREADY_MEMBER;
     await expireOverdue(repo, tx, call.now);
@@ -116,6 +141,7 @@ export async function createInvitation(
       role: call.role,
       expiresAt: invitationExpiry(call.now),
       invitedByPrincipalId: actor.principalId,
+      reportsToPrincipalId: call.reportsToPrincipalId ?? null,
     });
     await repo.audit(tx, {
       ...byUser(actor.principalId, call.requestId),

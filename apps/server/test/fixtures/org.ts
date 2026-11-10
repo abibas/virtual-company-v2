@@ -24,6 +24,7 @@ import {
 import { rawDb } from '@mwc/db/system';
 import type { CredentialKind, MembershipRole, MembershipStatus, ProfileProvider } from '@mwc/shared/enums';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
+import { validateChart } from '@mwc/shared/org-chart';
 import { captureLogger, getJson, seedAgent, testConfig } from '@mwc/testkit';
 import { and, asc, eq } from 'drizzle-orm';
 import type { Logger } from 'pino';
@@ -33,7 +34,6 @@ import { credentialSecrets, type StoreCredentialInput } from '../../src/modules/
 import type { SubscriptionView } from '../../src/modules/credentials/schemas.ts';
 import { SELF_RECONCILE_INTERVAL_MS } from '../../src/modules/identity/service.ts';
 import type { MemberView } from '../../src/modules/members/schemas.ts';
-import { validateChart } from '../../src/modules/org/rules.ts';
 import type { AgentDetailView, OrgChartView } from '../../src/modules/org/schemas.ts';
 import { memberChart } from '../../src/modules/org/service/lifecycle.ts';
 import type { Keyring } from '../../src/platform/secrets/keyring.ts';
@@ -160,16 +160,18 @@ export interface Joiner {
 }
 
 /**
- * `by` invites a new email as `role` through the API and the outbox sends it; then the invitee signs up and accepts at
- * the fake, which sends the events of both.
+ * `by` invites a new email as `role` (to report to `reportsTo`, when given) through the API and the outbox sends it;
+ * then the invitee signs up and accepts at the fake, which sends the events of both.
  */
 export async function acceptedFrom(
   w: AuthWorld,
   company: MembersCompany,
   by: Person,
   role: 'owner' | 'admin' | 'member' = 'member',
+  reportsTo?: string,
 ): Promise<Joiner> {
-  const sent = await invite(w, company, `${newSubject('joiner')}@joiners.test`, role, by);
+  const email = `${newSubject('joiner')}@joiners.test`;
+  const sent = await invite(w, company, email, role, by, { reportsToPrincipalId: reportsTo });
   await runOutbox(w, company.companyId);
   w.fake.drainEvents();
   const person = signUp(w, sent.email);

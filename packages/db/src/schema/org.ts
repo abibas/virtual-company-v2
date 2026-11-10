@@ -102,7 +102,7 @@ export const agents = pgTable(
  * A principal's place on the company's chart, at most one per principal (person or agent): whom it reports to (null
  * at the root) and its title there. SQL holds only what one row shows: both principals belong to the company, and
  * nobody reports to themselves. The rules across rows (no cycles, an agent is never a root, an agent's chain reaches
- * a person, an agent never manages a person) are the org rules' (`apps/server/src/modules/org/rules.ts`, S2.2),
+ * a person, an agent never manages a person) are the org rules' (`@mwc/shared/org-chart`, S2.2; shared since S2.8),
  * enforced by the org service (S2.3) when a position changes.
  */
 export const orgPositions = pgTable(

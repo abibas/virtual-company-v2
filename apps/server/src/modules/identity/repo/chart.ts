@@ -25,6 +25,17 @@ export interface MemberChart {
    * their inviter, which `createApp` composes in. Optional: the stores tested without the app have none.
    */
   noticeChange?(t: TenantDb, change: MembershipChange, by: ChartActor): Promise<void>;
+  /**
+   * Why a newcomer (a person) may not report to `principalId` (an invitation's manager, S2.8), with the org rules' code
+   * and sentence, or undefined when they may: only a person on the chart manages a person.
+   */
+  managerRefusal(t: TenantDb, principalId: string): Promise<ChartRefusal | undefined>;
+}
+
+/** A refusal of the org rules, with their code and a sentence a UI can show. */
+export interface ChartRefusal {
+  readonly code: string;
+  readonly message: string;
 }
 
 /** A membership before and after a change the identity store wrote. */

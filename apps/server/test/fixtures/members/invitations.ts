@@ -26,8 +26,9 @@ export async function invite(
   email: string,
   role: MembershipRole = 'member',
   by: Person = company.owner,
+  extra: { readonly reportsToPrincipalId?: string | null | undefined } = {},
 ): Promise<InvitationView> {
-  const res = await as(w, by)('POST', invitationsPath(company), { email, role });
+  const res = await as(w, by)('POST', invitationsPath(company), { email, role, ...extra });
   if (res.status !== 201)
     throw new Error(`POST invitations answered ${res.status}: ${JSON.stringify(res.body)}`);
   return res.body as InvitationView;

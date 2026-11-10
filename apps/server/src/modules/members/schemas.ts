@@ -66,6 +66,8 @@ export const InvitationSchema = z
     expiresAt: z.string().openapi({ format: 'date-time' }),
     sent: z.boolean(),
     invitedByPrincipalId: z.string().nullable(),
+    /** Whom the invitee reports to once they join; null for the usual place (under whoever invited them). */
+    reportsToPrincipalId: z.string().nullable(),
     acceptedByUserId: z.string().nullable(),
     createdAt: z.string().openapi({ format: 'date-time' }),
   })
@@ -75,9 +77,20 @@ export const InvitationListSchema = z
   .object({ invitations: z.array(InvitationSchema) })
   .openapi('InvitationList');
 
-/** Whom to invite and with which role; owners may invite with any role, admins with any but owner. */
+/**
+ * Whom to invite and with which role; owners may invite with any role, admins with any but owner. `reportsToPrincipalId`
+ * (S2.8): the person on the org chart the invitee will report to; left out or null, they report to whoever invited them.
+ */
 export const CreateInvitationSchema = z
-  .object({ email: z.email().max(320).openapi({ example: 'bob@example.com' }), role: MembershipRole })
+  .object({
+    email: z.email().max(320).openapi({ example: 'bob@example.com' }),
+    role: MembershipRole,
+    reportsToPrincipalId: z
+      .string()
+      .nullable()
+      .optional()
+      .openapi({ example: '019a4f0c-9d2f-7a3b-8c41-5e2f3a7b8c90' }),
+  })
   .openapi('CreateInvitation');
 
 export type MemberView = z.infer<typeof MemberSchema>;

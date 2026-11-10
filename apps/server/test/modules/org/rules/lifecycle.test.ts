@@ -7,7 +7,7 @@ import {
   joiningManager,
   leavingPlan,
 } from '../../../../src/modules/org/rules/lifecycle.ts';
-import { addedViolations, orgState } from '../../../../src/modules/org/rules/placement.ts';
+import { orgState } from '../../../../src/modules/org/rules/placement.ts';
 
 const at = (minute: number) => new Date(Date.UTC(2026, 10, 5, 10, minute));
 
@@ -59,20 +59,34 @@ describe('earliestOwnerBut', () => {
 });
 
 describe('joiningManager', () => {
+  const by = (invitedBy: string | null, reportsTo: string | null = null) => ({ invitedBy, reportsTo });
+
   it('is the inviter when they are a person on the chart', () => {
-    expect(joiningManager(company(), 'new', 'admin')).toBe('admin');
-    expect(joiningManager(company(), 'new', 'o2')).toBe('o2');
+    expect(joiningManager(company(), 'new', by('admin'))).toBe('admin');
+    expect(joiningManager(company(), 'new', by('o2'))).toBe('o2');
   });
 
   it('falls back on the earliest other owner for an inviter who left, an agent, oneself or nobody', () => {
-    expect(joiningManager(company(), 'new', 'gone')).toBe('o1');
-    expect(joiningManager(company(), 'new', 'a')).toBe('o1');
-    expect(joiningManager(company(), 'o1', 'o1')).toBe('o2');
-    expect(joiningManager(company(), 'new', null)).toBe('o1');
+    expect(joiningManager(company(), 'new', by('gone'))).toBe('o1');
+    expect(joiningManager(company(), 'new', by('a'))).toBe('o1');
+    expect(joiningManager(company(), 'o1', by('o1'))).toBe('o2');
+    expect(joiningManager(company(), 'new', by(null))).toBe('o1');
+    expect(joiningManager(company(), 'new', undefined)).toBe('o1');
+  });
+
+  it("is the invitation's manager when that is still a person on the chart, ahead of the inviter", () => {
+    expect(joiningManager(company(), 'new', by('o2', 'm'))).toBe('m');
+    expect(joiningManager(company(), 'new', by(null, 'admin'))).toBe('admin');
+  });
+
+  it("falls back on the inviter's rule when the invitation's manager left, is an agent or is the newcomer", () => {
+    expect(joiningManager(company(), 'new', by('admin', 'gone'))).toBe('admin');
+    expect(joiningManager(company(), 'new', by('o2', 'a'))).toBe('o2');
+    expect(joiningManager(company(), 'm', by(null, 'm'))).toBe('o1');
   });
 
   it('is the top when nobody else is there to report to (an owner added with no inviter)', () => {
-    expect(joiningManager(orgState([], [member('first', 'owner', 0)], []), 'first', null)).toBeNull();
+    expect(joiningManager(orgState([], [member('first', 'owner', 0)], []), 'first', by(null))).toBeNull();
   });
 });
 
@@ -154,14 +168,5 @@ describe('leavingPlan', () => {
 
   it('moves nobody for a person with no position', () => {
     expect(leavingPlan(company(), 'nobody')).toEqual({ moves: [], violations: [] });
-  });
-});
-
-describe('addedViolations', () => {
-  it('lists only the flaws the second chart adds, in its order', () => {
-    const before = [{ principalId: 'a', kind: 'agent', reportsTo: null }] as const;
-    const after = [...before, { principalId: 'b', kind: 'agent', reportsTo: null }] as const;
-    expect(addedViolations(before, after)).toMatchObject([{ code: 'agent_root', principalId: 'b' }]);
-    expect(addedViolations(after, before)).toEqual([]);
   });
 });

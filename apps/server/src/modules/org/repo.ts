@@ -50,11 +50,17 @@ async function getPosition(t: TenantDb, principalId: string): Promise<OrgPositio
   return row;
 }
 
-/** Who sent this invitation of the company (their principal); null when nobody did or there is no such invitation. */
-async function inviterOf(t: TenantDb, invitationId: string): Promise<string | null> {
-  const by = { invitedBy: invitations.invitedByPrincipalId };
-  const [row] = await t.selectFields(invitations, by, eq(invitations.id, invitationId));
-  return row?.invitedBy ?? null;
+/**
+ * Who sent this invitation of the company and whom it says the invitee reports to (principals, null for none);
+ * undefined when there is no such invitation.
+ */
+async function invitationOf(
+  t: TenantDb,
+  invitationId: string,
+): Promise<{ readonly invitedBy: string | null; readonly reportsTo: string | null } | undefined> {
+  const fields = { invitedBy: invitations.invitedByPrincipalId, reportsTo: invitations.reportsToPrincipalId };
+  const [row] = await t.selectFields(invitations, fields, eq(invitations.id, invitationId));
+  return row;
 }
 
 /** The slugs every agent of the company holds, archived ones too (a slug stays taken). */
@@ -107,7 +113,7 @@ async function removePosition(t: TenantDb, principalId: string): Promise<OrgPosi
 
 /**
  * The org module's data access, through the company's tenant only: the agents, the positions, the active
- * memberships (who of the people is on the chart) and who invited a person, the company row's lock that serializes
+ * memberships (who of the people is on the chart) and who invited a person and under whom, the company row's lock that serializes
  * every change of the chart, and the audit rows; and the access profiles the agents and defaults point at
  * (`repo/profiles.ts`, S3.4).
  */
@@ -120,7 +126,7 @@ export function orgRepo() {
     listAgents,
     getAgent,
     getPosition,
-    inviterOf,
+    invitationOf,
     takenSlugs,
     insertAgent,
     updateAgent,

@@ -1,11 +1,10 @@
 import type { Agent, Membership, OrgPosition, TenantDb } from '@mwc/db';
+import { buildTree, type ChartNode, validateChart } from '@mwc/shared/org-chart';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { profilesOf, type UserProfile } from '../../identity/service.ts';
 import { type PlacementSummary, placementsOf } from '../../machines/service/placement.ts';
 import type { OrgRepo } from '../repo.ts';
-import type { ChartNode } from '../rules/chart.ts';
 import type { OrgState } from '../rules/placement.ts';
-import { buildTree, validateChart } from '../rules.ts';
 import type { ChartNodeView, OrgChartView } from '../schemas.ts';
 import { agentIconHashes, iconOf } from './icons.ts';
 import { type ProfileRef, profileExtras, profileRefs } from './profiles.ts';
@@ -39,18 +38,25 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
     return {
       ...base,
       kind: 'person',
-      person: { userId: member.userId, displayName, email, imageUrl, role: member.role },
+      person: {
+        userId: member.userId,
+        membershipId: member.id,
+        displayName,
+        email,
+        imageUrl,
+        role: member.role,
+      },
     };
   }
   const agent = org.agents.get(node.principalId) as Agent;
-  const { id: agentId, name, slug, roleTitle, status, face } = agent;
+  const { id: agentId, name, slug, roleTitle, status, harness, face } = agent;
   const { profile, runsWith } = profileExtras(shown.profiles, agent.profileId);
   const placement = shown.placements.get(agentId) ?? null;
   const icon = iconOf(agent, shown.icons.get(agentId));
   return {
     ...base,
     kind: 'agent',
-    agent: { agentId, name, slug, roleTitle, status, face, icon, profile, runsWith, placement },
+    agent: { agentId, name, slug, roleTitle, status, harness, face, icon, profile, runsWith, placement },
   };
 }
 

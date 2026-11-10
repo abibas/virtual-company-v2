@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 32. Migrations: 21, the last is `0020_notifications`.
+Tables: 32. Migrations: 22, the last is `0021_invitation_manager`.
 
 ```mermaid
 erDiagram
@@ -251,6 +251,7 @@ erDiagram
     text external_invitation_id UK "nullable"
     timestamptz expires_at "not null"
     uuid invited_by_principal_id FK "nullable"
+    uuid reports_to_principal_id FK "nullable"
     uuid accepted_by_user_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -445,6 +446,7 @@ erDiagram
   invitations }o--|| companies : "company_id"
   invitations }o--o| users : "accepted_by_user_id"
   invitations }o--o| principals : "company_id, invited_by_principal_id"
+  invitations }o--o| principals : "company_id, reports_to_principal_id"
   machine_logos }o--|| companies : "company_id"
   machine_logos |o--|| machines : "company_id, machine_id"
   machine_logos }o--o| principals : "company_id, updated_by_principal_id"
@@ -1027,6 +1029,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `external_invitation_id` | `text` | yes |  | UK |  |
 | `expires_at` | `timestamp with time zone` | no |  |  |  |
 | `invited_by_principal_id` | `uuid` | yes |  | FK |  |
+| `reports_to_principal_id` | `uuid` | yes |  | FK |  |
 | `accepted_by_user_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1036,6 +1039,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `company_id` → `companies` (`id`), on delete no action (`invitations_company_id_companies_id_fk`)
   - `accepted_by_user_id` → `users` (`id`), on delete no action (`invitations_accepted_by_user_id_users_id_fk`)
   - (`company_id`, `invited_by_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`invitations_invited_by_principal_fk`)
+  - (`company_id`, `reports_to_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`invitations_reports_to_principal_fk`)
 - **Unique:**
   - `invitations_external_invitation_id_unique` (`external_invitation_id`)
   - `invitations_company_id_id_unique` (`company_id`, `id`)

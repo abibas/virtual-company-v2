@@ -65,6 +65,7 @@ describe('mwc org tree', () => {
       kind: 'person',
       person: {
         userId: expect.any(String),
+        membershipId: expect.any(String),
         displayName: 'Olga',
         email: 'olga@acme.test',
         imageUrl: null,

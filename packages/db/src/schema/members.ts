@@ -25,6 +25,11 @@ export const invitations = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     /** Who sent it; null for invitations nobody here sent (provider or directory imports). */
     invitedByPrincipalId: uuid('invited_by_principal_id'),
+    /**
+     * Whom the invitee reports to once they join (S2.8, chosen on the org chart); null for the inviter's rule. Checked
+     * to be a person on the chart when the invitation is made, and again when the invitee is placed.
+     */
+    reportsToPrincipalId: uuid('reports_to_principal_id'),
     acceptedByUserId: uuid('accepted_by_user_id').references(() => users.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -32,6 +37,7 @@ export const invitations = pgTable(
   (t) => [
     tenantKey('invitations', t),
     tenantForeignKey('invitations_invited_by_principal_fk', t.companyId, t.invitedByPrincipalId, principals),
+    tenantForeignKey('invitations_reports_to_principal_fk', t.companyId, t.reportsToPrincipalId, principals),
     check('invitations_email_lower_check', sql`${t.emailNormalized} = lower(${t.emailNormalized})`),
     check('invitations_role_check', oneOf(t.role, MembershipRole.options)),
     check('invitations_status_check', oneOf(t.status, InvitationStatus.options)),

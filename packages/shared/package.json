@@ -20,6 +20,7 @@
     "./machines": "./src/machines.ts",
     "./models": "./src/models.ts",
     "./org": "./src/org.ts",
+    "./org-chart": "./src/org-chart.ts",
     "./ports": "./src/ports.ts",
     "./resume": "./src/resume.ts",
     "./roles": "./src/roles.ts",

@@ -1,10 +1,11 @@
 import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
+import { newId } from '@mwc/shared/ids';
+import { type ChartMove, reparentOnRemoval } from '@mwc/shared/org-chart';
 import type { Logger } from 'pino';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { noticeChartMove } from '../../notifications/service.ts';
 import { type OrgRepo, orgRepo } from '../repo.ts';
 import type { StatusMove } from '../rules/agents.ts';
-import type { ChartMove } from '../rules/chart.ts';
 import { joiningManager, leavingPlan } from '../rules/lifecycle.ts';
 import {
   archiveMoves,
@@ -13,7 +14,6 @@ import {
   placeRefusal,
   type Refusal,
 } from '../rules/placement.ts';
-import { reparentOnRemoval } from '../rules.ts';
 import { type AuditBy, auditPosition, auditPositionBy, byCaller, type Caller } from './audit.ts';
 import { clearProfilesOf } from './profiles.ts';
 import { loadOrg } from './read.ts';
@@ -97,9 +97,9 @@ export async function moveForStatus(
 }
 
 /**
- * A person whose membership became active gets a position under whoever invited them, else under the company's
- * earliest active owner, else at the top (`joiningManager`), with its `create` audit row. A person with a position
- * keeps it as it is, so placing twice changes nothing.
+ * A person whose membership became active gets a position under the manager their invitation names (S2.8), else under
+ * whoever invited them, else under the company's earliest active owner, else at the top (`joiningManager`), with its
+ * `create` audit row. A person with a position keeps it as it is, so placing twice changes nothing.
  */
 async function placeMember(
   repo: OrgRepo,
@@ -109,8 +109,9 @@ async function placeMember(
 ): Promise<void> {
   if ((await repo.getPosition(t, member.principalId)) !== undefined) return;
   const org = await loadOrg(repo, t);
-  const inviter = member.invitationId === null ? null : await repo.inviterOf(t, member.invitationId);
-  const reportsToPrincipalId = joiningManager(org, member.principalId, inviter);
+  const invitation =
+    member.invitationId === null ? undefined : await repo.invitationOf(t, member.invitationId);
+  const reportsToPrincipalId = joiningManager(org, member.principalId, invitation);
   const position = await repo.placePosition(t, { principalId: member.principalId, reportsToPrincipalId });
   await auditPositionBy(repo, t, by, { principalId: member.principalId, action: 'create', after: position });
 }
@@ -136,10 +137,22 @@ async function unplaceMember(repo: OrgRepo, logger: Logger, t: TenantDb, princip
 }
 
 /**
+ * Why a newcomer may not report to `principalId` (an invitation's manager, S2.8): the org rules' refusal of a person
+ * placed there (`unknown_principal` off the chart, `agent_manages_person` under an agent), or undefined. Read in the
+ * caller's transaction, under the company row's lock it holds.
+ */
+async function managerRefusal(repo: OrgRepo, t: TenantDb, principalId: string) {
+  const org = await loadOrg(repo, t);
+  const refusal = placeRefusal(org.chart, { principalId: newId(), kind: 'person', reportsTo: principalId });
+  return refusal && { code: refusal.code, message: refusal.message };
+}
+
+/**
  * The org chart's side of a membership's start and end, the identity module's `MemberChart` port: `placeMember` and
  * `unplaceMember`, which every path calls in the membership's own transaction under the company row's lock (the
- * members module's removal, and the identity store for webhook events, the reconciles and Sync now). `createApp`
- * and `moduleJobs` pass it to both modules, so neither imports this one.
+ * members module's removal, and the identity store for webhook events, the reconciles and Sync now), and
+ * `managerRefusal`, which an invitation with a manager asks in its own (S2.8). `createApp` and `moduleJobs` pass it to
+ * both modules, so neither imports this one.
  */
 export function memberChart(deps: Pick<ServerDeps, 'logger'>) {
   const repo = orgRepo();
@@ -148,5 +161,6 @@ export function memberChart(deps: Pick<ServerDeps, 'logger'>) {
       placeMember(repo, t, member, by),
     unplaceMember: (t: TenantDb, principalId: string, by: AuditBy) =>
       unplaceMember(repo, deps.logger, t, principalId, by),
+    managerRefusal: (t: TenantDb, principalId: string) => managerRefusal(repo, t, principalId),
   };
 }

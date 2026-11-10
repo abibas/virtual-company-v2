@@ -17,6 +17,7 @@ import {
   outboxRows,
 } from '../../../fixtures/members/invitations.ts';
 import { addMember, as, membersCompany } from '../../../fixtures/members/members.ts';
+import { testChart } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
 let w: AuthWorld;
@@ -89,7 +90,7 @@ describe('creating an invitation under the company lock', () => {
       .set({ status: 'removed' })
       .where(eq(memberships.id, admin.membershipId));
     const t = await tenant(w.t.db, company.companyId);
-    const result = await createInvitation(w.t.db, membersRepo(), t, {
+    const result = await createInvitation({ db: w.t.db, chart: testChart() }, membersRepo(), t, {
       actorId: admin.membershipId,
       email: 'nobody@x.test',
       role: 'member',
