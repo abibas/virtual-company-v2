@@ -90,7 +90,7 @@ export function MachineHeader({
   return (
     <div className="flex flex-col gap-2">
       <MachineIdentity
-        stats={facts}
+        stats={{ ...facts, stopped: power?.container?.status === 'stopped' }}
         now={now}
         mark={admin ? <EditableMachineLogo mark={mark} onChanged={onChanged} /> : <MachineLogo mark={mark} />}
         name={

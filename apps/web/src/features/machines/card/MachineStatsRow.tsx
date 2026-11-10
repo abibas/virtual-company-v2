@@ -16,7 +16,9 @@ export function MachineStatus({
   now,
   agents,
 }: {
-  readonly stats: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'>;
+  readonly stats: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'> & {
+    readonly stopped?: boolean | undefined;
+  };
   readonly now: number;
   readonly agents?: number | undefined;
 }) {
@@ -45,6 +47,8 @@ export type IdentityFacts = Pick<
 > & {
   readonly overloaded?: { readonly badge: boolean } | undefined;
   readonly agentCount?: number | undefined;
+  /** A container Docker reports stopped: its status says Stopped rather than Offline. */
+  readonly stopped?: boolean | undefined;
 };
 
 /**

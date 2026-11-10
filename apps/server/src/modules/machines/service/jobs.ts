@@ -4,12 +4,13 @@ import type { RunnerUpdatePath } from '../schemas/update.ts';
 
 /**
  * The machines' maintenance lock (docs/machines.md, "One job at a time"), in memory (one server process): at most one
- * job per machine, an install of a CLI or an update of its runner. A job is taken before it starts and released when it
- * ends: an install with its result, failure or timeout (the runner going away fails it); a runner update that failed or
- * was refused at once, and one that was carried out once its runner reconnects on the new build, or `RESTART_WAIT_MS`
- * after it answered. A container's rebuild runs after its answer: it holds the machine while it builds (its last output
- * line is the job's `progress`), and one that fails is remembered (`failure`) until the next job on the machine or
- * `FAILURE_KEPT_MS`, so the card can say why. A server restart forgets the lock and the failures.
+ * job per machine, an install of a CLI, an update of its runner, or a container's start or stop. A job is taken before
+ * it starts and released when it ends: an install with its result, failure or timeout (the runner going away fails it);
+ * a container's start or stop when Docker is done; a runner update that failed or was refused at once, and one that was
+ * carried out once its runner reconnects on the new build, or `RESTART_WAIT_MS` after it answered. A container's
+ * rebuild runs after its answer: it holds the machine while it builds (its last output line is the job's `progress`),
+ * and one that fails is remembered (`failure`) until the next job on the machine or `FAILURE_KEPT_MS`, so the card can
+ * say why. A server restart forgets the lock and the failures.
  */
 
 /** How long a runner update that was carried out holds the machine while its runner restarts and reconnects. */
@@ -24,7 +25,8 @@ const PROGRESS_MAX = 300;
 /** A job to take: what it does (its start time is the lock's). */
 export type NewJob =
   | { readonly kind: 'tool_install'; readonly tool: InstallableTool; readonly version: string }
-  | { readonly kind: 'runner_update'; readonly path: RunnerUpdatePath };
+  | { readonly kind: 'runner_update'; readonly path: RunnerUpdatePath }
+  | { readonly kind: 'container_power'; readonly action: 'start' | 'stop' };
 
 /** A job taken: its holder changes its path, waits for the restart, or releases it (each only while it holds it). */
 export interface JobLease {

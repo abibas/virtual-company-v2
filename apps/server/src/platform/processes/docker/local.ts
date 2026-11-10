@@ -8,7 +8,8 @@ import { type DockerResult, type DockerSpawn, type RunDeps, runDocker } from './
 /**
  * This computer's Docker CLI for the server (MWC_LOCAL_DOCKER, docs/machines.md "Updating a runner"): when the API runs
  * on the computer that runs the container runners (Ihor's Mac in development), it rebuilds a container runner's image
- * and recreates it itself when someone clicks Update container, instead of showing the command. `docker` is found
+ * and recreates it itself when someone clicks Update container, and starts or stops its container on Start and Stop
+ * ("Starting and stopping a container"), instead of showing the command. `docker` is found
  * without starting a process (the Mac bills each one); nothing runs until the machines module asks. Each command gets
  * a short environment: the variables Docker itself reads, never the server's own settings or secrets.
  */
@@ -115,7 +116,7 @@ export function localDockerFromConfig(
   host: DockerHost = nodeDockerHost(),
 ): LocalDocker | undefined {
   const mode = config.MWC_LOCAL_DOCKER;
-  const without = 'container runners are updated with the command the card shows';
+  const without = 'container runners are updated, started and stopped with the commands the card shows';
   if (mode === 'off' || (mode === 'auto' && config.NODE_ENV !== 'development')) {
     logger.info({ localDocker: mode }, `docker: not used for container runners; ${without}`);
     return undefined;
@@ -131,7 +132,10 @@ export function localDockerFromConfig(
     logger.info({ localDocker: mode }, `docker: not found ${where}; ${without}`);
     return undefined;
   }
-  logger.info({ localDocker: mode, docker }, 'docker: this server rebuilds container runners itself');
+  logger.info(
+    { localDocker: mode, docker },
+    'docker: this server rebuilds, starts and stops container runners itself',
+  );
   return {
     path: docker,
     run: (args, options) =>

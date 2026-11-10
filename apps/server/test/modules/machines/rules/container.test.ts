@@ -28,6 +28,9 @@ describe("a container runner from docker inspect's answer", () => {
         MWC_RUNNER_SLOTS: '2',
         MWC_SERVER_URL: 'http://host.docker.internal:9950',
       },
+      state: 'running',
+      health: 'healthy',
+      stopTimeout: 90,
     });
     expect(JSON.stringify(container)).not.toContain('mwc_et_');
   });

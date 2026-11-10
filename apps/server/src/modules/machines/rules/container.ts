@@ -34,15 +34,23 @@ export interface RunnerContainer {
   /** Docker's memory limit in bytes (0: none). */
   readonly memory: number;
   readonly settings: Readonly<Partial<Record<KeptSetting, string>>>;
+  /** Docker's state of it (`running`, `exited`, `created`, `restarting`, `paused`, `removing`, `dead`). */
+  readonly state: string;
+  /** Its health check's state (`starting`, `healthy`, `unhealthy`); null without one or while it is not running. */
+  readonly health: string | null;
+  /** How long `docker stop` waits before SIGKILL (compose's `stop_grace_period`), in seconds; null when unset. */
+  readonly stopTimeout: number | null;
 }
 
 const Inspected = z
   .array(
     z.object({
       Id: z.string().regex(/^[0-9a-f]{12,64}$/),
+      State: z.object({ Status: z.string(), Health: z.object({ Status: z.string() }).nullish() }).nullish(),
       Config: z.object({
         Labels: z.record(z.string(), z.string()).nullish(),
         Env: z.array(z.string()).nullish(),
+        StopTimeout: z.number().int().nullish(),
       }),
       HostConfig: z.object({ NanoCpus: z.number().nullish(), Memory: z.number().nullish() }),
     }),
@@ -93,6 +101,9 @@ export function runnerContainerOf(stdout: string, composeFile: string | null): R
     nanoCpus: first.HostConfig.NanoCpus ?? 0,
     memory: first.HostConfig.Memory ?? 0,
     settings: keptSettings(first.Config.Env ?? []),
+    state: first.State?.Status ?? 'unknown',
+    health: first.State?.Health?.Status ?? null,
+    stopTimeout: first.Config.StopTimeout ?? null,
   };
 }
 

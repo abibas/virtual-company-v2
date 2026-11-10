@@ -9,9 +9,9 @@ import { RunnerUpdatePath } from './update.ts';
 
 export const MachineJobSchema = z
   .object({
-    kind: z.enum(['tool_install', 'runner_update']).openapi({
+    kind: z.enum(['tool_install', 'runner_update', 'container_power']).openapi({
       description:
-        '`tool_install`: Claude Code or Codex is being installed; `runner_update`: the runner is updating',
+        "`tool_install`: Claude Code or Codex is being installed; `runner_update`: the runner is updating; `container_power`: this server is starting or stopping the runner's container",
     }),
     tool: z.enum(InstallableTool.options).optional().openapi({ description: 'The CLI being installed' }),
     version: z
@@ -19,6 +19,10 @@ export const MachineJobSchema = z
       .optional()
       .openapi({ example: '0.167.0', description: 'The version being installed' }),
     path: RunnerUpdatePath.optional().openapi({ description: 'How the runner is being updated' }),
+    action: z
+      .enum(['start', 'stop'])
+      .optional()
+      .openapi({ description: '`container_power`: whether the container is being started or stopped' }),
     progress: z.string().optional().openapi({
       example: '#12 [bundle 3/3] RUN pnpm install --frozen-lockfile',
       description: "A container's rebuild: the last line of its output so far",
@@ -27,7 +31,7 @@ export const MachineJobSchema = z
   })
   .openapi('MachineJob', {
     description:
-      "The maintenance job holding the machine's lock: another install or a runner update waits for it",
+      "The maintenance job holding the machine's lock: another install, a runner update or a container's start or stop waits for it",
   });
 export type MachineJobView = z.infer<typeof MachineJobSchema>;
 

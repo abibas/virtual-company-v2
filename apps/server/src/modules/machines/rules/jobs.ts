@@ -5,10 +5,10 @@ import type { RunnerUpdatePath } from '../schemas/update.ts';
 
 /**
  * One maintenance job at a time per machine (docs/machines.md, "One job at a time"; pure): the jobs, how a refusal
- * names the one running, and how a runner update refused for live work names it.
+ * names the one running, and how a runner update (or a container's stop) refused for live work names it.
  */
 
-/** A job holding a machine's lock: an install of a CLI, or an update of its runner. */
+/** A job holding a machine's lock: an install of a CLI, an update of its runner, or a container's start or stop. */
 export type MachineJob =
   | {
       readonly kind: 'tool_install';
@@ -22,6 +22,12 @@ export type MachineJob =
       readonly startedAt: Date;
       /** A rebuild's last output line so far. */
       readonly progress?: string;
+    }
+  | {
+      /** A container runner's container being started or stopped by this server (Start / Stop on its card). */
+      readonly kind: 'container_power';
+      readonly action: 'start' | 'stop';
+      readonly startedAt: Date;
     };
 
 /** A runner update that failed after its answer (a container's rebuild): why, the command to run instead, when. */
@@ -40,11 +46,13 @@ export const TOOL_NAMES: Readonly<Record<InstallableTool, string>> = {
 
 /** What the running job asks of whoever comes next. */
 export function jobText(job: MachineJob): string {
-  return job.kind === 'tool_install'
-    ? `${TOOL_NAMES[job.tool]} ${job.version} is being installed: wait for it to finish`
-    : job.path === 'docker_rebuild'
-      ? 'The container is being rebuilt: wait for its runner to restart'
-      : 'The runner is updating: wait for it to restart';
+  if (job.kind === 'tool_install')
+    return `${TOOL_NAMES[job.tool]} ${job.version} is being installed: wait for it to finish`;
+  if (job.kind === 'container_power')
+    return `The container is ${job.action === 'start' ? 'starting' : 'stopping'}: wait for it to finish`;
+  return job.path === 'docker_rebuild'
+    ? 'The container is being rebuilt: wait for its runner to restart'
+    : 'The runner is updating: wait for it to restart';
 }
 
 /** Another job runs on the machine. */
@@ -63,21 +71,24 @@ export function liveText(live: MachineLiveView): string | undefined {
   return `${parts.join(' and ')} ${many ? 'are' : 'is'} running on it`;
 }
 
-/** A runner update refused while the machine has live work, which its restart would end; undefined without any. */
-export function liveWork(live: MachineLiveView): Refusal<409> | undefined {
+/**
+ * A runner update (or a container's stop: `what`) refused while the machine has live work, which the restart or the stop
+ * would end; undefined without any.
+ */
+export function liveWork(live: MachineLiveView, what = 'update the runner'): Refusal<409> | undefined {
   const words = liveText(live);
   if (words === undefined) return undefined;
   const one = live.turns + live.terminals === 1;
-  return refuse(409, 'machine_busy', `${words}: update the runner once ${one ? 'it ends' : 'they end'}`);
+  return refuse(409, 'machine_busy', `${words}: ${what} once ${one ? 'it ends' : 'they end'}`);
 }
 
 /** A job as the API shows it. */
 export function jobView(job: MachineJob | undefined): MachineJobView | null {
   if (job === undefined) return null;
   const startedAt = job.startedAt.toISOString();
-  return job.kind === 'tool_install'
-    ? { kind: job.kind, tool: job.tool, version: job.version, startedAt }
-    : { kind: job.kind, path: job.path, startedAt, ...(job.progress ? { progress: job.progress } : {}) };
+  if (job.kind === 'tool_install') return { kind: job.kind, tool: job.tool, version: job.version, startedAt };
+  if (job.kind === 'container_power') return { kind: job.kind, action: job.action, startedAt };
+  return { kind: job.kind, path: job.path, startedAt, ...(job.progress ? { progress: job.progress } : {}) };
 }
 
 /** A failed update as the API shows it. */

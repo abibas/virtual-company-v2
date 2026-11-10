@@ -5,7 +5,8 @@ import { DevboxSize, MachinePowerPolicy, PowerStatus, TimeZone } from '@mwc/shar
 
 /**
  * The power API's shapes (`/api/companies/{companyId}/machines/{machineId}/power` and `/events`, S4.4b): a machine's
- * policy, the scheduler's state, its box as the controller last read it, its controller, and its power log.
+ * policy, the scheduler's state, its box as the controller last read it (a container runner: its container as Docker
+ * reports it), its controller, and its power log.
  */
 
 const dateTime = z.string().openapi({ format: 'date-time' });
@@ -67,6 +68,35 @@ export const PowerControllerSchema = z
     description: 'Who starts and stops this machine: this server itself, or a machine whose runner does',
   });
 
+export const ContainerPowerSchema = z
+  .object({
+    status: z.enum(PowerStatus.options).openapi({
+      description:
+        "Docker's state of its container: `starting` / `stopping` while this server starts or stops it; without Docker `running` while its runner is connected, else `unknown`; `missing` when no container of it is found",
+    }),
+    docker: z.boolean().openapi({
+      description:
+        'True when this server starts and stops it itself (MWC_LOCAL_DOCKER); else `commands` are run by hand',
+    }),
+    commands: z
+      .object({
+        start: z.string().openapi({
+          example:
+            'docker compose -p mwc-runner-docker-runner -f /srv/v2/deploy/compose.yml --profile runner start runner-local',
+        }),
+        stop: z.string(),
+        create: z.string().openapi({
+          description:
+            'Creates its container again in its compose project (its volumes keep its enrollment), at the default limits',
+        }),
+      })
+      .openapi({
+        description: 'What a person runs on the computer running Docker to start, stop or create it',
+      }),
+    error: z.string().nullable().openapi({ description: 'Why Docker could not tell its state just now' }),
+  })
+  .openapi('MachineContainerPower', { description: "A container runner's container, as Docker reports it" });
+
 /** What `GET .../power` and every power change answer. */
 export const MachinePowerSchema = z
   .object({
@@ -74,8 +104,10 @@ export const MachinePowerSchema = z
     state: PowerStateSchema,
     /** Devboxes only. */
     box: BoxSchema.nullable(),
+    /** Container runners only. */
+    container: ContainerPowerSchema.nullable(),
     controller: PowerControllerSchema.nullable(),
-    /** True for admins and owners: they may change the policy and start or stop the box. */
+    /** True for admins and owners: they may change the policy and start or stop the box or the container. */
     canControl: z.boolean(),
   })
   .openapi('MachinePower');
@@ -120,6 +152,32 @@ export const PowerFailedSchema = z
   })
   .openapi('MachinePowerFailed');
 
+/** `POST …/power/start` and `…/power/stop`'s optional body. */
+export const PowerActionBodySchema = z
+  .object({
+    force: z.boolean().optional().openapi({
+      description:
+        "A container's Stop even while chat turns or terminals run on the machine (they are cut off); never while another job runs",
+    }),
+  })
+  .openapi('MachinePowerRequest');
+
+/** A 409: the common error body, and for `power_unsupported` and `container_missing` the command to run instead. */
+export const PowerRefusalSchema = z
+  .object({
+    error: z.object({
+      code: z.string().openapi({ example: 'power_unsupported' }),
+      message: z.string(),
+      requestId: z.string(),
+      command: z.string().optional().openapi({
+        description:
+          "For a container's `power_unsupported` and `container_missing`: the command to run by hand",
+      }),
+    }),
+  })
+  .openapi('MachinePowerRefusal');
+
 export type MachinePowerView = z.infer<typeof MachinePowerSchema>;
+export type ContainerPowerView = z.infer<typeof ContainerPowerSchema>;
 export type PowerControllerView = z.infer<typeof PowerControllerSchema>;
 export type PowerEventView = z.infer<typeof PowerEventSchema>;

@@ -75,6 +75,7 @@ export type EnrollmentToken = InferResponseType<MachineRoutes['enrollment-tokens
 export type MachinePower = InferResponseType<OneMachineRoutes['power']['$get'], 200>;
 export type PowerPolicy = MachinePower['policy'];
 export type PowerBox = NonNullable<MachinePower['box']>;
+export type ContainerPower = NonNullable<MachinePower['container']>;
 export type PowerEvent = InferResponseType<OneMachineRoutes['events']['$get'], 200>['events'][number];
 /** The CLIs a machine's runner found (null while offline or from a runner older than the tools), and the pins. */
 export type MachineTools = NonNullable<Machine['runner']['tools']>;

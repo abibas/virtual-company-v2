@@ -37,5 +37,8 @@ describe('a start or a stop that found the box already there', () => {
       'Keep-on hours started (Mon–Fri 09:00–19:00 Europe/Kyiv): the box was already on',
     );
     expect(alreadyText('Stopped by hand', 'stop')).toBe('Stopped by hand: the box was already off');
+    expect(alreadyText('Started by hand', 'start', 'container')).toBe(
+      'Started by hand: the container was already on',
+    );
   });
 });

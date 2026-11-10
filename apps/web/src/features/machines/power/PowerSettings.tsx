@@ -116,7 +116,7 @@ function useSave(onSave: (policy: PowerPolicy) => Promise<void>) {
   return { busy, error, save: (policy: PowerPolicy) => void save(policy) };
 }
 
-/** Power settings: admins change and save them (PUT), others read them. */
+/** Power settings: admins change and save them (PUT), others read them; a container's say they do not power it. */
 export function PowerSettings({
   policy,
   kind,
@@ -140,6 +140,12 @@ export function PowerSettings({
   };
   return (
     <section aria-label="Power settings" className="flex flex-col gap-3">
+      {kind === 'container' && (
+        <p className="text-xs text-dim">
+          A container is started and stopped with its Power buttons: the keep-on hours and the time after a
+          chat do not start or stop it yet, and its runner has nothing to keep awake.
+        </p>
+      )}
       <KeepOnFields
         keepOn={draft.keepOn}
         disabled={edit.disabled}

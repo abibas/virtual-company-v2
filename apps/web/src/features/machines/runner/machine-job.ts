@@ -5,14 +5,15 @@ import type { RunnerUpdateState } from './RunnerUpdate.tsx';
 
 /**
  * One maintenance job at a time per machine (docs/machines.md, "One job at a time"; pure): the job the card shows at
- * the top of Software, and why Update runner, Install / Update and Check again wait meanwhile, and why Update runner
- * waits for the machine's chat turns and terminals.
+ * the top of Software (a container's start or stop too), and why Update runner, Install / Update and Check again wait
+ * meanwhile, and why Update runner waits for the machine's chat turns and terminals.
  */
 
 /** A job as the card knows it: the server's (`runner.job`) or one the card itself started. */
 export type CardJob =
   | { readonly kind: 'tool_install'; readonly tool: InstallableTool; readonly version: string }
-  | { readonly kind: 'runner_update' };
+  | { readonly kind: 'runner_update' }
+  | { readonly kind: 'container_power'; readonly action: 'start' | 'stop' };
 
 /** The job the card shows: its line (and a rebuild's latest output line), and why the other buttons wait. */
 export interface BusyJob {
@@ -36,6 +37,15 @@ export function cardJob(
   return undefined;
 }
 
+/** The server's job as the card knows it. */
+function serverJob(server: MachineJob): CardJob {
+  if (server.kind === 'tool_install' && server.tool && server.version)
+    return { kind: 'tool_install', tool: server.tool, version: server.version };
+  if (server.kind === 'container_power' && server.action)
+    return { kind: 'container_power', action: server.action };
+  return { kind: 'runner_update' };
+}
+
 /**
  * The job running on the machine (the server's first, else the card's own) as the card says it; undefined for none. A
  * container's runner update is its rebuild.
@@ -45,13 +55,15 @@ export function busyJob(
   own: CardJob | undefined,
   container = false,
 ): BusyJob | undefined {
-  const job: CardJob | undefined =
-    server == null
-      ? own
-      : server.kind === 'tool_install' && server.tool && server.version
-        ? { kind: 'tool_install', tool: server.tool, version: server.version }
-        : { kind: 'runner_update' };
+  const job = server == null ? own : serverJob(server);
   if (job === undefined) return undefined;
+  if (job.kind === 'container_power') {
+    const doing = job.action === 'start' ? 'starting' : 'stopping';
+    return {
+      label: `${doing === 'starting' ? 'Starting' : 'Stopping'} the container…`,
+      reason: `The container is ${doing}: wait for it to finish`,
+    };
+  }
   if (job.kind === 'runner_update' && (container || server?.path === 'docker_rebuild')) {
     return {
       label: 'Rebuilding the container with the new runner…',

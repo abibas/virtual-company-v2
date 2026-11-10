@@ -45,9 +45,13 @@ export function policyText(policy: MachinePowerPolicy): string {
 }
 
 /**
- * A start's or a stop's reason for the power log when it found the box already there and ran nothing (the driver
- * returned before the airia CLI): `Keep-on hours started (…): the box was already on`.
+ * A start's or a stop's reason for the power log when it found the box (or the container) already there and ran nothing
+ * (the driver returned before the airia CLI): `Keep-on hours started (…): the box was already on`.
  */
-export function alreadyText(reason: string, action: 'start' | 'stop'): string {
-  return `${reason}: the box was already ${action === 'start' ? 'on' : 'off'}`;
+export function alreadyText(
+  reason: string,
+  action: 'start' | 'stop',
+  thing: 'box' | 'container' = 'box',
+): string {
+  return `${reason}: the ${thing} was already ${action === 'start' ? 'on' : 'off'}`;
 }

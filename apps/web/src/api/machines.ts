@@ -110,7 +110,8 @@ export interface PowerControl {
   readonly events: Loaded<{ readonly events: readonly PowerEvent[] }>;
   /** Each change throws the server's refusal; the power and the log load again after it either way. */
   start(): Promise<void>;
-  stop(): Promise<void>;
+  /** `force`: a container's Stop while chat turns or terminals run on it (they end). */
+  stop(force?: boolean): Promise<void>;
   setPolicy(policy: PowerPolicy): Promise<void>;
   setTimezone(timezone: string): Promise<void>;
 }
@@ -139,7 +140,7 @@ export function usePowerControl(companyId: string, machineId: string): PowerCont
     power,
     events,
     start: () => then(calls.start(machineId)),
-    stop: () => then(calls.stop(machineId)),
+    stop: (force) => then(calls.stop(machineId, force)),
     setPolicy: (policy) => then(calls.setPolicy(machineId, policy)),
     setTimezone: (timezone) => then(calls.setTimezone(machineId, timezone)),
   };
@@ -162,8 +163,9 @@ export function machineCalls(api: Api, companyId: string) {
     remove: (machineId: string) => call(one.$delete(param(machineId))),
     setPolicy: (machineId: string, policy: PowerPolicy) =>
       call(one.power.$put({ ...param(machineId), json: policy })),
-    start: (machineId: string) => call(one.power.start.$post(param(machineId))),
-    stop: (machineId: string) => call(one.power.stop.$post(param(machineId))),
+    start: (machineId: string) => call(one.power.start.$post({ ...param(machineId), json: {} })),
+    stop: (machineId: string, force = false) =>
+      call(one.power.stop.$post({ ...param(machineId), json: force ? { force } : {} })),
     setTimezone: (machineId: string, timezone: string) =>
       call(one.power.timezone.$post({ ...param(machineId), json: { timezone } })),
     terminalTicket: (machineId: string) => call(one['terminal-tickets'].$post(param(machineId))),

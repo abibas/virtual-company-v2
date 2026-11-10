@@ -1,5 +1,6 @@
 import type { ServerDeps } from '../../platform/env.ts';
 import { newRouter } from '../../platform/http/router.ts';
+import { COMPOSE_FILE } from '../health/service.ts';
 import { runnerDownloadRoutes } from './routes/download.ts';
 import { enrollmentRoutes } from './routes/enrollment.ts';
 import { folderRoutes } from './routes/folders.ts';
@@ -12,6 +13,7 @@ import { terminalRoutes } from './routes/terminal.ts';
 import { toolRoutes } from './routes/tools.ts';
 import { runnerUpdateRoutes } from './routes/update.ts';
 import { machineJobs } from './service/jobs.ts';
+import { containerPower } from './service/power/container.ts';
 import { type PowerControl, tunnelsOnConnect } from './service/power/control.ts';
 import { holdOnConnect } from './service/power/hold.ts';
 import { powerService } from './service/power.ts';
@@ -30,8 +32,9 @@ import { machinesService } from './service.ts';
  * drives them (the hub's connect listeners, registered here once per app). The power control (`control`) says who
  * drives the devboxes; both ends of every tunnel are this server's own port. The latest Claude Code and Codex are
  * npm's (`registryFetch`), read once now and then every six hours, shared by the machines' views and the installs. The
- * machines' maintenance lock (`jobs`: one install or runner update at a time per machine) is shared by the installs, the
- * updates and the machines' views; a runner that connects ends the update waiting for it.
+ * machines' maintenance lock (`jobs`: one install, runner update or container start or stop at a time per machine) is
+ * shared by the installs, the updates, the containers' Start and Stop (`containers`, with this server's Docker CLI when
+ * it has one) and the machines' views; a runner that connects ends the update waiting for it.
  */
 export function machinesRoutes(
   deps: ServerDeps & {
@@ -51,6 +54,13 @@ export function machinesRoutes(
   const jobs = machineJobs(deps.clock);
   const linked = { ...deps, port: deps.config.MWC_PORT };
   const machines = machinesService({ ...linked, latest, machineJobs: jobs });
+  const containers = containerPower({
+    docker: deps.localDocker,
+    composeFile: deps.config.NODE_ENV === 'production' ? null : COMPOSE_FILE,
+    hub: deps.hub,
+    jobs,
+    logger: deps.logger,
+  });
   deps.hub.onConnect(holdOnConnect(deps));
   deps.hub.onConnect(tunnelsOnConnect(linked));
   deps.hub.onConnect((runner) => jobs.connected(runner.machineId));
@@ -59,7 +69,7 @@ export function machinesRoutes(
     .route('/', runnerDownloadRoutes(deps))
     .route('/', machineRoutes(deps, machines))
     .route('/', machineLogoRoutes(deps))
-    .route('/', powerRoutes(deps, powerService(linked)))
+    .route('/', powerRoutes(deps, powerService({ ...linked, containers })))
     .route('/', placementRoutes(deps))
     .route('/', runnerSocketRoutes(deps, deps.hub))
     .route('/', terminalRoutes(deps))

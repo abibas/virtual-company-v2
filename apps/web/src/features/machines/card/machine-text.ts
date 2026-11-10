@@ -37,9 +37,14 @@ export function agoText(iso: string, now: number): string {
   return `${Math.floor(minutes / 1440)} days ago`;
 }
 
-/** The status in words with its tone: "Running · up 8d 3h", "Asleep · last seen 5 min ago", "Offline". */
+/**
+ * The status in words with its tone: "Running · up 8d 3h", "Asleep · last seen 5 min ago", "Offline", and "Stopped" for
+ * a container Docker reports stopped (`stopped`), rather than one that is unreachable.
+ */
 export function statusText(
-  machine: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'>,
+  machine: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'> & {
+    readonly stopped?: boolean | undefined;
+  },
   now: number,
 ): { readonly words: string; readonly tone: Tone } {
   if (machine.status === 'draining') return { words: 'Draining', tone: 'input' };
@@ -47,7 +52,7 @@ export function statusText(
     const up = machine.upSince ? ` · up ${spanText(now - Date.parse(machine.upSince))}` : '';
     return { words: `Running${up}`, tone: 'done' };
   }
-  const down = machine.kind === 'laptop' ? 'Asleep' : 'Offline';
+  const down = machine.stopped ? 'Stopped' : machine.kind === 'laptop' ? 'Asleep' : 'Offline';
   const seen = machine.lastSeenAt ? ` · last seen ${agoText(machine.lastSeenAt, now)}` : ' · never connected';
   return { words: `${down}${seen}`, tone: 'pending' };
 }

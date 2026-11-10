@@ -76,7 +76,7 @@ describe('MWC_LOCAL_DOCKER', () => {
     const { logger, lines } = captureLogger();
     const docker = localDockerFromConfig(DEV, logger, host);
     expect(docker?.path).toBe('/usr/local/bin/docker');
-    expect(lines.at(-1)?.msg).toBe('docker: this server rebuilds container runners itself');
+    expect(lines.at(-1)?.msg).toBe('docker: this server rebuilds, starts and stops container runners itself');
     const heard: string[] = [];
     const ran = docker?.run(['ps'], { timeoutMs: 1000, env: { X: '1' }, onLine: (line) => heard.push(line) });
     fake.stdout.emit('data', 'abc\n');
@@ -101,9 +101,9 @@ describe('MWC_LOCAL_DOCKER', () => {
     expect(localDockerFromConfig({ ...DEV, MWC_LOCAL_DOCKER: 'off' }, logger, host)).toBeUndefined();
     expect(localDockerFromConfig(DEV, logger, computer([]).host)).toBeUndefined();
     expect(lines.map((line) => line.msg)).toEqual([
-      'docker: not used for container runners; container runners are updated with the command the card shows',
-      'docker: not used for container runners; container runners are updated with the command the card shows',
-      'docker: not used for container runners; container runners are updated with the command the card shows',
+      'docker: not used for container runners; container runners are updated, started and stopped with the commands the card shows',
+      'docker: not used for container runners; container runners are updated, started and stopped with the commands the card shows',
+      'docker: not used for container runners; container runners are updated, started and stopped with the commands the card shows',
       expect.stringMatching(/^docker: not found on the PATH or in \/usr\/local\/bin, /),
     ]);
   });

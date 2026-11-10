@@ -5,6 +5,7 @@ import type { Loaded } from '../../../api/use-load.ts';
 import { formatDateTime } from '../../../components/data/format.ts';
 import { LoadState } from '../../../components/data/LoadState.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
+import { ContainerPower } from '../power/ContainerPower.tsx';
 import { DevboxPower } from '../power/DevboxPower.tsx';
 import { PowerSettings } from '../power/PowerSettings.tsx';
 import { actorText } from '../power/power-text.ts';
@@ -59,7 +60,7 @@ function PowerLog({
 }
 
 /**
- * The card's two columns: the devbox's power controls and the machine's software (runner and CLIs) on the left, the power
+ * The card's two columns: the devbox's or the container's power controls and the machine's software (runner and CLIs) on the left, the power
  * settings on the right (the log is behind the actions' Log button).
  */
 function PowerParts({
@@ -79,6 +80,11 @@ function PowerParts({
         {devbox && power && (
           <Part title="Power">
             <DevboxPower power={power} control={control} />
+          </Part>
+        )}
+        {power?.container && (
+          <Part title="Power">
+            <ContainerPower power={power} control={control} live={machine.runner.live} />
           </Part>
         )}
         {software}

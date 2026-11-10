@@ -44,7 +44,8 @@ controller, below: in development the server itself). Everything v1 pulled over 
 | Reaching the server from the box | the power controller (the server in development, else This Mac's runner) | the box has no public address and its only ingress is SSH through Google IAP, so the controller holds one reverse tunnel per running box: `gcloud compute ssh <box> --tunnel-through-iap -- -N -R 127.0.0.1:<port>:127.0.0.1:<port>`, which makes the box's `127.0.0.1:<port>` the server's own port; the box's runner dials `ws://127.0.0.1:<port>/api/runner/ws` (since 2026-11-07, replacing the ngrok domain; the real domain after S8) |
 
 Machine kinds: `laptop` (This Mac: no remote power; shows "asleep · last seen" when heartbeats stop), `container`
-(Docker, always on while its host is), `vm` with provider `airia_devbox` (power through the controller). Defaults
+(Docker, on while its host is, until someone stops it: Start and Stop by hand on its card, "Starting and stopping a
+container" below), `vm` with provider `airia_devbox` (power through the controller). Defaults
 never start a machine: auto-start switches are off until Ihor turns them on (v1 rule: starting costs money).
 
 ### The server as the power controller (MWC_LOCAL_POWER)
@@ -150,6 +151,9 @@ later). Never both:
   `control/server.ts` this server, `control/runners.ts` the runner controllers), `service/power/tunnels.ts` (the wanted
   sets), `service/runner/hub/tunnels.ts` (the set last sent per connection and the reported states, the server's own too, in
   memory), `rules/tunnels.ts`.
+- A container's Start and Stop: `service/power/container.ts` (the lookup, the lock, `docker start` / `docker stop`),
+  `rules/container/power.ts` (pure: its status from Docker's state, the commands and the refusals); the web's
+  `features/machines/power/ContainerPower.tsx` and `container-power.ts`.
 - `apps/server/src/modules/machines/`: routes, service, repo, `rules/power.ts` (pure: keep-on window incl. overnight
   and TZ, hold-until, once-per-window auto-start where a manual Stop sticks, stop at the end only without live work),
   `rules/stats.ts` (overloaded = load1/cpus > 1.0 or CPU > 85 %; badge when overloaded now or > 50 % of 24 h; 5-min
@@ -542,6 +546,54 @@ With the server driving the airia CLI, the box's button reinstalls it over SSH (
 its build and updates itself over its link. The server hands out the bundle in `apps/runner/dist/` as it was last built
 (`pnpm --filter @mwc/runner build`), so build it after pulling a runner change, or the update installs the old one.
 
+## Starting and stopping a container
+
+Built 2026-11-10 (Ihor: "I do not have STOP button for a Container... at least command to be available"). A container
+runner's card has **Stop** while its container runs and **Start** while it does not, where a devbox's are: next to
+**Details** on the folded card, and in the open card's **Power** part with Docker's state of the container.
+
+- **The design: the same routes, not the power driver.** `POST …/power/start` and `…/power/stop` (admins and owners)
+  and `GET …/power` serve containers too, so Start and Stop go in the same `machine_power_events` log with the person
+  ("Stopped by hand"; "…: the container was already off" when nothing ran; "Starting the container failed: <Docker's
+  last line>"), and `GET …/power` answers `container: {status, docker, commands: {start, stop, create}, error}` (null
+  for other machines) beside the devbox's `box`. A container is not a `MachinePowerDriver` target and `isPowered` stays
+  devbox-only: the driver port, the controllers, the tunnels, the box's cost and rules and the SSH reinstall are all
+  the devbox's, and the server's Docker CLI (MWC_LOCAL_DOCKER, "Updating a runner") is a platform process like the
+  rebuild's, so the power service hands a container to `service/power/container.ts` instead of its controller.
+- **Finding the container.** As for the rebuild: by the id its runner says (`caps.containerId`), else in its compose
+  project (`mwc-runner-<slug of its name>`, `docker ps --all`, so a stopped one is found too), each checked with
+  `docker inspect` (the `runner-local` service of a runners' project, from this server's own deploy/compose.yml). The
+  inspect also gives its state (`State.Status`, `State.Health.Status`) and its grace period (`Config.StopTimeout`,
+  which compose sets from `stop_grace_period: 90s`).
+- **Stop** runs `docker stop -t <its grace period, else 90> <id>` (time limit: the grace period plus 30 s), so the
+  runner stops its runs itself first (SIGINT, 20 s, SIGTERM, 10 s, SIGKILL) before Docker kills it. Its restart policy
+  (`unless-stopped`) keeps it stopped across Docker restarts until Start. It is refused with 409 `machine_busy` while
+  chat turns or terminals run on the machine ("1 terminal is running on it: stop the container once it ends") unless
+  `{force: true}`: the card asks "… running on it and ends with the stop. Stop it anyway?" and then forces.
+- **Start** runs `docker start <id>` (60 s at most): the existing container, with its own limits, settings and volumes.
+  A container already up (or already stopped, for a Stop) runs nothing.
+- **One job at a time.** Each holds the machine's job lock (`container_power` with its `action`) while Docker works:
+  `runner.job` shows it ("Stopping the container…" at the top of Software), the power view says `stopping` /
+  `starting`, and an install, an update or another Start or Stop meanwhile is 409 `machine_busy` ("The container is
+  stopping: wait for it to finish").
+- **By hand.** Without the server's own Docker (MWC_LOCAL_DOCKER off, or production): 409 `power_unsupported` with the
+  `command`, `docker compose -p <project> -f <compose file> --profile runner start|stop runner-local`; the card's button
+  shows that command in a box with Copy instead of calling (the folded card shows it under the card). No container
+  found: 409 `container_missing`, for a Start with the command that creates it again (`MWC_RUNNER_NAME='<name>'
+  MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=<its runs> docker compose … up -d runner-local`, no token: its
+  state volume keeps the enrollment) and for a Stop with the compose stop command. The server does not create a missing
+  container itself: a container that is gone no longer says its CPU and memory limits, so the command names the add
+  sheet's defaults for the person to check. Docker not answering, or its command failing: 502 `power_failed` with
+  Docker's last line (`driverCode: failed`), logged as `failed`.
+- **Stopped, not unreachable.** The power view reads Docker's state (one `docker inspect` per read; a `docker ps` first
+  while its runner is away): `running` (`starting` until its health check passes), `stopped` once it exited, `missing`
+  when none is found while its runner is away. The card's status line then says **Stopped · last seen …** instead of
+  "Offline", and the Power part "Container stopped". Without the server's Docker the view says `running` while its
+  runner is connected and `unknown` otherwise; when Docker does not answer, the same, with `error`.
+- **Power settings.** The scheduler does not start or stop containers (`decide` acts on devboxes only): the keep-on
+  hours' auto-start and stop switches are not shown for them, and the settings say the hours and the time after a chat
+  do not start or stop a container. Turning those on for containers is a later change.
+
 ## One job at a time
 
 Added 2026-11-10 (Ihor clicked Update on Codex and at once Update runner: the runner restarted mid-install, and the card
@@ -549,8 +601,9 @@ said "Codex 0.167.0 was not installed: the runner went away" beside "The runner 
 restarting"). A machine runs one maintenance job at a time, and a runner update never cuts off live work unasked:
 
 - **The lock.** The server keeps a lock per machine in memory (`service/jobs.ts`, one server process; a restart forgets
-  it): a `tool_install` (with its tool and version) or a `runner_update` (with its path, `self_update`,
-  `ssh_reinstall` or `docker_rebuild`, and a rebuild's last output line as `progress`). Starting either while another runs is a 409 `machine_busy` naming the running one: "Codex 0.167.0 is
+  it): a `tool_install` (with its tool and version), a `runner_update` (with its path, `self_update`,
+  `ssh_reinstall` or `docker_rebuild`, and a rebuild's last output line as `progress`), or a container's
+  `container_power` (with its `action`, start or stop, "Starting and stopping a container" above). Starting either while another runs is a 409 `machine_busy` naming the running one: "Codex 0.167.0 is
   being installed: wait for it to finish", "The runner is updating: wait for it to restart". Nothing is queued. An
   install releases it when it ends (its result, its failure, its timeout, or its runner going away, which fails it); a
   runner update when it was refused or failed, and once carried out when its runner reconnects (the hub's connect
@@ -563,7 +616,7 @@ restarting"). A machine runs one maintenance job at a time, and a runner update 
 - **On the runner** (defence in depth): `runner.update` answers `busy` while a tool install runs (even when forced), while
   an update is under way, and while runs, chat turns or terminals are live unless the frame says `force`; `tools.install`
   answers `busy` while a self-update is in progress (from its start until the restart).
-- **`GET machines`** answers each machine's `runner.job: {kind, tool?, version?, path?, progress?, startedAt} | null`,
+- **`GET machines`** answers each machine's `runner.job: {kind, tool?, version?, path?, action?, progress?, startedAt} | null`,
   `runner.live: {turns, terminals}` and `runner.updateFailure: {path, message, command, at} | null` (a container's
   rebuild that failed after the answer). The Machines page reads them again every minute while the tab is visible, and
   every 3 s while a job runs on one of them.

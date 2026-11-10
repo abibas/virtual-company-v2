@@ -135,7 +135,7 @@ const EnvSchema = z.object({
   MWC_LOGIN_HELPER: z.preprocess(emptyAsUnset, LoginHelperMode.optional()),
   /** `auto` (the default), `on` or `off`: whether this server drives the airia CLI itself (LocalPowerMode). */
   MWC_LOCAL_POWER: z.preprocess(emptyAsUnset, LocalPowerMode.default('auto')),
-  /** `auto` (the default), `on` or `off`: whether this server rebuilds container runners itself (LocalDockerMode). */
+  /** `auto` (the default), `on` or `off`: whether this server rebuilds, starts and stops container runners itself (LocalDockerMode). */
   MWC_LOCAL_DOCKER: z.preprocess(emptyAsUnset, LocalDockerMode.default('auto')),
   /** `auto` (the default) or `off`: dictation with this computer's whisper.cpp (WhisperMode). */
   MWC_WHISPER: z.preprocess(emptyAsUnset, WhisperMode.default('auto')),

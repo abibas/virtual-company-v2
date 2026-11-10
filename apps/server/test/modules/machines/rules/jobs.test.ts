@@ -74,5 +74,15 @@ describe("a machine's jobs", () => {
     expect(liveWork({ turns: 1, terminals: 0 })?.message).toBe(
       '1 chat turn is running on it: update the runner once it ends',
     );
+    expect(liveWork({ turns: 0, terminals: 2 }, 'stop the container')?.message).toBe(
+      '2 terminals are running on it: stop the container once they end',
+    );
+  });
+
+  it("name a container's start or stop, and show it with its action", () => {
+    const stop = { kind: 'container_power', action: 'stop', startedAt: AT } as const;
+    expect(jobText(stop)).toBe('The container is stopping: wait for it to finish');
+    expect(jobText({ ...stop, action: 'start' })).toBe('The container is starting: wait for it to finish');
+    expect(jobView(stop)).toEqual({ kind: 'container_power', action: 'stop', startedAt: AT.toISOString() });
   });
 });
