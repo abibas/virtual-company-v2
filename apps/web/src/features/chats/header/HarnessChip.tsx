@@ -5,15 +5,19 @@ import { companyPath } from '../../../app/nav.ts';
 import { Link } from '../../../app/router.tsx';
 import { cx } from '../../../components/cx.ts';
 import { HARNESS_TOOL, machineToolsHref, TOOL_LABELS, toolState } from '../../machines/tools/tools-text.ts';
+import { HEADER_CONTROL } from './ChatBar.tsx';
 
-/** The chip's tint and its words after the CLI's name. */
-type Look = { readonly tone: string; readonly words: string };
+/** The state's colours (its dot, its words), and the words after the CLI's name. */
+type Look = { readonly tone: Tone; readonly words: string };
+type Tone = { readonly dot: string; readonly text?: string };
 
+/** Green when current, grey offline, amber with an update or an old runner, red when missing. */
 const TONES = {
-  ok: 'bg-surface-3 text-ink-2',
-  warn: 'bg-input-soft text-input',
-  bad: 'bg-failed-soft text-failed',
-} as const;
+  ok: { dot: 'bg-done' },
+  off: { dot: 'bg-faint' },
+  warn: { dot: 'bg-input', text: 'text-input' },
+  bad: { dot: 'bg-failed', text: 'text-failed' },
+} as const satisfies Record<string, Tone>;
 
 /**
  * Beside the chat's profile picker: the chat's harness CLI on the agent's machine ("Codex 0.162.1 · Airia devbox"),
@@ -37,7 +41,7 @@ export function HarnessChip({
   const name = TOOL_LABELS[tool];
   const { tools } = machine.runner;
   let look: Look;
-  if (machine.status !== 'online') look = { tone: TONES.ok, words: `${name} · offline` };
+  if (machine.status !== 'online') look = { tone: TONES.off, words: `${name} · offline` };
   else if (!tools) look = { tone: TONES.warn, words: `${name} · runner out of date` };
   else {
     const state = toolState(tools, machine.runner.toolsLatest, tool);
@@ -50,12 +54,10 @@ export function HarnessChip({
     <Link
       to={machineToolsHref(companyPath(slug, 'machines'), machine.id)}
       title={`${name} on ${machine.name}: open its tools on the Machines page`}
-      className={cx(
-        'inline-flex h-8 max-w-64 items-center gap-1 truncate rounded-full px-3 text-xs font-semibold hover:underline',
-        look.tone,
-      )}
+      className={cx(HEADER_CONTROL, 'max-w-60')}
     >
-      <span className="truncate">
+      <span aria-hidden="true" className={cx('size-1.5 shrink-0 rounded-full', look.tone.dot)} />
+      <span className={cx('truncate', look.tone.text)}>
         {look.words} · {machine.name}
       </span>
     </Link>

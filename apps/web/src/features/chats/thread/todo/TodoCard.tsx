@@ -39,9 +39,9 @@ export function TodoCard({ items, live }: { readonly items: readonly TodoItem[];
   return (
     <section
       aria-label="To-dos"
-      className="grid w-full max-w-xl gap-2 rounded-xl bg-surface px-3.5 py-3 shadow-card ring-1 ring-line ring-inset"
+      className="grid w-full max-w-xl gap-2.5 rounded-xl bg-surface-2/60 px-4 py-3 ring-1 ring-line ring-inset"
     >
-      <header className="flex items-center gap-2 text-xs">
+      <header className="flex items-center gap-2 text-sm">
         <ListChecks size={14} aria-hidden="true" className={complete ? 'text-done' : 'text-blue'} />
         <h4 className="font-semibold text-ink">To-dos</h4>
         <span className="ml-auto font-semibold text-ink-2 tabular">
@@ -64,13 +64,13 @@ export function TodoCard({ items, live }: { readonly items: readonly TodoItem[];
           style={{ width: `${items.length ? (done / items.length) * 100 : 0}%` }}
         />
       </div>
-      <ol className="scroll-quiet grid max-h-72 gap-1.5 overflow-y-auto pt-0.5">
+      <ol className="scroll-quiet grid max-h-72 gap-2 overflow-y-auto pt-0.5">
         {items.map((item, index) => (
           <li
             // biome-ignore lint/suspicious/noArrayIndexKey: an item's place in the list is its identity.
             key={index}
             className={cx(
-              'flex min-w-0 items-start gap-2 text-xs leading-snug',
+              'flex min-w-0 items-start gap-2.5 text-sm leading-snug',
               item.status === 'completed' && 'text-faint line-through decoration-line-2',
               item.status === 'in_progress' && 'font-semibold text-ink',
               item.status === 'pending' && 'text-ink-2',

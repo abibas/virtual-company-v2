@@ -24,7 +24,7 @@ export function ToolOutput({
       <p className="text-2xs font-semibold text-faint">{label}</p>
       <pre
         className={cx(
-          'scroll-quiet max-h-80 overflow-auto rounded-md px-2.5 py-2 font-mono text-2xs leading-relaxed break-words whitespace-pre-wrap',
+          'scroll-quiet max-h-80 overflow-auto rounded-lg px-3 py-2 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap',
           failed ? 'bg-failed-soft text-ink' : 'bg-surface-2 text-ink-2',
         )}
       >

@@ -57,6 +57,7 @@
   --shadow-primary: 0 8px 20px -8px rgba(45, 92, 255, 0.55);
 
   --ring: var(--blue);
+  --selection: rgba(45, 92, 255, 0.28);
   color-scheme: light;
 }
 
@@ -97,6 +98,7 @@
     --shadow-hero: 0 24px 48px -18px rgba(45, 92, 255, 0.4);
     --shadow-teal: 0 24px 48px -18px rgba(17, 168, 151, 0.35);
     --shadow-primary: 0 8px 20px -8px rgba(93, 135, 255, 0.5);
+    --selection: rgba(93, 135, 255, 0.42);
     color-scheme: dark;
   }
 }
@@ -136,5 +138,6 @@
   --shadow-hero: 0 24px 48px -18px rgba(45, 92, 255, 0.4);
   --shadow-teal: 0 24px 48px -18px rgba(17, 168, 151, 0.35);
   --shadow-primary: 0 8px 20px -8px rgba(93, 135, 255, 0.5);
+  --selection: rgba(93, 135, 255, 0.42);
   color-scheme: dark;
 }

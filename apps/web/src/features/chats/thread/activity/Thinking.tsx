@@ -32,7 +32,7 @@ export function Thinking({
         </span>
       }
     >
-      <p className="mx-2 my-1.5 border-l-2 border-line-2 py-0.5 pl-3 text-xs leading-relaxed break-words whitespace-pre-wrap text-dim italic">
+      <p className="my-1.5 ml-1.5 border-l-2 border-line-2 py-0.5 pl-3.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-dim">
         {text}
       </p>
     </Disclosure>

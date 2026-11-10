@@ -3,6 +3,7 @@ import type { RefObject } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import type { EarlierConversations as Folds } from '../../../api/use-chat-earlier.ts';
 import type { ChatEarlierLive } from '../../../api/use-chat-live.ts';
+import { cx } from '../../../components/cx.ts';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
 import { EarlierConversations } from './earlier/EarlierConversations.tsx';
 import { LoadOlder } from './earlier/LoadOlder.tsx';
@@ -13,6 +14,9 @@ import { sentTurnIds } from './question/use-question-draft.ts';
 import type { RunsOn } from './status/WorkingStatus.tsx';
 import { TurnView } from './TurnView.tsx';
 import { useFollow } from './use-follow.ts';
+
+/** The thread's reading column (and the composer's): a comfortable measure that still fits code and tables. */
+export const THREAD_WIDTH = 'mx-auto w-full max-w-[44rem]';
 
 function JumpToLatest({ onClick }: { readonly onClick: () => void }) {
   return (
@@ -100,16 +104,16 @@ export function ChatThread({ turns, agentName, chatInit, answering, history }: C
         ref={follow.box}
         onScroll={follow.onScroll}
         aria-busy={streaming || undefined}
-        className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 py-5 [overflow-anchor:none] md:px-6"
+        className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-4 select-text [overflow-anchor:none] md:px-8"
       >
         {empty ? (
           <EmptyState icon={MessagesSquare} tone="blue" title="No messages yet" size="sm">
             Write to {agentName} below. It answers from its folder on its machine, with its own tools.
           </EmptyState>
         ) : (
-          <div className="mx-auto grid max-w-3xl gap-7">
+          <div className={cx(THREAD_WIDTH, 'grid gap-8')}>
             <Above history={history} root={follow.box} onLoadOlder={loadOlder} agentName={agentName} />
-            <ol ref={follow.content} className="grid gap-7">
+            <ol ref={follow.content} className="grid gap-8">
               {current.map((turn, index) => (
                 <TurnView
                   key={turn.id}

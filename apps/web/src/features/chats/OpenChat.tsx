@@ -13,19 +13,24 @@ import type {
 } from '../../api/types.ts';
 import { useEarlierConversations } from '../../api/use-chat-earlier.ts';
 import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
+import { cx } from '../../components/cx.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
+import type { Crumb } from '../../components/layout/Breadcrumbs.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
 import { chatRuns } from './context/context-state.ts';
 import { AFTER_ONLY, deliveryChoices, splitQueue } from './delivery/delivery.ts';
 import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx';
+import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
 import { ChatThread } from './thread/ChatThread.tsx';
 import { questionOf } from './thread/question/question-model.ts';
 import { rememberSent, sentAnswer } from './thread/question/use-question-draft.ts';
 
 export interface OpenChatProps {
+  /** The path to the agent's chats, for the header. */
+  readonly crumbs: readonly Crumb[];
   readonly companyId: string;
   readonly chatId: string;
   readonly agent: AgentDetail;
@@ -112,10 +117,35 @@ function queueView(live: ChatLive, chat: Chat) {
   return { thread, queue, running, choices };
 }
 
+/** The open chat's area in the page's frame (`CHAT_AREA`): the thread or the terminal; 80% of a narrow window. */
+const BODY = cx(CHAT_AREA.body, 'flex h-[80dvh] min-h-0 min-w-0 flex-col lg:h-auto');
+
+/** Before the chat's detail came: the header's path, and the loading state or the failure with Retry. */
+function Opening({
+  crumbs,
+  detail,
+}: {
+  readonly crumbs: readonly Crumb[];
+  readonly detail: ChatLive['detail'];
+}) {
+  return (
+    <>
+      <ChatBar crumbs={crumbs} />
+      <div className={BODY}>
+        {detail.error !== undefined ? (
+          <ErrorBlock error={detail.error} onRetry={detail.reload} />
+        ) : (
+          <LoadingBlock label="Opening the chat…" />
+        )}
+      </div>
+    </>
+  );
+}
+
 /**
- * The open chat (S5.1c): its header, then the live thread with the composer, or the terminal. The chat and its turns
- * come from `useChatLive` (the detail, then the stream); a prompt, a stop and a profile change show their answer at
- * once, before the stream says the same.
+ * The open chat (S5.1c): its header across the page's frame, then the live thread with the composer, or the terminal.
+ * The chat and its turns come from `useChatLive` (the detail, then the stream); a prompt, a stop and a profile change
+ * show their answer at once, before the stream says the same.
  */
 export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ...rest }: OpenChatProps) {
   const api = useApi();
@@ -124,15 +154,12 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   const folds = useEarlierConversations(calls, chatId);
   const [mode, setMode] = useState<ChatMode>('chat');
   const chat = live.chat;
-  if (chat === undefined) {
-    const { error, reload } = live.detail;
-    if (error !== undefined) return <ErrorBlock error={error} onRetry={reload} />;
-    return <LoadingBlock label="Opening the chat…" />;
-  }
+  if (chat === undefined) return <Opening crumbs={rest.crumbs} detail={live.detail} />;
   const actions = chatActions(calls, live, chat, rest.onChanged);
   const { thread, queue, running, choices } = queueView(live, chat);
   const sessionCwd = live.detail.data?.init?.cwd;
   const header = {
+    crumbs: rest.crumbs,
     companyId,
     agent,
     placement,
@@ -144,41 +171,44 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
     sessionCwd,
   };
   const closed = closedWhy(chat, admin, placement);
+  const placeholder = asking(thread) ? 'Answer above, or write your answer here' : `Message ${agent.name}`;
   return (
     <>
       <ChatHeader {...header} stream={live.stream} onMode={setMode} onProfile={actions.changeProfile} />
-      {placement && placement.machineId !== chat.machineId && <MovedNotice />}
-      {mode === 'terminal' && owner ? (
-        <ChatTerminal companyId={companyId} chat={chat} />
-      ) : (
-        <>
-          <ChatThread
-            turns={thread}
-            agentName={agent.name}
-            chatInit={live.detail.data?.init ?? undefined}
-            answering={{ answer: actions.answer, closed }}
-            history={{ live: live.earlier, folds }}
-          />
-          <Composer
-            running={running !== undefined}
-            choices={choices}
-            disabled={closed}
-            placeholder={asking(thread) ? 'Answer above, or write your answer here' : `Message ${agent.name}`}
-            onSend={actions.send}
-            onStop={actions.stop}
-            queue={<QueuedMessages queue={queue} actions={queueActions(calls, live, chat, running)} />}
-            meter={
-              <ChatContextMeter
-                calls={calls}
-                live={live}
-                chat={chat}
-                closed={closed}
-                runs={chatRuns(chat, agent, rest.profiles)}
-              />
-            }
-          />
-        </>
-      )}
+      <div className={BODY}>
+        {placement && placement.machineId !== chat.machineId && <MovedNotice />}
+        {mode === 'terminal' && owner ? (
+          <ChatTerminal companyId={companyId} chat={chat} />
+        ) : (
+          <>
+            <ChatThread
+              turns={thread}
+              agentName={agent.name}
+              chatInit={live.detail.data?.init ?? undefined}
+              answering={{ answer: actions.answer, closed }}
+              history={{ live: live.earlier, folds }}
+            />
+            <Composer
+              running={running !== undefined}
+              choices={choices}
+              disabled={closed}
+              placeholder={placeholder}
+              onSend={actions.send}
+              onStop={actions.stop}
+              queue={<QueuedMessages queue={queue} actions={queueActions(calls, live, chat, running)} />}
+              meter={
+                <ChatContextMeter
+                  calls={calls}
+                  live={live}
+                  chat={chat}
+                  closed={closed}
+                  runs={chatRuns(chat, agent, rest.profiles)}
+                />
+              }
+            />
+          </>
+        )}
+      </div>
     </>
   );
 }

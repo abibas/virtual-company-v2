@@ -6,17 +6,21 @@ import { Thinking } from './activity/Thinking.tsx';
 import { ToolGroup } from './activity/ToolGroup.tsx';
 import { Markdown } from './markdown/Markdown.tsx';
 import type { Part, TurnModel } from './model/parts.ts';
+import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
 import { SubagentBlock } from './subagents/SubagentBlock.tsx';
 import { CompactedMarker } from './TurnMarkers.tsx';
 
 /** A message the person sent into the running turn, where the agent took it (S5.2 step 6). */
 function TakenMessage({ text }: { readonly text: string }) {
   return (
-    <div className="grid justify-items-end gap-1 py-1">
-      <p className="max-w-[85%] rounded-2xl rounded-br-md bg-blue-soft px-3.5 py-2 text-sm break-words whitespace-pre-wrap text-ink ring-1 ring-blue/25 ring-inset">
+    <div className="group/message grid justify-items-end gap-1 py-1">
+      <p className="max-w-[80%] rounded-2xl rounded-br-md bg-blue-soft px-4 py-2.5 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap text-ink">
         {text}
       </p>
-      <span className="text-2xs text-dim">{SENT_NOW_NOTE}</span>
+      <div className="flex min-h-7 items-center gap-2">
+        <span className="text-2xs text-dim">{SENT_NOW_NOTE}</span>
+        <MessageActions text={text} label="Copy message" className={REVEAL_ACTIONS} />
+      </div>
     </div>
   );
 }
@@ -60,7 +64,7 @@ export function ReplyParts({
         <p
           key={part.key}
           className={cx(
-            'flex items-start gap-1.5 px-2 text-xs',
+            'flex items-start gap-1.5 text-sm',
             part.level === 'warn' ? 'text-input' : 'text-dim',
           )}
         >

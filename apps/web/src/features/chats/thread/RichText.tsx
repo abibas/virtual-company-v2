@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cx } from '../../../components/cx.ts';
+import { INLINE_CODE, READING } from './markdown/reading.ts';
 
 /**
  * An agent's text, rendered safely (S5.1c): code fences as code blocks (an unclosed fence, while the text streams,
@@ -45,7 +46,7 @@ function Prose({ text }: { readonly text: string }) {
   for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
     if (match.index > from) pieces.push(text.slice(from, match.index));
     pieces.push(
-      <code key={match.index} className="rounded-xs bg-surface-3 px-1 py-px font-mono text-[0.85em] text-ink">
+      <code key={match.index} className={INLINE_CODE}>
         {match[1]}
       </code>,
     );
@@ -58,7 +59,7 @@ function Prose({ text }: { readonly text: string }) {
 /** The agent's text: prose and code blocks. */
 export function RichText({ text, className }: { readonly text: string; readonly className?: string }) {
   return (
-    <div className={cx('grid gap-2 text-sm leading-relaxed text-ink', className)}>
+    <div className={cx(READING, className)}>
       {blocksOf(text).map((block, index) =>
         block.code ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: a block's place in the text is its identity.
@@ -66,7 +67,7 @@ export function RichText({ text, className }: { readonly text: string; readonly 
             {block.lang && (
               <figcaption className="mb-1 font-mono text-2xs text-faint">{block.lang}</figcaption>
             )}
-            <pre className="scroll-quiet overflow-x-auto rounded-lg bg-surface-3 px-3 py-2.5 font-mono text-xs leading-normal text-ink">
+            <pre className="scroll-quiet overflow-x-auto rounded-lg bg-surface-2 px-3.5 py-3 font-mono text-[0.8125rem] leading-relaxed text-ink ring-1 ring-line ring-inset">
               <code>{block.text}</code>
             </pre>
           </figure>

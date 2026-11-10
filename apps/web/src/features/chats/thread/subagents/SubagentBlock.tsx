@@ -87,23 +87,23 @@ function SubagentSummary({
         <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-review-soft text-review">
           <Bot size={12} aria-hidden="true" />
         </span>
-        <span className="text-xs font-bold text-ink">{agentType}</span>
+        <span className="text-sm font-semibold text-ink">{agentType}</span>
         {model && <Chip>{modelLabel(model)}</Chip>}
         {background && <Chip>background</Chip>}
         <StatusLine state={state} />
       </span>
-      {description && <span className="truncate pl-7 text-xs text-ink-2">{description}</span>}
+      {description && <span className="truncate pl-7 text-sm text-ink-2">{description}</span>}
       {status === 'running' ? (
         <span
           key={state.event.lastStep ?? state.steps}
-          className="flex min-w-0 items-center gap-1.5 pl-7 text-2xs text-dim motion-safe:animate-roll-in"
+          className="flex min-w-0 items-center gap-1.5 pl-7 text-xs text-dim motion-safe:animate-roll-in"
         >
           <CornerDownRight size={11} aria-hidden="true" className="shrink-0 text-faint" />
           <ActionWords words={latestStep(state, parts)} />
         </span>
       ) : (
         state.steps > 0 && (
-          <span className="pl-7 text-2xs text-faint">{plural(state.steps, 'step', 'steps')}</span>
+          <span className="pl-7 text-xs text-faint">{plural(state.steps, 'step', 'steps')}</span>
         )
       )}
     </span>
@@ -130,13 +130,13 @@ export function SubagentBlock({
   return (
     <section
       aria-label={`${agentType} agent: ${description}`}
-      className="rounded-lg bg-surface-2/70 ring-1 ring-line ring-inset"
+      className="rounded-xl bg-surface-2/60 ring-1 ring-line ring-inset"
     >
       <Disclosure
-        buttonClassName="w-full items-start rounded-lg px-3 py-2.5 hover:bg-surface-2"
+        buttonClassName="w-full items-start rounded-xl px-3.5 py-2.5 hover:bg-surface-2"
         summary={<SubagentSummary state={state} parts={parts} />}
       >
-        <div className="grid gap-2.5 border-t border-line px-3 py-2.5">
+        <div className="grid gap-3 border-t border-line px-3.5 py-3">
           {steps.length > 0 ? (
             <div className="ml-2 grid min-w-0 gap-1.5 border-l border-line pl-3">
               {renderParts(steps, running)}

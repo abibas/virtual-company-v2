@@ -9,6 +9,7 @@ import { turnModel } from './model/turn-model.ts';
 import { type Answering, QuestionCard } from './question/QuestionCard.tsx';
 import { questionStatus } from './question/question-model.ts';
 import { ReplyParts } from './ReplyParts.tsx';
+import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
 import { TurnFooter } from './status/TurnFooter.tsx';
 import { QueuedStatus, type RunsOn, WorkingStatus } from './status/WorkingStatus.tsx';
 import { ClearDivider, CompactTurn } from './TurnMarkers.tsx';
@@ -23,9 +24,27 @@ import { TodoCard } from './todo/TodoCard.tsx';
 
 function FailedBox({ error }: { readonly error: string }) {
   return (
-    <div role="alert" className="flex items-start gap-2 rounded-lg bg-failed-soft px-3 py-2 text-sm text-ink">
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-lg bg-failed-soft px-3 py-2 text-sm leading-relaxed text-ink"
+    >
       <CircleAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-failed" />
       <span className="min-w-0 break-words whitespace-pre-wrap">{turnErrorText(error)}</span>
+    </div>
+  );
+}
+
+/** The person's message: a softly tinted bubble on the right, its delivery note and its actions under it. */
+function PromptBubble({ prompt, note }: { readonly prompt: string; readonly note: string | undefined }) {
+  return (
+    <div className="group/message grid justify-items-end gap-1">
+      <p className="max-w-[80%] rounded-2xl rounded-br-md bg-blue-soft px-4 py-2.5 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap text-ink">
+        {prompt}
+      </p>
+      <div className="flex min-h-7 items-center gap-2">
+        {note && <span className="text-2xs text-dim">{note}</span>}
+        <MessageActions text={prompt} label="Copy message" className={REVEAL_ACTIONS} />
+      </div>
     </div>
   );
 }
@@ -55,15 +74,15 @@ function Reply({
 }) {
   const running = turn.status === 'running';
   return (
-    <div className="grid min-w-0 gap-2.5">
-      <div className="flex items-baseline gap-2 text-xs">
-        <span className="font-semibold text-ink-2">{agentName}</span>
-        <time dateTime={turn.createdAt} className="text-faint tabular">
+    <div className="group/message grid min-w-0 gap-3">
+      <div className="flex items-baseline gap-2 text-sm">
+        <span className="font-semibold text-ink">{agentName}</span>
+        <time dateTime={turn.createdAt} className="text-xs text-faint tabular">
           {formatTime(turn.createdAt)}
         </time>
       </div>
       {model.parts.length > 0 && (
-        <div className="grid min-w-0 gap-2">
+        <div className="grid min-w-0 gap-2.5">
           <ReplyParts parts={model.parts} model={model} live={running} />
         </div>
       )}
@@ -79,7 +98,16 @@ function Reply({
       {model.error !== undefined && <FailedBox error={model.error} />}
       {running && <WorkingStatus turn={turn} model={model} runsOn={runsOn} />}
       {turn.status === 'queued' && <QueuedStatus />}
-      <TurnFooter turn={turn} model={model} />
+      {!running && turn.status !== 'queued' && (
+        <div className="-mt-1 flex min-h-7 min-w-0 items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <TurnFooter turn={turn} model={model} />
+          </div>
+          {model.replyText && (
+            <MessageActions text={model.replyText} label="Copy reply" className={REVEAL_ACTIONS} />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,15 +141,8 @@ export function TurnView({
   }
   const note = turn.delivery ? STARTED_NOTE[turn.delivery] : undefined;
   return (
-    <li className="grid gap-3">
-      {!place.answer && (
-        <div className="grid justify-items-end gap-1">
-          <p className="max-w-[85%] rounded-2xl rounded-br-md bg-blue px-3.5 py-2 text-sm break-words whitespace-pre-wrap text-on-blue shadow-primary">
-            {turn.prompt}
-          </p>
-          {note && <span className="text-2xs text-dim">{note}</span>}
-        </div>
-      )}
+    <li className="grid gap-2">
+      {!place.answer && <PromptBubble prompt={turn.prompt} note={note} />}
       <Reply turn={turn} model={model} agentName={agentName} runsOn={model.init ?? chatInit} place={place} />
     </li>
   );

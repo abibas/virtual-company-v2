@@ -121,7 +121,7 @@ export function DictationButton({
       : 'Dictate (⌥⇧V)';
 
   return (
-    <div ref={anchor} className="relative flex h-11 shrink-0 items-center gap-1">
+    <div ref={anchor} className="relative flex h-9 shrink-0 items-center gap-0.5">
       <Status state={state} level={dictation.level} elapsedMs={dictation.elapsedMs} error={dictation.error} />
       <button
         type="button"
@@ -133,16 +133,17 @@ export function DictationButton({
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => void dictation.toggle()}
         className={iconButtonClass({
-          size: 'lg',
+          size: 'sm',
+          round: true,
           className: cx(recording && 'bg-failed-soft text-failed hover:bg-failed-soft hover:text-failed'),
         })}
       >
         {waiting ? (
-          <Spinner size={18} />
+          <Spinner size={16} />
         ) : recording ? (
-          <Square size={16} strokeWidth={2.5} aria-hidden="true" className="fill-current" />
+          <Square size={14} strokeWidth={2.5} aria-hidden="true" className="fill-current" />
         ) : (
-          <Mic size={20} strokeWidth={2} aria-hidden="true" />
+          <Mic size={18} strokeWidth={2} aria-hidden="true" />
         )}
       </button>
       <MicPicker

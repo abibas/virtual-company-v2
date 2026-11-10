@@ -4,7 +4,7 @@ import { useId } from 'react';
 import { useMachines } from '../../../api/machines.ts';
 import type { AgentPlacement, Chat } from '../../../api/types.ts';
 import { useFloatingPanel } from '../../../components/forms/floating.ts';
-import { Button } from '../../../components/ui/Button.tsx';
+import { IconButton } from '../../../components/ui/IconButton.tsx';
 import { usePopover } from '../context/use-popover.ts';
 import { CopyAction } from '../thread/markdown/CopyAction.tsx';
 
@@ -75,7 +75,7 @@ function Commands({
 }
 
 /**
- * "Open in Claude Code" in the chat's header (S5.2 step 6): a button with a popover of the commands that resume the
+ * "Open in Claude Code" in the chat's header (S5.2 step 6): an icon button (its name in a tooltip) with a popover of the commands that resume the
  * chat's conversation in the person's own terminal, on its machine and in its folder (`@mwc/shared/resume`), each with
  * a copy button. Hidden before the first turn (no conversation yet) and when the folder is not known.
  */
@@ -89,18 +89,19 @@ export function OpenInClaudeCode(facts: ResumeFacts) {
   const label = facts.chat.harness === 'codex' ? 'Open in Codex' : 'Open in Claude Code';
   return (
     <div ref={popover.root}>
-      <Button
+      <IconButton
         ref={popover.trigger}
-        size="sm"
-        tone="secondary"
+        label={label}
         icon={SquareArrowOutUpRight}
+        tone="soft"
+        size="sm"
+        round
+        tooltip="bottom-end"
         aria-expanded={popover.open}
         aria-haspopup="dialog"
         aria-controls={id}
         onClick={() => popover.setOpen((was) => !was)}
-      >
-        {label}
-      </Button>
+      />
       <div
         ref={popover.panel}
         id={id}

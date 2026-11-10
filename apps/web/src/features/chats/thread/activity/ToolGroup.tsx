@@ -37,7 +37,7 @@ export function ToolGroup({
         </span>
       }
     >
-      <ol className="ml-3.5 grid gap-px border-l border-line py-0.5 pl-1.5">
+      <ol className="ml-1.5 grid gap-px border-l border-line py-0.5 pl-3">
         {calls.map((call) => (
           <li key={call.id}>
             <ToolCallRow call={call} running={running} />

@@ -58,17 +58,20 @@ function ChatRow({
   }
   return (
     <li
-      className={cx('group flex items-center gap-1 rounded-lg', open ? 'bg-blue-soft' : 'hover:bg-surface-2')}
+      className={cx(
+        'group flex min-w-0 items-center gap-1 rounded-lg',
+        open ? 'bg-surface-3' : 'hover:bg-surface-2',
+      )}
     >
       <Link
         to={href}
         aria-current={open ? 'page' : undefined}
-        className="min-w-0 flex-1 rounded-lg px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue"
+        className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 focus-visible:outline-2 focus-visible:outline-blue"
       >
-        <span className={cx('block truncate text-sm font-semibold', open ? 'text-blue' : 'text-ink')}>
+        <span className={cx('block truncate text-sm font-medium', open ? 'text-ink' : 'text-ink-2')}>
           {chat.title ?? 'New chat'}
         </span>
-        <span className="block text-2xs text-dim">{fromNow(chat.updatedAt)}</span>
+        <span className="block text-2xs text-faint">{fromNow(chat.updatedAt)}</span>
       </Link>
       {admin && (
         <IconButton
@@ -116,7 +119,9 @@ export function ChatList({ chats, openId, hrefOf, admin, cannotStart, onNew, onA
               {admin ? 'Start one to talk with the agent on its machine.' : 'Admins and owners start chats.'}
             </EmptyState>
           ) : (
-            <ul className="scroll-quiet -mx-1 grid min-h-0 gap-0.5 overflow-y-auto px-1">
+            // One shrinkable column (`grid-cols-1`): a long title truncates in its row instead of widening the
+            // list, which used to give it a sideways scrollbar.
+            <ul className="scroll-quiet -mx-1 grid min-h-0 grid-cols-1 content-start gap-0.5 overflow-x-hidden overflow-y-auto px-1">
               {data.chats.map((chat) => (
                 <ChatRow
                   key={chat.id}

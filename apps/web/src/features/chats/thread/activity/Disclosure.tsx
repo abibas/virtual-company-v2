@@ -2,9 +2,12 @@ import { ChevronRight } from 'lucide-react';
 import { type ReactNode, useId, useState } from 'react';
 import { cx } from '../../../../components/cx.ts';
 
-/** The look of a quiet activity row (a tool call, a group, a thought): full width, small, dim, a soft hover. */
+/**
+ * The look of a quiet activity row (a tool call, a group, a thought): full width, 13px, dim, a soft hover; pulled out
+ * by its padding so its icon lines up with the reply's text.
+ */
 export const ACTIVITY_ROW =
-  'w-full items-center rounded-md px-2 py-1 text-xs text-dim hover:bg-surface-2 hover:text-ink-2';
+  '-mx-2 w-[calc(100%+1rem)] items-center rounded-md px-2 py-1 text-sm text-dim hover:bg-surface-2 hover:text-ink-2';
 
 /**
  * A row that opens to more (S5.2): a button with `aria-expanded`, and a panel that grows smoothly (its grid row goes

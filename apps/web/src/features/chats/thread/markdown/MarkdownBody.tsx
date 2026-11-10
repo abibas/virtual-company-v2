@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cx } from '../../../../components/cx.ts';
 import { ELEMENTS } from './elements.tsx';
+import { READING } from './reading.ts';
 
 /**
  * GitHub-flavoured Markdown (S5.2), loaded on its own by `Markdown.tsx`. Raw HTML in the text shows as text, never as
@@ -15,7 +16,7 @@ export default function MarkdownBody({
   readonly className?: string;
 }) {
   return (
-    <div className={cx('grid min-w-0 gap-2 text-sm leading-relaxed text-ink', className)}>
+    <div className={cx(READING, className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={ELEMENTS}>
         {text}
       </ReactMarkdown>

@@ -3,7 +3,6 @@ import type { ChatTurnWithEvents } from '../../../../api/types.ts';
 import { cx } from '../../../../components/cx.ts';
 import { tokens } from '../../chat-text.ts';
 import { PLAN_COST } from '../../context/context-text.ts';
-import { CopyAction } from '../markdown/CopyAction.tsx';
 import { activitySummary } from '../model/current-action.ts';
 import { roundedDuration } from '../model/format.ts';
 import type { TurnModel } from '../model/parts.ts';
@@ -27,7 +26,7 @@ function usageWords(usage: NonNullable<TurnModel['usage']>, onPlan: boolean): st
 
 /**
  * A finished turn's quiet last line (S5.2): "Worked for 3m · ran 4 commands, called 6 tools" (or failed, stopped),
- * the tokens, and Copy for the reply.
+ * and the tokens; Copy sits beside it (`MessageActions`).
  */
 export function TurnFooter({
   turn,
@@ -52,7 +51,6 @@ export function TurnFooter({
       {model.usage && (
         <span className="tabular">{usageWords(model.usage, turn.usage?.includedInPlan === true)}</span>
       )}
-      {model.replyText && <CopyAction text={model.replyText} label="Copy reply" className="-my-1 ml-auto" />}
     </div>
   );
 }

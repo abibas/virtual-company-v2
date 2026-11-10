@@ -23,7 +23,7 @@ export function ToolCallRow({ call, running }: { readonly call: ToolCall; readon
         </span>
       }
     >
-      <div className="grid gap-2 py-1.5 pr-1 pl-7">
+      <div className="grid gap-2 py-1.5 pr-1 pl-5">
         {call.summary && <ToolOutput label={inputLabel} text={call.summary} />}
         {call.result ? (
           <ToolOutput

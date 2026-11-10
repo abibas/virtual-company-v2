@@ -7,7 +7,7 @@ import { CopyAction } from './CopyAction.tsx';
 export function CodeBlock({ lang, code }: { readonly lang: string | undefined; readonly code: string }) {
   const [wrap, setWrap] = useState(false);
   return (
-    <figure className="my-1 min-w-0 overflow-hidden rounded-lg bg-surface-2 ring-1 ring-line ring-inset">
+    <figure className="my-0.5 min-w-0 overflow-hidden rounded-xl bg-surface-2 ring-1 ring-line ring-inset">
       <figcaption className="flex h-8 items-center gap-1 border-b border-line pr-1.5 pl-3">
         <span className="min-w-0 flex-1 truncate font-mono text-2xs text-dim">{lang || 'text'}</span>
         <button
@@ -27,7 +27,7 @@ export function CodeBlock({ lang, code }: { readonly lang: string | undefined; r
       </figcaption>
       <pre
         className={cx(
-          'scroll-quiet overflow-x-auto px-3 py-2.5 font-mono text-xs leading-relaxed text-ink',
+          'scroll-quiet overflow-x-auto px-3.5 py-3 font-mono text-[0.8125rem] leading-relaxed text-ink',
           wrap && 'break-words whitespace-pre-wrap',
         )}
       >

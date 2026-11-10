@@ -8,6 +8,10 @@ import { useAction } from '../use-action.ts';
 /** The agent's profile: the empty value, so choosing it sends `profileId: null`. */
 const AGENTS = '';
 
+/** The select in the header controls' look (`HEADER_CONTROL`): 32px, a full radius, the soft grey fill. */
+const HEADER_SELECT =
+  'w-auto max-w-56 [&_select]:h-8 [&_select]:rounded-full [&_select]:bg-surface-2 [&_select]:pr-8 [&_select]:pl-3 [&_select]:text-xs [&_select]:font-semibold [&_select]:text-ink-2 [&_select:hover]:bg-surface-3 [&>svg]:right-2.5 [&>svg]:size-3.5';
+
 /**
  * The choices: the agent's own profile, then the person's own profiles of the provider the chat's harness runs on
  * (Claude for Claude Code, OpenAI for Codex), those without a subscription shown but not choosable; a profile of
@@ -61,7 +65,7 @@ export function ProfilePicker({
   const { busy, error, run } = useAction();
   const change = (value: string) => run(() => onChange(value === AGENTS ? null : value));
   return (
-    <div className="grid min-w-0 gap-1">
+    <div className="relative min-w-0">
       <Select
         size="sm"
         aria-label="Access profile for this chat"
@@ -70,10 +74,13 @@ export function ProfilePicker({
         options={profileOptions(chat.harness, agentProfileName, profiles ?? [], chat.profileId)}
         disabled={!canChange || busy || profiles === undefined}
         onChange={(event) => void change(event.target.value)}
-        className="w-auto max-w-72"
+        className={HEADER_SELECT}
       />
       {error && (
-        <p role="alert" className="max-w-72 text-xs font-medium text-failed">
+        <p
+          role="alert"
+          className="absolute top-full right-0 z-30 mt-1.5 w-72 rounded-md bg-surface px-3 py-2 text-xs font-medium text-failed shadow-float ring-1 ring-line"
+        >
           {error}
         </p>
       )}

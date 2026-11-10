@@ -22,7 +22,7 @@ function WorkingPill({ since, runsOn }: { readonly since: string; readonly runsO
     .filter(Boolean)
     .join(' · ');
   return (
-    <div className="inline-flex h-7 w-fit max-w-full items-center gap-2 rounded-full bg-surface px-3 text-xs shadow-card ring-1 ring-line ring-inset">
+    <div className="inline-flex h-7 w-fit max-w-full items-center gap-2 rounded-full bg-surface-2 px-3 text-xs ring-1 ring-line ring-inset">
       <Spinner size={12} className="text-blue" />
       <span className="text-shimmer font-semibold motion-safe:animate-shimmer">Working</span>
       <span aria-hidden="true" className="tabular text-dim">
@@ -41,7 +41,7 @@ function CurrentActionRow({ model }: { readonly model: TurnModel }) {
   return (
     <Disclosure
       label={`${line.by ? `${line.by}: ` : ''}${line.words.verb}${line.words.target ? ` ${line.words.target}` : ''}. Show the actions so far (${history.length})`}
-      buttonClassName="w-fit max-w-full items-center rounded-md py-0.5 pr-1.5 pl-1 text-xs text-dim hover:bg-surface-2 hover:text-ink-2"
+      buttonClassName="w-fit max-w-full items-center rounded-md py-0.5 pr-1.5 pl-1 text-sm text-dim hover:bg-surface-2 hover:text-ink-2"
       summary={
         <span key={model.current.seq} className="flex min-w-0 items-center gap-2 motion-safe:animate-roll-in">
           <Icon size={13} aria-hidden="true" className="shrink-0 text-blue" />
