@@ -119,6 +119,65 @@ describe('chats', () => {
   });
 });
 
+describe('chats: branches (0018)', () => {
+  it('names the parent chat and turn, and stays pending until forked only with a session', async () => {
+    const parent = await insertChat({ sessionId: 'parent-session' });
+    const turn = await insertTurn(parent, { status: 'done' });
+    expect(await insertChat()).toMatchObject({
+      branchedFromChatId: null,
+      branchedFromTurnId: null,
+      forkPending: false,
+    });
+    const branch = { branchedFromChatId: parent.id, branchedFromTurnId: turn.id };
+    expect(await insertChat({ ...branch, sessionId: 'parent-session', forkPending: true })).toMatchObject({
+      ...branch,
+      forkPending: true,
+    });
+    expect(await constraint(insertChat({ branchedFromTurnId: turn.id }))).toBe('chats_branch_check');
+    expect(await constraint(insertChat({ ...branch, forkPending: true }))).toBe('chats_fork_pending_check');
+  });
+
+  it("refuses another company's chat or turn as the parent (composite keys)", async () => {
+    const theirAgent = await insertAgent(handle, globex.id);
+    const theirMachine = await insertMachine(handle, globex.id);
+    const them = await insertMember(handle, globex.id, { role: 'owner', grantedRole: 'owner' });
+    const [theirs] = await handle.db
+      .insert(chats)
+      .values({
+        companyId: globex.id,
+        agentId: theirAgent.id,
+        harness: 'claude_code',
+        machineId: theirMachine.id,
+        createdBy: them.principal.id,
+      })
+      .returning();
+    const theirChat = theirs as Chat;
+    const theirTurn = await insertTurn(theirChat, { createdBy: them.principal.id });
+    expect(await constraint(insertChat({ branchedFromChatId: theirChat.id }))).toBe(
+      'chats_branched_from_chat_fk',
+    );
+    const mine = await insertChat();
+    expect(
+      await constraint(insertChat({ branchedFromChatId: mine.id, branchedFromTurnId: theirTurn.id })),
+    ).toBe('chats_branched_from_turn_fk');
+  });
+
+  it('forgets only the parent turn, then only the parent chat, when they go (SET NULL of one column)', async () => {
+    const parent = await insertChat();
+    const turn = await insertTurn(parent, { status: 'done' });
+    const branch = await insertChat({ branchedFromChatId: parent.id, branchedFromTurnId: turn.id });
+    const read = async () => (await handle.db.select().from(chats).where(eq(chats.id, branch.id)))[0];
+    await handle.db.delete(chatTurns).where(eq(chatTurns.id, turn.id));
+    expect(await read()).toMatchObject({
+      companyId: acme.id,
+      branchedFromChatId: parent.id,
+      branchedFromTurnId: null,
+    });
+    await handle.db.delete(chats).where(eq(chats.id, parent.id));
+    expect(await read()).toMatchObject({ companyId: acme.id, branchedFromChatId: null });
+  });
+});
+
 describe('chat_turns', () => {
   it('numbers the turns of a chat once each, and keeps one running at a time with any number queued', async () => {
     const chat = await insertChat();

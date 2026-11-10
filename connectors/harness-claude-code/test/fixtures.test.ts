@@ -12,6 +12,8 @@ function play(scenario: FakeScenario): TurnEvent[] {
 }
 
 const session = { type: 'session', sessionId: CLAUDE_SESSION_ID };
+/** The uuid of the fixtures' `assistant(n)` message: the result's `messageId` when it is the main agent's last. */
+const messageId = (n: number) => `c0a80101-0000-4000-8000-${String(100 + n).padStart(12, '0')}`;
 const init = {
   type: 'init',
   model: 'claude-opus-5-5',
@@ -50,7 +52,7 @@ describe('the Claude Code fixtures', () => {
       { type: 'text', text: '2 + 2 = 4.' },
       context(1),
       usage,
-      { type: 'result', ok: true, text: '2 + 2 = 4.', durationMs: 2310 },
+      { type: 'result', ok: true, text: '2 + 2 = 4.', durationMs: 2310, messageId: messageId(1) },
     ]);
   });
 
@@ -65,7 +67,13 @@ describe('the Claude Code fixtures', () => {
       { type: 'text', text: 'src holds index.ts and main.ts.' },
       context(2),
       usage,
-      { type: 'result', ok: true, text: 'src holds index.ts and main.ts.', durationMs: 2310 },
+      {
+        type: 'result',
+        ok: true,
+        text: 'src holds index.ts and main.ts.',
+        durationMs: 2310,
+        messageId: messageId(2),
+      },
     ]);
   });
 
@@ -90,6 +98,7 @@ describe('the Claude Code fixtures', () => {
         ok: true,
         text: 'Removing build needs your approval, so I left it.',
         durationMs: 2310,
+        messageId: messageId(2),
       },
     ]);
   });
@@ -100,7 +109,13 @@ describe('the Claude Code fixtures', () => {
       init,
       { type: 'text', text: 'Invalid API key · Please run /login' },
       { type: 'usage', inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, costUsd: 0 },
-      { type: 'result', ok: false, error: 'Invalid API key · Please run /login', durationMs: 412 },
+      {
+        type: 'result',
+        ok: false,
+        error: 'Invalid API key · Please run /login',
+        durationMs: 412,
+        messageId: messageId(1),
+      },
     ]);
   });
 
@@ -112,6 +127,7 @@ describe('the Claude Code fixtures', () => {
       ok: true,
       text: 'Doubled, that is 8.',
       durationMs: 1804,
+      messageId: messageId(1),
     });
   });
 
@@ -178,7 +194,7 @@ describe('the Claude Code fixtures', () => {
       { type: 'text', text: reply },
       context(4),
       usage,
-      { type: 'result', ok: true, text: reply, durationMs: 2310 },
+      { type: 'result', ok: true, text: reply, durationMs: 2310, messageId: messageId(4) },
     ]);
   });
 

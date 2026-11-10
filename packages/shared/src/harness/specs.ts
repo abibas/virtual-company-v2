@@ -81,6 +81,12 @@ export type HarnessGateway = z.infer<typeof HarnessGateway>;
 export const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 export const HarnessSessionId = z.string().regex(SESSION_ID_PATTERN, 'a session id');
 
+/**
+ * A message id in a harness's conversation (Claude Code's message uuid): where a branch from an earlier reply resumes up
+ * to (`--resume-session-at`); one word on the command line, like a session id.
+ */
+export const HarnessMessageId = z.string().regex(SESSION_ID_PATTERN, 'a message id');
+
 /** A model id or alias (`opus`, `claude-opus-5-5[1m]`, `gpt-6.1-sol`), on the command line too (the catalogue's). */
 export const HARNESS_MODEL_PATTERN = MODEL_ID_PATTERN;
 export const HarnessModel = ModelId;
@@ -105,6 +111,16 @@ const sessionFields = {
 export const TerminalSpec = protocolObject(sessionFields);
 export type TerminalSpec = z.infer<typeof TerminalSpec>;
 
-/** One chat turn: `prompt` (the message, verbatim) sent to the conversation, as one process. */
-export const TurnSpec = protocolObject({ ...sessionFields, prompt: z.string().min(1) });
+/**
+ * One chat turn: `prompt` (the message, verbatim) sent to the conversation, as one process. A branch's first turn
+ * (docs/harness.md "Branching") resumes `sessionId` forked (`forkSession`: a new conversation from a copy, the original
+ * untouched), with Claude Code up to `resumeAt` (a message id) when it continues from an earlier reply; absent: false,
+ * none.
+ */
+export const TurnSpec = protocolObject({
+  ...sessionFields,
+  prompt: z.string().min(1),
+  forkSession: z.boolean().optional(),
+  resumeAt: HarnessMessageId.optional(),
+});
 export type TurnSpec = z.infer<typeof TurnSpec>;

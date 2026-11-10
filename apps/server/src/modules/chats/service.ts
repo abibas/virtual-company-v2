@@ -1,4 +1,4 @@
-import { type AccessProfile, auditChanges, type Chat, diffFields, type TenantDb } from '@mwc/db';
+import type { AccessProfile, Chat, TenantDb } from '@mwc/db';
 import { queueOrder } from '@mwc/shared/chats';
 import { profileFitsHarness } from '@mwc/shared/credentials';
 import type { Harness } from '@mwc/shared/enums';
@@ -7,8 +7,10 @@ import { giveRefusal, profileHarnessMismatch } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
 import { chatsRepo } from './repo.ts';
 import { openQuestion } from './rules/questions.ts';
-import { AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal, refuse } from './rules.ts';
+import { AGENT_ARCHIVED, AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal } from './rules.ts';
 import type { ChatDetailView, ChatView, CreateChat, UpdateChat } from './schemas.ts';
+import { auditChat } from './service/audit.ts';
+import { branchedFromOf } from './service/branch.ts';
 import { currentConversation } from './service/history.ts';
 import { chatView } from './service/views.ts';
 
@@ -17,7 +19,7 @@ import { chatView } from './service/views.ts';
  * with the caller's own access profile when they choose one), read one with its current conversation, rename it,
  * choose its profile (only one's own, of the provider the chat's harness runs on: the rules of giving a profile to an
  * agent; any admin takes it off) and archive it.
- * Every change is audited (entity `chat`). The turns are `service/turns.ts`'s.
+ * Every change is audited (entity `chat`). The turns are `service/turns.ts`'s, a branch `service/branch.ts`'s.
  */
 
 /** Who acts: the member's principal, person, role and how they signed in (giving a profile needs a session). */
@@ -30,33 +32,6 @@ export interface ChatCaller {
 }
 
 type Shown = { readonly ok: true; readonly chat: ChatView };
-
-export const AGENT_ARCHIVED = refuse(
-  409,
-  'agent_archived',
-  'The agent is archived: restore it to chat with it',
-);
-
-/** The audited fields of a chat. */
-const audited = (row: Chat) => ({
-  agentId: row.agentId,
-  harness: row.harness,
-  machineId: row.machineId,
-  profileId: row.profileId,
-  title: row.title,
-  archivedAt: row.archivedAt?.toISOString() ?? null,
-});
-
-const audit = (t: TenantDb, caller: ChatCaller, row: Chat, action: string, before: Chat | null) =>
-  auditChanges(t, {
-    actorKind: 'user',
-    actorPrincipalId: caller.principalId,
-    requestId: caller.requestId,
-    entityType: 'chat',
-    entityId: row.id,
-    action,
-    changes: diffFields(before === null ? null : audited(before), audited(row)),
-  });
 
 /**
  * Why the caller may not choose this profile for a chat on `harness` (the rules of giving one to an agent: only their
@@ -103,7 +78,7 @@ export async function createChat(
     profileSetBy: profileId === null ? null : caller.userId,
     createdBy: caller.principalId,
   });
-  await audit(t, caller, chat, 'create', null);
+  await auditChat(t, caller, chat, 'create', null);
   return { ok: true, chat: chatView(chat) };
 }
 
@@ -121,7 +96,8 @@ export async function getChat(
   const { turns, earlier, state } = await currentConversation(t, chat);
   const queue = turns.filter((turn) => turn.status === 'queued').sort(queueOrder);
   const question = openQuestion(turns);
-  const detail = { ...chatView(chat), turns, earlier, ...state, question };
+  const branchedFrom = await branchedFromOf(t, chat);
+  const detail = { ...chatView(chat), turns, earlier, branchedFrom, ...state, question };
   return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id) } };
 }
 
@@ -145,7 +121,7 @@ export async function updateChat(
   }
   if (Object.keys(set).length === 0) return { ok: true, chat: chatView(chat) };
   const after = await chatsRepo.update(t, chat.id, set);
-  await audit(t, caller, after, 'update', chat);
+  await auditChat(t, caller, after, 'update', chat);
   return { ok: true, chat: chatView(after) };
 }
 
@@ -160,6 +136,6 @@ export async function archiveChat(
   if (chat === undefined) return CHAT_NOT_FOUND;
   if (chat.archivedAt !== null) return { ok: true };
   const after = await chatsRepo.update(t, chat.id, { archivedAt: now });
-  await audit(t, caller, after, 'archive', chat);
+  await auditChat(t, caller, after, 'archive', chat);
   return { ok: true };
 }

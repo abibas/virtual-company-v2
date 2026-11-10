@@ -61,7 +61,7 @@ async function recordClear(t: TenantDb, chat: Chat, caller: TurnCaller, now: Dat
         endedAt: now,
         createdBy: caller.principalId,
       });
-      await chatsRepo.update(tx, chat.id, { sessionId: null, updatedAt: now });
+      await chatsRepo.update(tx, chat.id, { sessionId: null, forkPending: false, updatedAt: now });
       return turn;
     });
   } catch (error) {

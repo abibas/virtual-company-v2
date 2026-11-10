@@ -16,6 +16,7 @@ import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { cx } from '../../components/cx.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { Crumb } from '../../components/layout/Breadcrumbs.tsx';
+import { BranchedFrom } from './branch/BranchedFrom.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
@@ -40,6 +41,10 @@ export interface OpenChatProps {
   readonly owner: boolean;
   /** The chat changed in a way the list shows (its title after the first prompt, its profile). */
   readonly onChanged: () => void;
+  /** Where a chat of this agent opens (a branch's parent). */
+  readonly hrefOf: (chatId: string) => string;
+  /** A branch was made from a reply: the page lists and opens it. */
+  readonly onBranched: (chat: Chat) => void;
 }
 
 /** Why the composer is closed: an archived chat, a reader who is not an admin, an agent placed nowhere now. */
@@ -90,6 +95,26 @@ function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: ()
       live.putChat(await calls.update(chat.id, { profileId }));
       onChanged();
     },
+  };
+}
+
+/** The thread's Branch (admins and owners) and a branch's "Branched from" line. */
+function branchView(
+  calls: ChatCalls,
+  live: ChatLive,
+  chat: Chat,
+  admin: boolean,
+  rest: Pick<OpenChatProps, 'hrefOf' | 'onBranched'>,
+) {
+  const from = live.detail.data?.branchedFrom;
+  return {
+    branching: admin
+      ? {
+          harness: chat.harness,
+          onBranch: async (turnId: string) => rest.onBranched(await calls.branch(chat.id, turnId)),
+        }
+      : undefined,
+    lead: from ? <BranchedFrom from={from} at={chat.createdAt} hrefOf={rest.hrefOf} /> : undefined,
   };
 }
 
@@ -187,6 +212,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
               chatInit={live.detail.data?.init ?? undefined}
               answering={{ answer: actions.answer, closed }}
               history={{ live: live.earlier, folds }}
+              {...branchView(calls, live, chat, admin, rest)}
             />
             <Composer
               running={running !== undefined}

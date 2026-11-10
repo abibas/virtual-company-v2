@@ -168,6 +168,7 @@ describe('when the tunnels cannot be sent', () => {
         terminal: false,
         selfUpdate: false,
         folders: false,
+        forks: false,
       },
       builtAt: null,
       build: null,

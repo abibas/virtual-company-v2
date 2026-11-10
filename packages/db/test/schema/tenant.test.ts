@@ -132,7 +132,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(28);
+    expect(composite).toBe(30);
   });
 });
 

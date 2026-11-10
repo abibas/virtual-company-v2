@@ -6,6 +6,7 @@ import {
   ASK_TOOL_CALLS,
   type HarnessCredential,
   type TerminalSpec,
+  type TurnSpec,
 } from '@mwc/shared/harness';
 import { customHeaders } from './settings.ts';
 
@@ -42,6 +43,17 @@ export function sharedArgs(spec: TerminalSpec): string[] {
     ...(spec.effort === undefined ? [] : ['--effort', spec.effort]),
     ...(spec.permissionPolicy === 'bypass' ? ['--dangerously-skip-permissions'] : []),
   ];
+}
+
+/**
+ * A branch's first turn (docs/harness.md "Branching"): the resumed session forked into a new one (`--fork-session`, the
+ * original untouched), cut after a message of it when the turn says one (`--resume-session-at <uuid>`, a print-mode
+ * option `claude --help` does not list; Claude Code 2.1.322 keeps the messages up to and including that one). Nothing
+ * for any other turn, or without a session to fork.
+ */
+export function forkArgs(spec: TurnSpec): string[] {
+  if (spec.forkSession !== true || spec.sessionId === null) return [];
+  return ['--fork-session', ...(spec.resumeAt === undefined ? [] : ['--resume-session-at', spec.resumeAt])];
 }
 
 /** The MCP config a turn with the runner's tools gets, in the turn's folder. */

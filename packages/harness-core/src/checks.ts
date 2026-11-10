@@ -45,8 +45,22 @@ export function checkSpec(harness: Harness, spec: TerminalSpec): void {
   }
 }
 
-/** Refuses a turn spec the driver of `harness` cannot start safely: the terminal's checks and an empty prompt. */
+/**
+ * Refuses a turn spec the driver of `harness` cannot start safely: the terminal's checks, an empty prompt, and a
+ * message to resume up to that is not one word or comes without a fork of a session (resuming up to a message without
+ * forking would cut the original conversation short).
+ */
 export function checkTurn(harness: Harness, spec: TurnSpec): void {
   checkSpec(harness, spec);
   if (spec.prompt.trim() === '') throw new HarnessError('invalid_spec', 'The message is empty.');
+  if (spec.resumeAt === undefined) return;
+  if (!SESSION_ID_PATTERN.test(spec.resumeAt)) {
+    throw new HarnessError(
+      'invalid_spec',
+      'The message id is not one word of letters, digits and ._:- only.',
+    );
+  }
+  if (spec.forkSession !== true || spec.sessionId === null) {
+    throw new HarnessError('invalid_spec', 'A message to resume up to needs a session to fork.');
+  }
 }

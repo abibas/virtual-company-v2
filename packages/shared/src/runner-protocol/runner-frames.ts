@@ -52,6 +52,8 @@ export const RunnerCaps = protocolObject({
   selfUpdate: z.boolean().default(false),
   /** True when it answers `fs.list` and `fs.mkdir` (S5.1d); false from a runner older than the folder browser. */
   folders: z.boolean().default(false),
+  /** True when its drivers fork a conversation for a branch (`TurnSpec.forkSession`); false from an older runner. */
+  forks: z.boolean().default(false),
   /**
    * The CLIs it found, each one's version or null (`tools.ts`); left out by a runner older than the tools, which knows
    * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).

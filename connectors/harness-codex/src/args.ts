@@ -87,9 +87,10 @@ export const keyEnvOf = (credential: HarnessCredential, mode: 'exec' | 'tui'): s
   credential.kind === 'openai_api_key' && mode === 'exec' ? CODEX_API_KEY_ENV : undefined;
 
 /**
- * `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn; the prompt comes on stdin. The
- * provider (the profile's gateway, or OpenAI directly, `gateway.ts`) comes after the permissions, then the runner's
- * tools when it offers them.
+ * `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn, `codex exec fork … <id> -` for a
+ * branch's first turn (a new thread from a copy of the whole thread, Codex 0.167.0; it has no way to fork from an
+ * earlier turn, so a spec saying one is refused); the prompt comes on stdin. The provider (the profile's gateway, or
+ * OpenAI directly, `gateway.ts`) comes after the permissions, then the runner's tools when it offers them.
  */
 export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
   const options = [
@@ -101,9 +102,11 @@ export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
     ...providerArgs(spec.gateway, keyEnvOf(spec.credential, 'exec')),
     ...(tools === undefined ? [] : toolArgs(tools)),
   ];
-  return spec.sessionId === null
-    ? ['exec', ...options, '-']
-    : ['exec', 'resume', ...options, spec.sessionId, '-'];
+  if (spec.resumeAt !== undefined) {
+    throw new HarnessError('invalid_spec', 'Codex forks a whole conversation only, never up to a message.');
+  }
+  if (spec.sessionId === null) return ['exec', ...options, '-'];
+  return ['exec', spec.forkSession === true ? 'fork' : 'resume', ...options, spec.sessionId, '-'];
 }
 
 /** `codex …` for a new conversation, `codex resume … <id>` for an existing one, with the same provider as a turn. */

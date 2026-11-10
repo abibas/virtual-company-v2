@@ -4,6 +4,7 @@ import type { Keyring } from '../../platform/secrets/keyring.ts';
 import { credentialsForHarness, providerFetchFor } from '../credentials/index.ts';
 import type { RunnerHub, TerminalTickets } from '../machines/index.ts';
 import { answerRoutes } from './routes/answers.ts';
+import { branchRoutes } from './routes/branch.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { conversationRoutes } from './routes/conversation.ts';
 import { historyRoutes } from './routes/history.ts';
@@ -23,7 +24,7 @@ export interface ChatsDeps extends ServerDeps {
 
 /**
  * The chats module's routes (S5.1b, docs/harness.md "How a turn runs"): chats with an agent, their turns (the older
- * ones a page at a time), Compact and Clear (S5.2), answers to the agent's questions (S5.2 step 4), the messages that wait for a running turn (S5.2 step
+ * ones a page at a time), a branch from a reply, Compact and Clear (S5.2), answers to the agent's questions (S5.2 step 4), the messages that wait for a running turn (S5.2 step
  * 6), the chat's stream and its terminal. The live turns of this process (their sinks, their stops, the stream's
  * listeners) and the queue that starts the next waiting turn when one ends are made here once per app, on the
  * credentials module's side for turns (subscriptions opened, refreshed, sealed again).
@@ -38,6 +39,7 @@ export function chatsRoutes(deps: ChatsDeps) {
   const queued = { ...turns, queue };
   return newRouter()
     .route('/', chatRoutes(deps))
+    .route('/', branchRoutes(deps))
     .route('/', turnRoutes(queued))
     .route('/', historyRoutes(deps))
     .route('/', queueRoutes(queued))

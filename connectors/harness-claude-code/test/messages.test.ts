@@ -292,4 +292,22 @@ describe('the richer events of messages', () => {
     expect(events[0]).toMatchObject({ id: 'toolu_a', status: 'interrupted' });
     expect(events[1]).toMatchObject({ window: 200_000 });
   });
+
+  it("ends the result with the main agent's last message uuid, never a subagent's or one that is not a word", () => {
+    const state = newClaudeState();
+    const text = [{ type: 'text', text: 'Hi' }];
+    assistantEvents({ ...assistant(text), uuid: 'c0a80101-first' }, state);
+    assistantEvents({ ...assistant(text), uuid: 'c0a80101-last' }, state);
+    assistantEvents({ ...assistant(text, 'toolu_sub'), uuid: 'c0a80101-subagent' }, state);
+    assistantEvents({ ...assistant(text), uuid: '-p' }, state);
+    assistantEvents(assistant(text), state);
+    const result = { type: 'result', subtype: 'success', result: 'ok' };
+    expect(resultEvents(result, state).at(-1)).toEqual({
+      type: 'result',
+      ok: true,
+      text: 'ok',
+      messageId: 'c0a80101-last',
+    });
+    expect(resultEvents(result).at(-1)).not.toHaveProperty('messageId');
+  });
 });

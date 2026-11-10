@@ -11,8 +11,8 @@ export const REVEAL_ACTIONS =
 
 /**
  * The quiet actions under a message (the person's and the agent's): Copy, which puts the message's text (the agent's
- * Markdown as written) on the clipboard with a "Copied" tick. `more` is the slot for the actions after Copy: the next
- * step puts Branch ("continue a new chat from here") there, so every message gets it in the same place.
+ * Markdown as written) on the clipboard with a "Copied" tick. `more` is the slot for the actions after Copy: an agent's
+ * reply puts Branch there ("continue in a new chat from here", `branch/BranchAction.tsx`).
  */
 export function MessageActions({
   text,
@@ -24,7 +24,7 @@ export function MessageActions({
   readonly text: string;
   /** What Copy copies, for screen readers and the tooltip ("Copy message", "Copy reply"). */
   readonly label: string;
-  /** Further actions after Copy (the Branch slot); nothing for now. */
+  /** Further actions after Copy (Branch under an agent's reply). */
   readonly more?: ReactNode;
   readonly className?: string;
 }) {

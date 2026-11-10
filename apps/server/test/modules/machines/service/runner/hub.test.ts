@@ -63,6 +63,7 @@ describe('which runners the hub has', () => {
         terminal: false,
         selfUpdate: true,
         folders: false,
+        forks: false,
       },
       connectedAt: w.clock(),
     });

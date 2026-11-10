@@ -210,6 +210,7 @@ export class RunnerDaemon implements Runner {
       terminal: this.#terminals.available,
       selfUpdate: this.#updates.available,
       folders: this.#options.folders !== undefined,
+      forks: true,
       ...(tools ? { tools } : {}),
     };
   }

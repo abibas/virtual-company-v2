@@ -70,4 +70,18 @@ describe('checkTurn', () => {
     expect(codeOf(() => checkTurn('codex', fakeTurnSpec('codex', { prompt: ' \n' })))).toBe('invalid_spec');
     expect(codeOf(() => checkTurn('codex', fakeTurnSpec('claude_code')))).toBe('invalid_spec');
   });
+
+  it('takes a message to resume up to only as one word, with a session forked', () => {
+    const fork = { sessionId: 'parent-session', forkSession: true, resumeAt: 'b7e0c2d4-message' };
+    expect(codeOf(() => checkTurn('claude_code', fakeTurnSpec('claude_code', fork)))).toBeUndefined();
+    expect(
+      codeOf(() => checkTurn('claude_code', fakeTurnSpec('claude_code', { ...fork, forkSession: false }))),
+    ).toBe('invalid_spec');
+    expect(
+      codeOf(() => checkTurn('claude_code', fakeTurnSpec('claude_code', { ...fork, sessionId: null }))),
+    ).toBe('invalid_spec');
+    expect(
+      codeOf(() => checkTurn('claude_code', fakeTurnSpec('claude_code', { ...fork, resumeAt: '-p' }))),
+    ).toBe('invalid_spec');
+  });
 });

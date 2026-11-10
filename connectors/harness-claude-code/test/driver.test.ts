@@ -94,6 +94,22 @@ describe('ClaudeCodeDriver.turn', () => {
     expect(process.args).not.toContain(spec.prompt);
   });
 
+  it("forks the resumed session for a branch's first turn, up to a message when it says one", () => {
+    const fork = fakeTurnSpec('claude_code', { sessionId: SESSION, forkSession: true });
+    expect(driver.turn(fork).args).toEqual([...TURN, '--resume', SESSION, '--fork-session']);
+    expect(driver.turn({ ...fork, resumeAt: 'c0a80101-message' }).args).toEqual([
+      ...TURN,
+      '--resume',
+      SESSION,
+      '--fork-session',
+      '--resume-session-at',
+      'c0a80101-message',
+    ]);
+    // A new conversation has nothing to fork; the terminal never forks.
+    expect(driver.turn(fakeTurnSpec('claude_code', { forkSession: true })).args).toEqual(TURN);
+    expect(driver.terminal(fork).args).toEqual(['--resume', SESSION]);
+  });
+
   it('asks (no skip flag) under the ask policy, so -p refuses what needs approval', () => {
     expect(driver.turn(fakeTurnSpec('claude_code', { permissionPolicy: 'ask' })).args).toEqual(TURN);
   });

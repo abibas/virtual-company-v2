@@ -2,6 +2,7 @@ import { z } from '@hono/zod-openapi';
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
 import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
 import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared/harness';
+import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
 import { ChatEarlierSchema } from './schemas/history.ts';
 
 /**
@@ -52,6 +53,7 @@ export const ChatSchema = z
       .string()
       .nullable()
       .openapi({ description: "The first prompt's start; null before the first turn" }),
+    ...chatBranchFields,
     createdBy: z.string().openapi({ description: 'The principal who began it' }),
     createdAt: dateTime,
     updatedAt: dateTime,
@@ -156,6 +158,9 @@ export const ChatDetailSchema = ChatSchema.extend({
       "The current conversation: the turns since the chat's last Clear (that Clear's turn first), the latest 30 of them",
   }),
   earlier: ChatEarlierSchema,
+  branchedFrom: ChatBranchedFromSchema.nullable().openapi({
+    description: 'The chat it branched from; null: none',
+  }),
   /** The last `init` event since the chat's last Clear (model, effort, folder, slash commands); null before one. */
   init: InitEvent.nullable(),
   context: ChatContextSchema.nullable().openapi({

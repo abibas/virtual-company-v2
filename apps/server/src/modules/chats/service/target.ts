@@ -9,6 +9,7 @@ import { agentPlacement, type RunnerHub } from '../../machines/index.ts';
 import { profileHarnessMismatch } from '../../org/rules/agents.ts';
 import { profilesRepo } from '../repo/profiles.ts';
 import { chatsRepo } from '../repo.ts';
+import { BRANCH_PENDING, RUNNER_CANNOT_FORK } from '../rules/branch.ts';
 import {
   CONTAINER_RUNS_LATER,
   HARNESS_CHANGED,
@@ -25,6 +26,7 @@ import {
   turnEffort,
   turnModel,
 } from '../rules.ts';
+import { forkOf, type TurnFork } from './branch.ts';
 
 /**
  * Where and on what a chat's turn or terminal runs (S5.1b, docs/harness.md "How a turn runs"): the agent (its harness
@@ -32,8 +34,9 @@ import {
  * (connected, with the harness's CLI, and a terminal for a terminal), the access profile (the chat's own while its owner
  * is still an admin here, else the agent's; of the provider the harness runs on) and its subscription, opened as its
  * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (any of its owner's: its address
- * with the path of the harness and, for Codex, of the credential's kind, `gatewayRouteOf`) and the profile's model and effort (since 2026-11-10; none: the harness's own default). Read
- * before anything is written; each refusal names what to fix.
+ * with the path of the harness and, for Codex, of the credential's kind, `gatewayRouteOf`) and the profile's model and effort (since 2026-11-10; none: the harness's own default). A
+ * branch not forked yet (`fork_pending`) opens no terminal, and its turn needs a runner that forks and says how to fork
+ * (`forkOf`). Read before anything is written; each refusal names what to fix.
  */
 
 /** What resolving needs: the hub and the credentials module's side. */
@@ -42,11 +45,13 @@ export interface TargetDeps {
   readonly credentials: CredentialsForHarness;
 }
 
-/** A resolved turn or terminal: the session's spec (without a prompt) and the subscription it runs on. */
+/** A resolved turn or terminal: the session's spec (without a prompt), a turn's fork, the subscription it runs on. */
 export interface Target {
   readonly ok: true;
   readonly agent: Agent;
   readonly spec: TerminalSpec;
+  /** What a branch's first turn adds to its spec (`forkSession`, `resumeAt`); empty otherwise. */
+  readonly fork: TurnFork;
   readonly profileId: string;
   readonly credentialId: string;
   readonly ownerUserId: string;
@@ -74,6 +79,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
   if (version === undefined) return RUNNER_OUTDATED;
   if (version === null) return harnessMissing(chat.harness);
   if (terminal && !runner.caps.terminal) return TERMINAL_UNAVAILABLE;
+  if (chat.forkPending && !runner.caps.forks) return RUNNER_CANNOT_FORK;
   return { ok: true as const, agent, placement };
 }
 
@@ -107,9 +113,13 @@ export async function resolveTarget(
   chat: Chat,
   request: TargetRequest,
 ): Promise<Target | Refusal> {
-  const place = await placeOf(deps, t, chat, request.purpose === 'chat_terminal');
+  const terminal = request.purpose === 'chat_terminal';
+  if (terminal && chat.forkPending) return BRANCH_PENDING;
+  const place = await placeOf(deps, t, chat, terminal);
   if (!place.ok) return place;
   const { agent, placement } = place;
+  const forked = await forkOf(t, chat);
+  if (!forked.ok) return forked;
   const profile = await profileOf(t, chat, agent);
   if (!('id' in profile)) return profile;
   if (!profileFitsHarness(profile.provider, chat.harness))
@@ -143,6 +153,7 @@ export async function resolveTarget(
     ok: true,
     agent,
     spec,
+    fork: forked.fork,
     profileId: profile.id,
     credentialId,
     ownerUserId: profile.ownerUserId,

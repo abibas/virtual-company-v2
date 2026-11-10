@@ -120,6 +120,7 @@ export class FakeRunner {
       terminal: false,
       selfUpdate: false,
       folders: false,
+      forks: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;

@@ -75,11 +75,11 @@ function ChatsOf({
   const openId = openWanted ?? chats.data?.chats[0]?.id;
   const hrefOf = (chatId?: string) => chatsPath(slug, agent.id, chatId);
 
-  const newChat = async () => {
-    const chat = await calls.create(agent.id);
+  const opened = (chat: { readonly id: string }) => {
     chats.reload();
     navigate(hrefOf(chat.id));
   };
+  const newChat = async () => opened(await calls.create(agent.id));
   const archive = async (chatId: string) => {
     await calls.archive(chatId);
     chats.reload();
@@ -108,6 +108,8 @@ function ChatsOf({
           admin={admin}
           owner={roleAtLeast(role, 'owner')}
           onChanged={chats.reload}
+          hrefOf={hrefOf}
+          onBranched={opened}
         />
       ) : (
         <NoChatOpen crumbs={crumbs} name={agent.name} admin={admin} />

@@ -1,8 +1,11 @@
 /**
  * Chats with an agent (S5.1b, docs/harness.md "How a turn runs"): the limits the API, the database and the web share
  * (an agent's questions' too, S5.2), the order of a chat's queue (S5.2 step 6), and the id of a chat event on the chat's stream (`GET …/chats/{chatId}/stream`,
- * Server-Sent Events), which the web sends back as `Last-Event-ID` to get what it missed.
+ * Server-Sent Events), which the web sends back as `Last-Event-ID` to get what it missed, and how far each harness
+ * branches a conversation.
  */
+
+import type { Harness } from './enums.ts';
 
 /** A chat's title: the first prompt's start, at most 80 characters. */
 export const CHAT_TITLE = { min: 1, max: 80 } as const;
@@ -81,3 +84,15 @@ export function parseChatEventId(text: string | undefined): ChatEventPosition | 
 /** True when `a` comes after `b` in the chat. */
 export const isAfter = (a: ChatEventPosition, b: ChatEventPosition): boolean =>
   a.turnSeq > b.turnSeq || (a.turnSeq === b.turnSeq && a.eventSeq > b.eventSeq);
+
+/**
+ * How far a harness forks a conversation for a branch (docs/harness.md "Branching"): from any reply (Claude Code:
+ * `--fork-session`, cut with `--resume-session-at`), from the latest reply only (Codex: `codex exec fork` copies a
+ * whole thread), or not at all, and why. The server's rules and the web's Branch action both read it.
+ */
+export type BranchSupport = 'any' | 'latest' | { readonly unsupported: string };
+
+export const BRANCH_SUPPORT: Readonly<Record<Harness, BranchSupport>> = {
+  claude_code: 'any',
+  codex: 'latest',
+};

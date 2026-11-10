@@ -1,4 +1,4 @@
-import { Archive, MessageSquarePlus, MessagesSquare } from 'lucide-react';
+import { Archive, GitBranch, MessageSquarePlus, MessagesSquare } from 'lucide-react';
 import { useState } from 'react';
 import type { Chat } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
@@ -24,7 +24,21 @@ export interface ChatListProps {
   readonly onArchive: (chatId: string) => Promise<void>;
 }
 
-/** One chat in the list: its title and when it last changed, with Archive for admins. */
+/** A chat's title in the list, a branch's after a small branch icon. */
+function ChatTitle({ chat, open }: { readonly chat: Chat; readonly open: boolean }) {
+  return (
+    <span
+      className={cx('flex min-w-0 items-center gap-1 text-sm font-medium', open ? 'text-ink' : 'text-ink-2')}
+    >
+      {chat.branchedFromChatId && (
+        <GitBranch size={12} aria-label="Branched" className="shrink-0 text-faint" />
+      )}
+      <span className="truncate">{chat.title ?? 'New chat'}</span>
+    </span>
+  );
+}
+
+/** One chat in the list: its title (a branch's with a small branch icon) and when it last changed, with Archive for admins. */
 function ChatRow({
   chat,
   open,
@@ -68,9 +82,7 @@ function ChatRow({
         aria-current={open ? 'page' : undefined}
         className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 focus-visible:outline-2 focus-visible:outline-blue"
       >
-        <span className={cx('block truncate text-sm font-medium', open ? 'text-ink' : 'text-ink-2')}>
-          {chat.title ?? 'New chat'}
-        </span>
+        <ChatTitle chat={chat} open={open} />
         <span className="block text-2xs text-faint">{fromNow(chat.updatedAt)}</span>
       </Link>
       {admin && (

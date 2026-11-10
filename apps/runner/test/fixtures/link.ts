@@ -22,6 +22,7 @@ export const HELLO: RunnerHello = {
     terminal: false,
     selfUpdate: false,
     folders: false,
+    forks: true,
   },
 };
 

@@ -65,7 +65,7 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
   if (!target.ok) return target;
   const row = await claim(deps, t, chat, head.id, target);
   if (row === 'gone' || row === 'raced') return row;
-  const spec = TurnSpec.safeParse({ ...target.spec, prompt: row.prompt });
+  const spec = TurnSpec.safeParse({ ...target.spec, prompt: row.prompt, ...target.fork });
   if (!spec.success) {
     await failed(deps, t, row, INVALID_SPEC(specIssues(spec.error)).message, true);
     return 'failed';

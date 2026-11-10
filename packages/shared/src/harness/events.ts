@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CHAT_PROMPT } from '../chats.ts';
 import { protocolObject, Uuid } from '../runner-protocol/common.ts';
 import { AnsweredEvent, QuestionEvent } from './questions.ts';
-import { HarnessSessionId } from './specs.ts';
+import { HarnessMessageId, HarnessSessionId } from './specs.ts';
 
 /**
  * What a turn's output means, the same for every harness (docs/harness.md, "Events"): the conversation's id and what
@@ -174,6 +174,8 @@ export const TurnEvent = z.discriminatedUnion('type', [
     text: z.string().optional(),
     error: z.string().min(1).max(RESULT_ERROR_MAX).optional(),
     durationMs: Count.optional(),
+    /** Claude Code: the main agent's last message's uuid, where a branch from this turn's reply resumes up to. */
+    messageId: HarnessMessageId.optional(),
   }),
   QuestionEvent,
   AnsweredEvent,

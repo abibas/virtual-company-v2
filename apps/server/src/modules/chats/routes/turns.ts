@@ -23,7 +23,9 @@ export const TURN_REFUSALS = {
     'The chat is archived (`chat_archived`), a turn of it runs (`turn_running`), the agent has no placement ' +
     '(`placement_missing`), runs in a container (`container_runs_later`), moved to another machine ' +
     "(`machine_changed`: start a new chat) or changed harness (`harness_changed`), its machine's runner is not " +
-    'connected (`machine_offline`), is older than chats (`runner_outdated`) or has no such CLI (`harness_missing`); ' +
+    'connected (`machine_offline`), is older than chats or, for a branch not forked yet, than branching ' +
+    "(`runner_outdated`) or has no such CLI (`harness_missing`), or a branch's reply can no longer be reached in its " +
+    'parent (`branch_latest_only`); ' +
     'with a `delivery`: ten messages wait already (`queue_full`), or the running turn takes no message now ' +
     '(`now_unsupported`: Codex, or a compaction)',
   422:

@@ -1,10 +1,11 @@
 import { ArrowDown, MessagesSquare } from 'lucide-react';
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import type { EarlierConversations as Folds } from '../../../api/use-chat-earlier.ts';
 import type { ChatEarlierLive } from '../../../api/use-chat-live.ts';
 import { cx } from '../../../components/cx.ts';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
+import { branchState } from '../branch/branch-state.ts';
 import { EarlierConversations } from './earlier/EarlierConversations.tsx';
 import { LoadOlder } from './earlier/LoadOlder.tsx';
 import { useKeepScroll } from './earlier/use-keep-scroll.ts';
@@ -56,6 +57,16 @@ export interface ChatThreadProps {
   /** How the person answers the agent's questions (S5.2 step 4). */
   readonly answering: Answering | undefined;
   readonly history: ThreadHistory;
+  /** Branch under the replies (admins and owners): the chat's harness and what a branch does; none hides it. */
+  readonly branching?: Branching | undefined;
+  /** A line at the thread's top (a branch's "Branched from"). */
+  readonly lead?: ReactNode;
+}
+
+/** How the replies branch: the chat's harness (how far it forks) and the action on a turn. */
+export interface Branching {
+  readonly harness: 'claude_code' | 'codex';
+  readonly onBranch: (turnId: string) => Promise<void>;
 }
 
 /** Above the current conversation: the folded conversations before Clears, then "Load older messages" when due. */
@@ -87,7 +98,28 @@ function Above({
   );
 }
 
-export function ChatThread({ turns, agentName, chatInit, answering, history }: ChatThreadProps) {
+/** A turn's Branch: its state in the thread and what it does, when the thread branches. */
+function branchFor(
+  branching: Branching | undefined,
+  current: readonly ChatTurnWithEvents[],
+  turn: ChatTurnWithEvents,
+) {
+  if (branching === undefined) return undefined;
+  return {
+    state: branchState(branching.harness, current, turn),
+    onBranch: () => branching.onBranch(turn.id),
+  };
+}
+
+export function ChatThread({
+  turns,
+  agentName,
+  chatInit,
+  answering,
+  history,
+  branching,
+  lead,
+}: ChatThreadProps) {
   const current = currentOf(turns);
   const streaming = current.some((turn) => turn.status === 'running');
   const answers = new Set([...answerTurnIds(current), ...sentTurnIds()]);
@@ -106,6 +138,7 @@ export function ChatThread({ turns, agentName, chatInit, answering, history }: C
         aria-busy={streaming || undefined}
         className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-4 select-text [overflow-anchor:none] md:px-8"
       >
+        {lead && <div className={cx(THREAD_WIDTH, 'mb-6')}>{lead}</div>}
         {empty ? (
           <EmptyState icon={MessagesSquare} tone="blue" title="No messages yet" size="sm">
             Write to {agentName} below. It answers from its folder on its machine, with its own tools.
@@ -120,7 +153,12 @@ export function ChatThread({ turns, agentName, chatInit, answering, history }: C
                   turn={turn}
                   agentName={agentName}
                   chatInit={chatInit}
-                  place={{ last: index === current.length - 1, answer: answers.has(turn.id), answering }}
+                  place={{
+                    last: index === current.length - 1,
+                    answer: answers.has(turn.id),
+                    answering,
+                    branch: branchFor(branching, current, turn),
+                  }}
                 />
               ))}
             </ol>

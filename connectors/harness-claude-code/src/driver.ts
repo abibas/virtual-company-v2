@@ -11,6 +11,7 @@ import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
 import {
   CLAUDE_COMMAND,
   claudeEnv,
+  forkArgs,
   MCP_CONFIG_FILE,
   mcpConfig,
   sharedArgs,
@@ -30,7 +31,8 @@ export interface ClaudeCodeDriverOptions {
 /**
  * The Claude Code `HarnessDriver` (docs/harness.md, "Claude Code"). A turn is
  * `claude -p --output-format stream-json --verbose --input-format stream-json --replay-user-messages [--resume <id>]
- * [--model <m>] [--effort <e>] [--dangerously-skip-permissions]` with the prompt as the first user message on stdin,
+ * [--model <m>] [--effort <e>] [--dangerously-skip-permissions]` (a branch's first turn adds `--fork-session` and maybe
+ * `--resume-session-at <uuid>`, `forkArgs`) with the prompt as the first user message on stdin,
  * which stays open for the person's messages while the turn runs (`inputLine`, `input.ts`); a terminal is the same
  * without the print-mode arguments, the TUI.
  * With the runner's tools a turn also gets its MCP server (`--mcp-config <dir>/mcp.json`, the file written by the runner),
@@ -49,7 +51,7 @@ export class ClaudeCodeDriver implements HarnessDriver {
 
   turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec {
     checkTurn(this.harness, spec);
-    const args = [...TURN_ARGS, ...INPUT_ARGS, ...sharedArgs(spec)];
+    const args = [...TURN_ARGS, ...INPUT_ARGS, ...sharedArgs(spec), ...forkArgs(spec)];
     const first = userLine(spec.prompt, randomUUID());
     if (tools === undefined) return { ...this.#process(args, spec, first), stdinOpen: true };
     const file = { name: MCP_CONFIG_FILE, contents: mcpConfig(tools), mode: 0o600 };

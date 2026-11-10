@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 29. Migrations: 18, the last is `0017_profile_model`.
+Tables: 29. Migrations: 19, the last is `0018_chat_branch`.
 
 ```mermaid
 erDiagram
@@ -117,6 +117,9 @@ erDiagram
     uuid profile_set_by FK "nullable"
     text session_id "nullable"
     text title "nullable"
+    uuid branched_from_chat_id FK "nullable"
+    uuid branched_from_turn_id FK "nullable"
+    boolean fork_pending "not null, default false"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -386,6 +389,8 @@ erDiagram
   chats }o--|| companies : "company_id"
   chats }o--o| access_profiles : "profile_id"
   chats }o--o| users : "profile_set_by"
+  chats }o--o| chats : "company_id, branched_from_chat_id"
+  chats }o--o| chat_turns : "company_id, branched_from_turn_id"
   chats }o--|| agents : "company_id, agent_id"
   chats }o--|| machines : "company_id, machine_id"
   chats }o--|| principals : "company_id, created_by"
@@ -676,6 +681,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `profile_set_by` | `uuid` | yes |  | FK |  |
 | `session_id` | `text` | yes |  |  |  |
 | `title` | `text` | yes |  |  |  |
+| `branched_from_chat_id` | `uuid` | yes |  | FK |  |
+| `branched_from_turn_id` | `uuid` | yes |  | FK |  |
+| `fork_pending` | `boolean` | no | `false` |  |  |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -686,6 +694,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `company_id` → `companies` (`id`), on delete no action (`chats_company_id_companies_id_fk`)
   - `profile_id` → `access_profiles` (`id`), on delete set null (`chats_profile_id_access_profiles_id_fk`)
   - `profile_set_by` → `users` (`id`), on delete no action (`chats_profile_set_by_users_id_fk`)
+  - (`company_id`, `branched_from_chat_id`) → `chats` (`company_id`, `id`), on delete no action (`chats_branched_from_chat_fk`)
+  - (`company_id`, `branched_from_turn_id`) → `chat_turns` (`company_id`, `id`), on delete no action (`chats_branched_from_turn_fk`)
   - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete no action (`chats_agent_fk`)
   - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`chats_machine_fk`)
   - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chats_created_by_fk`)
@@ -696,9 +706,12 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chats_title_check`: `char_length("title") between 1 and 80`
   - `chats_session_id_check`: `char_length("session_id") between 1 and 200`
   - `chats_profile_set_by_check`: `"profile_id" is null or "profile_set_by" is not null`
+  - `chats_branch_check`: `"branched_from_turn_id" is null or "branched_from_chat_id" is not null`
+  - `chats_fork_pending_check`: `not "fork_pending" or "session_id" is not null`
 - **Indexes:**
   - `chats_agent_idx` on (`company_id`, `agent_id`, `updated_at`)
   - `chats_profile_idx` on (`profile_id`)
+  - `chats_branched_from_idx` on (`company_id`, `branched_from_chat_id`)
 
 ### `companies`
 

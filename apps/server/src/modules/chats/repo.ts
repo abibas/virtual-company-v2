@@ -47,4 +47,15 @@ async function update(t: TenantDb, id: string, set: TenantSet<typeof chats>): Pr
   return row;
 }
 
-export const chatsRepo = { agentOf, get, ofAgent, insert, update };
+/**
+ * Saves the session a turn said (its `session` event). A branch waiting for its fork (`fork_pending`) stops waiting
+ * only when that session is another than the one it had (the parent's): a session event naming the parent's own would
+ * mean nothing was forked, and the next turn must fork again rather than resume the parent's conversation in place.
+ */
+async function saveSession(t: TenantDb, id: string, sessionId: string): Promise<void> {
+  const chat = (await get(t, id)) as Chat;
+  const forked = chat.forkPending && chat.sessionId !== sessionId ? { forkPending: false } : {};
+  await update(t, id, { sessionId, ...forked });
+}
+
+export const chatsRepo = { agentOf, get, ofAgent, insert, update, saveSession };

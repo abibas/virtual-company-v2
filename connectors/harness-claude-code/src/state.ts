@@ -17,10 +17,19 @@ export interface ClaudeState {
   readonly subagents: Map<string, SubagentState>;
   /** Claude Code's task id of a subagent → its call's id. */
   readonly tasks: Map<string, string>;
+  /** The main agent's last message's uuid: the `result`'s `messageId`, where a branch from this reply resumes up to. */
+  messageId: string | undefined;
 }
 
 export function newClaudeState(): ClaudeState {
-  return { model: null, context: undefined, contextKey: undefined, subagents: new Map(), tasks: new Map() };
+  return {
+    model: null,
+    context: undefined,
+    contextKey: undefined,
+    subagents: new Map(),
+    tasks: new Map(),
+    messageId: undefined,
+  };
 }
 
 /** The subagent a message comes from (Claude Code's `parent_tool_use_id`), as an event's `parentId`. */

@@ -106,7 +106,7 @@ export async function startTurn(
     purpose: 'chat_turn',
   });
   if (!target.ok) return target;
-  const spec = TurnSpec.safeParse({ ...target.spec, prompt });
+  const spec = TurnSpec.safeParse({ ...target.spec, prompt, ...target.fork });
   if (!spec.success) return INVALID_SPEC(specIssues(spec.error));
   const now = deps.clock();
   const turn = await record(

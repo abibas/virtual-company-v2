@@ -21,7 +21,9 @@ The server reads only `@mwc/shared/harness`; it never imports a harness package.
 
 ```ts
 TurnSpec     { harness, cwd, prompt, sessionId: string|null, model: string|null, effort?, permissionPolicy: 'ask'|'bypass',
-               configDir: string|null, credential: HarnessCredential, gateway: { baseUrl, headers } | null }
+               configDir: string|null, credential: HarnessCredential, gateway: { baseUrl, headers } | null,
+               forkSession?: boolean /* a branch's first turn: resume sessionId forked */,
+               resumeAt?: string /* Claude Code: cut the forked copy after this message uuid */ }
 TerminalSpec  the same without `prompt`
 
 ProcessSpec  { command, args, env /* to add or override */, unsetEnv /* to remove */, stdin: string|null,
@@ -78,7 +80,7 @@ LineParser    { feed(line): TurnEvent[]; end(exitCode: number|null, stderrTail: 
 | `compact`     | `preTokens`, `postTokens` (null: not said), `trigger?` (`manual` \| `auto`) | a compaction of the conversation: Claude's `system/compact_boundary` |
 | `notice`      | `level` (`info`, `warn`), `message` (≤ 2000), `parentId?` | a tool refused for permission, a retried request |
 | `input`       | `text` (1–20 000), `inputId?` (the message's id, `turn.input`'s) | a message the person sent into the running turn, where the harness took it (S5.2 step 6): Claude Code's echo of it, kept by the runner only for a message it wrote |
-| `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?` | the last event of the harness's output                     |
+| `result`      | `ok`, `text?` (the reply), `error?` (≤ 2000), `durationMs?`, `messageId?` (one word) | the last event of the harness's output; Claude Code's names the main agent's last message's `uuid`, where a branch from this reply resumes up to ("Branching") |
 | `question`    | `id` (the runner's UUID), `questions` (1–4, "Asking the person") | the agent asked the person through the runner's tool: a `turn.question` frame, never a parser's |
 | `answered`    | `questionId`, `turnId` (the turn that carried the answers), `answers` (1–4 `{question, picked[], other?}`) | the person answered: the server adds it to the question's turn after its end |
 
@@ -155,6 +157,9 @@ env:       DISABLE_AUTOUPDATER=1; the credential's variable; CLAUDE_CONFIG_DIR=<
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
 ```
 
+- **A branch's first turn** (2026-11-10, "Branching"): `--fork-session` after `--resume <id>`, and
+  `--resume-session-at <uuid>` when the spec says `resumeAt` (`forkArgs`); never in the terminal.
+
 - **No auto-update** (2026-11-10). Every turn and terminal gets `DISABLE_AUTOUPDATER=1` (`NO_AUTO_UPDATE`; the name is
   in Claude Code 2.1.322's own list of the variables it reads), so Claude Code never updates itself mid-run or offers
   to; a machine's CLIs are updated from its card (docs/machines.md "Tools").
@@ -225,6 +230,7 @@ sign-in helper pins 0.163.0), and the documented `--json` events (`codex-rs/exec
 turn, new:      codex exec --json --skip-git-repo-check -c check_for_update_on_startup=false [--model <m>] [-c model_reasoning_effort="<e>"] <permissions>
                 [<tools>] -
 turn, resume:   codex exec resume --json --skip-git-repo-check -c check_for_update_on_startup=false [--model <m>] [-c …] <permissions> [<tools>] <threadId> -
+turn, fork:     codex exec fork … the same options … <threadId> -     (a branch's first turn, "Branching")
 tools:          -c mcp_servers.mwc.command="<node>" -c mcp_servers.mwc.args=["<runner.mjs>","mcp"]
                 -c mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]
                 -c mcp_servers.mwc.default_tools_approval_mode="approve"     and both variables in codex's env
@@ -555,6 +561,51 @@ ability to expand… lazy loading"). The detail no longer carries every turn:
   only the current conversation (the meter's totals count its loaded turns). Not yet: events loaded lazily inside a
   huge turn, search.
 
+## Branching
+
+Built 2026-11-10 (Ihor: "I would love to have a BRANCH conversation button"). From a reply in a chat, a new chat with the
+same agent continues the conversation from that point; the original is never changed.
+
+**What each CLI supports** (checked without running a turn):
+
+| CLI | Fork | From an earlier reply |
+| --- | ---- | --------------------- |
+| Claude Code 2.1.322 | `--fork-session` with `--resume <id>` ("When resuming, create a new session ID instead of reusing the original", `claude --help`): a new session from a copy, the original untouched | yes: `--resume-session-at <message id>`, a print-mode option `claude --help` does not list. Its own text (in the binary): "When resuming, only messages up to and including the chain entry with <message.id> (any chain-entry UUID, typically the kept turn's last entry)"; it requires `--resume`, and with `--fork-session` the cut copy becomes the new session. Without a fork it would cut the original, so the drivers refuse `resumeAt` without `forkSession` |
+| Codex 0.167.0 | `codex exec fork [options] <SESSION_ID> [PROMPT]` ("Fork a previous session by id into a new session"; `-` reads the prompt from stdin; the same `-c`, `--json`, `--skip-git-repo-check` and permission flags as `exec resume`) | no: the CLI forks a whole thread. Its app server's `thread/fork` has turn boundaries (`beforeTurnId`, `lastTurnId`), but `codex exec fork` exposes none, and `exec --json` names no turn ids. So a Codex chat branches from the latest reply of a conversation only |
+
+That `codex exec fork --json` starts with `thread.started` naming the new thread, and that Claude Code's `system/init`
+after `--fork-session` names the new session, are read from the CLIs' own code and help, not from a real turn.
+
+- **The route**: `POST /api/companies/{companyId}/chats/{chatId}/branch {turnId}` (admins and owners) → 201 the new chat,
+  titled "<parent title> (branch)" (cut to 80). The reply must be a finished message turn of that chat (done, failed or
+  stopped) with a `session` event (else 409 `turn_not_branchable`); 404 `chat_not_found`, `turn_not_found`; 409
+  `turn_running` while a turn of the chat runs or waits, `agent_archived`, `branch_unsupported` (with the reason, for a
+  harness that cannot fork: none today, `BRANCH_SUPPORT` of `@mwc/shared/chats`) and `branch_latest_only` when only the
+  latest reply of its conversation can branch: always for Codex, and for Claude Code a reply recorded before message ids
+  (no `messageId` on its result) or one followed by a compaction on its session (a Compact turn, or Claude Code's own
+  compaction mid-turn: resuming loads the conversation from the last compaction, so the reply's message is gone).
+  "Latest" means no later turn of the chat ran on the reply's session (a reply before a Clear is the latest of its own
+  conversation). Audited as `branch`.
+- **The branch** copies the parent's harness, machine, access profile choice (and who made it) and the reply's own
+  session (its `session` event's), names the parent and the reply (`chats.branched_from_chat_id`,
+  `branched_from_turn_id`, composite keys to the same company that set only their own column to null when the parent
+  goes) and is `fork_pending` (migration `0018_chat_branch`; a CHECK holds `fork_pending` to a session).
+- **Its first turn** (a prompt, a queued message or a Compact) resumes that session with `forkSession: true`, and with
+  `resumeAt` = the reply's `messageId` when later turns of the parent ran on its session, read again at each try, so a
+  parent that went on after the branch was made is still cut at the reply; one that can no longer be (Codex, a
+  compaction since) refuses the turn with 409 `branch_latest_only`. A parent or reply gone forks the whole session. A
+  runner older than branching (`caps.forks` false) refuses it with `runner_outdated`, since it would resume the
+  parent's conversation in place. The turn's `session` event saves the new session and clears `fork_pending`; one that
+  names the parent's own session leaves it pending, so the next turn forks again rather than continue the parent.
+- **Before that turn** the branch opens no terminal (409 `branch_pending`), and a Clear clears `fork_pending` with the
+  session (its next turn starts anew).
+- **The page**: Branch (a branch icon) under each agent reply beside Copy, for admins and owners: enabled on the latest
+  reply and, for Claude Code, on earlier ones that kept their message id with no compaction after; disabled with the
+  reason as its tooltip otherwise (Codex: "Codex branches from the latest reply only") and while a turn runs; hidden on
+  a reply without a conversation. It creates the branch and opens it; the branch shows "Branched from <parent title> ·
+  <time>" at its top, linking back, and the chat list marks branches with a small branch icon. The branch's thread
+  starts empty: the parent's earlier messages stay in the parent.
+
 ## Tests
 
 - Each connector's tests run every argument and environment combination and parse its fixtures, written from the
@@ -595,4 +646,6 @@ ability to expand… lazy loading"). The detail no longer carries every turn:
 - Approving a tool mid-turn (the permission tool): S6, over the same bridge. Until then `ask` refuses in chat and asks
   only in the terminal. Selections are built ("Asking the person"); the agent ends its turn after asking, and the answer
   is the next turn rather than a live reply.
+- Branching: merging a branch back, branching from the person's message (to edit it), a Codex branch from an earlier
+  reply (its CLI forks a whole thread), and showing the parent's messages inside the branch.
 - Running as root: Claude Code refuses `--dangerously-skip-permissions` as root, which matters for container runs.

@@ -18,7 +18,7 @@ export interface CodexDriverOptions {
 
 /**
  * The Codex `HarnessDriver` (docs/harness.md, "Codex"). A turn is `codex exec --json --skip-git-repo-check … -` (or
- * `codex exec resume … <thread> -`) with the prompt on stdin; a terminal is `codex …` (or `codex resume … <thread>`).
+ * `codex exec resume … <thread> -`, a branch's first `codex exec fork … <thread> -`) with the prompt on stdin; a terminal is `codex …` (or `codex resume … <thread>`).
  * Codex always runs in a home folder the runner manages (`CODEX_HOME`: the turn's `configDir`, or the runner's own per
  * `cwd`), where its threads stay between turns and its login is written for the process's lifetime only. With the
  * runner's tools a turn also gets its MCP server as config overrides, and the server's variables in its environment.

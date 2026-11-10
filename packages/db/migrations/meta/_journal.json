@@ -127,6 +127,13 @@
       "when": 1794303897854,
       "tag": "0017_profile_model",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794311711634,
+      "tag": "0018_chat_branch",
+      "breakpoints": true
     }
   ]
 }

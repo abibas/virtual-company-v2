@@ -14,7 +14,7 @@ import { streamEvent, turnView } from './views.ts';
 
 /**
  * The chats' live turns in this server process (S5.1b): each started turn's sink, which stores the runner's events in
- * order (a `session` event saves the chat's session id; a question the agent asked is its `question` event, S5.2),
+ * order (a `session` event saves the chat's session id, and a branch's forked one ends its `fork_pending`; a question the agent asked is its `question` event, S5.2),
  * tells the chat's stream listeners, and on the turn's end closes its row (done, failed or stopped, with the reply and
  * the usage) and seals again a Codex login the process rewrote; and each live turn's channel, which a stop and the
  * person's message mid-turn go through (S5.2 step 6: the harness's `input` event for it removes the message's waiting
@@ -79,7 +79,7 @@ async function stored(
   for (const row of rows.sort((a, b) => a.seq - b.seq)) {
     const event = row.event as TurnEvent;
     next = withEvent(next, event);
-    if (event.type === 'session') await chatsRepo.update(t, turn.chatId, { sessionId: event.sessionId });
+    if (event.type === 'session') await chatsRepo.saveSession(t, turn.chatId, event.sessionId);
     l.bus.publish(turn.chatId, { kind: 'event', event: streamEvent(turn, row) });
     if (event.type === 'input' && event.inputId !== undefined) await taken(l, t, turn.chatId, event.inputId);
   }

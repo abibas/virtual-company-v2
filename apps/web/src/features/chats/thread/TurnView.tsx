@@ -2,6 +2,8 @@ import { CircleAlert } from 'lucide-react';
 import { useMemo } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import { formatTime } from '../../../components/data/format.ts';
+import { BranchAction } from '../branch/BranchAction.tsx';
+import type { BranchState } from '../branch/branch-state.ts';
 import { turnErrorText } from '../chat-text.ts';
 import { STARTED_NOTE } from '../delivery/delivery.ts';
 import type { TurnModel } from './model/parts.ts';
@@ -18,7 +20,7 @@ import { TodoCard } from './todo/TodoCard.tsx';
 /**
  * One turn of a chat (S5.1c, S5.2): the person's prompt on the right; the agent's reply on the left as its events build
  * it (Markdown text, quiet activity rows, subagent blocks), the to-do card, the agent's question (S5.2 step 4), and the
- * live status while it runs or the quiet summary once it ended. A Compact turn is a marker, a Clear a divider; a turn
+ * live status while it runs or the quiet summary once it ended, with Copy and Branch under the reply. A Compact turn is a marker, a Clear a divider; a turn
  * whose prompt carried answers shows no prompt (the question's receipt stands for it).
  */
 
@@ -56,6 +58,14 @@ export interface TurnPlace {
   /** Its prompt carried answers to the agent's question. */
   readonly answer: boolean;
   readonly answering: Answering | undefined;
+  /** Branch under the reply (admins and owners): its state and what it does; none hides it. */
+  readonly branch?: { readonly state: BranchState; readonly onBranch: () => Promise<void> } | undefined;
+}
+
+/** The Branch action for the reply's `more` slot, unless hidden. */
+function branchOf(branch: TurnPlace['branch']) {
+  if (branch === undefined || branch.state.kind === 'hidden') return undefined;
+  return <BranchAction state={branch.state} onBranch={branch.onBranch} />;
 }
 
 /** The agent's side of a message turn. */
@@ -104,7 +114,12 @@ function Reply({
             <TurnFooter turn={turn} model={model} />
           </div>
           {model.replyText && (
-            <MessageActions text={model.replyText} label="Copy reply" className={REVEAL_ACTIONS} />
+            <MessageActions
+              text={model.replyText}
+              label="Copy reply"
+              more={branchOf(place.branch)}
+              className={REVEAL_ACTIONS}
+            />
           )}
         </div>
       )}

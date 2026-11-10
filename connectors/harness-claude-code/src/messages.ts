@@ -9,6 +9,7 @@ import {
 } from '@mwc/harness-core';
 import {
   RESULT_ERROR_MAX,
+  SESSION_ID_PATTERN,
   THINKING_MAX,
   TODO_ITEMS_MAX,
   TODO_TEXT_MAX,
@@ -61,9 +62,15 @@ function toolEvents(block: JsonRecord, belongs: Belongs, state: ClaudeState): Tu
   return [tool, ...subagentStarted(call, belongs, state)];
 }
 
-/** `assistant`: its text, thinking and tool calls in order, then how full the context is (the main agent's only). */
+/**
+ * `assistant`: its text, thinking and tool calls in order, then how full the context is (the main agent's only). The
+ * main agent's message also keeps its `uuid` (each content block is a message of its own): the last one is the turn's.
+ */
 export function assistantEvents(message: JsonRecord, state: ClaudeState = newClaudeState()): TurnEvent[] {
   const belongs = parentOf(message);
+  const uuid = stringOf(message.uuid);
+  if (belongs.parentId === undefined && uuid !== undefined && SESSION_ID_PATTERN.test(uuid))
+    state.messageId = uuid;
   const events: TurnEvent[] = [];
   for (const block of blocksOf(message)) {
     if (!isRecord(block)) continue;
@@ -130,7 +137,7 @@ function errorOf(message: JsonRecord, subtype: string | undefined): string {
 
 /**
  * `result`: a notice per refused tool, the subagents still running as interrupted, the context with the window Claude
- * Code reported, the usage, then the turn's end.
+ * Code reported, the usage, then the turn's end, with the main agent's last message's uuid when one came.
  */
 export function resultEvents(message: JsonRecord, state: ClaudeState = newClaudeState()): TurnEvent[] {
   const events: TurnEvent[] = [];
@@ -152,6 +159,7 @@ export function resultEvents(message: JsonRecord, state: ClaudeState = newClaude
     ...(ok && reply ? { text: reply } : {}),
     ...(ok ? {} : { error: clipHead(errorOf(message, subtype), RESULT_ERROR_MAX) }),
     ...(durationMs === undefined ? {} : { durationMs }),
+    ...(state.messageId === undefined ? {} : { messageId: state.messageId }),
   });
   return events;
 }

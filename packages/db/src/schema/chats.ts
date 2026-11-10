@@ -3,6 +3,8 @@ import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/sh
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
+  boolean,
   check,
   index,
   integer,
@@ -27,11 +29,15 @@ import { users } from './users.ts';
  * Chats with an agent (S5.1b, docs/harness.md "How a turn runs"): a conversation of one harness on one machine (a
  * harness session lives on the machine it began on), its turns (one prompt each, a process on the agent's machine) and
  * each turn's events as the runner read them. A chat may use another access profile than its agent's: only its owner
- * sets it (`profile_set_by`), and it goes when the profile does.
+ * sets it (`profile_set_by`), and it goes when the profile does. A branch (migration 0018) is a chat that continues
+ * another's conversation from one of its replies: it names that chat and turn, and its first turn forks the session.
  */
 
 const n = (value: number) => sql.raw(String(value));
 const at = (name: string) => timestamp(name, { withTimezone: true });
+
+/** The turns' key, for a branch's foreign key (a function with its type said, since the turns point back at chats). */
+const turnKey = (): { readonly companyId: AnyPgColumn; readonly id: AnyPgColumn } => chatTurns;
 
 export const chats = pgTable(
   'chats',
@@ -51,6 +57,12 @@ export const chats = pgTable(
     sessionId: text('session_id'),
     /** The first prompt's start, at most 80 characters; null before the first turn. */
     title: text('title'),
+    /** The chat this one branched from (its parent); null for a chat begun anew. */
+    branchedFromChatId: uuid('branched_from_chat_id'),
+    /** The parent's turn whose reply this branch continues from. */
+    branchedFromTurnId: uuid('branched_from_turn_id'),
+    /** True until the branch's first turn forked the parent's session (`session_id` is the parent's until then). */
+    forkPending: boolean('fork_pending').notNull().default(false),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -58,6 +70,8 @@ export const chats = pgTable(
   },
   (t) => [
     tenantKey('chats', t),
+    tenantForeignKey('chats_branched_from_chat_fk', t.companyId, t.branchedFromChatId, t),
+    tenantForeignKey('chats_branched_from_turn_fk', t.companyId, t.branchedFromTurnId, turnKey()),
     tenantForeignKey('chats_agent_fk', t.companyId, t.agentId, agents),
     tenantForeignKey('chats_machine_fk', t.companyId, t.machineId, machines),
     tenantForeignKey('chats_created_by_fk', t.companyId, t.createdBy, principals),
@@ -68,8 +82,11 @@ export const chats = pgTable(
     ),
     check('chats_session_id_check', sql`char_length(${t.sessionId}) between 1 and 200`),
     check('chats_profile_set_by_check', sql`${t.profileId} is null or ${t.profileSetBy} is not null`),
+    check('chats_branch_check', sql`${t.branchedFromTurnId} is null or ${t.branchedFromChatId} is not null`),
+    check('chats_fork_pending_check', sql`not ${t.forkPending} or ${t.sessionId} is not null`),
     index('chats_agent_idx').on(t.companyId, t.agentId, t.updatedAt),
     index('chats_profile_idx').on(t.profileId),
+    index('chats_branched_from_idx').on(t.companyId, t.branchedFromChatId),
   ],
 );
 

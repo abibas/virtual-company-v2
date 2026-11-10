@@ -103,6 +103,31 @@ describe('turnArgs', () => {
       '-',
     ]);
   });
+
+  it("forks the whole thread for a branch's first turn, and refuses a message to fork up to", () => {
+    const spec = fakeTurnSpec('codex', { sessionId: THREAD, forkSession: true });
+    expect(turnArgs(spec)).toEqual([
+      'exec',
+      'fork',
+      '--json',
+      '--skip-git-repo-check',
+      ...NO_UPDATE_CHECK,
+      ...ASK_EXEC,
+      ...DIRECT,
+      THREAD,
+      '-',
+    ]);
+    // Nothing to fork on a new thread; a fork up to a message is Claude Code's alone.
+    expect(turnArgs(fakeTurnSpec('codex', { forkSession: true })).slice(0, 2)).toEqual(['exec', '--json']);
+    const code = (() => {
+      try {
+        turnArgs({ ...spec, resumeAt: 'turn-3' });
+      } catch (error) {
+        return isHarnessError(error) ? error.code : 'other';
+      }
+    })();
+    expect(code).toBe('invalid_spec');
+  });
 });
 
 const TOOLS = {

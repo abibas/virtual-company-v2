@@ -51,10 +51,11 @@ export const agentChatsPath = (company: Pick<MembersCompany, 'companyId'>, agent
 export const chatPath = (company: Pick<MembersCompany, 'companyId'>, chatId: string, rest = '') =>
   `/api/companies/${company.companyId}/chats/${chatId}${rest}`;
 
-/** Both CLIs, with their versions, and a terminal. */
+/** Both CLIs, with their versions, a terminal, and forks for a branch. */
 export const BOTH_HARNESSES: Partial<RunnerCaps> = {
   harnesses: { claude_code: '2.1.319 (Claude Code)', codex: 'codex-cli 0.163.0' },
   terminal: true,
+  forks: true,
 };
 
 export const HOME = '/Users/ihor/agents/slop-box';

@@ -106,18 +106,14 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
     const agent = await insertAgentBefore0017(handle, companyId, { harness });
     const machine = await insertMachine(handle, companyId);
     const creator = await insertPrincipal(handle, companyId);
-    const [row] = await handle.db
-      .insert(chats)
-      .values({
-        companyId,
-        agentId: agent.id,
-        harness,
-        machineId: machine.id,
-        profileId,
-        profileSetBy: setBy,
-        createdBy: creator.id,
-      })
-      .returning();
+    // Raw SQL: the schema's chats have columns of later migrations (0018's branch).
+    const [row] = await queryRows<{ id: string }>(
+      handle,
+      sql`insert into chats (id, company_id, agent_id, harness, machine_id, profile_id, profile_set_by, created_by)
+          values (${newId()}, ${companyId}, ${agent.id}, ${harness}, ${machine.id}, ${profileId}, ${setBy},
+                  ${creator.id})
+          returning id`,
+    );
     ids[name] = row?.id as string;
   }
 
@@ -183,7 +179,7 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
   const chatRow = async (name: string) =>
     (
       await handle.db
-        .select()
+        .select({ profileId: chats.profileId, profileSetBy: chats.profileSetBy })
         .from(chats)
         .where(eq(chats.id, ids[name] as string))
     )[0];

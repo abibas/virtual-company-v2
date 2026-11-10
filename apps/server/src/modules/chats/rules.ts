@@ -29,6 +29,11 @@ export const refuse = <S extends RefusalStatus>(status: S, code: string, message
 });
 
 export const AGENT_NOT_FOUND = refuse(404, 'agent_not_found', 'No such agent in this company');
+export const AGENT_ARCHIVED = refuse(
+  409,
+  'agent_archived',
+  'The agent is archived: restore it to chat with it',
+);
 export const CHAT_NOT_FOUND = refuse(404, 'chat_not_found', 'No such chat in this company');
 export const TURN_NOT_FOUND = refuse(404, 'turn_not_found', 'No such turn in this chat');
 export const CHAT_ARCHIVED = refuse(409, 'chat_archived', 'This chat is archived; start a new chat');
