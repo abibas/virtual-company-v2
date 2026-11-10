@@ -17,7 +17,7 @@ import { npmInstallArgs, type RunningInstall, startNpmInstall } from './install.
 /**
  * The daemon's tools (docs/machines.md, "Tools"; docs/runner-protocol.md, "Tools"): the versions its hello says
  * (`caps.tools`), `tools.check` (look again) and `tools.install` (npm installs Claude Code or Codex into `~/.local`, one
- * at a time, never in a container), each answered by `tools.result` after the versions are read again. When they were
+ * at a time, never while the runner updates itself, never in a container), each answered by `tools.result` after the versions are read again. When they were
  * read again, the harnesses look again for a harness CLI found now (so a turn drives it and `caps.harnesses` says so)
  * and `changed` sends `runner.caps`, before the answer, so the server's view is fresh when it comes.
  */
@@ -39,6 +39,8 @@ export interface ToolsDeps {
   changed(): void;
   /** How long npm may run; `TOOLS_INSTALL_TIMEOUT_MS` unless a test shortens it. */
   readonly installTimeoutMs?: number;
+  /** True while the runner updates itself: no install then (it would restart under npm). */
+  readonly updating?: () => boolean;
 }
 
 /** Each harness's CLI among the tools. */
@@ -72,6 +74,11 @@ export class Tools {
     };
   }
 
+  /** The tool being installed now, if any (a self-update waits for it). */
+  get installing(): string | undefined {
+    return this.#installing?.tool;
+  }
+
   /** The answer to `tools.check` or `tools.install` (it never throws). */
   handle(frame: ToolsCheck | ToolsInstall): Promise<ToolsResult> {
     return frame.type === 'tools.check' ? this.#check(frame) : this.#install(frame);
@@ -101,6 +108,7 @@ export class Tools {
       );
     }
     if (this.#installing) return this.#refuse(frame, `busy: ${this.#installing.tool} is being installed`);
+    if (this.#deps.updating?.()) return this.#refuse(frame, 'busy: the runner is updating itself');
     const npm = host.npm();
     if (npm === undefined)
       return this.#refuse(frame, "npm_missing: there is no npm beside the runner's Node");

@@ -102,6 +102,12 @@ export function terminalBoard() {
         sink.exit(endingOf(frame));
       }
     },
+    /** How many terminals are open on the machine's connections. */
+    count(machineId: string): number {
+      let open = 0;
+      for (const [connection, own] of sessions) if (connection.machineId === machineId) open += own.size;
+      return open;
+    },
     /** The connection closed: every terminal it carried ends with `machine_disconnected`. */
     drop(connection: RunnerConnection): void {
       const own = sessions.get(connection);

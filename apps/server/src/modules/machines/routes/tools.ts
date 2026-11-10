@@ -14,6 +14,7 @@ import {
   ToolsCheckedSchema,
 } from '../schemas/tools.ts';
 import { MachineParamsSchema } from '../schemas.ts';
+import type { MachineJobs } from '../service/jobs.ts';
 import type { RunnerHub } from '../service/runner/hub.ts';
 import { toolInstalls } from '../service/tools/installs.ts';
 import { checkTools, installStatus, startInstall } from '../service/tools.ts';
@@ -44,7 +45,7 @@ const checkRoute = (deps: ServerDeps) => {
       ...refusals,
       404: NO_MACHINE,
       409: errorResponse(
-        'The runner is not connected (`machine_offline`) or is older than the tools (`runner_outdated`)',
+        'The runner is updating (`machine_busy`), is not connected (`machine_offline`) or is older than the tools (`runner_outdated`)',
       ),
       504: errorResponse('The runner did not answer within 45 seconds (`runner_timeout`)'),
     },
@@ -69,8 +70,9 @@ const installRoute = (deps: ServerDeps) => {
       ...refusals,
       404: NO_MACHINE,
       409: errorResponse(
-        'The runner is not connected (`machine_offline`), is older than the tools (`runner_outdated`), installs ' +
-          'already (`busy`), or is a container, whose image is rebuilt instead (`unsupported`)',
+        'Another install or a runner update runs on the machine (`machine_busy`, naming it), the runner is not ' +
+          'connected (`machine_offline`) or is older than the tools (`runner_outdated`), or it is a container, whose ' +
+          'image is rebuilt instead (`unsupported`)',
       ),
     },
   });
@@ -99,11 +101,16 @@ const statusRoute = (deps: ServerDeps) => {
 };
 
 export function toolRoutes(
-  deps: ServerDeps & { readonly hub: RunnerHub; readonly latest: () => ToolsLatest },
+  deps: ServerDeps & {
+    readonly hub: RunnerHub;
+    readonly latest: () => ToolsLatest;
+    readonly machineJobs: MachineJobs;
+  },
 ) {
   const tools = {
     hub: deps.hub,
     installs: toolInstalls(deps.clock),
+    jobs: deps.machineJobs,
     logger: deps.logger,
     latest: deps.latest,
   };

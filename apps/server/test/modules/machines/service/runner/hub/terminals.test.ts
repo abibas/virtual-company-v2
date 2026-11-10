@@ -87,4 +87,19 @@ describe("the hub's terminals", () => {
     second.input('aGk=');
     expect(other.sent.map((frame) => frame.type)).toEqual(['terminal.open']);
   });
+
+  it('count the terminals open on a machine’s connections', () => {
+    const board = terminalBoard();
+    const ofMachine = (machineId: string) => {
+      const made = connection();
+      return Object.assign(made.connection, { machineId });
+    };
+    const first = ofMachine('m1');
+    const channel = board.open(first, { sessionId: newId(), cols: 80, rows: 24 }, sink().sink);
+    board.open(ofMachine('m1'), { sessionId: newId(), cols: 80, rows: 24 }, sink().sink);
+    board.open(ofMachine('m2'), { sessionId: newId(), cols: 80, rows: 24 }, sink().sink);
+    expect([board.count('m1'), board.count('m2'), board.count('m3')]).toEqual([2, 1, 0]);
+    channel.close();
+    expect(board.count('m1')).toBe(1);
+  });
 });

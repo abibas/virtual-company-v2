@@ -1,114 +1,16 @@
-import { Download, RefreshCw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import type { MachineCalls } from '../../../api/machines.ts';
-import type { LatestRunner, Machine, MachineTools as Tools } from '../../../api/types.ts';
+import type { LatestRunner, Machine } from '../../../api/types.ts';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
+import { Notice } from '../../../components/ui/Notice.tsx';
+import type { BusyJob } from '../runner/machine-job.ts';
 import { runnerOutOfDate, versionText } from '../runner/runner-text.ts';
 import { InstallOutcome } from './InstallOutcome.tsx';
-import {
-  installQuestion,
-  isInstallable,
-  latestSourceText,
-  machineToolsId,
-  TOOL_LABELS,
-  TOOL_ORDER,
-  type ToolKey,
-  toolState,
-} from './tools-text.ts';
-import { type ToolInstall, useToolInstall, useToolsCheck } from './use-tools.ts';
-
-/** Install's question in place: what it does, Cancel and Install. */
-function InstallConfirm({
-  question,
-  label,
-  onCancel,
-  onConfirm,
-}: {
-  readonly question: string;
-  readonly label: string;
-  readonly onCancel: () => void;
-  readonly onConfirm: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-blue-soft px-3 py-2">
-      <p className="min-w-0 flex-1 text-xs font-medium text-ink">{question}</p>
-      <div className="flex gap-2">
-        <Button size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" tone="primary" icon={Download} onClick={onConfirm}>
-          {label}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** One CLI: its name, its version or "not installed", "update available", and Install or Update for admins. */
-function ToolRow({
-  tool,
-  machine,
-  tools,
-  canInstall,
-  install,
-}: {
-  readonly tool: ToolKey;
-  readonly machine: Machine;
-  readonly tools: Tools;
-  readonly canInstall: boolean;
-  readonly install: ToolInstall;
-}) {
-  const [asking, setAsking] = useState(false);
-  const state = toolState(tools, machine.runner.toolsLatest, tool);
-  const busy = install.state.kind === 'starting' || install.state.kind === 'running';
-  const mine = 'tool' in install.state && install.state.tool === tool;
-  const offered = canInstall && isInstallable(tool) && state.kind !== 'ok';
-  const label = state.kind === 'old' ? 'Update' : 'Install';
-  return (
-    <li className="flex flex-col gap-2 py-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="w-28 shrink-0 text-sm font-semibold text-ink">{TOOL_LABELS[tool]}</span>
-        <span className="min-w-0 flex-1 truncate text-sm text-dim" title={tools[tool] ?? undefined}>
-          {state.kind === 'missing' ? 'not installed' : state.version}
-        </span>
-        {state.kind === 'old' && (
-          <Badge size="sm" tone="input">
-            update available · {state.latest}
-          </Badge>
-        )}
-        {state.kind === 'ok' && isInstallable(tool) && (
-          <Badge size="sm" tone="done">
-            up to date
-          </Badge>
-        )}
-        {offered && !asking && (
-          <Button
-            size="sm"
-            tone="soft"
-            icon={Download}
-            busy={busy && mine}
-            disabled={busy}
-            onClick={() => setAsking(true)}
-          >
-            {label}
-          </Button>
-        )}
-      </div>
-      {offered && asking && isInstallable(tool) && (
-        <InstallConfirm
-          question={installQuestion(tool, machine.runner.toolsLatest[tool], machine, state.kind === 'old')}
-          label={label}
-          onCancel={() => setAsking(false)}
-          onConfirm={() => {
-            setAsking(false);
-            install.start(tool);
-          }}
-        />
-      )}
-    </li>
-  );
-}
+import { ToolRow } from './ToolRow.tsx';
+import { latestSourceText, machineToolsId, TOOL_ORDER } from './tools-text.ts';
+import { type ToolInstall, useToolsCheck } from './use-tools.ts';
 
 /** The runner itself: its version and build time, and whether it is the build this server hands out. */
 function RunnerRow({
@@ -173,8 +75,9 @@ function NoTools({ online }: { readonly online: boolean }) {
  * The card's Tools part (docs/machines.md, "Tools"): each CLI its runner found with its version or "not installed",
  * an older Claude Code or Codex marked "update available" (against npm's latest, or the app's pins when npm cannot be
  * read, said in a quiet line under the list); for admins Check again, and Install or Update of Claude Code
- * and Codex (asked first, never in a container) with npm's output and the result. `/:slug/machines?machine=<id>#tools`
- * scrolls here.
+ * and Codex (asked first, never in a container) with npm's output and the result. The job running on the machine (an
+ * install or a runner update, `job`) shows at the top, and Check again, Install and Update wait for it.
+ * `/:slug/machines?machine=<id>#tools` scrolls here.
  */
 export function MachineTools({
   machine,
@@ -182,6 +85,8 @@ export function MachineTools({
   admin,
   online,
   calls,
+  install,
+  job,
   onChanged,
 }: {
   readonly machine: Machine;
@@ -189,10 +94,12 @@ export function MachineTools({
   readonly admin: boolean;
   readonly online: boolean;
   readonly calls: MachineCalls;
+  /** The card's install (its state is the card's too: a runner update waits for it). */
+  readonly install: ToolInstall;
+  readonly job: BusyJob | undefined;
   readonly onChanged: () => void;
 }) {
   const check = useToolsCheck(calls, machine.id, onChanged);
-  const install = useToolInstall(calls, machine.id, onChanged);
   const { state } = install;
   const ended = state.kind === 'succeeded' || state.kind === 'failed' ? state : undefined;
   const tools = (online ? (ended?.tools ?? check.tools ?? machine.runner.tools) : null) ?? null;
@@ -206,17 +113,30 @@ export function MachineTools({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-xs font-bold text-ink-2">Software</h4>
         {admin && tools && (
-          <Button size="sm" tone="quiet" icon={RefreshCw} busy={check.busy} onClick={check.run}>
+          <Button
+            size="sm"
+            tone="quiet"
+            icon={RefreshCw}
+            busy={check.busy}
+            disabled={job !== undefined}
+            title={job?.reason}
+            onClick={check.run}
+          >
             Check again
           </Button>
         )}
       </div>
+      {job && <Notice tone="info">{job.label}</Notice>}
       {check.error && <p className="text-xs font-medium text-failed">{check.error}</p>}
       <ul className="flex flex-col divide-y divide-line">
         <RunnerRow machine={machine} latest={latestRunner} online={online} />
         {tools !== null &&
           TOOL_ORDER.map((tool) => (
-            <ToolRow key={tool} {...{ tool, machine, tools, install }} canInstall={admin && !container} />
+            <ToolRow
+              key={tool}
+              {...{ tool, machine, tools, install, job }}
+              canInstall={admin && !container}
+            />
           ))}
       </ul>
       {tools !== null && <p className="text-2xs text-dim">{latestSourceText(machine.runner.toolsLatest)}</p>}

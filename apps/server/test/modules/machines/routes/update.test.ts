@@ -5,6 +5,7 @@ import { TEST_NOW } from '@mwc/testkit';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { COMPOSE_FILE } from '../../../../src/modules/health/service.ts';
+import { machineJobs } from '../../../../src/modules/machines/service/jobs.ts';
 import { updateRunner } from '../../../../src/modules/machines/service/runner/update.ts';
 import { auditOf, DEVBOX, enroll, MAC, machinesPath } from '../../../fixtures/machines/machines.ts';
 import { type MachinesWorld, machinesWorld } from '../../../fixtures/machines/world.ts';
@@ -224,6 +225,7 @@ describe('the self-update when the runner goes quiet or away', () => {
   const deps = (timeoutMs: number) => ({
     hub: w.hub,
     control: w.control,
+    jobs: machineJobs(w.clock),
     apiUrl: 'http://localhost:9950',
     apiPort: 9950,
     composeFile: null,

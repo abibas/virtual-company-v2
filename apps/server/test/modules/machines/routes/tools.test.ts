@@ -188,10 +188,18 @@ describe('POST machines/:machineId/tools/install', () => {
     });
   });
 
-  it('is busy while one runs, then takes the next once it ended', async () => {
+  it('is machine_busy while one runs, naming it, then takes the next once it ended', async () => {
     const { api, runner } = await connected({ respond: answering(() => []) });
     const first = ((await api.install('claude')).body as { installId: string }).installId;
-    expect(await api.install('codex')).toMatchObject({ status: 409, body: { error: { code: 'busy' } } });
+    expect(await api.install('codex')).toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: 'machine_busy',
+          message: 'Claude Code 2.1.308 is being installed: wait for it to finish',
+        },
+      },
+    });
     expect((await api.status(first)).body).toMatchObject({ status: 'running', lines: [] });
     runner.send({ type: 'tools.result', cmdId: first, ok: true, tools: TOOLS });
     expect((await ended(api, first)).status).toBe('succeeded');

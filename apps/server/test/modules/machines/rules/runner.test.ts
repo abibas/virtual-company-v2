@@ -19,6 +19,7 @@ const TOOLS = {
   gh: null,
   docker: null,
 };
+const IDLE_NOW = { toolsLatest: PINNED_TOOLS, job: null, live: { turns: 0, terminals: 0 } };
 const connected = (
   build: string | null,
   caps: { terminal: boolean; selfUpdate: boolean; tools?: typeof TOOLS } = {
@@ -44,7 +45,7 @@ describe("a machine's runner facts", () => {
       terminal: true,
       selfUpdate: true,
       tools: TOOLS,
-      toolsLatest: PINNED_TOOLS,
+      ...IDLE_NOW,
     });
     expect(runnerFacts(connected(OLD, { terminal: false, selfUpdate: false }), NEW, '0.1.0')).toEqual({
       version: '0.5.0',
@@ -54,7 +55,7 @@ describe("a machine's runner facts", () => {
       terminal: false,
       selfUpdate: false,
       tools: null,
-      toolsLatest: PINNED_TOOLS,
+      ...IDLE_NOW,
     });
   });
 
@@ -69,7 +70,7 @@ describe("a machine's runner facts", () => {
       terminal: false,
       selfUpdate: false,
       tools: null,
-      toolsLatest: PINNED_TOOLS,
+      ...IDLE_NOW,
     });
   });
 
@@ -86,6 +87,12 @@ describe("a machine's runner facts", () => {
       checkedAt: '2026-11-10T09:00:00.000Z',
     };
     expect(runnerFacts(undefined, NEW, '0.1.0', npm).toolsLatest).toBe(npm);
+  });
+
+  it('carries what runs on the machine now when given', () => {
+    const job = { kind: 'runner_update' as const, path: 'self_update' as const, startedAt: BUILT_AT };
+    const live = { turns: 2, terminals: 1 };
+    expect(runnerFacts(undefined, NEW, '0.1.0', PINNED_TOOLS, { job, live })).toMatchObject({ job, live });
   });
 });
 

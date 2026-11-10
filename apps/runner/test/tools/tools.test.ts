@@ -160,6 +160,24 @@ describe('the runner’s tools', () => {
     some.stop();
   });
 
+  it('say the tool being installed, and install nothing while the runner updates itself', async () => {
+    const { host } = toolsHost([{ versions: NONE, clis: {} }]);
+    let updating = true;
+    const { tools: some, spawn } = tools({ host, found: NONE, updating: () => updating });
+    expect(await some.handle(install())).toMatchObject({
+      ok: false,
+      error: 'busy: the runner is updating itself',
+    });
+    expect(spawn.calls).toEqual([]);
+    updating = false;
+    spawn.when(NPM, () => {});
+    const running = some.handle(install('claude'));
+    expect(some.installing).toBe('claude');
+    some.stop();
+    await running;
+    expect(some.installing).toBeUndefined();
+  });
+
   it('install nothing in a container, without npm, or without a way to start a process', async () => {
     const container = toolsHost([{ versions: NONE, clis: {} }], { container: true });
     expect((await tools({ host: container.host, found: NONE }).tools.handle(install())).error).toBe(

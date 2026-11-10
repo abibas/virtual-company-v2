@@ -5,8 +5,10 @@ import { jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { COMPOSE_FILE } from '../../health/service.ts';
+import { RunnerUpdateBodySchema } from '../schemas/jobs.ts';
 import { RunnerUpdateRefusalSchema, RunnerUpdateSchema } from '../schemas/update.ts';
 import { MachineParamsSchema } from '../schemas.ts';
+import type { MachineJobs } from '../service/jobs.ts';
 import type { PowerControl } from '../service/power/control.ts';
 import type { RunnerHub } from '../service/runner/hub.ts';
 import { updateRunner } from '../service/runner/update.ts';
@@ -30,8 +32,13 @@ const updateRoute = (deps: ServerDeps) => {
       'A connected runner that updates itself downloads the new bundle and PTY, checks their SHA-256, answers and ' +
       'restarts (`self_update`); an Airia devbox runner too old for that is reinstalled by this server over SSH while ' +
       'the box runs, when the server drives the airia CLI itself (`ssh_reinstall`, up to 3 minutes). Either way the ' +
-      'runner reconnects on its new build moments later. Audited.',
-    request: { params: MachineParamsSchema },
+      'runner reconnects on its new build moments later. Audited. One job at a time per machine: refused while a tool ' +
+      'install or another update runs (until the runner is back on its new build), and while chat turns or terminals ' +
+      'run on the machine unless `force` (the web never sends it).',
+    request: {
+      params: MachineParamsSchema,
+      body: { content: { 'application/json': { schema: RunnerUpdateBodySchema } }, required: false },
+    },
     responses: {
       202: jsonResponse('What was done; the runner restarts on the new build', RunnerUpdateSchema),
       ...refusals,
@@ -39,7 +46,7 @@ const updateRoute = (deps: ServerDeps) => {
         'No such company, or not an active member of it (`not_found`), or no such machine in it (`machine_not_found`)',
       ),
       409: jsonResponse(
-        'The runner is not connected and its box is not running (`machine_offline`), has live work (`runner_busy`), or neither path updates it (`update_unsupported`, with the `command` to run on the machine)',
+        'Another job runs on the machine, or chat turns or terminals do (`machine_busy`, naming them); the runner is not connected and its box is not running (`machine_offline`), refused for its live work (`runner_busy`), or neither path updates it (`update_unsupported`, with the `command` to run on the machine)',
         RunnerUpdateRefusalSchema,
       ),
       502: errorResponse('The update was tried and failed (`update_failed`); the runner goes on as it was'),
@@ -48,11 +55,16 @@ const updateRoute = (deps: ServerDeps) => {
 };
 
 export function runnerUpdateRoutes(
-  deps: ServerDeps & { readonly hub: RunnerHub; readonly control: PowerControl },
+  deps: ServerDeps & {
+    readonly hub: RunnerHub;
+    readonly control: PowerControl;
+    readonly machineJobs: MachineJobs;
+  },
 ) {
   const update = {
     hub: deps.hub,
     control: deps.control,
+    jobs: deps.machineJobs,
     apiUrl: deps.config.MWC_PUBLIC_URL.replace(/\/+$/, ''),
     apiPort: deps.config.MWC_PORT,
     composeFile: deps.config.NODE_ENV === 'production' ? null : COMPOSE_FILE,
@@ -60,7 +72,9 @@ export function runnerUpdateRoutes(
   return newRouter().openapi(updateRoute(deps), async (c) => {
     const { principalId } = c.var.membership;
     const caller = { principalId, requestId: c.var.requestId };
-    const result = await updateRunner(update, c.var.tenant, caller, c.req.valid('param').machineId);
+    const { machineId } = c.req.valid('param');
+    const force = c.req.valid('json').force === true;
+    const result = await updateRunner(update, c.var.tenant, caller, machineId, { force });
     if (result.ok) return c.json({ path: result.path, build: result.build }, 202);
     if (!('command' in result)) return errorJson(c, result.status, result.code, result.message);
     const error = { code: result.code, message: result.message, requestId: c.var.requestId };

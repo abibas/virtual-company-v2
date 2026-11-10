@@ -101,6 +101,8 @@ export class RunnerDaemon implements Runner {
       update: options.update,
       serverUrl: () => this.#config.serverUrl,
       liveRuns,
+      openTerminals: () => this.#terminals.open,
+      installing: () => this.#tools.installing,
       closeTerminals: (notice) => this.#terminals.closeAll('runner_updating', notice),
       timers,
       log,
@@ -118,6 +120,7 @@ export class RunnerDaemon implements Runner {
       ...{ host: tools?.host, found: tools?.found, processes, harness, timers, log },
       send: (frame) => this.#link.send(frame),
       changed: () => this.#link.send({ type: 'runner.caps', caps: this.#caps() }),
+      updating: () => this.#updates.updating,
     });
   }
 

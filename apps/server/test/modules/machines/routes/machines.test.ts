@@ -71,7 +71,7 @@ describe("GET machines: each machine's runner", () => {
       selfUpdate: false,
       tools: null,
     };
-    const latest = { toolsLatest: PINNED_TOOLS };
+    const latest = { toolsLatest: PINNED_TOOLS, job: null, live: { turns: 0, terminals: 0 } };
     expect(runners).toEqual({
       // Offline: the version on record from its enrollment.
       Offline: { version: '0.5.0', ...none, ...latest },

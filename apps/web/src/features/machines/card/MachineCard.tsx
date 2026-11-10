@@ -8,8 +8,11 @@ import { Card } from '../../../components/ui/Card.tsx';
 import { DevboxPower } from '../power/DevboxPower.tsx';
 import { PowerSettings } from '../power/PowerSettings.tsx';
 import { actorText } from '../power/power-text.ts';
+import { busyJob, cardJob, liveReason } from '../runner/machine-job.ts';
+import { useRunnerUpdate } from '../runner/RunnerUpdate.tsx';
 import { MachineTools } from '../tools/MachineTools.tsx';
 import { machineCardId } from '../tools/tools-text.ts';
+import { useToolInstall } from '../tools/use-tools.ts';
 import { MachineActions } from './MachineActions.tsx';
 import { MachineHeader } from './MachineHeader.tsx';
 import { MachineMetrics } from './MachineMetrics.tsx';
@@ -101,7 +104,9 @@ function PowerParts({
 /**
  * A machine on the Machines page: who and how it is (`MachineHeader`), its numbers, its power, its tools (the CLIs its
  * runner found; Check again and Install for admins), its log, and its actions (Connect, Terminal for owners, Update
- * runner and Remove for admins).
+ * runner and Remove for admins). One job at a time per machine: an install or a runner update (the server's
+ * `runner.job`, or one this card started) shows in Software, and the other buttons wait for it; Update runner also
+ * waits for the machine's chat turns and terminals.
  */
 export function MachineCard({
   machine,
@@ -135,6 +140,10 @@ export function MachineCard({
     onChanged();
   };
   const online = (stats?.status ?? machine.status) === 'online';
+  const install = useToolInstall(calls, machine.id, onChanged);
+  const update = useRunnerUpdate(() => calls.updateRunner(machine.id), onChanged);
+  const job = busyJob(machine.runner.job, cardJob(machine, install.state, update.state));
+  const updateBlocked = job?.reason ?? liveReason(machine.runner.live);
   return (
     <Card
       as="article"
@@ -165,6 +174,8 @@ export function MachineCard({
             admin={admin}
             online={online}
             calls={calls}
+            install={install}
+            job={job}
             onChanged={onChanged}
           />
         }
@@ -175,10 +186,10 @@ export function MachineCard({
         admin={admin}
         owner={owner}
         online={online}
-        calls={calls}
+        update={update}
+        blocked={updateBlocked}
         log={<PowerLog events={control.events} now={now} />}
         onRemove={remove}
-        onChanged={onChanged}
       />
     </Card>
   );

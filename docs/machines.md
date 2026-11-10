@@ -142,6 +142,10 @@ later). Never both:
   `service/runner/download.ts`'s `servedBuild`, and the SSH reinstall in `platform/processes/power/reinstall.ts` with the connector's
   `updateCommand` (`connectors/machine-airia-devbox/src/ssh.ts` builds both gcloud ssh commands); the web's
   `features/machines/runner/`.
+- One job at a time: the server's `service/jobs.ts` (the lock in memory), `rules/jobs.ts` (the jobs, their refusals and
+  words), `schemas/jobs.ts` (`runner.job`, `runner.live`, the update's `force`), the hub's live counts (`live`, from its
+  turns and terminals); the runner's `update/updates.ts` and `tools/tools.ts`; the web's
+  `features/machines/runner/machine-job.ts` and `tools/ToolRow.tsx`.
 - The server's side of the power and the tunnels: `service/power/control.ts` (who drives the devboxes:
   `control/server.ts` this server, `control/runners.ts` the runner controllers), `service/power/tunnels.ts` (the wanted
   sets), `service/runner/hub/tunnels.ts` (the set last sent per connection and the reported states, the server's own too, in
@@ -459,7 +463,8 @@ from a new one:
 - **The API.** `POST /api/companies/{companyId}/machines/{machineId}/runner-update` (admins and owners; another
   company's machine is the module's 404) picks the first path that applies and answers 202 `{path, build}`:
   1. **`self_update`**: a connected runner with `caps.selfUpdate` is sent `runner.update` and its answer awaited
-     (3 minutes at most). The runner refuses with `busy` while runs are live (S5; it never ends one for an update),
+     (3 minutes at most). The runner refuses with `busy` while runs, chat turns or terminals are live unless forced
+     ("One job at a time" below; it never ends one for an update unasked) and while it installs a tool,
      otherwise downloads `GET /api/runner/runner.mjs` and its system's `GET /api/runner/pty/<target>.tgz` from the server
      it is linked to (the devbox through its standing tunnel), checks each against its `x-mwc-runner-sha256` header,
      and only then puts them in place beside the installed copy: the bundle to a temporary file, the PTY unpacked in
@@ -484,7 +489,9 @@ from a new one:
      folder), which keeps its enrollment and volumes; This
      Mac's (or any other machine's) `curl -fsSL <apiUrl>/api/runner/install.sh | sh -s -- --server <apiUrl>` there;
      the devbox's `airia devbox ssh` install without a token from This Mac when the server has no airia CLI of its own.
-  Refusals: 409 `machine_offline` (no connected runner and no reinstall possible), 409 `runner_busy`, 502
+  Refusals: 409 `machine_busy` (another job, or chat turns or terminals, run on the machine: "One job at a time"
+  below), 409 `machine_offline` (no connected runner and no reinstall possible), 409 `runner_busy` (the runner itself
+  refused for its live work), 502
   `update_failed` (the runner's or the reinstall's words; the runner goes on as it was). Each update carried out is an
   `audit_log` row: entity `machine`, action `runner_update`, fields `runnerUpdate` (the path) and `runnerBuild` (the new
   build, when said), the person as the actor.
@@ -497,6 +504,34 @@ out of date** and **Update runner** only while it has no terminal (the box's run
 With the server driving the airia CLI, the box's button reinstalls it over SSH (`ssh_reinstall`); from then on it says
 its build and updates itself over its link. The server hands out the bundle in `apps/runner/dist/` as it was last built
 (`pnpm --filter @mwc/runner build`), so build it after pulling a runner change, or the update installs the old one.
+
+## One job at a time
+
+Added 2026-11-10 (Ihor clicked Update on Codex and at once Update runner: the runner restarted mid-install, and the card
+said "Codex 0.167.0 was not installed: the runner went away" beside "The runner put the new build in place and is
+restarting"). A machine runs one maintenance job at a time, and a runner update never cuts off live work unasked:
+
+- **The lock.** The server keeps a lock per machine in memory (`service/jobs.ts`, one server process; a restart forgets
+  it): a `tool_install` (with its tool and version) or a `runner_update` (with its path, `self_update` or
+  `ssh_reinstall`). Starting either while another runs is a 409 `machine_busy` naming the running one: "Codex 0.167.0 is
+  being installed: wait for it to finish", "The runner is updating: wait for it to restart". Nothing is queued. An
+  install releases it when it ends (its result, its failure, its timeout, or its runner going away, which fails it); a
+  runner update when it was refused or failed, and once carried out when its runner reconnects (the hub's connect
+  listener: on the new build), or 3 minutes after it answered (`RESTART_WAIT_MS`). Check again (`tools/check`) is
+  refused only during a runner update.
+- **Live work.** A runner update is also refused with 409 `machine_busy` while the machine has running chat turns or open
+  terminals (the machine's and the chats', as the hub carries them), naming them: "2 chat turns and 1 terminal are
+  running on it: update the runner once they end". `POST …/runner-update {force: true}` updates anyway (the web never
+  sends it; kept for later); the force goes on to the runner's `runner.update`.
+- **On the runner** (defence in depth): `runner.update` answers `busy` while a tool install runs (even when forced), while
+  an update is under way, and while runs, chat turns or terminals are live unless the frame says `force`; `tools.install`
+  answers `busy` while a self-update is in progress (from its start until the restart).
+- **`GET machines`** answers each machine's `runner.job: {kind, tool?, version?, path?, startedAt} | null` and
+  `runner.live: {turns, terminals}`.
+- **On the card.** While a job runs (the server's `runner.job`, or one the card itself started), Software shows it at the
+  top ("Installing Codex 0.167.0…", "Updating the runner…"), and Update runner, Install / Update and Check again are
+  disabled with a tooltip saying why. Update runner is also disabled, with the reason, while the machine has chat turns
+  or terminals running. A 409 `machine_busy` shows its message.
 
 ## Placements
 
@@ -581,8 +616,9 @@ installs or updates Claude Code or Codex through the runner; the chat header and
   hour after they end (100 at most) and forgets them when it restarts. Each install's end is audited on the machine
   (`tool_install`: `tool`, `toolVersion`, `result`, and `error` when it failed), by who started it.
 - **Refusals**: 404 another company's or an unknown machine (`install_not_found` for an install), 403 below admin, 409
-  `machine_offline`, `runner_outdated` (no `caps.tools`: update the runner first), `busy` (one install at a time per
-  machine; the runner refuses a second too) and `unsupported` (a container: its CLIs come from its image, rebuilt
+  `machine_offline`, `runner_outdated` (no `caps.tools`: update the runner first), `machine_busy` (one job at a time per
+  machine, another install or a runner update: "One job at a time" above; the runner refuses a second install, and one
+  during its self-update, with `busy` too) and `unsupported` (a container: its CLIs come from its image, rebuilt
   instead). An install that started can end `failed` with `npm_missing: …` (no npm beside the runner's Node), `timeout:
   …`, `failed: npm exited with code N (its last line)`, `machine_offline: …` (the runner went away) or `runner_outdated`.
 - **Latest from npm** (2026-11-10, Ihor: Codex's own TUI offered 0.167.0 while the card offered our pin, 0.163.0).

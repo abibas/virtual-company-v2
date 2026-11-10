@@ -45,12 +45,6 @@ export function toolInstalls(clock: () => Date) {
     });
   };
   return {
-    /** The install running on the machine, if any. */
-    running(machineId: string): ToolInstall | undefined {
-      return [...all.values()].find(
-        (install) => install.machineId === machineId && install.status === 'running',
-      );
-    },
     start(fields: NewInstall): ToolInstall {
       prune();
       const install: ToolInstall = {

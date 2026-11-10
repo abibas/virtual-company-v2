@@ -79,6 +79,9 @@ export type PowerEvent = InferResponseType<OneMachineRoutes['events']['$get'], 2
 /** The CLIs a machine's runner found (null while offline or from a runner older than the tools), and the pins. */
 export type MachineTools = NonNullable<Machine['runner']['tools']>;
 export type ToolsLatest = Machine['runner']['toolsLatest'];
+/** The maintenance job holding a machine (an install or a runner update), and its live work. */
+export type MachineJob = NonNullable<Machine['runner']['job']>;
+export type MachineLive = Machine['runner']['live'];
 export type InstallableTool = Exclude<keyof ToolsLatest, 'source' | 'checkedAt'>;
 export type ToolInstall = InferResponseType<OneMachineRoutes['tools']['install'][':installId']['$get'], 200>;
 

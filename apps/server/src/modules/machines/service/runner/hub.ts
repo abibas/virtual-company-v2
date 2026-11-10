@@ -114,6 +114,8 @@ export interface RunnerHub {
    * undefined when the runner is not ready. The caller checks the runner has the harness (`caps.harnesses`).
    */
   turn(machineId: string, request: TurnRequest, sink: TurnSink): TurnChannel | undefined;
+  /** The machine's live work: its chat turns running and its terminals open (the machine's and the chats'). */
+  live(machineId: string): { readonly turns: number; readonly terminals: number };
   /** Closes every socket of the machine with `code`; false when it has none. */
   disconnect(machineId: string, code: number, reason: string): boolean;
   /**
@@ -240,6 +242,7 @@ export function createRunnerHub(deps: HubDeps, options: HubOptions = {}): Runner
       const connection = sockets.ready(machineId);
       return connection === undefined ? undefined : turns.start(connection, request, sink);
     },
+    live: (machineId) => ({ turns: turns.count(machineId), terminals: terminals.count(machineId) }),
     disconnect(machineId, code, reason) {
       const ofMachine = [...sockets.all].filter((connection) => connection.machineId === machineId);
       for (const connection of ofMachine) connection.link.close(code, reason);

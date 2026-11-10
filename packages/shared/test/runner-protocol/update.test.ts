@@ -58,6 +58,8 @@ describe('runner.update and runner.update.result', () => {
   it('needs a command id', () => {
     expect(issuesOf(RunnerUpdate, SERVER_EXAMPLES['runner.update'])).toEqual([]);
     expect(issuesOf(RunnerUpdate, { type: 'runner.update', cmdId: 'x' })).toEqual(['cmdId']);
+    expect(issuesOf(RunnerUpdate, { ...SERVER_EXAMPLES['runner.update'], force: true })).toEqual([]);
+    expect(issuesOf(RunnerUpdate, { ...SERVER_EXAMPLES['runner.update'], force: 'yes' })).toEqual(['force']);
   });
 
   it('answers ok with the new build, or not ok with why', () => {

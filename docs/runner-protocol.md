@@ -263,7 +263,9 @@ current one. A runner says `caps.selfUpdate: true` only for the installed copy t
 (`MWC_RUNNER_SERVICE`) and restarts; the server sends `runner.update {cmdId}` only to such a runner, on a person's
 click, and waits up to 3 minutes for `runner.update.result`. The runner:
 
-1. answers `unsupported` without the capability, and `busy` while runs are live (or an update is under way);
+1. answers `unsupported` without the capability; `busy` while it installs a tool or an update is under way; and `busy`
+   while runs, chat turns or terminals are live, unless the frame says `force: true` (its terminals then end with the
+   notice of step 4);
 2. downloads `RUNNER_BUNDLE_PATH` and `RUNNER_PTY_PATH/<target>.tgz` from its own server address (http for ws, https
    for wss), each checked against `RUNNER_SHA256_HEADER` (`hash_mismatch` without one or on a mismatch; a 404 for the
    PTY keeps the one it has);
@@ -315,7 +317,7 @@ newer one passes through). The server sends `tools.check` and `tools.install` on
 - **`tools.install {cmdId, tool, version}`**: `tool` is `claude` or `codex` (`InstallableTool` of `@mwc/shared/machines`),
   `version` an exact version (`PackageVersion`: `2.1.308`, `1.0.0-beta.1`; never a range or a tag), the server's pin
   (`TOOL_PACKAGES`). The runner refuses it with `tools.result {ok: false, error}` when it cannot install here
-  (`unsupported`: a container, or no way to start a process), while another install runs (`busy`), and without an npm
+  (`unsupported`: a container, or no way to start a process), while another install runs or it updates itself (`busy`), and without an npm
   beside its Node (`npm_missing`). Otherwise it runs `<node's folder>/npm install -g --prefix <home>/.local
   <package>@<version>` as its user from its home, in its own process group, with npm's folder first on the PATH and no
   `MWC_*` variable; every line npm prints on either stream is sent as `tools.output {cmdId, line}` (cut to

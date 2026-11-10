@@ -7,9 +7,15 @@ import { memoryLog } from '../fixtures/log.ts';
 import { FakeTime } from '../fixtures/time.ts';
 
 const BUILD = 'cd'.repeat(32);
-const frame = (): RunnerUpdate => ({ type: 'runner.update', cmdId: newId() });
+const frame = (force?: boolean): RunnerUpdate => ({
+  type: 'runner.update',
+  cmdId: newId(),
+  ...(force === undefined ? {} : { force }),
+});
 
-function updates(options: { update?: SelfUpdate; liveRuns?: number } = {}) {
+function updates(
+  options: { update?: SelfUpdate; liveRuns?: number; terminals?: number; installing?: string } = {},
+) {
   const time = new FakeTime();
   const logs = memoryLog();
   const closed: string[] = [];
@@ -18,6 +24,8 @@ function updates(options: { update?: SelfUpdate; liveRuns?: number } = {}) {
     update: options.update,
     serverUrl: () => 'http://127.0.0.1:9950',
     liveRuns: () => options.liveRuns ?? 0,
+    openTerminals: () => options.terminals ?? 0,
+    installing: () => options.installing,
     closeTerminals: async (notice) => void closed.push(notice),
     timers: time,
     log: logs.log,
@@ -73,6 +81,36 @@ describe("the runner's runner.update", () => {
     expect(applied).toBe(0);
   });
 
+  it('answers busy while terminals are open too, and goes ahead when the frame says force', async () => {
+    const update = selfUpdate(async () => ({ build: BUILD, pty: true }));
+    const busy = updates({ update, liveRuns: 1, terminals: 2 });
+    expect((await busy.handler.handle(frame())).error).toBe(
+      'busy: 1 live run and 2 open terminals; update it once they end',
+    );
+    expect((await updates({ update, terminals: 1 }).handler.handle(frame(false))).error).toBe(
+      'busy: 1 open terminal; update it once they end',
+    );
+    expect(busy.handler.updating).toBe(false);
+    expect((await busy.handler.handle(frame(true))).ok).toBe(true);
+    expect(busy.closed).toEqual([UPDATE_NOTICE]);
+    expect(busy.handler.updating).toBe(true);
+  });
+
+  it('answers busy while a tool is being installed, even when forced', async () => {
+    let applied = 0;
+    const update = selfUpdate(async () => {
+      applied++;
+      return { build: BUILD, pty: true };
+    });
+    const { handler } = updates({ update, installing: 'codex' });
+    for (const force of [undefined, true]) {
+      expect((await handler.handle(frame(force))).error).toBe(
+        'busy: codex is being installed; update it once it ends',
+      );
+    }
+    expect([applied, handler.updating]).toEqual([0, false]);
+  });
+
   it('puts the new runner in place, closes the terminals with a notice, answers its build, then restarts', async () => {
     const servers: string[] = [];
     const w = updates({ update: selfUpdate(async () => ({ build: BUILD, pty: true }), servers) });
@@ -126,6 +164,7 @@ describe("the runner's runner.update", () => {
     expect((await w.handler.handle(frame())).error).toBe('write_failed: disk full');
     expect(w.closed).toEqual([]);
     expect(w.logs.messages('warn')).toHaveLength(2);
+    expect(w.handler.updating).toBe(false);
     expect((await w.handler.handle(frame())).ok).toBe(true);
   });
 

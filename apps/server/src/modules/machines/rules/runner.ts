@@ -4,6 +4,7 @@ import { type InstallableTool, MachineTool, TOOL_PACKAGES } from '@mwc/shared/ma
 import { INSTALL_PORT } from '@mwc/shared/ports';
 import type { RunnerTools } from '@mwc/shared/runner-protocol';
 import { type Refusal, refuse } from '../rules.ts';
+import type { MachineJobView, MachineLiveView } from '../schemas/jobs.ts';
 
 /**
  * A machine's runner as the machines API shows it, and how to update one (docs/machines.md, "Updating a runner"; pure):
@@ -29,7 +30,20 @@ export interface RunnerFacts {
   readonly tools: RunnerTools | null;
   /** The latest Claude Code and Codex (npm's, else the pins) and where they came from: an older one is due an update. */
   readonly toolsLatest: ToolsLatest;
+  /** The maintenance job holding the machine (an install or a runner update), null when none runs. */
+  readonly job: MachineJobView | null;
+  /** Its chat turns running and terminals open now (none offline). */
+  readonly live: MachineLiveView;
 }
+
+/** What runs on a machine now: its job and its live work. */
+export interface MachineNow {
+  readonly job: MachineJobView | null;
+  readonly live: MachineLiveView;
+}
+
+/** Nothing running. */
+export const IDLE: MachineNow = { job: null, live: { turns: 0, terminals: 0 } };
 
 /**
  * The versions of Claude Code and Codex a machine is compared with and the install route installs: npm's `latest`
@@ -68,14 +82,15 @@ export function knownTools(tools: RunnerTools): RunnerTools {
 
 /**
  * The runner's facts from its connection (none while offline), the build this server hands out (null unbuilt), the
- * version on record (`recorded`, from its last hello) and the latest CLIs (the pins unless given). `current` compares
- * builds only, never versions.
+ * version on record (`recorded`, from its last hello), the latest CLIs (the pins unless given) and what runs on it now
+ * (nothing unless given). `current` compares builds only, never versions.
  */
 export function runnerFacts(
   connected: ConnectedFacts | undefined,
   served: string | null,
   recorded: string,
   latest: ToolsLatest = PINNED_TOOLS,
+  now: MachineNow = IDLE,
 ): RunnerFacts {
   const build = connected?.build ?? null;
   return {
@@ -87,6 +102,8 @@ export function runnerFacts(
     selfUpdate: connected?.caps.selfUpdate ?? false,
     tools: connected?.caps.tools === undefined ? null : knownTools(connected.caps.tools),
     toolsLatest: latest,
+    job: now.job,
+    live: now.live,
   };
 }
 

@@ -1,9 +1,11 @@
 import { diffFields, type Machine, type TenantDb } from '@mwc/db';
-import { type LogoRef, logoRef } from '@mwc/shared/logos';
+import { logoRef } from '@mwc/shared/logos';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { type MachinesRepo, machinesRepo } from './repo.ts';
+import { jobView } from './rules/jobs.ts';
+import { machineView } from './rules/machine-view.ts';
 import { isPowered } from './rules/power.ts';
-import { type RunnerFacts, runnerFacts, type ToolsLatest } from './rules/runner.ts';
+import { runnerFacts, type ToolsLatest } from './rules/runner.ts';
 import {
   CONTROLLER_IS_SELF,
   CONTROLLER_NOT_FOUND,
@@ -11,51 +13,13 @@ import {
   NOT_A_VM,
   type Refusal,
 } from './rules.ts';
-import type { MachineUpdate, MachineView, TunnelView } from './schemas.ts';
+import type { MachineUpdate, MachineView } from './schemas.ts';
+import type { MachineJobs } from './service/jobs.ts';
 import { machineLogoHashes } from './service/logo.ts';
 import { agentCounts, removeMachinePlacements } from './service/placement.ts';
 import { type ControlDeps, controlOf, type PowerControl } from './service/power/control.ts';
 import { DEFAULT_RUNNER_BUNDLE, servedBuild } from './service/runner/download.ts';
 import { type LatestRunner, latestRunner } from './service/runner/latest.ts';
-
-const iso = (at: Date | null) => at?.toISOString() ?? null;
-
-/**
- * A machine as the API shows it, with how many agents not archived run on it by default (`agentCount`), for a devbox
- * its tunnel as its controller reported it (the power control's `tunnelOf`), its logo's version (null without one) and
- * its runner as the hub knows it (`runner`: its build against the served one).
- */
-export function machineView(
-  row: Machine,
-  agentCount: number,
-  tunnel: TunnelView | null,
-  logo: LogoRef | null,
-  runner: RunnerFacts,
-): MachineView {
-  return {
-    id: row.id,
-    name: row.name,
-    kind: row.kind,
-    provider: row.provider,
-    providerRef: row.providerRef ?? null,
-    controllerMachineId: row.controllerMachineId,
-    os: row.os,
-    arch: row.arch,
-    hostname: row.hostname,
-    unixUser: row.unixUser,
-    versions: { runner: row.runnerVersion, claude: row.claudeVersion },
-    slots: row.slots,
-    status: row.status,
-    lastSeenAt: iso(row.lastSeenAt),
-    hold: { until: iso(row.holdUntil), source: row.holdSource },
-    hourlyCost: row.hourlyCost,
-    agentCount,
-    tunnel,
-    runner,
-    logo,
-    createdAt: row.createdAt.toISOString(),
-  };
-}
 
 /** Who acts, from the route's membership, the request id and the clock. */
 export interface Caller {
@@ -96,11 +60,16 @@ interface Views {
   served(): Promise<string | null>;
   /** The latest Claude Code and Codex the runners' tools are compared with. */
   latest(): ToolsLatest;
+  /** The machines' maintenance lock: the job each one runs. */
+  readonly jobs: MachineJobs;
 }
 
-/** A machine's runner as the hub knows it, against the served build. */
+/** A machine's runner as the hub knows it, against the served build, with its job and its live work. */
 const runnerOf = (views: Views, row: Machine, served: string | null) =>
-  runnerFacts(views.hub.connected(row.id), served, row.runnerVersion, views.latest());
+  runnerFacts(views.hub.connected(row.id), served, row.runnerVersion, views.latest(), {
+    job: jobView(views.jobs.running(row.id)),
+    live: views.hub.live(row.id),
+  });
 
 /**
  * A machine's view with its agent count and logo, read in the caller's transaction when it is one, its tunnel and its
@@ -198,12 +167,20 @@ export function machinesService(
   deps: ControlDeps & {
     readonly runnerBundle?: string | undefined;
     readonly latest: () => ToolsLatest;
+    /** The machines' maintenance lock. */
+    readonly machineJobs: MachineJobs;
   },
 ) {
   const repo = machinesRepo();
   const control = controlOf(deps);
   const bundle = deps.runnerBundle ?? DEFAULT_RUNNER_BUNDLE;
-  const views: Views = { control, hub: deps.hub, served: () => servedBuild(bundle), latest: deps.latest };
+  const views: Views = {
+    control,
+    hub: deps.hub,
+    served: () => servedBuild(bundle),
+    latest: deps.latest,
+    jobs: deps.machineJobs,
+  };
   return {
     async list(t: TenantDb): Promise<MachineView[]> {
       const rows = await repo.list(t);

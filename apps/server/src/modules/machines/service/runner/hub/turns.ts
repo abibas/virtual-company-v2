@@ -93,6 +93,12 @@ export function turnBoard() {
         sink.end(endingOf(frame));
       }
     },
+    /** How many turns run on the machine's connections. */
+    count(machineId: string): number {
+      let running = 0;
+      for (const [connection, own] of turns) if (connection.machineId === machineId) running += own.size;
+      return running;
+    },
     /** The connection closed: every turn it carried ends with `machine_disconnected`. */
     drop(connection: RunnerConnection): void {
       const own = turns.get(connection);

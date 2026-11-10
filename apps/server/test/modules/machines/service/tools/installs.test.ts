@@ -16,12 +16,10 @@ const fields = (machineId: string) => ({
 const DONE = { ok: true, tools: null, error: null };
 
 describe("an app's installs", () => {
-  it('knows the one running on a machine, reads one of its machine only, and keeps its output', () => {
+  it('reads one of its machine only, and keeps its output', () => {
     const clock = fixedClock();
     const installs = toolInstalls(clock);
     const install = installs.start(fields('m1'));
-    expect(installs.running('m1')).toBe(install);
-    expect(installs.running('m2')).toBeUndefined();
     installs.output(install, 'added 1 package');
     expect(install.lines).toEqual(['added 1 package']);
     expect(installs.get('c1', 'm1', install.id)).toBe(install);
@@ -29,7 +27,6 @@ describe("an app's installs", () => {
     expect(installs.get('c2', 'm1', install.id)).toBeUndefined();
     installs.finish(install, { ok: false, tools: null, error: 'failed: npm exited with code 1' });
     expect(install).toMatchObject({ status: 'failed', error: 'failed: npm exited with code 1' });
-    expect(installs.running('m1')).toBeUndefined();
   });
 
   it('forgets ended installs after an hour, and keeps the newest ones only; never a running one', () => {

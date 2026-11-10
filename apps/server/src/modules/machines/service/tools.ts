@@ -9,9 +9,9 @@ import {
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import { machinesRepo } from '../repo.ts';
+import { machineBusy } from '../rules/jobs.ts';
 import { knownTools, type ToolsLatest } from '../rules/runner.ts';
 import {
-  INSTALL_BUSY,
   INSTALL_NOT_FOUND,
   INSTALL_UNSUPPORTED,
   type InstallOutcome,
@@ -21,6 +21,7 @@ import {
 } from '../rules/tools.ts';
 import { MACHINE_NOT_FOUND, MACHINE_OFFLINE, type Refusal } from '../rules.ts';
 import type { ToolInstallView } from '../schemas/tools.ts';
+import type { JobLease, MachineJobs } from './jobs.ts';
 import { HubError, type RunnerHub } from './runner/hub.ts';
 import type { ToolInstall, ToolInstalls } from './tools/installs.ts';
 
@@ -29,12 +30,15 @@ import type { ToolInstall, ToolInstalls } from './tools/installs.ts';
  * and sends `runner.caps`, so the hub's view and the machines list follow), and an install of Claude Code or Codex at
  * the latest version the machines are compared with (npm's, else the pin; `tools.install`, exact), started at once and carried on in the background: its output lines and its end
  * go to the registry the card reads, and its end to the audit log (who, which machine, which CLI, which result). Not in
- * a container (its image is rebuilt instead), one at a time per machine.
+ * a container (its image is rebuilt instead). One job at a time per machine (`jobs`): an install holds the machine until
+ * it ends, refused while another install or a runner update runs; a check is refused only during a runner update.
  */
 
 export interface ToolsDeps {
   readonly hub: RunnerHub;
   readonly installs: ToolInstalls;
+  /** The machines' maintenance lock. */
+  readonly jobs: MachineJobs;
   readonly logger: Logger;
   /** The latest Claude Code and Codex (npm's, else the pins): the version an install asks for. */
   readonly latest: () => ToolsLatest;
@@ -70,6 +74,8 @@ export async function checkTools(
   const found = await ready(deps, t, machineId);
   if (!('machine' in found)) return found;
   if (found.refusal !== undefined) return found.refusal;
+  const job = deps.jobs.running(found.machine.id);
+  if (job?.kind === 'runner_update') return machineBusy(job);
   try {
     const timeoutMs = deps.checkTimeoutMs ?? TOOLS_CHECK_TIMEOUT_MS;
     const reply = await deps.hub.request(machineId, { type: 'tools.check', cmdId: newId() }, { timeoutMs });
@@ -102,12 +108,16 @@ async function askRunner(deps: ToolsDeps, install: ToolInstall): Promise<Install
   }
 }
 
-/** Carries an install to its end: the runner's answer, the audit row, then its state (so a reader sees both at once). */
+/**
+ * Carries an install to its end: the runner's answer, the audit row, then its state (so a reader sees both at once),
+ * then the machine's lock.
+ */
 async function carryOut(
   deps: ToolsDeps,
   t: TenantDb,
   caller: ToolsCaller,
   install: ToolInstall,
+  lease: JobLease,
 ): Promise<void> {
   const outcome = await askRunner(deps, install);
   const result = outcome.ok ? 'succeeded' : 'failed';
@@ -130,6 +140,7 @@ async function carryOut(
     deps.logger.error({ err: error, machineId: install.machineId }, 'tools: could not audit an install');
   }
   deps.installs.finish(install, outcome);
+  lease.release();
 }
 
 /**
@@ -150,17 +161,19 @@ export async function startInstall(
   if (!('machine' in found)) return found;
   if (found.machine.kind === 'container') return INSTALL_UNSUPPORTED;
   if (found.refusal !== undefined) return found.refusal;
-  if (deps.installs.running(found.machine.id) !== undefined) return INSTALL_BUSY;
   const { tool } = target;
+  const version = deps.latest()[tool];
+  const taken = deps.jobs.take(found.machine.id, { kind: 'tool_install', tool, version });
+  if (!taken.ok) return machineBusy(taken.running);
   const install = deps.installs.start({
     companyId: t.companyId,
     machineId: found.machine.id,
     tool,
-    version: deps.latest()[tool],
+    version,
     principalId: caller.principalId,
   });
-  deps.logger.info({ machineId: install.machineId, tool, version: install.version }, 'tools: installing');
-  return { ok: true, install, ended: carryOut(deps, t, caller, install) };
+  deps.logger.info({ machineId: install.machineId, tool, version }, 'tools: installing');
+  return { ok: true, install, ended: carryOut(deps, t, caller, install, taken.lease) };
 }
 
 /** An install of the machine as the API shows it, its output from line `from` on. */

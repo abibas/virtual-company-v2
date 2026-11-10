@@ -55,8 +55,14 @@ export function useRunnerUpdate(
   return { state, run: () => void run(), dismiss: () => setState({ kind: 'idle' }) };
 }
 
-/** The button in the card's action row. */
-export function UpdateRunnerButton({ update }: { readonly update: RunnerUpdate }) {
+/** The button in the card's action row; `blocked` says why it waits (another job, or the machine's live work). */
+export function UpdateRunnerButton({
+  update,
+  blocked,
+}: {
+  readonly update: RunnerUpdate;
+  readonly blocked: string | undefined;
+}) {
   const { kind } = update.state;
   return (
     <Button
@@ -64,8 +70,8 @@ export function UpdateRunnerButton({ update }: { readonly update: RunnerUpdate }
       tone="soft"
       icon={RefreshCw}
       busy={kind === 'running'}
-      disabled={kind === 'done'}
-      title="Update this machine's runner to the build the server hands out"
+      disabled={kind === 'done' || blocked !== undefined}
+      title={blocked ?? "Update this machine's runner to the build the server hands out"}
       onClick={update.run}
     >
       Update runner

@@ -250,6 +250,10 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    routes on PGlite with `FakeRunner`, the drain's races, the index, the runner's stdin in input mode, the driver's
    arguments and the parser's echoes, the `input` event and frame, the commands' quoting read back through `/bin/sh`; no
    real turn run, no frontend tests.
+   **One maintenance job per machine: done 2026-11-10** (docs/machines.md "One job at a time"): installs and runner
+   updates lock each other out (409 `machine_busy` naming the job; in memory, released on the end, the reconnect or a
+   timeout), a runner update waits for running chat turns and terminals unless forced, the runner refuses the same
+   (`busy`), `GET machines` gains `runner.job` and `runner.live`, and the card disables its buttons with the reason.
    **Chats load lazily: done 2026-11-10** (docs/harness.md "Reading a long chat"): the detail holds the current
    conversation (its latest 30 turns) and `earlier`; `GET …/chats/{chatId}/turns?beforeSeq=` pages older turns; the
    page folds each conversation before a Clear into a bar and loads older messages on scroll; no migration.

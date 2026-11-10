@@ -19,8 +19,6 @@ export const TOOLS_OUTDATED = refuse(
   "The machine's runner is older than the tools: update it on the Machines page",
 );
 
-export const INSTALL_BUSY = refuse(409, 'busy', 'An install is running on this machine: wait for it to end');
-
 export const INSTALL_UNSUPPORTED = refuse(
   409,
   'unsupported',

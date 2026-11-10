@@ -11,6 +11,7 @@ import { runnerSocketRoutes } from './routes/runner.ts';
 import { terminalRoutes } from './routes/terminal.ts';
 import { toolRoutes } from './routes/tools.ts';
 import { runnerUpdateRoutes } from './routes/update.ts';
+import { machineJobs } from './service/jobs.ts';
 import { type PowerControl, tunnelsOnConnect } from './service/power/control.ts';
 import { holdOnConnect } from './service/power/hold.ts';
 import { powerService } from './service/power.ts';
@@ -28,7 +29,9 @@ import { machinesService } from './service.ts';
  * connects gets its machine's hold at once, and a power controller its devboxes' tunnels, an empty set while this server
  * drives them (the hub's connect listeners, registered here once per app). The power control (`control`) says who
  * drives the devboxes; both ends of every tunnel are this server's own port. The latest Claude Code and Codex are
- * npm's (`registryFetch`), read once now and then every six hours, shared by the machines' views and the installs.
+ * npm's (`registryFetch`), read once now and then every six hours, shared by the machines' views and the installs. The
+ * machines' maintenance lock (`jobs`: one install or runner update at a time per machine) is shared by the installs, the
+ * updates and the machines' views; a runner that connects ends the update waiting for it.
  */
 export function machinesRoutes(
   deps: ServerDeps & {
@@ -45,10 +48,12 @@ export function machinesRoutes(
   });
   void npm.refresh();
   const latest = () => npm.current();
+  const jobs = machineJobs(deps.clock);
   const linked = { ...deps, port: deps.config.MWC_PORT };
-  const machines = machinesService({ ...linked, latest });
+  const machines = machinesService({ ...linked, latest, machineJobs: jobs });
   deps.hub.onConnect(holdOnConnect(deps));
   deps.hub.onConnect(tunnelsOnConnect(linked));
+  deps.hub.onConnect((runner) => jobs.connected(runner.machineId));
   return newRouter()
     .route('/', enrollmentRoutes(linked))
     .route('/', runnerDownloadRoutes(deps))
@@ -58,7 +63,7 @@ export function machinesRoutes(
     .route('/', placementRoutes(deps))
     .route('/', runnerSocketRoutes(deps, deps.hub))
     .route('/', terminalRoutes(deps))
-    .route('/', runnerUpdateRoutes(deps))
+    .route('/', runnerUpdateRoutes({ ...deps, machineJobs: jobs }))
     .route('/', folderRoutes(deps))
-    .route('/', toolRoutes({ ...deps, latest }));
+    .route('/', toolRoutes({ ...deps, latest, machineJobs: jobs }));
 }

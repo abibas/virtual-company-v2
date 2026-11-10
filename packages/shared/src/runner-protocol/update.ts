@@ -31,9 +31,14 @@ export const RUNNER_UPDATE_ERRORS = [
 ] as const;
 export type RunnerUpdateError = (typeof RUNNER_UPDATE_ERRORS)[number];
 
-/** Server to runner: update yourself from the server you are linked to, then restart. */
+/**
+ * Server to runner: update yourself from the server you are linked to, then restart. A runner refuses it (`busy`)
+ * while live runs, chat turns or terminals would end with the restart, unless `force` (its terminals then end with a
+ * notice), and always while it installs a tool or updates already.
+ */
 export const RunnerUpdate = frame('runner.update', {
   cmdId: Uuid,
+  force: z.boolean().optional(),
 });
 export type RunnerUpdate = z.infer<typeof RunnerUpdate>;
 

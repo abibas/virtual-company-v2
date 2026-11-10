@@ -156,7 +156,7 @@ export function machineCalls(api: Api, companyId: string) {
     setTimezone: (machineId: string, timezone: string) =>
       call(one.power.timezone.$post({ ...param(machineId), json: { timezone } })),
     terminalTicket: (machineId: string) => call(one['terminal-tickets'].$post(param(machineId))),
-    updateRunner: (machineId: string) => call(one['runner-update'].$post(param(machineId))),
+    updateRunner: (machineId: string) => call(one['runner-update'].$post({ ...param(machineId), json: {} })),
     /** The folders in `path` (the runner's default start when left out). */
     folders: (machineId: string, path?: string) =>
       call(one.folders.$get({ ...param(machineId), query: path === undefined ? {} : { path } })),

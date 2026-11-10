@@ -1,16 +1,10 @@
 import { History, SquareTerminal } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import type { MachineCalls } from '../../../api/machines.ts';
 import type { Machine } from '../../../api/types.ts';
 import { ConfirmInline } from '../../../components/forms/ConfirmInline.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
 import { CommandBox } from '../add/CommandBox.tsx';
-import {
-  type RunnerUpdate,
-  RunnerUpdateNotice,
-  UpdateRunnerButton,
-  useRunnerUpdate,
-} from '../runner/RunnerUpdate.tsx';
+import { type RunnerUpdate, RunnerUpdateNotice, UpdateRunnerButton } from '../runner/RunnerUpdate.tsx';
 import { runnerOutOfDate } from '../runner/runner-text.ts';
 import { TerminalButton } from '../terminal/TerminalButton.tsx';
 import { type ConnectCommand, connectCommand } from './connect-command.ts';
@@ -37,6 +31,7 @@ function Tools({
   panel,
   toggle,
   update,
+  blocked,
 }: {
   readonly machine: Machine;
   readonly companyId: string;
@@ -47,6 +42,7 @@ function Tools({
   readonly toggle: (which: 'connect' | 'log') => void;
   /** Undefined when the runner needs no update or the caller may not update it. */
   readonly update: RunnerUpdate | undefined;
+  readonly blocked: string | undefined;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -62,7 +58,7 @@ function Tools({
         </Button>
       )}
       {owner && <TerminalButton companyId={companyId} machine={machine} online={online} />}
-      {update && <UpdateRunnerButton update={update} />}
+      {update && <UpdateRunnerButton update={update} blocked={blocked} />}
       <Button
         size="sm"
         tone={panel === 'log' ? 'soft' : 'secondary'}
@@ -78,8 +74,9 @@ function Tools({
 
 /**
  * The card's action row: tools on the left (Connect, Terminal for owners while the machine is online, Update runner
- * for admins while its runner is out of date, and the power Log), Remove for admins on the right, and the open tool's
- * panel under the row (the terminal in its own sheet, the update's outcome).
+ * for admins while its runner is out of date, waiting while another job or live work runs on the machine, and the
+ * power Log), Remove for admins on the right, and the open tool's panel under the row (the terminal in its own sheet,
+ * the update's outcome).
  */
 export function MachineActions({
   machine,
@@ -87,27 +84,27 @@ export function MachineActions({
   admin,
   owner,
   online,
-  calls,
+  update,
+  blocked,
   log,
   onRemove,
-  onChanged,
 }: {
   readonly machine: Machine;
   readonly companyId: string;
   readonly admin: boolean;
   readonly owner: boolean;
   readonly online: boolean;
-  readonly calls: MachineCalls;
+  /** The runner's update (the card's, which loads it again once the runner is back). */
+  readonly update: RunnerUpdate;
+  /** Why Update runner waits: another job, or chat turns or terminals running on the machine. */
+  readonly blocked: string | undefined;
   /** The power log, shown under the row while Log is open. */
   readonly log: ReactNode;
   readonly onRemove: () => Promise<void>;
-  /** Loads the card again (after a runner update, once the runner is back). */
-  readonly onChanged: () => void;
 }) {
   const connect = connectCommand(machine);
   const [panel, setPanel] = useState<Panel>(null);
   const toggle = (which: 'connect' | 'log') => setPanel((was) => (was === which ? null : which));
-  const update = useRunnerUpdate(() => calls.updateRunner(machine.id), onChanged);
   const due = admin && (runnerOutOfDate(machine, online) || update.state.kind !== 'idle');
   return (
     <div className="flex flex-col gap-3">
@@ -115,6 +112,7 @@ export function MachineActions({
         <Tools
           {...{ machine, companyId, owner, online, connect, panel, toggle }}
           update={due ? update : undefined}
+          blocked={blocked}
         />
         {admin && (
           <ConfirmInline
