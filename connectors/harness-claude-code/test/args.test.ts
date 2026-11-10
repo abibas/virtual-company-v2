@@ -69,8 +69,9 @@ describe('credentialEnv', () => {
 });
 
 describe('claudeEnv', () => {
-  it('is only the credential on the defaults', () => {
+  it('is the auto-updater off and the credential on the defaults', () => {
     expect(claudeEnv(fakeTerminalSpec('claude_code'))).toEqual({
+      DISABLE_AUTOUPDATER: '1',
       CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token',
     });
   });
@@ -82,6 +83,7 @@ describe('claudeEnv', () => {
       gateway: GATEWAY,
     });
     expect(claudeEnv(spec)).toEqual({
+      DISABLE_AUTOUPDATER: '1',
       ANTHROPIC_API_KEY: 'sk-ant-api03-fake-key',
       CLAUDE_CONFIG_DIR: '/home/agent/.claude-slop',
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:8300',
@@ -94,6 +96,7 @@ describe('claudeEnv', () => {
       gateway: { baseUrl: 'https://gw.example.com', headers: {} },
     });
     expect(claudeEnv(spec)).toEqual({
+      DISABLE_AUTOUPDATER: '1',
       CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token',
       ANTHROPIC_BASE_URL: 'https://gw.example.com',
     });

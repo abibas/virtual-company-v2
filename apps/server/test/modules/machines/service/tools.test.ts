@@ -2,6 +2,7 @@ import { tenant } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
 import type { RunnerTools } from '@mwc/shared/runner-protocol';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { PINNED_TOOLS } from '../../../../src/modules/machines/rules/runner.ts';
 import { toolInstalls } from '../../../../src/modules/machines/service/tools/installs.ts';
 import { checkTools, installStatus, startInstall } from '../../../../src/modules/machines/service/tools.ts';
 import { auditOf, enroll } from '../../../fixtures/machines/machines.ts';
@@ -23,7 +24,12 @@ async function silent() {
   const { machineId, runnerKey } = await enroll(w, company);
   await w.connect(runnerKey, { caps: { tools: TOOLS }, respond: () => [] });
   const t = await tenant(w.t.db, company.companyId);
-  const deps = { hub: w.hub, installs: toolInstalls(w.clock), logger: w.deps.logger };
+  const deps = {
+    hub: w.hub,
+    installs: toolInstalls(w.clock),
+    logger: w.deps.logger,
+    latest: () => PINNED_TOOLS,
+  };
   return { company, machineId, t, deps };
 }
 

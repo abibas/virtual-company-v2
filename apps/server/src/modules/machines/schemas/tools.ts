@@ -24,11 +24,16 @@ export const MachineToolsSchema = z
 export const ToolsLatestSchema = z
   .object({
     claude: z.string().openapi({ example: '2.1.308' }),
-    codex: z.string().openapi({ example: '0.163.0' }),
+    codex: z.string().openapi({ example: '0.167.0' }),
+    source: z.enum(['npm', 'pinned']).openapi({
+      description:
+        "`npm`: the registry's latest (read every six hours); `pinned`: npm could not be read yet, the Dockerfiles' pins",
+    }),
+    checkedAt: dateTime.nullable().openapi({ description: 'When npm answered; null for the pins' }),
   })
   .openapi('MachineToolsLatest', {
     description:
-      'The version of Claude Code and Codex this server installs (the Dockerfiles’ pins): an older one is due an update, a newer one is fine',
+      'The version of Claude Code and Codex the machines are compared with and an install installs (npm’s latest, else the pins): an older one is due an update, a newer one is fine',
   });
 
 export const ToolsCheckedSchema = z.object({ tools: MachineToolsSchema }).openapi('MachineToolsChecked');

@@ -16,6 +16,7 @@ import { holdOnConnect } from './service/power/hold.ts';
 import { powerService } from './service/power.ts';
 import type { RunnerHub } from './service/runner/hub.ts';
 import type { TerminalTickets } from './service/terminal/tickets.ts';
+import { npmLatest, registryFetchFor } from './service/tools/npm.ts';
 import { machinesService } from './service.ts';
 
 /**
@@ -26,7 +27,8 @@ import { machinesService } from './service.ts';
  * (the CLIs its runner found, a check and an install of Claude Code or Codex). A runner that
  * connects gets its machine's hold at once, and a power controller its devboxes' tunnels, an empty set while this server
  * drives them (the hub's connect listeners, registered here once per app). The power control (`control`) says who
- * drives the devboxes; both ends of every tunnel are this server's own port.
+ * drives the devboxes; both ends of every tunnel are this server's own port. The latest Claude Code and Codex are
+ * npm's (`registryFetch`), read once now and then every six hours, shared by the machines' views and the installs.
  */
 export function machinesRoutes(
   deps: ServerDeps & {
@@ -36,8 +38,15 @@ export function machinesRoutes(
     readonly tickets?: TerminalTickets;
   },
 ) {
+  const npm = npmLatest({
+    fetch: deps.registryFetch ?? registryFetchFor(deps.config),
+    clock: deps.clock,
+    logger: deps.logger,
+  });
+  void npm.refresh();
+  const latest = () => npm.current();
   const linked = { ...deps, port: deps.config.MWC_PORT };
-  const machines = machinesService(linked);
+  const machines = machinesService({ ...linked, latest });
   deps.hub.onConnect(holdOnConnect(deps));
   deps.hub.onConnect(tunnelsOnConnect(linked));
   return newRouter()
@@ -51,5 +60,5 @@ export function machinesRoutes(
     .route('/', terminalRoutes(deps))
     .route('/', runnerUpdateRoutes(deps))
     .route('/', folderRoutes(deps))
-    .route('/', toolRoutes(deps));
+    .route('/', toolRoutes({ ...deps, latest }));
 }

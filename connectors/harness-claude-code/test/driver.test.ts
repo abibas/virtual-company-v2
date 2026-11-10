@@ -45,7 +45,7 @@ describe('ClaudeCodeDriver.turn', () => {
     expect(process).toEqual({
       command: 'claude',
       args: TURN,
-      env: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token' },
+      env: { DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token' },
       unsetEnv: CLAUDE_ACCOUNT_VARS.filter((name) => name !== 'CLAUDE_CODE_OAUTH_TOKEN'),
       stdin: expect.stringMatching(/\n$/),
       stdinOpen: true,
@@ -107,7 +107,13 @@ describe('ClaudeCodeDriver.turn', () => {
     ] as const) {
       const process = driver.turn(fakeTurnSpec('claude_code', { credential, configDir: '/cfg', gateway }));
       expect(Object.keys(process.env).sort()).toEqual(
-        [variable, 'CLAUDE_CONFIG_DIR', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_CUSTOM_HEADERS'].sort(),
+        [
+          'DISABLE_AUTOUPDATER',
+          variable,
+          'CLAUDE_CONFIG_DIR',
+          'ANTHROPIC_BASE_URL',
+          'ANTHROPIC_CUSTOM_HEADERS',
+        ].sort(),
       );
       expect(process.unsetEnv).not.toContain(variable);
       expect(process.unsetEnv).not.toContain('CLAUDE_CONFIG_DIR');
@@ -200,7 +206,7 @@ describe('ClaudeCodeDriver.terminal', () => {
     expect(driver.terminal(fakeTerminalSpec('claude_code'))).toEqual({
       command: 'claude',
       args: [],
-      env: { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token' },
+      env: { DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-fake-setup-token' },
       unsetEnv: CLAUDE_ACCOUNT_VARS.filter((name) => name !== 'CLAUDE_CODE_OAUTH_TOKEN'),
       stdin: null,
       privateDir: SETTINGS_DIR,

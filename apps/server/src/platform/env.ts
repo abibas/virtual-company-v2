@@ -46,6 +46,11 @@ export interface AppDeps {
    */
   readonly providerFetch?: typeof fetch;
   /**
+   * How the server reads npm's registry (the latest Claude Code and Codex for the machines' tools); tests pass a fake
+   * registry. Omitted, the platform's `fetch`, except under NODE_ENV=test, where every read is refused (the pins).
+   */
+  readonly registryFetch?: typeof fetch;
+  /**
    * Where Sign in with Claude and Sign in with OpenAI run the CLIs' logins (tests pass a fake; `platform/start.ts` the
    * one it sweeps; undefined: none). Omitted, the helper MWC_LOGIN_HELPER names (`processes/login-helper/select.ts`):
    * Docker, a local temporary folder, or none (those sign-ins 503).

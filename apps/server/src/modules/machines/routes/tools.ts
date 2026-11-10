@@ -4,6 +4,7 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
+import type { ToolsLatest } from '../rules/runner.ts';
 import {
   ToolInstallBodySchema,
   ToolInstallParamsSchema,
@@ -57,9 +58,10 @@ const installRoute = (deps: ServerDeps) => {
     method: 'post',
     summary: 'Install or update Claude Code or Codex on a machine (admin and above)',
     description:
-      "The runner runs `npm install -g --prefix ~/.local <package>@<this server's pin>` with the npm beside its Node, as " +
+      'The runner runs `npm install -g --prefix ~/.local <package>@<version>` with the npm beside its Node, as ' +
       'its user (never sudo), so the command lands in ~/.local/bin; up to 10 minutes. It starts at once: read its ' +
-      'output and its end with `GET …/tools/install/{installId}`. Audited when it ends.',
+      'output and its end with `GET …/tools/install/{installId}`. Audited when it ends. The version is the exact latest ' +
+      "the machines list compares with (`runner.toolsLatest`: npm's latest, else this server's pin).",
     request: { params: MachineParamsSchema, body: jsonBody(ToolInstallBodySchema) },
     responses: {
       202: jsonResponse('It started', ToolInstallStartedSchema),
@@ -96,8 +98,15 @@ const statusRoute = (deps: ServerDeps) => {
   });
 };
 
-export function toolRoutes(deps: ServerDeps & { readonly hub: RunnerHub }) {
-  const tools = { hub: deps.hub, installs: toolInstalls(deps.clock), logger: deps.logger };
+export function toolRoutes(
+  deps: ServerDeps & { readonly hub: RunnerHub; readonly latest: () => ToolsLatest },
+) {
+  const tools = {
+    hub: deps.hub,
+    installs: toolInstalls(deps.clock),
+    logger: deps.logger,
+    latest: deps.latest,
+  };
   return newRouter()
     .openapi(checkRoute(deps), async (c) => {
       const result = await checkTools(tools, c.var.tenant, c.req.valid('param').machineId);

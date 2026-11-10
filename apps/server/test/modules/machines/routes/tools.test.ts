@@ -123,7 +123,7 @@ describe('POST machines/:machineId/tools/check', () => {
 });
 
 describe('POST machines/:machineId/tools/install', () => {
-  it('starts the pinned install at once, streams its output, ends with the tools read again, and audits it', async () => {
+  it('starts the pinned install at once (npm unreachable), streams its output, ends with the tools read again, and audits it', async () => {
     const { company, machineId, api, runner } = await connected({
       respond: answering((frame) => [
         { type: 'tools.output', cmdId: frame.cmdId, line: 'added 1 package in 3s' },

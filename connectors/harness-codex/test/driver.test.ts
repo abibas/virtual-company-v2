@@ -9,6 +9,7 @@ const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
 const ASK_EXEC = ['-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"'];
 const LOGIN_FILE = { name: 'auth.json', contents: FAKE_CREDENTIALS.codex_oauth.authJson, mode: 0o600 };
 const DIRECT = ['-c', 'model_provider="openai"'];
+const NO_UPDATE = ['-c', 'check_for_update_on_startup=false'];
 
 describe('CodexDriver.turn', () => {
   const driver = new CodexDriver();
@@ -16,7 +17,7 @@ describe('CodexDriver.turn', () => {
   it('starts a new thread with its login in the runner’s own home folder and the prompt on stdin', () => {
     expect(driver.turn(fakeTurnSpec('codex'))).toEqual({
       command: 'codex',
-      args: ['exec', '--json', '--skip-git-repo-check', ...ASK_EXEC, ...DIRECT, '-'],
+      args: ['exec', '--json', '--skip-git-repo-check', ...NO_UPDATE, ...ASK_EXEC, ...DIRECT, '-'],
       env: {},
       unsetEnv: [...CODEX_ACCOUNT_VARS],
       stdin: 'What is 2 + 2?',
@@ -40,6 +41,7 @@ describe('CodexDriver.turn', () => {
       'resume',
       '--json',
       '--skip-git-repo-check',
+      ...NO_UPDATE,
       '--model',
       'gpt-5.6-codex',
       '-c',
@@ -71,6 +73,7 @@ describe('CodexDriver.turn', () => {
       'exec',
       '--json',
       '--skip-git-repo-check',
+      ...NO_UPDATE,
       ...ASK_EXEC,
       '-c',
       'model_provider="mwc_gateway"',
@@ -159,7 +162,7 @@ describe('CodexDriver.terminal', () => {
   it('opens the TUI asking on request, or resumes the thread, with no prompt', () => {
     expect(driver.terminal(fakeTerminalSpec('codex'))).toEqual({
       command: 'codex',
-      args: ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request', ...DIRECT],
+      args: [...NO_UPDATE, '--sandbox', 'workspace-write', '--ask-for-approval', 'on-request', ...DIRECT],
       env: {},
       unsetEnv: [...CODEX_ACCOUNT_VARS],
       stdin: null,
@@ -172,7 +175,7 @@ describe('CodexDriver.terminal', () => {
       configDir: '/c',
     });
     expect(driver.terminal(spec)).toMatchObject({
-      args: ['resume', '--dangerously-bypass-approvals-and-sandbox', ...DIRECT, THREAD],
+      args: ['resume', ...NO_UPDATE, '--dangerously-bypass-approvals-and-sandbox', ...DIRECT, THREAD],
       privateDir: { path: '/c' },
     });
   });
@@ -183,6 +186,7 @@ describe('CodexDriver.terminal', () => {
     const process = driver.terminal(fakeTerminalSpec('codex', { gateway, credential, sessionId: THREAD }));
     expect(process.args).toEqual([
       'resume',
+      ...NO_UPDATE,
       '--sandbox',
       'workspace-write',
       '--ask-for-approval',

@@ -89,12 +89,15 @@ export function credentialEnv(credential: HarnessCredential): Record<string, str
   }
 }
 
+/** Claude Code's own auto-updater off: no update mid-run; a machine's CLIs are updated from its card instead. */
+export const NO_AUTO_UPDATE = { DISABLE_AUTOUPDATER: '1' } as const;
+
 /**
- * The variables to add: the credential's, the config folder, the gateway's address and headers (the private settings
+ * The variables to add: the auto-updater off (`NO_AUTO_UPDATE`), the credential's, the config folder, the gateway's address and headers (the private settings
  * file, `settings.ts`, says the same, so a machine's own settings cannot override them).
  */
 export function claudeEnv(spec: TerminalSpec): Record<string, string> {
-  const env = credentialEnv(spec.credential);
+  const env: Record<string, string> = { ...NO_AUTO_UPDATE, ...credentialEnv(spec.credential) };
   if (spec.configDir !== null) env.CLAUDE_CONFIG_DIR = spec.configDir;
   if (spec.gateway !== null) {
     env.ANTHROPIC_BASE_URL = spec.gateway.baseUrl;

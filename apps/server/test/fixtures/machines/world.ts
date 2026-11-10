@@ -61,6 +61,8 @@ export async function machinesWorld(
     readonly keyring?: Keyring;
     /** The fake AI provider the app's refreshes call (the chats' tests). */
     readonly providerFetch?: typeof fetch;
+    /** The fake npm registry the machines' latest tools are read from (else every read is refused: the pins). */
+    readonly registryFetch?: typeof fetch;
   } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
@@ -81,6 +83,7 @@ export async function machinesWorld(
     ...(options.runnerBundle === undefined ? {} : { runnerBundle: options.runnerBundle }),
     ...(options.keyring === undefined ? {} : { keyring: options.keyring }),
     ...(options.providerFetch === undefined ? {} : { providerFetch: options.providerFetch }),
+    ...(options.registryFetch === undefined ? {} : { registryFetch: options.registryFetch }),
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

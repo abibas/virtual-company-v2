@@ -3,7 +3,7 @@ import { type LogoRef, logoRef } from '@mwc/shared/logos';
 import { RUNNER_CLOSE } from '@mwc/shared/runner-protocol';
 import { type MachinesRepo, machinesRepo } from './repo.ts';
 import { isPowered } from './rules/power.ts';
-import { type RunnerFacts, runnerFacts } from './rules/runner.ts';
+import { type RunnerFacts, runnerFacts, type ToolsLatest } from './rules/runner.ts';
 import {
   CONTROLLER_IS_SELF,
   CONTROLLER_NOT_FOUND,
@@ -94,11 +94,13 @@ interface Views {
   readonly hub: ControlDeps['hub'];
   /** The build this server hands out now (the bundle's SHA-256, null unbuilt). */
   served(): Promise<string | null>;
+  /** The latest Claude Code and Codex the runners' tools are compared with. */
+  latest(): ToolsLatest;
 }
 
 /** A machine's runner as the hub knows it, against the served build. */
 const runnerOf = (views: Views, row: Machine, served: string | null) =>
-  runnerFacts(views.hub.connected(row.id), served, row.runnerVersion);
+  runnerFacts(views.hub.connected(row.id), served, row.runnerVersion, views.latest());
 
 /**
  * A machine's view with its agent count and logo, read in the caller's transaction when it is one, its tunnel and its
@@ -189,13 +191,19 @@ async function remove(
 
 /**
  * The machines module's reads and changes of machines (the enrollment, stats and hub are in `service/`); the runner
- * bundle it compares the runners' builds with is the one this server hands out (`runnerBundle`).
+ * bundle it compares the runners' builds with is the one this server hands out (`runnerBundle`), and their tools are
+ * compared with `latest` (npm's latest, else the pins: `service/tools/npm.ts`).
  */
-export function machinesService(deps: ControlDeps & { readonly runnerBundle?: string | undefined }) {
+export function machinesService(
+  deps: ControlDeps & {
+    readonly runnerBundle?: string | undefined;
+    readonly latest: () => ToolsLatest;
+  },
+) {
   const repo = machinesRepo();
   const control = controlOf(deps);
   const bundle = deps.runnerBundle ?? DEFAULT_RUNNER_BUNDLE;
-  const views: Views = { control, hub: deps.hub, served: () => servedBuild(bundle) };
+  const views: Views = { control, hub: deps.hub, served: () => servedBuild(bundle), latest: deps.latest };
   return {
     async list(t: TenantDb): Promise<MachineView[]> {
       const rows = await repo.list(t);

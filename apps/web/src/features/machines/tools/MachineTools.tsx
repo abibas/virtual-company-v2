@@ -9,6 +9,7 @@ import { InstallOutcome } from './InstallOutcome.tsx';
 import {
   installQuestion,
   isInstallable,
+  latestSourceText,
   machineToolsId,
   TOOL_LABELS,
   TOOL_ORDER,
@@ -170,7 +171,8 @@ function NoTools({ online }: { readonly online: boolean }) {
 
 /**
  * The card's Tools part (docs/machines.md, "Tools"): each CLI its runner found with its version or "not installed",
- * an older Claude Code or Codex marked "update available"; for admins Check again, and Install or Update of Claude Code
+ * an older Claude Code or Codex marked "update available" (against npm's latest, or the app's pins when npm cannot be
+ * read, said in a quiet line under the list); for admins Check again, and Install or Update of Claude Code
  * and Codex (asked first, never in a container) with npm's output and the result. `/:slug/machines?machine=<id>#tools`
  * scrolls here.
  */
@@ -217,6 +219,7 @@ export function MachineTools({
             <ToolRow key={tool} {...{ tool, machine, tools, install }} canInstall={admin && !container} />
           ))}
       </ul>
+      {tools !== null && <p className="text-2xs text-dim">{latestSourceText(machine.runner.toolsLatest)}</p>}
       {tools === null && <NoTools online={online} />}
       {tools && container && (
         <p className="text-xs text-dim">

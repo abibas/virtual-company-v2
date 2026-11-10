@@ -27,8 +27,18 @@ export interface RunnerFacts {
   readonly selfUpdate: boolean;
   /** The CLIs it found (`caps.tools`); null while it is not connected, or from a runner older than the tools. */
   readonly tools: RunnerTools | null;
-  /** The version this server installs of Claude Code and Codex (`TOOL_PACKAGES`): an older one is due an update. */
-  readonly toolsLatest: Readonly<Record<InstallableTool, string>>;
+  /** The latest Claude Code and Codex (npm's, else the pins) and where they came from: an older one is due an update. */
+  readonly toolsLatest: ToolsLatest;
+}
+
+/**
+ * The versions of Claude Code and Codex a machine is compared with and the install route installs: npm's `latest`
+ * when the registry answered (`npm`, with when), else the pinned ones (`pinned`, `checkedAt` null).
+ */
+export interface ToolsLatest extends Readonly<Record<InstallableTool, string>> {
+  readonly source: 'npm' | 'pinned';
+  /** When npm answered (UTC, ISO 8601); null for the pins. */
+  readonly checkedAt: string | null;
 }
 
 /** What the hub knows of a connected runner, as far as these facts go. */
@@ -43,10 +53,12 @@ export interface ConnectedFacts {
   };
 }
 
-/** The pinned versions, by installable CLI. */
-export const TOOLS_LATEST: Readonly<Record<InstallableTool, string>> = {
+/** The pinned versions (`TOOL_PACKAGES`, what the Docker images install): the fallback when npm cannot be read. */
+export const PINNED_TOOLS: ToolsLatest = {
   claude: TOOL_PACKAGES.claude.version,
   codex: TOOL_PACKAGES.codex.version,
+  source: 'pinned',
+  checkedAt: null,
 };
 
 /** A runner's tools without the fields a newer runner adds (the API lists the CLIs it knows). */
@@ -55,13 +67,15 @@ export function knownTools(tools: RunnerTools): RunnerTools {
 }
 
 /**
- * The runner's facts from its connection (none while offline), the build this server hands out (null unbuilt) and the
- * version on record (`recorded`, from its last hello). `current` compares builds only, never versions.
+ * The runner's facts from its connection (none while offline), the build this server hands out (null unbuilt), the
+ * version on record (`recorded`, from its last hello) and the latest CLIs (the pins unless given). `current` compares
+ * builds only, never versions.
  */
 export function runnerFacts(
   connected: ConnectedFacts | undefined,
   served: string | null,
   recorded: string,
+  latest: ToolsLatest = PINNED_TOOLS,
 ): RunnerFacts {
   const build = connected?.build ?? null;
   return {
@@ -72,7 +86,7 @@ export function runnerFacts(
     terminal: connected?.caps.terminal ?? false,
     selfUpdate: connected?.caps.selfUpdate ?? false,
     tools: connected?.caps.tools === undefined ? null : knownTools(connected.caps.tools),
-    toolsLatest: TOOLS_LATEST,
+    toolsLatest: latest,
   };
 }
 

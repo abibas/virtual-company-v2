@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   manualUpdate,
+  PINNED_TOOLS,
   portOf,
   runnerBusy,
   runnerFacts,
-  TOOLS_LATEST,
   updateFailed,
   updateUnsupported,
 } from '../../../../src/modules/machines/rules/runner.ts';
@@ -44,7 +44,7 @@ describe("a machine's runner facts", () => {
       terminal: true,
       selfUpdate: true,
       tools: TOOLS,
-      toolsLatest: TOOLS_LATEST,
+      toolsLatest: PINNED_TOOLS,
     });
     expect(runnerFacts(connected(OLD, { terminal: false, selfUpdate: false }), NEW, '0.1.0')).toEqual({
       version: '0.5.0',
@@ -54,7 +54,7 @@ describe("a machine's runner facts", () => {
       terminal: false,
       selfUpdate: false,
       tools: null,
-      toolsLatest: TOOLS_LATEST,
+      toolsLatest: PINNED_TOOLS,
     });
   });
 
@@ -69,7 +69,7 @@ describe("a machine's runner facts", () => {
       terminal: false,
       selfUpdate: false,
       tools: null,
-      toolsLatest: TOOLS_LATEST,
+      toolsLatest: PINNED_TOOLS,
     });
   });
 
@@ -78,7 +78,14 @@ describe("a machine's runner facts", () => {
     expect(
       runnerFacts(connected(NEW, { terminal: true, selfUpdate: true, tools: newer }), NEW, '0.1.0').tools,
     ).toEqual(TOOLS);
-    expect(TOOLS_LATEST).toEqual({ claude: '2.1.308', codex: '0.163.0' });
+    expect(PINNED_TOOLS).toEqual({ claude: '2.1.308', codex: '0.163.0', source: 'pinned', checkedAt: null });
+    const npm = {
+      ...PINNED_TOOLS,
+      codex: '0.167.0',
+      source: 'npm' as const,
+      checkedAt: '2026-11-10T09:00:00.000Z',
+    };
+    expect(runnerFacts(undefined, NEW, '0.1.0', npm).toolsLatest).toBe(npm);
   });
 });
 

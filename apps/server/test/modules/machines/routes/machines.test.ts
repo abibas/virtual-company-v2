@@ -8,7 +8,7 @@ import { RUNNER_CLOSE, type RunnerCaps } from '@mwc/shared/runner-protocol';
 import { TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { TOOLS_LATEST } from '../../../../src/modules/machines/rules/runner.ts';
+import { PINNED_TOOLS } from '../../../../src/modules/machines/rules/runner.ts';
 import type { MachineStatsListView } from '../../../../src/modules/machines/schemas/stats.ts';
 import type { MachineView } from '../../../../src/modules/machines/schemas.ts';
 import { call } from '../../../fixtures/companies/companies.ts';
@@ -71,7 +71,7 @@ describe("GET machines: each machine's runner", () => {
       selfUpdate: false,
       tools: null,
     };
-    const latest = { toolsLatest: TOOLS_LATEST };
+    const latest = { toolsLatest: PINNED_TOOLS };
     expect(runners).toEqual({
       // Offline: the version on record from its enrollment.
       Offline: { version: '0.5.0', ...none, ...latest },

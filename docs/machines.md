@@ -570,10 +570,9 @@ installs or updates Claude Code or Codex through the runner; the chat header and
 - **Check again**: `POST /api/companies/:companyId/machines/:machineId/tools/check` (admin and above) → 200 `{ tools }`
   (`tools.check`, 45 s at most: `runner_timeout`).
 - **Install or update**: `POST …/tools/install { tool: 'claude' | 'codex' }` (admin and above) → 202 `{ installId,
-  tool, version }`; the server sends `tools.install` with its pin and goes on in the background. The runner runs
-  `npm install -g --prefix ~/.local @anthropic-ai/claude-code@2.1.308` (or `@openai/codex@0.163.0`), the versions
-  `deploy/Dockerfile.login` and `deploy/Dockerfile.runner` pin (`TOOL_PACKAGES` in `@mwc/shared/machines`, which a test
-  holds to both files), with the npm beside its own Node, as its user (never sudo), from its home, in its own process
+  tool, version }`; the server sends `tools.install` with the exact latest version (below) and goes on in the
+  background. The runner runs `npm install -g --prefix ~/.local @anthropic-ai/claude-code@<version>` (or
+  `@openai/codex@<version>`) with the npm beside its own Node, as its user (never sudo), from its home, in its own process
   group, with npm's folder first on the PATH and its own `MWC_*` settings left out. The command lands in
   `~/.local/bin`, which the CLI search and the service's PATH already have. npm's lines (both streams, each cut to 500
   characters, 500 lines at most, then one notice) come back as `tools.output`; after 10 minutes npm's group is killed.
@@ -586,20 +585,31 @@ installs or updates Claude Code or Codex through the runner; the chat header and
   machine; the runner refuses a second too) and `unsupported` (a container: its CLIs come from its image, rebuilt
   instead). An install that started can end `failed` with `npm_missing: …` (no npm beside the runner's Node), `timeout:
   …`, `failed: npm exited with code N (its last line)`, `machine_offline: …` (the runner went away) or `runner_outdated`.
-- **Needs update.** `runner.toolsLatest` (`{ claude, codex }`, the pins) beside `runner.tools` in `GET machines`; a
-  version older than its pin is "update available" (`toolNeedsUpdate`, numbers compared), a newer one is fine. Update is
-  the same install at the pin. npm puts it in `~/.local/bin`, so an older copy elsewhere on the runner's PATH (an nvm or
+- **Latest from npm** (2026-11-10, Ihor: Codex's own TUI offered 0.167.0 while the card offered our pin, 0.163.0).
+  `service/tools/npm.ts` reads `GET https://registry.npmjs.org/<package>/latest` → `version` for
+  `@anthropic-ai/claude-code` and `@openai/codex`, through an injected fetch (`AppDeps.registryFetch`; refused under
+  NODE_ENV=test, so tests pass a fake registry), 5 s per read, no redirects. The answer is kept 6 hours; the server reads
+  once at start and, when stale, again in the background, so a request never waits for npm. Until npm answered, or after
+  a failed read (tried again 10 minutes later; a known answer is kept), the machines are compared with the pins:
+  `TOOL_PACKAGES` in `@mwc/shared/machines`, the versions `deploy/Dockerfile.login` and `deploy/Dockerfile.runner`
+  install (a test holds it to both files), which stay what the Docker images use.
+- **Needs update.** `runner.toolsLatest` (`{ claude, codex, source: 'npm' | 'pinned', checkedAt }`, `checkedAt` null for
+  the pins) beside `runner.tools` in `GET machines`; a version older than that latest is "update available"
+  (`toolNeedsUpdate`, numbers compared), a newer one is fine. Update is the same install at that version. npm puts it in `~/.local/bin`, so an older copy elsewhere on the runner's PATH (an nvm or
   Homebrew global, Claude Code's own installer) may still come first: the card then says so after the install. An
   install over a native Claude Code install in `~/.local/bin` can fail with npm's `EEXIST`, shown in its output.
 - **Web** (`features/machines/tools/`): the opened card's **Tools** part lists each CLI with its version or "not
-  installed", "update available · <pin>" for an older Claude Code or Codex, and for admins **Check again** and
-  **Install** / **Update** (asked first: "Installs Codex 0.163.0 for <user> on <machine> with npm, into ~/.local/bin"),
-  npm's output in a small log box and the result; a container says to rebuild its image. The folded card has the line
+  installed", "update available · <latest>" for an older Claude Code or Codex, and for admins **Check again** and
+  **Install** / **Update** (asked first: "Updates Codex to 0.167.0 for <user> on <machine> with npm, into ~/.local/bin"),
+  npm's output in a small log box and the result; a quiet line under the list says "Latest from npm, checked <time>" or
+  "npm unreachable: compared with the app's pinned versions"; a container says to rebuild its image. The folded card has the line
   "Claude Code 2.1.319 · Codex —". `/:slug/machines?machine=<id>` opens and scrolls to that card, `#tools` to its Tools
   part. The chat header shows the chat's harness CLI on the agent's machine ("Codex 0.162.1 · Airia devbox"; amber
   "update available", red "not installed", "runner out of date", "offline") linking there, and the agent form warns
   under Access profile when the picked profile's harness CLI is missing or old on the chosen machine, with **Open
   Machines**.
+- **No self-updates in our runs.** Turns and terminals turn the CLIs' own update checks off (docs/harness.md): Codex
+  gets `-c check_for_update_on_startup=false`, Claude Code `DISABLE_AUTOUPDATER=1`. Updates happen from the card.
 - Not here: installing anything else (git, gh, Docker), uninstalling, signing in to the CLIs.
 
 ## Logos

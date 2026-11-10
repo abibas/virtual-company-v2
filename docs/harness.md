@@ -151,9 +151,13 @@ turn:      claude -p --output-format stream-json --verbose --input-format stream
                   ask_user_question tool, then end your turn: their answer comes as their next message."
 terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
 both:      and always, last:  --settings <runner state>/claude_code/<16 hex of sha256(cwd)>/settings-<12 hex>.json
-env:       the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; with a gateway
+env:       DISABLE_AUTOUPDATER=1; the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; with a gateway
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
 ```
+
+- **No auto-update** (2026-11-10). Every turn and terminal gets `DISABLE_AUTOUPDATER=1` (`NO_AUTO_UPDATE`; the name is
+  in Claude Code 2.1.322's own list of the variables it reads), so Claude Code never updates itself mid-run or offers
+  to; a machine's CLIs are updated from its card (docs/machines.md "Tools").
 
 - **The profile's gateway wins** (`settings.ts`, 2026-11-10). A machine's `~/.claude/settings.json` `env` (Ihor's Mac:
   his memory gateway with `x-memory-*` headers; the devbox: the Airia dev gateway with an `x-airia-key` header), or a
@@ -218,13 +222,13 @@ Verified against `codex --help`, `codex exec --help`, `codex exec resume --help`
 sign-in helper pins 0.163.0), and the documented `--json` events (`codex-rs/exec/src/exec_events.rs`).
 
 ```
-turn, new:      codex exec --json --skip-git-repo-check [--model <m>] [-c model_reasoning_effort="<e>"] <permissions>
+turn, new:      codex exec --json --skip-git-repo-check -c check_for_update_on_startup=false [--model <m>] [-c model_reasoning_effort="<e>"] <permissions>
                 [<tools>] -
-turn, resume:   codex exec resume --json --skip-git-repo-check [--model <m>] [-c …] <permissions> [<tools>] <threadId> -
+turn, resume:   codex exec resume --json --skip-git-repo-check -c check_for_update_on_startup=false [--model <m>] [-c …] <permissions> [<tools>] <threadId> -
 tools:          -c mcp_servers.mwc.command="<node>" -c mcp_servers.mwc.args=["<runner.mjs>","mcp"]
                 -c mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]
                 -c mcp_servers.mwc.default_tools_approval_mode="approve"     and both variables in codex's env
-terminal:       codex [resume] [--model <m>] [-c …] <permissions> [<threadId>]
+terminal:       codex [resume] -c check_for_update_on_startup=false [--model <m>] [-c …] <permissions> [<threadId>]
 permissions:    bypass  --dangerously-bypass-approvals-and-sandbox
                 ask     turn: -c sandbox_mode="workspace-write" -c approval_policy="never"
                         terminal: --sandbox workspace-write --ask-for-approval on-request
@@ -242,6 +246,9 @@ home:           privateDir CODEX_HOME = configDir, or the runner's own folder fo
 - **Why `-c` for the turn's sandbox.** `codex exec resume` has no `--sandbox`; the config overrides work for both
   forms. With approvals off, what the workspace-write sandbox does not allow fails and the model is told; a command
   Codex reports `declined` gives a `warn` notice.
+- **No update check** (2026-11-10). `check_for_update_on_startup=false` (`NO_UPDATE_CHECK`, a top-level key of
+  Codex's `ConfigToml`, found in Codex 0.162.1's binary) keeps the TUI's "Update available … Update now" prompt and
+  the startup check out of turns and terminals; a machine's CLIs are updated from its card (docs/machines.md "Tools").
 - **The trailing `-`** makes Codex read the prompt from stdin (after the thread id on a resume).
 - **The gateway** (`gateway.ts`, 2026-11-10) is a custom model provider given as config overrides, which win over any
   `config.toml` in Codex's home folder; Ihor's own `~/.codex/config.toml` (his `memory-gateway` provider) is never read,

@@ -1,6 +1,6 @@
 import { diffFields, type TenantDb } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
-import { type InstallableTool, TOOL_PACKAGES } from '@mwc/shared/machines';
+import type { InstallableTool } from '@mwc/shared/machines';
 import {
   type RunnerTools,
   TOOLS_CHECK_TIMEOUT_MS,
@@ -9,7 +9,7 @@ import {
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import { machinesRepo } from '../repo.ts';
-import { knownTools } from '../rules/runner.ts';
+import { knownTools, type ToolsLatest } from '../rules/runner.ts';
 import {
   INSTALL_BUSY,
   INSTALL_NOT_FOUND,
@@ -27,7 +27,7 @@ import type { ToolInstall, ToolInstalls } from './tools/installs.ts';
 /**
  * A machine's tools (docs/machines.md, "Tools"): a check through its runner (`tools.check`: it looks for its CLIs again
  * and sends `runner.caps`, so the hub's view and the machines list follow), and an install of Claude Code or Codex at
- * this server's pin (`tools.install`), started at once and carried on in the background: its output lines and its end
+ * the latest version the machines are compared with (npm's, else the pin; `tools.install`, exact), started at once and carried on in the background: its output lines and its end
  * go to the registry the card reads, and its end to the audit log (who, which machine, which CLI, which result). Not in
  * a container (its image is rebuilt instead), one at a time per machine.
  */
@@ -36,6 +36,8 @@ export interface ToolsDeps {
   readonly hub: RunnerHub;
   readonly installs: ToolInstalls;
   readonly logger: Logger;
+  /** The latest Claude Code and Codex (npm's, else the pins): the version an install asks for. */
+  readonly latest: () => ToolsLatest;
   /** How long a check may take; `TOOLS_CHECK_TIMEOUT_MS` unless a test shortens it. */
   readonly checkTimeoutMs?: number;
   /** How long an install may take; the runner's own limit and a minute more, unless a test shortens it. */
@@ -131,7 +133,7 @@ async function carryOut(
 }
 
 /**
- * Starts installing `tool` at this server's pin on the machine; the install goes on after the answer (`installStatus`
+ * Starts installing `tool` at its latest version (`deps.latest`) on the machine; the install goes on after the answer (`installStatus`
  * reads it), and `ended` resolves once it ended (it never rejects).
  */
 export async function startInstall(
@@ -154,7 +156,7 @@ export async function startInstall(
     companyId: t.companyId,
     machineId: found.machine.id,
     tool,
-    version: TOOL_PACKAGES[tool].version,
+    version: deps.latest()[tool],
     principalId: caller.principalId,
   });
   deps.logger.info({ machineId: install.machineId, tool, version: install.version }, 'tools: installing');

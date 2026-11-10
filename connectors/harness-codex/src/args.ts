@@ -1,6 +1,6 @@
 import { HarnessError, type PrivateFile, type TurnTools } from '@mwc/harness-core';
 import { ASK_SERVER, type HarnessCredential, type TerminalSpec, type TurnSpec } from '@mwc/shared/harness';
-import { configArg, configListArg } from './config.ts';
+import { configArg, configFlagArg, configListArg } from './config.ts';
 import { providerArgs } from './gateway.ts';
 
 /** Codex's command line, environment and home folder for a turn or a terminal (docs/harness.md, "Codex"). */
@@ -58,6 +58,12 @@ export function permissionArgs(spec: TerminalSpec, mode: 'exec' | 'tui'): string
 }
 
 /**
+ * Codex's own update check off (`check_for_update_on_startup`, a top-level config key): no "Update available" notice
+ * or update prompt in a turn or the terminal; a machine's CLIs are updated from its card instead.
+ */
+export const NO_UPDATE_CHECK = configFlagArg('check_for_update_on_startup', false);
+
+/**
  * A turn's overrides for the runner's tools: its MCP server's command and arguments, the variables Codex hands it from
  * its own environment (`env_vars`: the socket and the token, so the token is not on the command line), and its tools
  * approved without asking (a turn's approvals are off). Codex gets no extra instruction line: its
@@ -89,6 +95,7 @@ export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
   const options = [
     '--json',
     '--skip-git-repo-check',
+    ...NO_UPDATE_CHECK,
     ...modelArgs(spec),
     ...permissionArgs(spec, 'exec'),
     ...providerArgs(spec.gateway, keyEnvOf(spec.credential, 'exec')),
@@ -102,6 +109,7 @@ export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
 /** `codex …` for a new conversation, `codex resume … <id>` for an existing one, with the same provider as a turn. */
 export function terminalArgs(spec: TerminalSpec): string[] {
   const options = [
+    ...NO_UPDATE_CHECK,
     ...modelArgs(spec),
     ...permissionArgs(spec, 'tui'),
     ...providerArgs(spec.gateway, keyEnvOf(spec.credential, 'tui')),

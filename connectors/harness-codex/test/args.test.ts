@@ -8,6 +8,7 @@ import {
   configListArg,
   keyEnvOf,
   modelArgs,
+  NO_UPDATE_CHECK,
   permissionArgs,
   terminalArgs,
   toolArgs,
@@ -71,6 +72,8 @@ describe('turnArgs', () => {
       'exec',
       '--json',
       '--skip-git-repo-check',
+      '-c',
+      'check_for_update_on_startup=false',
       ...ASK_EXEC,
       ...DIRECT,
       '-',
@@ -89,6 +92,7 @@ describe('turnArgs', () => {
       'resume',
       '--json',
       '--skip-git-repo-check',
+      ...NO_UPDATE_CHECK,
       '--model',
       'gpt-5.6-codex',
       '-c',
@@ -131,6 +135,8 @@ describe('the runner’s tools', () => {
       'exec',
       '--json',
       '--skip-git-repo-check',
+      '-c',
+      'check_for_update_on_startup=false',
       ...ASK_EXEC,
       ...DIRECT,
       ...TOOL_ARGS,
@@ -173,6 +179,8 @@ describe('a gateway in the arguments', () => {
 describe('terminalArgs', () => {
   it('opens the TUI, or resumes the thread in it', () => {
     expect(terminalArgs(fakeTerminalSpec('codex'))).toEqual([
+      '-c',
+      'check_for_update_on_startup=false',
       '--sandbox',
       'workspace-write',
       '--ask-for-approval',
@@ -180,7 +188,15 @@ describe('terminalArgs', () => {
       ...DIRECT,
     ]);
     const spec = fakeTerminalSpec('codex', { sessionId: THREAD, model: 'o4', permissionPolicy: 'bypass' });
-    expect(terminalArgs(spec)).toEqual(['resume', '--model', 'o4', ...BYPASS, ...DIRECT, THREAD]);
+    expect(terminalArgs(spec)).toEqual([
+      'resume',
+      ...NO_UPDATE_CHECK,
+      '--model',
+      'o4',
+      ...BYPASS,
+      ...DIRECT,
+      THREAD,
+    ]);
   });
 });
 

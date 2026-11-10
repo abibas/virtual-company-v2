@@ -1,6 +1,7 @@
 import type { Harness } from '@mwc/shared/enums';
 import { toolNeedsUpdate, toolVersionNumber } from '@mwc/shared/machines';
 import type { InstallableTool, MachineTools, ToolsLatest } from '../../../api/types.ts';
+import { formatDateTime } from '../../../components/data/format.ts';
 
 /** A machine's tools as the card, the chat header and the agent form say them (docs/machines.md, "Tools"; pure). */
 
@@ -27,7 +28,7 @@ export const isInstallable = (tool: ToolKey): tool is InstallableTool =>
 /** A version as people read it: the number in what the CLI printed ("2.1.319"), else the text itself. */
 export const shortVersion = (printed: string): string => toolVersionNumber(printed) ?? printed;
 
-/** A CLI on a machine: not installed, older than the version the server installs, or fine. */
+/** A CLI on a machine: not installed, older than the latest (npm's, else the server's pin), or fine. */
 export type ToolState =
   | { readonly kind: 'missing' }
   | { readonly kind: 'old'; readonly version: string; readonly latest: string }
@@ -72,4 +73,11 @@ export function installQuestion(
     ? `Updates ${TOOL_LABELS[tool]} to ${version}`
     : `Installs ${TOOL_LABELS[tool]} ${version}`;
   return `${what} for ${where.unixUser} on ${where.name} with npm, into ~/.local/bin.`;
+}
+
+/** The quiet line under the list: where "latest" came from (npm, with when it was read, or the app's pins). */
+export function latestSourceText(latest: ToolsLatest): string {
+  return latest.source === 'npm' && latest.checkedAt !== null
+    ? `Latest from npm, checked ${formatDateTime(latest.checkedAt)}`
+    : "npm unreachable: compared with the app's pinned versions";
 }
