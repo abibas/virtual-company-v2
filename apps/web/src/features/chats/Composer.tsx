@@ -95,7 +95,6 @@ export function Composer({
           placeholder={running ? 'Write while the agent works…' : placeholder}
           className={cx(CONTROL, 'h-auto max-h-48 min-h-11 flex-1 resize-none py-2.5 text-sm')}
         />
-        <DictationButton value={text} onChange={setText} />
         {running && (
           <Button tone="danger" icon={Square} busy={stop.busy} onClick={() => void stop.run(onStop)}>
             Stop
@@ -105,9 +104,12 @@ export function Composer({
           Send
         </Button>
       </div>
-      <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <DictationButton value={text} onChange={setText} />
+          {meter}
+        </div>
         <p className="text-2xs text-faint">Enter sends · Shift+Enter for a new line</p>
-        {meter}
       </div>
     </form>
   );

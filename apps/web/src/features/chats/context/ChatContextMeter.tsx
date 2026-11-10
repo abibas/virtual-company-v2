@@ -1,3 +1,4 @@
+import { contextWindowOf } from '@mwc/shared/harness';
 import { useMemo, useState } from 'react';
 import { isLiveTurn } from '../../../api/chat-turns.ts';
 import type { ChatCalls } from '../../../api/chats.ts';
@@ -63,26 +64,35 @@ export function ChatContextMeter({
   live,
   chat,
   closed,
+  agentModel,
 }: {
   readonly calls: ChatCalls;
   readonly live: ChatLive;
   readonly chat: Chat;
   /** Why the chat takes no message now (archived, not an admin, placed nowhere). */
   readonly closed: string | undefined;
+  /** The agent's model: before the first reading, its window frames an empty meter ("Context 0 / 1M · 0%"). */
+  readonly agentModel?: string;
 }) {
   const { turns } = live;
   const detail = live.detail.data;
-  const view = useMemo(() => conversationView(turns, detail), [turns, detail]);
+  const view = useMemo(() => {
+    const read = conversationView(turns, detail);
+    if (read.used !== undefined) return read;
+    const model = read.model ?? agentModel ?? null;
+    const window = read.window ?? contextWindowOf(model);
+    return { ...read, model, window, used: 0, percent: window ? 0 : undefined };
+  }, [turns, detail, agentModel]);
   const running = turns.some(isLiveTurn);
   const controls = useControls(calls, live, chat, blockedWhy(view, running, closed));
   return (
-    <div className="flex min-w-0 items-center justify-end gap-2">
+    <div className="flex min-w-0 items-center gap-2">
+      <ContextMeter view={view} controls={controls} />
       {controls.error && (
         <p role="alert" title={controls.error} className="min-w-0 truncate text-2xs font-medium text-failed">
           {controls.error}
         </p>
       )}
-      <ContextMeter view={view} controls={controls} />
     </div>
   );
 }

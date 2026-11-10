@@ -166,7 +166,15 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
             onSend={actions.send}
             onStop={actions.stop}
             queue={<QueuedMessages queue={queue} actions={queueActions(calls, live, chat, running)} />}
-            meter={<ChatContextMeter calls={calls} live={live} chat={chat} closed={closed} />}
+            meter={
+              <ChatContextMeter
+                calls={calls}
+                live={live}
+                chat={chat}
+                closed={closed}
+                agentModel={agent.model}
+              />
+            }
           />
         </>
       )}

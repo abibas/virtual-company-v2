@@ -18,12 +18,12 @@ const LINE: Readonly<Record<Fullness, string>> = {
 
 /** The meter's pill: quiet until hovered or open; the button inside takes the focus, the pill shows its ring. */
 const PILL =
-  'relative flex min-w-0 items-center gap-2 rounded-full px-2 py-1 hover:bg-surface-3 has-[[aria-expanded=true]]:bg-surface-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue';
+  'relative flex min-w-0 items-center gap-2.5 rounded-full px-2 py-1 hover:bg-surface-2 has-[[aria-expanded=true]]:bg-surface-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue';
 
 /** The thin bar in the trigger: a quiet track and the used share, in the meter's tone. */
 function ThinBar({ percent, tone }: { readonly percent: number; readonly tone: Fullness }) {
   return (
-    <span className="relative h-1 w-12 shrink-0 overflow-hidden rounded-full bg-surface-3">
+    <span className="relative h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-surface-3">
       <span
         className={cx(
           'absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 motion-reduce:transition-none',
@@ -103,7 +103,7 @@ export function ContextMeter({
           aria-controls={id}
           onClick={() => popover.setOpen((was) => !was)}
           className={cx(
-            'tabular min-w-0 cursor-pointer truncate text-2xs after:absolute after:inset-0 after:rounded-full focus-visible:outline-none',
+            'tabular min-w-0 cursor-pointer truncate text-xs after:absolute after:inset-0 after:rounded-full focus-visible:outline-none',
             LINE[tone],
           )}
         >
