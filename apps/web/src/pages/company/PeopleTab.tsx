@@ -10,11 +10,6 @@ import { InvitationsPanel } from '../../features/members/InvitationsPanel.tsx';
 import { InvitePanel } from '../../features/members/InviteForm.tsx';
 import { PeoplePanel } from '../../features/members/PeoplePanel.tsx';
 
-const LEDE = {
-  admin: 'Invite people, set their roles and remove them. Changes take effect at once.',
-  other: 'The people in this company. Admins and owners invite people and change roles.',
-} as const;
-
 /** The member list, and (admins and owners) the pending invitations. */
 function useMembersData(companyId: string, admin: boolean) {
   const api = useApi();
@@ -50,7 +45,6 @@ export function PeopleTab() {
 
   return (
     <div className="grid gap-4 md:gap-5">
-      <p className="text-sm text-dim">{admin ? LEDE.admin : LEDE.other}</p>
       {notice && (
         <Notice tone={notice.tone} onDismiss={() => setNotice(undefined)}>
           {notice.text}

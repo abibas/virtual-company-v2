@@ -1,7 +1,6 @@
 import { Bot, type LucideIcon, Network, Plus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Tabs } from '../../components/forms/Segmented.tsx';
-import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 import type { StructureLinks } from '../agents/links.ts';
 
@@ -28,15 +27,9 @@ const TABS: readonly TabDef[] = [
 export const structureTabAt = (path: string): StructureTab | undefined =>
   TABS.find((t) => t.path === path)?.tab;
 
-const LEDE = {
-  admin:
-    'Who is in the company, people and agents, and who reports to whom. Hire agents, invite people and place everyone on the chart.',
-  other: 'Who is in the company, people and agents, and who reports to whom.',
-} as const;
-
 /**
- * The Company structure page: its header (Hire an agent for admins and owners, beside the chart and the agents), the
- * tabs, and the current tab's body. The company's route and the design gallery both render it.
+ * The Company structure page: one compact row with the tabs and, for admins and owners beside the chart and the agents,
+ * Hire an agent; then the current tab's body. The company's route and the design gallery both render it.
  */
 export function StructureView({
   tab,
@@ -54,29 +47,24 @@ export function StructureView({
 }) {
   return (
     <>
-      <PageHeader
-        title="Company structure"
-        actions={
-          admin &&
-          tab !== 'people' && (
-            <ButtonLink href={hireHref} tone="primary" icon={Plus}>
-              Hire an agent
-            </ButtonLink>
-          )
-        }
-      >
-        <p>{admin ? LEDE.admin : LEDE.other}</p>
-      </PageHeader>
-      <Tabs
-        label="Company structure views"
-        className="mb-4"
-        items={TABS.map((t) => ({
-          href: t.href(links),
-          label: t.label,
-          icon: t.icon,
-          current: t.tab === tab,
-        }))}
-      />
+      {/* One compact row (Ihor: no title or lede eating the chart's space): the tabs, and Hire an agent. */}
+      <h1 className="sr-only">Company structure</h1>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <Tabs
+          label="Company structure views"
+          items={TABS.map((t) => ({
+            href: t.href(links),
+            label: t.label,
+            icon: t.icon,
+            current: t.tab === tab,
+          }))}
+        />
+        {admin && tab !== 'people' && (
+          <ButtonLink href={hireHref} tone="primary" size="sm" icon={Plus}>
+            Hire an agent
+          </ButtonLink>
+        )}
+      </div>
       {children}
     </>
   );

@@ -8,7 +8,7 @@ import { ChartCanvas } from '../../components/org/ChartCanvas.tsx';
 import { COMPANY } from '../../components/org/ChartCard.tsx';
 import { nodeName } from '../../components/org/chart.ts';
 import { Badge } from '../../components/ui/Badge.tsx';
-import { Panel } from '../../components/ui/Panel.tsx';
+import { Card } from '../../components/ui/Card.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import type { AgentLinks } from '../agents/links.ts';
 import { CardButtons, ChartLayer, DragGhost } from './ChartLayer.tsx';
@@ -84,7 +84,7 @@ function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board:
     />
   );
   return (
-    <div ref={board.frame} className="relative -mx-5 -mb-5 md:-mx-6 md:-mb-6">
+    <div ref={board.frame} className="relative">
       <LoadState
         loaded={props.loaded}
         label="Loading the chart…"
@@ -100,7 +100,7 @@ function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board:
               label="Org chart canvas"
               handle={board.canvas}
               onMove={() => board.setMenu(undefined)}
-              className="h-[max(26rem,calc(100dvh-22rem))] rounded-b-2xl border-t border-line"
+              className="h-[max(26rem,calc(100dvh-10.5rem))] rounded-2xl"
             >
               <ChartLayer
                 layout={layout}
@@ -181,17 +181,13 @@ function BoardOverlays({ board, ...props }: OrgChartBoardProps & { readonly boar
 export function OrgChartBoard(props: OrgChartBoardProps) {
   const board = useBoard({ ...props, chart: props.loaded.data });
   return (
-    <Panel
-      title="Org chart"
-      description={
-        props.abilities.admin
-          ? 'Drag a card onto someone to change whom it reports to; + adds someone under a card. People are blue, agents teal.'
-          : 'Who reports to whom. People are blue and agents teal; every agent answers to a person.'
-      }
-      actions={<Legend chart={board.chart} />}
-    >
+    // No header of its own (Ihor: the space is the chart's): the counts float at the canvas's top left.
+    <Card as="section" aria-label="Org chart" padding="none">
+      <div className="pointer-events-none absolute top-3 left-3 z-10 flex gap-1.5">
+        <Legend chart={board.chart} />
+      </div>
       <BoardCanvas board={board} {...props} />
       <BoardOverlays board={board} {...props} />
-    </Panel>
+    </Card>
   );
 }
