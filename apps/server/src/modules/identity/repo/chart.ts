@@ -20,7 +20,24 @@ export interface MemberChart {
   ): Promise<void>;
   /** A membership stopped being active (removed, suspended): the person's reports move up and their position goes. */
   unplaceMember(t: TenantDb, principalId: string, by: ChartActor): Promise<void>;
+  /**
+   * A membership started, or its status or role changed (S2.9): the notifications module's notices to the person or
+   * their inviter, which `createApp` composes in. Optional: the stores tested without the app have none.
+   */
+  noticeChange?(t: TenantDb, change: MembershipChange, by: ChartActor): Promise<void>;
 }
+
+/** A membership before and after a change the identity store wrote. */
+export interface MembershipChange {
+  readonly before: Pick<Membership, 'status' | 'role'> | undefined;
+  readonly after: Pick<Membership, 'principalId' | 'status' | 'role' | 'invitationId'>;
+}
+
+/** A change worth a notice: a new membership, or another status or role. */
+export const noticeWorthy = (
+  before: Pick<Membership, 'status' | 'role'> | undefined,
+  after: Pick<Membership, 'status' | 'role'>,
+): boolean => before === undefined || before.status !== after.status || before.role !== after.role;
 
 /** The dependency of the paths that start or end a membership. */
 export interface ChartDeps {

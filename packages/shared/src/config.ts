@@ -49,6 +49,12 @@ export const LocalDockerMode = z.enum(['auto', 'on', 'off']);
  */
 export const WhisperMode = z.enum(['auto', 'off']);
 
+/**
+ * How notification emails go out (MWC_EMAIL, docs/notifications.md): written to the development outbox
+ * (`.data/outbox/`, read with `mwc dev outbox`), through SMTP (not built yet: refused), or not at all.
+ */
+export const EmailMode = z.enum(['outbox', 'smtp', 'off']);
+
 /** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
 export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
@@ -156,9 +162,19 @@ const EnvSchema = z.object({
     emptyAsUnset,
     z.coerce.number().int().min(1).max(65535).default(PORTS.whisper),
   ),
+  /** `outbox`, `smtp` or `off` (EmailMode). Defaults to outbox in development, else off: never real email unasked. */
+  MWC_EMAIL: z.preprocess(emptyAsUnset, EmailMode.optional()),
+  /** The From of notification emails. */
+  MWC_EMAIL_FROM: z.preprocess(
+    emptyAsUnset,
+    z.string().min(3).default('Most Wanted Corp <no-reply@localhost>'),
+  ),
+  /** The SMTP server for MWC_EMAIL=smtp (smtp:// or smtps://, with its user and password): a secret, never echoed. */
+  MWC_SMTP_URL: z.preprocess(emptyAsUnset, z.url({ protocol: /^smtps?$/ }).optional()),
 });
 
 export type IdentityMode = z.infer<typeof IdentityMode>;
+export type EmailMode = z.infer<typeof EmailMode>;
 export type CompanyCreation = z.infer<typeof CompanyCreation>;
 export type LoginHelperMode = z.infer<typeof LoginHelperMode>;
 export type LocalPowerMode = z.infer<typeof LocalPowerMode>;
@@ -189,6 +205,12 @@ function requireMasterKey(env: z.infer<typeof EnvSchema>, ctx: z.RefinementCtx):
   });
 }
 
+/** MWC_EMAIL=smtp is refused until the SMTP sender is built (docs/notifications.md, "Email"). */
+function refuseSmtp(env: z.infer<typeof EnvSchema>, ctx: z.RefinementCtx): void {
+  if (env.MWC_EMAIL !== 'smtp') return;
+  ctx.addIssue({ code: 'custom', path: ['MWC_EMAIL'], message: 'smtp is not built yet; use outbox or off' });
+}
+
 /** The default web origin: the public URL in production, else the web dev server of the port or slot. */
 function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): string {
   if (env.NODE_ENV === 'production') return new URL(publicUrl).origin;
@@ -208,6 +230,7 @@ function defaultWebOrigin(env: z.infer<typeof EnvSchema>, publicUrl: string): st
 export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
   requireClerkKeys(env, ctx);
   requireMasterKey(env, ctx);
+  refuseSmtp(env, ctx);
 }).transform((env) => {
   const {
     MWC_PORT_SLOT,
@@ -218,6 +241,7 @@ export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
     MWC_COMPANY_CREATION,
     MWC_JOBS,
     MWC_LOGIN_HELPER,
+    MWC_EMAIL,
     ...rest
   } = env;
   const port = MWC_PORT ?? (MWC_PORT_SLOT === undefined ? PORTS.api : slotPorts(MWC_PORT_SLOT).api);
@@ -236,6 +260,7 @@ export const ConfigSchema = EnvSchema.superRefine((env, ctx) => {
     MWC_COMPANY_CREATION: MWC_COMPANY_CREATION ?? (env.NODE_ENV === 'production' ? 'allowlist' : 'any'),
     MWC_JOBS: MWC_JOBS ?? env.NODE_ENV !== 'test',
     MWC_LOGIN_HELPER: MWC_LOGIN_HELPER ?? (env.NODE_ENV === 'development' ? 'docker' : 'none'),
+    MWC_EMAIL: MWC_EMAIL ?? (env.NODE_ENV === 'development' ? 'outbox' : 'off'),
   };
 });
 

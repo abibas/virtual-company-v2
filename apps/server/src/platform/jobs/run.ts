@@ -6,11 +6,11 @@ import { drainOutbox, type OutboxDrain } from './outbox-drain.ts';
 import { type ReconcileRound, reconcileRound } from './reconcile.ts';
 
 /**
- * One tick of the jobs loop: the machines' upkeep, then the identity outbox, the retry of webhook events and the
+ * One tick of the jobs loop: the machines' upkeep and the notification emails, then the identity outbox, the retry of webhook events and the
  * periodic reconcile, each on its own, so one that fails (logged) never keeps the others from running and never reaches
  * the caller. The work comes from the modules (`ModuleJobs`, composed by `moduleJobs` in app.ts), so the platform imports
  * no module. The last three call the identity provider: with none (MWC_IDENTITY=none) they idle, and the outbox rows
- * wait, untouched; the machines' upkeep runs either way.
+ * wait, untouched; the machines' upkeep and the notification emails run either way.
  */
 
 /** A webhook retry pass's counts (the identity module's `retryIdentityEvents`). */
@@ -34,8 +34,22 @@ export interface MachineUpkeep {
   readonly power: { readonly machines: number; readonly holds: number; readonly commands: number } | null;
 }
 
+/** A notification email pass's counts (the notifications module's `deliverEmails`). */
+export interface NotificationEmails {
+  /** Pending notices seen for the first time (their batch's minute starts). */
+  readonly queued: number;
+  readonly sent: number;
+  readonly skipped: number;
+  readonly retry: number;
+  readonly failed: number;
+  /** Due people whose batch got a new notice meanwhile, or whose company is gone. */
+  readonly waiting: number;
+}
+
 /** What the jobs loop runs from the modules. */
 export interface ModuleJobs {
+  /** One pass of the notification emails: each person's batch of a quiet minute, retried with the backoff. */
+  notifications(): Promise<NotificationEmails>;
   /** The offline sweep, the hourly prune of machine samples and the power scheduler's step each minute. */
   machines(): Promise<MachineUpkeep>;
   /** One registry of every op's outbox handler (`outboxRegistry` of the modules' handler maps). */
@@ -57,13 +71,14 @@ export interface JobsDeps {
   readonly reconcileIntervalMs: number;
 }
 
-export type JobName = 'machines' | 'outbox' | 'events' | 'reconcile';
+export type JobName = 'machines' | 'notifications' | 'outbox' | 'events' | 'reconcile';
 
 /** What one tick did, job by job; a job that failed has no entry and is named in `failed`. */
 export interface JobsTick {
-  /** No identity provider: only the machines' upkeep ran. */
+  /** No identity provider: only the machines' upkeep and the notification emails ran. */
   readonly idle: boolean;
   readonly machines?: MachineUpkeep;
+  readonly notifications?: NotificationEmails;
   readonly outbox?: OutboxDrain;
   readonly events?: EventRetry;
   readonly reconcile?: ReconcileRound;
@@ -86,11 +101,12 @@ export async function runJobsOnce(deps: JobsDeps): Promise<JobsTick> {
     }
   }
   const machines = await attempt('machines', () => deps.work.machines());
-  if (deps.identity === undefined) return { idle: true, ...machines, failed };
+  const notifications = await attempt('notifications', () => deps.work.notifications());
+  if (deps.identity === undefined) return { idle: true, ...machines, ...notifications, failed };
   const outbox = await attempt('outbox', () => drainOutbox(deps, deps.work.outboxHandlers));
   const events = await attempt('events', () => deps.work.retryEvents());
   const reconcile = await attempt('reconcile', () =>
     reconcileRound({ ...deps, intervalMs: deps.reconcileIntervalMs, reconcile: deps.work.reconcileCompany }),
   );
-  return { idle: false, ...machines, ...outbox, ...events, ...reconcile, failed };
+  return { idle: false, ...machines, ...notifications, ...outbox, ...events, ...reconcile, failed };
 }

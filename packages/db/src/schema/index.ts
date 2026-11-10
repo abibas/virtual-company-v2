@@ -9,6 +9,7 @@ export * from './identity.ts';
 export * from './machine-logos.ts';
 export * from './machines.ts';
 export * from './members.ts';
+export * from './notifications.ts';
 export * from './org.ts';
 export * from './placements.ts';
 export * from './principals.ts';

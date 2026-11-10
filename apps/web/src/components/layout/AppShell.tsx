@@ -15,6 +15,8 @@ export interface AppShellProps extends RightRailProps {
   readonly user: ShellUser;
   /** A notice above the page (the company being set up). */
   readonly banner?: ReactNode;
+  /** The top bar's notifications bell (S2.9), in place of its attention bell. */
+  readonly bell?: ReactNode;
   readonly children: ReactNode;
 }
 
@@ -23,7 +25,17 @@ export interface AppShellProps extends RightRailProps {
  * attention feed and the quick-create dock. From 80rem the right rail opens beside the page or collapses to a strip
  * (`useRightRail`); below that the bell opens it as a drawer. On phones the rail becomes a bottom bar.
  */
-export function AppShell({ nav, badge, firstName, user, banner, children, now, ...rail }: AppShellProps) {
+export function AppShell({
+  nav,
+  badge,
+  firstName,
+  user,
+  banner,
+  bell,
+  children,
+  now,
+  ...rail
+}: AppShellProps) {
   const [drawer, setDrawer] = useState(false);
   const aside = useRef<HTMLElement>(null);
   const closeDrawer = useCallback(() => setDrawer(false), []);
@@ -65,6 +77,7 @@ export function AppShell({ nav, badge, firstName, user, banner, children, now, .
             attentionCount={attentionCount}
             attentionPulse={attentionCount > 0 && !wide}
             onBell={onBell}
+            bell={bell}
             {...(now !== undefined ? { now } : {})}
           />
           <main

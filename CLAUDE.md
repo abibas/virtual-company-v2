@@ -57,6 +57,7 @@ pnpm mwc check          # biome, banned names, structure, typecheck per package,
 pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
 pnpm mwc check --full   # + tests on the dev Postgres and the web build (docs/testing.md)
 pnpm mwc structure --report  # early warnings: hot spots before a structure rule fails; never fails
+pnpm mwc dev outbox     # the notification emails the dev server wrote to .data/outbox/ instead of sending (docs/notifications.md)
 pnpm mwc ports          # the port map
 pnpm mwc login --server URL --company ID|SLUG  # save a personal API key (MWC_API_KEY or stdin, never an argument)
 pnpm mwc whoami         # who the saved key (or MWC_SERVER + MWC_API_KEY) acts as; mwc logout removes it

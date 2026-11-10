@@ -1,6 +1,7 @@
 import { type AuditEntry, diffFields, type TenantDb } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
 import { enqueueOutbox, outboxKey } from '../../../platform/jobs/outbox.ts';
+import { noticeMembership } from '../../notifications/service.ts';
 import type { MembersRepo } from '../repo.ts';
 import { checkPair, LAST_OWNER, type Refusal, removalRefusal, takesLastOwner } from '../rules.ts';
 
@@ -28,7 +29,7 @@ interface Unplace {
  * last active owner (409 `last_owner`). Then the membership turns `removed` (their sessions get 404 on the company
  * from now on), their API keys in this company are revoked (401 from now on), each with its audit row, the person
  * leaves the org chart (`chart.unplaceMember`: their direct reports move up, their position goes, audited by the
- * actor), and the outbox `remove_member` call follows (a new key for every removal: a person can be invited back and
+ * actor), they are told unless they left themselves (S2.9), and the outbox `remove_member` call follows (a new key for every removal: a person can be invited back and
  * removed again).
  */
 export function removeMember(
@@ -68,6 +69,7 @@ export function removeMember(
       });
     }
     await chart.unplaceMember(tx, target.principalId, who);
+    await noticeMembership(tx, actor.principalId, target, after);
     await enqueueOutbox(tx, {
       op: 'remove_member',
       idempotencyKey: outboxKey('remove_member', target.id, newId()),

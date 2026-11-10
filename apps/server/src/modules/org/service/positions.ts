@@ -1,4 +1,5 @@
 import type { TenantDb } from '@mwc/db';
+import { noticeChartMove } from '../../notifications/service.ts';
 import type { OrgRepo } from '../repo.ts';
 import {
   moveRefusal,
@@ -20,7 +21,7 @@ export type PositionResult =
  * principal must be on the chart: an active member or an agent not archived (404 otherwise, also for another
  * company's). Moving anyone, and titling someone else, is for admins and owners (403); any active member titles
  * themselves. A move the org rules refuse is a 422 with their code. Only what differs is written, with one audit row
- * per field.
+ * per field, and a move's notices (S2.9).
  */
 export function setPosition(
   repo: OrgRepo,
@@ -57,6 +58,12 @@ export function setPosition(
       before: position,
       after,
     });
+    const move = {
+      principalId: change.principalId,
+      from: position.reportsToPrincipalId,
+      to: after.reportsToPrincipalId,
+    };
+    await noticeChartMove(tx, caller.principalId, move);
     return { ok: true as const, position: positionView(after) };
   });
 }

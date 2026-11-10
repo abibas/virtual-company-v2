@@ -12,7 +12,7 @@ const GLOBAL_WITH_COMPANY = ['audit_log', 'credential_uses', 'identity_outbox'];
 /** Tenant tables with one row per company: `company_id` is their primary key, they have no `id` and nothing points at them. */
 const ONE_PER_COMPANY = ['company_logos'];
 /** Tenant tables with one row per principal: `(company_id, principal_id)` is their primary key, they have no `id`. */
-const ONE_PER_PRINCIPAL = ['org_positions'];
+const ONE_PER_PRINCIPAL = ['notification_settings', 'org_positions'];
 /** Tenant tables of a machine's rows keyed by it: `(company_id, machine_id, …)` is their primary key, no `id`. */
 const KEYED_BY_MACHINE = ['machine_logos', 'machine_power', 'machine_samples'];
 /** Tenant tables of a chat turn's rows keyed by it: `(company_id, turn_id, seq)` is their primary key, no `id`. */
@@ -53,11 +53,12 @@ describe('the tenant conventions, on every tenant table', () => {
       'machine_power_events',
       'machines',
       'memberships',
+      'notifications',
       'principals',
       'runner_sessions',
     ]);
     expect(onePerCompany.map((t) => t.name)).toEqual(ONE_PER_COMPANY);
-    expect(onePerPrincipal.map((t) => t.name)).toEqual(ONE_PER_PRINCIPAL);
+    expect(onePerPrincipal.map((t) => t.name).sort()).toEqual(ONE_PER_PRINCIPAL);
     expect(keyedByMachine.map((t) => t.name).sort()).toEqual(KEYED_BY_MACHINE);
     expect(keyedByTurn.map((t) => t.name)).toEqual(KEYED_BY_TURN);
     expect(keyedByAgent.map((t) => t.name)).toEqual(KEYED_BY_AGENT);
@@ -148,7 +149,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(32);
+    expect(composite).toBe(35);
   });
 });
 

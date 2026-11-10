@@ -13,6 +13,7 @@ import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
+import { NotificationsBell } from '../features/notifications/NotificationsBell.tsx';
 import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
@@ -136,6 +137,7 @@ function CompanyFrame({
         badge={<CompanySwitcher current={membership} section={head} />}
         firstName={firstName(me.user.displayName, me.user.email)}
         user={shellUser(me.user, roleName(membership.role))}
+        bell={<NotificationsBell companyId={membership.companyId} slug={membership.slug} />}
         attention={attention.items}
         attentionLoading={attention.loading}
         agents={agents.data?.agents.map((agent) => ({ ...agentRef(agent), icon: agent.icon })) ?? []}

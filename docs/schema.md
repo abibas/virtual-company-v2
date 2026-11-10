@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 30. Migrations: 20, the last is `0019_agent_icons`.
+Tables: 32. Migrations: 21, the last is `0020_notifications`.
 
 ```mermaid
 erDiagram
@@ -338,6 +338,29 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  notification_settings {
+    uuid company_id PK, FK "not null"
+    uuid principal_id PK, FK "not null"
+    boolean email "not null, default true"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
+  notifications {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid recipient_principal_id FK "not null"
+    text kind "not null, manager_changed|report_added|report_removed|role_changed|membership_suspended|membership_reactivated|membership_removed|agent_paused|agent_resumed|agent_archived|invitation_accepted"
+    jsonb payload "not null, default '{}'"
+    uuid actor_principal_id FK "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz read_at "nullable"
+    text email_status "not null, default 'pending', pending|sent|failed|skipped"
+    timestamptz email_queued_at "nullable"
+    timestamptz email_next_at "nullable"
+    integer email_attempts "not null, default 0"
+    timestamptz emailed_at "nullable"
+    text email_error "nullable"
+  }
   org_positions {
     uuid company_id PK, FK "not null"
     uuid principal_id PK, FK "not null"
@@ -440,6 +463,11 @@ erDiagram
   memberships }o--o| access_profiles : "default_openai_profile_id"
   memberships |o--|| principals : "company_id, principal_id"
   memberships }o--o| invitations : "company_id, invitation_id"
+  notification_settings }o--|| companies : "company_id"
+  notification_settings |o--|| principals : "company_id, principal_id"
+  notifications }o--|| companies : "company_id"
+  notifications }o--|| principals : "company_id, recipient_principal_id"
+  notifications }o--o| principals : "company_id, actor_principal_id"
   org_positions }o--|| companies : "company_id"
   org_positions |o--|| principals : "company_id, principal_id"
   org_positions }o--o| principals : "company_id, reports_to_principal_id"
@@ -1204,6 +1232,60 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `memberships_user_id_idx` on (`user_id`)
   - `memberships_default_claude_profile_idx` on (`default_claude_profile_id`)
   - `memberships_default_openai_profile_idx` on (`default_openai_profile_id`)
+
+### `notification_settings`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `company_id` | `uuid` | no |  | PK, FK |  |
+| `principal_id` | `uuid` | no |  | PK, FK |  |
+| `email` | `boolean` | no | `true` |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `company_id`, `principal_id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`notification_settings_company_id_companies_id_fk`)
+  - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`notification_settings_principal_fk`)
+- **Unique:** none
+- **Checks:** none
+- **Indexes:** none
+
+### `notifications`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `recipient_principal_id` | `uuid` | no |  | FK |  |
+| `kind` | `text` | no |  |  | `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted` |
+| `payload` | `jsonb` | no | `'{}'` |  |  |
+| `actor_principal_id` | `uuid` | yes |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `read_at` | `timestamp with time zone` | yes |  |  |  |
+| `email_status` | `text` | no | `'pending'` |  | `pending`, `sent`, `failed`, `skipped` |
+| `email_queued_at` | `timestamp with time zone` | yes |  |  |  |
+| `email_next_at` | `timestamp with time zone` | yes |  |  |  |
+| `email_attempts` | `integer` | no | `0` |  |  |
+| `emailed_at` | `timestamp with time zone` | yes |  |  |  |
+| `email_error` | `text` | yes |  |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`notifications_company_id_companies_id_fk`)
+  - (`company_id`, `recipient_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`notifications_recipient_fk`)
+  - (`company_id`, `actor_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`notifications_actor_fk`)
+- **Unique:**
+  - `notifications_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `notifications_kind_check`: `kind` is one of `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`
+  - `notifications_email_status_check`: `email_status` is one of `pending`, `sent`, `failed`, `skipped`
+  - `notifications_payload_check`: `jsonb_typeof("payload") = 'object'`
+  - `notifications_email_attempts_check`: `"email_attempts" >= 0`
+- **Indexes:**
+  - `notifications_recipient_idx` on (`company_id`, `recipient_principal_id`, `id`)
+  - `notifications_unread_idx` on (`company_id`, `recipient_principal_id`), where `"read_at" is null`
+  - `notifications_email_pending_idx` on (`company_id`, `recipient_principal_id`), where `"email_status" = 'pending'`
 
 ### `org_positions`
 

@@ -2,6 +2,7 @@ import type { DbHandle, JournalEntry } from '@mwc/db';
 import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
+import type { EmailSender } from './email/port.ts';
 import type { JobsView } from './jobs/status.ts';
 import type { LocalDocker } from './processes/docker/local.ts';
 import type { LoginHelper } from './processes/login-helper/port.ts';
@@ -67,6 +68,11 @@ export interface AppDeps {
    * card shows the command). Omitted, the one MWC_LOCAL_DOCKER finds (`processes/docker/local.ts`).
    */
   readonly localDocker?: LocalDocker | undefined;
+  /**
+   * How the jobs loop emails notifications (S2.9; tests pass a fake; undefined: email off, every email skipped).
+   * Omitted, the sender MWC_EMAIL names (`email/select.ts`): the development outbox, or none.
+   */
+  readonly email?: EmailSender | undefined;
   /**
    * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
    * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.

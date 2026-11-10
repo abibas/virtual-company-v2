@@ -1,6 +1,7 @@
 import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
 import type { Logger } from 'pino';
 import type { ServerDeps } from '../../../platform/env.ts';
+import { noticeChartMove } from '../../notifications/service.ts';
 import { type OrgRepo, orgRepo } from '../repo.ts';
 import type { StatusMove } from '../rules/agents.ts';
 import type { ChartMove } from '../rules/chart.ts';
@@ -23,7 +24,8 @@ import { loadOrg } from './read.ts';
 
 /**
  * Takes a principal off the chart once its direct reports have moved: each move written with its `update` audit row,
- * then its own position removed with its `delete` row (an agent archived, a person whose membership ended).
+ * then its own position removed with its `delete` row (an agent archived, a person whose membership ended). Each moved
+ * principal and their new manager are notified (S2.9); the one leaving is not told of the reports they lose.
  */
 async function takeOffChart(
   repo: OrgRepo,
@@ -35,6 +37,8 @@ async function takeOffChart(
     const after = await repo.updatePosition(t, move.principalId, { reportsToPrincipalId: move.reportsTo });
     const before = change.org.positions.get(move.principalId);
     await auditPositionBy(repo, t, by, { principalId: move.principalId, action: 'update', before, after });
+    const moved = { principalId: move.principalId, from: change.principalId, to: move.reportsTo };
+    await noticeChartMove(t, by.actorPrincipalId ?? null, moved, { leaving: true });
   }
   const removed = await repo.removePosition(t, change.principalId);
   if (removed) {

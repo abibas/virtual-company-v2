@@ -31,6 +31,8 @@ describe('loadConfig', () => {
       MWC_WHISPER: 'auto',
       MWC_WHISPER_LANGUAGE: 'auto',
       MWC_WHISPER_PORT: 9957,
+      MWC_EMAIL: 'outbox',
+      MWC_EMAIL_FROM: 'Most Wanted Corp <no-reply@localhost>',
     });
   });
 
@@ -355,6 +357,31 @@ describe('loadConfig MWC_WHISPER', () => {
     expect(() => loadConfig({ ...valid, MWC_WHISPER: 'on' })).toThrow(/MWC_WHISPER:/);
     expect(() => loadConfig({ ...valid, MWC_WHISPER_LANGUAGE: 'English' })).toThrow(/MWC_WHISPER_LANGUAGE/);
     expect(() => loadConfig({ ...valid, MWC_WHISPER_PORT: '70000' })).toThrow(/MWC_WHISPER_PORT/);
+  });
+});
+
+describe('loadConfig MWC_EMAIL', () => {
+  it('writes to the outbox in development and sends nothing elsewhere unless told', () => {
+    expect(loadConfig(valid).MWC_EMAIL).toBe('outbox');
+    expect(loadConfig({ ...valid, NODE_ENV: 'test' }).MWC_EMAIL).toBe('off');
+    expect(loadConfig({ ...valid, ...PRODUCTION, MWC_EMAIL: '' }).MWC_EMAIL).toBe('off');
+    expect(loadConfig({ ...valid, NODE_ENV: 'test', MWC_EMAIL: 'outbox' }).MWC_EMAIL).toBe('outbox');
+    expect(loadConfig({ ...valid, MWC_EMAIL: 'off' }).MWC_EMAIL).toBe('off');
+  });
+
+  it('keeps a From and an SMTP address, and refuses smtp until it is built, never echoing the address', () => {
+    const smtp = 'smtps://mailer:s3cr3t-pass@smtp.example.com:465';
+    const config = loadConfig({ ...valid, MWC_EMAIL_FROM: 'Team <team@example.com>', MWC_SMTP_URL: smtp });
+    expect(config).toMatchObject({ MWC_EMAIL_FROM: 'Team <team@example.com>', MWC_SMTP_URL: smtp });
+    const refused = () => loadConfig({ ...valid, MWC_EMAIL: 'smtp', MWC_SMTP_URL: smtp });
+    expect(refused).toThrow(/MWC_EMAIL: smtp is not built yet/);
+    try {
+      refused();
+    } catch (error) {
+      expect((error as Error).message).not.toContain('s3cr3t');
+    }
+    expect(() => loadConfig({ ...valid, MWC_SMTP_URL: 'http://smtp.example.com' })).toThrow(/MWC_SMTP_URL/);
+    expect(() => loadConfig({ ...valid, MWC_EMAIL: 'mail' })).toThrow(/MWC_EMAIL/);
   });
 });
 

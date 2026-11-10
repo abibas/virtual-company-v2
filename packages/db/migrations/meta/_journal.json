@@ -141,6 +141,13 @@
       "when": 1794332460787,
       "tag": "0019_agent_icons",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794332653488,
+      "tag": "0020_notifications",
+      "breakpoints": true
     }
   ]
 }

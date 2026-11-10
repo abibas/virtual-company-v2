@@ -2,6 +2,7 @@ import { diffFields, type Membership, type TenantDb } from '@mwc/db';
 import type { MembershipRole } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { enqueueOutbox, outboxKey } from '../../../platform/jobs/outbox.ts';
+import { noticeMembership } from '../../notifications/service.ts';
 import type { MembersRepo } from '../repo.ts';
 import {
   auditedRole,
@@ -26,7 +27,8 @@ export interface RoleChange {
  * target's memberships are read as they are now (403 when the actor is no longer active, 404 for an unknown or
  * removed target), the role rules apply (403), a role the target has already is a no-op (200, nothing written), and
  * the last-owner guard refuses a change that leaves no active owner (409 `last_owner`). Then `role` and
- * `granted_role` both take the new role, with one audit row per changed field and the outbox `update_role` call. Its
+ * `granted_role` both take the new role, with one audit row per changed field, the person's notice (S2.9) and the
+ * outbox `update_role` call. Its
  * key is new for every change (a membership can change again later), and its handler pushes the role the membership
  * has when it runs, so calls run late or out of order still end on the latest role.
  */
@@ -53,6 +55,7 @@ export function changeRole(
       action: 'update',
       changes: diffFields(auditedRole(target), auditedRole(after)),
     });
+    await noticeMembership(tx, actor.principalId, target, after);
     await enqueueOutbox(tx, {
       op: 'update_role',
       idempotencyKey: outboxKey('update_role', target.id, newId()),

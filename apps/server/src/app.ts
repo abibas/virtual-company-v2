@@ -17,8 +17,10 @@ import {
   terminalTickets,
 } from './modules/machines/index.ts';
 import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from './modules/members/index.ts';
+import { deliverEmails, membershipNoticeHook, notificationsRoutes } from './modules/notifications/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
 import { speechRoutes } from './modules/speech/index.ts';
+import { emailFromConfig } from './platform/email/select.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
@@ -118,7 +120,8 @@ export function createApp(deps: AppOptions) {
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
     .route('/', machinesRoutes({ ...server, hub, control, tickets, localDocker }))
     .route('/', chatsRoutes({ ...server, hub, tickets, keyring }))
-    .route('/', speechRoutes({ ...server, speech }));
+    .route('/', speechRoutes({ ...server, speech }))
+    .route('/', notificationsRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
@@ -155,10 +158,11 @@ export type AppType = ReturnType<typeof createApp>;
 /**
  * The deps with the org module's side of a membership's start and end (`memberChart`), for the identity and members
  * modules, whose paths start and end memberships: composed here, so neither of them imports the org module, which
- * reads people's profiles through the identity module (S2.4).
+ * reads people's profiles through the identity module (S2.4). The notifications module's side of a membership's change
+ * (`membershipNoticeHook`, S2.9) rides along, so the identity store tells the person, or their inviter, by the same port.
  */
 export function withMemberChart(deps: ServerDeps) {
-  return { ...deps, chart: memberChart(deps) };
+  return { ...deps, chart: { ...memberChart(deps), ...membershipNoticeHook } };
 }
 
 /**
@@ -166,13 +170,16 @@ export function withMemberChart(deps: ServerDeps) {
  * (the offline sweep, the hourly prune of samples and, with the app's runner hub and power control, the power
  * scheduler), their outbox handlers in one registry (companies: create_org,
  * delete_org; members: update_role, remove_member; invitations: invite, revoke_invite), the retry of webhook events and
- * the company reconcile (identity), both with the org chart a membership that starts or ends moves its person on. The modules export them and only this file composes them, so no
+ * the company reconcile (identity), both with the org chart a membership that starts or ends moves its person on, and
+ * the notification emails (S2.9) through the sender passed in (tests) or the one MWC_EMAIL names. The modules export them and only this file composes them, so no
  * module imports the loop and the loop imports no module.
  */
 export function moduleJobs(
   deps: ServerDeps & { readonly hub?: RunnerHub; readonly control?: PowerControl },
 ): ModuleJobs {
   const identity = withMemberChart(deps);
+  const email =
+    'email' in deps ? deps.email : emailFromConfig(deps.config, deps.logger, { clock: deps.clock });
   return {
     machines: machineUpkeep(deps),
     outboxHandlers: outboxRegistry(
@@ -180,6 +187,7 @@ export function moduleJobs(
       memberOutboxHandlers(deps),
       invitationOutboxHandlers(deps),
     ),
+    notifications: () => deliverEmails({ ...deps, email }),
     retryEvents: () => retryIdentityEvents(identity),
     reconcileCompany: (companyId) => reconcileCompany(identity, companyId),
   };

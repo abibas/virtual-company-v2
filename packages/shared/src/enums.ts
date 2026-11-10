@@ -200,3 +200,32 @@ export type ChatTurnKind = z.infer<typeof ChatTurnKind>;
  */
 export const ChatTurnDelivery = z.enum(['now', 'after', 'interrupt']);
 export type ChatTurnDelivery = z.infer<typeof ChatTurnDelivery>;
+
+/**
+ * `notifications.kind` (S2.9, docs/notifications.md): what changed for the person who gets it. Their manager changed
+ * (`manager_changed`); someone started or stopped reporting to them (`report_added`, `report_removed`); their role
+ * changed; their membership was suspended, reactivated or removed; an agent reporting to them was paused, resumed or
+ * archived; someone accepted their invitation.
+ */
+export const NotificationKind = z.enum([
+  'manager_changed',
+  'report_added',
+  'report_removed',
+  'role_changed',
+  'membership_suspended',
+  'membership_reactivated',
+  'membership_removed',
+  'agent_paused',
+  'agent_resumed',
+  'agent_archived',
+  'invitation_accepted',
+]);
+export type NotificationKind = z.infer<typeof NotificationKind>;
+
+/**
+ * `notifications.email_status` (S2.9): waiting for its email (`pending`, batched with the person's other changes),
+ * emailed (`sent`), given up after its last try (`failed`), or never emailed (`skipped`: email off on the server or for
+ * the person, no address, read in the app first).
+ */
+export const NotificationEmailStatus = z.enum(['pending', 'sent', 'failed', 'skipped']);
+export type NotificationEmailStatus = z.infer<typeof NotificationEmailStatus>;

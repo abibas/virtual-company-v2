@@ -3,6 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import { agentFace } from '@mwc/shared/org';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { placementsOf } from '../../machines/service/placement.ts';
+import { noticeAgentStatus } from '../../notifications/service.ts';
 import type { OrgRepo } from '../repo.ts';
 import {
   AGENT_NOT_FOUND,
@@ -95,13 +96,17 @@ export function createAgent(
   });
 }
 
+/** Whom a principal reports to on the chart now (null: at the top, or off it). */
+const managerOf = async (repo: OrgRepo, t: TenantDb, principalId: string) =>
+  (await repo.getPosition(t, principalId))?.reportsToPrincipalId ?? null;
+
 /**
  * Changes an agent in one transaction under the company's lock: only the fields that differ are written, with one
  * audit row each (new instructions as a bump of `instructionsRev`). A slug another agent has is a 409; archiving
  * and restoring move it on the chart (`moveForStatus`), refused with a 422; giving it an access profile is only for
  * the profile's owner (403; 422 for none or one of another provider than its harness's), while any admin or owner
  * takes it off, and a harness change takes off a profile that no longer fits, saying so (`profileChange`). A refusal is
- * decided before anything is written.
+ * decided before anything is written. Pausing, resuming and archiving notify the manager it reported to (S2.9).
  */
 export function updateAgent(
   repo: OrgRepo,
@@ -119,6 +124,7 @@ export function updateAgent(
     const { profileCleared } = profile;
     const set = { ...agentChanges(agent, change.patch), ...profile.set };
     if (set.slug !== undefined && (await repo.takenSlugs(tx)).has(set.slug)) return slugTaken(set.slug);
+    const manager = set.status === undefined ? null : await managerOf(repo, tx, agent.principalId);
     const moved = await moveForStatus(repo, tx, caller, agent, statusMove(agent.status, set.status));
     if (!moved.ok) return moved;
     if (Object.keys(set).length === 0) return { ok: true as const, agent, position: moved.position };
@@ -127,6 +133,10 @@ export function updateAgent(
       ...auditEntry(caller, 'agent', agent.id, 'update'),
       changes: diffFields(auditedAgent(agent), auditedAgent(after)),
     });
+    if (set.status !== undefined) {
+      const change = { principalId: agent.principalId, from: agent.status, to: set.status, manager };
+      await noticeAgentStatus(tx, caller.principalId, change);
+    }
     return { ok: true as const, agent: after, position: moved.position, profileCleared };
   });
 }

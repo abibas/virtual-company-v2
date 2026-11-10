@@ -61,6 +61,8 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'machine_samples',
       'machines',
       'memberships',
+      'notification_settings',
+      'notifications',
       'org_positions',
       'principals',
       'runner_sessions',

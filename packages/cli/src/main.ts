@@ -7,6 +7,8 @@
  *                                    (with coverage unless --fast); --full adds the db and server tests
  *                                    on the dev Postgres (when Docker is available) and the web build
  *   mwc dev [--down]                 dev Postgres + migrations + API (9950) + web (9951); --down stops Postgres
+ *   mwc dev outbox [--last N] [--full]
+ *                                    the emails the development server wrote instead of sending (outbox.ts)
  *   mwc ports [--slot N] [--path P]  print the port map, or the ports of a worktree slot
  *   mwc banned [--message FILE]      fail on a banned name (banned.ts) in the repository's files, or in
  *                                    a commit message file (the commit-msg hook)
@@ -40,6 +42,7 @@ import { runDev, systemDevDeps } from './dev.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
 import { machineCommand } from './machines/commands.ts';
 import { agentsCommand, orgCommand } from './org/commands.ts';
+import { outboxCommand } from './outbox.ts';
 import { structureReport } from './structure/report.ts';
 
 /** A `--slot` value: a whole number in 0..SLOT_COUNT-1, or undefined when it is not one. */
@@ -104,6 +107,8 @@ const HELP = [
   '  check [--fast] [--full]        lint, banned names, structure, typecheck, db drift, test (coverage',
   '                                 unless --fast); --full: tests on Postgres, web build',
   '  dev [--down]                   Postgres, migrations, API on 9950 and web on 9951; --down stops Postgres',
+  '  dev outbox [--last N] [--full] the newest emails the development server wrote to .data/outbox/ instead',
+  '                                 of sending them (MWC_EMAIL=outbox), one line each or in full',
   '  ports [--slot N] [--path P]    the port map or a worktree slot',
   '  banned [--message FILE]        banned names in the repository, or in a commit message file',
   '  structure [--report]           the layout rules of docs/structure.md on the repository; --report:',
@@ -135,6 +140,8 @@ export interface MainDeps {
   dev?(flags: ReadonlySet<string>, io: MainIo): Promise<number>;
   /** The files `mwc banned` and `mwc structure` scan; git's by default. */
   scan?: ScanDeps;
+  /** The folder `mwc dev outbox` reads; the repository's `.data/outbox/` by default. */
+  outboxDir?: string;
   /** The coverage summary `mwc structure --report` reads; the last run's in .cache/coverage by default. */
   coverage?(): string | undefined;
   /**
@@ -160,6 +167,7 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
     case 'check':
       return runCheck(args.flags, io);
     case 'dev':
+      if (args.positionals[0] === 'outbox') return outboxCommand(args, io, deps.outboxDir);
       return (deps.dev ?? systemDev)(args.flags, io);
     case 'ports':
       return ports(args.flags, args.options, io);

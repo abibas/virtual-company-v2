@@ -1,4 +1,4 @@
-import { Bell, ChevronDown } from 'lucide-react';
+import { Bell, ChevronDown, Inbox } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cx } from '../cx.ts';
 import { Menu, MenuSeparator } from '../forms/Menu.tsx';
@@ -79,7 +79,11 @@ export function UserPill({
   );
 }
 
-/** The date and the greeting, the search box, the bell with its count, and the person. */
+/**
+ * The date and the greeting, the search box, the bell with its count, and the person. With `bell` (a company's
+ * notifications, S2.9) that bell is the notifications', and what needs attention gets its own button while it holds
+ * something.
+ */
 export function TopBar({
   firstName,
   now,
@@ -87,6 +91,7 @@ export function TopBar({
   attentionCount,
   attentionPulse = false,
   onBell,
+  bell,
 }: {
   readonly firstName: string;
   readonly now?: Date;
@@ -96,7 +101,10 @@ export function TopBar({
   readonly attentionPulse?: boolean;
   /** Opens what needs attention. */
   readonly onBell: () => void;
+  /** The notifications' bell, in place of the attention bell. */
+  readonly bell?: ReactNode;
 }) {
+  const attention = bell === undefined || attentionCount > 0;
   return (
     <header className="flex items-center gap-3 px-4 pt-4 md:gap-5 md:px-6 md:pt-5">
       <BrandMark size="md" className="md:hidden" />
@@ -108,16 +116,19 @@ export function TopBar({
       </div>
       <SearchBox className="mx-auto hidden w-full max-w-md md:flex" />
       <div className="flex shrink-0 items-center gap-2.5">
-        <IconButton
-          label={attentionCount > 0 ? `Attention required: ${attentionCount}` : 'Attention required'}
-          icon={Bell}
-          tone="solid"
-          size="lg"
-          badge={attentionCount}
-          pulse={attentionPulse}
-          onClick={onBell}
-          className="rounded-full"
-        />
+        {attention && (
+          <IconButton
+            label={attentionCount > 0 ? `Attention required: ${attentionCount}` : 'Attention required'}
+            icon={bell === undefined ? Bell : Inbox}
+            tone="solid"
+            size="lg"
+            badge={attentionCount}
+            pulse={attentionPulse}
+            onClick={onBell}
+            className="rounded-full"
+          />
+        )}
+        {bell}
         <UserPill user={user} />
       </div>
     </header>

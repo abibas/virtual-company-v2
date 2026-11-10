@@ -2,7 +2,14 @@ import { companies, isUuid, type Membership, memberships, principals } from '@mw
 import type { RawDb } from '@mwc/db/system';
 import type { NewStoredMembership, StoredCompany, StoredMembership } from '@mwc/identity-core';
 import { and, asc, eq } from 'drizzle-orm';
-import { type ChartActor, chartStep, lockedTenant, type MemberChart, moveOnChart } from './chart.ts';
+import {
+  type ChartActor,
+  chartStep,
+  lockedTenant,
+  type MemberChart,
+  moveOnChart,
+  noticeWorthy,
+} from './chart.ts';
 
 /**
  * Companies as the projector sees them (id, organization link, status) and memberships across companies.
@@ -98,7 +105,7 @@ async function writeMembership(
  * Updates the membership of `(companyId, userId)`, or makes it with a new person principal, in one transaction. When
  * it turns active, or stops being active, the company row is locked first and the person is placed on the org chart
  * or taken off it, their reports moved up (`chart`, by `by`), in the same transaction; a deleted company's chart is
- * left as it is.
+ * left as it is. A new membership, or another status or role, also writes its notices there (`chart.noticeChange`).
  */
 export async function upsertMembership(
   db: RawDb,
@@ -112,9 +119,11 @@ export async function upsertMembership(
       .from(memberships)
       .where(and(eq(memberships.companyId, companyId), eq(memberships.userId, userId)));
     const step = chartStep(before?.status, membership.status);
-    const t = step && (await lockedTenant(tx, companyId));
+    const noticed = hook.chart.noticeChange !== undefined && noticeWorthy(before, membership);
+    const t = (step || noticed) && (await lockedTenant(tx, companyId));
     const saved = await writeMembership(tx, membership, before);
     if (step && t) await moveOnChart(t, step, saved, hook);
+    if (noticed && t) await hook.chart.noticeChange?.(t, { before, after: saved }, hook.by);
     return stored(saved);
   });
 }

@@ -24,6 +24,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   │   ├── login-helper/ the CLIs' logins in a sandbox             S3.2
 │   │   │   │   │   ├── power/      the server's own airia CLI driver and tunnels S4
 │   │   │   │   │   └── speech/     dictation's whisper.cpp: warm server, CLI fallback (built) S5.2
+│   │   │   │   ├── email/          the EmailSender port, the dev outbox (built)  S2.9
 │   │   │   │   ├── jobs/           outbox, retry, jobs loop (built); scheduler S1.10/S5
 │   │   │   │   └── realtime/       live updates to UI, runner connections      S4/S5
 │   │   │   ├── modules/            one folder per business area
@@ -33,6 +34,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── members/        memberships, invitations (built)             S1.6/S1.7
 │   │   │   │   ├── api-keys/       personal keys: make, list, revoke (built)   S1.9
 │   │   │   │   ├── org/            agents, reporting chain, org chart (built)  S2
+│   │   │   │   ├── notifications/  notices, read marks, settings, email delivery (built) S2.9
 │   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
 │   │   │   │   ├── chats/          chats with an agent: turns, events, stream, terminal (built) S5.1b
 │   │   │   │   ├── speech/         dictation: POST /api/me/speech/transcribe (built) S5.2
@@ -313,7 +315,9 @@ connection). The org module reads the profiles its agents point at this way; the
 module's service for the agents using a profile and for the audit rows its removal leaves. The chats module (S5.1b)
 reads the profile a turn runs on the same way and opens its subscriptions through the credentials module's service
 (`credentialsForHarness`). Its one raw access is `modules/chats/repo/reaper.ts` (in the Biome exemption, as the
-machines' `repo/upkeep.ts`): at the server's start it fails every company's turns a stopped server left running.
+machines' `repo/upkeep.ts`): at the server's start it fails every company's turns a stopped server left running. The
+notifications module's (S2.9) is `modules/notifications/repo/delivery.ts`, in the same exemption: the jobs loop finds the
+people whose email is due in any company, then reads and marks each batch through that company's tenant.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the

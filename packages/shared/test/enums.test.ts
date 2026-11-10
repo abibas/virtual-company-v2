@@ -24,6 +24,8 @@ import {
   MachineStatus,
   MembershipRole,
   MembershipStatus,
+  NotificationEmailStatus,
+  NotificationKind,
   PermissionPolicy,
   PlacementMode,
   PowerEventAction,
@@ -71,6 +73,8 @@ describe('enums', () => {
     expect(ChatTurnStatus.options).toEqual(['queued', 'running', 'done', 'failed', 'stopped']);
     expect(ChatTurnKind.options).toEqual(['message', 'compact', 'clear']);
     expect(ChatTurnDelivery.options).toEqual(['now', 'after', 'interrupt']);
+    expect(NotificationKind.options).toHaveLength(11);
+    expect(NotificationEmailStatus.options).toEqual(['pending', 'sent', 'failed', 'skipped']);
     expect(HoldSource.options).toEqual(['server', 'live_runs']);
     expect(PowerEventAction.options).toEqual([
       'started',
