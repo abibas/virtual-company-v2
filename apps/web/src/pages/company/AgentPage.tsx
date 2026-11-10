@@ -4,7 +4,7 @@ import { useAgentAt, useOrgChart } from '../../api/org.ts';
 import type { OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
-import { navigate } from '../../app/router.tsx';
+import { navigate, useLocation } from '../../app/router.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 import { AgentProfile } from '../../features/agents/AgentProfile.tsx';
@@ -55,11 +55,13 @@ function AgentAt({
 }
 
 /**
- * `/:slug/agents/new` (hire an agent, admins and owners) and `/:slug/agents/:agent` (an agent by its slug, or its
- * id: its page, editable by admins and owners, read-only for everyone else).
+ * `/:slug/agents/new` (hire an agent, admins and owners; `?reportsTo=` chooses its manager, from the chart) and
+ * `/:slug/agents/:agent` (an agent by its slug, or its id: its page, editable by admins and owners, read-only for
+ * everyone else).
  */
 export function AgentPage({ address }: { readonly address: string }) {
   const { membership, me, agents: team } = useCompany();
+  const { search } = useLocation();
   const links = companyAgentLinks(membership.slug);
   const chart = useOrgChart(membership.companyId);
   if (!isHireAddress(address)) return <AgentAt address={address} chart={chart} links={links} />;
@@ -71,6 +73,7 @@ export function AgentPage({ address }: { readonly address: string }) {
       meUserId={me.user.id}
       links={links}
       defaults={{ claude: membership.defaultClaudeProfileId, openai: membership.defaultOpenaiProfileId }}
+      reportsTo={search.get('reportsTo')}
       onHired={(agent) => {
         team.reload();
         navigate(links.agent(agent));

@@ -1,12 +1,13 @@
+import type { MembershipRole } from '@mwc/shared/enums';
 import { useMemo } from 'react';
 import { useApi } from '../../api/context.ts';
 import { orgCalls } from '../../api/org.ts';
 import type { AgentFilter, AgentList, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { nodesById } from '../../components/org/chart.ts';
+import { OrgChartBoard } from '../structure/OrgChartBoard.tsx';
 import { AgentsTable } from './AgentsTable.tsx';
 import type { AgentLinks } from './links.ts';
-import { OrgChartPanel } from './OrgChartPanel.tsx';
 
 export type AgentsTab = 'chart' | 'list';
 
@@ -20,9 +21,13 @@ export interface AgentsViewProps {
   readonly status: AgentFilter;
   readonly onStatus: (status: AgentFilter) => void;
   readonly admin: boolean;
+  /** The signed-in person's role: the roles they may give from the chart. */
+  readonly myRole: MembershipRole;
   readonly meUserId: string;
-  /** Someone moved or got a title: read the chart and the team again. */
-  readonly onChanged: () => void;
+  /** The company at the top of the chart: its name and its logo (an object URL, or null). */
+  readonly company: { readonly name: string; readonly logo: string | null };
+  /** Someone moved, got a title or a role: read the chart and the team again (`self`: one's own role changed). */
+  readonly onChanged: (self?: boolean) => void;
 }
 
 /**
@@ -38,13 +43,24 @@ export function AgentsView({
   status,
   onStatus,
   admin,
-  ...rest
+  myRole,
+  meUserId,
+  company,
+  onChanged,
 }: AgentsViewProps) {
   const api = useApi();
   const calls = useMemo(() => orgCalls(api, companyId), [api, companyId]);
   const nodes = useMemo(() => nodesById(chart.data?.nodes ?? []), [chart.data]);
   return tab === 'chart' ? (
-    <OrgChartPanel loaded={chart} admin={admin} calls={calls} links={links} {...rest} />
+    <OrgChartBoard
+      companyId={companyId}
+      company={company}
+      loaded={chart}
+      calls={calls}
+      links={links}
+      abilities={{ admin, myRole, meUserId }}
+      onChanged={onChanged}
+    />
   ) : (
     <AgentsTable
       loaded={agents}

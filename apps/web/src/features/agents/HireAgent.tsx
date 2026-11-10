@@ -36,6 +36,8 @@ export interface HireAgentProps {
   readonly defaults?: ProfileDefaults | undefined;
   /** Hired: refresh the team and open its page. */
   readonly onHired: (agent: AgentDetail) => void;
+  /** The manager chosen before the form opened (the chart's "Hire an agent reporting to …"), when on the chart. */
+  readonly reportsTo?: string | null | undefined;
 }
 
 const PREVIEW = 'preview';
@@ -54,6 +56,7 @@ function previewNode(draft: AgentDraft, runsWith: RunsWith | null): ChartNode {
       slug: draft.slug,
       roleTitle: values.roleTitle.trim() || 'Its role',
       status: 'active',
+      harness: values.harness,
       face: draft.face,
       icon: values.icon.kind === 'emoji' && values.icon.emoji ? values.icon : { kind: 'face' },
       profile: null,
@@ -202,15 +205,20 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
 }
 
 /**
- * The draft starts under the signed-in person (else the chart's first top) with their default access profile of its
- * harness's provider, once the chart is known.
+ * The draft starts under the manager chosen on the chart, else the signed-in person, else the chart's first top, with
+ * the hirer's default access profile of its harness's provider, once the chart is known.
  */
 function HireWithChart({
   defaults,
+  chosen,
   ...props
-}: Omit<HireFormProps, 'draft' | 'placement'> & { readonly defaults: ProfileDefaults }) {
+}: Omit<HireFormProps, 'draft' | 'placement'> & {
+  readonly defaults: ProfileDefaults;
+  readonly chosen: string | null | undefined;
+}) {
   const me = personNode(props.chart.nodes, props.meUserId);
-  const reportsTo = me?.principalId ?? props.chart.tree[0]?.principalId ?? '';
+  const picked = props.chart.nodes.find((node) => node.principalId === chosen);
+  const reportsTo = picked?.principalId ?? me?.principalId ?? props.chart.tree[0]?.principalId ?? '';
   const draft = useAgentDraft(undefined, reportsTo, defaults);
   const placement = usePlacementDraft(null);
   return <HireForm {...props} draft={draft} placement={placement} />;
@@ -219,7 +227,7 @@ function HireWithChart({
 const NO_DEFAULTS: ProfileDefaults = { claude: null, openai: null };
 
 /** `/agents/new` (admins and owners): hire an agent onto the chart. */
-export function HireAgent({ chart, links, defaults = NO_DEFAULTS, ...rest }: HireAgentProps) {
+export function HireAgent({ chart, links, defaults = NO_DEFAULTS, reportsTo, ...rest }: HireAgentProps) {
   return (
     <>
       <PageHeader
@@ -233,7 +241,9 @@ export function HireAgent({ chart, links, defaults = NO_DEFAULTS, ...rest }: Hir
         <p>Give it a name, a job and a face, choose how it works, and place it on the chart.</p>
       </PageHeader>
       <LoadState loaded={chart} label="Loading the chart…">
-        {(data) => <HireWithChart chart={data} links={links} defaults={defaults} {...rest} />}
+        {(data) => (
+          <HireWithChart chart={data} links={links} defaults={defaults} chosen={reportsTo} {...rest} />
+        )}
       </LoadState>
     </>
   );

@@ -43,7 +43,9 @@ function AgentsBody({ list }: { readonly list: boolean }) {
         status={status}
         onStatus={setStatus}
         admin
+        myRole="owner"
         meUserId={SAMPLE_ME.id}
+        company={{ name: SAMPLE_COMPANY.name, logo: null }}
         onChanged={none}
       />
     </StructureView>

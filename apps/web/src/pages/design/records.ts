@@ -93,6 +93,7 @@ const invitation = (
   expiresAt: days(made + 14),
   sent,
   invitedByPrincipalId: 'p-1',
+  reportsToPrincipalId: null,
   acceptedByUserId: null,
   createdAt: days(made),
 });

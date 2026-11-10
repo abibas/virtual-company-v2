@@ -29,6 +29,7 @@ const person = (
   title,
   person: {
     userId: n === 1 ? 'u-ihor' : `u-${n}`,
+    membershipId: `m-${n}`,
     displayName,
     email: `${displayName.split(' ')[0]?.toLowerCase()}@example.com`,
     imageUrl: null,
@@ -88,11 +89,12 @@ const agentNode = ({
     slug,
     roleTitle,
     status,
+    harness: 'claude_code',
     face,
     icon: { kind: 'face' },
     profile: null,
     runsWith: { model, effort, provider: 'claude' },
-    placement: null,
+    placement: slug === 'mason' ? { machineId: 'mc-1', machineName: 'Studio Mac', mode: 'host' } : null,
   },
 });
 

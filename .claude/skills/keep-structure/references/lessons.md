@@ -28,6 +28,24 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-10: Pure rules the server and the web both run, and the chart canvas's parts
+
+- **What happened:** the org chart's pure rules (`validateMove`, `validateChart`, `buildTree`, ...) had to run in the web
+  too (the drag and drop shows where a card may go before the server judges it). The placement table has no row for
+  "pure rules both the server and the web run"; they moved from `apps/server/src/modules/org/rules.ts` (+ `rules/chart.ts`,
+  `rules/violations.ts`) to `packages/shared/src/org-chart.ts` (+ `org-chart/`), the `harness.ts` + `harness/` pattern,
+  with their tests to `packages/shared/test/org-chart.test.ts` (428 lines). `packages/shared/src/` went from 22 to 24
+  entries (`big-folder`). On the web, `apps/web/src/components/org/` reached 12 entries and `features/structure/` 12;
+  `OrgChartBoard` (151 lines) and `ChartCanvas` (89) were split into hooks and parts before commit. The card menu could
+  not use the shared `Menu`: a fixed panel inside the canvas's transformed layer loses its place, so
+  `features/structure/ChartMenu.tsx` portals it to the body.
+- **Where:** the org-chart commits (S2.8).
+- **What was done:** as above.
+- **Suggested change:** a placement row "a pure rule the server and the web both run → `packages/shared/src/<area>.ts`,
+  its parts in `<area>/`"; group `packages/shared/src/` by area at the S2 review; a `portal` option on the shared `Menu`
+  for triggers inside a transformed layer.
+- **Status:** `open`.
+
 ### 2026-11-10: Agent icons grow three folders already over their limit
 
 - **What happened:** an agent's icon (face, emoji or image) added `apps/web/src/api/agent-icon.ts` (the object-URL
