@@ -74,9 +74,10 @@ export async function checkTools(
 ): Promise<{ readonly ok: true; readonly tools: RunnerTools } | Refusal<404> | Refusal<409> | Refusal<504>> {
   const found = await ready(deps, t, machineId);
   if (!('machine' in found)) return found;
-  if (found.refusal !== undefined) return found.refusal;
+  // The update first: its runner is away while it restarts, and "it is updating" says why better than "offline".
   const job = deps.jobs.running(found.machine.id);
   if (job?.kind === 'runner_update') return machineBusy(job);
+  if (found.refusal !== undefined) return found.refusal;
   try {
     const timeoutMs = deps.checkTimeoutMs ?? TOOLS_CHECK_TIMEOUT_MS;
     const reply = await deps.hub.request(machineId, { type: 'tools.check', cmdId: newId() }, { timeoutMs });
@@ -161,6 +162,9 @@ export async function startInstall(
 > {
   const found = await ready(deps, t, target.machineId);
   if (!('machine' in found)) return found;
+  // A job under way first: a runner update or a container's stop leaves the runner away, and that job says why.
+  const running = deps.jobs.running(found.machine.id);
+  if (running) return machineBusy(running);
   if (found.refusal !== undefined) return found.refusal;
   const { tool } = target;
   const version = deps.latest()[tool];
