@@ -64,19 +64,18 @@ function SavedSelect({
   );
 }
 
-/** The profile's gateway: the person's gateways of its provider (Claude Code's or Codex's), or where to add one. */
+/** The profile's gateway: any of the person's gateways (they serve Claude Code and Codex alike), or where to add one. */
 function GatewaySlot({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
   const addGatewayHref = usePersonalHref('gateways', true);
-  const { provider } = profile;
   return (
     <SavedSelect
       label="Gateway"
       hint={
-        hasGateway(subscriptions, provider) || profile.gateway ? (
+        hasGateway(subscriptions) || profile.gateway ? (
           'Where its runs send their AI requests'
         ) : (
           <>
-            You have none for {PROVIDER_STYLES[provider].agents} yet.{' '}
+            You have none yet.{' '}
             <Link to={addGatewayHref} className="font-semibold text-blue hover:underline">
               Add a gateway
             </Link>
@@ -84,13 +83,13 @@ function GatewaySlot({ profile, subscriptions, update }: Omit<CardProps, 'remove
         )
       }
       value={profile.gateway?.id ?? ''}
-      options={gatewayOptions(subscriptions, profile.gateway, provider)}
+      options={gatewayOptions(subscriptions, profile.gateway)}
       save={(gatewayCredentialId) => update({ gatewayCredentialId })}
     />
   );
 }
 
-/** The profile's subscription and gateway, both of its provider. */
+/** The profile's subscription (of its provider) and gateway (any). */
 function ProfileCredentials({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
   const style = PROVIDER_STYLES[profile.provider];
   return (

@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   audited,
   CREDENTIAL_NOT_FOUND,
+  changesGateway,
   credentialAad,
   labelFits,
   pastedCredential,
   purposeFits,
   USE_NOT_FOUND,
   USE_REVOKED,
+  updatedGatewayMeta,
 } from '../../../src/modules/credentials/rules.ts';
 
 const ID = '019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b';
@@ -41,20 +43,38 @@ describe('pastedCredential', () => {
     });
   });
 
-  it("seals a gateway's headers and shows its address and provider", () => {
+  it("seals a gateway's headers and shows its address and its own paths, never a provider", () => {
     const body = {
       kind: 'gateway',
       label: 'G',
-      provider: 'openai',
-      baseUrl: 'http://localhost:8300/v1',
+      baseUrl: 'http://localhost:8300',
+      paths: { codexApiKey: '/openai/v1' },
       headers: { 'x-api-key': 'k' },
     } as const;
     expect(pastedCredential(body)).toEqual({
       kind: 'gateway',
       secret: { headers: { 'x-api-key': 'k' } },
       label: 'G',
-      accountMeta: { baseUrl: 'http://localhost:8300/v1', provider: 'openai' },
+      accountMeta: { baseUrl: 'http://localhost:8300', paths: { codexApiKey: '/openai/v1' } },
     });
+    expect(pastedCredential({ ...body, paths: undefined }).accountMeta).toEqual({
+      baseUrl: 'http://localhost:8300',
+    });
+  });
+
+  it("changes a gateway's address or paths, dropping an old provider", () => {
+    const before = { baseUrl: 'http://localhost:8300', provider: 'openai', paths: { claude: '/a' } };
+    expect(updatedGatewayMeta(before, { baseUrl: 'http://127.0.0.1:8300' })).toEqual({
+      baseUrl: 'http://127.0.0.1:8300',
+      paths: { claude: '/a' },
+    });
+    expect(updatedGatewayMeta(before, { paths: {} })).toEqual({ baseUrl: 'http://localhost:8300' });
+    expect(updatedGatewayMeta({}, { paths: { claude: '/b' } })).toEqual({
+      baseUrl: '',
+      paths: { claude: '/b' },
+    });
+    expect(changesGateway({ label: 'x' })).toBe(false);
+    expect(changesGateway({ paths: {} })).toBe(true);
   });
 });
 

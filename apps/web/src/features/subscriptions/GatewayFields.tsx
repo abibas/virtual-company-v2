@@ -1,146 +1,43 @@
-import { GATEWAY_HEADERS, GATEWAY_PROVIDERS, type GatewayProvider } from '@mwc/shared/credentials';
-import type { ProfileProvider } from '@mwc/shared/enums';
+import {
+  DEFAULT_GATEWAY_PATHS,
+  GATEWAY_HEADERS,
+  GATEWAY_PATH_MAX,
+  GATEWAY_ROUTES,
+  type GatewayPaths,
+  type GatewayRoute,
+  gatewayAddressOf,
+} from '@mwc/shared/credentials';
 import { ChevronRight, Plus, X } from 'lucide-react';
-import { type ReactNode, useRef } from 'react';
+import { useRef } from 'react';
 import { SECRET_INPUT, TextField } from '../../components/forms/Field.tsx';
 import { Input } from '../../components/forms/Input.tsx';
-import { Badge } from '../../components/ui/Badge.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { IconButton } from '../../components/ui/IconButton.tsx';
-import { IconTile } from '../../components/ui/IconTile.tsx';
-import { PROVIDER_STYLES } from './Providers.tsx';
 
 /**
- * A gateway's own parts of the gateway form and cards: whose API it speaks (Claude Code's or Codex's, asked first), its
- * address with the addresses to try for each, and its headers.
+ * A gateway's own parts of the gateway form and cards. A gateway is universal: one address serves Claude Code and Codex,
+ * each CLI at its own path under it (the server joins them, `gatewayAddressOf`), so the form asks the address, its
+ * headers and, folded away, the paths.
  */
 
-/** A gateway on this Mac's port 8300 (a memory gateway serves both), as each harness reaches it. */
-const CLAUDE_ADDRESS = 'http://127.0.0.1:8300';
-const CODEX_CHATGPT_ADDRESS = 'http://127.0.0.1:8300/backend-api/codex';
-const CODEX_KEY_ADDRESS = 'http://127.0.0.1:8300/v1';
-
-const Code = ({ children }: { readonly children: ReactNode }) => (
-  <code className="font-mono text-ink-2">{children}</code>
-);
-
-interface GatewayStyle {
-  /** "For Claude Code", "For Codex". */
-  readonly label: string;
-  /** A new gateway's starting name. */
-  readonly name: string;
-  /** The profiles that take it. */
-  readonly profile: ProfileProvider;
-  readonly placeholder: string;
-  readonly hint: ReactNode;
-}
-
-/** How each gateway provider shows, and the addresses to try. */
-export const GATEWAY_STYLES: Readonly<Record<GatewayProvider, GatewayStyle>> = {
-  anthropic: {
-    label: 'For Claude Code',
-    name: 'Claude Code gateway',
-    profile: 'claude',
-    placeholder: CLAUDE_ADDRESS,
-    hint: (
-      <>
-        Claude Code sends its requests here. A gateway on this Mac’s port 8300: <Code>{CLAUDE_ADDRESS}</Code>.
-      </>
-    ),
-  },
-  openai: {
-    label: 'For Codex',
-    name: 'Codex gateway',
-    profile: 'openai',
-    placeholder: CODEX_CHATGPT_ADDRESS,
-    hint: (
-      <>
-        Codex sends its requests here. On port 8300, with a ChatGPT sign-in{' '}
-        <Code>{CODEX_CHATGPT_ADDRESS}</Code>, with an OpenAI API key <Code>{CODEX_KEY_ADDRESS}</Code>.
-      </>
-    ),
-  },
+/** How each way a turn reaches a gateway is named on the page. */
+export const GATEWAY_ROUTE_NAMES: Readonly<Record<GatewayRoute, string>> = {
+  claude: 'Claude Code',
+  codexChatgpt: 'Codex (ChatGPT)',
+  codexApiKey: 'Codex (API key)',
 };
 
-/** The name of the profiles that take a gateway of `provider` ("Claude", "OpenAI"). */
-export const gatewayProfilesName = (provider: GatewayProvider): string =>
-  PROVIDER_STYLES[GATEWAY_STYLES[provider].profile].name;
+/** A gateway on this Mac's port 8300, the address's example. */
+const EXAMPLE_ADDRESS = 'http://127.0.0.1:8300';
 
-/** A gateway's provider as a small badge in its profiles' tone ("For Codex"). */
-export function GatewayProviderBadge({ provider }: { readonly provider: GatewayProvider }) {
-  const { tone, icon } = PROVIDER_STYLES[GATEWAY_STYLES[provider].profile];
-  return (
-    <Badge tone={tone} icon={icon} size="sm">
-      {GATEWAY_STYLES[provider].label}
-    </Badge>
-  );
-}
-
-/** The gateway form's first step: for Claude Code or for Codex, as two big choices. */
-export function GatewayProviderChoice({
-  onChoose,
-}: {
-  readonly onChoose: (provider: GatewayProvider) => void;
-}) {
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-3">
-      <legend className="mb-1.5 text-sm font-semibold text-ink-2">Which harness is it for?</legend>
-      {GATEWAY_PROVIDERS.map((provider) => {
-        const style = GATEWAY_STYLES[provider];
-        const profile = PROVIDER_STYLES[style.profile];
-        return (
-          <button
-            key={provider}
-            type="button"
-            onClick={() => onChoose(provider)}
-            className="group flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-left transition hover:border-line-2 hover:bg-surface-2"
-          >
-            <IconTile icon={profile.icon} tone={profile.tone} size="lg" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-md font-bold text-ink">{style.label}</span>
-              <span className="block text-xs text-dim">{profile.name} profiles can include it.</span>
-            </span>
-            <ChevronRight
-              size={18}
-              aria-hidden="true"
-              className="shrink-0 text-faint group-hover:text-ink-2"
-            />
-          </button>
-        );
-      })}
-    </fieldset>
-  );
-}
-
-/** The chosen provider above the form, with Change to choose again. */
-export function GatewayProviderLine({
-  provider,
-  onChange,
-}: {
-  readonly provider: GatewayProvider;
-  readonly onChange: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <GatewayProviderBadge provider={provider} />
-      <Button size="sm" tone="quiet" onClick={onChange}>
-        Change
-      </Button>
-    </div>
-  );
-}
-
-/** The gateway's address, with the addresses to try for its provider. */
+/** The gateway's address: its root, each CLI's path being added for it. */
 export function GatewayAddress({
-  provider,
   value,
   onChange,
 }: {
-  readonly provider: GatewayProvider;
   readonly value: string;
   readonly onChange: (value: string) => void;
 }) {
-  const style = GATEWAY_STYLES[provider];
   return (
     <TextField
       label="Address"
@@ -151,9 +48,76 @@ export function GatewayAddress({
       required
       autoComplete="off"
       spellCheck={false}
-      placeholder={style.placeholder}
-      hint={style.hint}
+      placeholder={EXAMPLE_ADDRESS}
+      hint={`Your gateway's root, e.g. ${EXAMPLE_ADDRESS}; each CLI's path is added for it.`}
     />
+  );
+}
+
+/** What the paths fold holds: each route's path as typed, empty for its default. */
+export type PathValues = Readonly<Record<GatewayRoute, string>>;
+
+export const NO_PATHS: PathValues = { claude: '', codexChatgpt: '', codexApiKey: '' };
+
+/** The paths the API takes: only those typed (an empty one keeps its default). */
+export const pathsOf = (values: PathValues): GatewayPaths =>
+  Object.fromEntries(
+    GATEWAY_ROUTES.flatMap((route) => {
+      const path = values[route].trim();
+      return path === '' ? [] : [[route, path]];
+    }),
+  );
+
+/** A route's default path as its placeholder. */
+const placeholderOf = (route: GatewayRoute): string =>
+  DEFAULT_GATEWAY_PATHS[route] === '' ? '/ (the address itself)' : DEFAULT_GATEWAY_PATHS[route];
+
+/** "Advanced: paths", folded: each CLI's path under the address, its default as the placeholder. */
+export function GatewayPathsFold({
+  values,
+  onChange,
+}: {
+  readonly values: PathValues;
+  readonly onChange: (values: PathValues) => void;
+}) {
+  return (
+    <details className="group rounded-xl border border-line px-3 py-2">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-ink-2">
+        <ChevronRight size={15} aria-hidden="true" className="shrink-0 transition group-open:rotate-90" />
+        Advanced: paths
+      </summary>
+      <div className="mt-3 flex flex-col gap-3 pb-1">
+        {GATEWAY_ROUTES.map((route) => (
+          <TextField
+            key={route}
+            label={GATEWAY_ROUTE_NAMES[route]}
+            value={values[route]}
+            onChange={(event) => onChange({ ...values, [route]: event.target.value })}
+            maxLength={GATEWAY_PATH_MAX}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={placeholderOf(route)}
+          />
+        ))}
+        <p className="text-xs text-dim">Leave one empty for its default; / is the address itself.</p>
+      </div>
+    </details>
+  );
+}
+
+/** Where each CLI reaches a gateway, in small text: "Claude Code → http://127.0.0.1:8300". */
+export function GatewayRoutes({ accountMeta }: { readonly accountMeta: Readonly<Record<string, unknown>> }) {
+  return (
+    <ul className="mt-1 flex flex-col gap-0.5 text-xs text-dim">
+      {GATEWAY_ROUTES.map((route) => {
+        const address = gatewayAddressOf(accountMeta, route);
+        return address === undefined ? null : (
+          <li key={route} className="truncate">
+            {GATEWAY_ROUTE_NAMES[route]} → <span className="font-mono text-ink-2">{address}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

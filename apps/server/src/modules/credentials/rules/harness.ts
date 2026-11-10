@@ -1,3 +1,4 @@
+import { type GatewayRoute, gatewayAddressOf } from '@mwc/shared/credentials';
 import { HarnessCredential, HarnessGateway } from '@mwc/shared/harness';
 import type { KindSecret } from '../schemas/secrets.ts';
 import type { AccountMeta } from '../schemas.ts';
@@ -92,9 +93,18 @@ export function harnessCredentialOf(opened: KindSecret): HarnessCredential | und
   }
 }
 
-/** A gateway as a harness takes it: its address (in its account details, not secret) and its headers. */
-export function harnessGatewayOf(opened: KindSecret, accountMeta: AccountMeta): HarnessGateway | undefined {
+/**
+ * A gateway as a harness takes it on `route`: the gateway's address (in its account details, not secret) with that
+ * route's path joined (`gatewayAddressOf`: Claude Code's, Codex's with a ChatGPT login or with an API key), and its
+ * headers. One gateway serves every route.
+ */
+export function harnessGatewayOf(
+  opened: KindSecret,
+  accountMeta: AccountMeta,
+  route: GatewayRoute,
+): HarnessGateway | undefined {
   if (opened.kind !== 'gateway') return undefined;
-  const parsed = HarnessGateway.safeParse({ baseUrl: accountMeta.baseUrl, headers: opened.secret.headers });
+  const baseUrl = gatewayAddressOf(accountMeta, route);
+  const parsed = HarnessGateway.safeParse({ baseUrl, headers: opened.secret.headers });
   return parsed.success ? parsed.data : undefined;
 }

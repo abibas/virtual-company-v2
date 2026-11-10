@@ -1,3 +1,4 @@
+import type { GatewayRoute } from '@mwc/shared/credentials';
 import type { HarnessCredential, HarnessGateway } from '@mwc/shared/harness';
 import type { Logger } from 'pino';
 import type { UseContext } from '../repo.ts';
@@ -148,16 +149,17 @@ async function openHarnessCredential(
     : HARNESS_CREDENTIAL_UNUSABLE;
 }
 
-/** A gateway, opened for the use, as the harness takes it. */
+/** A gateway, opened for the use, as the harness takes it on `route` (its address with that route's path). */
 async function openHarnessGateway(
   deps: HarnessDeps,
   credentialId: string,
   ownerUserId: string,
   use: HarnessUse,
+  route: GatewayRoute,
 ): Promise<{ readonly ok: true; readonly gateway: HarnessGateway } | HarnessRefusal> {
   const opened = await open(credentialSecrets(deps), credentialId, ownerUserId, use);
   if (!opened.ok) return opened;
-  const gateway = harnessGatewayOf(opened, opened.credential.accountMeta);
+  const gateway = harnessGatewayOf(opened, opened.credential.accountMeta, route);
   return gateway === undefined ? HARNESS_CREDENTIAL_UNUSABLE : { ok: true, gateway };
 }
 
@@ -192,8 +194,8 @@ export function credentialsForHarness(deps: HarnessDeps) {
   return {
     credential: (credentialId: string, ownerUserId: string, use: HarnessUse) =>
       openHarnessCredential(deps, credentialId, ownerUserId, use),
-    gateway: (credentialId: string, ownerUserId: string, use: HarnessUse) =>
-      openHarnessGateway(deps, credentialId, ownerUserId, use),
+    gateway: (credentialId: string, ownerUserId: string, use: HarnessUse, route: GatewayRoute) =>
+      openHarnessGateway(deps, credentialId, ownerUserId, use, route),
     rewriteCodexLogin: (
       credentialId: string,
       ownerUserId: string,

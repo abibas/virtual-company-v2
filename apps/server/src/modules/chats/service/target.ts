@@ -1,5 +1,5 @@
 import type { AccessProfile, Agent, Chat, TenantDb } from '@mwc/db';
-import { profileFitsHarness } from '@mwc/shared/credentials';
+import { type GatewayRoute, gatewayRouteOf, profileFitsHarness } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import type { HarnessCredential, HarnessGateway, TerminalSpec } from '@mwc/shared/harness';
 import { roleAtLeast } from '@mwc/shared/roles';
@@ -31,8 +31,8 @@ import {
  * must still be the chat's), its placement (on its machine, in host mode, on the chat's machine), the machine's runner
  * (connected, with the harness's CLI, and a terminal for a terminal), the access profile (the chat's own while its owner
  * is still an admin here, else the agent's; of the provider the harness runs on) and its subscription, opened as its
- * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (Claude Code's or Codex's, of
- * the profile's provider) and the profile's model and effort (since 2026-11-10; none: the harness's own default). Read
+ * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (any of its owner's: its address
+ * with the path of the harness and, for Codex, of the credential's kind, `gatewayRouteOf`) and the profile's model and effort (since 2026-11-10; none: the harness's own default). Read
  * before anything is written; each refusal names what to fix.
  */
 
@@ -88,14 +88,15 @@ async function profileOf(t: TenantDb, chat: Chat, agent: Agent): Promise<AccessP
   return profile ?? PROFILE_MISSING;
 }
 
-/** The profile's gateway, of its provider (the credentials module's rule), or null for none. */
+/** The profile's gateway as the turn's route reaches it, or null for none. */
 async function gatewayOf(
   deps: TargetDeps,
   profile: AccessProfile,
   use: HarnessUse,
+  route: GatewayRoute,
 ): Promise<{ readonly ok: true; readonly gateway: HarnessGateway | null } | Refusal<422 | 503>> {
   if (profile.gatewayCredentialId === null) return { ok: true, gateway: null };
-  const opened = await deps.credentials.gateway(profile.gatewayCredentialId, profile.ownerUserId, use);
+  const opened = await deps.credentials.gateway(profile.gatewayCredentialId, profile.ownerUserId, use, route);
   return opened.ok ? { ok: true, gateway: opened.gateway } : opened;
 }
 
@@ -124,9 +125,9 @@ export async function resolveTarget(
   };
   const opened = await deps.credentials.credential(credentialId, profile.ownerUserId, use);
   if (!opened.ok) return opened;
-  const gateway = await gatewayOf(deps, profile, use);
-  if (!gateway.ok) return gateway;
   const credential: HarnessCredential = opened.credential;
+  const gateway = await gatewayOf(deps, profile, use, gatewayRouteOf(chat.harness, credential.kind));
+  if (!gateway.ok) return gateway;
   const spec: TerminalSpec = {
     harness: chat.harness,
     cwd: placement.home,

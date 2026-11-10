@@ -15,7 +15,6 @@ import {
   tenant,
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import type { GatewayProvider } from '@mwc/shared/credentials';
 import type { CredentialKind, Effort, Harness } from '@mwc/shared/enums';
 import type { TurnEvent } from '@mwc/shared/harness';
 import type { RunnerCaps, TurnEnd, TurnStart } from '@mwc/shared/runner-protocol';
@@ -64,7 +63,7 @@ export interface SceneOptions {
   readonly harness?: Harness;
   /** The kind of the subscription in the harness's slot; none leaves the slot empty. */
   readonly kind?: CredentialKind | null;
-  /** A gateway of the profile's provider in the profile too. */
+  /** A gateway (universal) in the profile too. */
   readonly gateway?: boolean;
   readonly caps?: Partial<RunnerCaps>;
   /** No runner connected. */
@@ -118,22 +117,18 @@ export async function beginChat(
   return res.body as ChatView;
 }
 
-/** A gateway of a person's (for Claude Code unless `provider` says), with its address, sealed as the store does. */
-export function addGateway(
-  w: ChatsWorld,
-  userId: string,
-  provider: GatewayProvider = 'anthropic',
-): Promise<SubscriptionView> {
+/** A gateway of a person's (universal: Claude Code and Codex alike), with its root address, sealed as the store does. */
+export function addGateway(w: ChatsWorld, userId: string): Promise<SubscriptionView> {
   return credentialSecrets({ db: w.t.db, keyring: w.keyring, clock: w.clock }).storeCredential({
     kind: 'gateway',
     secret: { headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' } },
     label: 'Gateway',
     ownerUserId: userId,
-    accountMeta: { baseUrl: GATEWAY_URL, provider },
+    accountMeta: { baseUrl: GATEWAY_URL },
   });
 }
 
-export const GATEWAY_URL = 'https://gateway.example.test/v1';
+export const GATEWAY_URL = 'https://gateway.example.test';
 
 /** A company with an agent placed on an online machine, its access profile (see `SceneOptions`), and a chat. */
 export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<Scene> {
@@ -154,8 +149,7 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
     options.kind === undefined ? (harness === 'codex' ? 'codex_oauth' : 'claude_setup_token') : options.kind;
   const credential =
     kind === null ? undefined : await addSubscription(w, w.keyring, company.owner.userId, kind);
-  const gatewayProvider = harness === 'codex' ? 'openai' : 'anthropic';
-  const gateway = options.gateway ? await addGateway(w, company.owner.userId, gatewayProvider) : undefined;
+  const gateway = options.gateway ? await addGateway(w, company.owner.userId) : undefined;
   const profile = await seedProfile(w.t.db, company.owner.userId, {
     provider: harness === 'codex' ? 'openai' : 'claude',
     credentialId: credential?.id ?? null,

@@ -36,7 +36,7 @@ company. Kinds:
 | `codex_oauth`         | **Sign in with OpenAI**: `codex login --device-auth` in the sign-in helper       | the login's `auth.json`                   | `GET chatgpt.com/backend-api/wham/usage`  |
 | `anthropic_api_key`   | paste                                                                            | the key                                   | none (pay as you go)                      |
 | `openai_api_key`      | paste                                                                            | the key                                   | none                                      |
-| `gateway`             | for Claude Code or for Codex, an address and headers (for example Ihor's gateway on port 8300) | the headers (the address and provider are account details) | none |
+| `gateway`             | for Claude Code and Codex alike, an address, optional per-CLI paths and headers (for example Ihor's gateway on port 8300) | the headers (the address and paths are account details) | none |
 
 "Subscription login" (Ihor, 2026-11-05): adding a subscription obtains **and stores** its login token and config,
 so nothing has to be signed in again on a machine.
@@ -144,29 +144,41 @@ As built in S3.2:
 
 ## Gateways
 
-An AI gateway is an address a harness sends its AI requests to instead of the provider, with optional headers (Ihor's
-memory gateway on port 8300 serves both harnesses). Since 2026-11-10 (Ihor: "Codex runs without a gateway… it should run
-through the gateway as well") each gateway has a **provider**: `anthropic`, for Claude Code (its `ANTHROPIC_BASE_URL`),
-or `openai`, for Codex (a custom model provider). It is kept in the gateway's account details (`accountMeta.provider`,
-`GATEWAY_PROVIDERS` and `gatewayProviderOf` of `@mwc/shared/credentials`); a gateway added before then says none and
-reads as `anthropic` (no data step: the API shows `provider` on every gateway). The headers are its secret, sealed like
-any other; the address and the provider are not secret.
+An AI gateway is an address a harness sends its AI requests to instead of the provider, with optional headers. Since
+2026-11-10 gateways are **universal** (Ihor: "The gateway is a universal thing… I'm using 1 gateway for both, it's not
+Claude Code gateway OR Codex, it could be both"): one gateway is a name, an address (its root) and headers, and serves
+Claude Code and Codex alike, each CLI at its own **path** under the address. The paths are optional account details,
+`accountMeta.paths: { claude?, codexChatgpt?, codexApiKey? }`, each left out taking its default (`DEFAULT_GATEWAY_PATHS`
+of `@mwc/shared/credentials`). The headers are its secret, sealed like any other; the address and paths are not secret.
+A gateway has no provider any more: the `accountMeta.provider` that gateways briefly had (2026-11-10, migration
+`0016_gateway_provider`'s story) is neither read nor written, and older values are ignored.
 
-- **Adding one:** `POST /api/me/subscriptions {kind: 'gateway', label, provider, baseUrl, headers}`, `provider`
-  `anthropic` when left out; 0 to 20 headers, each one line with a plain name. The web's form asks **For Claude Code**
-  or **For Codex** first, then the name, the address and the headers, with the addresses to try on port 8300:
+- **The derived addresses** (`gatewayRouteOf`, `gatewayAddressOf`, `joinGatewayPath` of `@mwc/shared/credentials`;
+  the server builds each turn's `HarnessGateway.baseUrl` with them, the drivers stay as they were):
 
-  | For         | Sign-in of the profile | Address                                   |
-  | ----------- | ---------------------- | ----------------------------------------- |
-  | Claude Code | any                    | `http://127.0.0.1:8300`                   |
-  | Codex       | ChatGPT (`codex_oauth`) | `http://127.0.0.1:8300/backend-api/codex` |
-  | Codex       | OpenAI API key         | `http://127.0.0.1:8300/v1`                |
+  | Turn                                   | Route          | Default path         | Ihor's memory gateway (`http://127.0.0.1:8300`) |
+  | -------------------------------------- | -------------- | -------------------- | ----------------------------------------------- |
+  | Claude Code (any Claude subscription)  | `claude`       | `""`                 | `http://127.0.0.1:8300`                         |
+  | Codex with a ChatGPT login (`codex_oauth`) | `codexChatgpt` | `/backend-api/codex` | `http://127.0.0.1:8300/backend-api/codex`  |
+  | Codex with an OpenAI API key           | `codexApiKey`  | `/v1`                | `http://127.0.0.1:8300/v1`                      |
 
-  Each gateway card shows its provider ("For Claude Code", "For Codex") and the profiles that include it.
-- **In a profile:** a Claude profile takes an `anthropic` gateway, an OpenAI profile an `openai` one (`gatewayFitsProfile`,
-  `PROFILE_GATEWAY_PROVIDER`); another is 422 `gateway_provider_mismatch`. The credentials module checks it on every
-  write, since the provider lives in the gateway's account details and SQL cannot read them from `access_profiles`
-  (migration `0016_gateway_provider` dropped the CHECK that kept gateways on Claude profiles).
+  The path is joined without double or trailing slashes (`/` or an empty path is the address itself), and an address
+  that already ends with the path is kept as it is, so a gateway added as `…/backend-api/codex` still works for Codex.
+  Ihor's Airia gateway `https://dev.gateway.airiadev.ai/anthropic` gives Claude Code that address itself (it serves
+  Claude only so far; the Codex routes would add their paths to it).
+- **Adding one:** `POST /api/me/subscriptions {kind: 'gateway', label, baseUrl, paths?, headers}`; 0 to 20 headers,
+  each one line with a plain name; each path empty or starting with `/`, no spaces, `?` or `#`, at most 512 characters
+  (`GATEWAY_PATH_MAX`). A `provider` sent by an older client is dropped. The web's form asks the name, the address
+  ("Your gateway's root, e.g. http://127.0.0.1:8300; each CLI's path is added for it") and the headers, with an
+  **Advanced: paths** fold showing the three paths with their defaults as placeholders (an empty one keeps its default).
+- **Changing one:** `PATCH /api/me/subscriptions/:id` takes `label`, and for a gateway `baseUrl` and `paths` (given
+  paths replace its own; `{}` goes back to the defaults); an address or paths for another kind is 422 `not_a_gateway`.
+  The headers stay sealed as they are. The web renames in place (no edit form for the address or paths yet).
+- **On the page:** each gateway card shows the address and, in small text, the derived addresses ("Claude Code → …",
+  "Codex (ChatGPT) → …", "Codex (API key) → …"), and the profiles that include it.
+- **In a profile:** any profile takes any of its owner's gateways, Claude and OpenAI profiles alike (the provider check
+  and its 422 `gateway_provider_mismatch` are gone); nothing in the database enforces a provider match (migration
+  `0016_gateway_provider` dropped the last CHECK). Every profile's gateway select lists all the person's gateways.
 - **The profile decides.** The profile's gateway, or none, decides for every turn and chat terminal of its agents on
   any machine, whatever that machine's own Claude Code or Codex settings say: Claude Code gets a private settings file
   (`--settings`, the gateway's address and headers, or Anthropic's own address and no headers without one) over a
@@ -182,7 +194,7 @@ any other; the address and the provider are not secret.
 A personal, named choice of **one provider's subscription** (since 2026-11-10, Ihor: "we should have ONE, so we can use
 different profiles with the single provider/subscription"): a **Claude profile** holds one Claude subscription, for
 `claude_code` agents; an **OpenAI profile** holds one OpenAI subscription, for `codex` agents; either takes an optional
-gateway of its provider ("Gateways" above). A person makes as many as they like (two Claude profiles on two Max plans, say). Its owner gives
+gateway, any of its owner's ("Gateways" above). A person makes as many as they like (two Claude profiles on two Max plans, say). Its owner gives
 it to agents of the matching harness in companies where they are an admin or owner (`agents.profile_id`); each person
 has a default per provider and company for the agents they hire. Since 2026-11-10 a profile also says **what its runs
 run**, a model and an effort (Ihor: the model "should be part of the PROFILE as well… NOT agent config for sure"): an
@@ -198,19 +210,19 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
   (until migration `0016_gateway_provider`, `access_profiles_gateway_check` allowed a gateway on a Claude profile only).
   The subscription is one of the owner's own credentials of a kind of the provider: Claude `claude_oauth`,
   `claude_setup_token` or `anthropic_api_key`; OpenAI `codex_oauth` or `openai_api_key` (`PROVIDER_KINDS`,
-  `fitsProvider`); the gateway a `gateway` (`GATEWAY_KINDS`) of the profile's provider (`gatewayFitsProfile`). A
+  `fitsProvider`); the gateway any of the owner's `gateway`s (`GATEWAY_KINDS`; universal since 2026-11-10). A
   revoked credential cannot be put in; one revoked while in place stays until it is replaced. Removing a credential
   empties the profile, which then cannot run until its owner chooses another (a turn says `profile_empty`). Since
   migration `0017_profile_model`: `model` (text, 1–100, null for the provider's default) and `effort` (null for the
   provider's default; the CHECK holds the union of every provider's levels, "Model and effort" below).
 - **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
   only, like subscriptions. `POST` takes `{ name, provider, credentialId?, gatewayCredentialId?, model?, effort? }`;
-  `PATCH` any of `name`, `credentialId`, `gatewayCredentialId` (both of the same provider), `model` and `effort`, null
+  `PATCH` any of `name`, `credentialId` (of the profile's provider), `gatewayCredentialId` (any gateway), `model` and `effort`, null
   emptying one (or going back to the provider's default), and `provider` only as the profile's own. A model id that does
   not look like one (one word of letters, digits and `._:/@[]-`, 1–100) and an effort that is no provider's are 400.
   Refusals, all 422: a subscription of the other provider and another `provider` (`provider_mismatch`), a gateway that
-  is not one (`credential_kind_mismatch`) or of the other provider (`gateway_provider_mismatch`; `gateway_not_allowed`
-  before 2026-11-10's gateways for Codex), none of the owner's (`credential_not_found`), a revoked one
+  is not one (`credential_kind_mismatch`; `gateway_provider_mismatch` existed only on 2026-11-10, before gateways became
+  universal), none of the owner's (`credential_not_found`), a revoked one
   (`credential_revoked`), a model of the other provider (`model_provider_mismatch`), an effort the model does not take
   (`effort_unsupported`, checked against what the profile runs after the change, so a new model whose levels lack the
   stored effort needs an effort with it); a taken name is 409. The list shows `provider`, `subscription` and `gateway`
@@ -246,8 +258,8 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
   `defaultClaudeProfileId` and `defaultOpenaiProfileId`.
 - **The web** (Access profiles page): the profiles in two groups, Claude and OpenAI; **New profile** asks the provider
   first (two big choices), then the name, the subscription of that provider, a gateway, and **Model** and **Effort**;
-  each card shows the provider's badge, the subscription, the gateway (a select of the person's gateways of that
-  provider, for both providers since 2026-11-10), Model and Effort (saved as they change) and the agents using it;
+  each card shows the provider's badge, the subscription, the gateway (a select of all the person's gateways, for either
+  provider), Model and Effort (saved as they change) and the agents using it;
   **Defaults for agents I hire**
   has a Claude and an OpenAI select per company. The agent form offers only profiles of its harness's provider (a
   harness change takes the hirer's default of the new one when hiring, none on an agent's page), with **Make one**

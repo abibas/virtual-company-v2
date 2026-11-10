@@ -115,8 +115,15 @@ Every account variable a turn does not set is in `unsetEnv`, so the access profi
 `CLAUDE_CODE_USE_BEDROCK|VERTEX|FOUNDRY`, `CLAUDE_CONFIG_DIR` (an API key left in the machine's environment would win over
 the profile's subscription); Codex's `CODEX_API_KEY`, `OPENAI_API_KEY`, `CODEX_ACCESS_TOKEN`, `OPENAI_BASE_URL`.
 
-The profile's gateway (docs/subscriptions.md, "Gateways"; a Claude profile's is for Claude Code, an OpenAI profile's for
-Codex) decides where a turn's and a terminal's AI requests go, over the machine's own settings (since 2026-11-10):
+The profile's gateway (docs/subscriptions.md, "Gateways"; universal since 2026-11-10: any profile takes any gateway)
+decides where a turn's and a terminal's AI requests go, over the machine's own settings (since 2026-11-10). The server
+derives `<baseUrl>` from the gateway's address and the path of the turn's route (`gatewayRouteOf` and
+`gatewayAddressOf` of `@mwc/shared/credentials`, in the credentials module's `harnessGatewayOf`): Claude Code takes the
+address + the `claude` path (default `""`), Codex with `codex_oauth` the address + `codexChatgpt` (default
+`/backend-api/codex`), Codex with `openai_api_key` the address + `codexApiKey` (default `/v1`). The join has no double or
+trailing slash, and an address that already ends with the path is kept. With Ihor's memory gateway
+`http://127.0.0.1:8300` that is `http://127.0.0.1:8300`, `…/backend-api/codex` and `…/v1`. The drivers take
+`gateway.baseUrl` as it comes:
 
 | Credential + gateway          | Arguments                                                                                 | Environment                                         | Private files (0600, removed after the process) |
 | ----------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------- |
@@ -280,7 +287,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    naming what to fix: the chat not archived, no turn of it running; the agent's placement (none, `container` mode: S5
    proper), its machine's runner connected, newer than chats (`caps.harnesses` with versions) and with the harness's
    CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile;
-   Codex: an OpenAI profile; else `profile_harness_mismatch`), with its gateway, and its subscription (`profile_empty`
+   Codex: an OpenAI profile; else `profile_harness_mismatch`), with its gateway (its address with the route's path, by
+   the harness and the credential's kind), and its subscription (`profile_empty`
    when it has none). The spec's model and effort are that profile's (since 2026-11-10; docs/subscriptions.md "Model
    and effort"): none for the provider's default, and Codex's old marker `codex-default`, a Claude id on Codex or an
    effort the harness does not take give way to the harness's own default (`turnModel`, `turnEffort`).
@@ -560,8 +568,6 @@ ability to expand… lazy loading"). The detail no longer carries every turn:
 
 - The journal, re-attaching a turn after a runner or server restart, and runs of tasks (S5.2 and on): a dropped link ends
   a chat's turn today.
-- Codex through a gateway; Claude Code's own `settings.json` `env` can still override the gateway variables of a turn
-  (`--settings` with the gateway, from a private file, is the planned fix).
 - A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
   before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
   later one writes its login over a token the first may have just refreshed (the server seals again what comes back).

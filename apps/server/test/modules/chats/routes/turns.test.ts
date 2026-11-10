@@ -90,7 +90,7 @@ describe('a turn, end to end', () => {
       principalId: s.company.owner.principalId,
     });
     expect(start.spec.gateway).toEqual({
-      baseUrl: expect.any(String),
+      baseUrl: GATEWAY_URL,
       headers: { 'x-api-key': expect.any(String) },
     });
   });
@@ -240,8 +240,26 @@ describe('credentials handed to a turn', () => {
     expect(start.spec).toMatchObject({
       harness: 'codex',
       credential: { kind: 'codex_oauth' },
-      gateway: { baseUrl: GATEWAY_URL, headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' } },
+      gateway: {
+        baseUrl: `${GATEWAY_URL}/backend-api/codex`,
+        headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' },
+      },
     });
     expect((await scene(w, { harness: 'codex' })).profile.gatewayCredentialId).toBeNull();
+  });
+
+  it("sends a Claude and a Codex chat through one gateway, each at its CLI's path under the gateway's address", async () => {
+    const claude = await startedTurn(w, await scene(w, { gateway: true }));
+    const chatgpt = await startedTurn(w, await scene(w, { harness: 'codex', gateway: true }));
+    const apiKey = await startedTurn(
+      w,
+      await scene(w, { harness: 'codex', kind: 'openai_api_key', gateway: true }),
+    );
+    expect(claude.spec.gateway?.baseUrl).toBe(GATEWAY_URL);
+    expect(chatgpt.spec.gateway?.baseUrl).toBe(`${GATEWAY_URL}/backend-api/codex`);
+    expect(apiKey.spec).toMatchObject({
+      credential: { kind: 'openai_api_key' },
+      gateway: { baseUrl: `${GATEWAY_URL}/v1`, headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' } },
+    });
   });
 });

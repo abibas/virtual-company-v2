@@ -1,4 +1,4 @@
-import { CREDENTIAL_LABEL, type GatewayProvider, gatewayProviderOf } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL } from '@mwc/shared/credentials';
 import { Lock } from 'lucide-react';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
 import { usePersonalHref } from '../../app/company.ts';
@@ -8,7 +8,7 @@ import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
 import { StatusPill } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
-import { GatewayProviderBadge, gatewayProfilesName } from './GatewayFields.tsx';
+import { GatewayRoutes } from './GatewayFields.tsx';
 import { KindBadge } from './KindBadge.tsx';
 
 interface GatewayCardProps {
@@ -27,21 +27,14 @@ const addressOf = (gateway: Subscription): string | undefined => {
   return typeof value === 'string' && value !== '' ? value : undefined;
 };
 
-/** The profiles that include it, each a link to the Access profiles tab; with none, which profiles can. */
-function GatewayProfiles({
-  provider,
-  profiles,
-}: {
-  readonly provider: GatewayProvider;
-  readonly profiles: readonly AccessProfile[] | undefined;
-}) {
+/** The profiles that include it, each a link to the Access profiles tab; with none, where to choose it. */
+function GatewayProfiles({ profiles }: { readonly profiles: readonly AccessProfile[] | undefined }) {
   const profilesHref = usePersonalHref('profiles');
   if (profiles === undefined) return <p className="text-xs text-dim">Checking your access profiles…</p>;
   if (profiles.length === 0) {
-    const kind = gatewayProfilesName(provider);
     return (
       <p className="text-xs text-dim">
-        No access profile includes it yet. Choose it in a {kind} profile’s Gateway.
+        No access profile includes it yet. Choose it in any profile’s Gateway, Claude or OpenAI.
       </p>
     );
   }
@@ -65,20 +58,18 @@ function GatewayProfiles({
 }
 
 /**
- * One AI gateway: whose requests it takes (for Claude Code or for Codex), its name (renamed in place), its address, a
- * note that its headers are sealed (never their names or values), the access profiles that include it, and Remove,
- * confirmed in place.
+ * One AI gateway, for Claude Code and Codex alike: its name (renamed in place), its address with where each CLI reaches
+ * it, a note that its headers are sealed (never their names or values), the access profiles that include it, and
+ * Remove, confirmed in place.
  */
 export function GatewayCard({ gateway, profiles, rename, remove }: GatewayCardProps) {
   const address = addressOf(gateway);
-  const provider = gatewayProviderOf(gateway.accountMeta);
   const { createdAt, lastUsedAt } = gateway;
   return (
     <Card as="article" aria-label={gateway.label} className="flex flex-col gap-4">
       <header className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <KindBadge kind={gateway.kind} />
-          <GatewayProviderBadge provider={provider} />
           {gateway.status !== 'active' && <StatusPill status={gateway.status} size="sm" />}
         </div>
         <InlineEdit
@@ -91,12 +82,13 @@ export function GatewayCard({ gateway, profiles, rename, remove }: GatewayCardPr
           <span className="text-md font-bold tracking-[-0.01em] text-ink">{gateway.label}</span>
         </InlineEdit>
         {address && <p className="truncate font-mono text-sm text-ink-2">{address}</p>}
+        <GatewayRoutes accountMeta={gateway.accountMeta} />
         <p className="mt-1 flex items-center gap-1.5 text-xs text-dim">
           <Lock size={13} aria-hidden="true" className="shrink-0" />
           Its headers are stored encrypted and never shown.
         </p>
       </header>
-      <GatewayProfiles provider={provider} profiles={profiles} />
+      <GatewayProfiles profiles={profiles} />
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <p className="min-w-0 text-xs text-dim">
           Added <time dateTime={createdAt}>{formatDate(createdAt)}</time>

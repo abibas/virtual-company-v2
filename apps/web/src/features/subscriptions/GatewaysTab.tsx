@@ -28,8 +28,8 @@ const SKELETON = (
 );
 
 const WHAT_IT_IS =
-  "An address your agents' AI requests go through, like your own proxy on port 8300: one for Claude Code, another " +
-  'for Codex. A profile of that provider can include one, and its runs then use it on any machine.';
+  "An address your agents' AI requests go through, like your own proxy on port 8300: one gateway serves Claude Code " +
+  'and Codex, each at its own path. Any access profile can include it, and its runs then use it on any machine.';
 
 /** The profiles whose gateway is `id`; undefined while the profiles load. */
 const profilesWith = (profiles: readonly AccessProfile[] | undefined, id: string) =>
@@ -81,7 +81,7 @@ function GatewayList({ gateways, profiles, calls, onChanged, onAdd }: ListProps)
 
 /**
  * The AI gateways tab: the person's gateways (credentials of kind `gateway`) as cards, with the profiles that include
- * each, rename and remove; Add gateway opens the gateway form (for Claude Code or for Codex first) in a sheet.
+ * each, rename and remove; Add gateway opens the gateway form in a sheet.
  * `addOnOpen` (`&add=1`, from a profile's Add a gateway) opens that sheet at once, and leaves the address without it. `header` puts Add gateway in the page's
  * header.
  */

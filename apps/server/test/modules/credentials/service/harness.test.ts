@@ -1,5 +1,6 @@
 import { credentials } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
+import type { GatewayRoute } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { captureLogger, LEVEL, TEST_NOW } from '@mwc/testkit';
@@ -143,36 +144,51 @@ describe('the credential of a turn', () => {
 });
 
 describe('the gateway of a turn', () => {
-  it('hands out its address and headers, and refuses another kind or one without an address', async () => {
+  it("hands out one gateway to every CLI at its own path under the gateway's address, with its headers", async () => {
     const gateway = await add(
       'gateway',
       { headers: { 'x-api-key': 'gw-key' } },
-      { baseUrl: 'https://gw.test/v1' },
+      { baseUrl: 'http://127.0.0.1:8300/' },
     );
-    expect(await harness.gateway(gateway.id, ihor.userId, USE)).toEqual({
+    const at = async (route: GatewayRoute) => harness.gateway(gateway.id, ihor.userId, USE, route);
+    const headers = { 'x-api-key': 'gw-key' };
+    expect(await at('claude')).toEqual({ ok: true, gateway: { baseUrl: 'http://127.0.0.1:8300', headers } });
+    expect(await at('codexChatgpt')).toEqual({
       ok: true,
-      gateway: { baseUrl: 'https://gw.test/v1', headers: { 'x-api-key': 'gw-key' } },
+      gateway: { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', headers },
     });
+    expect(await at('codexApiKey')).toEqual({
+      ok: true,
+      gateway: { baseUrl: 'http://127.0.0.1:8300/v1', headers },
+    });
+  });
+
+  it('takes its own paths, and an address that already ends with a path keeps it', async () => {
+    const custom = await add(
+      'gateway',
+      { headers: {} },
+      { baseUrl: 'https://gw.test', paths: { claude: '/anthropic' }, provider: 'openai' },
+    );
+    expect(await harness.gateway(custom.id, ihor.userId, USE, 'claude')).toMatchObject({
+      gateway: { baseUrl: 'https://gw.test/anthropic' },
+    });
+    const older = await add('gateway', { headers: {} }, { baseUrl: 'https://gw.test/backend-api/codex' });
+    expect(await harness.gateway(older.id, ihor.userId, USE, 'codexChatgpt')).toMatchObject({
+      gateway: { baseUrl: 'https://gw.test/backend-api/codex' },
+    });
+  });
+
+  it('refuses another kind or one without an address', async () => {
     const noAddress = await add('gateway', { headers: { 'x-api-key': 'gw-key' } });
-    expect(await harness.gateway(noAddress.id, ihor.userId, USE)).toMatchObject({
+    expect(await harness.gateway(noAddress.id, ihor.userId, USE, 'claude')).toMatchObject({
       code: 'credential_unusable',
     });
     const key = await add('anthropic_api_key', { apiKey: 'sk-ant-api03-key' });
-    expect(await harness.gateway(key.id, ihor.userId, USE)).toMatchObject({ code: 'credential_unusable' });
-    expect(await harness.gateway(newId(), ihor.userId, USE)).toMatchObject({ code: 'credential_not_found' });
-  });
-});
-
-describe('rewriteCodexLogin', () => {
-  it('seals a rewritten login, and refuses one that is not a login or a credential that is gone', async () => {
-    const login = await add('codex_oauth', { auth: { tokens: { access_token: 'a' } } });
-    const rewritten = JSON.stringify({ tokens: { access_token: 'b' } });
-    expect(await harness.rewriteCodexLogin(login.id, ihor.userId, rewritten, 'chat_turn')).toBe(true);
-    const opened = await store.useCredentialSecret(login.id, ihor.userId, 'test');
-    expect(opened).toMatchObject({ ok: true, secret: { auth: { tokens: { access_token: 'b' } } } });
-    expect(await harness.rewriteCodexLogin(login.id, ihor.userId, 'not json', 'chat_turn')).toBe(false);
-    expect(await harness.rewriteCodexLogin(newId(), ihor.userId, rewritten, 'chat_turn')).toBe(false);
-    expect(lines.filter((line) => line.level === LEVEL.warn)).toHaveLength(2);
-    expect(JSON.stringify(lines)).not.toContain('access_token');
+    expect(await harness.gateway(key.id, ihor.userId, USE, 'claude')).toMatchObject({
+      code: 'credential_unusable',
+    });
+    expect(await harness.gateway(newId(), ihor.userId, USE, 'claude')).toMatchObject({
+      code: 'credential_not_found',
+    });
   });
 });

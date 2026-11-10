@@ -1,6 +1,5 @@
 import { accessProfiles } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import type { GatewayProvider } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import { seedCompany } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
@@ -13,8 +12,8 @@ import { addSubscription, auditRows, noSecret, PROFILES, revokeSubscription } fr
 import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
 // `/api/me/access-profiles` (S3.4, one provider each since 2026-11-10): a person's own access profiles, each a Claude
-// one (a Claude subscription) or an OpenAI one (an OpenAI subscription) with an optional gateway of its provider (since
-// migration 0016), its provider fixed; never a revoked subscription and never someone else's; managed signed in only.
+// one (a Claude subscription) or an OpenAI one (an OpenAI subscription) with an optional gateway (any of the person's:
+// gateways are universal), its provider fixed; never a revoked subscription and never someone else's; managed signed in only.
 
 const MISSING = '0190f5f0-0000-7000-8000-000000000000';
 const keyring = ephemeralKeyring();
@@ -30,14 +29,14 @@ afterAll(() => w.t.close());
 
 const as = (user: LinkedUser, requestId?: string) => call(w, user.token, requestId);
 const sub = (user: LinkedUser, kind: CredentialKind) => addSubscription(w, keyring, user.userId, kind);
-/** A gateway of the person's for Claude Code (`anthropic`) or Codex (`openai`), sealed as the store does. */
-const addGateway = (user: LinkedUser, provider: GatewayProvider) =>
+/** A gateway of the person's (an older one may still say a provider, which is ignored), sealed as the store does. */
+const addGateway = (user: LinkedUser, accountMeta: Record<string, unknown> = {}) =>
   credentialSecrets({ db: w.t.db, keyring, clock: w.clock }).storeCredential({
     kind: 'gateway',
     secret: { headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' } },
-    label: `${provider} gateway`,
+    label: 'Memory gateway',
     ownerUserId: user.userId,
-    accountMeta: { baseUrl: 'http://127.0.0.1:8300', provider },
+    accountMeta: { baseUrl: 'http://127.0.0.1:8300', ...accountMeta },
   });
 let names = 0;
 const fresh = () => `Profile ${++names}`;
@@ -127,29 +126,17 @@ describe('POST /api/me/access-profiles', () => {
     });
   });
 
-  it('gives each provider a gateway of its own: Anthropic for Claude, OpenAI for Codex, never the other (422)', async () => {
-    const anthropic = await addGateway(ihor, 'anthropic');
-    const openai = await addGateway(ihor, 'openai');
-    const codex = await create(ihor, { provider: 'openai', gatewayCredentialId: openai.id });
-    expect(codex).toMatchObject({ provider: 'openai', gateway: shown(openai) });
-    const claude = await create(ihor, { gatewayCredentialId: anthropic.id });
-    expect(claude).toMatchObject({ provider: 'claude', gateway: shown(anthropic) });
-    const refused = await as(ihor)('POST', PROFILES, {
-      name: fresh(),
-      provider: 'claude',
-      gatewayCredentialId: openai.id,
-    });
-    expect(refused).toMatchObject({
-      status: 422,
-      body: {
-        error: {
-          code: 'gateway_provider_mismatch',
-          message: 'A Claude profile takes a gateway for Claude Code, not one for Codex',
-        },
-      },
-    });
-    const swapped = await as(ihor)('PATCH', `${PROFILES}/${codex.id}`, { gatewayCredentialId: anthropic.id });
-    expect(swapped).toMatchObject({ status: 422, body: { error: { code: 'gateway_provider_mismatch' } } });
+  it('gives any profile any gateway: one gateway in a Claude and an OpenAI profile alike', async () => {
+    const memory = await addGateway(ihor);
+    const older = await addGateway(ihor, { provider: 'openai' });
+    const codex = await create(ihor, { provider: 'openai', gatewayCredentialId: memory.id });
+    expect(codex).toMatchObject({ provider: 'openai', gateway: shown(memory) });
+    const claude = await create(ihor, { gatewayCredentialId: memory.id });
+    expect(claude).toMatchObject({ provider: 'claude', gateway: shown(memory) });
+    const olderInClaude = await create(ihor, { gatewayCredentialId: older.id });
+    expect(olderInClaude).toMatchObject({ provider: 'claude', gateway: shown(older) });
+    const swapped = await as(ihor)('PATCH', `${PROFILES}/${codex.id}`, { gatewayCredentialId: older.id });
+    expect(swapped).toMatchObject({ status: 200, body: { gateway: shown(older) } });
     const emptied = await as(ihor)('PATCH', `${PROFILES}/${codex.id}`, { gatewayCredentialId: null });
     expect(emptied).toMatchObject({ status: 200, body: { gateway: null } });
   });
@@ -174,7 +161,7 @@ describe('POST /api/me/access-profiles', () => {
     ['openai', 'credentialId', 'claude_oauth', 'provider_mismatch'],
     ['openai', 'credentialId', 'anthropic_api_key', 'provider_mismatch'],
     ['claude', 'gatewayCredentialId', 'claude_setup_token', 'credential_kind_mismatch'],
-    ['openai', 'gatewayCredentialId', 'gateway', 'gateway_provider_mismatch'],
+    ['openai', 'gatewayCredentialId', 'codex_oauth', 'credential_kind_mismatch'],
   ] as const)('refuses a %s profile a %s of kind %s (422 %s)', async (provider, field, kind, code) => {
     const body = { name: fresh(), provider, [field]: (await sub(ihor, kind)).id };
     expect(await as(ihor)('POST', PROFILES, body)).toMatchObject({ status: 422, body: { error: { code } } });
@@ -281,14 +268,6 @@ describe('PATCH /api/me/access-profiles/:profileId', () => {
     });
     const wrongKind = await as(ihor)('PATCH', `${PROFILES}/${claude.id}`, { credentialId: openai.id });
     expect(wrongKind).toMatchObject({ status: 422, body: { error: { code: 'provider_mismatch' } } });
-    const gateway = await sub(ihor, 'gateway');
-    const claudeGateway = await as(ihor)('PATCH', `${PROFILES}/${codex.id}`, {
-      gatewayCredentialId: gateway.id,
-    });
-    expect(claudeGateway).toMatchObject({
-      status: 422,
-      body: { error: { code: 'gateway_provider_mismatch' } },
-    });
     expect(await listOf(ihor)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: claude.id, provider: 'claude', subscription: null }),

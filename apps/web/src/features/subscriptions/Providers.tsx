@@ -9,7 +9,7 @@ import { ClaudeMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
 
 /**
  * The two access profile providers as the pages show them: how each looks and what it is for (Claude in violet,
- * Anthropic's subscriptions' tone, for Claude Code agents, with an optional gateway; OpenAI in teal, for Codex agents),
+ * Anthropic's subscriptions' tone, for Claude Code agents; OpenAI in teal, for Codex agents; either with any gateway),
  * its badge, and New profile's first step, the choice between them.
  */
 interface ProviderStyle {
@@ -36,7 +36,7 @@ export const PROVIDER_STYLES: Readonly<Record<ProfileProvider, ProviderStyle>> =
     tone: 'teal',
     icon: OpenAIMark,
     agents: 'Codex agents',
-    holds: 'One OpenAI subscription, and an optional gateway for Codex.',
+    holds: 'One OpenAI subscription, and a gateway if you want one.',
   },
 };
 

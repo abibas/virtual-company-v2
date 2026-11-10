@@ -94,7 +94,7 @@ describe('POST /api/me/subscriptions', () => {
       'openai_api_key',
       'gateway',
     ]);
-    expect(gw.accountMeta).toEqual({ baseUrl: 'http://localhost:8300', provider: 'anthropic' });
+    expect(gw.accountMeta).toEqual({ baseUrl: 'http://localhost:8300' });
     noSecret([anthropic, openai, gw]);
     const secrets = credentialSecrets({ db: w.t.db, keyring, clock: w.clock });
     const opened = await secrets.useCredentialSecret(openai.id, ihor.userId, 'test');
@@ -123,29 +123,31 @@ describe('POST /api/me/subscriptions', () => {
     noSecret(rows);
   });
 
-  it('adds a gateway for Codex with its provider, and shows an older gateway saying none as an Anthropic one', async () => {
-    const codex = await add(ihor, {
+  it('adds a universal gateway with its own paths, keeping no provider, and lists an older one as it is', async () => {
+    const custom = await add(ihor, {
       ...gateway,
-      label: 'Codex 8300',
+      label: 'Airia',
       provider: 'openai',
-      baseUrl: 'http://127.0.0.1:8300/backend-api/codex',
+      baseUrl: 'https://gw.test/anthropic',
+      paths: { claude: '', codexApiKey: ' /openai/v1 ' },
     });
-    expect(codex.accountMeta).toEqual({
-      baseUrl: 'http://127.0.0.1:8300/backend-api/codex',
-      provider: 'openai',
+    expect(custom.accountMeta).toEqual({
+      baseUrl: 'https://gw.test/anthropic',
+      paths: { claude: '', codexApiKey: '/openai/v1' },
     });
+    const plain = await add(ihor, { ...gateway, label: 'No paths', paths: {} });
+    expect(plain.accountMeta).toEqual({ baseUrl: 'http://localhost:8300' });
     const older = await add(ihor, { ...gateway, label: 'Older gateway' });
     await rawDb(w.t.db)
       .update(credentials)
-      .set({ accountMeta: { baseUrl: 'http://localhost:8300' } })
+      .set({ accountMeta: { baseUrl: 'http://localhost:8300', provider: 'openai' } })
       .where(eq(credentials.id, older.id));
     const res = await getJson(w.t.app, PATH, { authorization: `Bearer ${ihor.token}` });
     const listed = (res.body as { subscriptions: SubscriptionView[] }).subscriptions;
     expect(listed.find((s) => s.id === older.id)?.accountMeta).toEqual({
       baseUrl: 'http://localhost:8300',
-      provider: 'anthropic',
+      provider: 'openai',
     });
-    expect(listed.find((s) => s.id === codex.id)?.accountMeta).toMatchObject({ provider: 'openai' });
   });
 
   it('adds a gateway without headers (a local proxy that needs none)', async () => {
@@ -172,7 +174,10 @@ describe('POST /api/me/subscriptions', () => {
       'starts with sk-',
     ],
     ['a gateway that is not http(s)', { ...gateway, baseUrl: 'ftp://gateway.test' }, 'http or https URL'],
-    ['a gateway of another provider', { ...gateway, provider: 'gemini' }, 'provider'],
+    ['a path without its leading slash', { ...gateway, paths: { claude: 'anthropic' } }, 'starts with /'],
+    ['a path with a query', { ...gateway, paths: { codexApiKey: '/v1?x=1' } }, 'starts with /'],
+    ['a path over 512 characters', { ...gateway, paths: { claude: `/${'p'.repeat(512)}` } }, 'at most 512'],
+    ['a path of an unknown CLI', { ...gateway, paths: { gemini: '/v1' } }, ''],
     [
       'a gateway with 21 headers',
       {
@@ -250,6 +255,55 @@ describe('PATCH and DELETE /api/me/subscriptions/:credentialId', () => {
       ['label', 'Old name', 'New name', 'req-rename'],
     ]);
     expect(await as(ihor)('PATCH', `${PATH}/${view.id}`, { label: '' })).toMatchObject({ status: 400 });
+  });
+
+  it("changes a gateway's address and paths, keeping its headers sealed and recording the change", async () => {
+    const view = await add(ihor, { ...gateway, label: 'Memory' });
+    const path = `${PATH}/${view.id}`;
+    const moved = await as(ihor, 'req-gw')('PATCH', path, {
+      baseUrl: 'http://127.0.0.1:8300',
+      paths: { codexChatgpt: '/backend-api/codex/' },
+    });
+    expect(moved).toMatchObject({
+      status: 200,
+      body: {
+        label: 'Memory',
+        accountMeta: { baseUrl: 'http://127.0.0.1:8300', paths: { codexChatgpt: '/backend-api/codex/' } },
+      },
+    });
+    const renamed = await as(ihor)('PATCH', path, { label: 'Memory 8300' });
+    expect((renamed.body as SubscriptionView).accountMeta).toEqual(
+      (moved.body as SubscriptionView).accountMeta,
+    );
+    const reset = await as(ihor)('PATCH', path, { paths: {} });
+    expect((reset.body as SubscriptionView).accountMeta).toEqual({ baseUrl: 'http://127.0.0.1:8300' });
+    const same = await as(ihor)('PATCH', path, { baseUrl: 'http://127.0.0.1:8300' });
+    expect(same).toMatchObject({ status: 200, body: { accountMeta: { baseUrl: 'http://127.0.0.1:8300' } } });
+    const updates = (await auditOf(w.t.db, view.id)).filter((r) => r.action === 'update');
+    expect(updates.map((r) => r.field)).toEqual(['accountMeta', 'label', 'accountMeta']);
+    expect(updates[0]).toMatchObject({
+      requestId: 'req-gw',
+      newValue: (moved.body as SubscriptionView).accountMeta,
+    });
+    const secrets = credentialSecrets({ db: w.t.db, keyring, clock: w.clock });
+    expect(await secrets.useCredentialSecret(view.id, ihor.userId, 'test')).toMatchObject({
+      secret: { headers: { 'x-api-key': GATEWAY_VALUE } },
+    });
+    noSecret(updates);
+  });
+
+  it('refuses an address or paths for a subscription that is not a gateway (422), and a change of nothing (400)', async () => {
+    const view = await add(ihor, setupToken('Token'));
+    for (const body of [{ baseUrl: 'http://127.0.0.1:8300' }, { label: 'Token', paths: {} }]) {
+      expect(await as(ihor)('PATCH', `${PATH}/${view.id}`, body)).toMatchObject({
+        status: 422,
+        body: { error: { code: 'not_a_gateway' } },
+      });
+    }
+    expect(await as(ihor)('PATCH', `${PATH}/${view.id}`, {})).toMatchObject({ status: 400 });
+    expect(await as(ihor)('PATCH', `${PATH}/${view.id}`, { baseUrl: 'ftp://x.test' })).toMatchObject({
+      status: 400,
+    });
   });
 
   it('removes with 204, keeping the audit rows, and the subscription is gone from the list', async () => {

@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { CREDENTIAL_LABEL, GATEWAY_PROVIDERS } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL, DEFAULT_GATEWAY_PATHS, GATEWAY_PATH_MAX } from '@mwc/shared/credentials';
 import { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import { AnthropicApiKey, GatewayHeaders, OpenAiApiKey, SetupToken } from './schemas/secrets.ts';
 
@@ -22,10 +22,10 @@ const label = z
   .max(CREDENTIAL_LABEL.max, `A name is at most ${CREDENTIAL_LABEL.max} characters`)
   .openapi({ example: 'Max at home' });
 
-/** Non-secret details of the account: plan, organization, scopes, a gateway's base URL and provider. */
+/** Non-secret details of the account: plan, organization, scopes, a gateway's address and its own paths. */
 export const AccountMetaSchema = z
   .record(z.string(), z.unknown())
-  .openapi('SubscriptionAccount', { example: { baseUrl: 'http://localhost:8300', provider: 'anthropic' } });
+  .openapi('SubscriptionAccount', { example: { baseUrl: 'http://127.0.0.1:8300' } });
 
 /** A subscription as the API shows it: what it is, whose account, its state. Never its secret. */
 export const SubscriptionSchema = z
@@ -55,18 +55,32 @@ const GatewayUrl = z
   .max(2048)
   .openapi({ example: 'http://localhost:8300' });
 
-/**
- * Whose API a gateway speaks: `anthropic` for Claude Code, `openai` for Codex (`anthropic` when left out, as gateways
- * were before they had one).
- */
-const GatewayProviderSchema = z
-  .enum(GATEWAY_PROVIDERS)
-  .default('anthropic')
-  .openapi({ description: '`anthropic` for Claude Code profiles, `openai` for Codex (OpenAI) profiles' });
+/** A path under a gateway's address: empty (or `/`) for the address itself, else starting with `/`. */
+const GatewayPath = z
+  .string()
+  .trim()
+  .max(GATEWAY_PATH_MAX, `A path is at most ${GATEWAY_PATH_MAX} characters`)
+  .regex(/^(\/[^\s?#]*)?$/, 'A path starts with / and has no spaces, ? or #');
 
 /**
- * A pasted subscription: its kind, a name and its secret (a setup-token, an API key, or a gateway's provider, address
- * and headers). The two logins are added by signing in, not here.
+ * A gateway's own paths, one per way a turn reaches it; each left out takes its default (Claude Code `""`, Codex with
+ * ChatGPT `/backend-api/codex`, Codex with an API key `/v1`).
+ */
+export const GatewayPathsSchema = z
+  .strictObject({
+    claude: GatewayPath.optional(),
+    codexChatgpt: GatewayPath.optional(),
+    codexApiKey: GatewayPath.optional(),
+  })
+  .openapi('GatewayPaths', {
+    description: `Each CLI's path under the gateway's address; defaults ${JSON.stringify(DEFAULT_GATEWAY_PATHS)}`,
+    example: { codexChatgpt: '/backend-api/codex' },
+  });
+
+/**
+ * A pasted subscription: its kind, a name and its secret (a setup-token, an API key, or a gateway's address, its
+ * optional paths and its headers). A gateway serves Claude Code and Codex alike. The two logins are added by signing
+ * in, not here.
  */
 export const AddSubscriptionSchema = z
   .discriminatedUnion('kind', [
@@ -76,15 +90,23 @@ export const AddSubscriptionSchema = z
     z.object({
       kind: z.literal('gateway'),
       label,
-      provider: GatewayProviderSchema,
       baseUrl: GatewayUrl,
+      paths: GatewayPathsSchema.optional(),
       headers: GatewayHeaders,
     }),
   ])
   .openapi('AddSubscription');
 
-export const RenameSubscriptionSchema = z.object({ label }).openapi('RenameSubscription');
+/**
+ * A change of a subscription: its name, and for a gateway its address and paths (given paths replace its own; `{}`
+ * goes back to the defaults). At least one of them.
+ */
+export const UpdateSubscriptionSchema = z
+  .object({ label: label.optional(), baseUrl: GatewayUrl.optional(), paths: GatewayPathsSchema.optional() })
+  .refine((body) => Object.values(body).some((value) => value !== undefined), 'Nothing to change')
+  .openapi('UpdateSubscription');
 
 export type SubscriptionView = z.infer<typeof SubscriptionSchema>;
 export type AccountMeta = z.infer<typeof AccountMetaSchema>;
 export type AddSubscription = z.infer<typeof AddSubscriptionSchema>;
+export type UpdateSubscription = z.infer<typeof UpdateSubscriptionSchema>;

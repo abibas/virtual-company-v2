@@ -10,10 +10,10 @@ import { wantsRefresh } from './rules/limits.ts';
 import { LimitsQuerySchema, SubscriptionLimitsListSchema } from './schemas/limits.ts';
 import {
   AddSubscriptionSchema,
-  RenameSubscriptionSchema,
   SubscriptionListSchema,
   SubscriptionParamsSchema,
   SubscriptionSchema,
+  UpdateSubscriptionSchema,
 } from './schemas.ts';
 import { limitsService } from './service/limits.ts';
 import { memoryUsageCache, type UsageCache } from './service/usage/cache.ts';
@@ -53,8 +53,9 @@ const addRoute = (deps: ServerDeps) => {
     summary: 'Add a pasted subscription: a setup-token, an Anthropic or OpenAI API key, or a gateway',
     description:
       'The secret is checked for its format only (a setup-token starts with `sk-ant-oat01-`, an Anthropic key with ' +
-      '`sk-ant-api`, an OpenAI key with `sk-`; a gateway has an http(s) address and up to 20 headers), sealed with ' +
-      'AES-256-GCM and never shown again. No provider is called. The two logins are added by signing in.',
+      '`sk-ant-api`, an OpenAI key with `sk-`; a gateway has an http(s) address, optional paths for each CLI and up ' +
+      'to 20 headers, and serves Claude Code and Codex alike), sealed with AES-256-GCM and never shown again. No ' +
+      'provider is called. The two logins are added by signing in.',
     request: { body: jsonBody(AddSubscriptionSchema) },
     responses: {
       201: jsonResponse('The subscription, without its secret', SubscriptionSchema),
@@ -64,18 +65,22 @@ const addRoute = (deps: ServerDeps) => {
   });
 };
 
-const renameRoute = (deps: ServerDeps) => {
+const updateRoute = (deps: ServerDeps) => {
   const { base, refusals } = subscriptionsRoute(deps, `${SUBSCRIPTIONS}/{credentialId}`);
   return createRoute({
     ...base,
     method: 'patch',
-    summary: 'Rename one of your subscriptions',
-    request: { params: SubscriptionParamsSchema, body: jsonBody(RenameSubscriptionSchema) },
+    summary: "Rename one of your subscriptions, or change a gateway's address or paths",
+    description:
+      "A gateway's headers stay sealed as they are. Given paths replace the gateway's own (`{}` goes back to the " +
+      'defaults); an address or paths for a subscription that is not a gateway is 422 `not_a_gateway`.',
+    request: { params: SubscriptionParamsSchema, body: jsonBody(UpdateSubscriptionSchema) },
     responses: {
-      200: jsonResponse('The subscription, renamed', SubscriptionSchema),
+      200: jsonResponse('The subscription, changed', SubscriptionSchema),
       400: INVALID,
       ...refusals,
       404: NOT_FOUND,
+      422: errorResponse('An address or paths for a subscription that is not a gateway (`not_a_gateway`)'),
     },
   });
 };
@@ -145,9 +150,9 @@ export function credentialsRoutes(
     .openapi(addRoute(deps), async (c) =>
       c.json(await subscriptions.add(callerOf(c.var), c.req.valid('json')), 201),
     )
-    .openapi(renameRoute(deps), async (c) => {
+    .openapi(updateRoute(deps), async (c) => {
       const { credentialId } = c.req.valid('param');
-      const result = await subscriptions.rename(callerOf(c.var), credentialId, c.req.valid('json').label);
+      const result = await subscriptions.update(callerOf(c.var), credentialId, c.req.valid('json'));
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.subscription, 200);
     })

@@ -173,7 +173,7 @@ async function removeProfile(
 /**
  * The access profiles API's logic (S3.4, one provider each since 2026-11-10), always as the caller (the personal layer):
  * list their profiles, create one, change one, remove one. A profile's provider is fixed when it is made; its
- * subscription is one of the caller's own of that provider, its gateway one of their gateways of that provider, never a
+ * subscription is one of the caller's own of that provider, its gateway any of their gateways, never a
  * revoked one, its model one of that provider's and its effort one its model takes (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
  * its `access_profile` audit rows; removing one also writes, in each of the caller's companies, the rows of the agents
  * and defaults it leaves (the org module's `auditProfileRemoval`), before the foreign keys detach it.

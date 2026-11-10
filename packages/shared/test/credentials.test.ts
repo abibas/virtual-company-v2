@@ -3,16 +3,19 @@ import {
   ACCESS_PROFILE_NAME,
   CREDENTIAL_LABEL,
   CREDENTIAL_PURPOSE,
+  DEFAULT_GATEWAY_PATHS,
   fitsGateway,
   fitsProvider,
   GATEWAY_HEADERS,
   GATEWAY_KINDS,
-  GATEWAY_PROVIDERS,
-  gatewayFitsProfile,
-  gatewayProviderOf,
+  GATEWAY_PATH_MAX,
+  GATEWAY_ROUTES,
+  gatewayAddressOf,
+  gatewayPathsOf,
+  gatewayRouteOf,
   HARNESS_PROVIDER,
+  joinGatewayPath,
   PASTED_CREDENTIAL_KINDS,
-  PROFILE_GATEWAY_PROVIDER,
   PROFILE_PROVIDERS,
   PROVIDER_KINDS,
   profileFitsHarness,
@@ -76,20 +79,6 @@ describe('the credential store contract', () => {
     expect(fitsGateway('claude_oauth')).toBe(false);
   });
 
-  it('gives each profile provider the gateways of its own API, older gateways being Anthropic ones', () => {
-    expect(GATEWAY_PROVIDERS).toEqual(['anthropic', 'openai']);
-    expect(PROFILE_GATEWAY_PROVIDER).toEqual({ claude: 'anthropic', openai: 'openai' });
-    expect(gatewayProviderOf({ baseUrl: 'http://127.0.0.1:8300' })).toBe('anthropic');
-    expect(gatewayProviderOf({ provider: 'anthropic' })).toBe('anthropic');
-    expect(gatewayProviderOf({ provider: 'openai' })).toBe('openai');
-    expect(gatewayProviderOf({ provider: 'gemini' })).toBe('anthropic');
-    expect(gatewayFitsProfile('claude', {})).toBe(true);
-    expect(gatewayFitsProfile('claude', { provider: 'openai' })).toBe(false);
-    expect(gatewayFitsProfile('openai', { provider: 'openai' })).toBe(true);
-    expect(gatewayFitsProfile('openai', { provider: 'anthropic' })).toBe(false);
-    expect(gatewayFitsProfile('openai', {})).toBe(false);
-  });
-
   it('runs each harness on profiles of one provider', () => {
     expect(HARNESS_PROVIDER).toEqual({ claude_code: 'claude', codex: 'openai' });
     for (const harness of Harness.options) {
@@ -97,5 +86,80 @@ describe('the credential store contract', () => {
         HARNESS_PROVIDER[harness],
       ]);
     }
+  });
+});
+
+const MEMORY = 'http://127.0.0.1:8300';
+
+describe('a universal gateway', () => {
+  it('reaches it by three routes, each with its default path', () => {
+    expect(GATEWAY_ROUTES).toEqual(['claude', 'codexChatgpt', 'codexApiKey']);
+    expect(DEFAULT_GATEWAY_PATHS).toEqual({
+      claude: '',
+      codexChatgpt: '/backend-api/codex',
+      codexApiKey: '/v1',
+    });
+    expect(GATEWAY_PATH_MAX).toBe(512);
+  });
+
+  it('takes the route of the harness and, for Codex, of its credential', () => {
+    expect(gatewayRouteOf('claude_code', 'claude_oauth')).toBe('claude');
+    expect(gatewayRouteOf('claude_code', 'anthropic_api_key')).toBe('claude');
+    expect(gatewayRouteOf('codex', 'codex_oauth')).toBe('codexChatgpt');
+    expect(gatewayRouteOf('codex', 'openai_api_key')).toBe('codexApiKey');
+  });
+
+  it("reads a gateway's own paths, the defaults for any it leaves out or names wrongly, and ignores an old provider", () => {
+    expect(gatewayPathsOf({ baseUrl: MEMORY })).toEqual(DEFAULT_GATEWAY_PATHS);
+    expect(gatewayPathsOf({ baseUrl: MEMORY, provider: 'openai', paths: null })).toEqual(
+      DEFAULT_GATEWAY_PATHS,
+    );
+    expect(gatewayPathsOf({ paths: 'nope' })).toEqual(DEFAULT_GATEWAY_PATHS);
+    expect(gatewayPathsOf({ paths: { claude: '/anthropic', codexApiKey: 7 } })).toEqual({
+      ...DEFAULT_GATEWAY_PATHS,
+      claude: '/anthropic',
+    });
+    expect(gatewayPathsOf({ paths: { codexChatgpt: '' } })).toEqual({
+      ...DEFAULT_GATEWAY_PATHS,
+      codexChatgpt: '',
+    });
+  });
+
+  it('joins an address and a path without double or trailing slashes', () => {
+    expect(joinGatewayPath(MEMORY, '')).toBe(MEMORY);
+    expect(joinGatewayPath(`${MEMORY}/`, '')).toBe(MEMORY);
+    expect(joinGatewayPath(MEMORY, '/')).toBe(MEMORY);
+    expect(joinGatewayPath(`${MEMORY}/`, '/v1')).toBe(`${MEMORY}/v1`);
+    expect(joinGatewayPath(`${MEMORY}//`, '//v1/')).toBe(`${MEMORY}/v1`);
+    expect(joinGatewayPath(MEMORY, 'backend-api/codex')).toBe(`${MEMORY}/backend-api/codex`);
+    expect(joinGatewayPath(' https://gw.test/anthropic/ ', ' /v1 ')).toBe('https://gw.test/anthropic/v1');
+  });
+
+  it('keeps an address that already ends with the path', () => {
+    expect(joinGatewayPath(`${MEMORY}/backend-api/codex`, '/backend-api/codex')).toBe(
+      `${MEMORY}/backend-api/codex`,
+    );
+    expect(joinGatewayPath(`${MEMORY}/backend-api/codex/`, '/backend-api/codex')).toBe(
+      `${MEMORY}/backend-api/codex`,
+    );
+    expect(joinGatewayPath(`${MEMORY}/v1`, '/v1')).toBe(`${MEMORY}/v1`);
+    expect(joinGatewayPath('https://gw.test/xv1', '/v1')).toBe('https://gw.test/xv1/v1');
+  });
+
+  it("derives each route's address of a gateway, with default and custom paths", () => {
+    const memory = { baseUrl: MEMORY };
+    expect(gatewayAddressOf(memory, 'claude')).toBe(MEMORY);
+    expect(gatewayAddressOf(memory, 'codexChatgpt')).toBe(`${MEMORY}/backend-api/codex`);
+    expect(gatewayAddressOf(memory, 'codexApiKey')).toBe(`${MEMORY}/v1`);
+    const custom = {
+      baseUrl: 'https://gw.test/',
+      paths: { claude: '/anthropic', codexChatgpt: '/', codexApiKey: '/openai/v1' },
+    };
+    expect(gatewayAddressOf(custom, 'claude')).toBe('https://gw.test/anthropic');
+    expect(gatewayAddressOf(custom, 'codexChatgpt')).toBe('https://gw.test');
+    expect(gatewayAddressOf(custom, 'codexApiKey')).toBe('https://gw.test/openai/v1');
+    expect(gatewayAddressOf({}, 'claude')).toBeUndefined();
+    expect(gatewayAddressOf({ baseUrl: ' ' }, 'claude')).toBeUndefined();
+    expect(gatewayAddressOf({ baseUrl: 8300 }, 'claude')).toBeUndefined();
   });
 });

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   auditedProfile,
   credentialRefusal,
-  gatewayProviderMismatch,
   PROFILE_NOT_FOUND,
   partsPutIn,
   profileChanges,
@@ -20,11 +19,7 @@ const profile = {
 };
 
 /** A credential as the rules read it: its kind, state and account details (none by default). */
-const held = (kind: CredentialKind, status: CredentialStatus = 'active', accountMeta = {}) => ({
-  kind,
-  status,
-  accountMeta,
-});
+const held = (kind: CredentialKind, status: CredentialStatus = 'active') => ({ kind, status });
 
 describe('credentialRefusal', () => {
   it.each([
@@ -86,33 +81,16 @@ describe('credentialRefusal', () => {
   });
 });
 
-describe('a gateway’s provider', () => {
-  const anthropic = { baseUrl: 'http://127.0.0.1:8300', provider: 'anthropic' };
-  const openai = { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', provider: 'openai' };
-
-  it('gives a Claude profile an Anthropic gateway (one from before gateways had a provider too) and OpenAI an OpenAI one', () => {
-    expect(credentialRefusal('gateway', 'claude', held('gateway', 'active', anthropic))).toBeUndefined();
-    expect(
-      credentialRefusal('gateway', 'claude', held('gateway', 'active', { baseUrl: 'http://x' })),
-    ).toBeUndefined();
-    expect(credentialRefusal('gateway', 'openai', held('gateway', 'active', openai))).toBeUndefined();
+describe('a universal gateway', () => {
+  it('fits any profile, Claude or OpenAI, whatever an older gateway said its provider was', () => {
+    for (const provider of ['claude', 'openai'] as const) {
+      expect(credentialRefusal('gateway', provider, held('gateway'))).toBeUndefined();
+    }
   });
 
-  it('refuses a gateway of the other provider with 422 gateway_provider_mismatch, before a revoked one', () => {
-    expect(credentialRefusal('gateway', 'claude', held('gateway', 'active', openai))).toEqual({
-      ok: false,
-      status: 422,
-      code: 'gateway_provider_mismatch',
-      message: 'A Claude profile takes a gateway for Claude Code, not one for Codex',
-    });
-    expect(credentialRefusal('gateway', 'openai', held('gateway', 'revoked', anthropic))).toEqual(
-      gatewayProviderMismatch('openai'),
-    );
-    expect(gatewayProviderMismatch('openai').message).toBe(
-      'An OpenAI profile takes a gateway for Codex, not one for Claude Code',
-    );
-    expect(credentialRefusal('gateway', 'openai', held('gateway', 'active', {}))).toMatchObject({
-      code: 'gateway_provider_mismatch',
+  it('is still refused when revoked', () => {
+    expect(credentialRefusal('gateway', 'openai', held('gateway', 'revoked'))).toMatchObject({
+      code: 'credential_revoked',
     });
   });
 });

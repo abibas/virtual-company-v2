@@ -290,6 +290,21 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    Gateway slot listing only its provider's gateways. Tests: the migration's constraint change, the provider rules, the
    routes, both drivers' arguments, environment and settings, the runner writing, naming and removing the settings file
    in turns and terminals; no real turn run, no frontend tests.
+   **Universal gateways: done 2026-11-10** (docs/subscriptions.md "Gateways", docs/harness.md "Credentials and gateways";
+   Ihor: "The gateway is a universal thing… I'm using 1 gateway for both… I do not need to select it on the gateways
+   page"). A gateway is a name, an address and headers, with optional per-CLI paths in its account details
+   (`accountMeta.paths: { claude?, codexChatgpt?, codexApiKey? }`, defaults `""`, `/backend-api/codex`, `/v1`); the
+   gateway provider of earlier that day is gone (`accountMeta.provider` neither read nor written, old values ignored).
+   `@mwc/shared/credentials`: `gatewayRouteOf(harness, kind)`, `gatewayPathsOf`, `joinGatewayPath` (no double or
+   trailing slash, an address already ending with the path kept) and `gatewayAddressOf`; the credentials module builds
+   each turn's `HarnessGateway.baseUrl` with them (Claude Code: the address + `claude`; Codex with `codex_oauth`: +
+   `codexChatgpt`; with `openai_api_key`: + `codexApiKey`), the drivers unchanged. Any profile takes any gateway (422
+   `gateway_provider_mismatch` removed, nothing replaces it; no migration, nothing in the database enforced a match).
+   `POST /api/me/subscriptions` takes `paths`; `PATCH /:id` also changes a gateway's `baseUrl` and `paths` (422
+   `not_a_gateway` for another kind). Web: the gateway form asks the name, the address and headers, with an "Advanced:
+   paths" fold; gateway cards show the derived addresses; every profile's gateway slot lists all gateways. Tests: the
+   derived-address rule, gateway add and update with and without paths, any profile taking any gateway, the turn spec's
+   gateway address for Claude and Codex chats (ChatGPT and API key) through one gateway; no frontend tests.
    **Machine tools: done 2026-11-10** (docs/machines.md "Tools", docs/runner-protocol.md "Tools"; Ihor: "Can we have
    some link, and some automation/verification in the MACHINES management?", then the versions and "if it requires
    update"). The runner reports `caps.tools` (Claude Code, Codex, git, gh, Docker: each found one's `--version`, asked

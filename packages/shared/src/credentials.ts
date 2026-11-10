@@ -40,8 +40,8 @@ export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;
 /**
  * The credential kinds an access profile of each provider holds (docs/subscriptions.md): a Claude profile one Claude
  * subscription, for `claude_code` agents; an OpenAI profile one OpenAI subscription, for `codex` agents. Either also
- * takes a gateway of its own provider (`GATEWAY_KINDS`, `gatewayFitsProfile`). A profile holds its owner's own
- * credentials, never a revoked one.
+ * takes any of its owner's gateways (`GATEWAY_KINDS`): gateways are universal since 2026-11-10. A profile holds its
+ * owner's own credentials, never a revoked one.
  */
 export const PROVIDER_KINDS = {
   claude: ['claude_oauth', 'claude_setup_token', 'anthropic_api_key'],
@@ -50,20 +50,6 @@ export const PROVIDER_KINDS = {
 
 /** The kinds a profile's gateway takes. */
 export const GATEWAY_KINDS = ['gateway'] as const satisfies readonly CredentialKind[];
-
-/**
- * Whose API a gateway speaks (since 2026-11-10, docs/subscriptions.md "Gateways"): `anthropic` for Claude Code (its
- * `ANTHROPIC_BASE_URL`), `openai` for Codex (a custom model provider). Kept in the gateway's account details
- * (`accountMeta.provider`); a gateway added before it says nothing and is `anthropic`.
- */
-export const GATEWAY_PROVIDERS = ['anthropic', 'openai'] as const;
-export type GatewayProvider = (typeof GATEWAY_PROVIDERS)[number];
-
-/** The gateway provider each profile provider takes: a Claude profile an `anthropic` gateway, an OpenAI one `openai`. */
-export const PROFILE_GATEWAY_PROVIDER = {
-  claude: 'anthropic',
-  openai: 'openai',
-} as const satisfies Record<ProfileProvider, GatewayProvider>;
 
 /** The providers in the order the profiles page groups them. */
 export const PROFILE_PROVIDERS = ['claude', 'openai'] as const satisfies readonly ProfileProvider[];
@@ -84,20 +70,72 @@ export function fitsGateway(kind: CredentialKind): boolean {
   return (GATEWAY_KINDS as readonly CredentialKind[]).includes(kind);
 }
 
-/** A gateway's provider, from its account details: `openai` when they say so, else `anthropic` (older gateways). */
-export function gatewayProviderOf(accountMeta: Readonly<Record<string, unknown>>): GatewayProvider {
-  return accountMeta.provider === 'openai' ? 'openai' : 'anthropic';
-}
-
-/** True when a gateway with these account details may be a `provider` profile's gateway. */
-export function gatewayFitsProfile(
-  provider: ProfileProvider,
-  accountMeta: Readonly<Record<string, unknown>>,
-): boolean {
-  return gatewayProviderOf(accountMeta) === PROFILE_GATEWAY_PROVIDER[provider];
-}
-
 /** True when a profile of `provider` may power an agent on `harness`. */
 export function profileFitsHarness(provider: ProfileProvider, harness: Harness): boolean {
   return HARNESS_PROVIDER[harness] === provider;
+}
+
+/**
+ * The ways a turn reaches a gateway (since 2026-11-10, docs/subscriptions.md "Gateways"): Claude Code (its
+ * `ANTHROPIC_BASE_URL`), Codex signed in with ChatGPT, and Codex with an OpenAI API key (each Codex's custom model
+ * provider `base_url`). One gateway serves all three, each at its own path under the gateway's address.
+ */
+export const GATEWAY_ROUTES = ['claude', 'codexChatgpt', 'codexApiKey'] as const;
+export type GatewayRoute = (typeof GATEWAY_ROUTES)[number];
+
+/** Each route's path when the gateway names none: Claude Code at the root, Codex's ChatGPT backend, OpenAI's `/v1`. */
+export const DEFAULT_GATEWAY_PATHS = {
+  claude: '',
+  codexChatgpt: '/backend-api/codex',
+  codexApiKey: '/v1',
+} as const satisfies Record<GatewayRoute, string>;
+
+/** The longest path a gateway names for a route, in characters. */
+export const GATEWAY_PATH_MAX = 512;
+
+/** A gateway's own paths, as its account details keep them (`accountMeta.paths`): any route left out takes its default. */
+export type GatewayPaths = { readonly [R in GatewayRoute]?: string };
+
+/** The route a turn takes: Claude Code's; Codex's by its credential, an OpenAI API key or else a ChatGPT login. */
+export function gatewayRouteOf(harness: Harness, kind: CredentialKind): GatewayRoute {
+  if (harness === 'claude_code') return 'claude';
+  return kind === 'openai_api_key' ? 'codexApiKey' : 'codexChatgpt';
+}
+
+/** A gateway's path for each route, from its account details: its own where it names a string, else the default. */
+export function gatewayPathsOf(accountMeta: Readonly<Record<string, unknown>>): Record<GatewayRoute, string> {
+  const own = accountMeta.paths;
+  const named = (route: GatewayRoute): unknown =>
+    typeof own === 'object' && own !== null ? (own as Record<string, unknown>)[route] : undefined;
+  return Object.fromEntries(
+    GATEWAY_ROUTES.map((route) => {
+      const path = named(route);
+      return [route, typeof path === 'string' ? path : DEFAULT_GATEWAY_PATHS[route]];
+    }),
+  ) as Record<GatewayRoute, string>;
+}
+
+const trimSlashes = (text: string, edge: RegExp) => text.trim().replace(edge, '');
+
+/**
+ * An address with a path joined to it: no double slash and no trailing one (`http://127.0.0.1:8300/` and `/v1/` give
+ * `http://127.0.0.1:8300/v1`), an empty path (or `/`) leaving the address itself, and an address that already ends with
+ * the path kept as it is (a gateway added as `…/backend-api/codex` keeps working).
+ */
+export function joinGatewayPath(address: string, path: string): string {
+  const base = trimSlashes(address, /\/+$/);
+  const segment = trimSlashes(trimSlashes(path, /^\/+/), /\/+$/);
+  if (segment === '') return base;
+  const suffix = `/${segment}`;
+  return base.endsWith(suffix) ? base : `${base}${suffix}`;
+}
+
+/** The address a route reaches a gateway at, from its account details; undefined when they hold no address. */
+export function gatewayAddressOf(
+  accountMeta: Readonly<Record<string, unknown>>,
+  route: GatewayRoute,
+): string | undefined {
+  const { baseUrl } = accountMeta;
+  if (typeof baseUrl !== 'string' || baseUrl.trim() === '') return undefined;
+  return joinGatewayPath(baseUrl, gatewayPathsOf(accountMeta)[route]);
 }

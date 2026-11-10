@@ -34,7 +34,7 @@ const lengthWithin = (column: AnyPgColumn, range: { readonly min: number; readon
  * The secret is sealed by the server with AES-256-GCM (`key_version` names the master key, `iv` is 12 random bytes per
  * seal, `auth_tag` 16 bytes) and the additional data `credential|<id>|<owner_user_id>|<kind>`, so a row copied onto
  * another id, owner or kind does not open. Everything else is metadata the API shows: never a secret
- * (`account_meta`: plan, organization, scopes, a gateway's base URL and provider).
+ * (`account_meta`: plan, organization, scopes, a gateway's address and its own paths).
  */
 export const credentials = pgTable(
   'credentials',
@@ -116,12 +116,11 @@ const held = (name: string) => uuid(name).references(() => credentials.id, { onD
  * reference the server resolves at run time.
  *
  * A profile's `provider` is fixed when it is made: a Claude profile holds a Claude subscription (for `claude_code`
- * agents), an OpenAI profile an OpenAI subscription (for `codex` agents), and either an optional gateway of its own
- * provider (an `anthropic` gateway for Claude, an `openai` one for OpenAI; since migration `0016_gateway_provider`,
- * which dropped the CHECK that kept gateways on Claude profiles). Its credentials are its owner's, of kinds and a
- * gateway provider that fit (`PROVIDER_KINDS`, `GATEWAY_KINDS`, `gatewayFitsProfile` of `@mwc/shared/credentials`),
- * never revoked ones: the credentials module checks that, since SQL cannot read another row's owner, kind or account
- * details here. Removing a credential empties the profile (it cannot run until its
+ * agents), an OpenAI profile an OpenAI subscription (for `codex` agents), and either an optional gateway, any of its
+ * owner's (gateways are universal since 2026-11-10: one address serves Claude Code and Codex, each at its own path;
+ * migration `0016_gateway_provider` dropped the CHECK that kept gateways on Claude profiles). Its credentials are its
+ * owner's, of kinds that fit (`PROVIDER_KINDS`, `GATEWAY_KINDS` of `@mwc/shared/credentials`), never revoked ones: the
+ * credentials module checks that, since SQL cannot read another row's owner or kind here. Removing a credential empties the profile (it cannot run until its
  * owner chooses another); removing a profile takes it off its agents, chats and defaults (all `on delete set null`).
  *
  * Since migration `0017_profile_model` a profile also says what its runs run: a `model` (one of the catalogue's of its
@@ -145,7 +144,7 @@ export const accessProfiles = pgTable(
      * `openai_api_key` for OpenAI. Null while it has none (made empty, or its subscription removed).
      */
     credentialId: held('credential_id'),
-    /** The profile's optional gateway (of its own provider), which its runs send their AI requests through. */
+    /** The profile's optional gateway (any of its owner's), which its runs send their AI requests through. */
     gatewayCredentialId: held('gateway_credential_id'),
     /** The model its runs use (`claude-opus-5-5`, `gpt-6.1-sol`); null for its provider's default (its harness picks). */
     model: text('model'),

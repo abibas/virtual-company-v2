@@ -34,14 +34,12 @@ function SubscriptionHint({
   );
 }
 
-/** The profile's optional gateway of its provider, with where to add one when the person has none. */
+/** The profile's optional gateway (any of the person's), with where to add one when the person has none. */
 function GatewayField({
-  provider,
   subscriptions,
   value,
   onChange,
 }: {
-  readonly provider: ProfileProvider;
   readonly subscriptions: readonly Subscription[];
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -51,10 +49,10 @@ function GatewayField({
     <SelectField
       label="Gateway"
       value={value}
-      options={gatewayOptions(subscriptions, null, provider)}
+      options={gatewayOptions(subscriptions)}
       onChange={(event) => onChange(event.target.value)}
       hint={
-        hasGateway(subscriptions, provider) ? (
+        hasGateway(subscriptions) ? (
           'Optional: where its runs send their AI requests'
         ) : (
           <>
@@ -150,7 +148,6 @@ function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: Fo
           hint={<SubscriptionHint provider={provider} count={choices.length} />}
         />
         <GatewayField
-          provider={provider}
           subscriptions={subscriptions}
           value={form.gatewayCredentialId}
           onChange={form.setGateway}

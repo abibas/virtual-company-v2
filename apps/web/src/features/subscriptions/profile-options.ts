@@ -1,10 +1,4 @@
-import {
-  fitsGateway,
-  fitsProvider,
-  GATEWAY_KINDS,
-  gatewayFitsProfile,
-  PROVIDER_KINDS,
-} from '@mwc/shared/credentials';
+import { fitsGateway, fitsProvider, GATEWAY_KINDS, PROVIDER_KINDS } from '@mwc/shared/credentials';
 import type { ProfileProvider } from '@mwc/shared/enums';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
 import type { SelectOption } from '../../components/forms/Input.tsx';
@@ -51,23 +45,16 @@ export const subscriptionOptions = (
     none,
   );
 
-/** True when `s` is a gateway of the provider a `provider` profile takes (Claude Code's for Claude, Codex's for OpenAI). */
-const gatewayFor = (provider: ProfileProvider, s: Subscription): boolean =>
-  fitsGateway(s.kind) && gatewayFitsProfile(provider, s.accountMeta);
-
-/** The choices of a `provider` profile's gateway (Claude unless said): None, then the person's gateways of it. */
+/** The choices of any profile's gateway, Claude or OpenAI alike (gateways are universal): None, then every gateway. */
 export const gatewayOptions = (
   subscriptions: readonly Subscription[],
   current: Held = null,
-  provider: ProfileProvider = 'claude',
 ): SelectOption[] =>
-  options(subscriptions, current, { kinds: GATEWAY_KINDS, fits: (s) => gatewayFor(provider, s) }, 'None');
+  options(subscriptions, current, { kinds: GATEWAY_KINDS, fits: (s) => fitsGateway(s.kind) }, 'None');
 
-/** True when the person has a gateway that a `provider` profile (Claude unless said) can take. */
-export const hasGateway = (
-  subscriptions: readonly Subscription[],
-  provider: ProfileProvider = 'claude',
-): boolean => subscriptions.some((s) => gatewayFor(provider, s) && s.status !== 'revoked');
+/** True when the person has a gateway a profile can take (any one not revoked). */
+export const hasGateway = (subscriptions: readonly Subscription[]): boolean =>
+  subscriptions.some((s) => fitsGateway(s.kind) && s.status !== 'revoked');
 
 /** The profiles of one provider, in the order the list has them. */
 export const profilesOf = (profiles: readonly AccessProfile[], provider: ProfileProvider): AccessProfile[] =>

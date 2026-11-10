@@ -1,8 +1,8 @@
 import type { Credential } from '@mwc/db';
-import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE, gatewayProviderOf } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
 import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 import type { KindSecret } from './schemas/secrets.ts';
-import type { AccountMeta, AddSubscription, SubscriptionView } from './schemas.ts';
+import type { AccountMeta, AddSubscription, SubscriptionView, UpdateSubscription } from './schemas.ts';
 
 /**
  * The additional data a credential's secret is sealed with, `credential|<id>|<ownerUserId>|<kind>`: a sealed value
@@ -19,7 +19,11 @@ export function credentialAad(credential: {
 /** A credential as the store takes it: its kind and secret, its name, and its non-secret account details. */
 export type CredentialInput = KindSecret & { readonly label: string; readonly accountMeta: AccountMeta };
 
-/** A pasted subscription split into what is sealed (the secret) and what is shown (a gateway's address and provider). */
+/** A gateway's address and its own paths, as its account details keep them (no paths: every CLI takes its default). */
+const gatewayMeta = (baseUrl: string, paths: UpdateSubscription['paths']): AccountMeta =>
+  paths === undefined || Object.keys(paths).length === 0 ? { baseUrl } : { baseUrl, paths };
+
+/** A pasted subscription split into what is sealed (the secret) and what is shown (a gateway's address and paths). */
 export function pastedCredential(body: AddSubscription): CredentialInput {
   switch (body.kind) {
     case 'claude_setup_token':
@@ -32,7 +36,7 @@ export function pastedCredential(body: AddSubscription): CredentialInput {
         kind: body.kind,
         secret: { headers: body.headers },
         label: body.label,
-        accountMeta: { baseUrl: body.baseUrl, provider: body.provider },
+        accountMeta: gatewayMeta(body.baseUrl, body.paths),
       };
   }
 }
@@ -64,20 +68,28 @@ export function audited(row: {
   };
 }
 
-/** A gateway's account details with its provider said (`anthropic` for one added before gateways had one). */
-const shownMeta = (row: Credential): AccountMeta =>
-  row.kind === 'gateway'
-    ? { ...row.accountMeta, provider: gatewayProviderOf(row.accountMeta) }
-    : row.accountMeta;
+/**
+ * A gateway's account details after a change of its address or paths (given paths replace its own, `{}` clears them);
+ * anything else they hold (an old `provider`, ignored since 2026-11-10) goes.
+ */
+export function updatedGatewayMeta(before: AccountMeta, change: UpdateSubscription): AccountMeta {
+  const baseUrl = change.baseUrl ?? (typeof before.baseUrl === 'string' ? before.baseUrl : '');
+  const kept = before.paths as UpdateSubscription['paths'];
+  return gatewayMeta(baseUrl, change.paths ?? kept);
+}
 
-/** A credential as the API shows it: metadata only (a gateway with its provider), never its secret or sealed columns. */
+/** True when a change names a gateway's address or paths. */
+export const changesGateway = (change: UpdateSubscription): boolean =>
+  change.baseUrl !== undefined || change.paths !== undefined;
+
+/** A credential as the API shows it: metadata only (a gateway's address and paths), never its secret or sealed columns. */
 export function credentialView(row: Credential): SubscriptionView {
   return {
     id: row.id,
     kind: row.kind,
     label: row.label,
     accountEmail: row.accountEmail,
-    accountMeta: shownMeta(row),
+    accountMeta: row.accountMeta,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -86,9 +98,9 @@ export function credentialView(row: Credential): SubscriptionView {
 }
 
 /** A refusal the routes answer in the common error shape. */
-export interface Refusal {
+export interface Refusal<S extends 404 | 422 = 404> {
   readonly ok: false;
-  readonly status: 404;
+  readonly status: S;
   readonly code: string;
   readonly message: string;
 }
@@ -99,6 +111,14 @@ export const CREDENTIAL_NOT_FOUND: Refusal = {
   status: 404,
   code: 'credential_not_found',
   message: 'No such subscription',
+};
+
+/** An address or paths for a subscription that is not a gateway. */
+export const NOT_A_GATEWAY: Refusal<422> = {
+  ok: false,
+  status: 422,
+  code: 'not_a_gateway',
+  message: 'Only a gateway has an address and paths',
 };
 
 /** Why a server-side use did not open a secret: none of this owner's, or one revoked at the provider. */
