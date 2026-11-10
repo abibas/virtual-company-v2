@@ -17,7 +17,7 @@ import { article, basename, clip, plural } from './format.ts';
 /**
  * A tool call in plain words (S5.2): what kind of tool it is, its icon, how it reads while it runs ("Running
  * `pnpm test`") and once done ("Ran `pnpm test`"), and how several of a kind add up ("ran 3 commands"). The names are
- * Claude Code's tools (`Bash`, `Read`, `Edit`, `Agent`…), Codex's (`command`, `file_change`) and MCP tools
+ * Claude Code's tools (`Bash`, `Read`, `Edit`, `Agent`…), Codex's (`command`, `file_change`, `spawn_agent`) and MCP tools
  * (`mcp__server__tool`, `mcp:server/tool`); any other tool is "used". Pure.
  */
 
@@ -56,6 +56,7 @@ const NAMES: Readonly<Record<string, ToolFamily>> = {
   webfetch: 'fetch',
   agent: 'agent',
   task: 'agent',
+  spawn_agent: 'agent',
   todowrite: 'todo',
   skill: 'skill',
 };
@@ -148,17 +149,23 @@ function targetOf(family: ToolFamily, name: string, summary: string): string | u
   return clip(line, 56);
 }
 
+/** A subagent's type as a name: "Explore agent", and Codex's "Codex agent" as it is. */
+export function agentName(agentType: string): string {
+  return /\bagent$/i.test(agentType.trim()) ? agentType : `${agentType} agent`;
+}
+
 /**
  * A call's words while it runs or once done. An agent call names its subagent's type when it is known
- * ("Spawning an Explore agent").
+ * ("Spawning an Explore agent", "Spawned a Codex agent").
  */
 export function toolWords(name: string, summary: string, done: boolean, agentType?: string): ToolWords {
   const family = familyOf(name);
   const words = WORDS[family];
   const verb = done ? words.done : words.running;
   if (family === 'agent') {
-    const type = agentType ?? 'a';
-    return { verb: agentType ? `${verb} ${article(type)} ${type} agent` : `${verb} a subagent` };
+    return {
+      verb: agentType ? `${verb} ${article(agentType)} ${agentName(agentType)}` : `${verb} a subagent`,
+    };
   }
   if (family === 'skill' && summary.trim()) return { verb: `${verb} the skill`, target: clip(summary, 40) };
   if (family === 'edit' && summary.includes(' '))

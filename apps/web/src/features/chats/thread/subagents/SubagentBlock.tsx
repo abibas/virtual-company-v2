@@ -6,7 +6,7 @@ import { Disclosure } from '../activity/Disclosure.tsx';
 import { Markdown } from '../markdown/Markdown.tsx';
 import { between, elapsed, modelLabel, plural, roundedDuration } from '../model/format.ts';
 import type { Part, SubagentState } from '../model/parts.ts';
-import { type ToolWords, toolWords } from '../model/tool-kinds.ts';
+import { agentName, type ToolWords, toolWords } from '../model/tool-kinds.ts';
 import { SubagentMark } from '../status/ActionHistory.tsx';
 import { useNow } from '../status/use-now.ts';
 
@@ -23,13 +23,13 @@ const STATUS_TONE = {
   interrupted: 'text-dim',
 } as const;
 
-/** What it does now: the step its harness reported, else its latest call still running. */
+/** What it does now: the step its harness reported, else its latest call (Codex reports neither while it runs). */
 function latestStep(state: SubagentState, parts: readonly Part[]): ToolWords {
   if (state.event.lastStep) return { verb: state.event.lastStep };
   const calls = parts.flatMap((part) => (part.kind === 'tools' ? part.calls : []));
   const last = calls.at(-1);
   if (last) return toolWords(last.name, last.summary, last.result !== undefined);
-  return { verb: 'Starting…' };
+  return { verb: 'Working…' };
 }
 
 /** Its steps without its last text when that is its answer, which shows below as the Result. */
@@ -101,9 +101,11 @@ function SubagentSummary({
           <CornerDownRight size={11} aria-hidden="true" className="shrink-0 text-faint" />
           <ActionWords words={latestStep(state, parts)} />
         </span>
+      ) : state.steps > 0 ? (
+        <span className="pl-7 text-xs text-faint">{plural(state.steps, 'step', 'steps')}</span>
       ) : (
-        state.steps > 0 && (
-          <span className="pl-7 text-xs text-faint">{plural(state.steps, 'step', 'steps')}</span>
+        state.event.lastStep && (
+          <span className="truncate pl-7 text-xs text-faint">Last step: {state.event.lastStep}</span>
         )
       )}
     </span>
@@ -111,9 +113,19 @@ function SubagentSummary({
 }
 
 /**
+ * Opened with no steps of its own: Codex's subagents never stream theirs (they run in their own threads), so its last
+ * command when it was read, else whether more may come.
+ */
+function NoSteps({ state }: { readonly state: SubagentState }) {
+  const { lastStep, status } = state.event;
+  if (lastStep) return <p className="text-2xs text-faint">Last step: {lastStep}</p>;
+  return <p className="text-2xs text-faint">{status === 'running' ? 'No steps yet.' : 'No steps shown.'}</p>;
+}
+
+/**
  * A subagent's block (S5.2): its type, model and "background" chips, its description, its status with a live timer,
- * its latest step while it runs or "N steps" once folded; opened, its own events indented (`renderParts`, the same
- * renderer as the main reply), then its answer as Markdown.
+ * its latest step while it runs, "N steps" (or its last step, when none are shown) once folded; opened, its own events
+ * indented (`renderParts`, the same renderer as the main reply), then its answer as Markdown.
  */
 export function SubagentBlock({
   state,
@@ -129,7 +141,7 @@ export function SubagentBlock({
   const steps = stepsOf(parts, summary);
   return (
     <section
-      aria-label={`${agentType} agent: ${description}`}
+      aria-label={`${agentName(agentType)}: ${description}`}
       className="rounded-xl bg-surface-2/60 ring-1 ring-line ring-inset"
     >
       <Disclosure
@@ -142,7 +154,7 @@ export function SubagentBlock({
               {renderParts(steps, running)}
             </div>
           ) : (
-            <p className="text-2xs text-faint">No steps yet.</p>
+            <NoSteps state={state} />
           )}
           {summary && (
             <div className="grid min-w-0 gap-1">

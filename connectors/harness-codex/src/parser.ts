@@ -3,6 +3,7 @@ import {
   countOf,
   failedResult,
   isRecord,
+  type JsonRecord,
   type LineParser,
   parseJsonLine,
   stringOf,
@@ -16,6 +17,7 @@ import {
 } from '@mwc/shared/harness';
 import { completedEvents, newItemState, startedEvents, todoEvents } from './items.ts';
 import { type CodexReading, readingEvent } from './reading.ts';
+import { collabEvents, endedSubagents, newCollabState, type ReadChild } from './subagents.ts';
 
 /** Codex's own reading of a thread (its session file, `rollout.ts`); undefined when there is none. */
 export type ReadThread = (threadId: string) => CodexReading | undefined;
@@ -30,11 +32,15 @@ export type ReadThread = (threadId: string) => CodexReading | undefined;
  * gives a `context` marked `estimate`, which a turn with several model calls overstates. Codex has no result event of
  * its own: a clean exit after `turn.completed` ends the turn with the last agent message as the reply. An `error` event
  * is a notice (Codex also reports the retries it recovers from this way); the turn fails only when it did not complete.
- * Anything else, and any line that is not a JSON object, gives nothing.
+ * A `collab_tool_call` item starts or moves a subagent (`subagents.ts`), read from its own session file with
+ * `readChild` once it ends; those still running when the turn ends become `interrupted` before its result. Anything
+ * else, and any line that is not a JSON object, gives nothing.
  */
 export class CodexLineParser implements LineParser {
   readonly #items = newItemState();
+  readonly #collab = newCollabState();
   readonly #readThread: ReadThread | undefined;
+  readonly #readChild: ReadChild | undefined;
   #threadId: string | undefined;
   #estimate: TurnEventOf<'context'> | undefined;
   #completed = false;
@@ -43,8 +49,9 @@ export class CodexLineParser implements LineParser {
   /** The last line that was not JSON: what the turn's failure says when nothing else does. */
   #stray: string | undefined;
 
-  constructor(readThread?: ReadThread) {
+  constructor(readThread?: ReadThread, readChild?: ReadChild) {
     this.#readThread = readThread;
+    this.#readChild = readChild;
   }
 
   feed(line: string): TurnEvent[] {
@@ -61,11 +68,9 @@ export class CodexLineParser implements LineParser {
         return [{ type: 'session', sessionId: id }];
       }
       case 'item.started':
-        return isRecord(event.item) ? startedEvents(event.item, this.#items) : [];
       case 'item.updated':
-        return isRecord(event.item) ? todoEvents(event.item, this.#items) : [];
       case 'item.completed':
-        return isRecord(event.item) ? completedEvents(event.item, this.#items) : [];
+        return isRecord(event.item) ? this.#item(event.type, event.item) : [];
       case 'turn.completed': {
         this.#completed = true;
         const { usage, estimate } = usageOf(event.usage);
@@ -79,7 +84,7 @@ export class CodexLineParser implements LineParser {
           said || this.#lastError || 'Codex reported that the turn failed.',
           RESULT_ERROR_MAX,
         );
-        return [{ type: 'result', ok: false, error }];
+        return [...this.#endSubagents(), { type: 'result', ok: false, error }];
       }
       case 'error': {
         const message = stringOf(event.message)?.trim();
@@ -96,11 +101,25 @@ export class CodexLineParser implements LineParser {
     const context = this.#reading() ?? this.#estimate;
     const events: TurnEvent[] = context === undefined ? [] : [context];
     if (this.#failed) return events;
+    events.push(...this.#endSubagents());
     if (this.#completed && exitCode === 0) {
       const text = this.#items.lastMessage;
       return [...events, { type: 'result', ok: true, ...(text === undefined ? {} : { text }) }];
     }
     return [...events, failedResult('codex', exitCode, [this.#lastError, stderrTail, this.#stray])];
+  }
+
+  /** An item's events: a collab call's subagents, else what `items.ts` makes of it. */
+  #item(type: 'item.started' | 'item.updated' | 'item.completed', item: JsonRecord): TurnEvent[] {
+    if (item.type === 'collab_tool_call') return collabEvents(item, this.#collab, this.#readChild);
+    if (type === 'item.started') return startedEvents(item, this.#items);
+    if (type === 'item.updated') return todoEvents(item, this.#items);
+    return completedEvents(item, this.#items);
+  }
+
+  /** The subagents as the turn ends them. */
+  #endSubagents(): TurnEvent[] {
+    return endedSubagents(this.#collab, this.#readChild);
   }
 
   /** Codex's own reading of the thread, when it can be read; a failure to read is no reading. */

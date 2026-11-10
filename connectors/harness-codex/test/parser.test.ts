@@ -219,3 +219,50 @@ describe("CodexLineParser with Codex's own reading", () => {
     expect(asked).toEqual([]);
   });
 });
+
+describe('CodexLineParser: subagents', () => {
+  const CHILD = '019a6f2f-1a20-7b31-8c4d-2e6f0a9b3c51';
+  const spawn = line({
+    type: 'item.completed',
+    item: {
+      id: 's',
+      type: 'collab_tool_call',
+      tool: 'spawn_agent',
+      sender_thread_id: THREAD,
+      receiver_thread_ids: [CHILD],
+      prompt: 'Sleep a while.',
+      agents_states: { [CHILD]: { status: 'running', message: null } },
+      status: 'completed',
+    },
+  });
+  const child = (status: string, more: object = {}) => ({
+    type: 'subagent',
+    id: CHILD,
+    agentType: 'Codex agent',
+    description: 'Sleep a while.',
+    background: true,
+    status,
+    ...more,
+  });
+
+  it('starts a subagent from a collab call, and interrupts it before turn.failed’s result', () => {
+    const parser = new CodexLineParser();
+    expect(
+      parser.feed(line({ type: 'item.started', item: { type: 'collab_tool_call', status: 'in_progress' } })),
+    ).toEqual([]);
+    expect(parser.feed(spawn)).toEqual([child('running')]);
+    expect(parser.feed(line({ type: 'turn.failed', error: { message: 'stream disconnected' } }))).toEqual([
+      child('interrupted'),
+      { type: 'result', ok: false, error: 'stream disconnected' },
+    ]);
+    expect(parser.end(1, '')).toEqual([]);
+  });
+
+  it('reads the subagent with readChild when the process ends without completing the turn', () => {
+    const parser = new CodexLineParser(undefined, () => ({ model: 'gpt-5.5' }));
+    parser.feed(spawn);
+    const events = parser.end(1, 'killed');
+    expect(events[0]).toEqual(child('interrupted', { model: 'gpt-5.5' }));
+    expect(events[1]).toMatchObject({ type: 'result', ok: false });
+  });
+});

@@ -3,7 +3,9 @@ import { FAKE_CREDENTIALS, fakeTerminalSpec, fakeTurnSpec } from '@mwc/harness-c
 import { describe, expect, it } from 'vitest';
 import { CODEX_ACCOUNT_VARS } from '../src/args.ts';
 import { CodexDriver } from '../src/driver.ts';
+import { CODEX_SCENARIOS } from '../src/fixtures.ts';
 import { CodexLineParser } from '../src/parser.ts';
+import { CHILD_A, childLines, childPath } from './fixtures/children.ts';
 import { FILE_NAME, memoryRollouts, THREAD as ROLLOUT_THREAD, TURN_LINES } from './fixtures/rollout.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
@@ -253,5 +255,22 @@ describe('CodexDriver', () => {
       parser.feed(started);
       expect(parser.end(null, '')[0]).toMatchObject({ type: 'result', ok: false });
     }
+  });
+
+  it("gives a parser that reads each subagent's own file in the turn's home folder once it ends", () => {
+    const home = '/state/codex/abc';
+    const { fs } = memoryRollouts({
+      [childPath(home, CHILD_A)]: childLines(CHILD_A, 'gpt-5.5', 'worker').join('\n'),
+    });
+    const parser = new CodexDriver({ rollouts: fs }).parser({ privateDir: home });
+    const scenario = CODEX_SCENARIOS.subagents;
+    const events = scenario.lines.flatMap((line) => parser.feed(line));
+    expect(events.find((event) => event.type === 'subagent' && event.status === 'done')).toMatchObject({
+      id: CHILD_A,
+      agentType: 'Codex worker',
+      model: 'gpt-5.5',
+      lastStep: 'Ran python3 wait.py',
+      summary: 'Slept 41 seconds.',
+    });
   });
 });

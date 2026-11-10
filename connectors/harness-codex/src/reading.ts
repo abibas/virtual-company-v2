@@ -64,7 +64,8 @@ export function scanReading(lines: readonly string[]): ReadingScan {
   return { reading: found, whole: false };
 }
 
-const modelOf = (value: unknown): string | undefined => {
+/** A model id as an event may name it; undefined when it is empty or too long. */
+export const modelOf = (value: unknown): string | undefined => {
   const model = stringOf(value)?.trim();
   return model && model.length <= EVENT_MODEL_MAX ? model : undefined;
 };

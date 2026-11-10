@@ -9,6 +9,7 @@ import {
 } from '@mwc/harness-core';
 import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
 import { CODEX_COMMAND, CODEX_HOME_ENV, codexAccount, terminalArgs, turnArgs, unsetFor } from './args.ts';
+import { readChild } from './children.ts';
 import { gatewayEnv } from './gateway.ts';
 import { CodexLineParser } from './parser.ts';
 import { type RolloutFs, readRollout } from './rollout.ts';
@@ -16,7 +17,10 @@ import { type RolloutFs, readRollout } from './rollout.ts';
 export interface CodexDriverOptions {
   /** The `codex` program's full path, when the runner found it; `codex` on PATH otherwise. */
   readonly command?: string;
-  /** The file calls that read Codex's session file when a turn ends (`rollout.ts`); without them, the estimate only. */
+  /**
+   * The file calls that read Codex's session files (`rollout.ts`): the thread's when a turn ends, each subagent's when it
+   * ends (`children.ts`); without them, the estimate only and subagents without their model.
+   */
   readonly rollouts?: RolloutFs;
 }
 
@@ -28,7 +32,8 @@ export interface CodexDriverOptions {
  * runner's tools a turn also gets its MCP server as config overrides, and the server's variables in its environment.
  * The access profile's gateway is a custom model provider in config overrides, its headers' values in the environment
  * (`gateway.ts`); without one, Codex's built-in OpenAI provider. With `rollouts`, a turn's parser reads the thread's
- * session file in that home folder when the turn ends, for Codex's own context reading.
+ * session file in that home folder when the turn ends, for Codex's own context reading, and each subagent's own file
+ * once it ends, for its model, role and last command.
  */
 export class CodexDriver implements HarnessDriver {
   readonly harness = 'codex' as const;
@@ -55,8 +60,10 @@ export class CodexDriver implements HarnessDriver {
   parser(context: ParserContext = {}): LineParser {
     const fs = this.#rollouts;
     const home = context.privateDir;
+    if (fs === undefined || home === undefined) return new CodexLineParser();
     return new CodexLineParser(
-      fs === undefined || home === undefined ? undefined : (thread) => readRollout(fs, home, thread),
+      (thread) => readRollout(fs, home, thread),
+      (thread) => readChild(fs, home, thread),
     );
   }
 

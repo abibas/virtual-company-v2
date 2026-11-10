@@ -16,6 +16,7 @@ export {
   turnArgs,
   unsetFor,
 } from './args.ts';
+export { type CodexChild, readChild, scanChild } from './children.ts';
 export { configArg, configFlagArg, configListArg, configTableArg } from './config.ts';
 export { CodexDriver, type CodexDriverOptions } from './driver.ts';
 export {
@@ -32,6 +33,7 @@ export {
   CODEX_BASELINE_TOKENS,
   type CodexReading,
   type CodexUsage,
+  modelOf,
   rateLimitsOf,
   readingEvent,
   scanReading,
@@ -44,3 +46,11 @@ export {
   readRollout,
   SESSIONS_DIR,
 } from './rollout.ts';
+export {
+  CODEX_AGENT_TYPE,
+  type CollabState,
+  collabEvents,
+  endedSubagents,
+  newCollabState,
+  type ReadChild,
+} from './subagents.ts';

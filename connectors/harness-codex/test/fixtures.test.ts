@@ -1,7 +1,7 @@
 import type { FakeScenario } from '@mwc/harness-core/fake';
 import { TurnEvent } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { CODEX_SCENARIOS, CODEX_THREAD_ID } from '../src/fixtures.ts';
+import { CODEX_CHILD_THREAD_IDS, CODEX_SCENARIOS, CODEX_THREAD_ID } from '../src/fixtures.ts';
 import { CodexLineParser } from '../src/parser.ts';
 
 /** Plays a scenario through a parser as the runner will: every line, then the end. */
@@ -121,6 +121,33 @@ describe('the Codex fixtures', () => {
       { type: 'usage', inputTokens: 30412, outputTokens: 512, cachedInputTokens: 28800 },
       estimate(30412, 28800, 512),
       { type: 'result', ok: true, text: 'The parser reads reasoning items now.' },
+    ]);
+  });
+
+  it('subagents: three spawned in the background, two end with their answers, the third is interrupted at the end', () => {
+    const [a, b, c] = CODEX_CHILD_THREAD_IDS;
+    const child = (id: string, more: object = {}) => ({
+      type: 'subagent',
+      id,
+      agentType: 'Codex agent',
+      description: 'Run python3 wait.py, which sleeps 30 to 60 seconds, then say how long it slept.',
+      background: true,
+      status: 'running',
+      ...more,
+    });
+    expect(play(CODEX_SCENARIOS.subagents)).toEqual([
+      session,
+      { type: 'text', text: "I'll spawn three sub-agents." },
+      child(a),
+      child(b),
+      child(c),
+      child(a, { status: 'done', summary: 'Slept 41 seconds.' }),
+      child(b, { status: 'done', summary: 'Slept 33 seconds.' }),
+      { type: 'text', text: 'Two slept 41 s and 33 s; the third is still sleeping.' },
+      { type: 'usage', inputTokens: 36120, outputTokens: 402, cachedInputTokens: 30208 },
+      estimate(36120, 30208, 402),
+      child(c, { status: 'interrupted' }),
+      { type: 'result', ok: true, text: 'Two slept 41 s and 33 s; the third is still sleeping.' },
     ]);
   });
 });

@@ -54,6 +54,41 @@ const todoList = (type: string, done: number) => ({
   },
 });
 
+/** The subagents a turn spawns: Codex's own threads, each with its session file. */
+export const CODEX_CHILD_THREAD_IDS = [
+  '019a6f2f-1a20-7b31-8c4d-2e6f0a9b3c51',
+  '019a6f2f-1a24-7e02-9d1a-6b3c8f2e4d72',
+  '019a6f2f-1a29-7f43-a5b6-0c7d1e9f8a93',
+] as const;
+
+const WAIT_PROMPT =
+  'Run python3 wait.py, which sleeps 30 to 60 seconds, then say how long it slept.\nUse no other tool.';
+
+/** A `collab_tool_call` item as Codex writes it (`exec_events.rs`): a spawn names its thread once it completes. */
+function collab(id: string, tool: string, status: string, receivers: readonly string[], states: object) {
+  const prompt = tool === 'spawn_agent' ? WAIT_PROMPT : null;
+  return {
+    id,
+    type: 'collab_tool_call',
+    tool,
+    sender_thread_id: CODEX_THREAD_ID,
+    receiver_thread_ids: receivers,
+    prompt,
+    agents_states: states,
+    status,
+  };
+}
+
+const state = (status: string, message: string | null = null) => ({ status, message });
+
+/** Spawning one subagent: the call starts with no thread, and completes naming it, still starting. */
+const spawn = (id: string, child: string) => [
+  { type: 'item.started', item: collab(id, 'spawn_agent', 'in_progress', [], {}) },
+  completed(collab(id, 'spawn_agent', 'completed', [child], { [child]: state('pending_init') })),
+];
+
+const [CHILD_A, CHILD_B, CHILD_C] = CODEX_CHILD_THREAD_IDS;
+
 const LS = "/bin/zsh -lc 'ls src'";
 const RM = "/bin/zsh -lc 'rm -rf build'";
 const TOUCH = "/bin/zsh -lc 'touch /etc/hosts'";
@@ -65,7 +100,8 @@ const AUTH_ERROR =
 
 /**
  * The turns: an answer, a tool call, a refused command, an error, a resume of the first, one that plans with its
- * to-do list, and one of several model calls (two commands: three requests whose input `turn.completed` sums).
+ * to-do list, one that spawns three subagents and waits (two finish, the third still runs when the turn ends), and one
+ * of several model calls (two commands: three requests whose input `turn.completed` sums).
  */
 export const CODEX_SCENARIOS = {
   answer: {
@@ -134,6 +170,27 @@ export const CODEX_SCENARIOS = {
       message('item_3', 'The parser reads reasoning items now.'),
       todoList('item.completed', 2),
       usage(30412, 28800, 512, 220),
+    ),
+    exitCode: 0,
+  },
+  subagents: {
+    lines: lines(
+      started,
+      turnStarted,
+      message('item_0', "I'll spawn three sub-agents."),
+      ...spawn('item_1', CHILD_A),
+      ...spawn('item_2', CHILD_B),
+      ...spawn('item_3', CHILD_C),
+      { type: 'item.started', item: collab('item_4', 'wait', 'in_progress', CODEX_CHILD_THREAD_IDS, {}) },
+      completed(
+        collab('item_4', 'wait', 'completed', CODEX_CHILD_THREAD_IDS, {
+          [CHILD_A]: state('completed', 'Slept 41 seconds.'),
+          [CHILD_B]: state('completed', 'Slept 33 seconds.'),
+          [CHILD_C]: state('running'),
+        }),
+      ),
+      message('item_5', 'Two slept 41 s and 33 s; the third is still sleeping.'),
+      usage(36120, 30208, 402, 120),
     ),
     exitCode: 0,
   },
