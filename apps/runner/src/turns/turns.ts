@@ -9,6 +9,7 @@ import type {
 import type { Log } from '../system/log.ts';
 import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Timers } from '../system/time.ts';
+import { ArtifactCollector, type ArtifactFs } from './artifacts/collect.ts';
 import { type AskBridge, type AskHost, turnTools } from './ask/bridge.ts';
 import { type Env, processEnv } from './env.ts';
 import { type PrivateDirs, type PrivateLease, withPrivateDir } from './private-dir.ts';
@@ -23,7 +24,8 @@ import { type StopReason, type TurnLaunch, TurnProcess } from './turn.ts';
  * `spawn_failed: …`, `runner_stopping`. A repeated start of a live turn and a stop of an unknown one are ignored. Live
  * turns count for the runner's own hold; they all end when the link drops (nothing can reach them then) and when the
  * runner stops (`runner_stopping`, before the link closes). A runner that offers its tools opens each turn's question
- * socket first and hands the driver its MCP server (a turn whose socket cannot open runs without it, logged).
+ * socket first and hands the driver its MCP server (a turn whose socket cannot open runs without it, logged). A task
+ * step's turn (S5.3b) gets its outputs folder made and noted before its process starts (`artifacts/collect.ts`).
  */
 
 /** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
@@ -40,6 +42,8 @@ export interface HarnessHost {
   isDirectory(path: string): boolean;
   /** The runner's tools (its MCP server and each turn's question socket); left out, turns run without them. */
   readonly ask?: AskHost;
+  /** A task step's outputs folder (S5.3b); left out, a turn's `artifacts` is passed over and nothing is collected. */
+  readonly artifacts?: ArtifactFs;
   /**
    * Looks for a harness that has no driver again (no process unless its CLI is found now, then its `--version`); true
    * once it has one. Left out: a missing harness stays missing.
@@ -195,8 +199,16 @@ export class Turns {
     const env = processEnv(host.env, process, extra);
     const inputLine = process.stdinOpen ? driver.inputLine?.bind(driver) : undefined;
     const parser = driver.parser(lease === undefined ? {} : { privateDir: lease.path });
-    const launch = { process, cwd: spec.cwd, env, parser, lease, bridge, inputLine };
+    const artifacts = this.#openArtifacts(host, frame);
+    const launch = { process, cwd: spec.cwd, env, parser, lease, bridge, inputLine, artifacts };
     return { launch, processes };
+  }
+
+  /** A task step's outputs folder, made and noted before the process; none without one (or when it cannot be used). */
+  #openArtifacts(host: HarnessHost, frame: TurnStart): ArtifactCollector | undefined {
+    const dir = frame.spec.artifacts?.dir;
+    if (dir === undefined || host.artifacts === undefined) return undefined;
+    return ArtifactCollector.open(host.artifacts, frame.spec.cwd, dir, this.#deps.log);
   }
 
   /** The turn's question socket, when the runner offers its tools; a turn whose socket cannot open runs without it. */

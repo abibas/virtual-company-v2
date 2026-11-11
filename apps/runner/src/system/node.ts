@@ -7,6 +7,7 @@ import { WebSocket } from 'ws';
 import { nodeFoldersFs } from '../folders/files.ts';
 import { detectPowerExecutor } from '../power/detect.ts';
 import { loadPty } from '../terminal/loader.ts';
+import { nodeArtifactFs } from '../turns/artifacts/fs.ts';
 import { nodePrivateFs } from '../turns/files.ts';
 import type { MainDeps } from './deps.ts';
 import { SYSTEM_CLOCK, SYSTEM_TIMERS } from './time.ts';
@@ -38,6 +39,7 @@ export function nodeDeps(): MainDeps {
     },
     privateFs: nodePrivateFs(),
     foldersFs: nodeFoldersFs(),
+    artifactsFs: nodeArtifactFs(),
     spawn,
     killGroup: (pid, signal) => {
       try {

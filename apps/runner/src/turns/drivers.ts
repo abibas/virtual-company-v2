@@ -5,6 +5,7 @@ import type { HarnessDriver } from '@mwc/harness-core';
 import type { Harness } from '@mwc/shared/enums';
 import type { HarnessVersions } from '@mwc/shared/runner-protocol';
 import type { Log } from '../system/log.ts';
+import type { ArtifactFs } from './artifacts/collect.ts';
 import { askHost } from './ask/bridge.ts';
 import type { Env } from './env.ts';
 import { PrivateDirs, type PrivateFs } from './private-dir.ts';
@@ -74,6 +75,8 @@ export function harnessHost(
     readonly stateDir: string;
     readonly find?: FindHarness | undefined;
     readonly tools?: ToolServer | undefined;
+    /** A task step's outputs folders (S5.3b). */
+    readonly artifacts?: ArtifactFs | undefined;
   },
   log: Log,
 ): HarnessHost {
@@ -99,6 +102,7 @@ export function harnessHost(
     env: machine.env,
     dirs: new PrivateDirs({ fs: machine.fs, stateDir: machine.stateDir }),
     isDirectory: (path) => machine.fs.isDirectory(path),
+    ...(machine.artifacts === undefined ? {} : { artifacts: machine.artifacts }),
     ...(machine.tools === undefined
       ? {}
       : { ask: askHost({ ...machine.tools, root: turnsRoot(machine.stateDir), log }) }),

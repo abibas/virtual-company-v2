@@ -10,6 +10,7 @@ import {
 import type { Log } from '../system/log.ts';
 import type { ChildLike, KillGroup, Spawn } from '../system/process.ts';
 import { every, type Timers } from '../system/time.ts';
+import { type ArtifactCollector, artifactFrames } from './artifacts/collect.ts';
 import type { AskBridge } from './ask/bridge.ts';
 import { ASK_REPLY, type AskReply } from './ask/tool.ts';
 import { EventBatcher } from './batch.ts';
@@ -25,6 +26,7 @@ import { type PrivateLease, releaseLogin } from './private-dir.ts';
  * then `turn.end` once. `stop` walks the ladder: SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT.
  * With the runner's tools, a question the agent asks through its bridge goes out as `turn.question`, numbered among the
  * events (those before it sent first), and the agent is told to end its turn; the bridge closes when the process ends.
+ * A task step's outputs (S5.3b) go out after its last events and before its `turn.end`.
  */
 
 /** Why the runner ended a turn: a person stopped it, the runner stops, or the link dropped (nothing gets through). */
@@ -52,6 +54,8 @@ export interface TurnLaunch {
   readonly bridge?: AskBridge | undefined;
   /** The driver's line for a message mid-turn, when the process keeps stdin open (`ProcessSpec.stdinOpen`). */
   readonly inputLine?: ((text: string, id: string) => string) | undefined;
+  /** A task step's outputs folder (S5.3b), collected when the process ends, before `turn.end`. */
+  readonly artifacts?: ArtifactCollector | undefined;
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -197,6 +201,7 @@ export class TurnProcess {
     (this.#input as TurnInput).close();
     this.#events(this.#launch.parser.end(code, failure ?? this.#stderr.text()));
     this.#batcher.flush();
+    this.#sendArtifacts();
     const end = this.#end(code, failure);
     this.#deps.send(end);
     const { ok, exitCode, error } = end;
@@ -209,6 +214,27 @@ export class TurnProcess {
     });
     this.#resolve();
     this.#deps.ended(this.turnId);
+  }
+
+  /** A task step's outputs: the files new or changed in its folder, then what was left out (logged, never thrown). */
+  #sendArtifacts(): void {
+    const collector = this.#launch.artifacts;
+    if (collector === undefined) return;
+    try {
+      const collected = collector.collect();
+      for (const frame of artifactFrames(this.turnId, collected)) this.#deps.send(frame);
+      const { files, skipped } = collected;
+      this.#deps.log.info('turn outputs collected', {
+        turnId: this.turnId,
+        files: files.length,
+        skipped: skipped.length,
+      });
+    } catch (error) {
+      this.#deps.log.warn('turn outputs could not be collected', {
+        turnId: this.turnId,
+        error: messageOf(error),
+      });
+    }
   }
 
   #end(code: number | null, failure: string | undefined): TurnEnd {

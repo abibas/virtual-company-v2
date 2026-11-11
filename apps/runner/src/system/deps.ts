@@ -6,6 +6,7 @@ import type { MemoryDeps } from '../stats/memory.ts';
 import type { DiskStats, SamplerOs } from '../stats/sampler.ts';
 import type { PtyLoad } from '../terminal/loader.ts';
 import type { ToolsHost } from '../tools/host.ts';
+import type { ArtifactFs } from '../turns/artifacts/collect.ts';
 import type { FindHarness, HarnessClis, ToolServer } from '../turns/drivers.ts';
 import type { PrivateFs } from '../turns/private-dir.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
@@ -35,6 +36,8 @@ export interface MainDeps {
   readonly privateFs: PrivateFs;
   /** The folder browser's reads and its one write, a new folder (`fs.list`, `fs.mkdir`). */
   readonly foldersFs: FoldersFs;
+  /** A task step's outputs folders (S5.3b): made before the turn, collected after it; left out, nothing is collected. */
+  readonly artifactsFs?: ArtifactFs;
   readonly spawn: Spawn;
   /** Signals a detached child's process group (a power controller's tunnels). */
   readonly killGroup: KillGroup;

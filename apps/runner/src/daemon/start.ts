@@ -124,6 +124,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
         stateDir: setup.stateDir,
         find: deps.findHarness,
         tools: deps.toolServer,
+        artifacts: deps.artifactsFs,
       },
       log,
     ),
