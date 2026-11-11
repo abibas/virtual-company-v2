@@ -58,6 +58,21 @@ describe('apiGet', () => {
     expect(await apiCall(fetch, SERVER, KEY, '/api/t', isNamed)).toMatchObject({ ok: false, status: 201 });
   });
 
+  it('sends a JSON body when given one', async () => {
+    const calls: string[] = [];
+    const fetch: Fetch = async (url, init) => {
+      const type = new Headers(init.headers).get('content-type');
+      calls.push(`${init.method} ${url} ${type} ${init.body}`);
+      return Response.json({ name: 'made' }, { status: 201 });
+    };
+    const options = { method: 'POST', status: 201, body: { title: 'x' } } as const;
+    expect(await apiCall(fetch, SERVER, KEY, '/api/t', isNamed, options)).toEqual({
+      ok: true,
+      body: { name: 'made' },
+    });
+    expect(calls).toEqual([`POST ${SERVER}/api/t application/json {"title":"x"}`]);
+  });
+
   it('tells objects from everything else', () => {
     expect([{}, [], null, 'x', 1].map(isObject)).toEqual([true, true, false, false, false]);
   });

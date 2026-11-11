@@ -141,11 +141,15 @@ describe('main', () => {
       ['org', 'tree'],
       ['agents', 'list'],
       ['machine', 'enroll-token'],
+      ['task', 'list'],
     ]) {
       const c = capture({ env: config.env });
       expect(await main(argv, c.io, { account })).toBe(1);
       expect(c.err()).toMatch(new RegExp(`^mwc ${argv.join(' ')}: not logged in`));
     }
+    const flow = capture({ env: config.env });
+    expect(await main(['flow', 'show', 'slop-box'], flow.io, { account })).toBe(1);
+    expect(flow.err()).toMatch(/^mwc flow show: not logged in/);
     const org = capture({ env: config.env });
     expect(await main(['org'], org.io)).toBe(2);
     expect(org.err()).toMatch(/^mwc org: expected "tree"/);
@@ -164,6 +168,8 @@ describe('main', () => {
       '  org tree [--company SLUG] [--json]',
       '  agents list [--company SLUG] [--status active|paused|archived|all] [--json]',
       '  machine enroll-token [--company SLUG] [--server URL]',
+      '  task create --flow LEAD --title T [--step S] [--description D] [--priority P]',
+      '  flow show LEAD [--json]',
     ]) {
       expect(c.out()).toContain(command);
     }

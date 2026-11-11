@@ -24,6 +24,8 @@
  *                                    the company's org chart as an indented tree (org/commands.ts)
  *   mwc agents list [--company SLUG] [--status S|all] [--json] [--server URL]
  *                                    the company's agents as a table, with whom each reports to (org/commands.ts)
+ *   mwc task create|list|show|move …, mwc flow show <lead>
+ *                                    a team's tasks moved by hand, and its flow's written form (tasks/commands.ts)
  *   mwc machine enroll-token [--company SLUG] [--server URL]
  *                                    a one-time enrollment token and the commands that install a runner with it
  *                                    on This Mac, the Airia devbox and a container (machines/commands.ts)
@@ -44,6 +46,7 @@ import { machineCommand } from './machines/commands.ts';
 import { agentsCommand, orgCommand } from './org/commands.ts';
 import { outboxCommand } from './outbox.ts';
 import { structureReport } from './structure/report.ts';
+import { flowCommand, taskCommand } from './tasks/commands.ts';
 
 /** A `--slot` value: a whole number in 0..SLOT_COUNT-1, or undefined when it is not one. */
 function parseSlot(value: string): number | undefined {
@@ -127,6 +130,12 @@ const HELP = [
   "                                 profile's model and effort and whom each reports to; both use the saved",
   "                                 login (--server URL picks one) and the key's own company unless --company",
   '                                 names another',
+  '  task create --flow LEAD --title T [--step S] [--description D] [--priority P]',
+  '  task list [--flow LEAD] [--state S]  |  task show KEY  |  task move KEY ACTION [--to STEP] [--reason R]',
+  "                                 a team's tasks (S5.3a): make one (queued, or into a step), list, read with",
+  '                                 its history, move it (start, hand_on, pass, approve, send_back, route, retry,',
+  '                                 cancel); a flow by its Lead (slug, id or name) or its own name',
+  "  flow show LEAD [--json]        a team's flow as the written table of docs/processes.md",
   '  machine enroll-token [--company SLUG] [--server URL]',
   '                                 a one-time token that enrolls one machine (admins and owners), with the',
   '                                 command that installs a runner with it on This Mac, the Airia devbox and',
@@ -145,7 +154,7 @@ export interface MainDeps {
   /** The coverage summary `mwc structure --report` reads; the last run's in .cache/coverage by default. */
   coverage?(): string | undefined;
   /**
-   * What the commands that call the API reach (login, whoami, org, agents, machine): fetch and standard input; the
+   * What the commands that call the API reach (login, whoami, org, agents, machine, task, flow): fetch and standard input; the
    * process's own by default.
    */
   account?: AccountDeps;
@@ -188,6 +197,10 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
       return agentsCommand(args, io, deps.account ?? systemAccount());
     case 'machine':
       return machineCommand(args, io, deps.account ?? systemAccount());
+    case 'task':
+      return taskCommand(args, io, deps.account ?? systemAccount());
+    case 'flow':
+      return flowCommand(args, io, deps.account ?? systemAccount());
     case undefined:
     case 'help':
       io.stdout(HELP);

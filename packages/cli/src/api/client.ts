@@ -1,6 +1,6 @@
 /**
- * The mwc API as the CLI and `@mwc/mcp` call it: a GET (or a POST without a body) with a personal API key as the
- * bearer, through an injected fetch, answering the body (when the caller's guard accepts it) or the server's refusal,
+ * The mwc API as the CLI and `@mwc/mcp` call it: a GET or a POST (with a JSON body or none) with a personal API key as
+ * the bearer, through an injected fetch, answering the body (when the caller's guard accepts it) or the server's refusal,
  * `{ error: { code, message } }`. Exported as `@mwc/cli/api/client`.
  */
 
@@ -36,16 +36,18 @@ async function failure(res: Response): Promise<ApiFailure> {
   };
 }
 
-/** A call's method and the status its body comes with. */
+/** A call's method, the status its body comes with, and what it sends. */
 export interface CallOptions {
   readonly method?: 'GET' | 'POST';
   /** 200 for a GET, 201 for a POST that makes something. */
   readonly status?: number;
+  /** Sent as JSON (`content-type: application/json`); none by default. */
+  readonly body?: unknown;
 }
 
 /**
- * `<method> <server><path>` (no body) with the key as the bearer; the body when it comes with `options.status` (200 by
- * default) and `accept` takes it.
+ * `<method> <server><path>` (with `options.body` as JSON, or none) with the key as the bearer; the body when it comes
+ * with `options.status` (200 by default) and `accept` takes it.
  */
 export async function apiCall<T>(
   fetch: Fetch,
@@ -57,9 +59,11 @@ export async function apiCall<T>(
 ): Promise<ApiResult<T>> {
   let res: Response;
   try {
+    const json = options.body === undefined ? {} : { 'content-type': 'application/json' };
     res = await fetch(`${server}${path}`, {
       method: options.method ?? 'GET',
-      headers: { authorization: `Bearer ${key}`, accept: 'application/json' },
+      headers: { authorization: `Bearer ${key}`, accept: 'application/json', ...json },
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
   } catch (error) {
