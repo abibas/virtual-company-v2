@@ -15,16 +15,36 @@ export interface RunsOn {
   readonly effort?: string | undefined;
 }
 
-/** The pill: a spinner, "Working" with a soft shimmer, the live time, and the model and effort. */
-function WorkingPill({ since, runsOn }: { readonly since: string; readonly runsOn: RunsOn | undefined }) {
+/**
+ * The pill: a spinner, "Working" with a soft shimmer (or "Reconnecting…" while the turn's runner is away and the turn
+ * waits for it, S5.4), the live time, and the model and effort.
+ */
+function WorkingPill({
+  since,
+  runsOn,
+  detached,
+}: {
+  readonly since: string;
+  readonly runsOn: RunsOn | undefined;
+  readonly detached: boolean;
+}) {
   const now = useNow(true);
   const meta = [runsOn?.model ? modelLabel(runsOn.model) : undefined, runsOn?.effort]
     .filter(Boolean)
     .join(' · ');
   return (
     <div className="inline-flex h-7 w-fit max-w-full items-center gap-2 rounded-full bg-surface-2 px-3 text-xs ring-1 ring-line ring-inset">
-      <Spinner size={12} className="text-blue" />
-      <span className="text-shimmer font-semibold motion-safe:animate-shimmer">Working</span>
+      <Spinner size={12} className={detached ? 'text-pending' : 'text-blue'} />
+      {detached ? (
+        <span
+          className="font-semibold text-pending"
+          title="The agent's machine lost its link; the turn goes on there and shows again when it is back"
+        >
+          Reconnecting…
+        </span>
+      ) : (
+        <span className="text-shimmer font-semibold motion-safe:animate-shimmer">Working</span>
+      )}
       <span aria-hidden="true" className="tabular text-dim">
         · {elapsed(now - new Date(since).getTime())}
       </span>
@@ -72,7 +92,11 @@ export function WorkingStatus({
   const line = currentAction(model.current);
   return (
     <div className="grid justify-items-start gap-1.5">
-      <WorkingPill since={turn.startedAt ?? turn.createdAt} runsOn={runsOn} />
+      <WorkingPill
+        since={turn.startedAt ?? turn.createdAt}
+        runsOn={runsOn}
+        detached={turn.detached === true}
+      />
       <CurrentActionRow model={model} />
       <p aria-live="polite" className="sr-only">
         {line.by ? `${line.by}: ` : ''}

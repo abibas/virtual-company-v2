@@ -61,14 +61,15 @@ export interface TurnLaunch {
 
 /** A turn's events, stdin and output, wired: the output's offset numbers the events, the input filters its echoes. */
 export function wireTurn(turnId: string, parts: TurnParts, deps: TurnDeps, stdin: TurnStdin) {
-  let output: TurnOutput | undefined;
+  const read: { output?: TurnOutput } = {};
   const events = new TurnEvents({
     turnId,
     folder: parts.folder,
     timers: deps.timers,
     log: deps.log,
     send: (frame) => deps.send(frame),
-    offset: () => output?.offset ?? 0,
+    // Asked only once the output reads lines, after it is made.
+    offset: () => (read.output as TurnOutput).offset,
   });
   const input = new TurnInput({
     turnId,
@@ -81,6 +82,7 @@ export function wireTurn(turnId: string, parts: TurnParts, deps: TurnDeps, stdin
     record: (record) => parts.folder.appendInput(record),
   });
   const journal = new JournalReader(parts.folder.path('out'), deps.readAt);
-  output = new TurnOutput({ journal, parser: parts.parser, input, events });
+  const output = new TurnOutput({ journal, parser: parts.parser, input, events });
+  read.output = output;
   return { events, input, output };
 }

@@ -7,6 +7,7 @@ import {
   answerRequest,
   NOT_READY,
   openAskBridge,
+  reopenAskBridge,
   SOCKET_PATH_MAX,
   sameToken,
   tokenDigest,
@@ -107,6 +108,28 @@ describe("a turn's question socket", () => {
       env: { MWC_ASK_SOCKET: bridge.socketPath, MWC_ASK_TOKEN: bridge.token },
     });
     bridge.close();
+  });
+});
+
+describe('a turn’s bridge taken back after a restart (S5.4)', () => {
+  it('lets go of its socket and keeps its folder, then listens again there for the same token', async () => {
+    const bridge = openAskBridge(askRoot(), memoryLog().log);
+    bridge.write({ name: 'mcp.json', contents: '{}', mode: 0o600 });
+    bridge.release();
+    bridge.release();
+    expect(existsSync(join(bridge.dir, 'mcp.json'))).toBe(true);
+    const again = reopenAskBridge(bridge.dir, bridge.tokenSha256, memoryLog().log);
+    expect(again.token).toBe('');
+    again.bind(() => ({ ok: true, text: 'asked again' }));
+    expect(await askRunner(again.socketPath, bridge.token, [QUESTION])).toEqual({
+      ok: true,
+      text: 'asked again',
+    });
+    expect((await askRunner(again.socketPath, 'wrong', [QUESTION])).ok).toBe(false);
+    again.close();
+    again.close();
+    expect(existsSync(bridge.dir)).toBe(false);
+    expect(tokenDigest('tok')).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 

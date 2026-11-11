@@ -123,6 +123,29 @@ describe('the private folders', () => {
   });
 });
 
+describe('a private folder taken back after a restart (S5.4)', () => {
+  it('records its files by name and hash, and is adopted from them: a rewritten login still goes back, the files go last', () => {
+    const { dirs, stateDir } = world();
+    const lease = dirs.acquire(dirOf(null), 'codex', '/home/agent');
+    const record = lease.record();
+    const hash = createHash('sha256').update(LOGIN).digest('hex');
+    expect(record).toEqual({ files: [{ name: 'auth.json', sha256: hash }], aside: [] });
+    // The next runner: the folder's files as they are, its memory empty.
+    const next = new PrivateDirs({ fs: nodePrivateFs(), stateDir });
+    const adopted = next.adopt(lease.path, record.files, record.aside);
+    const also = next.adopt(lease.path, record.files, ['old.json']);
+    writeFileSync(join(lease.path, asideName('old.json')), 'theirs');
+    expect(next.inUse).toEqual([lease.path]);
+    writeFileSync(join(lease.path, 'auth.json'), '{"tokens":{"access_token":"b"}}');
+    expect(adopted.release()).toEqual({ 'auth.json': '{"tokens":{"access_token":"b"}}' });
+    expect(existsSync(join(lease.path, 'auth.json'))).toBe(true);
+    expect(also.record().aside).toEqual(['old.json']);
+    expect(also.release()).toEqual({});
+    expect(existsSync(join(lease.path, 'auth.json'))).toBe(false);
+    expect(readFileSync(join(lease.path, 'old.json'), 'utf8')).toBe('theirs');
+  });
+});
+
 describe('withPrivateDir', () => {
   const SETTINGS = { name: 'settings-0a1b.json', contents: '{"env":{}}', mode: 0o600, option: '--settings' };
   const spec = (privateDir?: PrivateDir): ProcessSpec => ({

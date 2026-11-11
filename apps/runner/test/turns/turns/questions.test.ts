@@ -185,6 +185,7 @@ describe("a chat turn's questions", () => {
             if (fail === 'write') throw new Error('read-only file system');
           },
           close: () => void closed.push(dir),
+          release: () => undefined,
         };
       },
     });

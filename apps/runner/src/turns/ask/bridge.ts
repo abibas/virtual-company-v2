@@ -41,6 +41,8 @@ export interface AskBridge {
   write(file: PrivateFile): void;
   /** Stops listening and removes the folder with its socket and files; once. */
   close(): void;
+  /** Stops listening and keeps the folder (the runner lets go of a turn that runs on; a later runner reopens it). */
+  release(): void;
 }
 
 /** What a runner that offers its tools has: how a harness starts its MCP server, and each turn's bridge. */
@@ -151,10 +153,13 @@ function listenBridge(dir: string, token: string, tokenSha256: string, log: Log)
       chmodSync(path, file.mode);
     },
     close: () => {
-      if (closed) return;
+      if (!closed) server.close();
       closed = true;
-      server.close();
       rmSync(dir, { recursive: true, force: true });
+    },
+    release: () => {
+      if (!closed) server.close();
+      closed = true;
     },
   };
 }

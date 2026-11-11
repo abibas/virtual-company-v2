@@ -55,6 +55,37 @@ export function renderUnit(spec: ServiceSpec): string {
 /** A command: the program and its arguments. */
 export type Command = readonly [file: string, args: readonly string[]];
 
+/** The kill mode units before S5.4 had: on a restart it killed every process the runner left, its turns' keepers too. */
+export const OLD_KILL_MODE = 'KillMode=mixed';
+
+/**
+ * Brings an installed unit from before S5.4 up to date at the runner's start under systemd (`run`, after a self-update
+ * put this runner in place under the old unit): `KillMode=mixed` becomes `KillMode=process`, so the turns' keepers
+ * outlive the runner's next restart, and systemd reads the unit again (one `systemctl --user daemon-reload`, only when
+ * the unit changed). Anything else is left as it is; a failure is logged, never a stop. True when it changed the unit.
+ */
+export async function healUnit(
+  host: Host,
+  warn: (message: string, fields: Readonly<Record<string, unknown>>) => void,
+): Promise<boolean> {
+  if (host.env[SERVICE_MANAGER_ENV] !== 'systemd') return false;
+  const file = systemdUnitPath(host.env, homeOf(host));
+  try {
+    if (!host.fs.exists(file)) return false;
+    const unit = host.fs.readFile(file);
+    if (!unit.split('\n').includes(OLD_KILL_MODE)) return false;
+    host.fs.writeFile(file, unit.replace(OLD_KILL_MODE, 'KillMode=process'), 0o644);
+    const env = { ...host.env, XDG_RUNTIME_DIR: host.env.XDG_RUNTIME_DIR || `/run/user/${host.uid}` };
+    const reload = systemdCommands(unixUser(host)).reload;
+    const result = await host.exec(reload[0], reload[1], { env });
+    if (result.code !== 0) warn('systemd did not read the updated unit again', { error: failure(result) });
+    return true;
+  } catch (error) {
+    warn('the runner unit could not be brought up to date', { error: (error as Error).message });
+    return false;
+  }
+}
+
 /** The commands that install and remove the unit for `user`. */
 export function systemdCommands(user: string) {
   const systemctl = (...args: string[]): Command => ['systemctl', ['--user', ...args]];

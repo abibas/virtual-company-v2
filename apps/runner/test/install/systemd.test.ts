@@ -1,7 +1,9 @@
-import { readFileSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  healUnit,
+  OLD_KILL_MODE,
   quoteEnvironment,
   quoteExecArg,
   renderUnit,
@@ -138,5 +140,60 @@ describe('installing and removing the systemd unit', () => {
       'systemctl --user disable --now mwc-runner.service',
       'systemctl --user daemon-reload',
     ]);
+  });
+});
+
+describe('an installed unit from before S5.4', () => {
+  const unitAt = (home: string) => join(home, '.config', 'systemd', 'user', 'mwc-runner.service');
+  const install = (home: string, text: string) => {
+    mkdirSync(join(home, '.config', 'systemd', 'user'), { recursive: true });
+    writeFileSync(unitAt(home), text);
+  };
+  const warnings = () => {
+    const seen: string[] = [];
+    return { seen, warn: (message: string) => void seen.push(message) };
+  };
+
+  it('keeps its turns’ keepers from now on (KillMode=process) and has systemd read it again, once', async () => {
+    const { host, home, execs } = testHost({ env: { MWC_RUNNER_SERVICE: 'systemd' } });
+    install(home, UNIT.replace('KillMode=process', OLD_KILL_MODE));
+    const w = warnings();
+    expect(await healUnit(host, w.warn)).toBe(true);
+    expect(readFileSync(unitAt(home), 'utf8')).toBe(UNIT);
+    expect(execs.map((call) => [call.file, call.args])).toEqual([['systemctl', ['--user', 'daemon-reload']]]);
+    expect(execs[0]?.env?.XDG_RUNTIME_DIR).toBe('/run/user/501');
+    expect(await healUnit(host, w.warn)).toBe(false);
+    expect(execs).toHaveLength(1);
+    expect(w.seen).toEqual([]);
+  });
+
+  it('is left alone outside systemd or without a unit, and a failure is a warning', async () => {
+    const launchd = testHost({ env: { MWC_RUNNER_SERVICE: 'launchd' } });
+    install(launchd.home, UNIT.replace('KillMode=process', OLD_KILL_MODE));
+    expect(await healUnit(launchd.host, () => {})).toBe(false);
+    const none = testHost({ env: { MWC_RUNNER_SERVICE: 'systemd' } });
+    expect(await healUnit(none.host, () => {})).toBe(false);
+    const failing = testHost({
+      env: { MWC_RUNNER_SERVICE: 'systemd' },
+      exec: () => ({ code: 1, stdout: '', stderr: 'Failed to connect to bus' }),
+    });
+    install(failing.home, UNIT.replace('KillMode=process', OLD_KILL_MODE));
+    const w = warnings();
+    expect(await healUnit(failing.host, w.warn)).toBe(true);
+    expect(w.seen).toEqual(['systemd did not read the updated unit again']);
+    const broken = testHost({ env: { MWC_RUNNER_SERVICE: 'systemd' } });
+    install(broken.home, UNIT.replace('KillMode=process', OLD_KILL_MODE));
+    const b = warnings();
+    const readOnly = {
+      ...broken.host,
+      fs: {
+        ...broken.host.fs,
+        writeFile: () => {
+          throw new Error('read-only');
+        },
+      },
+    };
+    expect(await healUnit(readOnly, b.warn)).toBe(false);
+    expect(b.seen).toEqual(['the runner unit could not be brought up to date']);
   });
 });

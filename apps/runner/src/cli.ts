@@ -10,7 +10,7 @@ import { CommandError, type Env, type Host } from './install/host.ts';
 import { installCommand } from './install/install.ts';
 import { SERVICE_MANAGER_ENV } from './install/launchd.ts';
 import { statusCommand } from './install/status.ts';
-import { PERMANENT_EXIT_CODES } from './install/systemd.ts';
+import { healUnit, PERMANENT_EXIT_CODES } from './install/systemd.ts';
 import { uninstallCommand } from './install/uninstall.ts';
 import { createLog, type Log } from './system/log.ts';
 import { runnerBuiltAt } from './system/version.ts';
@@ -134,7 +134,8 @@ export function selfFacts(host: Host): Pick<MainDeps, 'build' | 'builtAt' | 'upd
 }
 
 /**
- * `run`: a container enrolls itself on its first start; then the daemon, with the machine's CLIs (each found one asked
+ * `run`: a container enrolls itself on its first start, a systemd unit from before S5.4 is brought up to date
+ * (`healUnit`); then the daemon, with the machine's CLIs (each found one asked
  * `--version` once: `caps.tools`; Claude Code's and Codex's are the harnesses, Claude Code's also the hello's
  * `claudeVersion`), how to look for them again and install one, its build and its self-update for its hello.
  */
@@ -152,6 +153,8 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
     exit(failed);
     return failed;
   }
+  if (await healUnit(host, (message, fields) => log.warn(message, fields)))
+    log.info('the systemd unit now keeps the turns running across a restart (KillMode=process)');
   const tools = toolsHost(host);
   const found = await tools.find();
   const harnesses = harnessesOf(found);

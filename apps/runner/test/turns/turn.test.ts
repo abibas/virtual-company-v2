@@ -141,6 +141,24 @@ describe('one turn process', () => {
     expect(t.time.pending).toEqual([]);
   });
 
+  it('closes the stdin of a turn that takes messages at a result when its parser says nothing of being settled', async () => {
+    const parser: LineParser = {
+      feed: (text) => (text === 'done' ? [{ type: 'result', ok: true }] : []),
+      end: () => [],
+    };
+    const t = turnOf(parser, { ...fake().process, stdinOpen: true }, { stdinOpen: true });
+    const parts = { ...t.parts, inputLine: (text: string) => `${text}\n` };
+    const turn = new TurnProcess(t.turn.turnId, parts, t.deps);
+    turn.start(t.launch);
+    const child = t.spawn.calls[0]?.child as FakeChild;
+    expect(child.inputClosed).toBe(false);
+    child.stdout?.write('done\n');
+    await t.time.advance(JOURNAL_POLL_MS);
+    expect(child.inputClosed).toBe(true);
+    child.exit(0);
+    await turn.done;
+  });
+
   it('plays a recorded-style Claude Code turn through the real parser', async () => {
     const driver = new ClaudeCodeDriver({ command: '/opt/bin/claude' });
     const process = driver.turn(fakeTurnSpec('claude_code', { prompt: 'What is 2 + 2?' }));

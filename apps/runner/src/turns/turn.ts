@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import { PARSER_TICK_MS } from '@mwc/harness-core';
 import { every } from '../system/time.ts';
 import type { TurnInput } from './input.ts';
@@ -182,7 +183,7 @@ export class TurnProcess {
     this.#events.detach();
     this.#stopTimers();
     this.#kept?.release();
-    this.#parts.bridge?.close();
+    this.#parts.bridge?.release();
   }
 
   /** The server recorded the turn's end: its private files and run folder go. */
@@ -246,6 +247,8 @@ export class TurnProcess {
 
   #done(): void {
     this.#parts.lease?.release();
+    // A question socket's folder an earlier runner let go of (its tool's file holds the token) goes with the turn.
+    if (this.#meta?.ask) rmSync(this.#meta.ask.dir, { recursive: true, force: true });
     this.#parts.folder.remove();
     this.#deps.done(this.turnId);
   }
