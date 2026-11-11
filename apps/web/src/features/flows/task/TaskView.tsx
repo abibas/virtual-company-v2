@@ -1,6 +1,6 @@
 import { TASK_TITLE } from '@mwc/shared/flows';
 import { roleAtLeast } from '@mwc/shared/roles';
-import { type ReactNode, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Flow, FlowCalls, TaskDetail } from '../../../api/flows.ts';
 import type { OrgChart } from '../../../api/types.ts';
 import { InlineEdit } from '../../../components/forms/InlineEdit.tsx';
@@ -10,18 +10,16 @@ import { Badge } from '../../../components/ui/Badge.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
 import { Notice } from '../../../components/ui/Notice.tsx';
 import { leadsTeam, myPrincipal, type Viewer } from '../access.ts';
-import { TaskArtifacts } from '../artifacts/TaskArtifacts.tsx';
-import { TaskConversations } from '../conversations/TaskConversations.tsx';
 import { drawnSteps, FlowDrawing } from '../drawing/FlowDrawing.tsx';
 import { type FlowLinks, leadAddress } from '../links.ts';
+import { Clip } from '../story/Clip.tsx';
 import { flowCrumbs } from '../team/TeamHeader.tsx';
 import { stepStateLook, TASK_STATE } from '../words.ts';
 import type { TaskRuns } from './runs.ts';
 import { TaskActions } from './TaskActions.tsx';
 import { TaskDecision } from './TaskDecision.tsx';
-import { TaskDescription } from './TaskDescription.tsx';
 import { TaskFacts } from './TaskFacts.tsx';
-import { TaskHistory } from './TaskHistory.tsx';
+import { TaskTabs } from './TaskTabs.tsx';
 
 export interface TaskViewProps {
   readonly task: TaskDetail;
@@ -35,16 +33,6 @@ export interface TaskViewProps {
   readonly runs: TaskRuns;
   /** The task moved or changed: read it again. */
   readonly onChanged: () => void;
-}
-
-/** A part of the page with a small heading. */
-function Part({ title, children }: { readonly title: string; readonly children: ReactNode }) {
-  return (
-    <Card as="section" padding="sm" aria-label={title}>
-      <h2 className="mb-2.5 text-xs font-bold tracking-wide text-dim uppercase">{title}</h2>
-      {children}
-    </Card>
-  );
 }
 
 /** The rounds under each step it entered: "2 rounds · 1 sent back". */
@@ -91,7 +79,7 @@ function Escalation({ task }: { readonly task: TaskDetail }) {
   const retry = escalation.retryTo ? `; Retry goes to ${escalation.retryTo.name}` : '';
   return (
     <Notice tone="warning" title={`With the Lead${retry}`}>
-      {escalation.reason}
+      <Clip text={escalation.reason} lines={2} />
     </Notice>
   );
 }
@@ -106,16 +94,16 @@ function Blocked({ task }: { readonly task: TaskDetail }) {
   const by = last?.actor?.kind === 'agent' ? ` · reported by ${last.actor.name}` : '';
   return (
     <Notice tone="error" title={`Blocked at ${task.step?.name ?? 'its step'}${by}`}>
-      {task.blockedReason}
+      <Clip text={task.blockedReason} lines={2} />
     </Notice>
   );
 }
 
 /**
- * A task's page (`/:slug/tasks/T-12`): the path, its title and where it stands; why it is escalated or blocked; its
- * moves (the caller's own), its flow drawn with its step ringed and its rounds under each step, its steps'
- * conversations with the open one's thread inline, its description; beside them its facts, its artifacts and its
- * history. The company's route and the design gallery both render it.
+ * A task's page (`/:slug/tasks/T-12`): the path, its title and where it stands; why it is escalated or blocked, the
+ * decision its running turn recorded; its moves (the caller's own) and its flow drawn with its step ringed and its rounds
+ * under each step. Under them the tabs (its story by round, its conversations, its description, its full log); beside
+ * them its facts (above the tabs on a phone). The company's route and the design gallery both render it.
  */
 export function TaskView(props: TaskViewProps) {
   const { task, flow, chart, viewer, links, calls, runs, onChanged } = props;
@@ -132,8 +120,8 @@ export function TaskView(props: TaskViewProps) {
         items={flowCrumbs(links, { label: task.flow.name, href: teamHref }, { label: task.key })}
       />
       <TitleRow props={props} editable={editable} />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="flex min-w-0 flex-col gap-4">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="flex min-w-0 flex-col gap-3 lg:col-start-1">
           <Escalation task={task} />
           <Blocked task={task} />
           <TaskDecision task={task} nodes={nodes} />
@@ -147,29 +135,26 @@ export function TaskView(props: TaskViewProps) {
               <FlowDrawing steps={drawnSteps(flow)} nodes={nodes} here={here} notes={roundNotes(task)} />
             </Card>
           )}
-          <TaskConversations task={task} flow={flow} nodes={nodes} thread={runs.thread} />
-          <Part title="Description">
-            <TaskDescription
-              value={task.description}
-              editable={editable}
-              onSave={(description) => calls.editTask(task.key, { description }).then(onChanged)}
-            />
-          </Part>
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card padding="sm">
-            <TaskFacts
-              task={task}
-              nodes={nodes}
-              teamHref={teamHref}
-              editable={editable}
-              onPriority={(priority) => calls.editTask(task.key, { priority }).then(onChanged)}
-            />
-          </Card>
-          <TaskArtifacts task={task} flow={flow} runs={runs} />
-          <Part title="History">
-            <TaskHistory history={task.history} nodes={nodes} />
-          </Part>
+        <Card padding="sm" className="min-w-0 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <TaskFacts
+            task={task}
+            nodes={nodes}
+            teamHref={teamHref}
+            editable={editable}
+            onPriority={(priority) => calls.editTask(task.key, { priority }).then(onChanged)}
+          />
+        </Card>
+        <div className="min-w-0 lg:col-start-1">
+          <TaskTabs
+            task={task}
+            flow={flow}
+            nodes={nodes}
+            runs={runs}
+            editable={editable}
+            me={myPrincipal(viewer)}
+            onDescription={(description) => calls.editTask(task.key, { description }).then(onChanged)}
+          />
         </div>
       </div>
     </>

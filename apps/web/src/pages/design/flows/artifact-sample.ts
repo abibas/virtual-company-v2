@@ -3,11 +3,14 @@ import { ago, ref } from './flow-sample.ts';
 
 /**
  * The gallery's task artifacts (S5.3b), as `GET /tasks/:key/artifacts` lists them, and their bytes: T-12's hand-off
- * notes in every round, a screenshot from Develop and from QA (drawn on a canvas), a Markdown file, a diff, and two
- * files left out; T-17's one note.
+ * notes in every step of its three rounds, screenshots from Develop and from QA (drawn on a canvas), a Markdown file,
+ * diffs, and two files left out; T-17's one note.
  */
 
 type Kind = TaskArtifact['kind'];
+
+const MD = 'text/markdown; charset=utf-8';
+const H = 60;
 
 const STEPS: Readonly<Record<string, string>> = {
   's-dev': 'Develop',
@@ -57,6 +60,13 @@ const TEXTS: Readonly<Record<string, string>> = {
   'a-4': NOTES_MD,
   'a-5': DIFF,
   'a-8': 'PASS\nThe test covers it.',
+  'a-13':
+    'SEND BACK\n\nSigned in on Safari 19 for macOS, but **iOS Safari loses the session** after the redirect.\n\n' +
+    '- The preview domain serves the cookie without `Secure`\n- Screenshot: `shots/ios-session-lost.png`',
+  'a-15':
+    'Set `Secure` on the session cookie for every domain, the preview one too.\n\n- `session.diff` updated',
+  'a-16': DIFF,
+  'a-17': 'PASS\nSecure is set everywhere now.',
   'a-9': 'PASS\nSigned in on Safari 19.',
   'a-11': 'PASS\nThe cache key includes the company; one nit left in a comment.',
 };
@@ -74,19 +84,33 @@ type Spec = readonly [
 
 const SPECS: Readonly<Record<string, readonly Spec[]>> = {
   'T-12': [
-    ['a-1', 's-dev', 1, 'hand-off note', 'note', 'text/markdown; charset=utf-8', 60 * 25],
-    ['a-2', 's-review', 1, 'hand-off note', 'note', 'text/markdown; charset=utf-8', 60 * 18],
-    ['a-3', 's-dev', 2, 'hand-off note', 'note', 'text/markdown; charset=utf-8', 181],
-    ['a-4', 's-dev', 2, 'notes.md', 'file', 'text/markdown; charset=utf-8', 182],
-    ['a-5', 's-dev', 2, 'session.diff', 'file', 'text/plain; charset=utf-8', 182],
-    ['a-6', 's-dev', 2, 'shots/login-safari.png', 'file', 'image/png', 182],
-    ['a-7', 's-dev', 2, 'trace.zip', 'skipped', null, 182, 'Not collected: neither text nor an image'],
-    ['a-12', 's-dev', 2, 'recording.mov', 'skipped', null, 182, 'Not collected: over the 2 MB a file may be'],
-    ['a-8', 's-review', 2, 'hand-off note', 'note', 'text/markdown; charset=utf-8', 91],
-    ['a-9', 's-qa', 1, 'hand-off note', 'note', 'text/markdown; charset=utf-8', 10],
-    ['a-10', 's-qa', 1, 'shots/qa-safari-19.png', 'file', 'image/png', 10],
+    ['a-1', 's-dev', 1, 'hand-off note', 'note', MD, 24 * H],
+    ['a-2', 's-review', 1, 'hand-off note', 'note', MD, 18 * H],
+    ['a-3', 's-dev', 2, 'hand-off note', 'note', MD, 12 * H],
+    ['a-4', 's-dev', 2, 'notes.md', 'file', MD, 12 * H],
+    ['a-5', 's-dev', 2, 'session.diff', 'file', 'text/plain; charset=utf-8', 12 * H],
+    ['a-6', 's-dev', 2, 'shots/login-safari.png', 'file', 'image/png', 12 * H],
+    ['a-7', 's-dev', 2, 'trace.zip', 'skipped', null, 12 * H, 'Not collected: neither text nor an image'],
+    [
+      'a-12',
+      's-dev',
+      2,
+      'recording.mov',
+      'skipped',
+      null,
+      12 * H,
+      'Not collected: over the 2 MB a file may be',
+    ],
+    ['a-8', 's-review', 2, 'hand-off note', 'note', MD, 10 * H],
+    ['a-13', 's-qa', 1, 'hand-off note', 'note', MD, 6 * H],
+    ['a-14', 's-qa', 1, 'shots/ios-session-lost.png', 'file', 'image/png', 6 * H],
+    ['a-15', 's-dev', 3, 'hand-off note', 'note', MD, 3 * H],
+    ['a-16', 's-dev', 3, 'session.diff', 'file', 'text/plain; charset=utf-8', 3 * H],
+    ['a-17', 's-review', 3, 'hand-off note', 'note', MD, 90],
+    ['a-9', 's-qa', 2, 'hand-off note', 'note', MD, 10],
+    ['a-10', 's-qa', 2, 'shots/qa-safari-19.png', 'file', 'image/png', 10],
   ],
-  'T-17': [['a-11', 's-review', 1, 'hand-off note', 'note', 'text/markdown; charset=utf-8', 70]],
+  'T-17': [['a-11', 's-review', 1, 'hand-off note', 'note', MD, 70]],
 };
 
 const sizeOf = (id: string, kind: Kind) =>

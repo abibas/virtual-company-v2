@@ -395,9 +395,12 @@ samples.
 
 | Where | What it shows |
 | --- | --- |
-| Task page, left | **Blocked at <step>** with `blockedReason` (an error notice under the escalation). The moves, and under them on `ended_without_handoff` one line: "Turn ended. Read the reply, then hand on (pass or send back; approve or send back), or reply in the conversation." A move (or Cancel) refused with `step_running` offers "Stop the turn and move" behind an in-place confirm, resent with `force: true`; "Leave it" drops it |
-| Task page, **Conversations** | One chip per conversation in the flow's order: the agent's face, the step, its rounds (a Keep conversation spans "Rounds 1–2" up to the step's next conversation or its entries so far; Fresh has one per round), its state (Running with a pulsing dot, Queued, Ended, Stopped, Failed, Not started) and its last activity. The current step's latest opens first, else the latest of all. The open one's thread is inline under the chips in a frame at most 40rem high: the chat views' thread (stream, tool calls, subagents, to-dos, copy, answers to questions), the composer (admins and owners; a reply continues the conversation and the server sets the task back to `working`), Stop and the waiting messages, "Open as chat" (the agent's chat page with `?chat=<id>`) and "Open in Claude Code". A turn's end reads the task again (its state, its artifacts). Nothing shows before the first conversation |
-| Task page, right, **Artifacts** | By step in the flow's order, then by round, the latest first. Each round's **hand-off note** is highlighted at its top (its first lines; a click renders it). Images as thumbnails (two a row), full size in the viewer; text and Markdown in a viewer sheet (Markdown rendered, other text monospace) with Download; other files as rows (icon by kind, path, size, time, Download); skipped files faint and struck through with their reason ("neither text nor an image"); a link (S6) opens its address. Bytes come through the bearer client (`api/task-artifacts.ts`) into one object URL per artifact version, shared by thumbnail and viewer; Download saves the same blob (`…/content`). Nothing shows before the first |
+| Task page, top | The title, the state pills, the notices (escalation, **Blocked at <step>**, the recorded decision; a long reason clipped to two lines with "more"), the moves, and the flow drawn with the current step ringed and "N rounds · M sent back" under each step. Beside them on a wide screen, above the tabs on a phone: the **facts** (flow, step, round, with, priority, created by, created, updated), sticky while the page scrolls |
+| Task page, moves | The moves, and under them on `ended_without_handoff` one line: "Turn ended. Read the reply, then hand on (pass or send back; approve or send back), or reply in the conversation." A move (or Cancel) refused with `step_running` offers "Stop the turn and move" behind an in-place confirm, resent with `force: true`; "Leave it" drops it |
+| Task page, **Story** (the first tab) | The history cut into **rounds**: a round is one pass down the flow, and a new one begins whenever the task enters a step at or before the one it was last at (a send-back, a retry, a route back). Newest round first by default (the page is opened for where the task stands now; the older rounds say why), with a Newest/Oldest toggle; up to three rounds all open, else the latest two, the older ones folded to one line (each step's name with its outcome's dot). Each step it went through is one row: its kind's dot, the assignee's face, the step, the **outcome chip** (Handed on, Passed, Approved, Sent back → step, Escalated, Routed, Cancelled, Blocked, Turn ended, Waiting, Working, Needs you), who made it when not the assignee, who started its turn, "conversation" (opens the Conversations tab on the step's conversation) and when. Under it once: the reason (a send-back's, an escalation's, a cancel's; clipped to two lines), else the **hand-off note**'s first lines, both opening in place (the note rendered as Markdown; "note" opens it beside a reason); people's actions and errors as small lines (a person's route with a reason, a restart, an edit, a failed turn's error clipped to one line with "more"); the step's files as chips (images with a tiny thumbnail, text with its icon, both opening the viewer; links to their address; skipped files struck through, why on hover). Folded into the rows: entered, started by itself, a route out of the queue without a reason. A reason the notices above already say (the current block, the escalation) is not repeated. Under the rounds, **All files** (folded): every file and link by step and round with Download, the notes left out. Bytes come through the bearer client (`api/task-artifacts.ts`) into one object URL per artifact version, shared by chip and viewer |
+| Task page, **Conversations** | One chip per conversation in the flow's order: the agent's face, the step, its rounds (a Keep conversation spans "Rounds 1–2" up to the step's next conversation or its entries so far; Fresh has one per round), its state (Running with a pulsing dot, Queued, Ended, Stopped, Failed, Not started) and its last activity. The one chosen (a chip, or a story row's "conversation"), else the current step's latest, else the latest of all. Its thread is inline under the chips in a frame at most 40rem high: the chat views' thread (stream, tool calls, subagents, to-dos, copy, answers to questions), the composer (admins and owners; a reply continues the conversation and the server sets the task back to `working`), Stop and the waiting messages, "Open as chat" (the agent's chat page with `?chat=<id>`) and "Open in Claude Code". A turn's end reads the task again (its state, its artifacts). The tab shows only once there is a conversation |
+| Task page, **Description** | The description as Markdown, with Edit for those who may edit the task |
+| Task page, **Log** | Every history row, oldest first, one line each: its dot, the actor's face, who did what from and to which step, its reason once beside it (clipped to one line with "more"), when. "Quiet rows" (off by default) adds entered, started by itself and routes out of the queue without a reason |
 | Board card | A files icon with the artifacts count beside the time; Working with a pulsing dot while a turn runs; a blocked pill's tooltip is `blockedReason` |
 
 The page reads the task again every 30 seconds while visible, like the board.
@@ -411,11 +414,15 @@ and no route lists one agent's task chats, so it waits for an API that gives it 
 
 The parts: `features/flows/conversations/` (`model.ts` pure: states, round spans, order, the first open; `TaskConversations`,
 `ConversationList`, `ThreadFrame`, `TaskThread` (live), `LiveDot`), `features/flows/artifacts/` (`groups.ts` pure: groups,
-views, sizes; `TaskArtifacts`, `ArtifactRow`, `ArtifactThumb`, `ArtifactViewer`, `HandOffNote`), `features/flows/task/ForceMove.tsx`,
-`api/task-artifacts.ts`. The gallery (`/design/flows`): `?task=T-12` (three conversations, notes in every round, two
-screenshots, a Markdown file, a diff, two skipped files), `T-18` (a running turn; its moves are refused with
-`step_running` to show the forced move), `T-17` (ended without a hand-off), `T-15` (blocked); samples in
-`pages/design/flows/conversation-sample.ts`, `artifact-sample.ts` and `SampleThread.tsx`.
+views, sizes; `ArtifactRow`, `ArtifactViewer`), `features/flows/story/` (`story.ts` pure: the rounds from the history,
+artifacts and conversations; `outcomes.ts` the words; `TaskStory`, `StoryRound`, `StoryStepRow`, `FileChips`, `AllFiles`,
+`Clip`), `features/flows/task/` (`TaskView`, `TaskTabs`, `TaskHistory` the Log, `ForceMove`), `api/task-artifacts.ts`.
+The gallery (`/design/flows`): `?task=T-12` (three rounds: a failed first turn with a 401 error, send-backs from Code
+review and QA, an edit, then Ihor's Approve; four conversations, notes in every step, screenshots, a Markdown file,
+diffs, two skipped files), `T-14` (escalated in its fourth round, the older rounds folded), `T-18` (a running turn on
+its second round; its moves are refused with `step_running` to show the forced move), `T-17` (ended without a
+hand-off), `T-15` (blocked at QA); samples in `pages/design/flows/task-history-sample.ts`, `conversation-sample.ts`,
+`artifact-sample.ts` and `SampleThread.tsx`.
 
 ## Built in S6a (2026-11-11)
 
@@ -525,7 +532,7 @@ The tasks module writes both variants and the chats module picks by the agent's 
   on to Code review" (or "… will send it back over the limit: it goes to the Lead", "… will mark it blocked"), "When its
   turn ends.", and a send-back's or a block's reason (`decision` in the task's detail: action, outcome, the step it goes
   to, reason, by, at; `features/flows/task/TaskDecision.tsx`).
-- The history shows each actor's face, an agent's icon when an agent moved the task (`TaskHistory`'s `nodes`).
+- The story and the log show each actor's face, an agent's icon when an agent moved the task (`TaskHistory`'s `nodes`).
 - A block an agent reported says so: "Blocked at Develop · reported by Developer", with its reason.
 
 ### What is not built

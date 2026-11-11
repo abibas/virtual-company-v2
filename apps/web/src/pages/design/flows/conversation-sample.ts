@@ -5,7 +5,7 @@ import { ago, ref } from './flow-sample.ts';
 
 /**
  * The gallery's task conversations (S5.3b), as `GET /tasks/:key` lists them and `GET /chats/:id` gives their turns:
- * T-12's Develop (Keep, rounds 1–2), Code review (Keep, rounds 1–2) and QA (Fresh, round 1), all ended; T-18's Develop
+ * T-12's Develop (Keep, rounds 1–3), Code review (Keep, rounds 1–3) and QA (Fresh, rounds 1 and 2), all ended; T-18's Develop
  * running now; T-17's Code review ended without a hand-off.
  */
 
@@ -41,7 +41,8 @@ const SPECS: Readonly<Record<string, readonly Spec[]>> = {
       status: 'done',
       minutes: 92,
     },
-    { chatId: 'c-12-qa', step: ['s-qa', 'QA'], round: 1, agent: 'p-pip', status: 'done', minutes: 10 },
+    { chatId: 'c-12-qa', step: ['s-qa', 'QA'], round: 1, agent: 'p-pip', status: 'done', minutes: 6 * 60 },
+    { chatId: 'c-12-qa-2', step: ['s-qa', 'QA'], round: 2, agent: 'p-pip', status: 'done', minutes: 10 },
   ],
   'T-18': [
     {

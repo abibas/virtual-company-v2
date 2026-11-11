@@ -1,13 +1,14 @@
-import type { TaskAction, TaskEventKind, TaskState } from '@mwc/shared/enums';
+import type { TaskAction, TaskState } from '@mwc/shared/enums';
 import type { BoardColumn, Flow, TaskDetail, TaskEvent } from '../../../api/flows.ts';
 import { sampleArtifacts } from './artifact-sample.ts';
 import { sampleConversations } from './conversation-sample.ts';
 import { ago, DESIGN, DEVBOX, ref, sampleBoard } from './flow-sample.ts';
+import { type EventSpec, HISTORIES, LIMIT_REASON } from './task-history-sample.ts';
 
 /**
- * The gallery's tasks, as `GET /tasks/:key` would answer them for the owner: T-12 waiting for Ihor's sign-off after a
- * send-back in Code review (with its steps' conversations and artifacts), T-14 escalated over Code review's limit,
- * T-18 working (its turn running, its hand-on recorded), T-17 ended without a hand-off, T-15 blocked, and every other card of the sample
+ * The gallery's tasks, as `GET /tasks/:key` would answer them for the owner: T-12 waiting for Ihor's sign-off after
+ * three rounds (a failed first turn, send-backs from Code review and QA; with its steps' conversations and artifacts), T-14 escalated over Code review's limit,
+ * T-18 working (its turn running, its hand-on recorded), T-17 ended without a hand-off, T-15 blocked at QA, and every other card of the sample
  * boards with a short history of its own.
  */
 
@@ -26,15 +27,6 @@ const stepOf = (flow: Flow, id: string) => {
   return step;
 };
 
-type EventSpec = readonly [
-  kind: TaskEventKind,
-  actor: string | null,
-  from: string | null,
-  to: string | null,
-  minutes: number,
-  extra?: { readonly round?: number; readonly reason?: string },
-];
-
 const historyOf = (flow: Flow, specs: readonly EventSpec[]): TaskEvent[] =>
   specs.map(([kind, actor, from, to, minutes, extra], index) => ({
     id: `e-${index}`,
@@ -44,46 +36,17 @@ const historyOf = (flow: Flow, specs: readonly EventSpec[]): TaskEvent[] =>
     to: to ? { id: to, name: stepOf(flow, to).name } : null,
     round: extra?.round ?? null,
     reason: extra?.reason ?? null,
-    details: {},
+    details: kind === 'edited' ? { fields: ['description'] } : {},
     at: ago(minutes),
   }));
 
-const T12_HISTORY: readonly EventSpec[] = [
-  ['created', 'p-1', null, null, 60 * 26],
-  ['routed', 'p-1', null, 's-dev', 60 * 26 - 1],
-  ['entered', 'p-1', null, 's-dev', 60 * 26 - 1, { round: 1 }],
-  ['started', null, null, 's-dev', 60 * 26 - 1],
-  ['handed_on', 'p-2', 's-dev', 's-review', 60 * 20],
-  ['entered', 'p-2', null, 's-review', 60 * 20, { round: 1 }],
-  [
-    'sent_back',
-    'p-2',
-    's-review',
-    's-dev',
-    60 * 18,
-    { reason: 'No test for the Safari cookie path: add one in auth.test.ts.' },
-  ],
-  ['entered', 'p-2', null, 's-dev', 60 * 18, { round: 2 }],
-  ['started', null, null, 's-dev', 60 * 18],
-  ['handed_on', 'p-2', 's-dev', 's-review', 60 * 3],
-  ['entered', 'p-2', null, 's-review', 60 * 3, { round: 2 }],
-  ['passed', 'p-2', 's-review', 's-qa', 90],
-  ['entered', 'p-2', null, 's-qa', 90, { round: 1 }],
-  ['passed', 'p-2', 's-qa', 's-approve', 9],
-  ['entered', 'p-2', null, 's-approve', 9, { round: 1 }],
-];
-
-const LIMIT_REASON = 'The resize still drops the last line of the prompt.';
-const T14_HISTORY: readonly EventSpec[] = [
-  ['created', 'p-2', null, null, 60 * 50],
-  ['routed', 'p-1', null, 's-dev', 60 * 49, { reason: 'Mason has the terminal context.' }],
-  ['entered', 'p-1', null, 's-dev', 60 * 49, { round: 1 }],
-  ['handed_on', 'p-2', 's-dev', 's-review', 60 * 40],
-  ['sent_back', 'p-2', 's-review', 's-dev', 60 * 30, { reason: 'The fit addon is not loaded.' }],
-  ['sent_back', 'p-2', 's-review', 's-dev', 60 * 6, { reason: 'Colours are wrong in dark mode.' }],
-  ['sent_back', 'p-2', 's-review', 's-dev', 60 * 2, { reason: 'Scrollback is lost on reconnect.' }],
-  ['escalated', 'p-2', 's-review', 's-dev', 33, { reason: LIMIT_REASON }],
-];
+/** Each step's entries and send-backs, counted from the history as the server keeps them. */
+const roundsOf = (flow: Flow, history: readonly TaskEvent[]) =>
+  flow.steps.map((step) => ({
+    step,
+    entries: history.filter((e) => e.kind === 'entered' && e.to?.id === step.id).length,
+    sendBacks: history.filter((e) => e.kind === 'sent_back' && e.from?.id === step.id).length,
+  }));
 
 /** The moves the owner may make on a task as it stands (the API's `actions`). */
 function actionsOf(state: TaskState, column: BoardColumn): TaskAction[] {
@@ -118,16 +81,13 @@ export function sampleTask(key: string): TaskDetail | undefined {
     const state = STATE_OF[column.kind];
     const step = card.stepId ? stepOf(flow, card.stepId) : null;
     const at = step ? flow.steps.indexOf(step) : -1;
-    const specs: readonly EventSpec[] =
-      key === 'T-12' ? T12_HISTORY : key === 'T-14' ? T14_HISTORY : [['created', 'p-1', null, null, 60 * 30]];
-    const rounds =
-      key === 'T-12'
-        ? [2, 2, 1, 1].map((entries, i) => ({ step: flow.steps[i], entries, sendBacks: i === 1 ? 1 : 0 }))
-        : flow.steps.slice(0, at + 1).map((s, i) => ({
-            step: s,
-            entries: i === at ? (card.round ?? 1) : 1,
-            sendBacks: key === 'T-14' && i === 1 ? 3 : 0,
-          }));
+    const specs: readonly EventSpec[] = HISTORIES[key] ?? [['created', 'p-1', null, null, 60 * 30]];
+    const history = historyOf(flow, specs);
+    const rounds = history.some((e) => e.kind === 'entered')
+      ? roundsOf(flow, history)
+      : flow.steps
+          .slice(0, at + 1)
+          .map((s, i) => ({ step: s, entries: i === at ? (card.round ?? 1) : 1, sendBacks: 0 }));
     return {
       id: card.id,
       key: card.key,
@@ -148,7 +108,7 @@ export function sampleTask(key: string): TaskDetail | undefined {
       description: key === 'T-12' ? DESCRIPTION : '',
       flow: { id: flow.id, name: flow.name, lead: flow.lead },
       rounds: rounds.flatMap((r) =>
-        r.step ? [{ ...r, step: { id: r.step.id, name: r.step.name, kind: r.step.kind } }] : [],
+        r.entries > 0 ? [{ ...r, step: { id: r.step.id, name: r.step.name, kind: r.step.kind } }] : [],
       ),
       escalation:
         state === 'escalated'
@@ -157,7 +117,7 @@ export function sampleTask(key: string): TaskDetail | undefined {
               retryTo: { id: 's-dev', name: 'Develop', kind: 'work' },
             }
           : null,
-      history: historyOf(flow, specs),
+      history,
       actions: actionsOf(state, { ...column, cards: [card] }),
       conversations: sampleConversations(key),
       artifacts: sampleArtifacts(key).filter((a) => a.kind !== 'skipped').length,

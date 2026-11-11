@@ -83,7 +83,7 @@ export function TaskFacts({
   readonly onPriority: (next: TaskPriority) => Promise<unknown>;
 }) {
   return (
-    <dl className="flex flex-col gap-1 text-sm">
+    <dl className="grid gap-x-6 gap-y-0.5 text-sm sm:grid-cols-2 lg:grid-cols-1">
       <Fact term="Flow">
         <Link to={teamHref} className="truncate rounded-xs hover:text-blue">
           {task.flow.name}

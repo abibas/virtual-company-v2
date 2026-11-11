@@ -1,11 +1,16 @@
-import { Download, FileCode, FileText, Link2, type LucideIcon } from 'lucide-react';
+import { Download, FileCode, FileText, Image, Link2, type LucideIcon } from 'lucide-react';
 import type { TaskArtifact } from '../../../api/task-artifacts.ts';
 import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { IconButton } from '../../../components/ui/IconButton.tsx';
 import { sizeWords, viewOf } from './groups.ts';
 
-/** A file's icon by how it opens: Markdown, other text (code), a link. */
-const ICON: Readonly<Record<string, LucideIcon>> = { markdown: FileText, text: FileCode, none: Link2 };
+/** A file's icon by how it opens: an image, Markdown, other text (code), a link. */
+const ICON: Readonly<Record<string, LucideIcon>> = {
+  image: Image,
+  markdown: FileText,
+  text: FileCode,
+  none: Link2,
+};
 
 /** A link's address, when it is a web address (anything else is not followed). */
 const webAddress = (note: string | null) => (note && /^https?:\/\//i.test(note) ? note : undefined);
