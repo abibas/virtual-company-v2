@@ -89,7 +89,19 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
   const names = await namesOf(deps.db, repo, t, ids);
   const actions = allowedActions(caller, roster.team(flow.leadPrincipalId), task, current);
   const byId = new Map(steps.map((step) => [step.id, step]));
-  const conversations = chats.map((chat) => conversationView(chat, byId, agents.get(chat.agentId), names));
+  const turns = await repo.conversations.turnsOf(
+    t,
+    chats.map((chat) => chat.id),
+  );
+  const conversations = chats.map((chat) =>
+    conversationView(
+      chat,
+      byId,
+      agents.get(chat.agentId),
+      names,
+      turns.filter((turn) => turn.chatId === chat.id),
+    ),
+  );
   const artifacts = (await repo.artifacts.counts(t, [task.id])).get(task.id) ?? 0;
   return taskDetail(task, { flow, steps, events, names, actions, conversations, artifacts });
 }

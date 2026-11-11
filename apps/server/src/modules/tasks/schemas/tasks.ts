@@ -1,5 +1,12 @@
 import { z } from '@hono/zod-openapi';
-import { TaskAction, TaskEventKind, TaskPriority, TaskState, TaskStepState } from '@mwc/shared/enums';
+import {
+  ChatTurnStatus,
+  TaskAction,
+  TaskEventKind,
+  TaskPriority,
+  TaskState,
+  TaskStepState,
+} from '@mwc/shared/enums';
 import { TASK_DESCRIPTION_MAX, TASK_PAGE, TASK_REASON_MAX, TASK_TITLE } from '@mwc/shared/flows';
 import { At, PrincipalRefSchema, StepRefSchema } from '../schemas.ts';
 
@@ -113,6 +120,11 @@ export const TaskConversationSchema = z
     title: z.string().nullable(),
     /** Whether it has a harness conversation to resume yet. */
     started: z.boolean(),
+    /**
+     * Where its turns stand: the running turn's status while one runs, else its latest turn's (`queued`, `done`,
+     * `failed`, `stopped`), and its last activity (the latest start or end of a turn); null before its first turn.
+     */
+    lastTurn: z.object({ status: ChatTurnStatus, at: At }).nullable(),
     createdAt: At,
   })
   .openapi('TaskConversation');

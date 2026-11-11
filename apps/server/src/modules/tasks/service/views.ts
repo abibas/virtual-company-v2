@@ -1,7 +1,7 @@
 import type { Flow, FlowStep, Task, TaskEvent } from '@mwc/db';
 import type { TaskAction } from '@mwc/shared/enums';
 import { taskKey } from '@mwc/shared/flows';
-import type { ConversationRow } from '../repo.ts';
+import type { ConversationRow, ConversationTurnRow } from '../repo.ts';
 import { inOrder, roundsAt } from '../rules.ts';
 import type { BoardCardView } from '../schemas/board.ts';
 import type { FlowSummaryView, FlowView, StepView } from '../schemas/flows.ts';
@@ -181,11 +181,21 @@ export function boardCard(
     priority: task.priority,
     round: summary.round,
     stepState: task.stepState,
+    blockedReason: summary.blockedReason,
     assignee: summary.assignee,
     stepId: task.currentStepId,
     artifacts,
     updatedAt: summary.updatedAt,
   };
+}
+
+/** Where a conversation's turns stand: the running one's status, else the latest's; and its last start or end. */
+export function lastTurnOf(turns: readonly ConversationTurnRow[]): TaskConversationView['lastTurn'] {
+  if (turns.length === 0) return null;
+  const latest = turns.reduce((a, b) => (b.seq > a.seq ? b : a));
+  const shown = turns.find((turn) => turn.status === 'running') ?? latest;
+  const at = Math.max(...turns.map((turn) => (turn.endedAt ?? turn.startedAt ?? turn.createdAt).getTime()));
+  return { status: shown.status, at: new Date(at).toISOString() };
 }
 
 /** A step's conversation of the task: its chat, the step (by its name now), the round it began in, its agent. */
@@ -194,6 +204,7 @@ export function conversationView(
   steps: ReadonlyMap<string, FlowStep>,
   agent: string | undefined,
   names: Names,
+  turns: readonly ConversationTurnRow[] = [],
 ): TaskConversationView {
   const stepId = row.taskStepId as string;
   return {
@@ -203,6 +214,7 @@ export function conversationView(
     agent: agent === undefined ? null : names(agent),
     title: row.title,
     started: row.sessionId !== null,
+    lastTurn: lastTurnOf(turns),
     createdAt: row.createdAt.toISOString(),
   };
 }

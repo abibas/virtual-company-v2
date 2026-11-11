@@ -24,6 +24,8 @@ export const BoardCardSchema = z
     /** Its entries into its step so far; null in Queued and Done. */
     round: z.number().int().min(1).nullable(),
     stepState: TaskStepState.nullable(),
+    /** Why it is blocked at its step (S5.3b); null unless `blocked`. */
+    blockedReason: z.string().nullable(),
     /** Who has it: the step's assignee, the Lead for an escalated one; null in Queued and Done. */
     assignee: PrincipalRefSchema.nullable(),
     /** The step it is at, or escalated from. */

@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 
 /**
  * A task's conversations, read only (the chats module owns these rows; S5.3b): the chats that name the task, and
- * whether a turn of its conversations at a step runs.
+ * their turns' states (the task page's list), and whether a turn of its conversations at a step runs.
  */
 
 /** A conversation as the task shows it. */
@@ -31,6 +31,29 @@ const ofTask = (t: TenantDb, taskId: string): Promise<ConversationRow[]> =>
     )
     .orderBy(asc(chats.createdAt), asc(chats.id));
 
+/** A turn of a task's conversation as its list shows it: how far it got and when. */
+export type ConversationTurnRow = Pick<
+  typeof chatTurns.$inferSelect,
+  'chatId' | 'seq' | 'status' | 'createdAt' | 'startedAt' | 'endedAt'
+>;
+
+/** The turns of these conversations (Clears left out: they run nothing), for each one's state and last activity. */
+async function turnsOf(t: TenantDb, chatIds: readonly string[]): Promise<ConversationTurnRow[]> {
+  if (chatIds.length === 0) return [];
+  return t.selectFields(
+    chatTurns,
+    {
+      chatId: chatTurns.chatId,
+      seq: chatTurns.seq,
+      status: chatTurns.status,
+      createdAt: chatTurns.createdAt,
+      startedAt: chatTurns.startedAt,
+      endedAt: chatTurns.endedAt,
+    },
+    and(inArray(chatTurns.chatId, [...chatIds]), ne(chatTurns.kind, 'clear')),
+  );
+}
+
 /** True when a turn of the task's conversations at the step runs, other than `turnId`. */
 async function othersRunning(t: TenantDb, taskId: string, stepId: string, turnId: string): Promise<boolean> {
   const where = and(eq(chats.taskId, taskId), eq(chats.taskStepId, stepId));
@@ -44,4 +67,4 @@ async function othersRunning(t: TenantDb, taskId: string, stepId: string, turnId
   return (await t.selectFields(chatTurns, { id: chatTurns.id }, running).limit(1)).length > 0;
 }
 
-export const conversationRows = { ofTask, othersRunning };
+export const conversationRows = { ofTask, turnsOf, othersRunning };

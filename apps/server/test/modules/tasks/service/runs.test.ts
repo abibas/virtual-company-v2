@@ -1,6 +1,7 @@
 import { TEST_NOW } from '@mwc/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatView } from '../../../../src/modules/chats/schemas.ts';
+import type { BoardView } from '../../../../src/modules/tasks/schemas/board.ts';
 import { agentChatsPath, type ChatsWorld, chatPath, chatsWorld } from '../../../fixtures/chats/world.ts';
 import { as } from '../../../fixtures/members/members.ts';
 import {
@@ -12,7 +13,7 @@ import {
   stepStateIs,
   taskRow,
 } from '../../../fixtures/runs.ts';
-import { historyOf, makeTask, moved, stepOf, tasksPath } from '../../../fixtures/tasks.ts';
+import { flowsPath, historyOf, makeTask, moved, stepOf, tasksPath } from '../../../fixtures/tasks.ts';
 
 let w: ChatsWorld;
 beforeAll(async () => {
@@ -86,6 +87,12 @@ describe('entering an agent’s step that starts by itself', () => {
       conversations: [],
     });
     expect((await historyOf(w.t.db, task.id)).at(-1)).toEqual(['blocked', null, 'Develop', 1]);
+    const board = await as(w, unplaced.c.viewer)('GET', flowsPath(unplaced.c, `/${unplaced.flow.id}/board`));
+    expect((board.body as BoardView).columns[1]?.cards[0]).toMatchObject({
+      key: task.key,
+      stepState: 'blocked',
+      blockedReason: 'The agent has no placement: choose where it runs first',
+    });
     const offline = await runScene(w);
     await w.disconnectAll();
     const later = await makeTask(w, offline.c, offline.c.owner, {
@@ -218,8 +225,19 @@ describe('the task’s detail', () => {
       flowId: s.flow.id,
       stepId: stepOf(s.flow, 'Develop').id,
     });
-    await s.runner.frames.next('turn.start');
+    const start = await s.runner.frames.next('turn.start');
     const seen = await as(w, s.c.viewer)('GET', tasksPath(s.c, `/${task.key}`));
-    expect(seen.body).toMatchObject({ conversations: [{ step: { name: 'Develop' }, round: 1 }] });
+    expect(seen.body).toMatchObject({
+      conversations: [{ step: { name: 'Develop' }, round: 1, lastTurn: { status: 'running' } }],
+    });
+    const other = await runScene(w);
+    const hidden = await as(w, other.c.owner)('GET', tasksPath(other.c, `/${task.id}`));
+    expect(hidden.status).toBe(404);
+    finish(s.runner, start, 'Fixed.');
+    await stepStateIs(w.t.db, task.id, 'ended_without_handoff');
+    const ended = await as(w, s.c.viewer)('GET', tasksPath(s.c, `/${task.key}`));
+    expect(ended.body).toMatchObject({
+      conversations: [{ lastTurn: { status: 'done', at: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) } }],
+    });
   });
 });

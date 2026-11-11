@@ -6,7 +6,7 @@ import { nameRows } from './repo/names.ts';
 import { taskRows } from './repo/tasks.ts';
 
 export type { ArtifactRow } from './repo/artifacts.ts';
-export type { ConversationRow } from './repo/conversations.ts';
+export type { ConversationRow, ConversationTurnRow } from './repo/conversations.ts';
 export type { TaskFilter } from './repo/tasks.ts';
 
 /**
