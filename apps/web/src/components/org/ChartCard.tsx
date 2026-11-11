@@ -6,6 +6,7 @@ import { cx } from '../cx.ts';
 import { AgentIcon } from '../feed/AgentIcon.tsx';
 import type { AvatarSize } from '../ui/Avatar.tsx';
 import { Badge, roleName } from '../ui/Badge.tsx';
+import { ProviderLogo } from '../ui/ProviderLogo.tsx';
 import { harnessLabel, runsLine } from './agent-labels.ts';
 import { DRAGGABLE } from './ChartCanvas.tsx';
 import { nodeName, nodeSubtitle } from './chart.ts';
@@ -98,9 +99,18 @@ function Facts({
           </Badge>
         )}
         {missing}
-        <span className="min-w-0 truncate font-mono text-2xs text-ink-2">
-          {harnessLabel(agent.harness)} · {runsLine(agent.runsWith)}
-        </span>
+        {/* Its access profile, by name (Ihor: the profile, not "Claude's default · X-high"). */}
+        {agent.profile ? (
+          <span
+            className="flex min-w-0 items-center gap-1 text-2xs font-medium text-ink-2"
+            title={`${harnessLabel(agent.harness)} · ${runsLine(agent.runsWith)}`}
+          >
+            <ProviderLogo provider={agent.profile.provider} size={12} className="shrink-0" />
+            <span className="truncate">{agent.profile.name}</span>
+          </span>
+        ) : (
+          <span className="text-2xs font-medium text-input">No profile</span>
+        )}
       </div>
       <span className="flex min-w-0 items-center gap-1 text-2xs text-dim">
         <Server size={11} aria-hidden="true" className="shrink-0" />
