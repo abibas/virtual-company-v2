@@ -338,8 +338,16 @@ Every message turn of a task's conversation (the step's own, and a person's repl
 The notices go to the nearest person at or above the Lead and the step's assignee when a person (an agent's step has
 none; agents get no notices). People then hand on, pass or send back by hand (the S5.3a moves), or reply in the
 conversation, which continues it. A turn that ends after the task moved on, or while another turn of the step's
-conversations runs, changes nothing on the task. A turn lost with its runner's link fails (`machine_disconnected`), and
-one a stopped server left running fails at the next start (`server_restarted`): either way the task is blocked.
+conversations runs, changes nothing on the task.
+
+**Across restarts** (S5.4, docs/harness.md "Surviving restarts"): a step's turn survives its runner's dropped link, the
+runner's restart and the server's restart. While its runner is away the turn stays `running` (detached, "Reconnecting…"
+in its thread) and the task stays `working`: nothing is blocked while the turn may still come back. When the runner comes
+back with it, the turn goes on and ends as usual. Only a turn that finally fails blocks the task, once: the grace after a
+dropped link runs out (`machine_disconnected`), a turn a stopped server left running that no runner took back within the
+grace after the start (`server_restarted`), or a process that died while no runner watched it (`process_lost`). A
+person's reply that waited in the conversation of a step whose turn ended as a server stopped fails at the next start
+(`server_restarted`) and blocks the task the same way.
 
 **Moving a task while its turn runs** is refused (409 `step_running`, after the caller's own checks) unless the move
 says `force: true` (`mwc task move … --force`), which stops the turn (`turn.stop`) once the move is written; its end then

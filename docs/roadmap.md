@@ -415,6 +415,32 @@ a `step_running` refusal. Board cards: the artifacts count and a pulsing Working
 Server: `lastTurn` on the detail's conversations, `blockedReason` on board cards (tested). The agent page's task
 conversations wait for an API. Gallery samples for all of it; no frontend tests (typechecked).
 
+**S5.4, runs survive restarts: built 2026-11-11 on the `runs-survive` branch, not merged yet** (docs/harness.md
+"Surviving restarts", docs/runner-protocol.md "Chat turns", docs/machines.md "One job at a time", docs/processes.md
+"Across restarts"). Item 2 above (run folder, detached spawn, journal, re-attach, stop ladder), for chat and task turns.
+Runner: each turn runs through a keeper (`node runner.mjs keep`, its own session and process group, the one extra
+process per turn) in `<state>/runs/<12 hex>/` (meta without secrets, the stdout journal and stderr as files, the numbered
+events log, the messages written, `exit.json`, the keeper's socket); the runner reads the journal every 100 ms, logs each
+event before sending it, and holds frames back while detached; a restarted runner takes its turns back (the keeper's
+socket proves the process is the turn's; dead without `exit.json` ends `process_lost`), re-parses the journal up to its
+log, names them in `runner.hello.turns` and resends what `turn.resume` says the server lacks; the keeper holds stdin, so
+Now deliveries work after a take-back; the question socket listens again for the same token; the private folder is
+adopted (a rewritten Codex login still goes back); the outputs folder is collected at the end. The ladder is SIGINT,
+SIGTERM 10 s, SIGKILL 20 s, only while the keeper is there. Stopping and self-updating leave turns running; updates no
+longer wait for turns; the systemd unit says `KillMode=process` (an old unit is fixed at start). Server: a dropped link of
+a runner with `caps.reattach` leaves its turns `running` and detached for `MWC_TURN_GRACE_SECONDS` (180 s), a hello
+re-binds them (`turn.resume` with the last stored event, dedup by `(turn, seq)`), a restarted server builds a turn's sink
+from the database when its runner says hello with it and ends the left ones after the grace (`server_restarted`); Stop
+while detached goes on re-attach (or the turn ends `stopped`); the queue starts nothing meanwhile; the task is blocked
+only when a turn finally fails; `turn.ack` follows a recorded end; the detail and stream say `detached` ("Reconnecting…"
+on the web). No migration. Tests: the keeper in-process, the runner on the fake keeper, real-process tests with the real
+keeper and the fake harness (take-back mid-turn, the end while away with and without `exit.json`, the full ladder, pid
+reuse, Claude input mode, and a chaos test that SIGKILLs a runner process mid-turn), and the server on PGlite with
+`FakeRunner` (detached and resumed, a hello leaving a turn out, Stop while detached, the queue, a restarted server, the
+grace failing a task's turn once, the left-turn sweep). Merging needs the dev API restarted (no migration) and the runner
+bundle rebuilt, then Update runner on each machine; that first update runs under the old runner, which ends its live turns
+as it restarts (or refuses with `busy`), and only the new runner keeps them.
+
 ### S6 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
 Done when the demo below passes on the Mac and then on the devbox:

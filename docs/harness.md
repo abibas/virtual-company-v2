@@ -498,29 +498,38 @@ runner's side is `apps/runner/src/turns/` and its terminals.
 6. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
    what it cannot run: `unsupported` (no such CLI, even after searching again, or no way to start processes), `busy` (all `slots` live), `home_missing`
    (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
-   `runner_stopping`. Otherwise it starts the driver's command with no shell, detached (its own process group), in the
-   agent's folder, with its own environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the private folder's
-   variable; writes the prompt to stdin and closes it (Claude Code's turns keep it open for the person's messages until
-   their result, "Delivery while a turn runs"); sends the driver's notices as the first events; reads stdout line
-   by line into the driver's parser (and asks a parser with `tick` every second, "The port") and keeps the last 4 KB of
-   stderr. Events go as `turn.events` about 100 ms after the first, or at once from 32 KB or 100 events, numbered from 1; a text event over 16 KB is split, a result's text cut to
-   fit. On exit, `parser.end` gives the last events, then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the
-   result's, `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the
-   SIGINT) or `runner_stopping`. Live turns hold the machine as live runs do and make the self-update say `busy`.
+   `runner_stopping`. Otherwise it makes the turn's run folder and starts the turn's **keeper** (`node runner.mjs keep`,
+   detached: its own session and process group; "Surviving restarts" below), which starts the driver's command with no
+   shell in the agent's folder, with the runner's environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the
+   private folder's variable, its stdout and stderr appended to files in the run folder. The prompt goes to the harness's
+   stdin through the keeper, which closes it after (Claude Code's turns keep it open for the person's messages until
+   their result, "Delivery while a turn runs"); the driver's notices are the first events. The runner reads the stdout
+   file every 100 ms (`JOURNAL_POLL_MS`) line by line into the driver's parser (and asks a parser with `tick` every
+   second, "The port"); a failure quotes the last 4 KB of the stderr file. Events go as `turn.events` about 100 ms after
+   the first, or at once from 32 KB or 100 events, numbered from 1 and each kept in the run folder before it is sent; a
+   text event over 16 KB is split, a result's text cut to fit. When the keeper ends, `parser.end` gives the last events,
+   then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the result's, `exitCode` the harness's (null after a
+   signal), `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 10 s later, SIGKILL 20 s after the
+   SIGINT), `spawn_failed: …` when the harness could not start, or `process_lost` when the keeper ended without the exit
+   recorded. The server answers `turn.ack` once it recorded the end, and the run folder goes. Live turns hold the machine
+   as live runs do; since S5.4 they no longer make the self-update say `busy` (they outlive the restart).
 7. **The private folder** (`turns/private-dir.ts`): Codex's is the placement's `configDir` when it has one, else
    `<runner state dir>/<harness>/<first 16 hex of sha256(home)>/`, never the machine's `~/.codex`; Claude Code's is always
    the runner's own (`<state>/claude_code/<16 hex>/`), never `CLAUDE_CONFIG_DIR`; made 0700. `auth.json` and Claude
    Code's `settings-<12 hex>.json` are written 0600 before the process (a marker file first; a file of that name the
    runner did not write is set aside and put back), the settings file named on the command line (`--settings <path>`,
-   `withPrivateDir`), and removed when the last process using the folder ends. When the process rewrote it (its own token
+   `withPrivateDir`), and removed when the last process using the folder ends (since S5.4, when its turn's end is sent:
+   a turn whose end waits for its link keeps them until then, and a runner that takes it back adopts them). When the process rewrote it (its own token
    refresh), the new text goes back in `turn.end.authJson` (a terminal's in `terminal.exit.authJson`) and the server
    seals it into the credential again; the browser never sees it.
 8. **The server** stores each event (`chat_events`, a resend kept once), saves the chat's `session_id` from the
    `session` event (the next turn resumes it), tells the chat's stream listeners, and on `turn.end` closes the turn:
    `done`, `failed` (the runner's reason first, else the result's error) or `stopped`, with the result's text and the
-   usage. A runner whose link drops fails its running turns (`machine_disconnected`; the runner ends their processes
-   too, nothing is re-attached yet), and at the server's start the turns a stopped server left running fail
-   (`server_restarted`).
+   usage. Since S5.4 a turn outlives its runner's link and the server: a runner that keeps turns (`caps.reattach`) and
+   whose link drops leaves them running and the server keeps them `running` and detached for the grace
+   (`MWC_TURN_GRACE_SECONDS`, 180 s); the runner's next hello takes them back, and at the server's start the turns left
+   running wait the same grace for their runner. Only when the grace runs out do they fail (`machine_disconnected`,
+   `server_restarted`); an older runner's dropped link fails them at once, as before ("Surviving restarts").
 9. **The stream** (`GET …/chats/{chatId}/stream`, members and above): Server-Sent Events over an authenticated GET
    (the web reads it with `fetch` and its Bearer header): `turn` (`{turn}`) on a start and each status change, `event`
    (`{turnId, turnSeq, seq, event, at}`, its `id:` `<turnSeq>.<seq>`), a `: heartbeat` comment every 20 s;
@@ -556,6 +565,125 @@ with its own folders.
 `ask` in chat mode refuses a tool that needs approval (Claude Code's denials and Codex's declined commands become `warn`
 notices) until S6 brings the permission round trip; the terminal asks the person on the TUI. No test runs a real
 `claude` or `codex` turn: that spends Ihor's subscription.
+
+## Surviving restarts
+
+Built in S5.4 (2026-11-11; the roadmap's "Done when": `kill -9` of the runner and a server restart mid-turn both
+recover). A running turn survives `kill -9` of its runner (the harness keeps running and the restarted runner takes it
+back), a server restart (the runner keeps the turn going and the restarted server takes it back), and a dropped link that
+comes back. Events missed meanwhile are delivered once, never twice; Stop works on a turn taken back; a turn whose process
+really died ends honestly. Task step turns and chat turns behave the same, and so does the task state.
+
+**The run folder** (`apps/runner/src/turns/runs/folder.ts`): `<runner state>/runs/<first 12 hex of sha256(turn id)>/`,
+made 0700 when the turn starts, and removed when the server acknowledges its end (`turn.ack`), when the server no
+longer has the turn, or 24 hours after it ended (`RUN_RETENTION_MS`, looked at when a runner starts).
+
+| File | Who writes it | What |
+| ---- | ------------- | ---- |
+| `meta.json` (0600) | the runner, when the keeper started (again when a stop begins) | `{v, turnId, harness, cwd, pid (the keeper's, its process group's), startedAt, stdinOpen, privateDir: {path, files: [{name, sha256}], aside} \| null, artifacts: {root, before: [[path, "size:mtime"]]} \| null, ask: {dir, tokenSha256} \| null, stopping?}`. Never a credential, a token or an environment value: the private files are named with their SHA-256, the question socket's token only by its SHA-256. |
+| `out`, `err` | the keeper (appended) | the harness's stdout (the journal the runner reads) and stderr |
+| `events.jsonl` (0600) | the runner | every event it numbered, before it is sent: `{s, o, e}` (its number, how far into `out` the runner had read, the event), a question as `{s, o, q: {questionId, questions}}`, and `{fin: true, o}` once the output was read to its end and the parser's last events kept |
+| `inputs.jsonl` (0600) | the runner | each message written into the turn (`{id, text}`) and `{end: true}` once stdin closed |
+| `exit.json` (0600) | the keeper | `{code, signal}` when the harness ended, or `{code: null, signal: null, error}` when it could not start |
+| `k.sock` | the keeper | its control socket while it runs |
+
+**The keeper** (`turns/runs/keeper.ts`): `node runner.mjs keep <run folder> -- <command> <args…>`, the one process the
+runner starts per turn (the Mac bills each process start; this is the only extra one), detached: its own session and
+process group, with the harness's environment and folder. It starts the harness in its group with stdin piped and stdout
+and stderr on the run folder's files (not pipes, so the harness never notices the runner going away), writes `exit.json`
+when the harness exits, then exits. SIGINT, SIGTERM and SIGHUP do not end it (the stop ladder signals the whole group, so
+the harness gets them; SIGKILL ends both). A Node keeper rather than a shell wrapper because it gives the exact exit (code
+or signal), holds the harness's stdin across runner restarts, and proves its identity through its socket (below).
+
+**Stdin.** The keeper holds the harness's stdin. The runner that started it writes commands on the keeper's own stdin; a
+runner that took the turn back connects to `k.sock` (greeted with `{"pid":N}`) and writes the same commands, one JSON line
+each: `{"w":"<text>"}` writes the text, `{"end":true}` closes the harness's stdin. A runner that goes away closes its line
+without `end`, so stdin stays open: **Now deliveries keep working on a turn taken back** (Claude Code's input mode: the
+prompt first, then each `turn.input` line, closed after a settled result, as before). The messages written and the close
+are in `inputs.jsonl`, so a runner taking the turn back keeps their echoes and knows whether stdin is still open. When no
+runner has been on the line for 10 minutes (`KEEPER_ORPHAN_MS`), the keeper closes stdin itself, so a harness waiting for
+more messages finishes rather than waiting forever for a runner that never comes. Codex reads its prompt and the keeper
+closes its stdin at once (`{"end":true}` right after the prompt).
+
+**Reading the journal** (`turns/runs/journal.ts`, `turn/output.ts`): every 100 ms the runner reads `out` from its offset
+with one open and one read (no process, no watcher), splits it on newline bytes, and feeds whole lines to the parser; a
+line still being written waits. Each event is appended to `events.jsonl` with the offset just after its line before it is
+sent (`turn/events.ts`), so the log is the turn's truth: a runner taking the turn back reads the journal again from its
+start up to the log's last offset through a new parser (its state rebuilt, nothing numbered), goes on numbering after the
+log's last event, and parses only what follows. A Codex turn's parser gets the turn's own start (`ParserContext.startedAt`)
+so its session-file follower still knows this turn's lines; the follower goes on from the files' end (subagent steps
+written while nobody read them are not shown).
+
+**Taking a turn back** (`turns/runs/reattach.ts`, `prepare.ts`): when a runner starts, before its first hello, it looks at
+every run folder. One without a meta goes. One with `exit.json` ended: it is taken back to deliver its last events and end.
+Otherwise the runner connects to `k.sock`: a keeper that answers with its pid is alive and **is the turn's own** (a pid
+alone may have been given to another process since, and macOS has no process start time without starting `ps`), so its
+process group may be signalled; the turn goes on live, its private folder adopted from the meta (`PrivateDirs.adopt`: the
+files by name and hash, nothing rewritten and no crash clean-up while it runs, so a Codex login the process rewrites still
+goes back as `authJson`), its question socket listening again in the same folder for the same token (`reopenAskBridge`,
+checked against the token's SHA-256), and its outputs folder as noted (`ArtifactCollector.restore`). No keeper answers and
+no `exit.json`: the keeper died without recording the end (killed while the runner was away), so the turn ends
+`process_lost` (`stopped` if a stop had begun), with the parser's failing result; nothing is ever signalled then. A turn
+whose harness this runner no longer has is left running, unwatched (its server fails it after the grace).
+
+**Delivery** (`turn/events.ts`): a turn is attached while its link is up and, after a reconnect, once the server said where
+to resume. Detached, its events wait in the log. The runner names every turn it holds in its hello (`runner.hello.turns`:
+id, last event number, ended); the server answers `turn.resume {turns: [{turnId, lastSeq}]}`, the highest event number it
+stored for each, and the runner resends what follows from the log (a question as `turn.question` again; one the agent was
+told was not shown, because the link was found down as it asked, as an `info` notice in its place), then goes on live,
+and for an ended turn sends its task step's files and `turn.end`. `lastSeq: null` means the server no longer has the turn
+(it failed it after the grace, or never heard of it): the runner stops it by the ladder, sends nothing, and removes its
+folder. A server older than this (no `server.hello.resume`) gets the same: it failed those turns already.
+
+**The server** (`modules/machines/service/runner/hub/turns.ts`, `modules/chats/service/live.ts`, `service/adopt.ts`):
+
+- When the link of a runner that keeps turns (`caps.reattach`) drops, its turns stay `running` and become **detached**
+  (the stream sends the turn with `detached: true`, the chat's detail says it, the web's working pill reads
+  "Reconnecting…") for the grace, `MWC_TURN_GRACE_SECONDS` (180 s by default, 1 to 3600). An older runner's dropped link
+  fails them at once (`machine_disconnected`), since it ended their processes with the link.
+- A hello naming a turn re-binds it to the new connection (its grace ends, the stream says `detached: false`) and the
+  answer is the turn's highest stored event (`turnsRepo.lastEventSeq`, read on the turn's own write queue, after what came
+  before is stored). Events are stored `ON CONFLICT DO NOTHING` on `(turn, seq)`, so a resend stores nothing twice.
+- A detached turn of the machine that the hello does not name ends at once (`machine_disconnected`): the runner no longer
+  has it. The grace running out ends it the same way, and the task hook blocks its task once.
+- At the server's start (`reapTurns`, before it listens), only the waiting turns of chats where nothing runs fail
+  (`server_restarted`); running turns stay. A hello naming one that no sink of this process holds is taken back
+  (`turnAdopter`): the turn's row (running, of a chat on that runner's machine), the credential it runs on (whose, of which
+  kind, for a Codex login to seal again), its task's step and round, and its stored events (the reply and usage so far)
+  make its sink. Once the grace after the start is over (`failLeftTurns`), each running turn the stopped server left that
+  no runner took back ends through such a sink with `server_restarted`: its task is blocked once and the chat's waiting
+  messages start, as after any turn's end.
+- **Stop while detached** is accepted (202): it goes as `turn.stop` right after `turn.resume` once the runner is back, or,
+  when the grace runs out first, the turn ends `stopped`.
+- **One live turn per chat** holds while a turn is detached: it is still `running`, so a prompt is refused
+  (`turn_running`) or queued, and the queue starts nothing until the turn ended.
+- `turn.ack {turnId}` goes to a runner that keeps turns once the sink recorded the turn's end.
+
+**Stop ladder**: SIGINT to the keeper's process group, SIGTERM 10 s later, SIGKILL 20 s after the SIGINT
+(`TURN_STOP_TERM_MS`, `TURN_STOP_KILL_MS`), each only while the keeper is there (its child's exit, or its socket's close,
+says it is gone). A turn taken back walks it through the pid its keeper's socket greeted with; a turn whose meta says a
+stop had begun walks it again when it is taken back.
+
+**The runner stopping on purpose** (a service stop, its self-update, `kill`) now **leaves its turns running**: it lets go
+of each (its line to the keeper closed without `end`, its question socket closed but its folder kept) and the next runner
+takes them back. Its terminals still end, as before (they are PTYs of the runner's own process). The self-update no
+longer waits for chat turns (only runs, terminals and an install), and the server no longer refuses Update runner for
+turns a runner keeps through its own restart (a self-update or an SSH reinstall; a container's rebuild still ends them,
+so turns still count there). The systemd unit says `KillMode=process`, so a restart kills the runner alone; a unit from
+before is brought up to date when the runner starts under systemd (`healUnit`: one `systemctl --user daemon-reload`, only
+when it changed). launchd kills only the job's own process group, which the keepers are not in. A container's stop or
+restart still ends its processes, since they live in the container.
+
+**Tests** (no real CLI): the keeper in-process (its files, exit, socket greeting, commands, orphan close); the runner on
+the fake keeper (`FakeSpawn` plays it) for the event log, detaching and resending, forgetting, taking back from the folder
+with a private folder, outputs folder, question socket and messages, and the ladder walked again; and on real processes
+(`test/turns/runs/survive.test.ts`: the real keeper, `node src/main.ts keep`, and the fake harness binary): a turn taken
+back mid-turn with the events continuing once, the end while the runner was away with and without `exit.json`, the full
+ladder on a taken-back turn, a live stranger holding the recorded pid never signalled, Claude Code's input mode across a
+take-back, and the chaos test, a runner process killed with SIGKILL mid-turn (`test/fixtures/turn-host.ts`). The server's
+side on PGlite with `FakeRunner` (`test/modules/chats/service/survive.test.ts`): detached and resumed with the events
+after the stored ones, a hello leaving a turn out, an unknown held turn, Stop while detached (back, and the grace running
+out), the queue, a restarted server taking a turn back, the grace failing a task's turn once, and the left-turn sweep.
 
 ## Standing instructions
 
@@ -858,10 +986,12 @@ checks and refusals, the credential's use, the standing instructions, the stream
   (`artifactContentType`), and handed to the turn's sink whole; a file that disagrees is dropped with a log line.
 - **Moving a task while its turn runs** (`POST …/tasks/{taskId}/actions`) is refused with 409 `step_running` unless
   `force`, which stops the turn after the move.
-- **A dropped link or a restart.** A turn whose runner's link drops ends through its sink (`machine_disconnected`), so
-  its task is blocked; a turn a stopped server left running is failed at the next start (`server_restarted`, the
-  reaper), and `app.ts`'s `reapTurns` reports each such task turn to the hook, so its task is blocked too rather than left
-  `working`.
+- **A dropped link or a restart** (S5.4, "Surviving restarts"). A task's turn is a chat turn: it waits the grace for
+  its runner and goes on when the runner comes back, so its task stays `working` (no false `blocked`). Only a turn that
+  finally fails ends through its sink (`machine_disconnected` when the grace after a dropped link runs out,
+  `server_restarted` for a turn a stopped server left that no runner took back), and the hook blocks its task once. At a
+  server's start, a waiting message of a task's conversation where nothing runs fails (`app.ts`'s `reapTurns`) and is
+  reported to the hook the same way.
 
 ## Tests
 
@@ -901,8 +1031,11 @@ checks and refusals, the credential's use, the standing instructions, the stream
 
 ## Not supported yet
 
-- The journal, re-attaching a turn after a runner or server restart (S5.4): a dropped link ends a chat's turn today,
-  and a task's turn with it (the task is then `blocked` with `machine_disconnected`).
+- Surviving restarts (S5.4) has its limits: a turn in a Docker container dies with its container (a container's runner
+  restart is the container's); a runner that comes back after the grace finds its turn failed and stops it; Codex
+  subagent steps written while no runner read the session files are not shown (the follower goes on from the files' end);
+  a Codex login rewritten after the end was sent once but before it was acknowledged is lost if the runner restarts in
+  between; terminals end with the runner as before.
 - A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
   before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
   later one writes its login over a token the first may have just refreshed (the server seals again what comes back).

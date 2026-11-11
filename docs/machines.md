@@ -320,7 +320,7 @@ is not `--server`, the address the runner keeps; without it everything uses `--s
      runner exits 0 after a refused key (77), a runner too old (76) or a broken configuration (78) and stays stopped
      until it is installed again.
    - **Linux:** `~/.config/systemd/user/mwc-runner.service` (Restart=always after 10 s, `RestartPreventExitStatus=76
-     77 78`, 90 s to stop), `loginctl enable-linger` (or `sudo -n`, else a warning: the runner then stops at logout),
+     77 78`, 90 s to stop, `KillMode=process` so a restart kills the runner alone and its turns' keepers stay, S5.4), `loginctl enable-linger` (or `sudo -n`, else a warning: the runner then stops at logout),
      `systemctl --user daemon-reload` and `enable --now`; its log is `journalctl --user -u mwc-runner.service`.
 
 Run again without `--token`, `install` keeps the enrollment and reinstalls the service on the new bundle (a restart).
@@ -468,8 +468,9 @@ from a new one:
 - **The API.** `POST /api/companies/{companyId}/machines/{machineId}/runner-update` (admins and owners; another
   company's machine is the module's 404) picks the first path that applies and answers 202 `{path, build}`:
   1. **`self_update`**: a connected runner with `caps.selfUpdate` is sent `runner.update` and its answer awaited
-     (3 minutes at most). The runner refuses with `busy` while runs, chat turns or terminals are live unless forced
-     ("One job at a time" below; it never ends one for an update unasked) and while it installs a tool,
+     (3 minutes at most). The runner refuses with `busy` while runs or terminals are live unless forced
+     ("One job at a time" below; it never ends one for an update unasked; chat turns outlive its restart since S5.4)
+     and while it installs a tool,
      otherwise downloads `GET /api/runner/runner.mjs` and its system's `GET /api/runner/pty/<target>.tgz` from the server
      it is linked to (the devbox through its standing tunnel), checks each against its `x-mwc-runner-sha256` header,
      and only then puts them in place beside the installed copy: the bundle to a temporary file, the PTY unpacked in
@@ -609,13 +610,23 @@ restarting"). A machine runs one maintenance job at a time, and a runner update 
   runner update when it was refused or failed, and once carried out when its runner reconnects (the hub's connect
   listener: on the new build), or 3 minutes after it answered (`RESTART_WAIT_MS`). Check again (`tools/check`) is
   refused only during a runner update.
-- **Live work.** A runner update is also refused with 409 `machine_busy` while the machine has running chat turns or open
-  terminals (the machine's and the chats', as the hub carries them), naming them: "2 chat turns and 1 terminal are
-  running on it: update the runner once they end". `POST …/runner-update {force: true}` updates anyway (the web never
-  sends it; kept for later); the force goes on to the runner's `runner.update`.
+- **Live work.** A runner update is also refused with 409 `machine_busy` while the machine has open terminals (the
+  machine's and the chats', as the hub carries them), naming them: "1 terminal is running on it: update the runner once
+  it ends". Chat turns count only when the update would end them (`workAnUpdateEnds`, S5.4): a runner that keeps its
+  turns (`caps.reattach`) keeps them through a self-update or an SSH reinstall (docs/harness.md "Surviving restarts"),
+  so they are not counted then; an older runner's turns and a container's rebuild still count ("2 chat turns are running
+  on it"). `POST …/runner-update {force: true}` updates anyway (the web never sends it; kept for later); the force goes
+  on to the runner's `runner.update`.
 - **On the runner** (defence in depth): `runner.update` answers `busy` while a tool install runs (even when forced), while
-  an update is under way, and while runs, chat turns or terminals are live unless the frame says `force`; `tools.install`
-  answers `busy` while a self-update is in progress (from its start until the restart).
+  an update is under way, and while runs or terminals are live unless the frame says `force` (not for chat turns, which
+  it leaves running); `tools.install` answers `busy` while a self-update is in progress (from its start until the
+  restart).
+- **The runner stopping** (a service stop, its self-update's restart) leaves its chat turns running for the next runner
+  (S5.4): their keepers are in their own sessions, which launchd does not kill (it kills the job's own process group) and
+  systemd does not either (`KillMode=process`; a unit from before is brought up to date when the runner starts under
+  systemd). Uninstalling leaves running turns to end on their own; a container's stop or rebuild ends them with the
+  container. The first update to a runner that keeps its turns restarts it under the old behaviour (that runner ends its
+  turns as it stops).
 - **`GET machines`** answers each machine's `runner.job: {kind, tool?, version?, path?, action?, progress?, startedAt} | null`,
   `runner.live: {turns, terminals}` and `runner.updateFailure: {path, message, command, at} | null` (a container's
   rebuild that failed after the answer). The Machines page reads them again every minute while the tab is visible, and

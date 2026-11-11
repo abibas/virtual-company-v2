@@ -66,7 +66,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | When, and the answer |
 |---|---|---|
-| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it), folders (boolean: it answers `fs.list` and `fs.mkdir`, S5.1d; false when left out), forks (boolean: its drivers fork a conversation for a branch's first turn, `TurnSpec.forkSession`; false when left out, and the server then refuses that turn), tools? (`{claude, codex, git, gh, docker}`, each CLI's `--version` first line, 1–100 characters, or null; left out by a runner older than the tools, which knows no `tools.*` frame; "Tools" below), containerId? (in a Docker container, its id as the container's hostname says it, 12–64 lower-case hex digits; left out elsewhere, for a hostname set by hand, and by a runner older than it: the server rebuilds that container to update its runner, docs/machines.md "Updating a runner")}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it), `builtAt` (when its bundle was built, UTC ISO 8601, or null from its sources; left out by a runner older than versioned runners, which parses as null; docs/machines.md, "Runner versions") | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
+| `runner.hello` | `protocol` (int ≥ 1), `version` (semver), `caps{harnesses{claude_code, codex} (each CLI's version, 1–100 characters, or null when it is missing; a runner older than chats sent the names alone, `["claude_code"]`, which still parses and means no turns: `harnessVersionOf` reads it as undefined), slots 0–64, hold devbox_keepalive\|caffeinate\|none, power[] of airia_devbox, terminal (boolean; false when left out, as by a runner older than the terminal), selfUpdate (boolean; false when left out, as by a runner older than it), folders (boolean: it answers `fs.list` and `fs.mkdir`, S5.1d; false when left out), forks (boolean: its drivers fork a conversation for a branch's first turn, `TurnSpec.forkSession`; false when left out, and the server then refuses that turn), reattach (boolean: its turns outlive a dropped link and its own restart, S5.4, "Chat turns"; false when left out, and the server then fails its turns when the link drops), tools? (`{claude, codex, git, gh, docker}`, each CLI's `--version` first line, 1–100 characters, or null; left out by a runner older than the tools, which knows no `tools.*` frame; "Tools" below), containerId? (in a Docker container, its id as the container's hostname says it, 12–64 lower-case hex digits; left out elsewhere, for a hostname set by hand, and by a runner older than it: the server rebuilds that container to update its runner, docs/machines.md "Updating a runner")}`, `claudeVersion?` (`claude --version`, 1–100 characters, or null; S4.2; the runner asks it once at start, S4.5), `build?` (the SHA-256 of the `runner.mjs` it was started from, 64 lower-case hex digits, or null from its sources; left out by a runner older than it), `builtAt` (when its bundle was built, UTC ISO 8601, or null from its sources; left out by a runner older than versioned runners, which parses as null; docs/machines.md, "Runner versions"), `turns?` (S5.4: the turns it holds, at most 256 `{turnId, lastSeq (the highest event number it gave the turn, 0 before its first), ended (its process ended; its last events, files and end are still to deliver)}`; left out when it holds none, and by older runners) | first frame; `power` lists the providers it can drive (`airia` and `gcloud` present and signed in); a hello without `claudeVersion` keeps the version on record; `build` against the bundle the server hands out is the machine's `runner.current` → `server.hello` |
 | `runner.caps` | `caps` (the whole `RunnerCaps` again) | what it can do changed on the live link (its tools after `tools.check` or `tools.install`, sent before their `tools.result`); the server's hub replaces the hello's caps and records the machine's slots and Claude Code version; no answer |
 | `runner.heartbeat` | `awakeMs` (monotonic since the runner started; stops while asleep), `load1`, `liveRuns[]` (run ids, ≤ 64), `backlog` (unacked events), `now`, `sample?` (`MachineSample`, once a minute) | every 20 s; renews the lease of each listed run |
 | `runner.resync` | `runs[≤ 1000]{runId, state running\|exited\|gone, exitCode (int\|null), lastSeq}` | after every `server.hello` |
@@ -95,7 +95,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 
 | Type | Fields | Notes |
 |---|---|---|
-| `server.hello` | `protocol`, `minRunnerVersion`, `machineId` | no `update` (the signed self-update is S8; `runner.update` below is the SHA-256-checked one) |
+| `server.hello` | `protocol`, `minRunnerVersion`, `machineId`, `resume?` (true from a server that takes held turns back, S5.4; left out by an older one) | no `update` (the signed self-update is S8; `runner.update` below is the SHA-256-checked one) |
 | `job.offer` | `id`, `runId`, `agentId`, `expiresAt` | unaccepted for 30 s → offered again |
 | `run.start` | `cmdId`, `spec` (below) | |
 | `run.input` | `cmdId`, `runId`, `inputId`, `text` | mid-turn or next-turn message |
@@ -118,7 +118,9 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `fs.mkdir` | `cmdId`, `path` (absolute or `~/…`) | make one folder whose parent exists; answered by `fs.result` |
 | `tools.check` | `cmdId` | look for the CLIs again and ask each one found its version; answered by `runner.caps`, then `tools.result` |
 | `tools.install` | `cmdId`, `tool` (`claude` \| `codex`), `version` (an exact version: the server's pin) | install it with npm into `~/.local`; answered by `tools.output` lines, `runner.caps` and `tools.result` ("Tools" below) |
-| `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT; its `turn.end` says `stopped` |
+| `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 10 s later, SIGKILL 20 s after the SIGINT; its `turn.end` says `stopped` |
+| `turn.resume` | `turns[≤ 256]{turnId, lastSeq}` (`lastSeq` the highest event number the server stored for the turn, or null: it has no such live turn) | once after `server.hello`, answering a hello that named turns (S5.4, "Chat turns" below): the runner resends the events after `lastSeq` and goes on; null: it stops that turn and forgets it |
+| `turn.ack` | `turnId` | the server recorded the turn's end (S5.4); the runner removes the turn's run folder |
 
 **The run spec** (`RunSpec`): `runId`, `companyId`, `agentId`, `taskId` (null outside a task), `harness`,
 `placement{home, configDir|null, worktree|null}` (absolute or `~/` paths), `session` (`{mode: 'new', sessionId|null}`
@@ -219,13 +221,14 @@ among the events) and exactly one `turn.end`, after the last events. The spec ca
 environment values or `auth.json`.
 
 - **Refusals.** A start the runner does not carry out is answered at once with `turn.end {ok: false, exitCode: null,
-  error}`, the codes of `TURN_ERRORS`: `unsupported` (no driver for the harness here), `busy` (`caps.slots` turns live),
+  error}`, the codes of `TURN_ERRORS`: `unsupported` (no driver for the harness here, or no keeper), `busy` (`caps.slots` turns live),
   `home_missing` (the spec's `cwd` is not a folder on the machine), `invalid_spec: …` (the driver refused the spec),
   `spawn_failed: …` (the process or its private folder could not start), `runner_stopping`. A repeated `turn.start` of
   a live turn and a `turn.stop` of a turn it does not have are ignored.
 - **The end.** `ok` is the turn's result's (false whenever there is an `error`), `exitCode` the process's (null after a
-  signal), `error` `stopped` after `turn.stop` and `runner_stopping` when the runner stops (sent before its socket
-  closes). `authJson` comes when a Codex process rewrote its `auth.json` (its own token refresh); the server seals it
+  signal), `error` `stopped` after `turn.stop`, `spawn_failed: …` when the harness could not start, and `process_lost`
+  when its keeper ended without recording the exit (killed while no runner watched; S5.4). `runner_stopping` refuses a
+  new turn only: a runner that stops leaves its turns running. `authJson` comes when a Codex process rewrote its `auth.json` (its own token refresh); the server seals it
   into the credential again.
 - **Batching.** Events go about 100 ms after the first of a batch (`TURN_EVENTS_BATCH_MS`), or at once from 32 KB
   (`TURN_EVENTS_BATCH_BYTES`) or 100 events; a text event over 16 KB is split into several (each keeping its
@@ -250,10 +253,22 @@ environment values or `auth.json`.
   for a turn that takes no input (Codex), once it stops or after its stdin closed is dropped (logged); a runner older
   than the frame ignores it as an unknown frame. Either way the server sees no `input` event and starts the message as
   the next turn.
-- **The link.** A turn belongs to the connection that carried its `turn.start`: when the link drops the runner ends its
-  processes by the stop ladder (nothing can reach the server then), and the server fails the turns of that connection
-  (`machine_disconnected`). Nothing is re-attached after a reconnect yet (S5 proper). Live turns count for the runner's
-  own hold (`hold.state` source `live_runs`) and make `runner.update` answer `busy`.
+- **The link** (S5.4; what each side does is docs/harness.md "Surviving restarts"). A turn outlives the connection
+  that carried its `turn.start`. Each turn runs through a keeper in a run folder, and the runner keeps every event it
+  numbered there before it sends it. When the link drops (or the runner restarts) the turn runs on and its frames wait;
+  the runner's next hello names it in `turns` (id, last event number, whether its process ended), and the server answers
+  once with `turn.resume`: per turn the highest event number it stored, after which the runner resends what follows from
+  its log (`turn.events`, and a question as `turn.question` again; the server stores each event once, by `(turn, seq)`)
+  and goes on live, and for a turn whose process ended sends its files and `turn.end` again; `lastSeq: null` (the server
+  failed the turn, or never had it) makes the runner stop it by the ladder, send nothing, and remove its folder. The server
+  keeps a turn whose runner says `caps.reattach` `running` and detached for its grace (`MWC_TURN_GRACE_SECONDS`, 180 s)
+  after the link drops, and at its own start waits the same grace for the turns left running; a hello of the machine that
+  does not name a waiting turn ends it at once, the grace running out too (`machine_disconnected`, `server_restarted`). A
+  `turn.stop` asked meanwhile goes right after `turn.resume`. A runner without `caps.reattach` ended its processes with
+  the link, so its turns fail at once, as before; a server without `server.hello.resume` sends no `turn.resume`, and the
+  runner stops the turns it holds. `turn.ack` follows each recorded end; without it (an older server) the folder goes
+  after 24 hours. Live turns count for the runner's own hold (`hold.state` source `live_runs`); they no longer make
+  `runner.update` answer `busy`.
 
 ## Artifacts
 
@@ -291,8 +306,8 @@ current one. A runner says `caps.selfUpdate: true` only for the installed copy t
 click, and waits up to 3 minutes for `runner.update.result`. The runner:
 
 1. answers `unsupported` without the capability; `busy` while it installs a tool or an update is under way; and `busy`
-   while runs, chat turns or terminals are live, unless the frame says `force: true` (its terminals then end with the
-   notice of step 4);
+   while runs or terminals are live, unless the frame says `force: true` (its terminals then end with the notice of
+   step 4); chat turns do not count since S5.4: they outlive the restart, and the restarted runner takes them back;
 2. downloads `RUNNER_BUNDLE_PATH` and `RUNNER_PTY_PATH/<target>.tgz` from its own server address (http for ws, https
    for wss), each checked against `RUNNER_SHA256_HEADER` (`hash_mismatch` without one or on a mismatch; a 404 for the
    PTY keeps the one it has);
@@ -300,9 +315,10 @@ click, and waits up to 3 minutes for `runner.update.result`. The runner:
    staging folder beside the installed copy, moves the old `node_modules/` aside, the new one in, and renames the
    temporary bundle over `runner.mjs`; a failure puts the old copy back (`write_failed`);
 4. ends its open terminals with a notice line and `terminal.exit` `error: 'runner_updating'`, answers `ok` with the new
-   `build`, and 250 ms later stops (as on SIGTERM: terminals, socket 1000, hold, tunnels) and exits 75, which its
-   service manager restarts (systemd `Restart=always`; launchd `KeepAlive {SuccessfulExit: false}`). It reconnects as
-   usual and says its new build.
+   `build`, and 250 ms later stops (as on SIGTERM: terminals, socket 1000, hold, tunnels; its chat turns left running)
+   and exits 75, which its service manager restarts (systemd `Restart=always`, `KillMode=process` so the turns' keepers
+   stay; launchd `KeepAlive {SuccessfulExit: false}`). It reconnects as usual, says its new build and the turns it took
+   back.
 
 It trusts the server over its authenticated link and checks SHA-256 only; the signed self-update (Ed25519) is S8.
 
@@ -375,7 +391,9 @@ newer one passes through). The server sends `tools.check` and `tools.install` on
 | `TERMINAL_DATA_MAX_BYTES`, `TERMINAL_COLS`, `TERMINAL_ROWS` | 64 KB decoded per `terminal.input` / `terminal.output`; cols 2–500, rows 1–300 |
 | `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
 | `TURN_EVENTS_BATCH_MS`, `TURN_EVENTS_BATCH_BYTES` | a turn's events sent 100 ms after the first of a batch, or at once from 32 KB (or 100 events) |
-| `TURN_STOP_TERM_MS`, `TURN_STOP_KILL_MS` | SIGTERM 5 s and SIGKILL 10 s after a stopped turn's SIGINT |
+| `TURN_STOP_TERM_MS`, `TURN_STOP_KILL_MS` | SIGTERM 10 s and SIGKILL 20 s after a stopped turn's SIGINT |
+| `HELD_TURNS_MAX`, `TURN_REATTACH_GRACE_MS` | 256 turns in one hello or `turn.resume`; a turn whose runner went away waits 180 s for it (the server's `MWC_TURN_GRACE_SECONDS`) |
+| the runner's turns (`apps/runner/src/turns/`) | the journal read every 100 ms; a keeper alone 10 minutes closes the harness's stdin; 2 s for a keeper's greeting; an ended turn's folder kept 24 h without `turn.ack` |
 | `ARTIFACT_LIMITS` (`@mwc/shared/flows`), `ARTIFACT_PARTS_MAX` | a task step's turn collects 20 files of at most 2 MB, 10 MB together, 50 skipped listed, names of 255 characters, sent in parts of 128 KB (16 at most per file) |
 | the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
 | the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
