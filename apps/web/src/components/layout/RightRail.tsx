@@ -1,52 +1,57 @@
 import { PanelRightClose } from 'lucide-react';
-import { type RefObject, useEffect, useRef } from 'react';
+import { type ReactNode, type RefObject, useEffect, useRef } from 'react';
 import { cx } from '../cx.ts';
-import { AttentionFeed } from '../feed/AttentionFeed.tsx';
-import type { AgentRef, AttentionItem } from '../feed/kinds.ts';
-import { QuickCreate } from '../feed/QuickCreate.tsx';
 import { Card } from '../ui/Card.tsx';
 import { IconButton } from '../ui/IconButton.tsx';
 import { RailStrip } from './RailStrip.tsx';
+import { type RailView, RailViews } from './RailViews.tsx';
 
+export type { RailView };
+
+/** What the right rail holds: the inbox (what needs the person) and the notifications, each a view of its own. */
 export interface RightRailProps {
-  readonly attention: readonly AttentionItem[];
-  readonly attentionLoading?: boolean;
-  readonly agents: readonly AgentRef[];
-  readonly onQuickCreate?: ((agentId: string, text: string) => void) | undefined;
-  /** Why the dock takes no task yet (without `onQuickCreate`): "Tasks arrive in S4". */
-  readonly quickCreateNote?: string | undefined;
-  readonly seeAllHref?: string | undefined;
-  readonly now?: Date | undefined;
+  /** The Attention view: what needs the person, across their companies. */
+  readonly attention: ReactNode;
+  readonly attentionCount: number;
+  /** The Notifications view: the notices of this company. */
+  readonly notifications: ReactNode;
+  readonly unread: number;
+  /** At the right of the Notifications view's line under the tabs (Mark all read). */
+  readonly notificationsAction?: ReactNode;
+  /** The Notifications view's scope, under the tabs ("In Acme"). */
+  readonly notificationsScope?: string | undefined;
+  /** Pinned at the foot of the Attention view (quick create); none also hides the strip's "+". */
+  readonly dock?: ReactNode;
 }
 
 /**
- * What the right rail holds: the attention feed above, the quick-create dock pinned below. `onCollapse` puts a
- * collapse button in the feed's header; `focusComposer` focuses the dock's composer as it shows.
+ * The rail's content: the two tabs with their counts and the collapse button, the open view scrolling, and the dock under
+ * the Attention view. `focusDock` focuses the dock's first field as it shows (the strip's "+").
  */
 export function RightRailContent({
-  attention,
-  attentionLoading = false,
-  agents,
-  onQuickCreate,
-  quickCreateNote,
-  seeAllHref,
-  now,
+  view,
+  onView,
   onCollapse,
-  focusComposer,
+  focusDock,
   className,
+  ...content
 }: RightRailProps & {
+  readonly view: RailView;
+  readonly onView: (view: RailView) => void;
   readonly onCollapse?: (() => void) | undefined;
-  readonly focusComposer?: boolean | undefined;
+  readonly focusDock?: boolean | undefined;
   readonly className?: string;
 }) {
+  const dock = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusDock) dock.current?.querySelector<HTMLElement>('input:not(:disabled), textarea')?.focus();
+  }, [focusDock]);
   return (
     <div className={cx('flex min-h-0 flex-1 flex-col', className)}>
-      <AttentionFeed
-        items={attention}
-        loading={attentionLoading}
-        className="min-h-0 flex-1"
-        {...(seeAllHref !== undefined ? { seeAllHref } : {})}
-        {...(now !== undefined ? { now } : {})}
+      <RailViews
+        view={view}
+        onView={onView}
+        {...content}
         action={
           onCollapse && (
             <IconButton
@@ -61,13 +66,11 @@ export function RightRailContent({
           )
         }
       />
-      <QuickCreate
-        agents={agents}
-        {...(onQuickCreate !== undefined ? { onCreate: onQuickCreate } : {})}
-        disabledNote={quickCreateNote}
-        focusComposer={focusComposer}
-        className="mt-3 shrink-0"
-      />
+      {view === 'attention' && content.dock && (
+        <div ref={dock} className="mt-3 shrink-0">
+          {content.dock}
+        </div>
+      )}
     </div>
   );
 }
@@ -77,21 +80,25 @@ export interface RightRailFrameProps extends RightRailProps {
   /** The card is open; else the rail is the slim strip at the right edge (`useRightRail`). */
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  /** Opens the rail on Quick create, with `composing` set until the next toggle: the composer takes the focus. */
+  readonly view: RailView;
+  readonly onView: (view: RailView) => void;
+  /** Opens the rail on its dock, with `composing` set until the next toggle: the dock's field takes the focus. */
   readonly onCompose: () => void;
   readonly composing?: boolean | undefined;
 }
 
 /**
- * The right rail on wide screens: open, a card the height of the window with the feed scrolling inside it;
- * collapsed, a slim strip at the right edge. The width moves between the two in a short transition (none with
- * reduced motion) and the page takes the room; the card keeps its width and slides out from the edge. After a toggle
- * the focus moves to the button that toggles back.
+ * The right rail on wide screens: open, a card the height of the window with the open view scrolling inside it;
+ * collapsed, a slim strip at the right edge whose icons open each view. The width moves between the two in a short
+ * transition (none with reduced motion) and the page takes the room; the card keeps its width and slides out from the
+ * edge. After a toggle the focus moves to the button that toggles back.
  */
 export function RightRail({
   asideRef,
   open,
   onOpenChange,
+  view,
+  onView,
   onCompose,
   composing,
   ...content
@@ -107,11 +114,15 @@ export function RightRail({
     toggled.current = false;
     asideRef.current?.querySelector<HTMLElement>('[data-rail-toggle]')?.focus();
   }, [open]);
+  const openOn = (next: RailView) => {
+    onView(next);
+    toggle(true);
+  };
   return (
     <aside
       ref={asideRef}
       tabIndex={-1}
-      aria-label="Attention required"
+      aria-label="Inbox"
       className={cx(
         'sticky top-0 hidden h-screen shrink-0 py-3 pr-3 outline-none transition-[width] duration-200 ease-out motion-reduce:transition-none xl:block',
         open ? 'w-aside' : 'w-16',
@@ -124,11 +135,23 @@ export function RightRail({
             padding="sm"
             className="pointer-events-auto flex h-full w-[calc(var(--spacing-aside)-0.75rem)] shrink-0 flex-col"
           >
-            <RightRailContent {...content} onCollapse={() => toggle(false)} focusComposer={composing} />
+            <RightRailContent
+              {...content}
+              view={view}
+              onView={onView}
+              onCollapse={() => toggle(false)}
+              focusDock={composing}
+            />
           </Card>
         </div>
       ) : (
-        <RailStrip count={content.attention.length} onExpand={() => toggle(true)} onCompose={onCompose} />
+        <RailStrip
+          attentionCount={content.attentionCount}
+          unread={content.unread}
+          onOpen={openOn}
+          onExpand={() => toggle(true)}
+          {...(content.dock ? { onCompose } : {})}
+        />
       )}
     </aside>
   );

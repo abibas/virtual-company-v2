@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, Inbox } from 'lucide-react';
+import { ChevronDown, Inbox } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cx } from '../cx.ts';
 import { Menu, MenuSeparator } from '../forms/Menu.tsx';
@@ -80,31 +80,30 @@ export function UserPill({
 }
 
 /**
- * The date and the greeting, the search box, the bell with its count, and the person. With `bell` (a company's
- * notifications, S2.9) that bell is the notifications', and what needs attention gets its own button while it holds
- * something.
+ * The date and the greeting, the search box and the person. Below 80rem, where no right rail shows, a button opens the
+ * inbox and the notifications in a drawer, with what needs the person and the unread notices counted on it; from 80rem
+ * both live on the right rail, so nothing else sits beside the person.
  */
 export function TopBar({
   firstName,
   now,
   user,
   attentionCount,
-  attentionPulse = false,
-  onBell,
-  bell,
+  unread,
+  onInbox,
 }: {
   readonly firstName: string;
   readonly now?: Date;
   readonly user: ShellUser;
   readonly attentionCount: number;
-  /** The bell's count pulses (below 80rem, where no right rail shows it). */
-  readonly attentionPulse?: boolean;
-  /** Opens what needs attention. */
-  readonly onBell: () => void;
-  /** The notifications' bell, in place of the attention bell. */
-  readonly bell?: ReactNode;
+  readonly unread: number;
+  /** Opens the inbox drawer (below 80rem). */
+  readonly onInbox: () => void;
 }) {
-  const attention = bell === undefined || attentionCount > 0;
+  const parts = [
+    ...(attentionCount > 0 ? [`${attentionCount} need you`] : []),
+    ...(unread > 0 ? [`${unread} unread`] : []),
+  ];
   return (
     <header className="flex items-center gap-3 px-4 pt-4 md:gap-5 md:px-6 md:pt-5">
       <BrandMark size="md" className="md:hidden" />
@@ -116,19 +115,17 @@ export function TopBar({
       </div>
       <SearchBox className="mx-auto hidden w-full max-w-md md:flex" />
       <div className="flex shrink-0 items-center gap-2.5">
-        {attention && (
-          <IconButton
-            label={attentionCount > 0 ? `Attention required: ${attentionCount}` : 'Attention required'}
-            icon={bell === undefined ? Bell : Inbox}
-            tone="solid"
-            size="lg"
-            badge={attentionCount}
-            pulse={attentionPulse}
-            onClick={onBell}
-            className="rounded-full"
-          />
-        )}
-        {bell}
+        <IconButton
+          label={parts.length > 0 ? `Inbox: ${parts.join(', ')}` : 'Inbox'}
+          icon={Inbox}
+          tone="solid"
+          size="lg"
+          badge={attentionCount + unread}
+          badgeTone={attentionCount > 0 ? 'alert' : 'info'}
+          pulse={attentionCount > 0}
+          onClick={onInbox}
+          className="rounded-full xl:hidden"
+        />
         <UserPill user={user} />
       </div>
     </header>

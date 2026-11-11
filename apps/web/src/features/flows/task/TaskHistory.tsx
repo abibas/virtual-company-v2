@@ -2,8 +2,7 @@ import type { TaskEventKind } from '@mwc/shared/enums';
 import type { TaskEvent } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
 import { cx } from '../../../components/cx.ts';
-import { formatDateTime } from '../../../components/data/format.ts';
-import { ago } from '../../notifications/NotificationList.tsx';
+import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { Face } from '../Face.tsx';
 
 /** What each move says after its actor's name, and its dot's colour. */

@@ -1,6 +1,5 @@
 import { useClerk } from '@clerk/react';
 import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react';
-import { useAttention } from '../api/attention.ts';
 import { useAgentList } from '../api/org.ts';
 import { usePendingLogo } from '../api/pending-logo.ts';
 import { shellUser } from '../components/auth/AccountMenu.tsx';
@@ -14,7 +13,7 @@ import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
 import { FLOW_TAB } from '../features/flows/links.ts';
-import { NotificationsBell } from '../features/notifications/NotificationsBell.tsx';
+import { useCompanyRail } from '../features/inbox/use-company-rail.tsx';
 import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
@@ -129,8 +128,9 @@ function pageAt(section: string): ReactNode {
 }
 
 /**
- * The company's frame around its page: the rail and the switcher (to the same section of another company), the
- * attention feed, the quick-create dock with the team's faces (its tasks arrive in S4), and the company's notices.
+ * The company's frame around its page: the rail and the switcher (to the same section of another company), the right
+ * rail (the inbox across the person's companies, this company's notifications and the quick-create dock), and the
+ * company's notices.
  */
 function CompanyFrame({
   view,
@@ -142,9 +142,26 @@ function CompanyFrame({
   readonly provisioning: boolean;
 }) {
   const { membership, me } = view;
-  const attention = useAttention();
   const pendingLogo = usePendingLogo(membership.companyId);
   const agents = useAgentList(membership.companyId);
+  const faces = useMemo(
+    () =>
+      new Map(
+        (agents.data?.agents ?? []).map((agent) => [
+          agent.principalId,
+          { ...agentRef(agent), icon: agent.icon },
+        ]),
+      ),
+    [agents.data],
+  );
+  const rail = useCompanyRail({
+    companyId: membership.companyId,
+    slug: membership.slug,
+    companyName: membership.name,
+    role: membership.role,
+    userId: me.user.id,
+    faces,
+  });
   // An agent's page and chats belong to Company structure (the rail, and the switcher's section in another company).
   const head = railSection(section.split('/')[0] ?? '');
   return (
@@ -154,11 +171,7 @@ function CompanyFrame({
         badge={<CompanySwitcher current={membership} section={head} />}
         firstName={firstName(me.user.displayName, me.user.email)}
         user={shellUser(me.user, roleName(membership.role))}
-        bell={<NotificationsBell companyId={membership.companyId} slug={membership.slug} />}
-        attention={attention.items}
-        attentionLoading={attention.loading}
-        agents={agents.data?.agents.map((agent) => ({ ...agentRef(agent), icon: agent.icon })) ?? []}
-        quickCreateNote="Tasks arrive in S4"
+        {...rail}
         banner={
           (provisioning || pendingLogo) && (
             <div className="flex flex-col gap-3">

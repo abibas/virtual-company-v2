@@ -108,6 +108,7 @@ export function flowCalls(api: Api, companyId: string) {
   const flows = company(api).flows;
   const tasks = company(api).tasks;
   return {
+    flow: (flowId: string) => call(flows[':flowId'].$get({ param: { companyId, flowId } })),
     createFlow: (flow: NewFlow) => call(flows.$post({ param: { companyId }, json: flow })),
     renameFlow: (flowId: string, name: string) =>
       call(flows[':flowId'].$patch({ param: { companyId, flowId }, json: { name } })),

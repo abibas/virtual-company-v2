@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ComponentPropsWithRef } from 'react';
 import { cx } from '../cx.ts';
-import { CountDot } from './CountDot.tsx';
+import { CountDot, type CountTone } from './CountDot.tsx';
 import { Tooltip, type TooltipSide } from './Tooltip.tsx';
 
 export type IconButtonTone = 'ghost' | 'soft' | 'solid' | 'primary' | 'inverse';
@@ -55,10 +55,12 @@ export interface IconButtonProps extends Omit<ComponentPropsWithRef<'button'>, '
   readonly size?: IconButtonSize;
   /** The selected state (the rail's current page): a filled blue square. */
   readonly active?: boolean;
-  /** A count in a red dot at the corner (the bell), hidden at 0. */
+  /** A count in a dot at the corner (the rail strip's icons), hidden at 0. */
   readonly badge?: number;
   /** The count's dot pulses softly: something waits for the person. */
   readonly pulse?: boolean;
+  /** The count's colour: red (`alert`, the default) for what needs the person, blue (`info`) for unread notices. */
+  readonly badgeTone?: CountTone;
   /** Shows the label as a tooltip on hover and focus, on this side. */
   readonly tooltip?: TooltipSide;
   readonly round?: boolean;
@@ -73,6 +75,7 @@ export function IconButton({
   active = false,
   badge,
   pulse = false,
+  badgeTone,
   tooltip,
   round = false,
   className,
@@ -88,7 +91,7 @@ export function IconButton({
       {...rest}
     >
       <Icon size={SIZES[size].icon} strokeWidth={2} aria-hidden="true" />
-      <CountDot count={badge ?? 0} pulse={pulse} />
+      <CountDot count={badge ?? 0} pulse={pulse} {...(badgeTone ? { tone: badgeTone } : {})} />
     </button>
   );
   if (!tooltip) return button;

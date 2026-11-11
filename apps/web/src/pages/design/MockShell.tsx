@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo } from 'react';
 import { primeCompanyLogo } from '../../api/company-logo.ts';
 import { CompanySwitcher } from '../../app/CompanySwitcher.tsx';
 import { companyNav } from '../../app/nav.ts';
@@ -8,9 +8,9 @@ import { MenuItem } from '../../components/forms/Menu.tsx';
 import { AppShell } from '../../components/layout/AppShell.tsx';
 import type { ShellUser } from '../../components/layout/TopBar.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
-import { Notice } from '../../components/ui/Notice.tsx';
 import { SAMPLE_COMPANY, SAMPLE_MEMBERSHIP, SAMPLE_SESSION } from './records.ts';
-import { SAMPLE_AGENTS, SAMPLE_ATTENTION, SAMPLE_LOGO_SRC, SAMPLE_NOW } from './sample.ts';
+import { SAMPLE_LOGO_SRC, SAMPLE_NOW } from './sample.ts';
+import { useSampleRail } from './sample-rail.tsx';
 
 /** The version the sample company's logo is primed under with `?logo=1` (the hook asks for it; the gallery has no API). */
 export const SAMPLE_LOGO_VERSION = 'sample';
@@ -76,13 +76,14 @@ function useSampleSession(withLogo: boolean): {
   }, [withLogo]);
 }
 
-const ATTENTION = SAMPLE_ATTENTION.map((item) => ({ ...item, href: '/design/dashboard' }));
-
-/** The app shell with sample data around a mocked page: the real switcher on the sample session, the feed full. */
+/**
+ * The app shell with sample data around a mocked page: the real switcher on the sample session, the right rail full
+ * (`?inbox=empty`: with nothing in it).
+ */
 export function MockShell({ active, children }: { readonly active: MockPage; readonly children: ReactNode }) {
-  const [created, setCreated] = useState<string>();
   const { search } = useLocation();
   const { session, current } = useSampleSession(search.get('logo') === '1');
+  const rail = useSampleRail(search.get('inbox') === 'empty');
   return (
     <SessionContext value={session}>
       <AppShell
@@ -91,31 +92,19 @@ export function MockShell({ active, children }: { readonly active: MockPage; rea
         firstName="Ihor"
         now={SAMPLE_NOW}
         user={USER}
-        attention={ATTENTION}
-        agents={SAMPLE_AGENTS}
-        onQuickCreate={(agent, text) =>
-          setCreated(`${SAMPLE_AGENTS.find((a) => a.id === agent)?.name}: ${text}`)
-        }
-        seeAllHref="/design/dashboard"
+        {...rail}
         banner={
           <div className="flex flex-wrap items-center gap-3">
             <Badge tone="input" variant="solid">
               Sample data
             </Badge>
             <p className="text-sm text-dim">
-              Nothing here is real: the feed, the agents, the people and the numbers are made up for the
+              Nothing here is real: the inbox, the agents, the people and the numbers are made up for the
               design.
             </p>
           </div>
         }
       >
-        {created && (
-          <div className="mb-5">
-            <Notice tone="success" title="Sample only" onDismiss={() => setCreated(undefined)}>
-              Would create a task for {created}.
-            </Notice>
-          </div>
-        )}
         {children}
       </AppShell>
     </SessionContext>

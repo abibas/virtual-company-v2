@@ -1,8 +1,10 @@
-import { type ReactNode, useCallback, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
 import { Drawer } from './Drawer.tsx';
 import { MobileNav } from './MobileNav.tsx';
 import { type NavItem, Rail } from './Rail.tsx';
+import type { RailView } from './RailViews.tsx';
 import { RightRail, RightRailContent, type RightRailProps } from './RightRail.tsx';
 import { useRightRail, useWideScreen } from './right-rail-state.ts';
 import { type ShellUser, TopBar } from './TopBar.tsx';
@@ -15,40 +17,34 @@ export interface AppShellProps extends RightRailProps {
   readonly user: ShellUser;
   /** A notice above the page (the company being set up). */
   readonly banner?: ReactNode;
-  /** The top bar's notifications bell (S2.9), in place of its attention bell. */
-  readonly bell?: ReactNode;
+  readonly now?: Date | undefined;
   readonly children: ReactNode;
 }
 
 /**
- * The frame of every company page: the left icon rail, the top bar, the page, and the right rail with the
- * attention feed and the quick-create dock. From 80rem the right rail opens beside the page or collapses to a strip
- * (`useRightRail`); below that the bell opens it as a drawer. On phones the rail becomes a bottom bar.
+ * The frame of every company page: the left icon rail, the top bar, the page, and the right rail with its two views,
+ * Attention (the inbox and the quick-create dock) and Notifications. From 80rem the right rail opens beside the page or
+ * collapses to a strip (`useRightRail`) whose icons open each view; below that the top bar's inbox button opens it as a
+ * drawer. On phones the rail becomes a bottom bar.
  */
-export function AppShell({
-  nav,
-  badge,
-  firstName,
-  user,
-  banner,
-  bell,
-  children,
-  now,
-  ...rail
-}: AppShellProps) {
+export function AppShell({ nav, badge, firstName, user, banner, children, now, ...rail }: AppShellProps) {
   const [drawer, setDrawer] = useState(false);
+  const [view, setView] = useState<RailView>('attention');
   const aside = useRef<HTMLElement>(null);
   const closeDrawer = useCallback(() => setDrawer(false), []);
-  const attentionCount = rail.attention.length;
+  // A card or a notice opened from the drawer goes to its page: the drawer closes behind it.
+  const { href } = useLocation();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the address changes.
+  useEffect(() => setDrawer(false), [href]);
   const wide = useWideScreen();
-  const right = useRightRail(attentionCount);
-  // The collapsed rail's "+" asks for the composer's focus; any other toggle withdraws the request.
+  const right = useRightRail(rail.attentionCount);
+  // The collapsed rail's "+" asks for the dock's focus; any other toggle withdraws the request.
   const [composing, setComposing] = useState(false);
   const setRailOpen = (open: boolean) => {
     setComposing(false);
     right.setOpen(open);
   };
-  const onBell = () => {
+  const onInbox = () => {
     if (!wide) {
       setDrawer(true);
       return;
@@ -57,6 +53,7 @@ export function AppShell({
     aside.current?.focus();
   };
   const onCompose = () => {
+    setView('attention');
     setComposing(true);
     right.setOpen(true);
   };
@@ -74,10 +71,9 @@ export function AppShell({
           <TopBar
             firstName={firstName}
             user={user}
-            attentionCount={attentionCount}
-            attentionPulse={attentionCount > 0 && !wide}
-            onBell={onBell}
-            bell={bell}
+            attentionCount={rail.attentionCount}
+            unread={rail.unread}
+            onInbox={onInbox}
             {...(now !== undefined ? { now } : {})}
           />
           <main
@@ -93,15 +89,16 @@ export function AppShell({
           asideRef={aside}
           open={right.open}
           onOpenChange={setRailOpen}
+          view={view}
+          onView={setView}
           onCompose={onCompose}
           composing={composing}
           {...rail}
-          {...(now !== undefined ? { now } : {})}
         />
       </div>
       <MobileNav items={nav} />
-      <Drawer open={drawer} onClose={closeDrawer} title="Attention required" className="h-[calc(100vh-1rem)]">
-        <RightRailContent {...rail} {...(now !== undefined ? { now } : {})} />
+      <Drawer open={drawer} onClose={closeDrawer} title="Inbox" className="h-[calc(100vh-1rem)]">
+        <RightRailContent {...rail} view={view} onView={setView} />
       </Drawer>
     </div>
   );

@@ -1,7 +1,6 @@
 import { CornerDownRight } from 'lucide-react';
 import type { TaskArtifact } from '../../../api/task-artifacts.ts';
-import { formatDateTime } from '../../../components/data/format.ts';
-import { ago } from '../../notifications/NotificationList.tsx';
+import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { useArtifactText } from './ArtifactViewer.tsx';
 
 /** The first lines of the note, plain (the viewer renders it whole). */

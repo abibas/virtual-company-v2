@@ -6,10 +6,9 @@ import type { TaskDetail } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
 import { Link } from '../../../app/router.tsx';
 import { cx } from '../../../components/cx.ts';
-import { formatDateTime } from '../../../components/data/format.ts';
+import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { Select } from '../../../components/forms/Input.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
-import { ago } from '../../notifications/NotificationList.tsx';
 import { Who } from '../Face.tsx';
 import { KIND, PRIORITY, PRIORITY_ORDER } from '../words.ts';
 

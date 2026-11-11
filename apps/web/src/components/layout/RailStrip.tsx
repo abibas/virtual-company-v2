@@ -1,19 +1,25 @@
-import { Bell, PanelRightOpen, Plus } from 'lucide-react';
+import { Bell, Inbox, PanelRightOpen, Plus } from 'lucide-react';
 import { IconButton } from '../ui/IconButton.tsx';
+import type { RailView } from './RailViews.tsx';
 
 /**
- * The right rail collapsed: a slim strip at the right edge with the way back (expand), what needs the person (its
- * count in a dot that pulses while something waits) and, at the foot, a "+" that opens the rail on Quick create.
+ * The right rail collapsed: a slim strip at the right edge with the way back (expand), what needs the person (its count
+ * in a dot that pulses while something waits), the notifications (the unread count), each opening its view, and at the
+ * foot a "+" that opens the rail on its dock (quick create) when it has one.
  */
 export function RailStrip({
-  count,
+  attentionCount,
+  unread,
+  onOpen,
   onExpand,
   onCompose,
 }: {
-  readonly count: number;
+  readonly attentionCount: number;
+  readonly unread: number;
+  readonly onOpen: (view: RailView) => void;
   readonly onExpand: () => void;
-  /** Opens the rail with the quick-create composer focused. */
-  readonly onCompose: () => void;
+  /** Opens the rail with the dock's field focused; none: no "+". */
+  readonly onCompose?: () => void;
 }) {
   return (
     // A card without its clipping, so the tooltips and the pulse can reach past the strip.
@@ -28,23 +34,33 @@ export function RailStrip({
       />
       <span aria-hidden="true" className="h-px w-6 bg-line" />
       <IconButton
-        label={count > 0 ? `Attention required: ${count}` : 'Attention required'}
+        label={attentionCount > 0 ? `Attention required: ${attentionCount}` : 'Attention required'}
+        icon={Inbox}
+        tooltip="left"
+        badge={attentionCount}
+        pulse
+        onClick={() => onOpen('attention')}
+      />
+      <IconButton
+        label={unread > 0 ? `Notifications: ${unread} unread` : 'Notifications'}
         icon={Bell}
         tooltip="left"
-        badge={count}
-        pulse
-        onClick={onExpand}
+        badge={unread}
+        badgeTone="info"
+        onClick={() => onOpen('notifications')}
       />
-      <div className="mt-auto">
-        <IconButton
-          label="Quick create task"
-          icon={Plus}
-          tone="soft"
-          round
-          tooltip="left"
-          onClick={onCompose}
-        />
-      </div>
+      {onCompose && (
+        <div className="mt-auto">
+          <IconButton
+            label="Quick create task"
+            icon={Plus}
+            tone="soft"
+            round
+            tooltip="left"
+            onClick={onCompose}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import type { ChartNode } from '../../../api/types.ts';
 import { cx } from '../../../components/cx.ts';
-import { formatDateTime } from '../../../components/data/format.ts';
-import { ago } from '../../notifications/NotificationList.tsx';
+import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { Face } from '../Face.tsx';
 import { LiveDot } from './LiveDot.tsx';
 import { conversationLook, type RoundSpan, roundWords, type TaskConversation } from './model.ts';

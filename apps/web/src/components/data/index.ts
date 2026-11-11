@@ -2,6 +2,7 @@ export { type Column, DataTable, Primary } from './DataTable.tsx';
 export { DayGroup } from './DayGroup.tsx';
 export { type DayGroupOf, dayLabel, groupByDay } from './days.ts';
 export {
+  ago,
   count,
   formatBytes,
   formatDate,

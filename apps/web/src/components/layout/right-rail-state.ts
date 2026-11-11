@@ -1,6 +1,6 @@
 import { useCallback, useState, useSyncExternalStore } from 'react';
 
-/** The right rail is in view from Tailwind's `xl` breakpoint; below it the bell opens it as a drawer. */
+/** The right rail is in view from Tailwind's `xl` breakpoint; below it the top bar's inbox button opens it as a drawer. */
 const WIDE = '(min-width: 80rem)';
 
 /** Where the person's own choice is kept, in this browser only. */

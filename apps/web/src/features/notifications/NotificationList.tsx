@@ -2,21 +2,7 @@ import type { Notification } from '../../api/notifications.ts';
 import { companyPath } from '../../app/nav.ts';
 import { Link } from '../../app/router.tsx';
 import { cx } from '../../components/cx.ts';
-import { formatDateTime } from '../../components/data/format.ts';
-
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-
-/** How long ago, short: "now", "5 min", "3 h", "2 d", then the date. */
-export function ago(iso: string, now = Date.now()): string {
-  const ms = Math.max(0, now - new Date(iso).getTime());
-  if (ms < MINUTE) return 'now';
-  if (ms < HOUR) return `${Math.floor(ms / MINUTE)} min ago`;
-  if (ms < DAY) return `${Math.floor(ms / HOUR)} h ago`;
-  if (ms < 7 * DAY) return `${Math.floor(ms / DAY)} d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-}
+import { ago, formatDateTime } from '../../components/data/format.ts';
 
 /** One notification: a dot while unread, its words, who did it and when; a link to its page when it has one. */
 function Row({
@@ -76,11 +62,7 @@ export function NotificationList({
   readonly onOpen: (notice: Notification) => void;
 }) {
   if (notices.length === 0) {
-    return (
-      <p className="px-3 py-6 text-center text-sm text-dim">
-        Nothing yet. Moves on the org chart, role changes and your agents' pauses show up here.
-      </p>
-    );
+    return <p className="px-3 py-6 text-center text-sm text-dim">No notifications.</p>;
   }
   return (
     <ul className="flex flex-col gap-0.5">

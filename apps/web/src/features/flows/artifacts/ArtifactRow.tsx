@@ -1,8 +1,7 @@
 import { Download, FileCode, FileText, Link2, type LucideIcon } from 'lucide-react';
 import type { TaskArtifact } from '../../../api/task-artifacts.ts';
-import { formatDateTime } from '../../../components/data/format.ts';
+import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { IconButton } from '../../../components/ui/IconButton.tsx';
-import { ago } from '../../notifications/NotificationList.tsx';
 import { sizeWords, viewOf } from './groups.ts';
 
 /** A file's icon by how it opens: Markdown, other text (code), a link. */

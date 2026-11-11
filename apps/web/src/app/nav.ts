@@ -1,7 +1,6 @@
 import {
   CreditCard,
   IdCard,
-  Inbox,
   KeyRound,
   LayoutGrid,
   type LucideIcon,
@@ -58,8 +57,8 @@ export function movedSection(section: string, search: URLSearchParams): string |
 
 /**
  * The rail of a company: its pages (the one of `section` current), the person's own Subscriptions, AI gateways and
- * Access profiles in their own group (rail only; phones reach them from the account menu), then the ones of later
- * stages shown muted with their note. `hrefOf` places them: the company's routes, or the design gallery's mocks.
+ * Access profiles in their own group (rail only; phones reach them from the account menu), then API keys and Settings.
+ * The inbox is the right rail's (S6b). `hrefOf` places them: the company's routes, or the design gallery's mocks.
  */
 export function companyNav(hrefOf: SectionHref, section: string): readonly NavItem[] {
   const page = (key: string, label: string, icon: LucideIcon): NavItem => {
@@ -76,7 +75,6 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
     { ...page('profiles', 'Access profiles', IdCard), railOnly: true },
     { ...page('api-keys', 'API keys', KeyRound), divider: true },
     page('settings', 'Settings', Settings),
-    { key: 'inbox', label: 'Inbox', icon: Inbox, soon: 'coming in S6' },
   ];
 }
 

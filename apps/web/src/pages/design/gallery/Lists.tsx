@@ -6,7 +6,6 @@ import { groupByDay } from '../../../components/data/days.ts';
 import { formatDate } from '../../../components/data/format.ts';
 import { List, ListRow } from '../../../components/data/List.tsx';
 import { AttentionRow } from '../../../components/feed/AttentionRow.tsx';
-import { QuickCreate } from '../../../components/feed/QuickCreate.tsx';
 import { ConfirmInline } from '../../../components/forms/ConfirmInline.tsx';
 import { Avatar } from '../../../components/ui/Avatar.tsx';
 import { roleName, StatusPill } from '../../../components/ui/Badge.tsx';
@@ -14,7 +13,11 @@ import { Button } from '../../../components/ui/Button.tsx';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
 import { Notice } from '../../../components/ui/Notice.tsx';
 import { SkeletonRow, SkeletonText } from '../../../components/ui/Skeleton.tsx';
-import { SAMPLE_AGENTS, SAMPLE_ATTENTION, SAMPLE_NOW, SAMPLE_PEOPLE, type SamplePerson } from '../sample.ts';
+import { InboxView } from '../../../features/inbox/InboxView.tsx';
+import { QuickTask } from '../../../features/inbox/QuickTask.tsx';
+import { SAMPLE_INBOX, SAMPLE_TEAMS } from '../inbox-sample.ts';
+import { SAMPLE_COMPANY } from '../records.ts';
+import { SAMPLE_ATTENTION, SAMPLE_NOW, SAMPLE_PEOPLE, type SamplePerson } from '../sample.ts';
 import { Example, Section } from './Section.tsx';
 
 const COLUMNS: readonly Column<SamplePerson>[] = [
@@ -131,17 +134,35 @@ function StatesAndNotices() {
   );
 }
 
-function QuickCreateExample() {
+function InboxExample() {
   const [sent, setSent] = useState<string>();
   return (
-    <Example label="QuickCreate: faces, the task, send (enabled here with sample agents)" wrap={false}>
-      <div className="max-w-sm">
-        <QuickCreate agents={SAMPLE_AGENTS} onCreate={(agent, text) => setSent(`${agent}: ${text}`)} />
-        {sent && (
-          <p role="status" className="mt-2 text-xs text-dim">
-            Sample only; would create “{sent}”.
-          </p>
-        )}
+    <Example label="The inbox: every kind as a card, and the quick-create dock (sample only)" wrap={false}>
+      <div className="grid max-w-3xl gap-4 md:grid-cols-2">
+        <InboxView
+          items={SAMPLE_INBOX}
+          loading={false}
+          failed={false}
+          companyId={SAMPLE_COMPANY.id}
+          onAct={async (item, move) => setSent(`${move.action} ${item.task?.key ?? item.title}`)}
+        />
+        <div className="flex flex-col gap-2">
+          <QuickTask
+            teams={SAMPLE_TEAMS}
+            companyId={SAMPLE_COMPANY.id}
+            onCreate={async (team, title) => {
+              setSent(`${team.flowName}: ${title}`);
+              return { key: 'T-30', where: team.leads ? 'at Develop' : 'queued' };
+            }}
+            taskHref={() => '/design/flows'}
+            flowsHref="/design/flows"
+          />
+          {sent && (
+            <p role="status" className="text-xs text-dim">
+              Sample only; would send “{sent}”.
+            </p>
+          )}
+        </div>
       </div>
     </Example>
   );
@@ -156,7 +177,7 @@ export function ListsSection() {
     >
       <RowsAndFeed />
       <StatesAndNotices />
-      <QuickCreateExample />
+      <InboxExample />
     </Section>
   );
 }

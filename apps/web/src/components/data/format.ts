@@ -62,3 +62,16 @@ export function formatBytes(bytes: number): string {
 export function count(n: number, singular: string, plural = `${singular}s`): string {
   return `${n} ${n === 1 ? singular : plural}`;
 }
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+
+/** How long ago, short: "now", "5 min", "3 h", "2 d", then the date. */
+export function ago(iso: string, now = Date.now()): string {
+  const ms = Math.max(0, now - new Date(iso).getTime());
+  if (ms < MINUTE) return 'now';
+  if (ms < HOUR) return `${Math.floor(ms / MINUTE)} min ago`;
+  if (ms < DAY_MS) return `${Math.floor(ms / HOUR)} h ago`;
+  if (ms < 7 * DAY_MS) return `${Math.floor(ms / DAY_MS)} d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}

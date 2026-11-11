@@ -8,6 +8,7 @@ export { MobileNav } from './MobileNav.tsx';
 export { PageHeader } from './PageHeader.tsx';
 export { CompanyBadge, type CompanyBadgeProps, type NavItem, Rail } from './Rail.tsx';
 export { RailStrip } from './RailStrip.tsx';
+export { type RailView, RailViews } from './RailViews.tsx';
 export {
   RightRail,
   RightRailContent,
