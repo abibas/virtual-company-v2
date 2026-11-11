@@ -1,6 +1,6 @@
 import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
 import { agentIconView } from '@mwc/shared/agent-icons';
-import type { OrgRepo } from '../repo.ts';
+import { type OrgRepo, orgRepo } from '../repo.ts';
 import { type OrgState, orgState } from '../rules/placement.ts';
 import type { AgentProfileView, RunsWithView } from '../schemas/profiles.ts';
 import type { AgentDetailView, AgentPlacementSummaryView, AgentView, PositionView } from '../schemas.ts';
@@ -12,6 +12,12 @@ export async function loadOrg(repo: OrgRepo, t: TenantDb): Promise<OrgState> {
   const members = await repo.activeMembers(t);
   return orgState(positions, members, await repo.liveAgents(t));
 }
+
+/**
+ * The company's live chart for another module (the tasks module's flows: who is on the chart, who leads a team), read
+ * through `t` (in the caller's transaction when it is one).
+ */
+export const orgOf = (t: TenantDb): Promise<OrgState> => loadOrg(orgRepo(), t);
 
 type Place = Pick<OrgPosition, 'reportsToPrincipalId' | 'title'> | undefined;
 

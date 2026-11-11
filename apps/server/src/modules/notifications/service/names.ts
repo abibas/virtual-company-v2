@@ -1,4 +1,5 @@
 import type { DbHandle, Notification, TenantDb } from '@mwc/db';
+import { taskKey } from '@mwc/shared/flows';
 import { profilesOf } from '../../identity/service.ts';
 import type { NotificationsRepo } from '../repo.ts';
 import { type Names, noticePath, noticeText } from '../rules/words.ts';
@@ -17,15 +18,22 @@ export function mentioned(rows: readonly Notification[]): string[] {
   return [...ids];
 }
 
+/** The tasks notices name (S5.3a). */
+export function mentionedTasks(rows: readonly Notification[]): string[] {
+  const ids = rows.flatMap((row) => (row.payload as unknown as NoticePayload).task ?? []);
+  return [...new Set(ids)];
+}
+
 /**
  * The names of these principals as they are now: a person's name (their email while they have none), read through the
- * identity module's service outside any transaction, and an agent's name and slug.
+ * identity module's service outside any transaction, and an agent's name and slug; and these tasks' keys and titles.
  */
 export async function namesOf(
   db: DbHandle,
   repo: NotificationsRepo,
   t: TenantDb,
   ids: readonly string[],
+  taskIds: readonly string[] = [],
 ): Promise<Names> {
   const members = await repo.members(t, ids);
   const profiles = await profilesOf(
@@ -42,9 +50,14 @@ export async function namesOf(
     names.set(agent.principalId, agent.name);
     slugs.set(agent.principalId, agent.slug);
   }
+  const tasks = new Map((await repo.tasks(t, taskIds)).map((task) => [task.id, task]));
   return {
     name: (id) => (id ? (names.get(id) ?? SOMEONE) : SOMEONE),
     agentSlug: (id) => slugs.get(id),
+    task: (id) => {
+      const task = id === undefined ? undefined : tasks.get(id);
+      return task && { key: taskKey(task.number), title: task.title };
+    },
   };
 }
 

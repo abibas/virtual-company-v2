@@ -7,6 +7,7 @@ import {
   notifications,
   principals,
   type TenantDb,
+  tasks,
 } from '@mwc/db';
 import type { NotificationKind } from '@mwc/shared/enums';
 import { and, asc, count, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
@@ -26,6 +27,13 @@ export interface NewNotice {
 }
 
 const mine = (recipient: string) => eq(notifications.recipientPrincipalId, recipient);
+
+/** The tasks of these ids (S5.3a): their numbers and titles, for the notices that name them. */
+function tasksNamed(t: TenantDb, ids: readonly string[]) {
+  if (ids.length === 0) return Promise.resolve([]);
+  const fields = { id: tasks.id, number: tasks.number, title: tasks.title };
+  return t.selectFields(tasks, fields, inArray(tasks.id, [...ids]));
+}
 
 export function notificationsRepo() {
   return {
@@ -119,6 +127,8 @@ export function notificationsRepo() {
       const fields = { principalId: agents.principalId, name: agents.name, slug: agents.slug };
       return t.selectFields(agents, fields, inArray(agents.principalId, [...ids]));
     },
+
+    tasks: tasksNamed,
 
     /** A person's notices whose email is still pending, oldest first. */
     pending(t: TenantDb, recipient: string): Promise<Notification[]> {

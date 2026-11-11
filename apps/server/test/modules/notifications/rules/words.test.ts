@@ -14,6 +14,7 @@ const NAMES: Readonly<Record<string, string>> = { m: 'Mia', a: 'Anna', b: 'Bob',
 const names: Names = {
   name: (id) => (id ? (NAMES[id] ?? 'Someone') : 'Someone'),
   agentSlug: (id) => (id === 'g' ? 'slop-box' : undefined),
+  task: (id) => (id === 't' ? { key: 'T-12', title: 'Fix the login' } : undefined),
 };
 const say = (kind: NotificationKind, payload: NoticePayload) => noticeText(kind, payload, names, 'Acme');
 
@@ -44,6 +45,31 @@ describe('noticeText', () => {
     expect(say('invitation_accepted', { about: 'x' })).toBe(
       'Someone accepted your invitation and joined Acme as a member',
     );
+  });
+});
+
+describe('noticeText for tasks (S5.3a)', () => {
+  it('names the task by key and title, the step, and the Lead', () => {
+    expect(say('task_at_step', { about: 'g', task: 't', step: 'QA' })).toBe(
+      'T-12 “Fix the login” is at your step QA',
+    );
+    expect(say('task_at_step', { about: 'g', task: 't' })).toBe('T-12 “Fix the login” is at your step');
+    expect(say('task_signoff', { about: 'g', task: 't', step: 'Approve' })).toBe(
+      'T-12 “Fix the login” needs your sign-off at Approve',
+    );
+    expect(say('task_signoff', { about: 'g', task: 't' })).toBe('T-12 “Fix the login” needs your sign-off');
+    expect(say('task_escalated', { about: 'g', task: 't', step: 'Code review' })).toBe(
+      'T-12 “Fix the login” was escalated to SLOP BOX from Code review',
+    );
+    expect(say('task_escalated', { about: 'g', task: 't' })).toBe(
+      'T-12 “Fix the login” was escalated to SLOP BOX',
+    );
+    expect(say('task_done', { about: 'g', task: 'gone' })).toBe('A task is done');
+  });
+
+  it('points at the task’s page, or the tasks when it is not found', () => {
+    expect(noticePath('task_done', { about: 'g', task: 't' }, names)).toBe('tasks/T-12');
+    expect(noticePath('task_escalated', { about: 'g' }, names)).toBe('tasks');
   });
 });
 

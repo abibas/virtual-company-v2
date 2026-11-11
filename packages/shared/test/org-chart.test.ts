@@ -10,6 +10,7 @@ import {
   moveVerdict,
   nearestPersonUp,
   type OrgTreeNode,
+  peopleAtOrAbove,
   reparentOnRemoval,
   validateChart,
   validateMove,
@@ -175,6 +176,21 @@ describe('moveVerdict', () => {
     // Under an orphan (its manager is off the chart): the orphan's own flaw was there before, so it is not counted.
     const orphaned: Chart = [person('p'), person('lost', 'ghost'), person('q', 'p')];
     expect(moveVerdict(orphaned, 'q', 'lost')).toEqual({ ok: true });
+  });
+});
+
+describe('peopleAtOrAbove', () => {
+  it('is the principal when a person, then every person above it, nearest first, agents skipped', () => {
+    expect(peopleAtOrAbove(company, 'tester')).toEqual(['olga', 'ihor']);
+    expect(peopleAtOrAbove(company, 'olga')).toEqual(['olga', 'ihor']);
+    expect(peopleAtOrAbove(company, 'qa')).toEqual(['ihor']);
+    expect(peopleAtOrAbove(company, 'ihor')).toEqual(['ihor']);
+  });
+
+  it('is nobody for a principal off the chart, and ends at a loop', () => {
+    expect(peopleAtOrAbove(company, 'ghost')).toEqual([]);
+    expect(peopleAtOrAbove([agent('bot', null)], 'bot')).toEqual([]);
+    expect(peopleAtOrAbove(broken, 'loop1')).toEqual([]);
   });
 });
 

@@ -125,6 +125,16 @@ describe('deliverable', () => {
     expect(kept.map((one) => `${one.recipient}:${one.payload.about}`)).toEqual(['a:x', 'a:y', 'b:x']);
     expect(deliverable([notice('actor')], null, people)).toHaveLength(1);
   });
+
+  it('keeps one notice per task, so two tasks of one Lead both reach the person', () => {
+    const done = (task: string): Notice => ({
+      kind: 'task_done',
+      recipient: 'a',
+      payload: { about: 'lead', task },
+    });
+    const kept = deliverable([done('t1'), done('t2'), done('t1')], null, new Set(['a']));
+    expect(kept.map((one) => one.payload.task)).toEqual(['t1', 't2']);
+  });
 });
 
 describe('batchReady', () => {

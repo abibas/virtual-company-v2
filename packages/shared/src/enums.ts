@@ -205,7 +205,8 @@ export type ChatTurnDelivery = z.infer<typeof ChatTurnDelivery>;
  * `notifications.kind` (S2.9, docs/notifications.md): what changed for the person who gets it. Their manager changed
  * (`manager_changed`); someone started or stopped reporting to them (`report_added`, `report_removed`); their role
  * changed; their membership was suspended, reactivated or removed; an agent reporting to them was paused, resumed or
- * archived; someone accepted their invitation.
+ * archived; someone accepted their invitation; a task came to their step or needs their sign-off, was escalated to
+ * their team's Lead, or is done (S5.3a).
  */
 export const NotificationKind = z.enum([
   'manager_changed',
@@ -219,6 +220,10 @@ export const NotificationKind = z.enum([
   'agent_resumed',
   'agent_archived',
   'invitation_accepted',
+  'task_at_step',
+  'task_signoff',
+  'task_escalated',
+  'task_done',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -229,3 +234,6 @@ export type NotificationKind = z.infer<typeof NotificationKind>;
  */
 export const NotificationEmailStatus = z.enum(['pending', 'sent', 'failed', 'skipped']);
 export type NotificationEmailStatus = z.infer<typeof NotificationEmailStatus>;
+
+/** The flows' and tasks' enums (S5.3a, docs/processes.md), kept beside their contract in `flows/enums.ts`. */
+export * from './flows/enums.ts';

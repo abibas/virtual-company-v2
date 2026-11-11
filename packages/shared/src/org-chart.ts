@@ -19,7 +19,8 @@ import {
   violationsOf,
 } from './org-chart/violations.ts';
 
-export { applyMoves, type Chart, type ChartMove, type ChartNode } from './org-chart/chart.ts';
+export type { Chart, ChartMove, ChartNode } from './org-chart/chart.ts';
+export { applyMoves, peopleAtOrAbove } from './org-chart/chart.ts';
 export type { ChartViolation, ChartViolationCode } from './org-chart/violations.ts';
 
 // The org chart's invariants (docs/architecture.md, section 6): no loops, agents never at the top, every agent's

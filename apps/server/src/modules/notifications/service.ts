@@ -12,7 +12,7 @@ import {
   type Notice,
 } from './rules.ts';
 import type { NotificationList, NotificationSettings } from './schemas.ts';
-import { mentioned, namesOf, shown } from './service/names.ts';
+import { mentioned, mentionedTasks, namesOf, shown } from './service/names.ts';
 
 /**
  * The notifications module's logic (S2.9, docs/notifications.md): writing a change's notices in the transaction that
@@ -96,7 +96,7 @@ export function notificationsService(deps: { readonly db: DbHandle; readonly ema
       const rows = await repo.page(t, principalId, page);
       const more = rows.length > limit;
       const kept = rows.slice(0, limit);
-      const names = await namesOf(deps.db, repo, t, mentioned(kept));
+      const names = await namesOf(deps.db, repo, t, mentioned(kept), mentionedTasks(kept));
       const notifications = kept.map((row) => ({
         id: row.id,
         kind: row.kind,

@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 32. Migrations: 22, the last is `0021_invitation_manager`.
+Tables: 36. Migrations: 23, the last is `0022_flows`.
 
 ```mermaid
 erDiagram
@@ -199,6 +199,30 @@ erDiagram
     uuid machine_id FK "nullable"
     timestamptz created_at "not null, default now()"
   }
+  flow_steps {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid flow_id FK "not null"
+    integer position "not null"
+    text name "not null"
+    text kind "not null, work|check|signoff"
+    uuid assignee_principal_id FK "not null"
+    text starts "not null, default 'manual', auto|manual"
+    text on_return "not null, default 'keep', keep|fresh"
+    uuid sends_back_to_step_id FK "nullable"
+    integer send_back_limit "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
+  flows {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid lead_principal_id FK "not null"
+    text name "not null"
+    uuid created_by FK "not null"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   identity_events {
     uuid id PK "not null, default newId() (app-side)"
     text provider "not null"
@@ -350,7 +374,7 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
     uuid recipient_principal_id FK "not null"
-    text kind "not null, manager_changed|report_added|report_removed|role_changed|membership_suspended|membership_reactivated|membership_removed|agent_paused|agent_resumed|agent_archived|invitation_accepted"
+    text kind "not null, manager_changed|report_added|report_removed|role_changed|membership_suspended|membership_reactivated|membership_removed|agent_paused|agent_resumed|agent_archived|invitation_accepted|task_at_step|task_signoff|task_escalated|task_done"
     jsonb payload "not null, default '{}'"
     uuid actor_principal_id FK "nullable"
     timestamptz created_at "not null, default now()"
@@ -385,6 +409,40 @@ erDiagram
     timestamptz disconnected_at "nullable"
     text version "not null"
     text remote_ip "nullable"
+  }
+  task_events {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid task_id FK "not null"
+    text kind "not null, created|entered|started|handed_on|passed|sent_back|escalated|signed_off|routed|retried|done|cancelled|edited"
+    uuid actor_principal_id FK "nullable"
+    uuid from_step_id "nullable"
+    text from_step_name "nullable"
+    uuid to_step_id "nullable"
+    text to_step_name "nullable"
+    integer round "nullable"
+    text reason "nullable"
+    jsonb details "not null, default '{}'"
+    timestamptz created_at "not null, default now()"
+  }
+  tasks {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    integer number "not null"
+    uuid flow_id FK "not null"
+    text title "not null"
+    text description "not null, default ''"
+    text priority "not null, default 'normal', low|normal|high|urgent"
+    text state "not null, default 'queued', queued|active|escalated|done|cancelled"
+    uuid current_step_id FK "nullable"
+    text step_state "nullable, waiting|working|needs_person|blocked|ended_without_handoff"
+    jsonb rounds "not null, default '{}'"
+    text escalation_reason "nullable"
+    uuid escalation_target_step_id FK "nullable"
+    uuid created_by FK "not null"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+    timestamptz closed_at "nullable"
   }
   user_identities {
     uuid id PK "not null, default newId() (app-side)"
@@ -442,6 +500,13 @@ erDiagram
   enrollment_tokens }o--|| companies : "company_id"
   enrollment_tokens }o--|| principals : "company_id, created_by"
   enrollment_tokens }o--o| machines : "company_id, machine_id"
+  flow_steps }o--|| companies : "company_id"
+  flow_steps }o--|| flows : "company_id, flow_id"
+  flow_steps }o--|| principals : "company_id, assignee_principal_id"
+  flow_steps }o--o| flow_steps : "company_id, sends_back_to_step_id"
+  flows }o--|| companies : "company_id"
+  flows |o--|| principals : "company_id, lead_principal_id"
+  flows }o--|| principals : "company_id, created_by"
   identity_outbox }o--|| companies : "company_id"
   invitations }o--|| companies : "company_id"
   invitations }o--o| users : "accepted_by_user_id"
@@ -476,6 +541,14 @@ erDiagram
   principals }o--|| companies : "company_id"
   runner_sessions }o--|| companies : "company_id"
   runner_sessions }o--|| machines : "company_id, machine_id"
+  task_events }o--|| companies : "company_id"
+  task_events }o--|| tasks : "company_id, task_id"
+  task_events }o--o| principals : "company_id, actor_principal_id"
+  tasks }o--|| companies : "company_id"
+  tasks }o--|| flows : "company_id, flow_id"
+  tasks }o--o| flow_steps : "company_id, current_step_id"
+  tasks }o--o| flow_steps : "company_id, escalation_target_step_id"
+  tasks }o--|| principals : "company_id, created_by"
   user_identities }o--|| users : "user_id"
 ```
 
@@ -926,6 +999,68 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `enrollment_tokens_machine_check`: `"machine_id" is null or "used_at" is not null`
 - **Indexes:** none
 
+### `flow_steps`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `flow_id` | `uuid` | no |  | FK |  |
+| `position` | `integer` | no |  |  |  |
+| `name` | `text` | no |  |  |  |
+| `kind` | `text` | no |  |  | `work`, `check`, `signoff` |
+| `assignee_principal_id` | `uuid` | no |  | FK |  |
+| `starts` | `text` | no | `'manual'` |  | `auto`, `manual` |
+| `on_return` | `text` | no | `'keep'` |  | `keep`, `fresh` |
+| `sends_back_to_step_id` | `uuid` | yes |  | FK |  |
+| `send_back_limit` | `integer` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`flow_steps_company_id_companies_id_fk`)
+  - (`company_id`, `flow_id`) → `flows` (`company_id`, `id`), on delete no action (`flow_steps_flow_fk`)
+  - (`company_id`, `assignee_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`flow_steps_assignee_fk`)
+  - (`company_id`, `sends_back_to_step_id`) → `flow_steps` (`company_id`, `id`), on delete no action (`flow_steps_sends_back_to_fk`)
+- **Unique:**
+  - `flow_steps_company_id_id_unique` (`company_id`, `id`)
+  - `flow_steps_position_unique` (`company_id`, `flow_id`, `position`)
+- **Checks:**
+  - `flow_steps_kind_check`: `kind` is one of `work`, `check`, `signoff`
+  - `flow_steps_starts_check`: `starts` is one of `auto`, `manual`
+  - `flow_steps_on_return_check`: `on_return` is one of `keep`, `fresh`
+  - `flow_steps_position_check`: `"position" >= 1`
+  - `flow_steps_name_check`: `char_length("name") between 1 and 60`
+  - `flow_steps_send_back_check`: `"sends_back_to_step_id" is null or ("kind" <> 'work' and "sends_back_to_step_id" <> "id")`
+  - `flow_steps_limit_check`: `"send_back_limit" is null or ("kind" <> 'work' and "send_back_limit" between 1 and 99)`
+- **Indexes:**
+  - `flow_steps_assignee_idx` on (`company_id`, `assignee_principal_id`)
+
+### `flows`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `lead_principal_id` | `uuid` | no |  | FK |  |
+| `name` | `text` | no |  |  |  |
+| `created_by` | `uuid` | no |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`flows_company_id_companies_id_fk`)
+  - (`company_id`, `lead_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`flows_lead_fk`)
+  - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`flows_created_by_fk`)
+- **Unique:**
+  - `flows_company_id_id_unique` (`company_id`, `id`)
+  - `flows_lead_unique` (`company_id`, `lead_principal_id`)
+- **Checks:**
+  - `flows_name_check`: `char_length("name") between 1 and 80`
+- **Indexes:** none
+
 ### `identity_events`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -1262,7 +1397,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `company_id` | `uuid` | no |  | FK |  |
 | `recipient_principal_id` | `uuid` | no |  | FK |  |
-| `kind` | `text` | no |  |  | `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted` |
+| `kind` | `text` | no |  |  | `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`, `task_at_step`, `task_signoff`, `task_escalated`, `task_done` |
 | `payload` | `jsonb` | no | `'{}'` |  |  |
 | `actor_principal_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1282,7 +1417,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Unique:**
   - `notifications_company_id_id_unique` (`company_id`, `id`)
 - **Checks:**
-  - `notifications_kind_check`: `kind` is one of `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`
+  - `notifications_kind_check`: `kind` is one of `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`, `task_at_step`, `task_signoff`, `task_escalated`, `task_done`
   - `notifications_email_status_check`: `email_status` is one of `pending`, `sent`, `failed`, `skipped`
   - `notifications_payload_check`: `jsonb_typeof("payload") = 'object'`
   - `notifications_email_attempts_check`: `"email_attempts" >= 0`
@@ -1355,6 +1490,89 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `runner_sessions_span_check`: `"disconnected_at" >= "connected_at"`
 - **Indexes:**
   - `runner_sessions_machine_idx` on (`company_id`, `machine_id`, `connected_at`)
+
+### `task_events`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `task_id` | `uuid` | no |  | FK |  |
+| `kind` | `text` | no |  |  | `created`, `entered`, `started`, `handed_on`, `passed`, `sent_back`, `escalated`, `signed_off`, `routed`, `retried`, `done`, `cancelled`, `edited` |
+| `actor_principal_id` | `uuid` | yes |  | FK |  |
+| `from_step_id` | `uuid` | yes |  |  |  |
+| `from_step_name` | `text` | yes |  |  |  |
+| `to_step_id` | `uuid` | yes |  |  |  |
+| `to_step_name` | `text` | yes |  |  |  |
+| `round` | `integer` | yes |  |  |  |
+| `reason` | `text` | yes |  |  |  |
+| `details` | `jsonb` | no | `'{}'` |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`task_events_company_id_companies_id_fk`)
+  - (`company_id`, `task_id`) → `tasks` (`company_id`, `id`), on delete no action (`task_events_task_fk`)
+  - (`company_id`, `actor_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`task_events_actor_fk`)
+- **Unique:**
+  - `task_events_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `task_events_kind_check`: `kind` is one of `created`, `entered`, `started`, `handed_on`, `passed`, `sent_back`, `escalated`, `signed_off`, `routed`, `retried`, `done`, `cancelled`, `edited`
+  - `task_events_round_check`: `"round" >= 1`
+  - `task_events_reason_check`: `char_length("reason") between 1 and 2000`
+  - `task_events_details_check`: `jsonb_typeof("details") = 'object'`
+- **Indexes:**
+  - `task_events_task_idx` on (`company_id`, `task_id`, `id`)
+
+### `tasks`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `number` | `integer` | no |  |  |  |
+| `flow_id` | `uuid` | no |  | FK |  |
+| `title` | `text` | no |  |  |  |
+| `description` | `text` | no | `''` |  |  |
+| `priority` | `text` | no | `'normal'` |  | `low`, `normal`, `high`, `urgent` |
+| `state` | `text` | no | `'queued'` |  | `queued`, `active`, `escalated`, `done`, `cancelled` |
+| `current_step_id` | `uuid` | yes |  | FK |  |
+| `step_state` | `text` | yes |  |  | `waiting`, `working`, `needs_person`, `blocked`, `ended_without_handoff` |
+| `rounds` | `jsonb` | no | `'{}'` |  |  |
+| `escalation_reason` | `text` | yes |  |  |  |
+| `escalation_target_step_id` | `uuid` | yes |  | FK |  |
+| `created_by` | `uuid` | no |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `closed_at` | `timestamp with time zone` | yes |  |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`tasks_company_id_companies_id_fk`)
+  - (`company_id`, `flow_id`) → `flows` (`company_id`, `id`), on delete no action (`tasks_flow_fk`)
+  - (`company_id`, `current_step_id`) → `flow_steps` (`company_id`, `id`), on delete no action (`tasks_current_step_fk`)
+  - (`company_id`, `escalation_target_step_id`) → `flow_steps` (`company_id`, `id`), on delete no action (`tasks_escalation_target_fk`)
+  - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`tasks_created_by_fk`)
+- **Unique:**
+  - `tasks_company_id_id_unique` (`company_id`, `id`)
+  - `tasks_number_unique` (`company_id`, `number`)
+- **Checks:**
+  - `tasks_number_check`: `"number" >= 1`
+  - `tasks_title_check`: `char_length("title") between 1 and 200`
+  - `tasks_description_check`: `char_length("description") <= 50000`
+  - `tasks_priority_check`: `priority` is one of `low`, `normal`, `high`, `urgent`
+  - `tasks_state_check`: `state` is one of `queued`, `active`, `escalated`, `done`, `cancelled`
+  - `tasks_step_state_check`: `step_state` is one of `waiting`, `working`, `needs_person`, `blocked`, `ended_without_handoff`
+  - `tasks_rounds_check`: `jsonb_typeof("rounds") = 'object'`
+  - `tasks_step_check`: `("state" in ('active', 'escalated')) = ("current_step_id" is not null)`
+  - `tasks_step_state_presence_check`: `("state" = 'active') = ("step_state" is not null)`
+  - `tasks_escalation_check`: `("state" = 'escalated') = ("escalation_reason" is not null) and ("escalation_target_step_id" is null or "state" = 'escalated')`
+  - `tasks_escalation_reason_check`: `char_length("escalation_reason") between 1 and 2000`
+  - `tasks_closed_check`: `("state" in ('done', 'cancelled')) = ("closed_at" is not null)`
+- **Indexes:**
+  - `tasks_flow_state_idx` on (`company_id`, `flow_id`, `state`)
+  - `tasks_current_step_idx` on (`company_id`, `current_step_id`)
+  - `tasks_escalation_target_idx` on (`company_id`, `escalation_target_step_id`)
 
 ### `user_identities`
 

@@ -20,6 +20,7 @@ import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from '.
 import { deliverEmails, membershipNoticeHook, notificationsRoutes } from './modules/notifications/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
 import { speechRoutes } from './modules/speech/index.ts';
+import { tasksRoutes } from './modules/tasks/index.ts';
 import { emailFromConfig } from './platform/email/select.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
@@ -121,7 +122,8 @@ export function createApp(deps: AppOptions) {
     .route('/', machinesRoutes({ ...server, hub, control, tickets, localDocker }))
     .route('/', chatsRoutes({ ...server, hub, tickets, keyring }))
     .route('/', speechRoutes({ ...server, speech }))
-    .route('/', notificationsRoutes(server));
+    .route('/', notificationsRoutes(server))
+    .route('/', tasksRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

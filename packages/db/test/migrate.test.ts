@@ -50,6 +50,8 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'credential_uses',
       'credentials',
       'enrollment_tokens',
+      'flow_steps',
+      'flows',
       'identity_events',
       'identity_marks',
       'identity_outbox',
@@ -66,6 +68,8 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'org_positions',
       'principals',
       'runner_sessions',
+      'task_events',
+      'tasks',
       'user_identities',
       'users',
     ]);

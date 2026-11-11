@@ -106,3 +106,14 @@ export function applyMoves(chart: Chart, moves: readonly ChartMove[], removed?: 
       return move === undefined ? node : { ...node, reportsTo: move.reportsTo };
     });
 }
+
+/**
+ * The people who answer for a principal's team: the principal itself when it is a person, then every person above it,
+ * nearest first (agents in the chain are skipped). None for a principal not on the chart.
+ */
+export function peopleAtOrAbove(chart: Chart, principalId: string): string[] {
+  const index = indexChart(chart);
+  const node = index.byId.get(principalId);
+  if (node === undefined) return [];
+  return [node, ...chainAbove(index, node)].filter((n) => n.kind === 'person').map((n) => n.principalId);
+}

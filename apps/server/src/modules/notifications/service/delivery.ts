@@ -9,7 +9,7 @@ import { type DueRecipient, dueRecipients, stampQueued } from '../repo/delivery.
 import { type NotificationsRepo, notificationsRepo } from '../repo.ts';
 import { noticeEmail } from '../rules/words.ts';
 import { afterFailure, batchReady } from '../rules.ts';
-import { mentioned, namesOf, shown } from './names.ts';
+import { mentioned, mentionedTasks, namesOf, shown } from './names.ts';
 
 /**
  * The notification emails (S2.9, docs/notifications.md), one pass of the jobs loop: the new pending notices are stamped
@@ -71,7 +71,7 @@ async function send(
   batch: { readonly to: string; readonly rows: readonly Notification[]; readonly now: Date },
 ): Promise<Outcome> {
   const repo = notificationsRepo();
-  const names = await namesOf(deps.db, repo, t, mentioned(batch.rows));
+  const names = await namesOf(deps.db, repo, t, mentioned(batch.rows), mentionedTasks(batch.rows));
   const lines = batch.rows.map((row) => {
     const { text, actor, path } = shown(row, names, t.company.name);
     return { text, actor: actor?.name ?? null, path };

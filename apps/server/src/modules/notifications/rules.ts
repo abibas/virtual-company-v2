@@ -18,6 +18,10 @@ export interface NoticePayload {
   readonly role?: MembershipRole;
   /** The role before a role change. */
   readonly previousRole?: MembershipRole;
+  /** The task a task's notice is about (S5.3a); its key and title are read when it is shown. */
+  readonly task?: string;
+  /** The step a task's notice names, as it was called then. */
+  readonly step?: string;
 }
 
 /** One notification to write: its kind, who gets it, and what it says. */
@@ -109,7 +113,7 @@ export function membershipNotices(
 
 /**
  * The notices to write: never to the actor about their own action, only to people (`people`: the recipients that are
- * a person; agents get none), each kind about the same principal once per recipient.
+ * a person; agents get none), each kind about the same principal (and task) once per recipient.
  */
 export function deliverable(
   notices: readonly Notice[],
@@ -118,7 +122,7 @@ export function deliverable(
 ): Notice[] {
   const seen = new Set<string>();
   return notices.filter((notice) => {
-    const key = `${notice.kind}:${notice.recipient}:${notice.payload.about}`;
+    const key = `${notice.kind}:${notice.recipient}:${notice.payload.about}:${notice.payload.task ?? ''}`;
     if (notice.recipient === actor || !people.has(notice.recipient) || seen.has(key)) return false;
     seen.add(key);
     return true;

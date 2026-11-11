@@ -12,6 +12,8 @@ export interface Names {
   name(principalId: string | null | undefined): string;
   /** An agent's slug, for its page; undefined for a person. */
   agentSlug(principalId: string): string | undefined;
+  /** A task's key and title (S5.3a); undefined for one not found. */
+  task(taskId: string | undefined): { readonly key: string; readonly title: string } | undefined;
 }
 
 const ROLE_WORDS: Readonly<Record<MembershipRole, string>> = {
@@ -24,6 +26,12 @@ const ROLE_WORDS: Readonly<Record<MembershipRole, string>> = {
 const roleWords = (role: MembershipRole | undefined) => (role ? ROLE_WORDS[role] : 'a member');
 
 type Words = (p: NoticePayload, names: Names, company: string) => string;
+
+/** A task as a notice names it: `T-12 “Fix login”`, or "A task" for one not found. */
+function taskWords(p: NoticePayload, names: Names): string {
+  const task = names.task(p.task);
+  return task ? `${task.key} “${task.title}”` : 'A task';
+}
 
 const WORDS: Readonly<Record<NotificationKind, Words>> = {
   manager_changed: (p, n) =>
@@ -41,6 +49,11 @@ const WORDS: Readonly<Record<NotificationKind, Words>> = {
   agent_archived: (p, n) => `${n.name(p.about)}, an agent reporting to you, was archived`,
   invitation_accepted: (p, n, company) =>
     `${n.name(p.about)} accepted your invitation and joined ${company} as ${roleWords(p.role)}`,
+  task_at_step: (p, n) => `${taskWords(p, n)} is at your step${p.step ? ` ${p.step}` : ''}`,
+  task_signoff: (p, n) => `${taskWords(p, n)} needs your sign-off${p.step ? ` at ${p.step}` : ''}`,
+  task_escalated: (p, n) =>
+    `${taskWords(p, n)} was escalated to ${n.name(p.about)}${p.step ? ` from ${p.step}` : ''}`,
+  task_done: (p, n) => `${taskWords(p, n)} is done`,
 };
 
 /** The notice's sentence, from its recipient's side (no final period). */
@@ -54,11 +67,15 @@ export function noticeText(
 }
 
 /**
- * Where the notice points, as a path inside the company (`/<slug>/<path>`): an agent's page, the people, or the org
- * chart; null after a removal or suspension, which leave the person without access.
+ * Where the notice points, as a path inside the company (`/<slug>/<path>`): a task's page (`tasks/T-12`), an agent's
+ * page, the people, or the org chart; null after a removal or suspension, which leave the person without access.
  */
 export function noticePath(kind: NotificationKind, payload: NoticePayload, names: Names): string | null {
   if (kind === 'membership_removed' || kind === 'membership_suspended') return null;
+  if (kind.startsWith('task_')) {
+    const task = names.task(payload.task);
+    return task === undefined ? 'tasks' : `tasks/${task.key}`;
+  }
   if (kind.startsWith('agent_')) {
     const slug = names.agentSlug(payload.about);
     return slug === undefined ? 'structure/agents' : `agents/${slug}`;

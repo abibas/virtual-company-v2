@@ -49,6 +49,8 @@ describe('the tenant conventions, on every tenant table', () => {
       'chat_turns',
       'chats',
       'enrollment_tokens',
+      'flow_steps',
+      'flows',
       'invitations',
       'machine_power_events',
       'machines',
@@ -56,6 +58,8 @@ describe('the tenant conventions, on every tenant table', () => {
       'notifications',
       'principals',
       'runner_sessions',
+      'task_events',
+      'tasks',
     ]);
     expect(onePerCompany.map((t) => t.name)).toEqual(ONE_PER_COMPANY);
     expect(onePerPrincipal.map((t) => t.name).sort()).toEqual(ONE_PER_PRINCIPAL);
@@ -149,7 +153,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(36);
+    expect(composite).toBe(47);
   });
 });
 

@@ -1,0 +1,59 @@
+import type { DbHandle, Flow, Task, TenantDb } from '@mwc/db';
+import type { TasksRepo } from '../repo.ts';
+import { actRefusal } from '../rules/access.ts';
+import { move, type Transition } from '../rules/machine.ts';
+import { moveRefusal } from '../rules/moves.ts';
+import { type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
+import type { TaskActionRequest, TaskDetailView } from '../schemas/tasks.ts';
+import { applyMove } from './apply.ts';
+import type { Caller } from './audit.ts';
+import { shownTask } from './tasks.ts';
+import { rosterOf } from './team.ts';
+
+type Deps = { readonly db: DbHandle };
+
+export type MoveResult =
+  | { readonly ok: true; readonly outcome: Transition['outcome']; readonly task: TaskDetailView }
+  | Refusal;
+
+/**
+ * Makes a move on a task (`POST …/tasks/{taskId}/actions`) in one transaction, under its flow's lock and then its own
+ * (every move and every change of the flow's steps takes them in that order). Refused, in this order: no such task
+ * (404 `task_not_found`); it moved from the step the caller saw (`fromStepId`: 409 `task_moved`); the task as it stands
+ * has no such move (409 `wrong_state`, 422 `wrong_kind`, `no_send_back_target`); the caller may not make it (403
+ * `not_your_step`, `not_lead`); the move's own (422 `reason_required`, `step_required`, `unknown_step`, 409
+ * `already_at_step`). A send-back over its step's limit is not refused: it escalates the task to the Lead.
+ */
+export async function actOnTask(
+  deps: Deps,
+  repo: TasksRepo,
+  t: TenantDb,
+  caller: Caller,
+  request: { readonly ref: TaskRef | undefined; readonly body: TaskActionRequest; readonly now: Date },
+): Promise<MoveResult> {
+  const found = request.ref === undefined ? undefined : await repo.tasks.get(t, request.ref);
+  if (found === undefined) return TASK_NOT_FOUND;
+  const done = await t.transaction(
+    async (tx): Promise<{ ok: true; outcome: Transition['outcome']; task: Task } | Refusal> => {
+      const flow = (await repo.flows.lock(tx, found.flowId)) as Flow;
+      const task = await repo.tasks.lock(tx, found.id);
+      const { body } = request;
+      if (body.fromStepId !== undefined && body.fromStepId !== task.currentStepId) {
+        return refuse(409, 'task_moved', 'The task moved since you saw it; look again before you move it');
+      }
+      const steps = await repo.flows.steps(tx, flow.id);
+      const current = steps.find((step) => step.id === task.currentStepId);
+      const notNow = moveRefusal(task, current, body.action);
+      if (notNow) return notNow;
+      const roster = await rosterOf(tx);
+      const denied = actRefusal(caller, roster.team(flow.leadPrincipalId), body.action, current);
+      if (denied) return denied;
+      const transition = move(task, steps, body, roster.isPerson);
+      if (!transition.ok) return transition;
+      const moved = { task, flow, from: current, roster, transition, action: body.action, now: request.now };
+      return { ok: true, outcome: transition.outcome, task: await applyMove(repo, tx, caller, moved) };
+    },
+  );
+  if (!done.ok) return done;
+  return { ok: true, outcome: done.outcome, task: await shownTask(deps, repo, t, caller, done.task) };
+}
