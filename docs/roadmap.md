@@ -363,6 +363,8 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
 4. UI thread + run status + `mwc task create|send|tail|stop` — Playwright smoke sends a message and sees the reply.
 5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
+**Processes (2026-11-11, Ihor):** tasks run through a team's **flow**: steps of the kinds Work, Check and Sign-off, each with a person or an agent assigned, Keep or Fresh when the same task comes back, a send-back target and a limit per step that hands the task to the team's Lead. The team's manager is that Lead and orchestrator, not a step. The design is `docs/processes.md`; it reshapes the rest of S5 as S5.3a (flows and tasks, moved by hand), S5.3b (steps run, artifacts), S5.4 (runs survive restarts), then S6 (agents' tools and the Inbox), and a check with his DEVBOX team end to end. The review flows planned for S7 move here. An animated "assembly line" view of the steps comes last, once all of that is approved.
+
 ### S6 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
 Done when the demo below passes on the Mac and then on the devbox:
