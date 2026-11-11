@@ -3,6 +3,7 @@ import {
   encodeFrame,
   type FrameError,
   type FsResult,
+  type HeldTurn,
   type HoldState,
   parseServerFrame,
   type ResyncRun,
@@ -46,7 +47,7 @@ export interface FakeRunnerOptions {
   readonly protocol?: number;
   /**
    * `runner.hello`'s caps over the defaults: Claude Code (`FAKE_CLAUDE_VERSION`, no Codex), one slot, no hold, no power,
-   * no terminal, no self-update, no folders.
+   * no terminal, no self-update, no folders, no forks, turns that end with the link (no `reattach`).
    */
   readonly caps?: Partial<RunnerCaps>;
   /** `runner.hello`'s build (a SHA-256, or null from the sources); left out by default, as an older runner does. */
@@ -55,6 +56,8 @@ export interface FakeRunnerOptions {
   readonly builtAt?: string | null;
   /** The runs `runner.resync` reports on every connect; none by default. */
   readonly runs?: readonly ResyncRun[];
+  /** The turns its hello names (S5.4); none by default. `FakeRunner.turns` changes them before a reconnect. */
+  readonly turns?: readonly HeldTurn[];
   /** The hold `hold.state` reports after each resync; not held by default. */
   readonly hold?: Omit<HoldState, 'type'>;
   /** The samples heartbeats carry, one each, in order; heartbeats after the last carry none. */
@@ -87,6 +90,8 @@ export class FakeRunner {
   readonly invalid: FrameError[] = [];
   /** The runs heartbeats list as live. */
   liveRuns: string[] = [];
+  /** The turns the next hello names (S5.4): a runner that kept them across a reconnect or its restart. */
+  turns: HeldTurn[];
   readonly #options: FakeRunnerOptions;
   readonly #samples: MachineSample[];
   readonly #startedAt = performance.now();
@@ -97,6 +102,7 @@ export class FakeRunner {
   constructor(options: FakeRunnerOptions) {
     this.#options = options;
     this.#samples = [...(options.samples ?? [])];
+    this.turns = [...(options.turns ?? [])];
   }
 
   /** A connected runner. */
@@ -121,6 +127,7 @@ export class FakeRunner {
       selfUpdate: false,
       folders: false,
       forks: false,
+      reattach: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;
@@ -134,6 +141,7 @@ export class FakeRunner {
       builtAt,
       caps,
       ...(build === undefined ? {} : { build }),
+      ...(this.turns.length === 0 ? {} : { turns: [...this.turns] }),
     };
   }
 

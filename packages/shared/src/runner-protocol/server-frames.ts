@@ -23,6 +23,11 @@ export const ServerHello = frame('server.hello', {
   protocol: z.int().min(1),
   minRunnerVersion: RunnerVersion,
   machineId: Uuid,
+  /**
+   * True from a server that takes the turns a runner holds (S5.4): it answers a hello naming turns with `turn.resume`.
+   * Left out by an older server, which failed those turns already; the runner then stops them.
+   */
+  resume: z.boolean().optional(),
 });
 export type ServerHello = z.infer<typeof ServerHello>;
 

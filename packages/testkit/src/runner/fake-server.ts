@@ -22,6 +22,8 @@ export interface FakeRunnerServerOptions {
   readonly minRunnerVersion?: string;
   /** Answer each `runner.hello` with `server.hello` (true by default; false to test a runner left waiting). */
   readonly hello?: boolean;
+  /** `server.hello.resume`: a server that takes a runner's turns back (S5.4); left out by default, as an older one. */
+  readonly resume?: boolean;
 }
 
 /** One WebSocket a runner opened: its `Authorization` header and the subprotocol agreed ('' for none). */
@@ -180,6 +182,7 @@ export class FakeRunnerServer {
         protocol: RUNNER_PROTOCOL_VERSION,
         minRunnerVersion: this.#options.minRunnerVersion ?? '0.0.0',
         machineId: this.machineId,
+        ...(this.#options.resume === undefined ? {} : { resume: this.#options.resume }),
       };
       socket.send(encodeFrame(hello));
     }

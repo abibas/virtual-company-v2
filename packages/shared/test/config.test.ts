@@ -25,6 +25,7 @@ describe('loadConfig', () => {
       MWC_COMPANY_CREATORS: [],
       MWC_JOBS: true,
       MWC_RECONCILE_MINUTES: 10,
+      MWC_TURN_GRACE_SECONDS: 180,
       MWC_LOGIN_HELPER: 'docker',
       MWC_LOCAL_POWER: 'auto',
       MWC_LOCAL_DOCKER: 'auto',
@@ -289,6 +290,16 @@ describe('loadConfig jobs', () => {
     for (const off of ['off', 'false', '0', 'no'])
       expect(loadConfig({ ...valid, MWC_JOBS: off }).MWC_JOBS).toBe(false);
     expect(() => loadConfig({ ...valid, MWC_JOBS: 'sometimes' })).toThrow(/MWC_JOBS/);
+  });
+
+  it('keeps a turn whose runner went away for 180 s unless MWC_TURN_GRACE_SECONDS says otherwise (1 to 3600)', () => {
+    expect(loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: '' }).MWC_TURN_GRACE_SECONDS).toBe(180);
+    expect(loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: '30' }).MWC_TURN_GRACE_SECONDS).toBe(30);
+    for (const seconds of ['0', '3601', '1.5', 'soon']) {
+      expect(() => loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: seconds })).toThrow(
+        /MWC_TURN_GRACE_SECONDS/,
+      );
+    }
   });
 
   it('reconciles each company every 10 minutes unless MWC_RECONCILE_MINUTES says otherwise (1 to 1440)', () => {

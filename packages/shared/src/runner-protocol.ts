@@ -101,6 +101,15 @@ export {
 } from './runner-protocol/folders.ts';
 export { FrameError, type FrameErrorCode, type FrameParse, utf8Bytes } from './runner-protocol/frame.ts';
 export {
+  HELD_TURNS_MAX,
+  HeldTurn,
+  HeldTurns,
+  ResumedTurn,
+  TURN_REATTACH_GRACE_MS,
+  TurnAck,
+  TurnResume,
+} from './runner-protocol/reattach.ts';
+export {
   EnvName,
   MachinePath,
   PermissionPolicy,

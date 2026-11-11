@@ -113,6 +113,12 @@ export const PARSER_TICK_MS = 1000;
 export interface ParserContext {
   /** The turn's private folder (Codex's `CODEX_HOME`), when it has one. */
   readonly privateDir?: string;
+  /**
+   * When the turn started (milliseconds since the epoch), for a parser that tells this turn's lines in the harness's
+   * own files from earlier ones; a runner re-attaching a turn after its restart passes the turn's own start (S5.4).
+   * Left out: when the parser is made.
+   */
+  readonly startedAt?: number;
 }
 
 /**

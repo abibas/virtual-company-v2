@@ -13,6 +13,7 @@ import {
 } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 import { FOLDER_RUNNER_FRAMES } from './folders.ts';
+import { HeldTurns } from './reattach.ts';
 import { TERMINAL_RUNNER_FRAMES } from './terminal.ts';
 import { RunnerTools, TOOL_RUNNER_FRAMES } from './tools.ts';
 import { RunnerHarnesses, TURN_RUNNER_FRAMES } from './turns.ts';
@@ -55,6 +56,11 @@ export const RunnerCaps = protocolObject({
   /** True when its drivers fork a conversation for a branch (`TurnSpec.forkSession`); false from an older runner. */
   forks: z.boolean().default(false),
   /**
+   * True when its turns outlive a dropped link and its own restart (S5.4, `reattach.ts`): the server keeps them waiting
+   * for it instead of failing them. False from an older runner, which ends its turns when the link drops.
+   */
+  reattach: z.boolean().default(false),
+  /**
    * The CLIs it found, each one's version or null (`tools.ts`); left out by a runner older than the tools, which knows
    * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).
    */
@@ -84,6 +90,8 @@ export const RunnerHello = frame('runner.hello', {
    * than versioned runners (which leaves it out).
    */
   builtAt: RunnerBuiltAt.nullable().default(null),
+  /** The turns it holds (S5.4): live ones and ended ones not acknowledged yet; left out when none, and by older runners. */
+  turns: HeldTurns.optional(),
 });
 export type RunnerHello = z.infer<typeof RunnerHello>;
 

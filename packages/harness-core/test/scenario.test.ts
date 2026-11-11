@@ -7,16 +7,25 @@ import {
 } from '../src/scenario.ts';
 
 /** The fake binary's process, in memory: files by path, what it printed, the waits. */
-function fakeIo(files: Record<string, string>, env: Record<string, string> = {}, stdin = 'the prompt') {
+function fakeIo(
+  files: Record<string, string>,
+  env: Record<string, string> = {},
+  stdin = 'the prompt',
+  lines: readonly string[] = [],
+) {
   const out: string[] = [];
   const err: string[] = [];
   const waits: number[] = [];
   const written: Record<string, string> = {};
+  const ignoring: boolean[] = [];
   const io: FakeHarnessIo = {
     argv: ['-p', '--verbose'],
     env: { [FAKE_HARNESS_SCENARIO_ENV]: '/s.json', HOME: '/home/agent', SECRET: 'never recorded', ...env },
     cwd: '/home/agent/work',
     readStdin: async () => stdin,
+    readStdinLines: async (onLine) => {
+      for (const line of lines) onLine(line);
+    },
     readFile: async (path) => {
       const text = files[path];
       if (text === undefined) throw new Error(`ENOENT: ${path}`);
@@ -30,8 +39,11 @@ function fakeIo(files: Record<string, string>, env: Record<string, string> = {},
     sleep: async (ms) => {
       waits.push(ms);
     },
+    ignoreSignals: () => {
+      ignoring.push(true);
+    },
   };
-  return { io, out, err, waits, written };
+  return { io, out, err, waits, written, ignoring };
 }
 
 describe('runFakeHarness', () => {
@@ -85,6 +97,34 @@ describe('runFakeHarness', () => {
   });
 });
 
+describe('a liveInput scenario', () => {
+  it('prints without waiting for stdin, echoes each message line as an input event, and records stdin at its end', async () => {
+    const message = JSON.stringify({ type: 'fake_input', id: 'm-1', text: 'Use staging' });
+    const scenario = { lines: ['{"a":1}'], exitCode: 0, liveInput: true, holdMs: 5, record: '/r.json' };
+    const w = fakeIo({ '/s.json': JSON.stringify(scenario) }, {}, '', ['the prompt', message, '{not json']);
+    expect(await runFakeHarness(w.io)).toBe(0);
+    expect(w.out).toEqual(['{"type":"input","text":"Use staging","inputId":"m-1"}\n', '{"a":1}\n']);
+    expect(w.waits).toEqual([5]);
+    expect(JSON.parse(w.written['/r.json'] as string).stdin).toBe(`the prompt\n${message}\n{not json`);
+  });
+
+  it('ignores SIGINT and SIGTERM when the scenario says so', async () => {
+    const w = fakeIo({ '/s.json': JSON.stringify({ lines: [], exitCode: 0, ignoreSignals: true }) });
+    await runFakeHarness(w.io);
+    expect(w.ignoring).toEqual([true]);
+    const plain = fakeIo({ '/s.json': JSON.stringify({ lines: [], exitCode: 0 }) });
+    await runFakeHarness(plain.io);
+    expect(plain.ignoring).toEqual([]);
+  });
+
+  it('records nothing without a record file', async () => {
+    const scenario = { lines: [], exitCode: 3, liveInput: true };
+    const w = fakeIo({ '/s.json': JSON.stringify(scenario) }, {}, '', ['the prompt']);
+    expect(await runFakeHarness(w.io)).toBe(3);
+    expect(w.written).toEqual({});
+  });
+});
+
 describe('parseScenario', () => {
   it('takes a scenario with its optional fields', () => {
     const full = {
@@ -95,6 +135,8 @@ describe('parseScenario', () => {
       holdMs: 10,
       record: '/r',
       recordEnv: ['A'],
+      liveInput: true,
+      ignoreSignals: false,
     };
     expect(parseScenario(JSON.stringify(full))).toEqual(full);
   });
@@ -109,6 +151,8 @@ describe('parseScenario', () => {
       { lines: [], exitCode: 0, holdMs: 'x' },
       { lines: [], exitCode: 0, record: 1 },
       { lines: [], exitCode: 0, recordEnv: [1] },
+      { lines: [], exitCode: 0, liveInput: 'yes' },
+      { lines: [], exitCode: 0, ignoreSignals: 1 },
     ]) {
       expect(() => parseScenario(JSON.stringify(bad))).toThrow(TypeError);
     }

@@ -24,7 +24,10 @@ export interface CodexDriverOptions {
    * ends (`children.ts`); without them, the estimate only and subagents without their model.
    */
   readonly rollouts?: RolloutFs;
-  /** The wall clock in milliseconds (`Date.now`): when a turn's parser was made is when its turn started. */
+  /**
+   * The wall clock in milliseconds (`Date.now`): when a turn's parser was made is when its turn started, unless the
+   * runner names the turn's start (`ParserContext.startedAt`, a re-attached turn).
+   */
   readonly now?: () => number;
 }
 
@@ -69,7 +72,7 @@ export class CodexDriver implements HarnessDriver {
     const fs = this.#rollouts;
     const home = context.privateDir;
     if (fs === undefined || home === undefined) return new CodexLineParser();
-    const since = this.#now();
+    const since = context.startedAt ?? this.#now();
     return new CodexLineParser(
       (thread) => readRollout(fs, home, thread),
       (thread) => readChild(fs, home, thread),

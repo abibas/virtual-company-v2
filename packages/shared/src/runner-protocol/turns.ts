@@ -5,16 +5,18 @@ import { AskQuestions, CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts'
 import { TurnArtifact, TurnArtifacts } from './artifacts.ts';
 import { ErrorText, frame, protocolObject, Uuid } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
+import { TurnAck, TurnResume } from './reattach.ts';
 
 /**
  * Chat turns (S5.1b, docs/harness.md "How a turn runs"): the server asks a runner for one turn of a harness
  * (`turn.start`, with the credential it resolved), may send the person's message into it while it runs (`turn.input`,
  * S5.2 step 6) and may stop it (`turn.stop`); the runner sends the turn's events as
  * they come (`turn.events`, batched), a question the agent asked through the runner's tool (`turn.question`, S5.2), a
- * task step's collected files (`turn.artifact`, `turn.artifacts`, S5.3b) and how it ended (`turn.end`, once). A turn
- * belongs to the connection that carried its `turn.start`: when the link drops the runner ends its process and the
- * server fails the turn. And what a runner says of its harnesses in its hello: each CLI's version, or null when it is
- * not installed.
+ * task step's collected files (`turn.artifact`, `turn.artifacts`, S5.3b) and how it ended (`turn.end`, once). Since
+ * S5.4 a turn outlives its link: the runner keeps its process and its events, says hello with it after a reconnect or
+ * its own restart, and the server answers where to resume (`turn.resume`) and acknowledges its end (`turn.ack`;
+ * `reattach.ts`). And what a runner says of its harnesses in its hello: each CLI's version, or null when it is not
+ * installed.
  */
 
 /** The version a harness's CLI printed (`2.1.319 (Claude Code)`, `codex-cli 0.163.0`). */
@@ -51,14 +53,15 @@ export const TURN_EVENTS_BATCH_MS = 100;
 /** The size at which a runner sends a turn's gathered events at once. */
 export const TURN_EVENTS_BATCH_BYTES = 32 * 1024;
 
-/** How long after `turn.stop`'s SIGINT a turn's process group gets SIGTERM, and after SIGINT gets SIGKILL. */
-export const TURN_STOP_TERM_MS = 5_000;
-export const TURN_STOP_KILL_MS = 10_000;
+/** How long after `turn.stop`'s SIGINT a turn's process group gets SIGTERM, and after SIGINT gets SIGKILL (S5.4). */
+export const TURN_STOP_TERM_MS = 10_000;
+export const TURN_STOP_KILL_MS = 20_000;
 
 /**
  * Why a runner ended a turn by itself, the code at the start of `turn.end.error` (optionally followed by `: ` and
  * words): no such harness here, every slot taken, the agent's home folder missing, the driver refused the spec, the
- * process could not start, a person stopped it, the runner stopping.
+ * process could not start, a person stopped it, the runner stopping (a new turn refused), the process ended without
+ * its end being recorded (killed while the runner was away, S5.4).
  */
 export const TURN_ERRORS = [
   'unsupported',
@@ -68,6 +71,7 @@ export const TURN_ERRORS = [
   'spawn_failed',
   'stopped',
   'runner_stopping',
+  'process_lost',
 ] as const;
 export type TurnError = (typeof TURN_ERRORS)[number];
 
@@ -78,7 +82,7 @@ export const TurnStart = frame('turn.start', {
 });
 export type TurnStart = z.infer<typeof TurnStart>;
 
-/** Server to runner: stop the turn (SIGINT, SIGTERM 5 s later, SIGKILL 10 s later); its `turn.end` says `stopped`. */
+/** Server to runner: stop the turn (SIGINT, SIGTERM 10 s later, SIGKILL 20 s later); its `turn.end` says `stopped`. */
 export const TurnStop = frame('turn.stop', {
   turnId: Uuid,
 });
@@ -141,8 +145,8 @@ export const TurnEnd = frame('turn.end', {
 export type TurnEnd = z.infer<typeof TurnEnd>;
 
 /** The turn frames the server sends. */
-export const TURN_SERVER_FRAMES = [TurnStart, TurnInput, TurnStop] as const;
-export type TurnServerFrame = TurnStart | TurnInput | TurnStop;
+export const TURN_SERVER_FRAMES = [TurnStart, TurnInput, TurnStop, TurnResume, TurnAck] as const;
+export type TurnServerFrame = TurnStart | TurnInput | TurnStop | TurnResume | TurnAck;
 
 /** The turn frames a runner sends (a task step's artifacts, S5.3b, are `artifacts.ts`'s). */
 export const TURN_RUNNER_FRAMES = [TurnEvents, TurnQuestion, TurnArtifact, TurnArtifacts, TurnEnd] as const;

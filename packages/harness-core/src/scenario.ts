@@ -21,6 +21,15 @@ export interface FakeScenario {
   readonly record?: string;
   /** The environment variables the record keeps (only these: the rest of a test's environment stays out of files). */
   readonly recordEnv?: readonly string[];
+  /**
+   * Plays a harness that takes messages while it works (Claude Code's stream-json input): the lines print without
+   * waiting for stdin's end, each `fake_input` line read meanwhile is echoed as an `input` event, and after the last line
+   * it waits for stdin's end (as Claude Code waits for more messages) before `holdMs` and its exit; the record is written
+   * then.
+   */
+  readonly liveInput?: boolean;
+  /** Ignores SIGINT and SIGTERM (a harness that does not stop when asked: only SIGKILL ends it). */
+  readonly ignoreSignals?: boolean;
 }
 
 /** What the fake binary got, written to the scenario's `record` file as JSON. */
@@ -43,11 +52,15 @@ export interface FakeHarnessIo {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly cwd: string;
   readStdin(): Promise<string>;
+  /** Calls `onLine` with each line of stdin as it comes; resolves at its end (a `liveInput` scenario). */
+  readStdinLines(onLine: (line: string) => void): Promise<void>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, text: string): Promise<void>;
   writeStdout(text: string): void;
   writeStderr(text: string): void;
   sleep(ms: number): Promise<void>;
+  /** Makes SIGINT and SIGTERM do nothing (an `ignoreSignals` scenario). */
+  ignoreSignals(): void;
 }
 
 const isWait = (value: unknown) => value === undefined || (Number.isInteger(value) && (value as number) >= 0);
@@ -64,7 +77,9 @@ export function parseScenario(text: string): FakeScenario {
     isWait(value.delayMs) &&
     isWait(value.holdMs) &&
     (value.record === undefined || typeof value.record === 'string') &&
-    (value.recordEnv === undefined || isStrings(value.recordEnv));
+    (value.recordEnv === undefined || isStrings(value.recordEnv)) &&
+    (value.liveInput === undefined || typeof value.liveInput === 'boolean') &&
+    (value.ignoreSignals === undefined || typeof value.ignoreSignals === 'boolean');
   if (!ok) throw new TypeError('Not a fake harness scenario');
   return value as unknown as FakeScenario;
 }
@@ -80,14 +95,47 @@ export async function runFakeHarness(io: FakeHarnessIo): Promise<number> {
     io.writeStderr(`fake-harness: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
   }
+  if (scenario.ignoreSignals) io.ignoreSignals();
+  if (scenario.liveInput) return playLive(io, scenario);
   const stdin = await io.readStdin();
   if (scenario.record !== undefined)
     await io.writeFile(scenario.record, JSON.stringify(recordOf(io, stdin, scenario)));
+  await printLines(io, scenario);
+  if (scenario.holdMs) await io.sleep(scenario.holdMs);
+  return scenario.exitCode;
+}
+
+async function printLines(io: FakeHarnessIo, scenario: FakeScenario): Promise<void> {
   for (const line of scenario.lines) {
     if (scenario.delayMs) await io.sleep(scenario.delayMs);
     io.writeStdout(`${line}\n`);
   }
   if (scenario.stderr) io.writeStderr(scenario.stderr);
+}
+
+/** The echo of a message mid-turn (`fakeInputLine`), as the fake driver's parser reads it; undefined for another line. */
+function echoOf(line: string): string | undefined {
+  try {
+    const value: unknown = JSON.parse(line);
+    if (!isRecord(value) || value.type !== 'fake_input') return undefined;
+    return JSON.stringify({ type: 'input', text: value.text, inputId: value.id });
+  } catch {
+    return undefined;
+  }
+}
+
+/** A `liveInput` scenario (see `FakeScenario.liveInput`). */
+async function playLive(io: FakeHarnessIo, scenario: FakeScenario): Promise<number> {
+  const read: string[] = [];
+  const ended = io.readStdinLines((line) => {
+    read.push(line);
+    const echo = echoOf(line);
+    if (echo !== undefined) io.writeStdout(`${echo}\n`);
+  });
+  await printLines(io, scenario);
+  await ended;
+  if (scenario.record !== undefined)
+    await io.writeFile(scenario.record, JSON.stringify(recordOf(io, read.join('\n'), scenario)));
   if (scenario.holdMs) await io.sleep(scenario.holdMs);
   return scenario.exitCode;
 }

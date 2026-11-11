@@ -313,4 +313,21 @@ describe('CodexDriver', () => {
     ]);
     expect(new CodexDriver({ rollouts: fs }).parser().tick?.()).toEqual([]);
   });
+
+  it('takes the turn’s own start when the runner names it (a re-attached turn), over when the parser was made', () => {
+    const home = '/state/codex/abc';
+    const files: Record<string, string> = { [pathOf(home, PARENT)]: `${meta(PARENT)}\n` };
+    const { fs } = memoryRollouts(files);
+    const later = () => SINCE + 3_600_000;
+    const parser = new CodexDriver({ rollouts: fs, now: later }).parser({
+      privateDir: home,
+      startedAt: SINCE,
+    });
+    parser.feed(JSON.stringify({ type: 'thread.started', thread_id: PARENT }));
+    const lines = [taskStarted(NOW_S), activityItem('c1', SOL, '/root/sleep_sol', 'started'), ''];
+    files[pathOf(home, PARENT)] += lines.join('\n');
+    expect(parser.tick?.()).toEqual([
+      expect.objectContaining({ type: 'subagent', id: SOL, status: 'running' }),
+    ]);
+  });
 });

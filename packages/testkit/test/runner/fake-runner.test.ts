@@ -68,6 +68,7 @@ describe('FakeRunner: connecting', () => {
         selfUpdate: false,
         folders: false,
         forks: false,
+        reattach: false,
       },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });
@@ -89,12 +90,14 @@ describe('FakeRunner: connecting', () => {
       caps: { slots: 4, hold: 'devbox_keepalive', power: ['airia_devbox'] },
       runs: [run],
       hold: { until, source: 'live_runs' },
+      turns: [{ turnId: run.runId, lastSeq: 4, ended: false }],
     });
     await runner.connect();
     expect(await server.frames.next('runner.hello')).toMatchObject({
       protocol: 2,
       version: '0.5.0-rc.1',
       build: 'ab'.repeat(32),
+      turns: [{ turnId: run.runId, lastSeq: 4, ended: false }],
       caps: {
         harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
         slots: 4,

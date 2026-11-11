@@ -112,10 +112,12 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       selfUpdate: true,
       folders: true,
       forks: true,
+      reattach: true,
       tools: TOOLS,
     },
     build: BUILD,
     builtAt: '2026-11-09T16:40:00.000Z',
+    turns: [{ turnId: IDS.turn, lastSeq: 12, ended: false }],
   },
   'runner.caps': {
     type: 'runner.caps',
@@ -128,6 +130,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       selfUpdate: true,
       folders: true,
       forks: true,
+      reattach: true,
       tools: TOOLS,
     },
   },
@@ -232,7 +235,13 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
 };
 
 export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerFrame, { type: T }> } = {
-  'server.hello': { type: 'server.hello', protocol: 1, minRunnerVersion: '0.5.0', machineId: IDS.machine },
+  'server.hello': {
+    type: 'server.hello',
+    protocol: 1,
+    minRunnerVersion: '0.5.0',
+    machineId: IDS.machine,
+    resume: true,
+  },
   'job.offer': {
     type: 'job.offer',
     id: IDS.offer,
@@ -294,6 +303,14 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
     text: 'Use the staging database',
   },
   'turn.stop': { type: 'turn.stop', turnId: IDS.turn },
+  'turn.resume': {
+    type: 'turn.resume',
+    turns: [
+      { turnId: IDS.turn, lastSeq: 12 },
+      { turnId: IDS.run, lastSeq: null },
+    ],
+  },
+  'turn.ack': { type: 'turn.ack', turnId: IDS.turn },
   'fs.list': { type: 'fs.list', cmdId: IDS.cmd, path: '~/agents' },
   'fs.mkdir': { type: 'fs.mkdir', cmdId: IDS.cmd, path: '/Users/ihor/agents/scout' },
   'tools.check': { type: 'tools.check', cmdId: IDS.cmd },
