@@ -1,5 +1,5 @@
 import { TaskEventKind, TaskPriority, TaskState, TaskStepState } from '@mwc/shared/enums';
-import { TASK_DESCRIPTION_MAX, TASK_REASON_MAX, TASK_TITLE } from '@mwc/shared/flows';
+import { TASK_DESCRIPTION_MAX, TASK_REASON_MAX, TASK_TITLE, type TaskDecision } from '@mwc/shared/flows';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
@@ -18,8 +18,8 @@ export type TaskRounds = Record<string, { readonly entries: number; readonly sen
  * description (markdown) and priority; its state (`queued`, `active` at a step, `escalated` to the Lead, `done`,
  * `cancelled`); the step it is at (an active task) or escalated from, with its state there; the rounds of each step
  * (`rounds`: entries and send-backs by step id; a removed step's count stays, unused); why it was escalated and the
- * step a retry sends it to; why it is blocked at its step (S5.3b); who created it, and when it closed. The CHECKs keep
- * the state and its columns in step.
+ * step a retry sends it to; why it is blocked at its step (S5.3b); the decision its step's agent recorded in the turn
+ * that runs (S6a); who created it, and when it closed. The CHECKs keep the state and its columns in step.
  */
 export const tasks = pgTable(
   'tasks',
@@ -39,6 +39,11 @@ export const tasks = pgTable(
     escalationTargetStepId: uuid('escalation_target_step_id'),
     /** Why the task is blocked at its step (S5.3b: its turn could not start, or failed); only while `blocked`. */
     blockedReason: text('blocked_reason'),
+    /**
+     * The decision the step's agent recorded with its tools during its running turn (S6a: a move or a block), applied
+     * when the turn ends; only while `active`, and gone with any move.
+     */
+    decision: jsonb('decision').$type<TaskDecision>(),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -78,6 +83,10 @@ export const tasks = pgTable(
     check(
       'tasks_blocked_reason_check',
       sql`${t.blockedReason} is null or (${t.stepState} = 'blocked' and char_length(${t.blockedReason}) between 1 and ${n(TASK_REASON_MAX)})`,
+    ),
+    check(
+      'tasks_decision_check',
+      sql`${t.decision} is null or (${t.state} = 'active' and jsonb_typeof(${t.decision}) = 'object')`,
     ),
     index('tasks_flow_state_idx').on(t.companyId, t.flowId, t.state),
     index('tasks_current_step_idx').on(t.companyId, t.currentStepId),

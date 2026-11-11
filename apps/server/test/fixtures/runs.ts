@@ -46,8 +46,10 @@ export interface RunOptions {
   readonly reviewReturns?: 'keep' | 'fresh';
   /** Leave the Developer without a placement. */
   readonly unplaced?: boolean;
-  /** The runner's caps over both harnesses (S5.4: `reattach`). */
+  /** The runner's caps over both harnesses (S5.4: `reattach`; S6a: `agentTools`). */
   readonly caps?: Partial<RunnerCaps>;
+  /** Place the Lead agent too, with the same profile (S6a: its own chats). */
+  readonly placeLead?: boolean;
 }
 
 /** The team company, its machine online, its Developer and Code Reviewer placed with a profile, and the flow. */
@@ -60,7 +62,8 @@ export async function runScene(w: ChatsWorld, options: RunOptions = {}): Promise
     credentialId: credential.id,
     model: 'claude-opus-5-5',
   });
-  for (const principal of options.unplaced ? [c.reviewer] : [c.developer, c.reviewer]) {
+  const placed = options.unplaced ? [c.reviewer] : [c.developer, c.reviewer];
+  for (const principal of options.placeLead ? [...placed, c.lead] : placed) {
     const agent = await agentOf(w.t.db, principal);
     await place(w, c, agent.id, { machineId });
     await putProfile(w.t.db, c.companyId, agent.id, profile.id);

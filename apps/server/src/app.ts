@@ -97,8 +97,10 @@ export function createApp(deps: AppOptions) {
   // One ticket store for the machines' terminals and the chats' (S5.1b): both open the same browser socket.
   const tickets = terminalTickets();
   // One chats runtime (S5.3b): the chats' routes and the tasks module's step runs share its live turns and queue, and a
-  // task's conversation reports its turns to the tasks module's hook. Neither module imports the other.
-  const chatsDeps = { ...server, hub, tickets, keyring, tasks: taskTurnHook(server) };
+  // task's conversation reports its turns to the tasks module's hook. Neither module imports the other. The hook runs
+  // the next step after an agent's decision or a Lead's move (S6a) through the runtime, asked when needed.
+  const hook = taskTurnHook({ ...server, steps: () => chats.taskTurns });
+  const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook };
   const chats = chatsRuntime(chatsDeps);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 

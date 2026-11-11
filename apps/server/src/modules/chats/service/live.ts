@@ -4,13 +4,13 @@ import type { TurnEvent } from '@mwc/shared/harness';
 import type { TurnEventItem } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import type { CredentialsForHarness } from '../../credentials/index.ts';
-import type { TurnChannel, TurnEnding, TurnSink } from '../../machines/index.ts';
+import type { TurnChannel, TurnEnding, TurnSink, TurnToolCall, TurnToolReply } from '../../machines/index.ts';
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome, withEvent } from '../rules.ts';
 import { type ChatBus, chatBus } from './bus.ts';
-import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
+import type { AgentToolTurn, TaskTurnContext, TaskTurnHook } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
 
 /**
@@ -24,7 +24,8 @@ import { streamEvent, turnView } from './views.ts';
  * the hub. A task's turn (S5.3b) hands the files the runner collected, what it left out and its end to the tasks
  * module's hook, on the same queue, before the next waiting turn starts. A turn whose runner went away (S5.4) is
  * `detached` until its runner comes back with it (the stream shows it reconnecting) and says the last event it stored
- * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events.
+ * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events. An agent's
+ * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end.
  */
 
 /** The subscription a turn runs on: which credential, whose, of which kind (a Codex login is sealed again). */
@@ -48,6 +49,14 @@ interface LiveTurn {
   /** Its runner went away and the turn waits for it (S5.4). */
   detached: boolean;
 }
+
+/** What a turn's sink knows besides its row: its task step (S5.3b) and the chat's agent, whose tools it answers (S6a). */
+export interface SinkContext {
+  readonly task?: TaskTurnContext | undefined;
+  readonly agentPrincipalId?: string | undefined;
+}
+
+export const NO_TOOLS_HERE = 'This turn has no tools from the server.';
 
 /** One turn's end as `ended` writes it. */
 interface Ending {
@@ -136,6 +145,33 @@ async function ended(l: Live, t: TenantDb, turn: ChatTurn, end: Ending): Promise
   await l.ended?.(t, turn.chatId);
 }
 
+/** An agent's tool call, answered by the tasks module's hook on the turn's queue; none without a hook or an agent. */
+async function toolCall(
+  deps: LiveDeps,
+  run: (work: () => Promise<void>) => Promise<void>,
+  t: TenantDb,
+  of: { readonly turn: ChatTurn; readonly context: SinkContext },
+  call: TurnToolCall,
+): Promise<TurnToolReply> {
+  const { turn, context } = of;
+  const agentPrincipalId = context.agentPrincipalId ?? context.task?.agentPrincipalId;
+  if (deps.tasks?.tool === undefined || agentPrincipalId === undefined)
+    return { ok: false, text: NO_TOOLS_HERE };
+  const at: AgentToolTurn = {
+    turnId: turn.id,
+    chatId: turn.chatId,
+    agentPrincipalId,
+    by: turn.createdBy,
+    task: context.task,
+  };
+  let reply: TurnToolReply = { ok: false, text: NO_TOOLS_HERE };
+  const answer = deps.tasks.tool.bind(deps.tasks);
+  await run(async () => {
+    reply = await answer(t, at, call);
+  });
+  return reply;
+}
+
 export function chatsLive(deps: LiveDeps) {
   const bus = chatBus();
   const live = new Map<string, LiveTurn>();
@@ -151,9 +187,10 @@ export function chatsLive(deps: LiveDeps) {
       t: TenantDb,
       turn: ChatTurn,
       used: TurnCredential,
-      task?: TaskTurnContext,
+      context: SinkContext = {},
       adopted = false,
     ): TurnSink {
+      const { task } = context;
       const run = queue(deps.logger, turn.id);
       let outcome: TurnOutcome = {};
       const entry: LiveTurn = { channel: undefined, stopRequested: false, detached: false };
@@ -178,6 +215,7 @@ export function chatsLive(deps: LiveDeps) {
           }),
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
+        tool: (call) => toolCall(deps, run, t, { turn, context }, call),
         end: (ending) => run(() => ended(l, t, turn, { ending, outcome, used, task })),
         lastSeq: async () => {
           let seq = 0;

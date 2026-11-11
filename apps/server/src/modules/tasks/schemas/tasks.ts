@@ -129,6 +129,21 @@ export const TaskConversationSchema = z
   })
   .openapi('TaskConversation');
 
+/** The decision a step's agent recorded with its tools in the turn that runs (S6a), applied when the turn ends. */
+export const TaskDecisionSchema = z
+  .object({
+    action: z.enum(['hand_on', 'pass', 'approve', 'send_back', 'blocked']),
+    /** What it makes when the turn ends, as found when it was recorded. */
+    outcome: z.enum(['moved', 'done', 'escalated', 'blocked']),
+    /** The step it goes to (an escalation: where the stopped send-back was going); null for none. */
+    to: z.object({ id: z.string(), name: z.string() }).nullable(),
+    /** A send-back's or a block's reason. */
+    reason: z.string().nullable(),
+    by: PrincipalRefSchema,
+    at: At,
+  })
+  .openapi('TaskDecision');
+
 export const TaskDetailSchema = TaskSummarySchema.extend({
   description: z.string(),
   flow: z.object({ id: z.string(), name: z.string(), lead: PrincipalRefSchema }),
@@ -143,6 +158,8 @@ export const TaskDetailSchema = TaskSummarySchema.extend({
   conversations: z.array(TaskConversationSchema),
   /** How many artifacts it has (skipped files left out); `GET …/tasks/{taskId}/artifacts` lists them. */
   artifacts: z.number().int().min(0),
+  /** The decision recorded in its step's running turn (S6a); null for none. */
+  decision: TaskDecisionSchema.nullable(),
 }).openapi('TaskDetail');
 
 export const TaskMovedSchema = z
@@ -160,3 +177,4 @@ export type TaskSummaryView = z.infer<typeof TaskSummarySchema>;
 export type TaskDetailView = z.infer<typeof TaskDetailSchema>;
 export type TaskEventView = z.infer<typeof TaskEventSchema>;
 export type TaskConversationView = z.infer<typeof TaskConversationSchema>;
+export type TaskDecisionView = z.infer<typeof TaskDecisionSchema>;

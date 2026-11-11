@@ -25,7 +25,7 @@ export async function rosterOf(t: TenantDb): Promise<Roster> {
   return {
     onChart: (id) => on.has(id),
     isPerson: (id) => org.members.has(id) && on.has(id),
-    team: (lead) => ({ leadPeople: peopleAtOrAbove(org.chart, lead) }),
+    team: (lead) => ({ lead, leadPeople: peopleAtOrAbove(org.chart, lead) }),
     leadPerson: (lead) => nearestPersonUp(org.chart, lead),
   };
 }

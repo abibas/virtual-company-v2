@@ -62,6 +62,8 @@ export interface Target {
   readonly credentialId: string;
   readonly ownerUserId: string;
   readonly kind: CredentialKind;
+  /** True when the machine's runner offers the agents' tools (S6a, `caps.agentTools`). */
+  readonly agentTools: boolean;
 }
 
 /** Who asks, and for what. */
@@ -86,7 +88,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
   if (version === null) return harnessMissing(chat.harness);
   if (terminal && !runner.caps.terminal) return TERMINAL_UNAVAILABLE;
   if (chat.forkPending && !runner.caps.forks) return RUNNER_CANNOT_FORK;
-  return { ok: true as const, agent, placement };
+  return { ok: true as const, agent, placement, agentTools: runner.caps.agentTools === true };
 }
 
 /** The profile the chat runs on: its own while the person who chose it is still an admin here, else the agent's. */
@@ -166,5 +168,6 @@ export async function resolveTarget(
     credentialId,
     ownerUserId: profile.ownerUserId,
     kind: credential.kind,
+    agentTools: place.agentTools,
   };
 }

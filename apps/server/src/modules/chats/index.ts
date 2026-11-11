@@ -5,10 +5,13 @@
 export { type ChatsDeps, type ChatsRuntime, chatsRoutes, chatsRuntime } from './routes.ts';
 export { reapTurns, SERVER_RESTARTED } from './service/reaper.ts';
 export type {
+  AgentToolsPlan,
+  AgentToolTurn,
   TaskTurnContext,
+  TaskTurnDraft,
   TaskTurnEnd,
   TaskTurnHook,
   TaskTurnLink,
   TaskTurnPlan,
 } from './service/task-hook.ts';
-export type { TaskTurnRequest, TaskTurnStarted, TaskTurns } from './service/tasks.ts';
+export type { StepPrompts, TaskTurnRequest, TaskTurnStarted, TaskTurns } from './service/tasks.ts';

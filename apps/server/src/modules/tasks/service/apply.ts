@@ -52,8 +52,9 @@ export async function applyMove(
     rounds: next.rounds,
     escalationReason: next.escalationReason,
     escalationTargetStepId: next.escalationTargetStepId,
-    // A move never blocks a task: only a step's run does (S5.3b), and any move clears it.
+    // A move never blocks a task: only a step's run does (S5.3b), and any move clears it, and a turn's decision (S6a).
     blockedReason: null,
+    decision: null,
     closedAt: closes ? move.now : null,
   });
   await repo.tasks.insertEvents(

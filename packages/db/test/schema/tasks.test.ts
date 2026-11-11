@@ -152,6 +152,28 @@ describe('tasks', () => {
     );
   });
 
+  it("keeps a step's turn's decision only while the task is active (S6a)", async () => {
+    const decision = {
+      turnId: 't',
+      chatId: 'c',
+      stepId: step.id,
+      round: 1,
+      action: 'hand_on' as const,
+      reason: null,
+      note: 'Done',
+      by: owner.id,
+      at: '2026-11-11T10:00:00.000Z',
+      outcome: 'moved' as const,
+      toStepId: null,
+      toStepName: null,
+    };
+    expect((await insertTask({ ...active(), decision })).decision).toEqual(decision);
+    expect((await insertTask(active())).decision).toBeNull();
+    expect(await constraint(insertTask({ decision }))).toBe('tasks_decision_check');
+    const notObject = [1] as unknown as typeof decision;
+    expect(await constraint(insertTask({ ...active(), decision: notObject }))).toBe('tasks_decision_check');
+  });
+
   it("refuses another company's flow, step or creator, and keeps a step with a task at it", async () => {
     const theirs = await insertPrincipal(handle, globex.id);
     expect(await constraint(insertTask({ createdBy: theirs.id }))).toBe('tasks_created_by_fk');

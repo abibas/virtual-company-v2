@@ -1,12 +1,17 @@
 import { diffFields, type TenantDb } from '@mwc/db';
 import type { MembershipRole } from '@mwc/shared/enums';
 import type { TasksRepo } from '../repo.ts';
+import type { AgentVia } from '../rules/access.ts';
 
-/** Who acts, from a route's guard: the member, their role and the request (a session or an API key, as themselves). */
+/**
+ * Who acts, from a route's guard: the member, their role and the request (a session or an API key, as themselves); or
+ * an agent through its tools (S6a, `agent`: the Lead's board tools, a step's decision), whose request is its turn.
+ */
 export interface Caller {
   readonly principalId: string;
   readonly role: MembershipRole;
   readonly requestId: string;
+  readonly agent?: AgentVia | undefined;
 }
 
 export const callerOf = (v: {
@@ -36,7 +41,7 @@ export function audit(
   },
 ) {
   return repo.audit(t, {
-    actorKind: 'user',
+    actorKind: caller.agent === undefined ? 'user' : 'agent',
     actorPrincipalId: caller.principalId,
     requestId: caller.requestId,
     entityType: change.entityType,

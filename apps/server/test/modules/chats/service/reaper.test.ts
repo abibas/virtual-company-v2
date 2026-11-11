@@ -77,7 +77,9 @@ describe('reapTurns and a task’s conversation (S5.3b)', () => {
   it('blocks the task whose conversation’s waiting reply a stopped server left', async () => {
     const { task, reply } = await waitingReply();
     const { logger } = captureLogger();
-    expect(await reapTurns({ db: w.t.db, clock: w.clock, logger, tasks: taskTurnHook({ logger }) })).toBe(1);
+    expect(
+      await reapTurns({ db: w.t.db, clock: w.clock, logger, tasks: taskTurnHook({ logger, db: w.t.db }) }),
+    ).toBe(1);
     expect((await turnRow(w.t.db, reply.id))?.status).toBe('failed');
     expect(await taskRow(w.t.db, task.id)).toMatchObject({
       stepState: 'blocked',

@@ -51,7 +51,8 @@ async function sinkOf(
   if (chat === undefined || (machineId !== undefined && chat.machineId !== machineId)) return undefined;
   const agent = await chatsRepo.agentOf(t, chat.agentId);
   const draft = agent && (await taskDraft(deps.tasks, t, { chat, agent, kind: turn.kind }));
-  return deps.live.sink(t, turn, await usedOf(t, turn), taskContext(draft, turn), true);
+  const context = { task: taskContext(draft, turn), agentPrincipalId: agent?.principalId };
+  return deps.live.sink(t, turn, await usedOf(t, turn), context, true);
 }
 
 /** The hub's adopter: a runner's held turn, taken back when it is a running turn of a chat on that runner's machine. */

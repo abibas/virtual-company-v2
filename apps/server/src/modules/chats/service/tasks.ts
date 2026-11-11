@@ -33,8 +33,17 @@ export interface TaskTurnRequest {
   readonly keep: boolean;
   /** A new conversation's title. */
   readonly title: string;
-  /** The full prompt for a new conversation, the delta for one that continues. */
-  readonly prompt: { readonly full: string; readonly delta: string };
+  /**
+   * The full prompt for a new conversation and the delta for one that continues, written for a runner without the
+   * agents' tools (`plain`) and for one that offers them (`tools`, S6a), which the agent's runner decides.
+   */
+  readonly prompt: { readonly plain: StepPrompts; readonly tools: StepPrompts };
+}
+
+/** A step's two prompts: for a new conversation, and for one that continues. */
+export interface StepPrompts {
+  readonly full: string;
+  readonly delta: string;
 }
 
 export type TaskTurnStarted =
@@ -75,7 +84,9 @@ export function taskTurns(deps: TurnsDeps) {
       const latest = await taskChatsRepo.latestOf(t, request.taskId, request.stepId, agent.id);
       const continued = goesOn(latest, agent, placement.machineId, request);
       const chat = continued ? latest : await newConversation(t, request, agent, placement.machineId);
-      const prompt = continued && chat.sessionId !== null ? request.prompt.delta : request.prompt.full;
+      const offers = deps.hub.connected(placement.machineId)?.caps.agentTools === true;
+      const written = offers ? request.prompt.tools : request.prompt.plain;
+      const prompt = continued && chat.sessionId !== null ? written.delta : written.full;
       const started = await startTurn(deps, t, { principalId: request.by }, chat.id, prompt);
       if (!started.ok) return started;
       if (started.turn.status === 'failed') return MACHINE_OFFLINE;

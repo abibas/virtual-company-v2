@@ -1,7 +1,7 @@
 import type { Flow, FlowStep, Task, TenantDb } from '@mwc/db';
 import { TASK_PAGE } from '@mwc/shared/flows';
 import type { TasksRepo } from '../repo.ts';
-import { allowedActions, editRefusal, leadRefusal } from '../rules/access.ts';
+import { allowedActions, editRefusal, intoStepRefusal } from '../rules/access.ts';
 import { move } from '../rules/machine.ts';
 import { FLOW_NOT_FOUND, type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
 import type {
@@ -85,6 +85,7 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
     ...taskPrincipals(task, current, flow.leadPrincipalId),
     ...events.map((event) => event.actorPrincipalId),
     ...agents.values(),
+    task.decision?.by,
   ];
   const names = await namesOf(deps.db, repo, t, ids);
   const actions = allowedActions(caller, roster.team(flow.leadPrincipalId), task, current);
@@ -139,7 +140,7 @@ export async function createTask(
       const roster = await rosterOf(tx);
       const steps = await repo.flows.steps(tx, flow.id);
       if (input.stepId !== undefined) {
-        const denied = leadRefusal(caller, roster.team(flow.leadPrincipalId));
+        const denied = intoStepRefusal(caller, roster.team(flow.leadPrincipalId));
         if (denied) return denied;
         if (!steps.some((step) => step.id === input.stepId)) {
           return refuse(422, 'unknown_step', 'No such step in this flow');

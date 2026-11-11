@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 37. Migrations: 24, the last is `0023_task_runs`.
+Tables: 37. Migrations: 25, the last is `0024_task_decisions`.
 
 ```mermaid
 erDiagram
@@ -463,6 +463,7 @@ erDiagram
     text escalation_reason "nullable"
     uuid escalation_target_step_id FK "nullable"
     text blocked_reason "nullable"
+    jsonb decision "nullable"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -1625,6 +1626,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `escalation_reason` | `text` | yes |  |  |  |
 | `escalation_target_step_id` | `uuid` | yes |  | FK |  |
 | `blocked_reason` | `text` | yes |  |  |  |
+| `decision` | `jsonb` | yes |  |  |  |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1654,6 +1656,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `tasks_escalation_reason_check`: `char_length("escalation_reason") between 1 and 2000`
   - `tasks_closed_check`: `("state" in ('done', 'cancelled')) = ("closed_at" is not null)`
   - `tasks_blocked_reason_check`: `"blocked_reason" is null or ("step_state" = 'blocked' and char_length("blocked_reason") between 1 and 2000)`
+  - `tasks_decision_check`: `"decision" is null or ("state" = 'active' and jsonb_typeof("decision") = 'object')`
 - **Indexes:**
   - `tasks_flow_state_idx` on (`company_id`, `flow_id`, `state`)
   - `tasks_current_step_idx` on (`company_id`, `current_step_id`)

@@ -8,7 +8,7 @@ import { nextQueued, startSeq } from '../rules/queue.ts';
 import { CHAT_ARCHIVED, type Refusal, titleOf } from '../rules.ts';
 import { resolveTarget, type Target } from './target.ts';
 import { artifactsOf, taskDraft } from './task-hook.ts';
-import { INVALID_SPEC, launch, specIssues, type TurnsDeps } from './turns.ts';
+import { INVALID_SPEC, launch, specIssues, specTools, type TurnsDeps } from './turns.ts';
 import { turnView } from './views.ts';
 
 /**
@@ -65,6 +65,7 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
   const target = await resolveTarget(deps, t, chat, { principalId: head.createdBy, purpose: 'chat_turn' });
   if (!target.ok) return target;
   const draft = await taskDraft(deps.tasks, t, { chat, agent: target.agent, kind: head.kind });
+  const tools = await specTools(deps, t, { chat, target, kind: head.kind, draft });
   const row = await claim(deps, t, chat, head.id, target);
   if (row === 'gone' || row === 'raced') return row;
   const spec = TurnSpec.safeParse({
@@ -72,6 +73,7 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
     prompt: row.prompt,
     ...target.fork,
     ...artifactsOf(draft),
+    ...tools,
   });
   if (!spec.success) {
     await failed(deps, t, row, INVALID_SPEC(specIssues(spec.error)).message, true);
@@ -79,7 +81,8 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
   }
   const { credentialId, ownerUserId, kind } = target;
   const used = { credentialId, ownerUserId, kind };
-  const sent = await launch(deps, t, row, chat.machineId, used, spec.data, draft);
+  const where = { machineId: chat.machineId, agent: target.agent };
+  const sent = await launch(deps, t, row, where, used, spec.data, draft);
   if (sent.ok && sent.turn.status !== 'failed') return 'started';
   if (sent.ok) deps.live.bus.publish(chatId, { kind: 'turn', turn: sent.turn });
   return 'failed';

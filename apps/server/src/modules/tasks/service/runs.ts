@@ -45,8 +45,15 @@ const promptArtifact = (steps: ReadonlyMap<string, FlowStep>, row: ArtifactRow):
   return { step: folder, round: row.round, name: row.name, kind: row.kind, size: row.size };
 };
 
-/** The step's prompts: the full one for a new conversation, the delta for one that goes on. */
-async function prompts(deps: RunDeps, repo: TasksRepo, t: TenantDb, task: Task, flow: Flow, step: FlowStep) {
+/** What a step's prompt says of the task at `step` now: all its artifacts, and those since the step's last round. */
+export async function stepPromptInput(
+  deps: RunDeps,
+  repo: TasksRepo,
+  t: TenantDb,
+  task: Task,
+  step: FlowStep,
+) {
+  const flow = (await repo.flows.get(t, task.flowId)) as Flow;
   const steps = inOrder(await repo.flows.steps(t, flow.id));
   const byId = new Map(steps.map((s) => [s.id, s]));
   const history = await repo.tasks.events(t, task.id);
@@ -64,7 +71,7 @@ async function prompts(deps: RunDeps, repo: TasksRepo, t: TenantDb, task: Task, 
     task: { key: taskKey(task.number), title: task.title, description: task.description },
     flowText,
     step: { name: step.name, kind: step.kind, position: step.position },
-    next: steps[steps.indexOf(step) + 1]?.name ?? null,
+    next: steps[steps.findIndex((s) => s.id === step.id) + 1]?.name ?? null,
     sendsBackTo: step.sendsBackToStepId === null ? null : (byId.get(step.sendsBackToStepId)?.name ?? null),
     round,
     folder: artifactsFolder(task.number, step, round),
@@ -74,7 +81,20 @@ async function prompts(deps: RunDeps, repo: TasksRepo, t: TenantDb, task: Task, 
       artifacts: artifacts.map((row) => promptArtifact(byId, row)),
     },
   });
-  return { round, full: stepPrompt(input(kept), 'full'), delta: stepPrompt(input(fresh), 'delta') };
+  return { round, all: input(kept), fresh: input(fresh) };
+}
+
+/**
+ * The step's prompts: the full one for a new conversation and the delta for one that goes on, each written for a
+ * runner without the agents' tools (`plain`) and for one with them (`tools`, S6a).
+ */
+async function prompts(deps: RunDeps, repo: TasksRepo, t: TenantDb, task: Task, step: FlowStep) {
+  const { round, all, fresh } = await stepPromptInput(deps, repo, t, task, step);
+  const written = (tools: boolean) => ({
+    full: stepPrompt({ ...all, tools }, 'full'),
+    delta: stepPrompt({ ...fresh, tools }, 'delta'),
+  });
+  return { round, prompt: { plain: written(false), tools: written(true) } };
 }
 
 /**
@@ -88,7 +108,7 @@ export async function runStep(deps: RunDeps, repo: TasksRepo, t: TenantDb, calle
   const flow = (await repo.flows.get(t, task.flowId)) as Flow;
   const step = (await repo.flows.steps(t, flow.id)).find((s) => s.id === task.currentStepId) as FlowStep;
   if ((await repo.names.agentsOf(t, [step.assigneePrincipalId])).length === 0) return;
-  const { round, full, delta } = await prompts(deps, repo, t, task, flow, step);
+  const { round, prompt } = await prompts(deps, repo, t, task, step);
   const started = await deps.steps.start(t, {
     by: caller.principalId,
     requestId: caller.requestId,
@@ -98,15 +118,19 @@ export async function runStep(deps: RunDeps, repo: TasksRepo, t: TenantDb, calle
     round,
     keep: step.onReturn === 'keep',
     title: conversationTitle(taskKey(task.number), step.name, task.title),
-    prompt: { full, delta },
+    prompt,
   });
   if (!started.ok) await changeStep(repo, t, task, step.id, (now, at) => blocked(now, at, started.message));
 }
 
-/** Who made a run's change: the person whose message started a turn, or nobody (it happened by itself). */
+/**
+ * Who made a run's change: the person whose message started a turn, the step's agent whose decision blocked it (S6a,
+ * `agent`), or nobody (it happened by itself).
+ */
 export interface ChangeBy {
   readonly principalId: string;
   readonly requestId: string | null;
+  readonly agent?: boolean;
 }
 
 /**
@@ -132,8 +156,8 @@ export function changeStep(
   });
 }
 
-/** Writes a run's change in the caller's transaction (see `changeStep`). */
-async function applyStepChange(
+/** Writes a run's change in the caller's transaction (see `changeStep`); a decision's block too (S6a). */
+export async function applyStepChange(
   repo: TasksRepo,
   tx: TenantDb,
   move: {
@@ -148,10 +172,12 @@ async function applyStepChange(
   const after = await repo.tasks.update(tx, task.id, {
     stepState: change.stepState,
     blockedReason: change.blockedReason,
+    // The turn's decision (S6a) goes with any change of its step state: applied, dropped or past.
+    decision: null,
   });
   await repo.tasks.insertEvents(tx, [eventRow(task.id, by, change.event)]);
   await repo.audit(tx, {
-    actorKind: by === null ? 'system' : 'user',
+    actorKind: by === null ? 'system' : by.agent ? 'agent' : 'user',
     actorPrincipalId: by?.principalId ?? null,
     requestId: by?.requestId ?? null,
     entityType: 'task',

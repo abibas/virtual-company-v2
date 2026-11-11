@@ -7,6 +7,7 @@ import type { BoardCardView } from '../schemas/board.ts';
 import type { FlowSummaryView, FlowView, StepView } from '../schemas/flows.ts';
 import type {
   TaskConversationView,
+  TaskDecisionView,
   TaskDetailView,
   TaskEventView,
   TaskSummaryView,
@@ -162,7 +163,17 @@ export function taskDetail(
     actions: [...context.actions],
     conversations: [...context.conversations],
     artifacts: context.artifacts,
+    decision: decisionView(task, names),
   };
+}
+
+/** The decision its step's running turn recorded (S6a), as the task shows it; null for none. */
+export function decisionView(task: Pick<Task, 'decision'>, names: Names): TaskDecisionView | null {
+  const decision = task.decision;
+  if (decision === null) return null;
+  const to = decision.toStepId === null ? null : { id: decision.toStepId, name: decision.toStepName ?? '' };
+  const { action, outcome, reason, at } = decision;
+  return { action, outcome, to, reason, by: names(decision.by), at };
 }
 
 /** A task as the board shows it. */

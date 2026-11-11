@@ -195,7 +195,7 @@ describe('failLeftTurns (S5.4)', () => {
     });
     const start = await s.runner.frames.next('turn.start');
     const { logger, lines } = captureLogger();
-    const tasks = taskTurnHook({ logger });
+    const tasks = taskTurnHook({ logger, db: w.t.db });
     // A restarted server's live turns: it holds none of them.
     const live = chatsLive({ logger, clock: w.clock, credentials: {} as CredentialsForHarness, tasks });
     const after = new Date(w.clock().getTime() + 1);

@@ -152,7 +152,7 @@ describe('the hook itself', () => {
   it('logs its own failures by task and turn, and never throws', async () => {
     const TASK = '019a7b2c-3d4e-7f5a-8b6c-7d8e9f0a1b2c';
     const { logger, lines } = captureLogger();
-    const hook = taskTurnHook({ logger });
+    const hook = taskTurnHook({ logger, db: w.t.db });
     const broken = {} as TenantDb;
     const turn = {
       taskId: TASK,

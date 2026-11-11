@@ -1,0 +1,2 @@
+ALTER TABLE "tasks" ADD COLUMN "decision" jsonb;--> statement-breakpoint
+ALTER TABLE "tasks" ADD CONSTRAINT "tasks_decision_check" CHECK ("tasks"."decision" is null or ("tasks"."state" = 'active' and jsonb_typeof("tasks"."decision") = 'object'));

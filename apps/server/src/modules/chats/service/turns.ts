@@ -1,4 +1,4 @@
-import { type Chat, type ChatTurn, isUniqueViolation, type TenantDb } from '@mwc/db';
+import { type Agent, type Chat, type ChatTurn, isUniqueViolation, type TenantDb } from '@mwc/db';
 import type { ChatTurnKind } from '@mwc/shared/enums';
 import { TurnSpec } from '@mwc/shared/harness';
 import { newId } from '@mwc/shared/ids';
@@ -17,8 +17,15 @@ import {
 } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
-import { resolveTarget, type TargetDeps } from './target.ts';
-import { artifactsOf, type TaskTurnDraft, type TaskTurnHook, taskContext, taskDraft } from './task-hook.ts';
+import { resolveTarget, type Target, type TargetDeps } from './target.ts';
+import {
+  artifactsOf,
+  type TaskTurnDraft,
+  type TaskTurnHook,
+  taskContext,
+  taskDraft,
+  toolsOf,
+} from './task-hook.ts';
 import { turnView } from './views.ts';
 
 /**
@@ -112,7 +119,14 @@ export async function startTurn(
   });
   if (!target.ok) return target;
   const draft = await taskDraft(deps.tasks, t, { chat, agent: target.agent, kind: how.kind });
-  const spec = TurnSpec.safeParse({ ...target.spec, prompt, ...target.fork, ...artifactsOf(draft) });
+  const tools = await specTools(deps, t, { chat, target, kind: how.kind, draft });
+  const spec = TurnSpec.safeParse({
+    ...target.spec,
+    prompt,
+    ...target.fork,
+    ...artifactsOf(draft),
+    ...tools,
+  });
   if (!spec.success) return INVALID_SPEC(specIssues(spec.error));
   const now = deps.clock();
   const turn = await record(
@@ -133,8 +147,29 @@ export async function startTurn(
   );
   if ('ok' in turn) return turn;
   const { credentialId, ownerUserId, kind } = target;
-  return launch(deps, t, turn, chat.machineId, { credentialId, ownerUserId, kind }, spec.data, draft);
+  const used = { credentialId, ownerUserId, kind };
+  return launch(deps, t, turn, { machineId: chat.machineId, agent: target.agent }, used, spec.data, draft);
 }
+
+/** What a turn's spec adds for the agents' tools (S6a) when its runner offers them: their names, its instructions. */
+export const specTools = (
+  deps: TurnsDeps,
+  t: TenantDb,
+  turn: {
+    readonly chat: Chat;
+    readonly target: Target;
+    readonly kind: ChatTurnKind;
+    readonly draft: TaskTurnDraft | undefined;
+  },
+) =>
+  toolsOf(deps.tasks, t, {
+    chat: turn.chat,
+    agent: turn.target.agent,
+    kind: turn.kind,
+    draft: turn.draft,
+    offers: turn.target.agentTools,
+    instructions: turn.target.spec.instructions,
+  });
 
 /** Why a spec failed its schema: the paths of its issues, once each. */
 export const specIssues = (error: {
@@ -143,19 +178,20 @@ export const specIssues = (error: {
 
 /**
  * Sends the recorded turn to its machine's runner and tells the stream (and, for a task's turn, the tasks module); one
- * gone in the meantime fails it at once (`machine_offline`).
+ * gone in the meantime fails it at once (`machine_offline`). Its sink knows the chat's agent, whose tools it answers.
  */
 export async function launch(
   deps: TurnsDeps,
   t: TenantDb,
   turn: ChatTurn,
-  machineId: string,
+  where: { readonly machineId: string; readonly agent: Pick<Agent, 'principalId'> },
   used: TurnCredential,
   spec: TurnSpec,
   draft?: TaskTurnDraft,
 ): Promise<Started> {
+  const { machineId } = where;
   const task = taskContext(draft, turn);
-  const sink = deps.live.sink(t, turn, used, task);
+  const sink = deps.live.sink(t, turn, used, { task, agentPrincipalId: where.agent.principalId });
   const channel = deps.hub.turn(machineId, { turnId: turn.id, spec }, sink);
   if (channel === undefined) {
     deps.live.forget(turn.id);

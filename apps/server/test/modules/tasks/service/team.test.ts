@@ -49,7 +49,10 @@ describe('rosterOf', () => {
     const roster = await rosterOf(await tenant(t.db, company.id));
     expect([roster.onChart(lead.principal.id), roster.onChart(off.principal.id)]).toEqual([true, false]);
     expect([roster.isPerson(owner.principal.id), roster.isPerson(lead.principal.id)]).toEqual([true, false]);
-    expect(roster.team(lead.principal.id)).toEqual({ leadPeople: [owner.principal.id] });
+    expect(roster.team(lead.principal.id)).toEqual({
+      lead: lead.principal.id,
+      leadPeople: [owner.principal.id],
+    });
     expect(roster.leadPerson(lead.principal.id)).toBe(owner.principal.id);
   });
 });
