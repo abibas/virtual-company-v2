@@ -87,7 +87,9 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `fs.result` | `cmdId`, `ok`, `error?` (`<code>: <words>`, the code one of `FOLDER_ERRORS`), `path?` (resolved, absolute), and for a listing `parent?` (null at `/` and at the container's root), `entries?[≤ 500]{name, git, claudeMd}`, `truncated?`, `home?` (the runner user's home), `root?` (`/work` in a container, else null) | the answer to `fs.list` and `fs.mkdir` (instead of `cmd.ack`; "Folders" below) |
 | `tools.output` | `cmdId` (the install's), `line` (≤ 500 characters) | one line npm printed during a `tools.install` (both streams, at most 500 lines, then one notice); the server hands it to the request; no answer |
 | `tools.result` | `cmdId`, `ok`, `tools?` (as `caps.tools`), `error?` (`<code>: <words>`, the code one of `TOOL_INSTALL_ERRORS`: `unsupported`, `busy`, `npm_missing`, `timeout`, `failed`) | the answer to `tools.check` and `tools.install` (instead of `cmd.ack`), after the versions were read again ("Tools" below) |
-| `turn.end` | `turnId`, `ok`, `exitCode` (int\|null), `error?` (a `TURN_ERRORS` code, optionally `: ` and words), `authJson?` (a Codex login the process rewrote, a JSON object of at most 64 KB) | once per turn, after its last events; no answer |
+| `turn.artifact` | `turnId`, `index` (0–19, the file's number in the turn), `path` (its path in the outputs folder, ≤ 255, no `.`/`..` part), `contentType`, `size` (≤ 2 MB), `sha256`, `part` (from 0), `parts` (1–16), `data` (base64 of at most 128 KB) | one part of a task step's collected file (S5.3b, "Artifacts" below), after the turn's last events; no answer |
+| `turn.artifacts` | `turnId`, `files` (0–20), `skipped[≤ 50]{path, size, reason too_large\|binary\|too_many\|total_limit\|unreadable}` | what it collected and left out, after the last `turn.artifact`, before `turn.end`; no answer |
+| `turn.end` | `turnId`, `ok`, `exitCode` (int\|null), `error?` (a `TURN_ERRORS` code, optionally `: ` and words), `authJson?` (a Codex login the process rewrote, a JSON object of at most 64 KB) | once per turn, after its last events (and a task step's artifacts); no answer |
 
 ## Server → runner
 
@@ -110,7 +112,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.resize` | `sessionId`, `cols`, `rows` | |
 | `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
 | `runner.update` | `cmdId` | update yourself from the server you are linked to and restart; answered by `runner.update.result` ("Updating a runner") |
-| `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway, `instructions?` (the standing instructions, 2026-11-11; a runner older than it ignores it: docs/harness.md "Standing instructions")) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
+| `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway, `instructions?` (the standing instructions, 2026-11-11; a runner older than it ignores it: docs/harness.md "Standing instructions"), `artifacts?` (`{dir}`: a task step's outputs folder under `cwd`, S5.3b; "Artifacts" below)) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
 | `turn.input` | `turnId`, `inputId` (the waiting turn's UUID), `text` (1–20 000 characters) | the person's message for the running turn (S5.2 step 6, "Chat turns" below); no answer: the harness's echo comes back as an `input` event with `inputId`, or nothing |
 | `fs.list` | `cmdId`, `path` (absolute or `~/…`, 1–1024 characters; null for the default start) | the folders in a folder; answered by `fs.result` (S5.1d) |
 | `fs.mkdir` | `cmdId`, `path` (absolute or `~/…`) | make one folder whose parent exists; answered by `fs.result` |
@@ -208,7 +210,7 @@ buffer is over 1 MB, until it is down to 256 KB.
 
 ## Chat turns
 
-Added in S5.1b (`runner-protocol/turns.ts`, `turn.question` and `turn.input` in S5.2; how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
+Added in S5.1b (`runner-protocol/turns.ts`, `turn.question` and `turn.input` in S5.2, a task step's `turn.artifact` and `turn.artifacts` in S5.3b ("Artifacts" below); how a turn runs end to end is docs/harness.md, "How a turn runs"). The server
 sends `turn.start` only to a runner whose hello gave the harness's CLI version (`caps.harnesses`, read with
 `harnessVersionOf`: undefined for a runner older than chats, which the server refuses as `runner_outdated`; null for a
 missing CLI, `harness_missing`). The turn frames are no commands (no `cmdId`, no `cmd.ack`): `turn.start` is answered by
@@ -252,6 +254,31 @@ environment values or `auth.json`.
   processes by the stop ladder (nothing can reach the server then), and the server fails the turns of that connection
   (`machine_disconnected`). Nothing is re-attached after a reconnect yet (S5 proper). Live turns count for the runner's
   own hold (`hold.state` source `live_runs`) and make `runner.update` answer `busy`.
+
+## Artifacts
+
+Added in S5.3b (`runner-protocol/artifacts.ts`, the limits `ARTIFACT_LIMITS` and the type rule `artifactContentType` of
+`@mwc/shared/flows`; what they are for is docs/processes.md "Built in S5.3b"). A turn of a task's step names an outputs
+folder in its spec (`TurnSpec.artifacts.dir`, a relative path of plain names such as
+`tasks/T-12/artifacts/2-code-review/round-1`). The runner:
+
+1. before the process starts, makes that folder under the turn's `cwd` (the agent's home) and notes the files there
+   (size and time); a folder that cannot be made, or whose real path leaves the home's, is not collected (logged) and the
+   turn runs as usual;
+2. when the process ends, after its last `turn.events` and before `turn.end`, collects the regular files new or changed
+   since, in path order (hidden names and links passed over, 500 entries and 6 folders deep at most): up to 20 files, each
+   at most 2 MB, 10 MB together, each one text (UTF-8 without a NUL byte; Markdown, JSON, CSV, HTML or plain by its
+   extension, `; charset=utf-8`) or a PNG, JPEG, GIF or WebP image by its first bytes; the rest are skipped with why
+   (`too_many`, `too_large`, `total_limit`, `binary`, `unreadable`; the first 50 listed);
+3. sends each file as `turn.artifact` parts of 128 KB (an empty file is one empty part; base64 keeps every frame well
+   under the 256 KB limit), then one `turn.artifacts` with the count and the skipped files, then `turn.end`.
+
+The server's hub puts each file together from its parts (any order), drops one whose parts disagree (`path`, `size`,
+`sha256`, `parts`), repeat, have the wrong length or would take the turn past 10 MB, checks the whole file's length and
+SHA-256, and tells its type again from the bytes (a file that is not text or an image is dropped: the runner's
+`contentType` is never trusted); parts still missing at `turn.end` are dropped. Both frames are optional both ways: a
+runner older than them never sends them (the server keeps only the turn's hand-off note), and a server older than them
+ignores them as unknown frames. A collection that fails on the runner is logged and the turn still ends.
 
 ## Updating a runner
 
@@ -349,6 +376,7 @@ newer one passes through). The server sends `tools.check` and `tools.install` on
 | `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
 | `TURN_EVENTS_BATCH_MS`, `TURN_EVENTS_BATCH_BYTES` | a turn's events sent 100 ms after the first of a batch, or at once from 32 KB (or 100 events) |
 | `TURN_STOP_TERM_MS`, `TURN_STOP_KILL_MS` | SIGTERM 5 s and SIGKILL 10 s after a stopped turn's SIGINT |
+| `ARTIFACT_LIMITS` (`@mwc/shared/flows`), `ARTIFACT_PARTS_MAX` | a task step's turn collects 20 files of at most 2 MB, 10 MB together, 50 skipped listed, names of 255 characters, sent in parts of 128 KB (16 at most per file) |
 | the runner's terminals (`apps/runner/src/terminal/`) | output sent 16 ms after its first byte or at 32 KB; PTY paused over 1 MB queued, resumed at 256 KB; SIGKILL 5 s after SIGHUP |
 | the tunnels' supervisor (`packages/machines-core/src/tunnels.ts`, the runner's and the server's) | up after 10 s alive; restart after 5 s doubling to 5 min, reset after 60 s up; SIGKILL 5 s after SIGTERM |
 | the self-update (`apps/runner/src/update/`, the server's `service/runner/update.ts`) | 3 minutes for the runner's answer, 2 minutes per download, the restart 250 ms after the answer, exit code 75 |

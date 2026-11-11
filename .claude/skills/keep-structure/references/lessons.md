@@ -28,6 +28,26 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-11: S5.3b's step runs: two modules that drive each other, and a test helper for a cross-module world
+
+- **What happened:** the tasks module starts a chat turn (chats) and the chats module tells the tasks module of every
+  task conversation's turn (its plan, start, files, end). The placement row "a port B defines, implemented by A" fit:
+  the chats module defines `TaskTurnHook` (`chats/service/task-hook.ts`, 78 lines) and exports `taskTurns`
+  (`chats/service/tasks.ts`, 109); the tasks module implements the hook (`tasks/service/hook.ts`) and imports only types
+  from `chats/index.ts`; `app.ts` makes one chats runtime (`chatsRuntime`, new in `chats/routes.ts`) so both share its
+  live turns. Splitting `task-hook.ts` from `tasks.ts` avoided a file cycle with `turns.ts`. The step-run tests needed a
+  world across org, machines, chats and tasks: it went to `apps/server/test/fixtures/runs.ts`, a top-level fixture like
+  `tasks.ts`, since `fixtures/tasks/` would sit beside `fixtures/tasks.ts`. `packages/db/src/schema/` went 21 → 22
+  entries (`task-artifacts.ts`: it imports both `chats.ts` and `tasks.ts`, and `chats.ts` now imports `tasks.ts`, so the
+  table could not live in either without a cycle). The runner's collection went to `apps/runner/src/turns/artifacts/`
+  (no placement row names a turn's outputs; `turns/` is the closest).
+- **Where:** the steps-run commits.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a module whose service another module drives, and which reports back to it →
+  the reporting side's port in its own `service/<x>-hook.ts`, the driven side's facade in `service/<x>.ts`"; group the
+  server's top-level test fixtures by module at the S5 review (`fixtures/tasks/{team,runs}.ts`), and the db schema by area.
+- **Status:** `open`.
+
 ### 2026-11-11: S5.3a's web: one `features/flows/` area with subfolders, and its shared looks and links
 
 - **What happened:** the flows' web went to one area, `apps/web/src/features/flows/` (4 files: `access.ts`, `links.ts`,

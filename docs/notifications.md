@@ -26,6 +26,8 @@ a reconcile, a first sign-in) has no actor, so nobody is left out.
 | A task enters a person's step (S5.3a, `POST …/tasks/{taskId}/actions`, a task made into a step) | `tasks/service/apply.ts` | the step's assignee | `task_at_step`, or `task_signoff` at a Sign-off | T-12 “Fix the login” is at your step QA / needs your sign-off at Approve |
 | A task escalated to its Lead (a send-back over its step's limit) | `tasks/service/apply.ts` | the nearest person at or above the Lead | `task_escalated` | T-12 “Fix the login” was escalated to DEVBOX Platform Coordinator from Code review |
 | A task done | `tasks/service/apply.ts` | its creator and the nearest person at or above the Lead | `task_done` | T-12 “Fix the login” is done |
+| A step's turn ended and nobody moved the task (S5.3b) | `tasks/service/runs.ts` | the nearest person at or above the Lead, and the step's assignee when a person | `task_turn_ended` | Developer ended its turn on T-12 “Fix the login” at Develop; nobody has moved it on yet |
+| A step's turn could not start, or failed (S5.3b) | `tasks/service/runs.ts` | the same | `task_blocked` | T-12 “Fix the login” is blocked at Develop: Developer's turn could not start or failed |
 
 An agent moved between managers tells both managers; a move of an agent under an agent, or a pause of an agent whose
 manager is an agent, tells nobody. A restore from the archive reports to the one who restored it, so nobody else hears

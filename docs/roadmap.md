@@ -379,6 +379,32 @@ step ringed and its rounds, the description in Markdown, the facts and the histo
 flow" in the org chart's card menus; the gallery's `/design/flows` on sample data. No server change; no frontend tests
 (typechecked, built in `--full`).
 
+**S5.3b, steps run: built 2026-11-11 on the `steps-run` branch, not merged yet** (docs/processes.md "Built in S5.3b",
+docs/harness.md "Task turns", docs/runner-protocol.md "Artifacts"). Server and runner; the web's views of the
+conversations and the artifacts are the next step. Migration `0023_task_runs`: a task's conversation at a step is a chat
+(`chats.task_id`, `task_step_id`, `task_round`; out of the agent's chat list, opened from the task), `tasks.blocked_reason`,
+`task_artifacts` (task, step and its name, round, name, kind `file|note|link|skipped`, type, size, SHA-256, bytes up to
+2 MB, the conversation and turn, the agent), the history kinds `blocked` and `turn_ended`, the notices `task_turn_ended`
+and `task_blocked`. Entering an agent's step that starts by itself (or Start) starts its turn as the person who moved the
+task, in the step's conversation: Keep goes on in the same chat (resumed, with only the hand-off since its last round),
+Fresh begins one per round, different steps never share one; a start the chats refuse blocks the task with their words.
+The prompt is `stepPrompt` of `@mwc/shared/flows` (the task, the flow's written form with "you are at", what the step's
+kind asks and how to answer, the hand-off with the reason, findings and round of a send-back, the last reply and the
+artifacts, the outputs folder; within 20 000 characters). Every message turn of a task conversation reports to the
+tasks module through the chats module's `TaskTurnHook` (`app.ts` wires one chats runtime for both): its start (a
+person's reply works on the task again), each collected file, and its end (`ended_without_handoff`, or `blocked` on a
+failure, told to the Lead's nearest person; the reply kept as the round's hand-off note). A move while the step's turn
+runs is refused (`step_running`) unless `force`, which stops it. The runner makes `tasks/<key>/artifacts/<n>-<step>/round-<n>/`
+under the agent's home before the turn and collects what is new or changed after it (20 files, 2 MB each, 10 MB, text and
+images; the rest listed as skipped) over the new optional frames `turn.artifact` (128 KB parts) and `turn.artifacts`; the
+hub puts files together and checks them. `GET …/tasks/{taskId}/artifacts` and `…/{artifactId}/content` (viewers and
+up); the task's detail lists its conversations, the board's cards count artifacts. CLI: `mwc task show` lists both,
+`mwc task artifact <key> <name> [--step] [--round] [--out]`, `mwc task move … --force`. Tests on PGlite with `FakeRunner`
+(auto and manual entry, Keep and Fresh, blocks, ends, failures, replies, forced moves, the files and their limits, an old
+runner, the API's roles and other companies' 404s), the runner's collection on a temporary folder and a sized fake, the
+prompt per kind and round, the CLI. Merging needs the dev API restarted (its migration runs on start) and the runner
+bundle rebuilt, then Update runner on each machine (an old runner still runs steps, without collecting files).
+
 ### S6 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
 Done when the demo below passes on the Mac and then on the devbox:

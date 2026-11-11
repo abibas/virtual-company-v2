@@ -63,7 +63,8 @@ The last step's approval, or its pass, moves the task to Done.
 - **It is told** when a task finishes, is sent back, gets blocked or escalated, or a turn ends without a hand-off.
 - **It answers** the team's questions and brings to a person only what needs one.
 
-Until S6 gives agents their tools, people do these moves on the board.
+Until S6 gives agents their tools, people do these moves on the board, and the Lead is told only through its nearest
+person's notifications (S5.3b: an agent Lead sees nothing automatically yet).
 
 ## Artifacts
 
@@ -74,8 +75,8 @@ Each artifact is kept with its task, step and round, and shown on the task:
 - a pull request link;
 - a plan document.
 
-Agents add them with a tool (S6) or by writing them into the task's folder, which the runner collects at the hand-off
-(S5.3b).
+Agents add them with a tool (S6) or by writing them into the task's folder, which the runner collects when the step's
+turn ends (S5.3b, built: "Built in S5.3b" below).
 
 ## How a flow is written and drawn
 
@@ -259,12 +260,126 @@ The web's parts: `apps/web/src/api/flows.ts` (the types inferred from the routes
 `features/flows/` (`list/`, `team/`, `board/`, `drawing/`, `editor/`, `task/`, and `access.ts`, `links.ts`, `words.ts`,
 `Face.tsx`), `pages/company/flows/` and `pages/design/flows/`.
 
-### Left for S5.3b (design only, no tables yet)
+### What S5.3a left to S5.3b
 
-- **Per-step conversations:** a `task_conversations` row per task and step (the harness session, its machine), made on
-  the step's first entry; `on_return: fresh` begins a new one on the next entry and keeps the old one readable. The
-  round a conversation began with is the entry's `round`.
-- **Artifacts:** a `task_artifacts` row per artifact (task, step, round, kind `branch`, `findings`, `screenshot`,
-  `log`, `pull_request`, `document`, a link or a stored file), counted on the board's cards.
-- **Starting a run** on entering an agent's `auto` step, and the step states `blocked` and `ended_without_handoff`,
-  which only runs and S6's tools set.
+Per-step conversations, artifacts, a run started on entering an agent's step, and the step states `blocked` and
+`ended_without_handoff`: all built in S5.3b, below.
+
+## Built in S5.3b (2026-11-11)
+
+Steps run: a step whose assignee is an agent runs a real turn of that agent, in a conversation of the task at that step,
+and what it leaves is kept with the task. Server and runner only; the web's views of the conversations and the artifacts
+are a later step (below, "For the web step").
+
+### A step's work is a chat
+
+**The data choice: three nullable columns on `chats`, not a `task_conversations` table** (migration `0023_task_runs`):
+`task_id` (a composite key to `tasks`), `task_step_id` (a plain id: a step removed later leaves its conversations
+readable, as `task_events` keeps its plain ids) and `task_round` (the round of the step the conversation began in; a
+CHECK keeps the three together, the round from 1). Why: a step's conversation is one chat, one to one, so a side table
+would only split the chat's row in two. Being a chat, it gets everything chats have with no new code: streaming, its
+events, Stop, the queue, the briefing ("Standing instructions"), resume, the machine and profile checks, the terminal
+and "Open in Claude Code". The agent's chat list (`GET …/agents/{agentId}/chats`) leaves task conversations out
+(`task_id is null`); they open by id (`GET …/chats/{chatId}`, whose `task` names the task, the step and the round) and
+are listed on the task (`conversations` in `GET …/tasks/{taskId}`).
+
+**One conversation per task and step** (`taskTurns` of the chats module, `service/tasks.ts`): the step's latest
+conversation of that agent goes on when it can (not archived, the agent's harness and machine unchanged) and the step
+is **Keep** or the round is the same (a Start again after a block); otherwise a new chat begins, titled
+`T-12 · Develop · Fix the login`, with the person who moved the task as its creator (audited as any chat's start). So
+**Keep** continues the same Claude Code session across rounds (`--resume`), **Fresh** opens a new chat each round and the
+old ones stay readable, and different steps never share a conversation (the lookup is by task and step).
+
+### Entering a step whose assignee is an agent
+
+- **`starts: auto`**: the move that enters it (a hand-on, pass, approval, send-back, route, retry, or a task made into the
+  step) leaves the task `working` with a `started` row by nobody, and once its transaction is written the step's turn
+  starts (`runStep`, `service/runs.ts`), as the person who made the move (their principal on the turn and on the
+  credential's use).
+- **`starts: manual`**: the task waits (`waiting`) until Start, which starts the turn the same way.
+- **Refused**: a start the chats refuse leaves the task **`blocked`** with the refusal's words in `blocked_reason` (a new
+  `tasks` column, kept only while blocked) and a `blocked` history row by nobody: the step's assignee is no agent
+  (`not_an_agent`), the agent is archived, has no placement or a container one, its machine has no runner, the runner is
+  too old or lacks the CLI, the agent has no access profile or the profile no subscription, and so on (the chats' own
+  checks, docs/harness.md "How a turn runs"). Start again tries once more (`blocked` is startable).
+- A person's step runs nothing, as before.
+
+### The step's prompt
+
+`stepPrompt` of `@mwc/shared/flows` (`flows/prompt.ts`, pure and tested), always within a chat prompt's 20 000
+characters (the task's description gives way first, a quoted reply is cut at 4 000, the artifacts list keeps the latest
+25). A **full** prompt (a new conversation) holds:
+
+- the task: its key, title and description;
+- the flow in its written form (`flowText`), and "You are at <step>";
+- the step's ask: Work does the job and ends with a hand-off for the next step; Check checks and answers `PASS` or
+  `SEND BACK` on its first line with findings (and where a send-back goes); Sign-off answers `APPROVE` or `SEND BACK`;
+  and that nobody moves the task for it yet;
+- the hand-off: how the task came (new, handed on, passed, approved, sent back "for round N" with the reason and findings,
+  routed, retried), the last reply of the step it came from (that step's latest hand-off note), and the task's artifacts;
+- where outputs go: `tasks/<key>/artifacts/<position>-<step>/round-<n>/` under the agent's home folder.
+
+A conversation that goes on (Keep) gets only the **delta**: "Task T-12 is back at your step "Develop" (Work): round 2.",
+the hand-off since its last round (how it came, the reason, the reply, the artifacts of other steps since its previous
+entry) and the outputs folder; a Start again in round 1 gets "Continue … where you left off." Examples are in the
+roadmap's S5.3b entry.
+
+### Turn end, before S6's tools
+
+Every message turn of a task's conversation (the step's own, and a person's reply in it) reports to the tasks module
+(`taskTurnHook`, `service/hook.ts`, the chats module's `TaskTurnHook` port, wired in `app.ts`):
+
+| What | The task, while it is still worked on at that step | History | Who is told |
+| --- | --- | --- | --- |
+| The turn starts (a person's reply, or the step's own) | `waiting`, `blocked` or `ended_without_handoff` → `working` | `started` by the replier | — |
+| The turn ends (done, or stopped) | `ended_without_handoff` | `turn_ended` by nobody (a stop says why) | `task_turn_ended` |
+| The turn fails | `blocked`, its error as the reason | `blocked` by nobody | `task_blocked` |
+
+The notices go to the nearest person at or above the Lead and the step's assignee when a person (an agent's step has
+none; agents get no notices). People then hand on, pass or send back by hand (the S5.3a moves), or reply in the
+conversation, which continues it. A turn that ends after the task moved on, or while another turn of the step's
+conversations runs, changes nothing on the task. A turn lost with its runner's link fails (`machine_disconnected`), and
+one a stopped server left running fails at the next start (`server_restarted`): either way the task is blocked.
+
+**Moving a task while its turn runs** is refused (409 `step_running`, after the caller's own checks) unless the move
+says `force: true` (`mwc task move … --force`), which stops the turn (`turn.stop`) once the move is written; its end then
+leaves the task alone. Chosen over stopping silently so nobody kills an agent's work by a stray drag.
+
+### The task folder and artifacts
+
+Each turn of a task's step names its outputs folder in its spec (`TurnSpec.artifacts.dir`,
+`tasks/T-12/artifacts/2-code-review/round-1`): the runner makes it (and so the task's folder `tasks/T-12/`) under the
+agent's home before the process starts, and the agent still starts in its home, so its CLAUDE.md, skills and memory load.
+When the turn ends the runner collects the files new or changed there and sends them before `turn.end`
+(docs/runner-protocol.md "Artifacts"): at most 20 files, 2 MB each and 10 MB together, text (UTF-8) or PNG, JPEG, GIF,
+WebP images; anything else is listed as skipped with why. Hidden names and links inside the folder are passed over, and a
+folder that leads outside the home is not collected. The server puts each file together, checks its size and SHA-256,
+tells its type again from the bytes, and keeps it.
+
+`task_artifacts` (migration `0023_task_runs`): `task_id`, `step_id` (plain) with `step_name` as it was, `round`, `name`
+(the path in the round's folder), `kind` (`file`, `note`, `link` for S6, `skipped`), `content_type`, `size`, `sha256`,
+`bytes` (at most 2 MB; files and notes only), `note` (a skipped file's reason, a link's address), `chat_id`, `turn_id`
+and `created_by` (the step's agent). One name per task, step and round: a file collected again in the same round
+replaces the one before. The turn's final reply is kept as the round's **hand-off note** (`hand-off note`, Markdown;
+the latest reply of the round wins), which the next step's prompt quotes.
+
+| Route | Who | |
+| --- | --- | --- |
+| `GET tasks/{taskId}/artifacts` | viewer+ | oldest first, without bytes; 404 `task_not_found` (another company's too) |
+| `GET tasks/{taskId}/artifacts/{artifactId}/content` | viewer+ | the bytes, as an attachment with their type, `nosniff`, a CSP that runs nothing and the hash as ETag; 404 `artifact_not_found` for none or one without bytes |
+
+The task's detail adds `blockedReason`, `conversations` and `artifacts` (a count, skipped files left out); the board's
+cards add `artifacts`. The CLI: `mwc task show <key>` lists the conversations (chat ids) and the artifacts;
+`mwc task artifact <key> <name> [--step <step>] [--round <n>] [--out <path>]` prints a text artifact or saves one.
+
+### The Lead today
+
+Notifications to people only. An agent Lead sees nothing automatically yet: no board, no notice, no conversation of its
+own about the team's tasks; S6 gives agent Leads their board tools.
+
+### For the web step
+
+The task page lists `conversations` (open each with the chat views by `chatId`, its stream and "Open in Claude Code")
+and the artifacts (`GET …/artifacts`, downloads by `…/content`; images can show inline from a blob, text as Markdown or
+plain), shows `blockedReason` and the new history kinds (`blocked`, `turn_ended`; the history words are in already),
+offers Force on a move refused with `step_running`, and the board's cards can show their `artifacts` count.

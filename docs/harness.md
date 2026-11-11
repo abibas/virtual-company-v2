@@ -823,6 +823,46 @@ after `--fork-session` names the new session, are read from the CLIs' own code a
   <time>" at its top, linking back, and the chat list marks branches with a small branch icon. The branch's thread
   starts empty: the parent's earlier messages stay in the parent.
 
+## Task turns
+
+Built in S5.3b (2026-11-11; docs/processes.md "Built in S5.3b"). A task's step whose assignee is an agent runs as a chat
+of that agent: a **task conversation**, a chat whose row names the task, the step and the round it began in
+(`chats.task_id`, `task_step_id`, `task_round`, migration `0023_task_runs`). It is every bit a chat (the turn, its
+checks and refusals, the credential's use, the standing instructions, the stream, Stop, the queue, the terminal,
+"Open in Claude Code"); it only stays out of the agent's own chat list and is opened from the task.
+
+- **Who starts it.** The tasks module, once a move started the task at an agent's step (an entry into a step that starts
+  by itself, or Start), calls the chats module's `taskTurns.start` (`modules/chats/service/tasks.ts`) as the person who
+  made the move: it finds the step's latest conversation of that agent and goes on in it when it can (not archived, the
+  same harness and machine, and Keep or the same round), else begins one; the prompt is the full one for a new
+  conversation and the delta for one that has a session (`stepPrompt` of `@mwc/shared/flows`). A refusal comes back to
+  the tasks module as a `Refusal`, which blocks the task with its words. The two modules never import each other's code:
+  the chats module defines the port `TaskTurnHook` (`service/task-hook.ts`) and the tasks module implements it
+  (`taskTurnHook`); `app.ts` makes one chats runtime (`chatsRuntime`) and hands `taskTurns` to the tasks routes and the
+  hook to the chats.
+- **Every message turn of a task conversation** (the step's own, a person's reply in it, a queued message) asks the hook
+  before it starts for its round and outputs folder (`prepare`: the step's current entries, `tasks/T-12/artifacts/<n>-<step>/round-<n>`),
+  which go in the spec as `artifacts: {dir}` (`TurnSpec.artifacts`, optional: a runner older than it passes it through and
+  collects nothing); tells it when it starts (`started`: a task waiting, ended or blocked at the step is worked on again,
+  by the replier); hands it each file the runner collected and what it left out (`collected`, `skipped`, on the turn's
+  write queue); and, once its row is closed, its end (`ended`: the reply as the round's hand-off note, then
+  `ended_without_handoff` or, for a failed turn, `blocked`). A Compact or a Clear in a task conversation is not reported.
+  The hook logs its own failures and never throws into a turn's queue.
+- **The runner's side** (`apps/runner/src/turns/artifacts/`): before the process, `ArtifactCollector.open` makes the
+  folder under the agent's home (it must stay inside the home once links are followed) and notes what is there; after
+  the process ends, after its last events and before `turn.end`, the files new or changed (size or time) go out as
+  `turn.artifact` parts and one `turn.artifacts` (docs/runner-protocol.md "Artifacts"). A collection that fails is logged
+  and the turn still ends.
+- **The server's side** (the machines module's hub, `hub/artifacts.ts`): each file's parts are put together in memory
+  (at most the turn's 10 MB), checked against the size and SHA-256 every part names, typed again from the bytes
+  (`artifactContentType`), and handed to the turn's sink whole; a file that disagrees is dropped with a log line.
+- **Moving a task while its turn runs** (`POST …/tasks/{taskId}/actions`) is refused with 409 `step_running` unless
+  `force`, which stops the turn after the move.
+- **A dropped link or a restart.** A turn whose runner's link drops ends through its sink (`machine_disconnected`), so
+  its task is blocked; a turn a stopped server left running is failed at the next start (`server_restarted`, the
+  reaper), and `app.ts`'s `reapTurns` reports each such task turn to the hook, so its task is blocked too rather than left
+  `working`.
+
 ## Tests
 
 - Each connector's tests run every argument and environment combination and parse its fixtures, written from the
@@ -847,6 +887,12 @@ after `--fork-session` names the new session, are read from the CLIs' own code a
   long request, no socket, a silent one), a turn on the fake driver whose fake process calls the socket (its
   `turn.question` numbered after the events before it, refused while stopping or offline, the folder removed after),
   each driver's arguments, and the server's frame, detail, stream and answers route on PGlite with `FakeRunner`.
+- Task turns (S5.3b) are tested on PGlite with `FakeRunner`: auto and manual entry, Keep resuming the same session with
+  the delta prompt, Fresh opening a chat per round, a block's words, the turn's end and failure, a person's reply, a move
+  while running (refused, forced), the collected files (types, parts, limits, a bad hash, a binary file, a file collected
+  again, an old runner without the frames), the artifacts API and the board's counts; the runner's collection on a
+  temporary folder and on a sized fake file system (the limits, hidden names, links, a folder outside the home), and the
+  frames before `turn.end`.
 - The fake binary, `node FAKE_HARNESS_BIN`, plays a `FakeScenario` JSON file named by `FAKE_HARNESS_SCENARIO`: it reads
   stdin, writes what it got (argv, cwd, stdin, only the variables `recordEnv` names) to `record`, prints `lines` (after
   `delayMs` each), then `stderr`, waits `holdMs` and exits with `exitCode`. A runner test points `FakeHarnessDriver` at it
@@ -855,8 +901,8 @@ after `--fork-session` names the new session, are read from the CLIs' own code a
 
 ## Not supported yet
 
-- The journal, re-attaching a turn after a runner or server restart, and runs of tasks (S5.2 and on): a dropped link ends
-  a chat's turn today.
+- The journal, re-attaching a turn after a runner or server restart (S5.4): a dropped link ends a chat's turn today,
+  and a task's turn with it (the task is then `blocked` with `machine_disconnected`).
 - A Claude login's access token that expires during a turn longer than its remaining hour: the server refreshes it only
   before the turn. Two Codex processes on one private folder at once (a turn and a terminal) share one `auth.json`: the
   later one writes its login over a token the first may have just refreshed (the server seals again what comes back).
