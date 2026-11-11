@@ -7,6 +7,7 @@ import { companiesRoutes, companyOutboxHandlers } from './modules/companies/inde
 import { credentialsRoutes, signInRoutes } from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
+import { inboxRoutes } from './modules/inbox/index.ts';
 import {
   createPowerControl,
   createRunnerHub,
@@ -129,7 +130,8 @@ export function createApp(deps: AppOptions) {
     .route('/', chatsRoutes(chatsDeps, chats))
     .route('/', speechRoutes({ ...server, speech }))
     .route('/', notificationsRoutes(server))
-    .route('/', tasksRoutes({ ...server, steps: chats.taskTurns }));
+    .route('/', tasksRoutes({ ...server, steps: chats.taskTurns }))
+    .route('/', inboxRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
