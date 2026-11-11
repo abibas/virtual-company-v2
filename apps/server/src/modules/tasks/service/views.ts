@@ -1,10 +1,16 @@
 import type { Flow, FlowStep, Task, TaskEvent } from '@mwc/db';
 import type { TaskAction } from '@mwc/shared/enums';
 import { taskKey } from '@mwc/shared/flows';
+import type { ConversationRow } from '../repo.ts';
 import { inOrder, roundsAt } from '../rules.ts';
 import type { BoardCardView } from '../schemas/board.ts';
 import type { FlowSummaryView, FlowView, StepView } from '../schemas/flows.ts';
-import type { TaskDetailView, TaskEventView, TaskSummaryView } from '../schemas/tasks.ts';
+import type {
+  TaskConversationView,
+  TaskDetailView,
+  TaskEventView,
+  TaskSummaryView,
+} from '../schemas/tasks.ts';
 import type { StepRef } from '../schemas.ts';
 import type { Names } from './team.ts';
 
@@ -96,6 +102,7 @@ export function taskSummary(
     state: task.state,
     step: step ? stepRef(step) : null,
     stepState: task.stepState,
+    blockedReason: task.blockedReason,
     round: step ? roundsAt(task.rounds, step.id).entries || null : null,
     assignee: holder === null ? null : names(holder),
     createdBy: names(task.createdBy),
@@ -130,6 +137,9 @@ export function taskDetail(
     readonly events: readonly TaskEvent[];
     readonly names: Names;
     readonly actions: readonly TaskAction[];
+    /** Its steps' conversations (S5.3b), and how many artifacts it has. */
+    readonly conversations: readonly TaskConversationView[];
+    readonly artifacts: number;
   },
 ): TaskDetailView {
   const { flow, steps, names } = context;
@@ -150,6 +160,8 @@ export function taskDetail(
         : { reason: task.escalationReason, retryTo: retryStep ? stepRef(retryStep) : null },
     history: context.events.map((event) => eventView(event, names)),
     actions: [...context.actions],
+    conversations: [...context.conversations],
+    artifacts: context.artifacts,
   };
 }
 
@@ -159,6 +171,7 @@ export function boardCard(
   steps: ReadonlyMap<string, FlowStep>,
   leadPrincipalId: string,
   names: Names,
+  artifacts = 0,
 ): BoardCardView {
   const summary = taskSummary(task, steps, leadPrincipalId, names);
   return {
@@ -170,6 +183,26 @@ export function boardCard(
     stepState: task.stepState,
     assignee: summary.assignee,
     stepId: task.currentStepId,
+    artifacts,
     updatedAt: summary.updatedAt,
+  };
+}
+
+/** A step's conversation of the task: its chat, the step (by its name now), the round it began in, its agent. */
+export function conversationView(
+  row: ConversationRow,
+  steps: ReadonlyMap<string, FlowStep>,
+  agent: string | undefined,
+  names: Names,
+): TaskConversationView {
+  const stepId = row.taskStepId as string;
+  return {
+    chatId: row.id,
+    step: { id: stepId, name: steps.get(stepId)?.name ?? 'a removed step' },
+    round: row.taskRound as number,
+    agent: agent === undefined ? null : names(agent),
+    title: row.title,
+    started: row.sessionId !== null,
+    createdAt: row.createdAt.toISOString(),
   };
 }

@@ -38,7 +38,11 @@ describe('POST /api/companies/:companyId/tasks/:taskId/actions: a task through t
     const routed = await moved(w, c, c.manager, key, { action: 'route', toStepId: develop.id });
     expect(routed.task).toMatchObject({ state: 'active', stepState: 'waiting', round: 1 });
     expect(routed.task.assignee).toMatchObject({ name: 'Developer', kind: 'agent' });
-    expect((await moved(w, c, c.manager, key, { action: 'start' })).task.stepState).toBe('working');
+    // Start runs the agent's step (S5.3b): the Developer has no placement here, so it is blocked, saying why.
+    expect((await moved(w, c, c.manager, key, { action: 'start' })).task).toMatchObject({
+      stepState: 'blocked',
+      blockedReason: 'The agent has no placement: choose where it runs first',
+    });
     expect((await moved(w, c, c.manager, key, { action: 'hand_on' })).task.step?.name).toBe('Code review');
     // Code review sends it back three times; the fourth goes to the Lead instead.
     for (const round of [1, 2, 3]) {
@@ -91,11 +95,12 @@ describe('POST /api/companies/:companyId/tasks/:taskId/actions: a task through t
     expect(done.task.actions).toEqual([]);
 
     const history = await historyOf(w.t.db, created.id);
-    expect(history.slice(0, 8)).toEqual([
+    expect(history.slice(0, 9)).toEqual([
       ['created', null, null, null],
       ['routed', null, 'Develop', null],
       ['entered', null, 'Develop', 1],
       ['started', null, 'Develop', null],
+      ['blocked', null, 'Develop', 1],
       ['handed_on', 'Develop', 'Code review', null],
       ['entered', null, 'Code review', 1],
       ['sent_back', 'Code review', 'Develop', null],
@@ -116,6 +121,7 @@ describe('POST /api/companies/:companyId/tasks/:taskId/actions: a task through t
     ]);
 
     expect(await taskNotices(w.t.db, c.companyId)).toEqual([
+      [c.manager.principalId, 'task_blocked'],
       [c.manager.principalId, 'task_escalated'],
       [c.tester.principalId, 'task_at_step'],
       [c.owner.principalId, 'task_signoff'],
@@ -126,6 +132,7 @@ describe('POST /api/companies/:companyId/tasks/:taskId/actions: a task through t
     expect(await textsOf(w, c, c.manager)).toEqual([
       'T-1 “Fix the login” is done',
       'T-1 “Fix the login” was escalated to DEVBOX Coordinator from Code review',
+      "T-1 “Fix the login” is blocked at Develop: Developer's turn could not start or failed",
     ]);
   });
 
@@ -167,8 +174,9 @@ describe('POST …/actions: refusals', () => {
     expect(await code(c.owner, task.key, { action: 'pass' })).toBe('wrong_kind');
     expect(await code(c.owner, task.key, { action: 'approve' })).toBe('wrong_kind');
     expect(await code(c.owner, task.key, { action: 'send_back', reason: 'x' })).toBe('wrong_kind');
-    await moved(w, c, c.owner, task.key, { action: 'start' });
-    expect(await code(c.owner, task.key, { action: 'start' })).toBe('wrong_state');
+    // A blocked step starts again (S5.3b: the agent has no placement here, so it stays blocked).
+    expect((await moved(w, c, c.owner, task.key, { action: 'start' })).task.stepState).toBe('blocked');
+    expect((await moved(w, c, c.owner, task.key, { action: 'start' })).task.stepState).toBe('blocked');
     expect(await code(c.owner, task.key, { action: 'route' })).toBe('step_required');
     expect(await code(c.owner, task.key, { action: 'route', toStepId: stepOf(flow, 'Develop').id })).toBe(
       'already_at_step',
@@ -206,9 +214,10 @@ describe('POST …/actions: refusals', () => {
     const task = await makeTask(w, c, c.owner, { flowId: lone.id, stepId: stepOf(lone, 'Triage').id });
     expect(await code(c.tester, task.key, { action: 'send_back', reason: 'x' })).toBe('no_send_back_target');
     const built = await moved(w, c, c.tester, task.key, { action: 'pass' });
-    // An `auto` step starts by itself: its `started` row has no actor.
-    expect(built.task).toMatchObject({ step: { name: 'Build' }, stepState: 'working' });
-    expect(built.task.history.at(-1)).toMatchObject({ kind: 'started', actor: null, to: { name: 'Build' } });
+    // An `auto` step starts by itself: its `started` row has no actor; its run (S5.3b) is blocked by itself too.
+    expect(built.task).toMatchObject({ step: { name: 'Build' }, stepState: 'blocked' });
+    expect(built.task.history.at(-2)).toMatchObject({ kind: 'started', actor: null, to: { name: 'Build' } });
+    expect(built.task.history.at(-1)).toMatchObject({ kind: 'blocked', actor: null, to: { name: 'Build' } });
     expect(await code(c.tester, task.key, { action: 'hand_on' })).toBe('not_your_step');
   });
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { CHAT_PROMPT } from '../chats.ts';
 import { Harness } from '../enums.ts';
 import { AskQuestions, CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts';
+import { TurnArtifact, TurnArtifacts } from './artifacts.ts';
 import { ErrorText, frame, protocolObject, Uuid } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 
@@ -9,10 +10,11 @@ import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
  * Chat turns (S5.1b, docs/harness.md "How a turn runs"): the server asks a runner for one turn of a harness
  * (`turn.start`, with the credential it resolved), may send the person's message into it while it runs (`turn.input`,
  * S5.2 step 6) and may stop it (`turn.stop`); the runner sends the turn's events as
- * they come (`turn.events`, batched), a question the agent asked through the runner's tool (`turn.question`, S5.2) and
- * how it ended (`turn.end`, once). A turn belongs to the connection that carried its `turn.start`: when the link drops
- * the runner ends its process and the server fails the turn. And what a runner says of its harnesses in its hello: each
- * CLI's version, or null when it is not installed.
+ * they come (`turn.events`, batched), a question the agent asked through the runner's tool (`turn.question`, S5.2), a
+ * task step's collected files (`turn.artifact`, `turn.artifacts`, S5.3b) and how it ended (`turn.end`, once). A turn
+ * belongs to the connection that carried its `turn.start`: when the link drops the runner ends its process and the
+ * server fails the turn. And what a runner says of its harnesses in its hello: each CLI's version, or null when it is
+ * not installed.
  */
 
 /** The version a harness's CLI printed (`2.1.319 (Claude Code)`, `codex-cli 0.163.0`). */
@@ -142,9 +144,9 @@ export type TurnEnd = z.infer<typeof TurnEnd>;
 export const TURN_SERVER_FRAMES = [TurnStart, TurnInput, TurnStop] as const;
 export type TurnServerFrame = TurnStart | TurnInput | TurnStop;
 
-/** The turn frames a runner sends. */
-export const TURN_RUNNER_FRAMES = [TurnEvents, TurnQuestion, TurnEnd] as const;
-export type TurnRunnerFrame = TurnEvents | TurnQuestion | TurnEnd;
+/** The turn frames a runner sends (a task step's artifacts, S5.3b, are `artifacts.ts`'s). */
+export const TURN_RUNNER_FRAMES = [TurnEvents, TurnQuestion, TurnArtifact, TurnArtifacts, TurnEnd] as const;
+export type TurnRunnerFrame = TurnEvents | TurnQuestion | TurnArtifact | TurnArtifacts | TurnEnd;
 
 /** True for a frame of a chat turn (`turn.*`), of either direction. */
 export function isTurnFrame<F extends { readonly type: string }>(

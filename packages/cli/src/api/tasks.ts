@@ -3,7 +3,7 @@
  * for `mwc task` and `mwc flow`. The shapes mirror the server's schemas (`apps/server/src/modules/tasks/schemas/`)
  * without importing the server; only what the commands read is checked.
  */
-import { type ApiResult, apiCall, apiGet, type Fetch, isObject } from './client.ts';
+import { type ApiResult, apiBytes, apiCall, apiGet, type Fetch, isObject } from './client.ts';
 
 /** A person or an agent as flows and tasks name them. */
 export interface PrincipalRef {
@@ -67,13 +67,39 @@ export interface TaskEvent {
   readonly at: string;
 }
 
-/** A task with its description, flow, escalation, history and the caller's moves. */
+/** A step's conversation of the task (S5.3b): a chat of the step's agent. */
+export interface TaskConversation {
+  readonly chatId: string;
+  readonly step: { readonly id: string; readonly name: string };
+  readonly round: number;
+  readonly agent: PrincipalRef | null;
+  readonly title: string | null;
+  readonly started: boolean;
+}
+
+/** A task with its description, flow, escalation, history, the caller's moves and (S5.3b) its conversations. */
 export interface TaskDetail extends TaskSummary {
   readonly description: string;
   readonly flow: { readonly id: string; readonly name: string; readonly lead: PrincipalRef };
   readonly escalation: { readonly reason: string; readonly retryTo: { readonly name: string } | null } | null;
   readonly history: readonly TaskEvent[];
   readonly actions: readonly string[];
+  /** Why it is blocked at its step; absent from a server older than S5.3b. */
+  readonly blockedReason?: string | null;
+  readonly conversations?: readonly TaskConversation[];
+}
+
+/** One of a task's artifacts (S5.3b), without its bytes. */
+export interface TaskArtifact {
+  readonly id: string;
+  readonly step: { readonly id: string; readonly name: string };
+  readonly round: number;
+  readonly name: string;
+  readonly kind: string;
+  readonly contentType: string | null;
+  readonly size: number;
+  readonly note: string | null;
+  readonly updatedAt: string;
 }
 
 /** A move's outcome and the task after it. */
@@ -180,4 +206,44 @@ export const moveTask = (
     (value: unknown): value is TaskMoved =>
       isObject(value) && typeof value.outcome === 'string' && isDetail(value.task),
     { method: 'POST', body },
+  );
+
+const isArtifact = (value: unknown): value is TaskArtifact =>
+  isObject(value) &&
+  typeof value.id === 'string' &&
+  typeof value.name === 'string' &&
+  typeof value.round === 'number';
+
+/** `GET …/tasks/:key/artifacts`: the task's artifacts, oldest first (S5.3b). */
+export async function listArtifacts(
+  fetch: Fetch,
+  server: string,
+  key: string,
+  companyId: string,
+  taskKey: string,
+): Promise<ApiResult<readonly TaskArtifact[]>> {
+  const accept = (body: unknown): body is { artifacts: TaskArtifact[] } =>
+    isObject(body) && Array.isArray(body.artifacts) && body.artifacts.every(isArtifact);
+  const rest = `/tasks/${encodeURIComponent(taskKey)}/artifacts`;
+  const result = await apiGet(fetch, server, key, path(companyId, rest), accept);
+  return result.ok ? { ok: true, body: result.body.artifacts } : result;
+}
+
+/** `GET …/tasks/:key/artifacts/:artifactId/content`: an artifact's bytes. */
+export const downloadArtifact = (
+  fetch: Fetch,
+  server: string,
+  key: string,
+  companyId: string,
+  taskKey: string,
+  artifactId: string,
+) =>
+  apiBytes(
+    fetch,
+    server,
+    key,
+    path(
+      companyId,
+      `/tasks/${encodeURIComponent(taskKey)}/artifacts/${encodeURIComponent(artifactId)}/content`,
+    ),
   );

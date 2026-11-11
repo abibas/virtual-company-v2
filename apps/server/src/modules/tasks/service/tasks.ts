@@ -1,4 +1,4 @@
-import type { DbHandle, Flow, FlowStep, Task, TenantDb } from '@mwc/db';
+import type { Flow, FlowStep, Task, TenantDb } from '@mwc/db';
 import { TASK_PAGE } from '@mwc/shared/flows';
 import type { TasksRepo } from '../repo.ts';
 import { allowedActions, editRefusal, leadRefusal } from '../rules/access.ts';
@@ -13,12 +13,13 @@ import type {
 } from '../schemas/tasks.ts';
 import { applyMove, eventRow } from './apply.ts';
 import { audit, type Caller } from './audit.ts';
+import { type RunDeps, runStep } from './runs.ts';
 import { namesOf, rosterOf } from './team.ts';
-import { taskDetail, taskPrincipals, taskSummary } from './views.ts';
+import { conversationView, taskDetail, taskPrincipals, taskSummary } from './views.ts';
 
 /** The tasks (S5.3a): the list, one task with its history, a new task, and an edit of its title, text or priority. */
 
-type Deps = { readonly db: DbHandle };
+type Deps = RunDeps;
 export type TaskResult<S extends 403 | 404 | 409 | 422> =
   | { readonly ok: true; readonly task: TaskDetailView }
   | Refusal<S>;
@@ -72,14 +73,25 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
   const events = await repo.tasks.events(t, task.id);
   const roster = await rosterOf(t);
   const current = steps.find((step) => step.id === task.currentStepId);
+  const chats = await repo.conversations.ofTask(t, task.id);
+  const agents = new Map(
+    (await repo.names.agentPrincipals(t, [...new Set(chats.map((chat) => chat.agentId))])).map((a) => [
+      a.id,
+      a.principalId,
+    ]),
+  );
   const ids = [
     flow.leadPrincipalId,
     ...taskPrincipals(task, current, flow.leadPrincipalId),
     ...events.map((event) => event.actorPrincipalId),
+    ...agents.values(),
   ];
   const names = await namesOf(deps.db, repo, t, ids);
   const actions = allowedActions(caller, roster.team(flow.leadPrincipalId), task, current);
-  return taskDetail(task, { flow, steps, events, names, actions });
+  const byId = new Map(steps.map((step) => [step.id, step]));
+  const conversations = chats.map((chat) => conversationView(chat, byId, agents.get(chat.agentId), names));
+  const artifacts = (await repo.artifacts.counts(t, [task.id])).get(task.id) ?? 0;
+  return taskDetail(task, { flow, steps, events, names, actions, conversations, artifacts });
 }
 
 /** One task by id or key, with its history and the caller's moves; 404 for another company's or none. */
@@ -136,7 +148,12 @@ export async function createTask(
       return { ok: true, task: await routeNew(repo, tx, caller, { task, flow, steps, roster, input }) };
     },
   );
-  return made.ok ? { ok: true, task: await shownTask(deps, repo, t, caller, made.task) } : made;
+  if (!made.ok) return made;
+  // Put straight into a step that starts by itself: its run starts now, outside the transaction.
+  if (made.task.state === 'active' && made.task.stepState === 'working')
+    await runStep(deps, repo, t, caller, made.task.id);
+  const now = (await repo.tasks.get(t, { id: made.task.id })) as Task;
+  return { ok: true, task: await shownTask(deps, repo, t, caller, now) };
 }
 
 /** A new task put straight into a step: the Lead's `route`, written as any move. */

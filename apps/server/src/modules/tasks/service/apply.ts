@@ -7,12 +7,12 @@ import type { StepRule } from '../rules.ts';
 import { audit, type Caller } from './audit.ts';
 import type { Roster } from './team.ts';
 
-/** A history row of a task, by `caller` unless it happened by itself. */
-export function eventRow(taskId: string, caller: Caller, event: EventDraft) {
+/** A history row of a task, by `caller` unless it happened by itself (a system row, or no caller). */
+export function eventRow(taskId: string, caller: Pick<Caller, 'principalId'> | null, event: EventDraft) {
   return {
     taskId,
     kind: event.kind,
-    actorPrincipalId: event.system ? null : caller.principalId,
+    actorPrincipalId: event.system || caller === null ? null : caller.principalId,
     fromStepId: event.from?.id ?? null,
     fromStepName: event.from?.name ?? null,
     toStepId: event.to?.id ?? null,
@@ -52,6 +52,8 @@ export async function applyMove(
     rounds: next.rounds,
     escalationReason: next.escalationReason,
     escalationTargetStepId: next.escalationTargetStepId,
+    // A move never blocks a task: only a step's run does (S5.3b), and any move clears it.
+    blockedReason: null,
     closedAt: closes ? move.now : null,
   });
   await repo.tasks.insertEvents(

@@ -1,8 +1,9 @@
 /**
- * `mwc task create|list|show|move` and `mwc flow show` (S5.3a): a team's tasks moved by hand, and a flow's written
- * form, in the login and company `connect` finds (`account/connect.ts`). A flow is named by its Lead (an agent's slug,
- * a principal id or a name) or by itself (its id or name); a step by its name or id. 0 when done, 1 when not logged in
- * or refused (with the server's message), 2 for a usage error.
+ * `mwc task create|list|show|move|artifact` and `mwc flow show` (S5.3a, S5.3b): a team's tasks moved by hand, a task's
+ * conversations and artifacts, and a flow's written form, in the login and company `connect` finds
+ * (`account/connect.ts`). A flow is named by its Lead (an agent's slug, a principal id or a name) or by itself (its id
+ * or name); a step by its name or id. 0 when done, 1 when not logged in or refused (with the server's message), 2 for a
+ * usage error.
  */
 import { TaskAction, TaskPriority, TaskState } from '@mwc/shared/enums';
 import { type CompanyCommandDeps, connect, fail } from '../account/connect.ts';
@@ -14,6 +15,7 @@ import {
   getFlow,
   getFlowText,
   getTask,
+  listArtifacts,
   listFlows,
   listTasks,
   moveTask,
@@ -21,6 +23,7 @@ import {
 import type { ParsedArgs } from '../args.ts';
 import type { MainIo } from '../io.ts';
 import { companyJson } from '../org/render.ts';
+import { artifactCommand } from './artifact.ts';
 import { movedText, standing, tasksText, taskText } from './render.ts';
 
 export const TASK_USAGE = [
@@ -28,7 +31,8 @@ export const TASK_USAGE = [
   '                       [--priority low|normal|high|urgent]',
   '       mwc task list [--flow <lead|flow>] [--state queued|active|escalated|done|cancelled]',
   '       mwc task show <key>',
-  `       mwc task move <key> <${TaskAction.options.join('|')}> [--to <step>] [--reason <text>]`,
+  `       mwc task move <key> <${TaskAction.options.join('|')}> [--to <step>] [--reason <text>] [--force]`,
+  '       mwc task artifact <key> <name> [--step <step>] [--round <n>] [--out <path>]',
   '       (each also takes --company <slug>, --json and --server <url>)',
 ].join('\n');
 export const FLOW_USAGE = 'usage: mwc flow show <lead|flow> [--company <slug>] [--json] [--server <url>]';
@@ -39,6 +43,7 @@ const SHAPES: Readonly<Record<string, { readonly words: number; readonly options
   list: { words: 0, options: ['flow', 'state'] },
   show: { words: 1, options: [] },
   move: { words: 2, options: ['to', 'reason'] },
+  artifact: { words: 2, options: ['step', 'round', 'out'] },
 };
 
 /** Why the arguments do not fit the subcommand, or undefined. */
@@ -182,12 +187,12 @@ async function move(
     if (typeof found === 'number') return found;
     toStepId = found;
   }
-  const body = { action, toStepId, reason };
+  const body = { action, toStepId, reason, ...(args.flags.has('force') ? { force: true } : {}) };
   const moved = await moveTask(deps.fetch, session.server, session.key, session.company.companyId, key, body);
   return print(io, { command, args, session }, moved, movedText);
 }
 
-/** `mwc task create|list|show|move …`. */
+/** `mwc task create|list|show|move|artifact …`. */
 export async function taskCommand(args: ParsedArgs, io: MainIo, deps: CompanyCommandDeps): Promise<number> {
   const usage = shapeError(args, SHAPES);
   if (usage !== undefined) return fail(io, 'mwc task', `${usage}\n${TASK_USAGE}`, 2);
@@ -197,14 +202,16 @@ export async function taskCommand(args: ParsedArgs, io: MainIo, deps: CompanyCom
   if (sub === 'create') return create(io, args, deps, session);
   if (sub === 'list') return list(io, args, deps, session);
   if (sub === 'move') return move(io, args, deps, session);
-  const task = await getTask(
-    deps.fetch,
-    session.server,
-    session.key,
-    session.company.companyId,
-    args.positionals[1] as string,
-  );
-  return print(io, { command: 'mwc task show', args, session }, task, taskText);
+  if (sub === 'artifact') return artifactCommand(io, args, deps, session);
+  const { server, key, company } = session;
+  const ref = args.positionals[1] as string;
+  const task = await getTask(deps.fetch, server, key, company.companyId, ref);
+  const artifacts = task.ok
+    ? await listArtifacts(deps.fetch, server, key, company.companyId, ref)
+    : undefined;
+  const listed = artifacts?.ok ? artifacts.body : [];
+  const shown = task.ok ? { ok: true as const, body: { ...task.body, artifactList: listed } } : task;
+  return print(io, { command: 'mwc task show', args, session }, shown, (body) => taskText(body, listed));
 }
 
 /** `mwc flow show <lead|flow>`: the flow's written form, or with `--json` the flow and its steps. */

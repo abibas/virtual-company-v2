@@ -58,6 +58,7 @@ describe('the tenant conventions, on every tenant table', () => {
       'notifications',
       'principals',
       'runner_sessions',
+      'task_artifacts',
       'task_events',
       'tasks',
     ]);
@@ -153,7 +154,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(47);
+    expect(composite).toBe(52);
   });
 });
 

@@ -43,6 +43,11 @@ export const TaskActionSchema = z
     reason: z.string().max(TASK_REASON_MAX).optional(),
     /** The step the caller saw the task at; a task that moved since is refused (409 `task_moved`). */
     fromStepId: z.uuid().nullable().optional(),
+    /**
+     * Move it even while its step's turn runs (S5.3b): the turn is stopped first. Without it such a move is refused
+     * (409 `step_running`).
+     */
+    force: z.boolean().optional(),
   })
   .openapi('TaskActionRequest');
 
@@ -59,6 +64,8 @@ export const TaskSummarySchema = z
     /** The step it is at (active) or escalated from; null when queued or closed. */
     step: StepRefSchema.nullable(),
     stepState: TaskStepState.nullable(),
+    /** Why it is blocked at its step (S5.3b: its turn could not start, or failed); null unless `blocked`. */
+    blockedReason: z.string().nullable(),
     /** Its entries into its step so far (1 the first time); null when it is at no step. */
     round: z.number().int().min(1).nullable(),
     /** Who has it: the step's assignee, or the Lead for an escalated task; null when queued or closed. */
@@ -94,6 +101,22 @@ export const TaskEventSchema = z
   })
   .openapi('TaskEvent');
 
+/** A step's conversation of the task (S5.3b): a chat (`GET …/chats/{chatId}`, its stream, its terminal). */
+export const TaskConversationSchema = z
+  .object({
+    chatId: z.string(),
+    /** The step, by its name now (a step removed since: `a removed step`). */
+    step: z.object({ id: z.string(), name: z.string() }),
+    /** The round of the step it began in. */
+    round: z.number().int().min(1),
+    agent: PrincipalRefSchema.nullable(),
+    title: z.string().nullable(),
+    /** Whether it has a harness conversation to resume yet. */
+    started: z.boolean(),
+    createdAt: At,
+  })
+  .openapi('TaskConversation');
+
 export const TaskDetailSchema = TaskSummarySchema.extend({
   description: z.string(),
   flow: z.object({ id: z.string(), name: z.string(), lead: PrincipalRefSchema }),
@@ -104,6 +127,10 @@ export const TaskDetailSchema = TaskSummarySchema.extend({
   history: z.array(TaskEventSchema),
   /** The moves the caller may make now. */
   actions: z.array(TaskAction),
+  /** Its steps' conversations (S5.3b), oldest first: each a chat of the step's agent, opened by its id. */
+  conversations: z.array(TaskConversationSchema),
+  /** How many artifacts it has (skipped files left out); `GET …/tasks/{taskId}/artifacts` lists them. */
+  artifacts: z.number().int().min(0),
 }).openapi('TaskDetail');
 
 export const TaskMovedSchema = z
@@ -120,3 +147,4 @@ export type TaskActionRequest = z.infer<typeof TaskActionSchema>;
 export type TaskSummaryView = z.infer<typeof TaskSummarySchema>;
 export type TaskDetailView = z.infer<typeof TaskDetailSchema>;
 export type TaskEventView = z.infer<typeof TaskEventSchema>;
+export type TaskConversationView = z.infer<typeof TaskConversationSchema>;

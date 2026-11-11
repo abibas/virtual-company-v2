@@ -19,6 +19,8 @@ const WORDS: Readonly<Record<TaskEventKind, readonly [string, string]>> = {
   done: ['done', 'bg-done'],
   cancelled: ['cancelled it', 'bg-pending'],
   edited: ['edited', 'bg-faint'],
+  blocked: ['blocked', 'bg-blocked'],
+  turn_ended: ['ended its turn', 'bg-pending'],
 };
 
 /** The line of one move: who did what, from and to which step. */
@@ -29,6 +31,10 @@ function lineOf(event: TaskEvent): string {
   if (event.kind === 'done') return 'Done';
   if (event.kind === 'started' && event.actor === null)
     return `Started by itself${event.to ? ` at ${event.to.name}` : ''}`;
+  if (event.kind === 'blocked')
+    return `Blocked${event.to ? ` at ${event.to.name}` : ''}${event.reason ? `: ${event.reason}` : ''}`;
+  if (event.kind === 'turn_ended')
+    return `The turn ended${event.to ? ` at ${event.to.name}` : ''} without a hand-off`;
   if (event.kind === 'escalated') {
     return `${event.actor?.name ?? 'Someone'} sent it back over ${event.from?.name ?? 'the step'}'s limit: escalated to the Lead`;
   }

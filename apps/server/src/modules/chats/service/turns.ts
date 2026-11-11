@@ -18,6 +18,7 @@ import {
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { resolveTarget, type TargetDeps } from './target.ts';
+import { artifactsOf, type TaskTurnDraft, type TaskTurnHook, taskContext, taskDraft } from './task-hook.ts';
 import { turnView } from './views.ts';
 
 /**
@@ -27,12 +28,16 @@ import { turnView } from './views.ts';
  * the first prompt is the chat's title. A stop asks the runner to stop it; its end says `stopped`. A Compact is such a
  * turn too, of kind `compact` (`conversation.ts`), and so is an answer to the agent's question (`answers.ts`), which
  * checks and marks its question in the transaction that records the turn. A message sent while a turn runs waits in
- * the chat's queue instead (`queue.ts`, S5.2 step 6), which starts it through `launch` once the running turn ended.
+ * the chat's queue instead (`queue.ts`, S5.2 step 6), which starts it through `launch` once the running turn ended. A
+ * message turn of a task's conversation (S5.3b) gets its outputs folder from the tasks module's hook, which hears of
+ * its start (`task-hook.ts`).
  */
 
 export interface TurnsDeps extends TargetDeps {
   readonly live: ChatsLive;
   readonly clock: () => Date;
+  /** The tasks module's side of a task's conversation (S5.3b); none: chats know nothing of tasks. */
+  readonly tasks?: TaskTurnHook | undefined;
 }
 
 /** Who starts or stops a turn: their principal. */
@@ -106,7 +111,8 @@ export async function startTurn(
     purpose: 'chat_turn',
   });
   if (!target.ok) return target;
-  const spec = TurnSpec.safeParse({ ...target.spec, prompt, ...target.fork });
+  const draft = await taskDraft(deps.tasks, t, { chat, agent: target.agent, kind: how.kind });
+  const spec = TurnSpec.safeParse({ ...target.spec, prompt, ...target.fork, ...artifactsOf(draft) });
   if (!spec.success) return INVALID_SPEC(specIssues(spec.error));
   const now = deps.clock();
   const turn = await record(
@@ -127,7 +133,7 @@ export async function startTurn(
   );
   if ('ok' in turn) return turn;
   const { credentialId, ownerUserId, kind } = target;
-  return launch(deps, t, turn, chat.machineId, { credentialId, ownerUserId, kind }, spec.data);
+  return launch(deps, t, turn, chat.machineId, { credentialId, ownerUserId, kind }, spec.data, draft);
 }
 
 /** Why a spec failed its schema: the paths of its issues, once each. */
@@ -136,8 +142,8 @@ export const specIssues = (error: {
 }) => [...new Set(error.issues.map((i) => i.path.join('.')))].join(', ');
 
 /**
- * Sends the recorded turn to its machine's runner and tells the stream; one gone in the meantime fails it at once
- * (`machine_offline`).
+ * Sends the recorded turn to its machine's runner and tells the stream (and, for a task's turn, the tasks module); one
+ * gone in the meantime fails it at once (`machine_offline`).
  */
 export async function launch(
   deps: TurnsDeps,
@@ -146,8 +152,10 @@ export async function launch(
   machineId: string,
   used: TurnCredential,
   spec: TurnSpec,
+  draft?: TaskTurnDraft,
 ): Promise<Started> {
-  const sink = deps.live.sink(t, turn, used);
+  const task = taskContext(draft, turn);
+  const sink = deps.live.sink(t, turn, used, task);
   const channel = deps.hub.turn(machineId, { turnId: turn.id, spec }, sink);
   if (channel === undefined) {
     deps.live.forget(turn.id);
@@ -156,6 +164,7 @@ export async function launch(
   }
   deps.live.started(turn.id, channel);
   deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(turn) });
+  if (task !== undefined) await deps.tasks?.started(t, task, turn.createdBy);
   return { ok: true, turn: turnView(turn) };
 }
 

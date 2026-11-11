@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { newId } from '@mwc/shared/ids';
 import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
-import { chatsRoutes } from './modules/chats/index.ts';
+import { chatsRoutes, chatsRuntime, reapTurns as reapChatTurns } from './modules/chats/index.ts';
 import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
 import { credentialsRoutes, signInRoutes } from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
@@ -20,7 +20,7 @@ import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from '.
 import { deliverEmails, membershipNoticeHook, notificationsRoutes } from './modules/notifications/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
 import { speechRoutes } from './modules/speech/index.ts';
-import { tasksRoutes } from './modules/tasks/index.ts';
+import { tasksRoutes, taskTurnHook } from './modules/tasks/index.ts';
 import { emailFromConfig } from './platform/email/select.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
@@ -37,7 +37,6 @@ import { speechFromConfig } from './platform/processes/speech/select.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
 
-export { reapTurns } from './modules/chats/index.ts';
 export {
   createPowerControl,
   createRunnerHub,
@@ -75,7 +74,8 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * the runners' sockets (`platform/realtime/sockets.ts`, whose server `start.ts` gives to `serve()`). The power control
  * is the one passed in (`start.ts`: this server's own driver when MWC_LOCAL_POWER finds the airia CLI), else the runner
  * controllers'; `/api/config` says which (`localPower`). The chats (S5.1b) start their turns through the same hub and
- * share the machines' terminal tickets. Dictation transcribes through the speech passed in (tests: a fake; undefined:
+ * share the machines' terminal tickets; the tasks (S5.3b) run their steps through the chats' runtime, whose task
+ * conversations report back to the tasks module's hook. Dictation transcribes through the speech passed in (tests: a fake; undefined:
  * off), else this computer's whisper.cpp when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
  * Container runners are rebuilt with the Docker CLI passed in (tests: a fake; undefined: none), else the one
  * MWC_LOCAL_DOCKER finds.
@@ -96,6 +96,10 @@ export function createApp(deps: AppOptions) {
     deps.powerControl ?? createPowerControl({ hub, port: deps.config.MWC_PORT, logger: deps.logger });
   // One ticket store for the machines' terminals and the chats' (S5.1b): both open the same browser socket.
   const tickets = terminalTickets();
+  // One chats runtime (S5.3b): the chats' routes and the tasks module's step runs share its live turns and queue, and a
+  // task's conversation reports its turns to the tasks module's hook. Neither module imports the other.
+  const chatsDeps = { ...server, hub, tickets, keyring, tasks: taskTurnHook(server) };
+  const chats = chatsRuntime(chatsDeps);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -120,10 +124,10 @@ export function createApp(deps: AppOptions) {
     .route('/', credentialsRoutes({ ...server, keyring }))
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
     .route('/', machinesRoutes({ ...server, hub, control, tickets, localDocker }))
-    .route('/', chatsRoutes({ ...server, hub, tickets, keyring }))
+    .route('/', chatsRoutes(chatsDeps, chats))
     .route('/', speechRoutes({ ...server, speech }))
     .route('/', notificationsRoutes(server))
-    .route('/', tasksRoutes(server));
+    .route('/', tasksRoutes({ ...server, steps: chats.taskTurns }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
@@ -153,6 +157,13 @@ export function machinesRuntime(server: ServerDeps, local: LocalPower | undefine
   server.onShutdown?.(() => powerControl.close());
   return { runnerHub, powerControl };
 }
+
+/**
+ * At the server's start, before it listens: the chat turns a stopped server left live fail (`server_restarted`), and a
+ * task whose step's turn was one of them is blocked through the tasks module's hook (S5.3b). Returns how many failed.
+ */
+export const reapTurns = (deps: Pick<ServerDeps, 'db' | 'logger'> & { readonly clock: () => Date }) =>
+  reapChatTurns({ ...deps, tasks: taskTurnHook(deps) });
 
 /** The app's type, for the web's typed client: `hc<AppType>(baseUrl)` (a type-only import). */
 export type AppType = ReturnType<typeof createApp>;

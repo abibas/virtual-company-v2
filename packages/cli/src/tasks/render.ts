@@ -2,7 +2,7 @@
  * Tasks as plain text for `mwc task`: the list as an aligned table, one task with its history, and a move's outcome.
  * A flow's written form comes from the server as it is (`GET …/flows/:flowId/text`).
  */
-import type { TaskDetail, TaskEvent, TaskMoved, TaskSummary } from '../api/tasks.ts';
+import type { TaskArtifact, TaskDetail, TaskEvent, TaskMoved, TaskSummary } from '../api/tasks.ts';
 import { alignRows } from '../org/render.ts';
 
 const HEADERS = ['KEY', 'STATE', 'STEP', 'STEP STATE', 'ROUND', 'WHO', 'PRIORITY', 'TITLE'];
@@ -48,6 +48,8 @@ const EVENT_WORDS: Readonly<Record<string, string>> = {
   done: 'done',
   cancelled: 'cancelled',
   edited: 'edited',
+  blocked: 'blocked',
+  turn_ended: 'turn ended',
 };
 
 /** One history line: `2026-11-11 10:02  sent back Code review → Develop by Olga: tests fail`. */
@@ -61,20 +63,54 @@ export function eventLine(event: TaskEvent): string {
         : event.from
           ? ` ${event.from.name}`
           : '';
-  const round = event.kind === 'entered' && event.round !== null ? ` (round ${event.round})` : '';
-  const by = event.actor ? ` by ${event.actor.name}` : event.kind === 'started' ? ' by itself' : '';
+  const counted = event.kind === 'entered' || event.kind === 'blocked' || event.kind === 'turn_ended';
+  const round = counted && event.round !== null ? ` (round ${event.round})` : '';
+  const itself = event.kind === 'started' || event.kind === 'blocked' || event.kind === 'turn_ended';
+  const by = event.actor ? ` by ${event.actor.name}` : itself ? ' by itself' : '';
   const reason = event.reason ? `: ${event.reason}` : '';
   return `${at}  ${EVENT_WORDS[event.kind] ?? event.kind}${steps}${round}${by}${reason}`;
 }
 
-/** One task: its title, flow, standing, who has it, its escalation, the caller's moves, description and history. */
-export function taskText(task: TaskDetail): string {
+/** A size in words: `340 B`, `1.2 KB`, `2.0 MB`. */
+export function sizeText(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** One artifact's line: `Develop · round 1 · notes.md · file · 7 B`, a skipped one with why. */
+export const artifactLine = (a: TaskArtifact): string =>
+  `${a.step.name} · round ${a.round} · ${a.name} · ${a.kind === 'skipped' ? `skipped, ${sizeText(a.size)} (${a.note ?? ''})` : `${a.kind} · ${sizeText(a.size)}`}`;
+
+/** The conversations and artifacts of a task (S5.3b), as `taskText` ends with them; none of either: nothing. */
+function runLines(task: TaskDetail, artifacts: readonly TaskArtifact[]): string[] {
+  const lines: string[] = [];
+  const conversations = task.conversations ?? [];
+  if (conversations.length > 0) {
+    lines.push('', 'Conversations:');
+    for (const c of conversations) {
+      const who = c.agent ? ` · ${c.agent.name}` : '';
+      lines.push(
+        `  ${c.step.name} · round ${c.round}${who} · chat ${c.chatId}${c.started ? '' : ' (not started)'}`,
+      );
+    }
+  }
+  if (artifacts.length > 0) lines.push('', 'Artifacts:', ...artifacts.map((a) => `  ${artifactLine(a)}`));
+  return lines;
+}
+
+/**
+ * One task: its title, flow, standing, who has it, why it is blocked, its escalation, the caller's moves, description
+ * and history, then its conversations and artifacts (S5.3b).
+ */
+export function taskText(task: TaskDetail, artifacts: readonly TaskArtifact[] = []): string {
   const lines = [
     `${task.key} · ${task.title}`,
     `Flow: ${task.flow.name} · Lead: ${task.flow.lead.name}`,
     `State: ${standing(task)} · priority ${task.priority}`,
     `Who: ${task.assignee?.name ?? '-'} · created by ${task.createdBy.name}`,
   ];
+  if (task.blockedReason) lines.push(`Blocked: ${task.blockedReason}`);
   if (task.escalation) {
     const retry = task.escalation.retryTo ? ` (a retry sends it to ${task.escalation.retryTo.name})` : '';
     lines.push(`Escalated: ${task.escalation.reason}${retry}`);
@@ -82,6 +118,7 @@ export function taskText(task: TaskDetail): string {
   lines.push(`You may: ${task.actions.length > 0 ? task.actions.join(', ') : 'nothing'}`);
   if (task.description.trim() !== '') lines.push('', task.description.trimEnd());
   lines.push('', 'History:', ...task.history.map((event) => `  ${eventLine(event)}`));
+  lines.push(...runLines(task, artifacts));
   return `${lines.join('\n')}\n`;
 }
 

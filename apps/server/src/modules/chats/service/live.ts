@@ -10,6 +10,7 @@ import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome, withEvent } from '../rules.ts';
 import { type ChatBus, chatBus } from './bus.ts';
+import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
 
 /**
@@ -20,7 +21,8 @@ import { streamEvent, turnView } from './views.ts';
  * person's message mid-turn go through (S5.2 step 6: the harness's `input` event for it removes the message's waiting
  * turn). Every write runs on one queue per turn, so the end is written after the last event, and what follows a turn's
  * end (the chat's next waiting turn starts, `onEnded`) after it. A failure is logged by the turn's id, never thrown into
- * the hub.
+ * the hub. A task's turn (S5.3b) hands the files the runner collected, what it left out and its end to the tasks
+ * module's hook, on the same queue, before the next waiting turn starts.
  */
 
 /** The subscription a turn runs on: which credential, whose, of which kind (a Codex login is sealed again). */
@@ -34,11 +36,21 @@ export interface LiveDeps {
   readonly logger: Logger;
   readonly clock: () => Date;
   readonly credentials: CredentialsForHarness;
+  /** The tasks module's side of a task's conversation (S5.3b). */
+  readonly tasks?: TaskTurnHook | undefined;
 }
 
 interface LiveTurn {
   channel: TurnChannel | undefined;
   stopRequested: boolean;
+}
+
+/** One turn's end as `ended` writes it. */
+interface Ending {
+  readonly ending: TurnEnding;
+  readonly outcome: TurnOutcome;
+  readonly used: TurnCredential;
+  readonly task: TaskTurnContext | undefined;
 }
 
 /** What the steps of a turn's sink share: the deps, the stream's bus and the live turns. */
@@ -93,12 +105,7 @@ async function taken(l: Live, t: TenantDb, chatId: string, inputId: string): Pro
 }
 
 /** Closes the turn's row from its end, and seals again a Codex login the process rewrote. */
-async function ended(
-  l: Live,
-  t: TenantDb,
-  turn: ChatTurn,
-  end: { readonly ending: TurnEnding; readonly outcome: TurnOutcome; readonly used: TurnCredential },
-): Promise<void> {
+async function ended(l: Live, t: TenantDb, turn: ChatTurn, end: Ending): Promise<void> {
   const { ending, outcome, used } = end;
   if (ending.authJson !== undefined && used.kind === 'codex_oauth') {
     await l.deps.credentials.rewriteCodexLogin(
@@ -118,6 +125,10 @@ async function ended(
   if (row === undefined) return;
   await chatsRepo.update(t, turn.chatId, { updatedAt: l.deps.clock() });
   l.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(row) });
+  if (end.task !== undefined) {
+    const { status, resultText, error } = row;
+    await l.deps.tasks?.ended(t, end.task, { status, resultText, error });
+  }
   await l.ended?.(t, turn.chatId);
 }
 
@@ -127,11 +138,15 @@ export function chatsLive(deps: LiveDeps) {
   const l: Live = { deps, bus, turns: live };
   return {
     bus,
-    /** The sink of a turn about to start: its events and its end go to the database and the stream, in order. */
-    sink(t: TenantDb, turn: ChatTurn, used: TurnCredential): TurnSink {
+    /**
+     * The sink of a turn about to start: its events and its end go to the database and the stream, in order; a task's
+     * turn's collected files and what was left out go to the tasks module's hook.
+     */
+    sink(t: TenantDb, turn: ChatTurn, used: TurnCredential, task?: TaskTurnContext): TurnSink {
       const run = queue(deps.logger, turn.id);
       let outcome: TurnOutcome = {};
       live.set(turn.id, { channel: undefined, stopRequested: false });
+      const hook = task === undefined ? undefined : deps.tasks;
       return {
         events: (items) =>
           void run(async () => {
@@ -142,7 +157,9 @@ export function chatsLive(deps: LiveDeps) {
             const event = { type: 'question', id: questionId, questions } as const;
             outcome = await stored(l, t, turn, [{ seq, event }], outcome);
           }),
-        end: (ending) => void run(() => ended(l, t, turn, { ending, outcome, used })),
+        artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
+        artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
+        end: (ending) => void run(() => ended(l, t, turn, { ending, outcome, used, task })),
       };
     },
     /** The started turn's channel, for a stop. */

@@ -9,6 +9,7 @@ export { TerminalTicketSchema, type TerminalTicketView } from './schemas/termina
 export { agentPlacement, type PlacementSummary, placementsOf } from './service/placement.ts';
 export { createPowerControl, type PowerControl } from './service/power/control.ts';
 export {
+  type CollectedArtifact,
   type CommandFrame,
   type ConnectedRunner,
   createRunnerHub,
@@ -23,6 +24,7 @@ export {
   type TerminalSink,
   type TurnAsked,
   type TurnChannel,
+  type TurnCollected,
   type TurnEnding,
   type TurnRequest,
   type TurnSink,

@@ -135,6 +135,7 @@ export function sampleTask(key: string): TaskDetail | undefined {
       state,
       step: step ? { id: step.id, name: step.name, kind: step.kind } : null,
       stepState: card.stepState,
+      blockedReason: card.stepState === 'blocked' ? "The agent's machine has no connected runner" : null,
       round: card.round,
       assignee: card.assignee,
       createdBy: ref(specs[0]?.[1] ?? 'p-1'),
@@ -155,6 +156,8 @@ export function sampleTask(key: string): TaskDetail | undefined {
           : null,
       history: historyOf(flow, specs),
       actions: actionsOf(state, { ...column, cards: [card] }),
+      conversations: [],
+      artifacts: card.artifacts,
     };
   }
   return undefined;

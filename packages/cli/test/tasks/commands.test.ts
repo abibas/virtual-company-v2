@@ -116,7 +116,8 @@ describe('mwc task', () => {
 
   it('moves a task through its flow, and says where it stands after each move', async () => {
     const steps: [string[], string][] = [
-      [['T-2', 'start'], 'T-2: now active at Develop (working), round 1'],
+      // S5.3b: Start runs SLOP BOX's step, which has no placement here, so it is blocked.
+      [['T-2', 'start'], 'T-2: now active at Develop (blocked), round 1'],
       [['T-2', 'hand_on'], 'T-2: now active at Code review (waiting), round 1'],
       [['T-2', 'send_back', '--reason', 'Tests fail'], 'T-2: now active at Develop (waiting), round 2'],
       [['T-2', 'hand_on'], 'T-2: now active at Code review (waiting), round 2'],
@@ -152,6 +153,7 @@ describe('mwc task', () => {
       'routed Develop by Olga',
       'entered Develop (round 1) by Olga',
       'started Develop by Olga',
+      'blocked Develop (round 1) by itself: The agent has no placement: choose where it runs first',
       'handed on Develop → Code review by Olga',
       'entered Code review (round 1) by Olga',
       'sent back Code review → Develop by Olga: Tests fail',

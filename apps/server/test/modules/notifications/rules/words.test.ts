@@ -67,6 +67,21 @@ describe('noticeText for tasks (S5.3a)', () => {
     expect(say('task_done', { about: 'g', task: 'gone' })).toBe('A task is done');
   });
 
+  it('says a step’s run needs a person (S5.3b): its turn ended without a hand-off, or it is blocked', () => {
+    expect(say('task_turn_ended', { about: 'g', task: 't', step: 'Develop' })).toBe(
+      'SLOP BOX ended its turn on T-12 “Fix the login” at Develop; nobody has moved it on yet',
+    );
+    expect(say('task_turn_ended', { about: 'g', task: 't' })).toBe(
+      'SLOP BOX ended its turn on T-12 “Fix the login”; nobody has moved it on yet',
+    );
+    expect(say('task_blocked', { about: 'g', task: 't', step: 'Develop' })).toBe(
+      "T-12 “Fix the login” is blocked at Develop: SLOP BOX's turn could not start or failed",
+    );
+    expect(say('task_blocked', { about: 'g', task: 't' })).toBe(
+      "T-12 “Fix the login” is blocked: SLOP BOX's turn could not start or failed",
+    );
+  });
+
   it('points at the task’s page, or the tasks when it is not found', () => {
     expect(noticePath('task_done', { about: 'g', task: 't' }, names)).toBe('tasks/T-12');
     expect(noticePath('task_escalated', { about: 'g' }, names)).toBe('tasks');

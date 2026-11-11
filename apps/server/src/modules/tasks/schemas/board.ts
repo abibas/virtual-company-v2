@@ -28,6 +28,8 @@ export const BoardCardSchema = z
     assignee: PrincipalRefSchema.nullable(),
     /** The step it is at, or escalated from. */
     stepId: z.string().nullable(),
+    /** How many artifacts it has (S5.3b; skipped files left out). */
+    artifacts: z.number().int().min(0),
     updatedAt: At,
   })
   .openapi('BoardCard');

@@ -38,7 +38,10 @@ export type TaskStepState = z.infer<typeof TaskStepState>;
 export const TaskPriority = z.enum(['low', 'normal', 'high', 'urgent']);
 export type TaskPriority = z.infer<typeof TaskPriority>;
 
-/** `task_events.kind`: every move in a task's history. */
+/**
+ * `task_events.kind`: every move in a task's history, and (S5.3b) what a step's run did by itself: `blocked` (its turn
+ * could not start or failed, with the reason) and `turn_ended` (its turn ended and nobody moved the task yet).
+ */
 export const TaskEventKind = z.enum([
   'created',
   'entered',
@@ -53,6 +56,8 @@ export const TaskEventKind = z.enum([
   'done',
   'cancelled',
   'edited',
+  'blocked',
+  'turn_ended',
 ]);
 export type TaskEventKind = z.infer<typeof TaskEventKind>;
 
@@ -72,3 +77,15 @@ export const TaskAction = z.enum([
   'cancel',
 ]);
 export type TaskAction = z.infer<typeof TaskAction>;
+
+/**
+ * `task_artifacts.kind` (S5.3b): a file the runner collected from the step's folder, a note (the step's final reply,
+ * kept as its hand-off note), a link (S6's `attach_artifact`), or a file the runner saw but did not collect (`skipped`,
+ * with why: too large, not text or an image, over the count or the total).
+ */
+export const TaskArtifactKind = z.enum(['file', 'note', 'link', 'skipped']);
+export type TaskArtifactKind = z.infer<typeof TaskArtifactKind>;
+
+/** Why the runner left a file of the step's folder out (`turn.artifacts`, docs/runner-protocol.md "Artifacts"). */
+export const ArtifactSkipReason = z.enum(['too_large', 'binary', 'too_many', 'total_limit', 'unreadable']);
+export type ArtifactSkipReason = z.infer<typeof ArtifactSkipReason>;

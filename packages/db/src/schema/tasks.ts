@@ -18,7 +18,8 @@ export type TaskRounds = Record<string, { readonly entries: number; readonly sen
  * description (markdown) and priority; its state (`queued`, `active` at a step, `escalated` to the Lead, `done`,
  * `cancelled`); the step it is at (an active task) or escalated from, with its state there; the rounds of each step
  * (`rounds`: entries and send-backs by step id; a removed step's count stays, unused); why it was escalated and the
- * step a retry sends it to; who created it, and when it closed. The CHECKs keep the state and its columns in step.
+ * step a retry sends it to; why it is blocked at its step (S5.3b); who created it, and when it closed. The CHECKs keep
+ * the state and its columns in step.
  */
 export const tasks = pgTable(
   'tasks',
@@ -36,6 +37,8 @@ export const tasks = pgTable(
     rounds: jsonb('rounds').$type<TaskRounds>().notNull().default({}),
     escalationReason: text('escalation_reason'),
     escalationTargetStepId: uuid('escalation_target_step_id'),
+    /** Why the task is blocked at its step (S5.3b: its turn could not start, or failed); only while `blocked`. */
+    blockedReason: text('blocked_reason'),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -72,6 +75,10 @@ export const tasks = pgTable(
       sql`char_length(${t.escalationReason}) between 1 and ${n(TASK_REASON_MAX)}`,
     ),
     check('tasks_closed_check', sql`(${t.state} in ('done', 'cancelled')) = (${t.closedAt} is not null)`),
+    check(
+      'tasks_blocked_reason_check',
+      sql`${t.blockedReason} is null or (${t.stepState} = 'blocked' and char_length(${t.blockedReason}) between 1 and ${n(TASK_REASON_MAX)})`,
+    ),
     index('tasks_flow_state_idx').on(t.companyId, t.flowId, t.state),
     index('tasks_current_step_idx').on(t.companyId, t.currentStepId),
     index('tasks_escalation_target_idx').on(t.companyId, t.escalationTargetStepId),

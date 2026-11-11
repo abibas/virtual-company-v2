@@ -10,10 +10,13 @@ import {
   chatEvents,
   chats,
   chatTurns,
+  flows,
   type Machine,
   type NewChat,
   type NewChatTurn,
   type Principal,
+  type Task,
+  tasks,
   type User,
 } from '../../src/schema/index.ts';
 import { pgError, type TestDb } from '../../src/testing.ts';
@@ -22,6 +25,7 @@ import {
   insertCompany,
   insertMachine,
   insertMember,
+  insertPrincipal,
   MISSING_ID,
   migratedTestDb,
   unique,
@@ -47,6 +51,28 @@ beforeAll(async () => {
 afterAll(() => testDb.close());
 
 const constraint = async (work: Promise<unknown>) => (await pgError(work)).constraint;
+
+let taskNumber = 0;
+
+/** A queued task in a flow of its own, in `company`. */
+async function insertTaskOf(company: Company): Promise<Task> {
+  const lead = await insertPrincipal(handle, company.id);
+  const [flow] = await handle.db
+    .insert(flows)
+    .values({ companyId: company.id, leadPrincipalId: lead.id, name: 'Delivery', createdBy: lead.id })
+    .returning();
+  const [task] = await handle.db
+    .insert(tasks)
+    .values({
+      companyId: company.id,
+      number: ++taskNumber,
+      flowId: flow?.id as string,
+      title: 'T',
+      createdBy: lead.id,
+    })
+    .returning();
+  return task as Task;
+}
 
 async function insertChat(values: Partial<NewChat> = {}): Promise<Chat> {
   const [row] = await handle.db
@@ -239,6 +265,27 @@ describe('chat_turns', () => {
       kind: 'clear',
       status: 'done',
     });
+  });
+});
+
+describe('a task’s conversation (S5.3b)', () => {
+  it('names the task, its step and the round it began in, all three or none', async () => {
+    const task = await insertTaskOf(acme);
+    const chat = await insertChat({ taskId: task.id, taskStepId: MISSING_ID, taskRound: 2 });
+    expect(chat).toMatchObject({ taskId: task.id, taskStepId: MISSING_ID, taskRound: 2 });
+    expect((await insertChat()).taskId).toBeNull();
+    expect(await constraint(insertChat({ taskId: task.id }))).toBe('chats_task_check');
+    expect(await constraint(insertChat({ taskStepId: MISSING_ID, taskRound: 1 }))).toBe('chats_task_check');
+    expect(await constraint(insertChat({ taskId: task.id, taskStepId: MISSING_ID, taskRound: 0 }))).toBe(
+      'chats_task_check',
+    );
+  });
+
+  it('refuses another company’s task', async () => {
+    const theirs = await insertTaskOf(globex);
+    expect(await constraint(insertChat({ taskId: theirs.id, taskStepId: MISSING_ID, taskRound: 1 }))).toBe(
+      'chats_task_fk',
+    );
   });
 });
 

@@ -14,5 +14,6 @@ export * from './notifications.ts';
 export * from './org.ts';
 export * from './placements.ts';
 export * from './principals.ts';
+export * from './task-artifacts.ts';
 export * from './tasks.ts';
 export * from './users.ts';

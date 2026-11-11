@@ -38,6 +38,12 @@ export {
  */
 
 export {
+  ArtifactData,
+  SkippedArtifact,
+  TurnArtifact,
+  TurnArtifacts,
+} from './runner-protocol/artifacts.ts';
+export {
   ClaudeVersion,
   compareRunnerVersions,
   RUNNER_VERSION_PATTERN,

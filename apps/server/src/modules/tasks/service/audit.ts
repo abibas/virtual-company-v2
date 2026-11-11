@@ -17,7 +17,7 @@ export const callerOf = (v: {
 type Row = Readonly<Record<string, unknown>> | undefined;
 
 /** Fields an audit row never carries: they change with every write, or are kept elsewhere (a task's history). */
-const IGNORED = ['createdAt', 'updatedAt', 'companyId', 'id'];
+export const AUDIT_IGNORED = ['createdAt', 'updatedAt', 'companyId', 'id'];
 
 /**
  * The audit rows of a flow, a step or a task changed by `caller` (one per changed field; a create or a delete lists
@@ -42,6 +42,6 @@ export function audit(
     entityType: change.entityType,
     entityId: change.entityId,
     action: change.action,
-    changes: diffFields(change.before, change.after, { ignore: IGNORED }),
+    changes: diffFields(change.before, change.after, { ignore: AUDIT_IGNORED }),
   });
 }

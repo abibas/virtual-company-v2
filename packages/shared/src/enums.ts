@@ -224,6 +224,8 @@ export const NotificationKind = z.enum([
   'task_signoff',
   'task_escalated',
   'task_done',
+  'task_turn_ended',
+  'task_blocked',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 

@@ -1,4 +1,4 @@
-import { chatTurns, type DbHandle } from '@mwc/db';
+import { type ChatTurn, chatTurns, type DbHandle } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { inArray } from 'drizzle-orm';
 
@@ -8,12 +8,24 @@ import { inArray } from 'drizzle-orm';
  * the server that started it keeps its runner's connection, so after a restart none of them can end by itself.
  */
 
-/** Fails every queued or running turn with `error`, ended at `now`; returns how many. */
-export async function failLiveTurns(db: DbHandle, now: Date, error: string): Promise<number> {
-  const rows = await rawDb(db)
+/** A turn the reaper failed: its company, chat and kind (a task's conversation hears of its message turns). */
+export interface ReapedTurn {
+  readonly id: string;
+  readonly companyId: string;
+  readonly chatId: string;
+  readonly kind: ChatTurn['kind'];
+}
+
+/** Fails every queued or running turn with `error`, ended at `now`; returns them. */
+export function failLiveTurns(db: DbHandle, now: Date, error: string): Promise<ReapedTurn[]> {
+  return rawDb(db)
     .update(chatTurns)
     .set({ status: 'failed', error, endedAt: now })
     .where(inArray(chatTurns.status, ['queued', 'running']))
-    .returning({ id: chatTurns.id });
-  return rows.length;
+    .returning({
+      id: chatTurns.id,
+      companyId: chatTurns.companyId,
+      chatId: chatTurns.chatId,
+      kind: chatTurns.kind,
+    });
 }

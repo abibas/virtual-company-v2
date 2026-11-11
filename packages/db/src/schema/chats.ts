@@ -22,6 +22,7 @@ import { accessProfiles } from './credentials.ts';
 import { machines } from './machines.ts';
 import { agents } from './org.ts';
 import { principals } from './principals.ts';
+import { tasks } from './tasks.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
 import { users } from './users.ts';
 
@@ -31,6 +32,8 @@ import { users } from './users.ts';
  * each turn's events as the runner read them. A chat may use another access profile than its agent's: only its owner
  * sets it (`profile_set_by`), and it goes when the profile does. A branch (migration 0018) is a chat that continues
  * another's conversation from one of its replies: it names that chat and turn, and its first turn forks the session.
+ * A task's conversation at a step (migration 0023, S5.3b) is a chat too: it names the task, the step and the round it
+ * began in, and stays out of the agent's own chat list.
  */
 
 const n = (value: number) => sql.raw(String(value));
@@ -63,6 +66,12 @@ export const chats = pgTable(
     branchedFromTurnId: uuid('branched_from_turn_id'),
     /** True until the branch's first turn forked the parent's session (`session_id` is the parent's until then). */
     forkPending: boolean('fork_pending').notNull().default(false),
+    /** A task's conversation at one of its steps (S5.3b): the task; null for a chat begun with the agent. */
+    taskId: uuid('task_id'),
+    /** That step (a plain id: a step removed later leaves its conversations readable). */
+    taskStepId: uuid('task_step_id'),
+    /** The round of the step the conversation began in. */
+    taskRound: integer('task_round'),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -75,6 +84,7 @@ export const chats = pgTable(
     tenantForeignKey('chats_agent_fk', t.companyId, t.agentId, agents),
     tenantForeignKey('chats_machine_fk', t.companyId, t.machineId, machines),
     tenantForeignKey('chats_created_by_fk', t.companyId, t.createdBy, principals),
+    tenantForeignKey('chats_task_fk', t.companyId, t.taskId, tasks),
     check('chats_harness_check', oneOf(t.harness, Harness.options)),
     check(
       'chats_title_check',
@@ -84,9 +94,14 @@ export const chats = pgTable(
     check('chats_profile_set_by_check', sql`${t.profileId} is null or ${t.profileSetBy} is not null`),
     check('chats_branch_check', sql`${t.branchedFromTurnId} is null or ${t.branchedFromChatId} is not null`),
     check('chats_fork_pending_check', sql`not ${t.forkPending} or ${t.sessionId} is not null`),
+    check(
+      'chats_task_check',
+      sql`(${t.taskId} is null) = (${t.taskStepId} is null) and (${t.taskId} is null) = (${t.taskRound} is null) and (${t.taskRound} is null or ${t.taskRound} >= 1)`,
+    ),
     index('chats_agent_idx').on(t.companyId, t.agentId, t.updatedAt),
     index('chats_profile_idx').on(t.profileId),
     index('chats_branched_from_idx').on(t.companyId, t.branchedFromChatId),
+    index('chats_task_idx').on(t.companyId, t.taskId, t.taskStepId, t.createdAt),
   ],
 );
 

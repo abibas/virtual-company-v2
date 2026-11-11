@@ -54,6 +54,10 @@ const WORDS: Readonly<Record<NotificationKind, Words>> = {
   task_escalated: (p, n) =>
     `${taskWords(p, n)} was escalated to ${n.name(p.about)}${p.step ? ` from ${p.step}` : ''}`,
   task_done: (p, n) => `${taskWords(p, n)} is done`,
+  task_turn_ended: (p, n) =>
+    `${n.name(p.about)} ended its turn on ${taskWords(p, n)}${p.step ? ` at ${p.step}` : ''}; nobody has moved it on yet`,
+  task_blocked: (p, n) =>
+    `${taskWords(p, n)} is blocked${p.step ? ` at ${p.step}` : ''}: ${n.name(p.about)}'s turn could not start or failed`,
 };
 
 /** The notice's sentence, from its recipient's side (no final period). */

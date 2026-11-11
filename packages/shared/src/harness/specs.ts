@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { STANDING_INSTRUCTIONS_MAX } from '../agent-briefing.ts';
 import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
 import { type CredentialKind, Effort, Harness, PermissionPolicy } from '../enums.ts';
+import { ArtifactsDir } from '../flows/artifacts.ts';
 import { PlacementPath } from '../machines.ts';
 import { MODEL_ID_PATTERN, ModelId } from '../models.ts';
 import { protocolObject } from '../runner-protocol/common.ts';
@@ -119,15 +120,24 @@ export const TerminalSpec = protocolObject(sessionFields);
 export type TerminalSpec = z.infer<typeof TerminalSpec>;
 
 /**
+ * A task step's outputs (S5.3b, docs/harness.md "Task turns"): the folder under the agent's home folder (`cwd`) the
+ * runner makes before the turn and collects new or changed files from when it ends (`turn.artifact` frames, then
+ * `turn.artifacts`). A runner older than it passes it through and collects nothing.
+ */
+export const TurnArtifactsSpec = protocolObject({ dir: ArtifactsDir });
+export type TurnArtifactsSpec = z.infer<typeof TurnArtifactsSpec>;
+
+/**
  * One chat turn: `prompt` (the message, verbatim) sent to the conversation, as one process. A branch's first turn
  * (docs/harness.md "Branching") resumes `sessionId` forked (`forkSession`: a new conversation from a copy, the original
  * untouched), with Claude Code up to `resumeAt` (a message id) when it continues from an earlier reply; absent: false,
- * none.
+ * none. A turn of a task's step (S5.3b) names its outputs' folder (`artifacts`).
  */
 export const TurnSpec = protocolObject({
   ...sessionFields,
   prompt: z.string().min(1),
   forkSession: z.boolean().optional(),
   resumeAt: HarnessMessageId.optional(),
+  artifacts: TurnArtifactsSpec.optional(),
 });
 export type TurnSpec = z.infer<typeof TurnSpec>;

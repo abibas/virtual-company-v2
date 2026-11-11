@@ -34,7 +34,11 @@ export async function boardOf(
     ...steps.map((step) => step.assigneePrincipalId),
     ...holders,
   ]);
-  const card = (task: Task) => boardCard(task, byId, flow.leadPrincipalId, names);
+  const counts = await repo.artifacts.counts(
+    t,
+    [...open, ...latest].map((task) => task.id),
+  );
+  const card = (task: Task) => boardCard(task, byId, flow.leadPrincipalId, names, counts.get(task.id) ?? 0);
   const column = (
     kind: BoardColumnView['kind'],
     title: string,

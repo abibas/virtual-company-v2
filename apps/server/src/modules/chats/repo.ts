@@ -30,10 +30,10 @@ async function get(t: TenantDb, id: string): Promise<Chat | undefined> {
   return row;
 }
 
-/** The agent's chats not archived, the latest first. */
+/** The agent's own chats not archived, the latest first: a task's conversations (S5.3b) stay out of the list. */
 const ofAgent = (t: TenantDb, agentId: string): Promise<Chat[]> =>
   t
-    .select(chats, and(eq(chats.agentId, agentId), isNull(chats.archivedAt)))
+    .select(chats, and(eq(chats.agentId, agentId), isNull(chats.archivedAt), isNull(chats.taskId)))
     .orderBy(desc(chats.updatedAt), desc(chats.id));
 
 async function insert(t: TenantDb, values: TenantValues<typeof chats>): Promise<Chat> {

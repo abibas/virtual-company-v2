@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { FlowStepKind, TaskAction, TaskEventKind, TaskState, TaskStepState } from '../src/enums.ts';
+import {
+  ArtifactSkipReason,
+  FlowStepKind,
+  TaskAction,
+  TaskArtifactKind,
+  TaskEventKind,
+  TaskState,
+  TaskStepState,
+} from '../src/enums.ts';
 import { flowText, taskKey, taskNumber, type WrittenStep } from '../src/flows.ts';
 
 describe('the flows’ enums', () => {
@@ -13,7 +21,16 @@ describe('the flows’ enums', () => {
       'blocked',
       'ended_without_handoff',
     ]);
-    expect(TaskEventKind.options).toHaveLength(13);
+    expect(TaskEventKind.options).toHaveLength(15);
+    expect(TaskEventKind.options.slice(-2)).toEqual(['blocked', 'turn_ended']);
+    expect(TaskArtifactKind.options).toEqual(['file', 'note', 'link', 'skipped']);
+    expect(ArtifactSkipReason.options).toEqual([
+      'too_large',
+      'binary',
+      'too_many',
+      'total_limit',
+      'unreadable',
+    ]);
     expect(TaskAction.options).toEqual([
       'start',
       'hand_on',

@@ -107,6 +107,7 @@ const card = (
     stepState: state,
     assignee: holder ? ref(holder) : null,
     stepId: step,
+    artifacts: round === null ? 0 : round + 1,
     updatedAt: ago(minutes),
   }) satisfies BoardCard;
 

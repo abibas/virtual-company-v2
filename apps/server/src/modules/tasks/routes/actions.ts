@@ -23,7 +23,10 @@ const actRoute = (deps: ServerDeps) => {
       '`send_back` (Check, Sign-off; `reason` required): to the step it names, or, over its limit, escalated to the ' +
       'Lead (`outcome: escalated`, not a refusal); and the Lead’s people’s and admins’ `route` (`toStepId`: a queued, ' +
       'active or escalated task into that step), `retry` (an escalated task back into the send-back it stopped, ' +
-      'with a fresh count) and `cancel`. A step’s assignee, when a person, makes the moves at their step.',
+      'with a fresh count) and `cancel`. A step’s assignee, when a person, makes the moves at their step. A move that ' +
+      'starts the task at an agent’s step (an entry into a step that starts by itself, or `start`) starts its turn ' +
+      '(S5.3b); a start that cannot run leaves the task `blocked` with why. While the step’s turn runs, a move needs ' +
+      '`force`, which stops the turn.',
     request: { params: TaskParamsSchema, body: jsonBody(TaskActionSchema) },
     responses: {
       200: jsonResponse('The outcome and the task after it', TaskMovedSchema),
@@ -34,8 +37,8 @@ const actRoute = (deps: ServerDeps) => {
       ),
       404: NO_TASK,
       409: errorResponse(
-        'The task moved since `fromStepId` (`task_moved`), has no such move as it stands (`wrong_state`), or is ' +
-          'at that step already (`already_at_step`)',
+        'The task moved since `fromStepId` (`task_moved`), has no such move as it stands (`wrong_state`), is ' +
+          'at that step already (`already_at_step`), or its step’s turn runs and `force` is not set (`step_running`)',
       ),
       422: errorResponse(
         'Not a move of its step’s kind (`wrong_kind`), a send-back without a target (`no_send_back_target`) or a ' +

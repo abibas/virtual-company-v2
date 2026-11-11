@@ -19,6 +19,10 @@ export function chatView(row: Chat): ChatView {
     branchedFromChatId: row.branchedFromChatId,
     branchedFromTurnId: row.branchedFromTurnId,
     forkPending: row.forkPending,
+    task:
+      row.taskId === null || row.taskStepId === null || row.taskRound === null
+        ? null
+        : { taskId: row.taskId, stepId: row.taskStepId, round: row.taskRound },
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

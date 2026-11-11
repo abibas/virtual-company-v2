@@ -2,11 +2,16 @@ import type { FlowStepKind, PrincipalKind, StepOnReturn } from './enums.ts';
 
 /**
  * The flows' and tasks' contract (S5.3a, docs/processes.md): the limits the API's schemas and the database's CHECKs
- * share, a task's key, and a flow's written form, the text table people and agents read (the web, `mwc flow show` and,
- * from S6, the agents' tools write the same text). The enums are `flows/enums.ts`, re-exported by `@mwc/shared/enums`.
+ * share, a task's key (`flows/keys.ts`), and a flow's written form, the text table people and agents read (the web,
+ * `mwc flow show`, a step's prompt and, from S6, the agents' tools write the same text). The enums are `flows/enums.ts`,
+ * re-exported by `@mwc/shared/enums`; a step's run (S5.3b) adds its prompt (`flows/prompt.ts`) and its artifacts
+ * (`flows/artifacts.ts`).
  */
 
+export * from './flows/artifacts.ts';
 export * from './flows/enums.ts';
+export * from './flows/keys.ts';
+export * from './flows/prompt.ts';
 
 /** A flow's name ("DEVBOX delivery"), after trimming. */
 export const FLOW_NAME = { min: 1, max: 80 } as const;
@@ -34,15 +39,6 @@ export const BOARD_DONE = { default: 10, max: 50 } as const;
 
 /** A page of the task list. */
 export const TASK_PAGE = { default: 50, max: 200 } as const;
-
-/** A task's key in its company: `T-` and its number. */
-export const taskKey = (number: number): string => `T-${number}`;
-
-/** The number of a task key (`T-12`, any case), or undefined for anything else. */
-export function taskNumber(key: string): number | undefined {
-  const match = /^t-([1-9]\d{0,8})$/i.exec(key.trim());
-  return match ? Number(match[1]) : undefined;
-}
 
 /** One step as the written form reads it. */
 export interface WrittenStep {

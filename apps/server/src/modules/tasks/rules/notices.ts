@@ -40,3 +40,24 @@ export function moveNotices(input: MoveNoticeInput): Notice[] {
   }
   return notices;
 }
+
+/** A step's run that needs a person (S5.3b): its turn ended without a hand-off, or it is blocked. */
+export interface RunNoticeInput {
+  readonly taskId: string;
+  /** The nearest person at or above the Lead on the chart; null for none. */
+  readonly leadPerson: string | null;
+  readonly step: StepRule;
+  readonly kind: 'task_turn_ended' | 'task_blocked';
+}
+
+/**
+ * A run's notices: to the Lead's nearest person and the step's person (its assignee when a person; an agent's step has
+ * none, and the notifications module leaves agents out), once each. Agent Leads get board tools in S6, not notices.
+ */
+export function runNotices(input: RunNoticeInput): Notice[] {
+  const payload = { about: input.step.assigneePrincipalId, task: input.taskId, step: input.step.name };
+  const recipients = [input.leadPerson, input.step.assigneePrincipalId].filter(
+    (id): id is string => id !== null,
+  );
+  return [...new Set(recipients)].map((recipient) => ({ kind: input.kind, recipient, payload }));
+}

@@ -57,6 +57,18 @@ export const ChatSchema = z
       .nullable()
       .openapi({ description: "The first prompt's start; null before the first turn" }),
     ...chatBranchFields,
+    task: z
+      .object({
+        taskId: z.string(),
+        stepId: z.string().openapi({ description: 'The step (a removed step keeps its id here)' }),
+        round: z.number().int().min(1).openapi({ description: 'The round of the step it began in' }),
+      })
+      .nullable()
+      .openapi({
+        description:
+          "A task's conversation at one of its steps (S5.3b): left out of the agent's chat list, opened from the task; " +
+          'null for a chat begun with the agent',
+      }),
     createdBy: z.string().openapi({ description: 'The principal who began it' }),
     createdAt: dateTime,
     updatedAt: dateTime,

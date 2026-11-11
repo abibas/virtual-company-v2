@@ -96,3 +96,36 @@ export function apiGet<T>(
 ): Promise<ApiResult<T>> {
   return apiCall(fetch, server, key, path, accept);
 }
+
+/** A download: its bytes and their type. */
+export interface Download {
+  readonly bytes: Uint8Array;
+  readonly contentType: string;
+}
+
+/** `GET <server><path>` with the key as the bearer; the bytes of a 200, whatever their type (an artifact's content). */
+export async function apiBytes(
+  fetch: Fetch,
+  server: string,
+  key: string,
+  path: string,
+): Promise<ApiResult<Download>> {
+  let res: Response;
+  try {
+    res = await fetch(`${server}${path}`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      code: 'unreachable',
+      message: `cannot reach ${server}: ${(error as Error).message}`,
+    };
+  }
+  if (res.status !== 200) return failure(res);
+  const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
+  return { ok: true, body: { bytes: new Uint8Array(await res.arrayBuffer()), contentType } };
+}

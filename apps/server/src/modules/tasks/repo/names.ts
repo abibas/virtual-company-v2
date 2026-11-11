@@ -26,4 +26,14 @@ async function agentBySlug(t: TenantDb, slug: string): Promise<string | undefine
   return row?.principalId;
 }
 
-export const nameRows = { agentsOf, membersOf, agentBySlug };
+/** The principals of these agents (by the agents' ids; archived ones too). */
+function agentPrincipals(t: TenantDb, agentIds: readonly string[]) {
+  if (agentIds.length === 0) return Promise.resolve([]);
+  return t.selectFields(
+    agents,
+    { id: agents.id, principalId: agents.principalId },
+    inArray(agents.id, [...agentIds]),
+  );
+}
+
+export const nameRows = { agentsOf, membersOf, agentBySlug, agentPrincipals };

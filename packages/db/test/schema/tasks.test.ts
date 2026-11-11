@@ -135,6 +135,23 @@ describe('tasks', () => {
     expect((await insertTask({ state: 'cancelled', closedAt: new Date() })).state).toBe('cancelled');
   });
 
+  it('keeps a blocked reason only while the task is blocked at its step (S5.3b)', async () => {
+    const blocked = { ...active(), stepState: 'blocked' as const };
+    expect((await insertTask({ ...blocked, blockedReason: 'machine_offline' })).blockedReason).toBe(
+      'machine_offline',
+    );
+    expect((await insertTask(blocked)).blockedReason).toBeNull();
+    expect(await constraint(insertTask({ ...active(), blockedReason: 'x' }))).toBe(
+      'tasks_blocked_reason_check',
+    );
+    expect(await constraint(insertTask({ ...blocked, blockedReason: '' }))).toBe(
+      'tasks_blocked_reason_check',
+    );
+    expect(await constraint(insertTask({ ...blocked, blockedReason: 'r'.repeat(2001) }))).toBe(
+      'tasks_blocked_reason_check',
+    );
+  });
+
   it("refuses another company's flow, step or creator, and keeps a step with a task at it", async () => {
     const theirs = await insertPrincipal(handle, globex.id);
     expect(await constraint(insertTask({ createdBy: theirs.id }))).toBe('tasks_created_by_fk');
