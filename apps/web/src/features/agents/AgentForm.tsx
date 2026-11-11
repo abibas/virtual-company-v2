@@ -16,13 +16,18 @@ interface PartProps {
 }
 
 /** Who the agent is: its name (and the handle it makes), its job on the chart and its icon. */
-function IdentityPanel({ draft, readOnly, agent }: PartProps & { readonly agent: AgentDetail | undefined }) {
+function IdentityPanel({
+  draft,
+  readOnly,
+  agent,
+  reportsTo,
+}: PartProps & { readonly agent: AgentDetail | undefined; readonly reportsTo: ReactNode }) {
   const { values, set } = draft;
   const isNew = agent === undefined;
   return (
-    <Panel title="Who it is" description="Its name, its job on the chart and its icon.">
+    <Panel title="Who it is">
       <div className="flex flex-col gap-5">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <TextField
             label="Name"
             value={values.name}
@@ -34,13 +39,11 @@ function IdentityPanel({ draft, readOnly, agent }: PartProps & { readonly agent:
             autoFocus={isNew}
             hint={
               isNew &&
-              (values.name.trim() ? (
+              values.name.trim() !== '' && (
                 <>
-                  Its handle: <span className="font-mono text-ink-2">{draft.slug}</span>
+                  Handle: <span className="font-mono text-ink-2">{draft.slug}</span>
                 </>
-              ) : (
-                'Its handle comes from the name.'
-              ))
+              )
             }
           />
           <TextField
@@ -52,6 +55,7 @@ function IdentityPanel({ draft, readOnly, agent }: PartProps & { readonly agent:
             maxLength={AGENT_ROLE_TITLE.max}
             placeholder="Researcher, Coder, QA…"
           />
+          {reportsTo}
         </div>
         {!readOnly && (
           <ChoiceField label="Icon">
@@ -63,8 +67,8 @@ function IdentityPanel({ draft, readOnly, agent }: PartProps & { readonly agent:
   );
 }
 
-/** Its manager on the chart; an archived agent has none until it is restored. */
-function PlacePanel({
+/** Its manager on the chart (a field of Who it is); an archived agent has none until it is restored. */
+function ReportsToField({
   draft,
   readOnly,
   chart,
@@ -77,32 +81,29 @@ function PlacePanel({
 }) {
   const id = useId();
   const subject = { kind: 'agent' as const, ...(agent ? { principalId: agent.principalId } : {}) };
-  return (
-    <Panel
-      title="Place on the chart"
-      description="Agents report to a person or to another agent, and every chain ends with a person."
-    >
-      {agent?.status === 'archived' ? (
-        <p className="text-sm text-dim">Archived, so off the chart. Restored, it reports to you.</p>
+  return agent?.status === 'archived' ? (
+    <Field label="Reports to" id={id}>
+      <p id={id} className="py-2 text-sm text-dim">
+        Archived: off the chart
+      </p>
+    </Field>
+  ) : (
+    <Field label="Reports to" id={id}>
+      {chart ? (
+        <PrincipalSelect
+          id={id}
+          nodes={chart.nodes}
+          tree={chart.tree}
+          subject={subject}
+          value={draft.values.reportsTo}
+          onChange={(principalId) => draft.set('reportsTo', principalId)}
+          meUserId={meUserId}
+          disabled={readOnly}
+        />
       ) : (
-        <Field label="Reports to" id={id} className="max-w-md">
-          {chart ? (
-            <PrincipalSelect
-              id={id}
-              nodes={chart.nodes}
-              tree={chart.tree}
-              subject={subject}
-              value={draft.values.reportsTo}
-              onChange={(principalId) => draft.set('reportsTo', principalId)}
-              meUserId={meUserId}
-              disabled={readOnly}
-            />
-          ) : (
-            <Select id={id} disabled options={[{ value: '', label: 'Loading the chart…' }]} />
-          )}
-        </Field>
+        <Select id={id} disabled options={[{ value: '', label: 'Loading the chart…' }]} />
       )}
-    </Panel>
+    </Field>
   );
 }
 
@@ -117,7 +118,6 @@ function InstructionsPanel({
   return (
     <Panel
       title="Instructions"
-      description="What it always knows: its job, its rules, how it hands work back. Changing them makes a new revision."
       actions={agent && <Badge tone="teal">Revision {agent.instructionsRev}</Badge>}
     >
       <label htmlFor={id} className="sr-only">
@@ -188,15 +188,21 @@ export interface AgentFormProps {
 }
 
 /**
- * The agent's fields, in four panels: who it is, how it works (with its access profile and where it runs), its place,
- * its instructions.
+ * The agent's fields, in three panels (Ihor: fields, not explanations): who it is (with whom it reports to), how it
+ * works (its access profile and where it runs), its instructions.
  */
 export function AgentForm({ draft, chart, agent, meUserId, readOnly = false, ...parts }: AgentFormProps) {
   return (
     <div className="grid gap-4 md:gap-5">
-      <IdentityPanel draft={draft} readOnly={readOnly} agent={agent} />
+      <IdentityPanel
+        draft={draft}
+        readOnly={readOnly}
+        agent={agent}
+        reportsTo={
+          <ReportsToField draft={draft} readOnly={readOnly} chart={chart} agent={agent} meUserId={meUserId} />
+        }
+      />
       <ModelPanel draft={draft} readOnly={readOnly} agent={agent} meUserId={meUserId} {...parts} />
-      <PlacePanel draft={draft} readOnly={readOnly} chart={chart} agent={agent} meUserId={meUserId} />
       <InstructionsPanel draft={draft} readOnly={readOnly} agent={agent} />
     </div>
   );

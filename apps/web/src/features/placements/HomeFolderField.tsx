@@ -52,9 +52,7 @@ export function HomeFolderField({ draft, companyId, machine, agentSlug, readOnly
         Use suggested
       </button>
     </>
-  ) : (
-    'An absolute path on the machine. Its CLAUDE.md, skills and memory load from there.'
-  );
+  ) : undefined;
   return (
     <Field label="Home folder" id={id} hint={hint} error={error}>
       <div className="flex items-center gap-2">

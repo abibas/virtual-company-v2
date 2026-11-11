@@ -41,11 +41,7 @@ function MachineHint({ count, error, href }: { count: number | undefined; error:
       Machines
     </Link>
   );
-  return count === 0 ? (
-    <>No machine is enrolled yet. Add one on {link}.</>
-  ) : (
-    <>Where its runs start. {link}</>
-  );
+  return count === 0 ? <>No machine yet. {link}</> : undefined;
 }
 
 export interface WhereItRunsProps {
@@ -104,8 +100,7 @@ export function WhereItRuns(props: WhereItRunsProps) {
   const chosen = machines.data?.find((m) => m.id === values.machineId);
   const placed = values.machineId !== '';
   return (
-    <section aria-label="Where it runs" className="flex flex-col gap-5 border-t border-line pt-5">
-      <h3 className="text-sm font-bold text-ink">Where it runs</h3>
+    <section aria-label="Where it runs" className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <MachineSelect
           draft={draft}
@@ -125,7 +120,7 @@ export function WhereItRuns(props: WhereItRunsProps) {
       </div>
       {placed && (
         <div className="flex flex-wrap gap-x-8 gap-y-5">
-          <ChoiceField label="How" hint="A container mounts only the work folder, as a non-root user.">
+          <ChoiceField label="How">
             <SegmentedControl
               label="How it runs"
               options={MODE_OPTIONS}
@@ -135,7 +130,7 @@ export function WhereItRuns(props: WhereItRunsProps) {
               className="max-w-full overflow-x-auto"
             />
           </ChoiceField>
-          <ChoiceField label="Permissions" hint="Skipping prompts lets its runs use any tool without asking.">
+          <ChoiceField label="Permissions" hint="Skip: any tool runs without asking.">
             <SegmentedControl
               label="Permissions"
               options={POLICY_OPTIONS}

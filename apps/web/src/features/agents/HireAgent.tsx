@@ -179,10 +179,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
           meUserId={meUserId}
           profiles={profiles}
         />
-        <FormActions
-          status="It joins the chart at once and works only on the tasks it is given."
-          error={error}
-        >
+        <FormActions status="" error={error}>
           <ButtonLink href={links.chart} tone="quiet">
             Cancel
           </ButtonLink>
@@ -237,9 +234,7 @@ export function HireAgent({ chart, links, defaults = NO_DEFAULTS, reportsTo, ...
             Back to agents
           </ButtonLink>
         }
-      >
-        <p>Give it a name, a job and a face, choose how it works, and place it on the chart.</p>
-      </PageHeader>
+      ></PageHeader>
       <LoadState loaded={chart} label="Loading the chart…">
         {(data) => (
           <HireWithChart chart={data} links={links} defaults={defaults} chosen={reportsTo} {...rest} />

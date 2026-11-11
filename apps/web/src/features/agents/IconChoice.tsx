@@ -44,10 +44,8 @@ function FaceGrid({ draft }: { readonly draft: AgentDraft }) {
         size="sm"
         className="gap-1.5"
       />
-      <p className="text-xs text-dim">
-        {named ? (
-          'Drawn from its name until you pick another.'
-        ) : (
+      {!named && (
+        <p className="text-xs">
           <button
             type="button"
             onClick={() => draft.set('face', null)}
@@ -55,8 +53,8 @@ function FaceGrid({ draft }: { readonly draft: AgentDraft }) {
           >
             Use the face of its name
           </button>
-        )}
-      </p>
+        </p>
+      )}
     </div>
   );
 }
@@ -99,16 +97,6 @@ function startOf(kind: IconKind, agent: AgentDetail | undefined): IconDraft {
 }
 
 /** The hint under the picker: what is still missing, or what the choice does. */
-function hintOf(icon: IconDraft, agent: AgentDetail | undefined): string {
-  if (icon.kind === 'emoji')
-    return icon.emoji ? 'Shown on a soft tile wherever the agent appears.' : 'Pick one emoji.';
-  if (icon.kind === 'image' && icon.pending === null && agent?.icon.kind !== 'image') {
-    return 'Add an image, or choose its face or an emoji.';
-  }
-  return icon.kind === 'image'
-    ? 'Shown round wherever the agent appears; its face stands in while it loads.'
-    : 'Its drawn face, the default.';
-}
 
 /** The icon the preview shows for the draft: an emoji once one is picked, the saved image, else the face. */
 function previewIcon(icon: IconDraft, agent: AgentDetail | undefined): AgentIconView | undefined {
@@ -158,7 +146,9 @@ export function IconChoice({
         <EmojiPicker value={icon.emoji} onChange={(emoji) => draft.set('icon', { kind: 'emoji', emoji })} />
       )}
       {icon.kind === 'image' && <ImageChoice draft={draft} agent={agent} companyId={companyId} />}
-      <p className="text-xs text-dim">{hintOf(icon, agent)}</p>
+      {icon.kind === 'image' && icon.pending === null && agent?.icon.kind !== 'image' && (
+        <p className="text-xs text-dim">Add an image.</p>
+      )}
     </div>
   );
 }

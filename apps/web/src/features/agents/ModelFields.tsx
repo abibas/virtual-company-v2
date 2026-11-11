@@ -29,7 +29,7 @@ function RunsNote({ runs }: { readonly runs: RunsWith | null | undefined }) {
     runs.effort === null ? 'its default effort' : `${effortLabel(runs.effort).toLowerCase()} effort`;
   return (
     <p className="-mt-3 text-xs text-dim">
-      Runs {model} at {effort}. Its profile decides both.
+      Runs {model} at {effort}.
     </p>
   );
 }
@@ -54,23 +54,20 @@ export function ModelPanel({
   const { draft, readOnly, agent } = props;
   const { values, set } = draft;
   return (
-    <Panel
-      title="How it works"
-      description="How many tasks at once, whose subscription it runs on (which also decides what runs it, its model and its effort), and where."
-    >
+    <Panel title="How it works">
       <div className="flex flex-col gap-5">
-        <ChoiceField label="Runs at once" hint="How many tasks it may work on at the same time.">
-          <SegmentedControl
-            label="Runs at once"
-            size="sm"
-            options={RUN_OPTIONS}
-            value={String(values.maxConcurrentRuns)}
-            onChange={(runs) => set('maxConcurrentRuns', Number(runs))}
-            disabled={readOnly}
-          />
-        </ChoiceField>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid items-start gap-4 sm:grid-cols-2">
           <ProfileChoice {...props} profiles={profiles} />
+          <ChoiceField label="Runs at once">
+            <SegmentedControl
+              label="Runs at once"
+              size="sm"
+              options={RUN_OPTIONS}
+              value={String(values.maxConcurrentRuns)}
+              onChange={(runs) => set('maxConcurrentRuns', Number(runs))}
+              disabled={readOnly}
+            />
+          </ChoiceField>
         </div>
         {profileNote}
         <RunsNote runs={runsOf(values.profileId, profiles.data?.profiles, agent)} />

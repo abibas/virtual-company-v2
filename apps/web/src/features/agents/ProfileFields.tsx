@@ -42,13 +42,11 @@ function ProfileHint({
       {count === 0 ? 'Make one' : 'Your access profiles'}
     </Link>
   );
-  if (count === 0)
-    return <>You have no access profile yet: the agent runs on one of your subscriptions. {link}</>;
+  if (count === 0) return <>No access profile yet. {link}</>;
   const runs = harness === 'codex' ? 'Codex' : 'Claude Code';
   return (
     <>
-      The profile decides what runs it: a Claude profile runs Claude Code, an OpenAI profile runs Codex. Now:{' '}
-      {runs}. {link}
+      {runs} · {link}
     </>
   );
 }
@@ -101,7 +99,7 @@ function TheirProfile({
 }) {
   const id = useId();
   return (
-    <Field label="Access profile" id={id} hint="Only its owner gives it to agents. You can take it off.">
+    <Field label="Access profile" id={id} hint="Someone else's profile.">
       <div className="flex items-center gap-2">
         <Input
           id={id}
