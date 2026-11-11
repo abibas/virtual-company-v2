@@ -97,6 +97,14 @@ export const AgentSchema = z
 /** One agent with its standing instructions. */
 export const AgentDetailSchema = AgentSchema.extend({ instructions: z.string() }).openapi('AgentDetail');
 
+/**
+ * What the agent's next turn is told of its place in the company (docs/harness.md, "Standing instructions"): generated
+ * from the chart, not editable, before its own instructions; `version` changes whenever the text does.
+ */
+export const AgentBriefingSchema = z
+  .object({ briefing: z.string(), version: z.string().openapi({ example: '9c1d4e2a' }) })
+  .openapi('AgentBriefing');
+
 /** An agent after a change, with the profile a harness change took off it, when one did. */
 export const AgentUpdatedSchema = AgentDetailSchema.extend({
   profileCleared: ProfileClearedSchema.optional(),

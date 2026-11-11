@@ -36,13 +36,19 @@ import { forkOf, type TurnFork } from './branch.ts';
  * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (any of its owner's: its address
  * with the path of the harness and, for Codex, of the credential's kind, `gatewayRouteOf`) and the profile's model and effort (since 2026-11-10; none: the harness's own default). A
  * branch not forked yet (`fork_pending`) opens no terminal, and its turn needs a runner that forks and says how to fork
- * (`forkOf`). Read before anything is written; each refusal names what to fix.
+ * (`forkOf`). The spec carries the agent's standing instructions, read from the live chart each time, so a move on the
+ * chart reaches the chat's next turn (docs/harness.md, "Standing instructions"). Read before anything is written; each
+ * refusal names what to fix.
  */
 
-/** What resolving needs: the hub and the credentials module's side. */
+/**
+ * What resolving needs: the hub, the credentials module's side, and the org module's standing instructions of an agent
+ * (its place in the company now, then its own instructions: `standingReader`).
+ */
 export interface TargetDeps {
   readonly hub: RunnerHub;
   readonly credentials: CredentialsForHarness;
+  readonly standing: (t: TenantDb, agent: Agent) => Promise<string>;
 }
 
 /** A resolved turn or terminal: the session's spec (without a prompt), a turn's fork, the subscription it runs on. */
@@ -126,6 +132,7 @@ export async function resolveTarget(
     return profileHarnessMismatch(profile.provider, chat.harness);
   const { credentialId } = profile;
   if (credentialId === null) return profileEmpty(profile.name);
+  const instructions = await deps.standing(t, agent);
   const use: HarnessUse = {
     purpose: request.purpose,
     companyId: t.companyId,
@@ -148,6 +155,7 @@ export async function resolveTarget(
     configDir: placement.configDir,
     credential,
     gateway: gateway.gateway,
+    instructions,
   };
   return {
     ok: true,

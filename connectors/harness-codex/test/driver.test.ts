@@ -163,6 +163,18 @@ describe('CodexDriver.turn', () => {
 describe('CodexDriver.terminal', () => {
   const driver = new CodexDriver();
 
+  it('writes the standing instructions in the Codex home beside the login, for a turn and the TUI alike', () => {
+    const spec = { sessionId: THREAD, configDir: '/c', instructions: '## Your place' };
+    const instructions = { name: 'AGENTS.override.md', contents: '## Your place', mode: 0o600 };
+    const turn = driver.turn(fakeTurnSpec('codex', spec));
+    expect(turn.privateDir).toEqual({ env: 'CODEX_HOME', path: '/c', files: [LOGIN_FILE, instructions] });
+    expect(turn.args.join(' ')).not.toContain('instructions');
+    expect(driver.terminal(fakeTerminalSpec('codex', spec)).privateDir?.files).toEqual([
+      LOGIN_FILE,
+      instructions,
+    ]);
+  });
+
   it('opens the TUI asking on request, or resumes the thread, with no prompt', () => {
     expect(driver.terminal(fakeTerminalSpec('codex'))).toEqual({
       command: 'codex',

@@ -28,6 +28,7 @@ export {
   gatewayEnv,
   providerArgs,
 } from './gateway.ts';
+export { CODEX_INSTRUCTIONS_FILE, codexInstructionsFiles } from './instructions.ts';
 export { completedEvents, type ItemState, newItemState, startedEvents, todoEvents } from './items.ts';
 export { CodexLineParser, type FollowSubagents, type ReadThread } from './parser.ts';
 export {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STANDING_INSTRUCTIONS_MAX } from '../agent-briefing.ts';
 import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
 import { type CredentialKind, Effort, Harness, PermissionPolicy } from '../enums.ts';
 import { PlacementPath } from '../machines.ts';
@@ -105,6 +106,12 @@ const sessionFields = {
   configDir: PlacementPath.nullable(),
   credential: HarnessCredential,
   gateway: HarnessGateway.nullable(),
+  /**
+   * The standing instructions every turn and terminal gets (docs/harness.md, "Standing instructions"): the agent's place
+   * in the company, generated from the chart, then its own instructions. Absent: none; a runner older than the field
+   * passes it through untouched and its driver ignores it.
+   */
+  instructions: z.string().min(1).max(STANDING_INSTRUCTIONS_MAX).optional(),
 };
 
 /** The interactive terminal of a conversation: the harness's own TUI, resuming `sessionId` or starting a new one. */

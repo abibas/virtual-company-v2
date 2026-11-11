@@ -8,6 +8,7 @@ import {
   orgCalls,
   type PlacementCalls,
   placementCalls,
+  useAgentBriefing,
   useAgentPlacement,
 } from '../../api/org.ts';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
@@ -180,6 +181,7 @@ function ProfileBody({
 }) {
   const form = useProfileForm(agent, companyId, onChanged);
   const profiles = useAccessProfiles();
+  const briefing = useAgentBriefing(companyId, agent.id, chart.data);
   const manager = agent.reportsTo ? nodesById(chart.data?.nodes ?? []).get(agent.reportsTo) : undefined;
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -205,6 +207,7 @@ function ProfileBody({
           meUserId={meUserId}
           readOnly={!admin}
           profiles={profiles}
+          briefing={{ shown: true, text: briefing.data?.briefing }}
         />
         {admin && <ProfileActions form={form} />}
       </form>

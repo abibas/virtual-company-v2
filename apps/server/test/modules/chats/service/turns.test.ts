@@ -7,6 +7,7 @@ import { chatsLive } from '../../../../src/modules/chats/service/live.ts';
 import { startTurn, stopTurn, type TurnsDeps } from '../../../../src/modules/chats/service/turns.ts';
 import { credentialsForHarness } from '../../../../src/modules/credentials/index.ts';
 import type { RunnerHub, TurnChannel } from '../../../../src/modules/machines/index.ts';
+import { standingReader } from '../../../../src/modules/org/index.ts';
 import { type ChatsWorld, chatsWorld, type Scene, scene } from '../../../fixtures/chats/world.ts';
 
 // What the routes cannot reach: a runner gone between the checks and the send, two prompts at the same moment, and a
@@ -31,6 +32,7 @@ function depsWith(turn: RunnerHub['turn']): TurnsDeps {
     credentials,
     live: chatsLive({ logger, clock: w.clock, credentials }),
     clock: w.clock,
+    standing: standingReader(deps),
   };
 }
 

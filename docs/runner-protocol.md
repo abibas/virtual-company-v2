@@ -110,7 +110,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `terminal.resize` | `sessionId`, `cols`, `rows` | |
 | `terminal.close` | `sessionId` | SIGHUP, SIGKILL 5 s later; `terminal.exit` follows |
 | `runner.update` | `cmdId` | update yourself from the server you are linked to and restart; answered by `runner.update.result` ("Updating a runner") |
-| `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
+| `turn.start` | `turnId` (the server's UUID), `spec` (a `TurnSpec`: harness, cwd, prompt, sessionId, model, effort, permissionPolicy, configDir, credential, gateway, `instructions?` (the standing instructions, 2026-11-11; a runner older than it ignores it: docs/harness.md "Standing instructions")) | run one chat turn; answered by `turn.events` and one `turn.end` (S5.1b) |
 | `turn.input` | `turnId`, `inputId` (the waiting turn's UUID), `text` (1–20 000 characters) | the person's message for the running turn (S5.2 step 6, "Chat turns" below); no answer: the harness's echo comes back as an `input` event with `inputId`, or nothing |
 | `fs.list` | `cmdId`, `path` (absolute or `~/…`, 1–1024 characters; null for the default start) | the folders in a folder; answered by `fs.result` (S5.1d) |
 | `fs.mkdir` | `cmdId`, `path` (absolute or `~/…`) | make one folder whose parent exists; answered by `fs.result` |

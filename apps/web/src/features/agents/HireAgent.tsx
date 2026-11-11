@@ -7,6 +7,7 @@ import { orgCalls, placementCalls } from '../../api/org.ts';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, ChartNode, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
+import { useCompany } from '../../app/company.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { PageHeader } from '../../components/layout/PageHeader.tsx';
 import type { RunsWith } from '../../components/org/agent-labels.ts';
@@ -20,6 +21,7 @@ import { type PlacementDraft, placementStep, usePlacementDraft } from '../placem
 import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { type AgentDraft, newAgentOf, type ProfileDefaults, useAgentDraft } from './agent-draft.ts';
+import { previewBriefing } from './CompanyBriefing.tsx';
 import { runsOf } from './harness-from-profile.ts';
 import { saveNewIcon } from './icon-draft.ts';
 import type { AgentLinks } from './links.ts';
@@ -149,6 +151,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
   const { busy, error, submit } = useHire(companyId, { draft, placement, onHired });
   const profiles = useAccessProfiles();
   const runsWith = runsOf(draft.values.profileId, profiles.data?.profiles) ?? null;
+  const company = useCompany().membership.name;
   const where = (
     <WhereItRuns
       draft={placement}
@@ -178,6 +181,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
           chart={chart}
           meUserId={meUserId}
           profiles={profiles}
+          briefing={previewBriefing(company, chart.nodes, previewNode(draft, runsWith))}
         />
         <FormActions status="" error={error}>
           <ButtonLink href={links.chart} tone="quiet">

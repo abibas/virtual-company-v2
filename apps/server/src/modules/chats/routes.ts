@@ -3,6 +3,7 @@ import { newRouter } from '../../platform/http/router.ts';
 import type { Keyring } from '../../platform/secrets/keyring.ts';
 import { credentialsForHarness, providerFetchFor } from '../credentials/index.ts';
 import type { RunnerHub, TerminalTickets } from '../machines/index.ts';
+import { standingReader } from '../org/index.ts';
 import { answerRoutes } from './routes/answers.ts';
 import { branchRoutes } from './routes/branch.ts';
 import { chatRoutes } from './routes/chats.ts';
@@ -27,13 +28,14 @@ export interface ChatsDeps extends ServerDeps {
  * ones a page at a time), a branch from a reply, Compact and Clear (S5.2), answers to the agent's questions (S5.2 step 4), the messages that wait for a running turn (S5.2 step
  * 6), the chat's stream and its terminal. The live turns of this process (their sinks, their stops, the stream's
  * listeners) and the queue that starts the next waiting turn when one ends are made here once per app, on the
- * credentials module's side for turns (subscriptions opened, refreshed, sealed again).
+ * credentials module's side for turns (subscriptions opened, refreshed, sealed again) and the org module's standing
+ * instructions of an agent.
  */
 export function chatsRoutes(deps: ChatsDeps) {
   const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
   const credentials = credentialsForHarness({ ...deps, providerFetch });
   const live = chatsLive({ logger: deps.logger, clock: deps.clock, credentials });
-  const turns = { ...deps, credentials, live };
+  const turns = { ...deps, credentials, live, standing: standingReader(deps) };
   const queue = chatQueue(turns);
   live.onEnded((t, chatId) => queue.startNext(t, chatId));
   const queued = { ...turns, queue };

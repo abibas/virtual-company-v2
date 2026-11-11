@@ -5,6 +5,7 @@ import type { ServerDeps } from '../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
+import { agentBriefingRoutes } from './routes/briefing.ts';
 import { defaultProfileRoutes } from './routes/defaults.ts';
 import { agentIconRoutes } from './routes/icons.ts';
 import {
@@ -26,7 +27,7 @@ import { type OrgService, orgService } from './service.ts';
 
 /**
  * `/api/companies/{companyId}/agents` (list and read: viewer and above; create and change: admin and above; an agent's
- * icon: `routes/icons.ts`),
+ * icon: `routes/icons.ts`; its briefing: `routes/briefing.ts`),
  * `/api/companies/{companyId}/org` (a position: admins move anyone and title anyone, members title themselves; the
  * chart: viewer and above) and `/api/companies/{companyId}/me/default-profile` (a member's own default access profile,
  * S3.4). The org rules' refusals are 422s with their codes.
@@ -185,7 +186,8 @@ function agentRoutes(deps: ServerDeps, org: OrgService) {
       const { profileCleared } = result;
       return c.json(profileCleared ? { ...result.agent, profileCleared } : result.agent, 200);
     })
-    .route('/', agentIconRoutes(deps));
+    .route('/', agentIconRoutes(deps))
+    .route('/', agentBriefingRoutes(deps, org));
 }
 
 function chartRoutes(deps: ServerDeps, org: OrgService) {

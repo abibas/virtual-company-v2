@@ -23,7 +23,8 @@ The server reads only `@mwc/shared/harness`; it never imports a harness package.
 TurnSpec     { harness, cwd, prompt, sessionId: string|null, model: string|null, effort?, permissionPolicy: 'ask'|'bypass',
                configDir: string|null, credential: HarnessCredential, gateway: { baseUrl, headers } | null,
                forkSession?: boolean /* a branch's first turn: resume sessionId forked */,
-               resumeAt?: string /* Claude Code: cut the forked copy after this message uuid */ }
+               resumeAt?: string /* Claude Code: cut the forked copy after this message uuid */,
+               instructions?: string /* standing instructions: the briefing, then the agent's own ("Standing instructions") */ }
 TerminalSpec  the same without `prompt`
 
 ProcessSpec  { command, args, env /* to add or override */, unsetEnv /* to remove */, stdin: string|null,
@@ -161,11 +162,16 @@ turn:      claude -p --output-format stream-json --verbose --input-format stream
                   --append-system-prompt "When the person must choose between options, ask them with the
                   ask_user_question tool, then end your turn: their answer comes as their next message."
 terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
-both:      and always, last:  --settings <runner state>/claude_code/<16 hex of sha256(cwd)>/settings-<12 hex>.json
+both:      with standing instructions, after those: --system-prompt-snapshot off
+           and always, last:  --settings <runner state>/claude_code/<16 hex of sha256(cwd)>/settings-<12 hex>.json
+           with standing instructions, then:  --append-system-prompt-file <same folder>/instructions-<12 hex>.md
+           (the asking line then goes at the end of that file, not in --append-system-prompt)
 env:       DISABLE_AUTOUPDATER=1; the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; with a gateway
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
 ```
 
+- **Standing instructions** (2026-11-11, "Standing instructions" below): a private file named by
+  `--append-system-prompt-file`, and `--system-prompt-snapshot off` (`instructions.ts`).
 - **A branch's first turn** (2026-11-10, "Branching"): `--fork-session` after `--resume <id>`, and
   `--resume-session-at <uuid>` when the spec says `resumeAt` (`forkArgs`); never in the terminal.
 
@@ -256,6 +262,7 @@ provider:       gateway   -c model_provider="mwc_gateway" -c model_providers.mwc
                 none      -c model_provider="openai"
                 after the permissions, before the tools (turn: … <permissions> <provider> [<tools>] [<threadId>] -)
 home:           privateDir CODEX_HOME = configDir, or the runner's own folder for this cwd
+instructions:   with standing instructions, <CODEX_HOME>/AGENTS.override.md (0600, while the process runs); no argument
 ```
 
 - **Why `-c` for the turn's sandbox.** `codex exec resume` has no `--sandbox`; the config overrides work for both
@@ -483,10 +490,12 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    token is the process's `CLAUDE_CODE_OAUTH_TOKEN`, never on disk; Codex's `auth.json` and Claude Code's settings file
    (the gateway's headers) are on disk only while their process runs. The gateway goes with its headers to either
    harness ("Credentials and gateways").
-4. **The turn** is recorded `running` (with the profile and credential it runs on; the first prompt is the chat's title,
+4. **The standing instructions** (2026-11-11): the agent's briefing, read from the live chart now, then its own
+   instructions, go in the spec's `instructions` ("Standing instructions"), for a terminal too.
+5. **The turn** is recorded `running` (with the profile and credential it runs on; the first prompt is the chat's title,
    80 characters), its sink is put in place, and `turn.start {turnId, spec}` goes to the runner. The answer is 202 with
    the turn.
-5. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
+6. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
    what it cannot run: `unsupported` (no such CLI, even after searching again, or no way to start processes), `busy` (all `slots` live), `home_missing`
    (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
    `runner_stopping`. Otherwise it starts the driver's command with no shell, detached (its own process group), in the
@@ -498,7 +507,7 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    fit. On exit, `parser.end` gives the last events, then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the
    result's, `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the
    SIGINT) or `runner_stopping`. Live turns hold the machine as live runs do and make the self-update say `busy`.
-6. **The private folder** (`turns/private-dir.ts`): Codex's is the placement's `configDir` when it has one, else
+7. **The private folder** (`turns/private-dir.ts`): Codex's is the placement's `configDir` when it has one, else
    `<runner state dir>/<harness>/<first 16 hex of sha256(home)>/`, never the machine's `~/.codex`; Claude Code's is always
    the runner's own (`<state>/claude_code/<16 hex>/`), never `CLAUDE_CONFIG_DIR`; made 0700. `auth.json` and Claude
    Code's `settings-<12 hex>.json` are written 0600 before the process (a marker file first; a file of that name the
@@ -506,17 +515,17 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    `withPrivateDir`), and removed when the last process using the folder ends. When the process rewrote it (its own token
    refresh), the new text goes back in `turn.end.authJson` (a terminal's in `terminal.exit.authJson`) and the server
    seals it into the credential again; the browser never sees it.
-7. **The server** stores each event (`chat_events`, a resend kept once), saves the chat's `session_id` from the
+8. **The server** stores each event (`chat_events`, a resend kept once), saves the chat's `session_id` from the
    `session` event (the next turn resumes it), tells the chat's stream listeners, and on `turn.end` closes the turn:
    `done`, `failed` (the runner's reason first, else the result's error) or `stopped`, with the result's text and the
    usage. A runner whose link drops fails its running turns (`machine_disconnected`; the runner ends their processes
    too, nothing is re-attached yet), and at the server's start the turns a stopped server left running fail
    (`server_restarted`).
-8. **The stream** (`GET …/chats/{chatId}/stream`, members and above): Server-Sent Events over an authenticated GET
+9. **The stream** (`GET …/chats/{chatId}/stream`, members and above): Server-Sent Events over an authenticated GET
    (the web reads it with `fetch` and its Bearer header): `turn` (`{turn}`) on a start and each status change, `event`
    (`{turnId, turnSeq, seq, event, at}`, its `id:` `<turnSeq>.<seq>`), a `: heartbeat` comment every 20 s;
    `Last-Event-ID` replays the turns from that turn on and the events after it, then the live ones, never one twice.
-9. **The terminal** (`POST …/chats/{chatId}/terminal-tickets`, owners only): the same checks and credential, then the
+10. **The terminal** (`POST …/chats/{chatId}/terminal-tickets`, owners only): the same checks and credential, then the
    machine terminal's one-time ticket (`/api/terminal/ws`), holding the resolved `TerminalSpec` in the server's memory
    for its 60 s. Opening the socket sends `terminal.open` with `harness`, and the runner starts `driver.terminal(spec)`
    in the PTY (the TUI resuming the chat's session) instead of a login shell, with the same environment rules and
@@ -547,6 +556,56 @@ with its own folders.
 `ask` in chat mode refuses a tool that needs approval (Claude Code's denials and Codex's declined commands become `warn`
 notices) until S6 brings the permission round trip; the terminal asks the person on the TUI. No test runs a real
 `claude` or `codex` turn: that spends Ihor's subscription.
+
+## Standing instructions
+
+Built 2026-11-11 (Ihor: "this instruction as NON modifiable 1 piece … but with an idea that user can see/read it"). Every
+turn and terminal of an agent carries standing instructions in its spec (`instructions`): first the agent's **briefing**,
+its place in the company generated from the live org chart, then its own instructions (the agent form's Instructions,
+`## Your instructions`, left out when blank). Before 2026-11-11 a turn carried neither.
+
+- **The briefing** is `agentBriefing` of `@mwc/shared/agent-briefing`, pure, so the server and the web write the same
+  text from the same chart: the heading `## Your place in the company (generated by Most Wanted from the org chart; not
+  editable)`, then one line each: who it is (`You are <name>, <role>, at <company>, an AI agent on its org chart.`; the
+  role is the title on the chart, else the role title, left out when it repeats the name), its manager (`You report to
+  <name> (<role>; a person|an agent).`), the chain up to the top when the manager has a manager, its teammates (the
+  manager's other reports), and its reports (`Reporting to you: …` or `Nobody reports to you.`). Facts only, no rules.
+  People show their display name (`Unnamed person` without one), never an email; no ids. Paused agents are listed
+  `(…; an agent, paused)`; archived ones are off the chart, so left out, and an archived agent is told only that it is
+  not on the chart. Whitespace in a name is folded to one space (a name never starts a line); a list names 25 and counts
+  the rest; at most 20 000 characters. `version` is an 8-hex FNV-1a of the text. The server reads it per turn
+  (`standingReader` of the org module, the chats module's `TargetDeps.standing`), so a move on the chart reaches the
+  chat's next turn, resumed, without a new chat; a terminal gets it when it opens.
+- **The API**: `GET /api/companies/{companyId}/agents/{agentId}/briefing` (viewer and above) answers `{ briefing,
+  version }`, the text the next turn gets before the agent's own instructions. The agent page shows it read-only above
+  the editable instructions ("From the company", "Generated · updates with the chart"), outside the 100 000-character
+  limit and the instructions' revision; the Hire page previews it from the chart once a manager is chosen.
+- **Claude Code** (verified against 2.1.322's `--help` and its bundled code): the text goes in a private file the
+  runner writes 0600 beside the settings file and removes after the process (`instructions-<12 hex>.md`, its own per
+  process), named by `--append-system-prompt-file` (hidden from `--help`, which names it under `--bare`; with
+  `--append-system-prompt` too since 2.1.283, the file's text first), never on the command line (`ps`, the argument
+  limit). With the runner's tools, the asking line goes at the end of the same file instead of `--append-system-prompt`.
+  Claude Code records a conversation's system prompt on its first request and resends that record on every later
+  request and resume, "even when a later launch passes different text, until the conversation is compacted"
+  (`--system-prompt-snapshot`, on by default since 2.1.267); so a process with standing instructions gets
+  `--system-prompt-snapshot off`, which renders the system prompt fresh on each request, as before 2.1.267. **Holds on
+  resume.** Cost: with the snapshot off, the system prompt's per-machine parts (git status, date) are rendered again in
+  each turn's process, and a change there misses the prompt cache for that turn, as before 2.1.267; not measured
+  without a real turn.
+- **Codex** (verified against the openai/codex source at 0.162.1, 0.163.0 and 0.167.0): the text is the Codex home's
+  `AGENTS.override.md` (`CODEX_HOME` is the runner's private folder, or the placement's configuration folder), written
+  0600 for the process's lifetime like the login. Codex reads `AGENTS.override.md` (else `AGENTS.md`) of its home before
+  each request (`codex-home/src/instructions`) and keeps what the model last saw in the thread's world state (the
+  `agents_md` section of `core/src/context/world_state`): a new text reaches a resumed thread at its next turn as "These
+  AGENTS.md instructions replace all previously provided AGENTS.md instructions.", an unchanged one is not sent again,
+  and the project's own `AGENTS.md` files still follow it. **Holds on resume.** `developer_instructions` would not: Codex
+  sends it only with a thread's first context. Limits: a configuration folder that is a person's own Codex home has its
+  `AGENTS.override.md` set aside while the process runs (their `AGENTS.md` is then not read, as Codex reads one); agents
+  sharing one home folder share one Codex home (as they share its login file), so two of them running at once see the
+  last writer's text.
+- **Older runners**: the field is optional and protocol objects are loose, so a runner from before it passes the spec
+  through and its driver ignores the field: no standing instructions until the machine's runner is updated (Update
+  runner on its card). No server refusal.
 
 ## Asking the person
 

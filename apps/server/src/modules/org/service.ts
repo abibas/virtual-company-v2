@@ -1,4 +1,5 @@
 import type { TenantDb } from '@mwc/db';
+import type { Briefing } from '@mwc/shared/agent-briefing';
 import type { AgentStatus, ProfileProvider } from '@mwc/shared/enums';
 import type { ServerDeps } from '../../platform/env.ts';
 import { placementsOf } from '../machines/service/placement.ts';
@@ -7,6 +8,7 @@ import { AGENT_NOT_FOUND } from './rules/agents.ts';
 import type { AgentListFilter, AgentView, CreateAgent, UpdateAgent, UpdatePosition } from './schemas.ts';
 import { type AgentResult, createAgent, shownAgent, updateAgent } from './service/agents.ts';
 import type { Caller } from './service/audit.ts';
+import { briefingReader } from './service/briefing.ts';
 import { chartReader } from './service/chart.ts';
 import { agentIconHashes } from './service/icons.ts';
 import { setPosition } from './service/positions.ts';
@@ -57,6 +59,7 @@ const LIST_STATUSES: Readonly<Record<string, readonly AgentStatus[] | undefined>
  */
 export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
   const repo = orgRepo();
+  const briefing = briefingReader(deps, repo);
   return {
     /**
      * The company's agents, in the order they were created, each with its place on the chart, its profile, where it
@@ -87,6 +90,15 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
         agent,
         position: await repo.getPosition(t, agent.principalId),
       });
+    },
+
+    /** The agent's briefing as its next turn gets it (archived ones too); 404 for an unknown one. */
+    async briefing(
+      t: TenantDb,
+      agentId: string,
+    ): Promise<{ readonly ok: true; readonly briefing: Briefing } | typeof AGENT_NOT_FOUND> {
+      const agent = await repo.getAgent(t, agentId);
+      return agent === undefined ? AGENT_NOT_FOUND : { ok: true, briefing: await briefing(t, agent) };
     },
 
     create: async (t: TenantDb, caller: Caller, input: CreateAgent) =>

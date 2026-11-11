@@ -7,6 +7,7 @@ import { PrincipalSelect } from '../../components/org/PrincipalSelect.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
 import type { AgentDraft } from './agent-draft.ts';
+import { CompanyBriefing } from './CompanyBriefing.tsx';
 import { IconChoice } from './IconChoice.tsx';
 import { ModelPanel, type OwnProfiles } from './ModelFields.tsx';
 
@@ -107,12 +108,16 @@ function ReportsToField({
   );
 }
 
-/** The standing instructions: a large monospace field with its length, and the revision they are at. */
+/**
+ * The standing instructions: what the company tells the agent (generated, read-only) when there is a briefing, then a
+ * large monospace field with its length, and the revision they are at.
+ */
 function InstructionsPanel({
   draft,
   readOnly,
   agent,
-}: PartProps & { readonly agent: AgentDetail | undefined }) {
+  briefing,
+}: PartProps & { readonly agent: AgentDetail | undefined; readonly briefing: Briefing }) {
   const id = useId();
   const length = draft.values.instructions.length;
   return (
@@ -120,6 +125,7 @@ function InstructionsPanel({
       title="Instructions"
       actions={agent && <Badge tone="teal">Revision {agent.instructionsRev}</Badge>}
     >
+      {briefing.shown && <CompanyBriefing text={briefing.text} />}
       <label htmlFor={id} className="sr-only">
         Instructions
       </label>
@@ -170,6 +176,12 @@ export function FormActions({
   );
 }
 
+/** The briefing above the instructions: shown or not, and its text (undefined while it loads). */
+export interface Briefing {
+  readonly shown: boolean;
+  readonly text: string | undefined;
+}
+
 export interface AgentFormProps {
   readonly draft: AgentDraft;
   /** "Where it runs" (`WhereItRuns` on the page's placement draft), at the end of How it works. */
@@ -185,13 +197,25 @@ export interface AgentFormProps {
   readonly readOnly?: boolean;
   /** The person's own access profiles (`useAccessProfiles`), for the profile's choices and what it runs. */
   readonly profiles: OwnProfiles;
+  /** What the company tells the agent, above its instructions; none on the Hire page until a manager is chosen. */
+  readonly briefing?: Briefing;
 }
+
+const NO_BRIEFING: Briefing = { shown: false, text: undefined };
 
 /**
  * The agent's fields, in three panels (Ihor: fields, not explanations): who it is (with whom it reports to), how it
  * works (its access profile and where it runs), its instructions.
  */
-export function AgentForm({ draft, chart, agent, meUserId, readOnly = false, ...parts }: AgentFormProps) {
+export function AgentForm({
+  draft,
+  chart,
+  agent,
+  meUserId,
+  readOnly = false,
+  briefing = NO_BRIEFING,
+  ...parts
+}: AgentFormProps) {
   return (
     <div className="grid gap-4 md:gap-5">
       <IdentityPanel
@@ -203,7 +227,7 @@ export function AgentForm({ draft, chart, agent, meUserId, readOnly = false, ...
         }
       />
       <ModelPanel draft={draft} readOnly={readOnly} agent={agent} meUserId={meUserId} {...parts} />
-      <InstructionsPanel draft={draft} readOnly={readOnly} agent={agent} />
+      <InstructionsPanel draft={draft} readOnly={readOnly} agent={agent} briefing={briefing} />
     </div>
   );
 }

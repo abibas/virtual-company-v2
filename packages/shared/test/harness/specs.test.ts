@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STANDING_INSTRUCTIONS_MAX } from '../../src/agent-briefing.ts';
 import { CredentialKind, Harness } from '../../src/enums.ts';
 import {
   CODEX_AUTH_JSON_MAX,
@@ -150,5 +151,21 @@ describe('TurnSpec and TerminalSpec', () => {
     const { prompt: _, ...terminal } = turn;
     expect(TurnSpec.safeParse(terminal).success).toBe(false);
     expect(TerminalSpec.safeParse(terminal).success).toBe(true);
+  });
+});
+
+describe('standing instructions on a spec', () => {
+  it('are optional, and kept when given, on a turn and a terminal', () => {
+    expect(TurnSpec.parse(turn).instructions).toBeUndefined();
+    expect(TurnSpec.parse({ ...turn, instructions: '## Your place' }).instructions).toBe('## Your place');
+    const { prompt: _prompt, ...terminal } = turn;
+    expect(TerminalSpec.parse({ ...terminal, instructions: 'x' }).instructions).toBe('x');
+  });
+
+  it('are refused empty or over their limit', () => {
+    expect(TurnSpec.safeParse({ ...turn, instructions: '' }).success).toBe(false);
+    const long = 'x'.repeat(STANDING_INSTRUCTIONS_MAX + 1);
+    expect(TurnSpec.safeParse({ ...turn, instructions: long }).success).toBe(false);
+    expect(TurnSpec.safeParse({ ...turn, instructions: long.slice(1) }).success).toBe(true);
   });
 });

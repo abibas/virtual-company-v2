@@ -9,6 +9,7 @@ import { chatQueue, type DrainDeps } from '../../../../src/modules/chats/service
 import { chatsLive } from '../../../../src/modules/chats/service/live.ts';
 import { credentialsForHarness } from '../../../../src/modules/credentials/index.ts';
 import type { RunnerHub } from '../../../../src/modules/machines/index.ts';
+import { standingReader } from '../../../../src/modules/org/index.ts';
 import { type ChatsWorld, chatsWorld, type Scene, scene, turnRow } from '../../../fixtures/chats/world.ts';
 
 // What the routes cannot reach: a waiting turn that goes or loses its start to another one while its checks run, a
@@ -47,6 +48,7 @@ function depsWith(options: { turn?: RunnerHub['turn']; beforeCredential?: () => 
     live: chatsLive({ logger: capture.logger, clock: w.clock, credentials }),
     clock: w.clock,
     logger: capture.logger,
+    standing: standingReader(deps),
   };
   return { drain, capture };
 }

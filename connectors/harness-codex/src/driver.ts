@@ -12,6 +12,7 @@ import { CODEX_COMMAND, CODEX_HOME_ENV, codexAccount, terminalArgs, turnArgs, un
 import { readChild } from './children.ts';
 import { LiveSubagents } from './follow/live.ts';
 import { gatewayEnv } from './gateway.ts';
+import { codexInstructionsFiles } from './instructions.ts';
 import { CodexLineParser } from './parser.ts';
 import { type RolloutFs, readRollout } from './rollout.ts';
 
@@ -37,7 +38,8 @@ export interface CodexDriverOptions {
  * (`gateway.ts`); without one, Codex's built-in OpenAI provider. With `rollouts`, a turn's parser reads the thread's
  * session file in that home folder when the turn ends, for Codex's own context reading, and each subagent's own file
  * once it ends, for its model, role and last command; while the turn runs it follows the thread's file and its
- * subagents' (`follow/`): multi-agent v2's subagents and every subagent's own commands, live.
+ * subagents' (`follow/`): multi-agent v2's subagents and every subagent's own commands, live. Standing instructions
+ * (the agent's place in the company and its own) are that home's `AGENTS.override.md` (`instructions.ts`).
  */
 export class CodexDriver implements HarnessDriver {
   readonly harness = 'codex' as const;
@@ -83,7 +85,11 @@ export class CodexDriver implements HarnessDriver {
       env: { ...account.env, ...gatewayEnv(spec.gateway) },
       unsetEnv: unsetFor(account.env),
       stdin,
-      privateDir: { env: CODEX_HOME_ENV, path: spec.configDir, files: account.files },
+      privateDir: {
+        env: CODEX_HOME_ENV,
+        path: spec.configDir,
+        files: [...account.files, ...codexInstructionsFiles(spec)],
+      },
       notices: [],
     };
   }

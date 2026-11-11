@@ -8,6 +8,7 @@ import {
   type TerminalSpec,
   type TurnSpec,
 } from '@mwc/shared/harness';
+import { snapshotArgs } from './instructions.ts';
 import { customHeaders } from './settings.ts';
 
 /** Claude Code's command line and environment for a turn or a terminal (docs/harness.md, "Claude Code"). */
@@ -35,13 +36,17 @@ export const CLAUDE_ACCOUNT_VARS = [
   'CLAUDE_CONFIG_DIR',
 ] as const;
 
-/** The resume, model, effort and permission arguments a turn and a terminal share. */
+/**
+ * The resume, model, effort and permission arguments a turn and a terminal share, and the system prompt rendered fresh
+ * with standing instructions (`instructions.ts`).
+ */
 export function sharedArgs(spec: TerminalSpec): string[] {
   return [
     ...(spec.sessionId === null ? [] : ['--resume', spec.sessionId]),
     ...(spec.model === null ? [] : ['--model', spec.model]),
     ...(spec.effort === undefined ? [] : ['--effort', spec.effort]),
     ...(spec.permissionPolicy === 'bypass' ? ['--dangerously-skip-permissions'] : []),
+    ...snapshotArgs(spec),
   ];
 }
 
@@ -72,16 +77,16 @@ export function mcpConfig(tools: TurnTools): string {
 
 /**
  * A turn's arguments for the runner's tools: the MCP config file in the turn's folder, the question tool allowed (so
- * the `ask` policy does not refuse it in print mode), and the line that says when to use it.
+ * the `ask` policy does not refuse it in print mode), and the line that says when to use it, unless that line goes in
+ * the standing instructions' file (`prompt` false).
  */
-export function toolArgs(tools: TurnTools): string[] {
+export function toolArgs(tools: TurnTools, prompt = true): string[] {
   return [
     '--mcp-config',
     join(tools.dir, MCP_CONFIG_FILE),
     '--allowedTools',
     ASK_TOOL_CALLS[0],
-    '--append-system-prompt',
-    ASK_PROMPT,
+    ...(prompt ? ['--append-system-prompt', ASK_PROMPT] : []),
   ];
 }
 

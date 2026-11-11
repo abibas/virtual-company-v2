@@ -19,6 +19,7 @@ type AgentRoutes = CompanyRoutes['agents'];
 export type AgentList = InferResponseType<AgentRoutes['$get'], 200>;
 export type Agent = AgentList['agents'][number];
 export type AgentDetail = InferResponseType<AgentRoutes[':agentId']['$get'], 200>;
+export type AgentBriefing = InferResponseType<AgentRoutes[':agentId']['briefing']['$get'], 200>;
 /** `?status=` of the agent list: one status, or `all`. */
 export type AgentFilter = NonNullable<InferRequestType<AgentRoutes['$get']>['query']['status']>;
 export type NewAgent = InferRequestType<AgentRoutes['$post']>['json'];

@@ -4,11 +4,13 @@ import {
   checkTurn,
   type HarnessDriver,
   type LineParser,
+  type PrivateFile,
   type ProcessSpec,
   type TurnTools,
 } from '@mwc/harness-core';
 import type { TerminalSpec, TurnSpec } from '@mwc/shared/harness';
 import {
+  ASK_PROMPT,
   CLAUDE_COMMAND,
   claudeEnv,
   forkArgs,
@@ -20,6 +22,7 @@ import {
   unsetFor,
 } from './args.ts';
 import { INPUT_ARGS, userLine } from './input.ts';
+import { instructionsFile } from './instructions.ts';
 import { ClaudeLineParser } from './parser.ts';
 import { settingsDir } from './settings.ts';
 
@@ -38,7 +41,9 @@ export interface ClaudeCodeDriverOptions {
  * With the runner's tools a turn also gets its MCP server (`--mcp-config <dir>/mcp.json`, the file written by the runner),
  * the question tool allowed and one line of system prompt (`toolArgs`). Every turn and terminal gets a private settings
  * file the runner writes and names with `--settings <path>` (`settings.ts`): the profile's gateway, or Anthropic's own
- * address, over whatever the machine's settings say.
+ * address, over whatever the machine's settings say. Standing instructions (the agent's place in the company and its
+ * own) come in a private file too, `--append-system-prompt-file <path>`, with the line on asking at its end
+ * (`instructions.ts`).
  */
 export class ClaudeCodeDriver implements HarnessDriver {
   readonly harness = 'claude_code' as const;
@@ -53,15 +58,22 @@ export class ClaudeCodeDriver implements HarnessDriver {
     checkTurn(this.harness, spec);
     const args = [...TURN_ARGS, ...INPUT_ARGS, ...sharedArgs(spec), ...forkArgs(spec)];
     const first = userLine(spec.prompt, randomUUID());
-    if (tools === undefined) return { ...this.#process(args, spec, first), stdinOpen: true };
+    if (tools === undefined)
+      return { ...this.#process(args, spec, first, instructionsFile(spec)), stdinOpen: true };
     const file = { name: MCP_CONFIG_FILE, contents: mcpConfig(tools), mode: 0o600 };
-    const process = this.#process([...args, ...toolArgs(tools)], spec, first);
+    const standing = instructionsFile(spec, ASK_PROMPT);
+    const process = this.#process(
+      [...args, ...toolArgs(tools, standing === undefined)],
+      spec,
+      first,
+      standing,
+    );
     return { ...process, stdinOpen: true, turnFiles: [file] };
   }
 
   terminal(spec: TerminalSpec): ProcessSpec {
     checkSpec(this.harness, spec);
-    return this.#process(sharedArgs(spec), spec, null);
+    return this.#process(sharedArgs(spec), spec, null, instructionsFile(spec));
   }
 
   parser(): LineParser {
@@ -72,9 +84,11 @@ export class ClaudeCodeDriver implements HarnessDriver {
     return userLine(text, id);
   }
 
-  #process(args: string[], spec: TerminalSpec, stdin: string | null): ProcessSpec {
+  #process(args: string[], spec: TerminalSpec, stdin: string | null, standing?: PrivateFile): ProcessSpec {
     const env = claudeEnv(spec);
-    const privateDir = settingsDir(spec.gateway);
+    const settings = settingsDir(spec.gateway);
+    const privateDir =
+      standing === undefined ? settings : { ...settings, files: [...settings.files, standing] };
     return { command: this.command, args, env, unsetEnv: unsetFor(env), stdin, privateDir, notices: [] };
   }
 }

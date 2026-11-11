@@ -72,6 +72,7 @@ describe('a turn, end to end', () => {
           token: 'sk-ant-oat01-SETUPtokenNEVERshownAGAIN_0123456789',
         },
         gateway: null,
+        instructions: expect.stringMatching(/^## Your place in the company/),
       },
     });
     expect((await chatRow(w.t.db, s.chat.id))?.title).toBe('What is 2 + 2?');

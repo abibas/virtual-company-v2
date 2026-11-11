@@ -1,7 +1,9 @@
+import { useEffect, useRef } from 'react';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { ApiError, call } from './errors.ts';
 import type {
+  AgentBriefing,
   AgentChanges,
   AgentDetail,
   AgentFilter,
@@ -49,6 +51,29 @@ export function useAgentAt(companyId: string, ref: string): Loaded<AgentDetail> 
     if (!found) throw new ApiError(404, 'agent_not_found', 'There is no agent at this address.');
     return call(agents[':agentId'].$get({ param: { companyId, agentId: found.id } }));
   });
+}
+
+/**
+ * What the agent's turns are told of its place in the company, as its next turn gets it (generated, read-only), read
+ * again whenever `chart` is (a move, a rename, someone paused may change it).
+ */
+export function useAgentBriefing(
+  companyId: string,
+  agentId: string,
+  chart: OrgChart | undefined,
+): Loaded<AgentBriefing> {
+  const api = useApi();
+  const briefing = useLoad(`agent-briefing:${companyId}:${agentId}`, () =>
+    call(api.api.companies[':companyId'].agents[':agentId'].briefing.$get({ param: { companyId, agentId } })),
+  );
+  const { reload } = briefing;
+  const seen = useRef(chart);
+  useEffect(() => {
+    if (chart === seen.current) return;
+    seen.current = chart;
+    reload();
+  }, [chart, reload]);
+  return briefing;
 }
 
 /** The org changes of one company: hire an agent, change one, move or title someone on the chart. */

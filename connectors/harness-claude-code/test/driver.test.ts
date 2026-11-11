@@ -190,6 +190,32 @@ describe('ClaudeCodeDriver.turn', () => {
     expect(driver.turn(fakeTurnSpec('claude_code')).turnFiles).toBeUndefined();
   });
 
+  it('gives standing instructions in a private file, renders the prompt fresh, and puts the asking line in it', () => {
+    const tools = { dir: '/state/turns/0a1b', command: '/usr/bin/node', args: ['/r.mjs', 'mcp'], env: {} };
+    const spec = fakeTurnSpec('claude_code', {
+      sessionId: SESSION,
+      instructions: '## Your place\n\n- You are QA.',
+    });
+    const plain = driver.turn(spec);
+    expect(plain.args).toEqual([...TURN, '--resume', SESSION, '--system-prompt-snapshot', 'off']);
+    expect(plain.privateDir?.files[1]).toEqual({
+      name: expect.stringMatching(/^instructions-[0-9a-f]{12}\.md$/),
+      contents: '## Your place\n\n- You are QA.',
+      mode: 0o600,
+      option: '--append-system-prompt-file',
+    });
+    const asked = driver.turn(spec, tools);
+    expect(asked.args).not.toContain('--append-system-prompt');
+    expect(asked.args.slice(-4)).toEqual([
+      '--mcp-config',
+      '/state/turns/0a1b/mcp.json',
+      '--allowedTools',
+      'mcp__mwc__ask_user_question',
+    ]);
+    expect(asked.privateDir?.files[1]?.contents).toBe(`## Your place\n\n- You are QA.\n\n${ASK_PROMPT}`);
+    expect(asked.privateDir?.files[1]?.name).not.toBe(plain.privateDir?.files[1]?.name);
+  });
+
   it('uses the program the runner found', () => {
     const found = new ClaudeCodeDriver({ command: '/home/agent/.local/bin/claude' });
     expect(found.turn(fakeTurnSpec('claude_code')).command).toBe('/home/agent/.local/bin/claude');
@@ -253,6 +279,15 @@ describe('ClaudeCodeDriver.terminal', () => {
       ANTHROPIC_CUSTOM_HEADERS: 'x-memory-agent: slop',
     });
     expect(process.args).toEqual([]);
+  });
+
+  it('gives the TUI the standing instructions too', () => {
+    const process = driver.terminal(fakeTerminalSpec('claude_code', { instructions: 'Briefing' }));
+    expect(process.args).toEqual(['--system-prompt-snapshot', 'off']);
+    expect(process.privateDir?.files.map((file) => [file.contents, file.option])).toEqual([
+      [expect.any(String), '--settings'],
+      ['Briefing', '--append-system-prompt-file'],
+    ]);
   });
 
   it('refuses a credential of the other family', () => {

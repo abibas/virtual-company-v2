@@ -6,6 +6,7 @@ import { chatQueue } from '../../../../src/modules/chats/service/drain.ts';
 import { chatsLive } from '../../../../src/modules/chats/service/live.ts';
 import { type QueueDeps, sendMessage } from '../../../../src/modules/chats/service/queue.ts';
 import { credentialsForHarness } from '../../../../src/modules/credentials/index.ts';
+import { standingReader } from '../../../../src/modules/org/index.ts';
 import { type ChatsWorld, chatsWorld, scene, turnRow } from '../../../fixtures/chats/world.ts';
 
 // What the routes cannot reach: a turn the database says runs but this process does not know (left by a stopped
@@ -29,6 +30,7 @@ function deps(): QueueDeps {
     credentials,
     live: chatsLive({ logger, clock: w.clock, credentials }),
     clock: w.clock,
+    standing: standingReader(base),
   };
   return { ...turns, queue: chatQueue({ ...turns, logger }) };
 }
