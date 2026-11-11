@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
+import { type MachineWake, useMachineWake } from '../../api/machine-wake.ts';
 import { useMachineChoices } from '../../api/org.ts';
 import type { MachineChoice } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
@@ -10,6 +11,8 @@ import { SegmentedControl } from '../../components/forms/Segmented.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { HomeFolderField } from './HomeFolderField.tsx';
 import { MODE_OPTIONS, type PlacementDraft, POLICY_OPTIONS } from './placement-draft.ts';
+import { WakeInline, wakeFailureText } from './WakeMachine.tsx';
+import { wakeView } from './wake-text.ts';
 
 type Status = MachineChoice['status'];
 
@@ -54,21 +57,28 @@ export interface WhereItRunsProps {
   readonly agentSlug: string;
 }
 
-/** The machine select, with the chosen machine's status beside it. */
+/** The machine select, with the chosen machine's status beside it and, while it is offline, a way to wake it. */
 function MachineSelect({
   draft,
   machines,
   machinesHref,
   readOnly,
+  wake,
 }: Pick<WhereItRunsProps, 'draft' | 'machinesHref' | 'readOnly'> & {
   readonly machines: Loaded<readonly MachineChoice[]>;
+  readonly wake: MachineWake;
 }) {
   const id = useId();
   const chosen = machines.data?.find((m) => m.id === draft.values.machineId);
   const status = chosen?.status ?? draft.saved?.machineStatus;
-  const hint = <MachineHint count={machines.data?.length} error={machines.error} href={machinesHref} />;
+  const asleep = chosen?.status === 'offline' ? chosen : undefined;
+  const view = asleep && wakeView(asleep, wake.power);
+  const wakeHint = view?.action.kind === 'none' && wake.phase === 'idle' ? view.action.hint : undefined;
+  const hint = wakeHint ?? (
+    <MachineHint count={machines.data?.length} error={machines.error} href={machinesHref} />
+  );
   return (
-    <Field label="Machine" id={id} hint={hint}>
+    <Field label="Machine" id={id} hint={hint} error={asleep && wakeFailureText(wake)}>
       <div className="flex items-center gap-2">
         <Select
           id={id}
@@ -83,6 +93,7 @@ function MachineSelect({
             {STATUS[status][1]}
           </Badge>
         )}
+        {asleep && <WakeInline machine={asleep} wake={wake} machinesHref={machinesHref} />}
       </div>
     </Field>
   );
@@ -99,6 +110,7 @@ export function WhereItRuns(props: WhereItRunsProps) {
   const machines = useMachineChoices(companyId);
   const chosen = machines.data?.find((m) => m.id === values.machineId);
   const placed = values.machineId !== '';
+  const wake = useMachineWake(companyId, chosen, machines.reload);
   return (
     <section aria-label="Where it runs" className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -107,12 +119,15 @@ export function WhereItRuns(props: WhereItRunsProps) {
           machines={machines}
           machinesHref={props.machinesHref}
           readOnly={readOnly}
+          wake={wake}
         />
         {placed && (
           <HomeFolderField
             draft={draft}
             companyId={companyId}
             machine={chosen}
+            wake={wake}
+            machinesHref={props.machinesHref}
             agentSlug={agentSlug}
             readOnly={readOnly}
           />

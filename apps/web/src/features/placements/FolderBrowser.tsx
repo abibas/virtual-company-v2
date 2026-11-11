@@ -1,13 +1,16 @@
 import { ArrowUp, Check, ChevronRight, FileText, Folder, FolderGit2, FolderPlus } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
+import { isApiError } from '../../api/errors.ts';
 import { type FolderBrowserState, useFolderBrowser } from '../../api/folders.ts';
-import type { FolderEntry, FolderList } from '../../api/types.ts';
+import type { MachineWake } from '../../api/machine-wake.ts';
+import type { FolderEntry, FolderList, MachineChoice } from '../../api/types.ts';
 import { Input } from '../../components/forms/Input.tsx';
 import { Sheet } from '../../components/layout/Drawer.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
 import { SkeletonRows } from '../../components/ui/Skeleton.tsx';
 import { crumbsOf, folderErrorText, folderNameError, joinFolder, parentFolder } from './folder-path.ts';
+import { WakePanel } from './WakeMachine.tsx';
 
 /** The folder's place from the top: each step back is a button, the last one is where the browser is. */
 function Crumbs({ listing, browser }: { listing: FolderList; browser: FolderBrowserState }) {
@@ -149,6 +152,12 @@ export interface FolderBrowserProps {
   readonly companyId: string;
   readonly machineId: string;
   readonly machineName: string;
+  /** The machine, once the machines loaded: while it is offline the browser offers to wake it. */
+  readonly machine: MachineChoice | undefined;
+  readonly wake: MachineWake;
+  readonly machinesHref: string;
+  /** Closes the browser to type the path instead. */
+  readonly onTypePath: () => void;
   /** The home folder field's value: the browser starts there (or at its parent) when it exists. */
   readonly start: string;
   readonly onChoose: (path: string) => void;
@@ -156,19 +165,28 @@ export interface FolderBrowserProps {
 
 /**
  * Browse… for the home folder: a machine's folders as its runner reads them, a step up, a new folder, and "Choose this
- * folder". A Docker runner shows only its work volume, /work.
+ * folder". A Docker runner shows only its work volume, /work. While the machine is offline it offers to wake it, and the
+ * folders load by themselves once its runner connects.
  */
 export function FolderBrowser(props: FolderBrowserProps) {
-  const { open, onClose, companyId, machineId, machineName, start, onChoose } = props;
+  const { open, onClose, companyId, machineId, machineName, start, onChoose, machine, wake } = props;
   const browser = useFolderBrowser(companyId, machineId);
   const { listing, error, loading } = browser;
+  const offline = isApiError(error, 'machine_offline');
+  const status = machine?.status;
+  const begin = () => {
+    const at = start.trim();
+    const parent = parentFolder(at);
+    void browser.openAt(at.startsWith('/') ? [at, ...(parent ? [parent] : [])] : []);
+  };
   // biome-ignore lint/correctness/useExhaustiveDependencies: it starts again only when it opens or the machine changes.
   useEffect(() => {
-    if (!open) return;
-    const begin = start.trim();
-    const parent = parentFolder(begin);
-    void browser.openAt(begin.startsWith('/') ? [begin, ...(parent ? [parent] : [])] : []);
+    if (open) begin();
   }, [open, machineId]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the machine coming up loads its folders, with no click.
+  useEffect(() => {
+    if (open && offline && status !== undefined && status !== 'offline') begin();
+  }, [status]);
   return (
     <Sheet
       open={open}
@@ -190,7 +208,21 @@ export function FolderBrowser(props: FolderBrowserProps) {
             <Crumbs listing={listing} browser={browser} />
           </div>
         )}
-        {error !== undefined && <Notice tone="error">{folderErrorText(error)}</Notice>}
+        {offline && machine ? (
+          <WakePanel
+            machine={machine}
+            wake={wake}
+            machinesHref={props.machinesHref}
+            runnerGone={status !== 'offline'}
+            onCheck={() => {
+              wake.check();
+              if (status !== 'offline') begin();
+            }}
+            onTypePath={props.onTypePath}
+          />
+        ) : (
+          error !== undefined && <Notice tone="error">{folderErrorText(error)}</Notice>
+        )}
         {loading && !listing ? <SkeletonRows rows={4} /> : null}
         {listing && (
           <div aria-busy={loading} className={loading ? 'opacity-60' : undefined}>

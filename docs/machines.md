@@ -677,6 +677,17 @@ contents, and nothing is deleted or renamed.
   default start. While the field is empty it suggests the agent's default home (`<home>/agents/<slug>` from the runner,
   or `/work/<slug>` for a container) with **Use suggested**. `runner_outdated` reads "Update this machine's runner on the
   Machines page to browse its folders".
+- Waking an offline machine from the agent form (2026-11-11, Ihor: "i want to prevent user from having a hard feelings
+  when he already fulfilled everything and now -> something is down"). Instead of the bare `machine_offline` refusal the
+  sheet shows one line ("Airia devbox is stopped."), **Start Airia devbox · $0.27/h** (a devbox, or a container with this
+  server's Docker; admins and owners, `POST …/power/start`), the command to run for a container without it, **Check
+  again** otherwise (a laptop wakes on its own; members and viewers cannot start), **Open Machines** (the machine's card,
+  `?machine=<id>`, in a new tab) and "or type the path". The Offline badge beside the machine select has the same small
+  Start. One wake per form (`api/machine-wake.ts`): after Start it reads `GET machines` every 5 s while the tab is
+  visible, shows "Starting… 0:42", and once the machine is online the folders (and the suggested home) load by
+  themselves; a refusal, or 5 minutes without its runner, shows the reason and **Retry**. A start someone else began
+  (the box or the container `starting`) is waited for the same way. The draft is never left or reloaded, and an agent
+  can be hired or saved on an offline machine (the placement takes any machine of the company).
 - Runners need an update for it (an older one is refused as `runner_outdated`); a Docker runner needs the rebuild that
   brings its work volume ("A runner in a Docker container").
 

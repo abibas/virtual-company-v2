@@ -161,6 +161,7 @@ export function machineCalls(api: Api, companyId: string) {
     update: (machineId: string, changes: MachineChanges) =>
       call(one.$patch({ ...param(machineId), json: changes })),
     remove: (machineId: string) => call(one.$delete(param(machineId))),
+    power: (machineId: string) => call(one.power.$get(param(machineId))),
     setPolicy: (machineId: string, policy: PowerPolicy) =>
       call(one.power.$put({ ...param(machineId), json: policy })),
     start: (machineId: string) => call(one.power.start.$post({ ...param(machineId), json: {} })),
