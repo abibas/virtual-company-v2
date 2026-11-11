@@ -38,7 +38,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
 │   │   │   │   ├── chats/          chats with an agent: turns, events, stream, terminal (built) S5.1b
 │   │   │   │   ├── speech/         dictation: POST /api/me/speech/transcribe (built) S5.2
-│   │   │   │   ├── tasks/          tasks, messages, kept conversations         S5
+│   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); conversations S5.3b
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
@@ -59,6 +59,7 @@ Most_Wanted_corp_v2/
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
 │   │                               api/ (client, org, session), org/ (commands.ts, render.ts) S2.6
+│   │                               api/tasks.ts, tasks/ (commands.ts, render.ts): mwc task, mwc flow S5.3a
 │   └── mcp/                        tools for your own Claude Code (built: me, org_chart, agents_list) S2.6
 ├── connectors/                     adapters to outside systems
 │   ├── identity-clerk/             Clerk IdentityProvider (built)              S1.2

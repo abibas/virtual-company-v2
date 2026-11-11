@@ -109,3 +109,121 @@ step state and how many artifacts it has.
 | S6 | Agents' tools: `hand_on`, `pass`, `send_back`, `sign_off`, `attach_artifact`, `ask_user`, `report_blocked`; the Lead's board tools; the Inbox |
 | Check | Ihor's DEVBOX team takes one real ticket from the Lead to the end |
 | Later | "Assembly line", an animated view of the steps with each step clickable (Ihor's reference: buildindex.dev's assembly template), built once everything above is approved and working; a Fable 5.2 subagent builds it |
+
+## Built in S5.3a (server side, 2026-11-11)
+
+The data, the rules, the API and `mwc task` / `mwc flow`. The web (flow editor, board, task page) is the next step.
+People move tasks by hand; nothing runs yet.
+
+### Tables (migration `0022_flows`)
+
+All four are tenant tables (`company_id`, `UNIQUE(company_id, id)`, composite keys to principals), audited field by
+field (`audit_log`, entity types `flow`, `flow_step`, `task`).
+
+| Table | What it holds |
+| --- | --- |
+| `flows` | `lead_principal_id` (the team's manager, a person or an agent; `UNIQUE(company_id, lead_principal_id)`: one flow per Lead), `name` (1–80), `created_by` |
+| `flow_steps` | `flow_id`, `position` (from 1, unique in the flow), `name` (1–60; unique per flow whatever the case, checked by the rules), `kind` (`work`, `check`, `signoff`), `assignee_principal_id`, `starts` (`auto`, `manual`; default `manual`, so nothing starts on entry unless asked), `on_return` (`keep`, `fresh`; default `keep`), `sends_back_to_step_id` (a step of the same table; CHECK: not on a Work step, never itself), `send_back_limit` (1–99 or null; CHECK: not on a Work step) |
+| `tasks` | `number` (per company, `UNIQUE(company_id, number)`; the key is `T-<number>`), `flow_id`, `title` (1–200), `description` (markdown, up to 50 000), `priority` (`low`, `normal`, `high`, `urgent`), `state`, `current_step_id`, `step_state`, `rounds` (jsonb: entries and send-backs by step id), `escalation_reason`, `escalation_target_step_id`, `created_by`, `closed_at`. CHECKs keep the state and its columns in step: a step only while `active` or `escalated`, a step state only while `active`, a reason only while `escalated`, `closed_at` only when `done` or `cancelled` |
+| `task_events` | the history: `kind` (`created`, `entered`, `started`, `handed_on`, `passed`, `sent_back`, `escalated`, `signed_off`, `routed`, `retried`, `done`, `cancelled`, `edited`), `actor_principal_id` (null: it happened by itself, a step that starts on entry), `from_step_id`/`from_step_name`, `to_step_id`/`to_step_name` (plain ids with the names as they were, so a removed step leaves the history readable), `round`, `reason`, `details` (an escalation's `{code, limit, sendBacks}`, an edit's `{fields}`) |
+
+`notifications.kind` gains `task_at_step`, `task_signoff`, `task_escalated` and `task_done`, and their payload names the
+task (`task`) and the step (`step`).
+
+**Steps keep their ids.** The step list is replaced as a whole (`PUT …/flows/{flowId}/steps`): an item with an `id` is
+that step, wherever it moves, so the tasks at it stay with it; an item without one is a new step; a step left out is
+removed. A removal is refused while a task is at the step or a retry would send one there (409 `step_has_tasks`, naming
+the tasks): the Lead routes them elsewhere first. Send-back targets are named by the step's name in the same list, so a
+new step can be one. Every move of a task and every change of a flow's steps takes the flow's row lock first, so a step
+is never removed while a task enters it.
+
+### The rules (`apps/server/src/modules/tasks/rules/`, pure)
+
+| Action | From | To | Who |
+| --- | --- | --- | --- |
+| `start` | active, step state `waiting`, `blocked` or `ended_without_handoff` | `working` at the same step | the step's person, the Lead's people, admins |
+| `hand_on` (Work) | active | the next step, or `done` after the last | the step's person, the Lead's people, admins |
+| `pass` (Check) | active | the next step, or `done` after the last | the step's person, the Lead's people, admins |
+| `approve` (Sign-off) | active | the next step, or `done` after the last | the step's person, the Lead's people, admins |
+| `send_back` (Check, Sign-off; a reason is required) | active | the step it names, one more round; over its limit: `escalated` to the Lead instead | the step's person, the Lead's people, admins |
+| `route` (`toStepId`) | queued, active, escalated | that step | the Lead's people, admins |
+| `retry` | escalated | the step the stopped send-back was going to (else the step it escalated from), the escalating step's send-backs back to 0 | the Lead's people, admins |
+| `cancel` | queued, active, escalated | `cancelled` | the Lead's people, admins |
+
+- **Entering a step** counts a round there (`rounds[step].entries`). A person's Sign-off waits for them
+  (`needs_person`); otherwise a step that starts `auto` is `working` at once (with a `started` row by nobody), and a
+  `manual` one is `waiting`.
+- **The limit**: with a limit of N, a step's first N send-backs go back; the next one escalates the task (state
+  `escalated`, at the step it escalated from, with the reason "Code review sent it back 3 times already, its limit;
+  this time: …" and the step a retry goes to). The send-back itself is not refused: the API answers `outcome:
+  escalated`.
+- **The Lead's people** are the Lead when it is a person, and every person above the Lead on the chart
+  (`peopleAtOrAbove` of `@mwc/shared/org-chart`). They, and the company's admins and owners, make every move and change
+  the flow, each recorded as themselves. A step's assignee, when a person, makes the step's moves. Members and up create
+  tasks (queued; straight into a step only the Lead's people and admins); a task's creator also edits it. Viewers read.
+  Agents get no moves until S6 gives them tools.
+- **The step list** is refused (422) when empty (`no_steps`), longer than 20 (`too_many_steps`), with two names alike
+  (`duplicate_step_name`), an id of no step of the flow (`unknown_step`), an assignee who is not an active person or an
+  agent not archived (`assignee_not_found`; a paused agent is fine), a Work step that sends back (`work_sends_back`), or
+  a target that is not an earlier step, or a limit without a target (`bad_send_back`).
+
+### Notifications (people only, never the one who moved it)
+
+| When | Who | Words |
+| --- | --- | --- |
+| A task enters a person's step | the assignee | T-12 “Fix the login” is at your step QA |
+| … a person's Sign-off | the assignee | T-12 “Fix the login” needs your sign-off at Approve |
+| A task is escalated | the nearest person at or above the Lead | T-12 “Fix the login” was escalated to DEVBOX Platform Coordinator from Code review |
+| A task is done | its creator and the nearest person at or above the Lead | T-12 “Fix the login” is done |
+
+They point at `tasks/T-12` in the company (the web's task page, next step).
+
+### The API (`/api/companies/{companyId}/…`)
+
+| Route | Who | Refusals |
+| --- | --- | --- |
+| `GET flows` | viewer+ | |
+| `POST flows` `{leadPrincipalId, name, steps}` | the Lead's people, admins (member+) | 403 `not_lead`, 409 `flow_exists`, 422 `lead_not_found` and the step list's |
+| `GET flows/{flowId}`, `GET leads/{lead}/flow` (the Lead's principal id or agent slug) | viewer+ | 404 `flow_not_found` |
+| `PATCH flows/{flowId}` `{name}` | the Lead's people, admins | 403 `not_lead`, 404 |
+| `PUT flows/{flowId}/steps` `{steps}` | the Lead's people, admins | 403, 404, 409 `step_has_tasks`, 422 the step list's |
+| `GET flows/{flowId}/text` | viewer+ | 404: the written form below, as `{text}` |
+| `GET flows/{flowId}/board?done=10` | viewer+ | 404 |
+| `GET tasks?flowId&state&stepId&assignee&limit&before` | viewer+ | newest first, `nextBefore` pages |
+| `POST tasks` `{flowId, title, description?, priority?, stepId?}` | member+ | 403 `not_lead` (a step), 404 `flow_not_found`, 422 `unknown_step` |
+| `GET tasks/{taskId}` (`T-12` or the id) | viewer+ | 404 `task_not_found`; with its history and the caller's `actions` |
+| `PATCH tasks/{taskId}` `{title?, description?, priority?}` | its creator, the Lead's people, admins | 403 `not_yours`, 404 |
+| `POST tasks/{taskId}/actions` `{action, toStepId?, reason?, fromStepId?}` | as the table above | 403 `not_your_step`, `not_lead`; 404; 409 `task_moved` (it left `fromStepId`), `wrong_state`, `already_at_step`; 422 `wrong_kind`, `no_send_back_target`, `reason_required`, `step_required`, `unknown_step` |
+
+Another company's flow or task is the same 404 as none. The action answers `{outcome, task}`, `outcome` one of
+`started`, `moved`, `done`, `escalated`, `cancelled`.
+
+**The board** (`GET …/board`): `{flow, columns}`, the columns Queued, then one per step in order (with the step's kind
+and assignee), then Done (the latest `done`, 10 by default, at most 50, with `total` counting all) and Escalated. Each
+card: `id`, `key`, `title`, `priority`, `round` (its entries into its step; null in Queued and Done), `stepState`,
+`assignee` (the step's, the Lead's for an escalated task), `stepId`, `updatedAt`; the most urgent first, then the oldest.
+Cancelled tasks are on no column.
+
+**The written form** comes from `flowText` of `@mwc/shared/flows`, so the web and, in S6, the agents write the same
+text. A person's step shows a dash for "comes back again" (people keep no conversation).
+
+### The CLI
+
+- `mwc flow show <lead> [--json]`: the written form. The flow is named by its Lead (an agent's slug, a principal id or
+  a name) or its own id or name.
+- `mwc task create --flow <lead> --title <title> [--step <step>] [--description <text>] [--priority <p>]`
+- `mwc task list [--flow <lead>] [--state <state>]`: a table of key, state, step, step state, round, who, priority, title.
+- `mwc task show <key>`: the task, where it stands, what you may do, its description and history.
+- `mwc task move <key> <action> [--to <step>] [--reason <text>]`: one move; a step by its name or id.
+
+Each takes `--company`, `--json` and `--server` like `mwc org tree`.
+
+### Left for S5.3b (design only, no tables yet)
+
+- **Per-step conversations:** a `task_conversations` row per task and step (the harness session, its machine), made on
+  the step's first entry; `on_return: fresh` begins a new one on the next entry and keeps the old one readable. The
+  round a conversation began with is the entry's `round`.
+- **Artifacts:** a `task_artifacts` row per artifact (task, step, round, kind `branch`, `findings`, `screenshot`,
+  `log`, `pull_request`, `document`, a link or a stored file), counted on the board's cards.
+- **Starting a run** on entering an agent's `auto` step, and the step states `blocked` and `ended_without_handoff`,
+  which only runs and S6's tools set.

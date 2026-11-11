@@ -23,6 +23,9 @@ a reconcile, a first sign-in) has no actor, so nobody is left out.
 | A removal (`DELETE /members/:id`, or the provider) | `members/service/remove.ts`, the identity store | the person (not when they left themselves) | `membership_removed` | You were removed from Acme |
 | A suspension, a reactivation (the provider) | the identity store | the person | `membership_suspended`, `membership_reactivated` | Your access to Acme is suspended / is back |
 | An invitation accepted (any of the five paths a membership starts by) | the identity store | whoever sent the invitation | `invitation_accepted` | Mia accepted your invitation and joined Acme as a member |
+| A task enters a person's step (S5.3a, `POST …/tasks/{taskId}/actions`, a task made into a step) | `tasks/service/apply.ts` | the step's assignee | `task_at_step`, or `task_signoff` at a Sign-off | T-12 “Fix the login” is at your step QA / needs your sign-off at Approve |
+| A task escalated to its Lead (a send-back over its step's limit) | `tasks/service/apply.ts` | the nearest person at or above the Lead | `task_escalated` | T-12 “Fix the login” was escalated to DEVBOX Platform Coordinator from Code review |
+| A task done | `tasks/service/apply.ts` | its creator and the nearest person at or above the Lead | `task_done` | T-12 “Fix the login” is done |
 
 An agent moved between managers tells both managers; a move of an agent under an agent, or a pause of an agent whose
 manager is an agent, tells nobody. A restore from the archive reports to the one who restored it, so nobody else hears
@@ -40,7 +43,8 @@ the provider (a webhook) is told once: the store sees the membership already in 
 Migration `0020_notifications` (generated after `main`'s `0019_agent_icons`; see "Merging" below):
 
 - `notifications` (tenant): `recipient_principal_id` (a composite key to `principals`), `kind` (`NotificationKind`),
-  `payload` jsonb (principal ids: `about`, `from`, `to`, and `role`, `previousRole`; names are read when it is shown, so
+  `payload` jsonb (principal ids: `about`, `from`, `to`, and `role`, `previousRole`; a task's notice also `task`, its
+  id, whose key and title are read when it is shown, and `step`, the step's name then (S5.3a); names are read when it is shown, so
   a renamed person reads with their new name), `actor_principal_id` (null: the system), `created_at`, `read_at`, and
   the email's state: `email_status` (`pending`, `sent`, `failed`, `skipped`), `email_queued_at` (when the jobs loop
   first saw it, by its clock), `email_next_at` (not before this after a failed try), `email_attempts`, `emailed_at`,

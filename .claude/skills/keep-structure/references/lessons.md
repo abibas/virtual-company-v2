@@ -28,6 +28,24 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-11: S5.3a's flows and tasks: the map's `tasks/` module, and an area's enums beside its contract
+
+- **What happened:** the flows and tasks went to the map's planned `apps/server/src/modules/tasks/` (S5: "tasks,
+  messages, kept conversations"), not a new `flows/` area, so no new area was needed; its map line now says what is
+  built. `packages/shared/src/enums.ts` would have passed its near-limit with seven enums (231 → 278 lines), so they
+  went to `shared/src/flows/enums.ts` beside the area's contract `flows.ts` (limits, task keys, the written form), and
+  `enums.ts` re-exports them with one `export *` (239 lines). `org-chart.ts` stays at 239 by exporting
+  `peopleAtOrAbove` on a line of its own (Biome merges exports of one source; merged it was 244). The module's
+  `rules/machine.ts` reached 252 lines and was split before commit: `rules/moves.ts` (which moves a task has, 53 lines),
+  with `TaskNow` moved to the entry `rules.ts`. Folders: `packages/shared/src/` 25 → 27 entries, `packages/db/src/schema/`
+  19 → 21 (over its 20), `packages/cli/src/` 15 → 16 (`tasks/`), `apps/server/src/modules/` 11 → 12.
+- **Where:** the flows-server commits.
+- **What was done:** as above.
+- **Suggested change:** a placement row "an area's enums that would push `enums.ts` past its near-limit →
+  `<area>/enums.ts` beside the area's contract, re-exported by `enums.ts`"; group `packages/db/src/schema/` by area at
+  the S5 review.
+- **Status:** `open`.
+
 ### 2026-11-10: Pure rules the server and the web both run, and the chart canvas's parts
 
 - **What happened:** the org chart's pure rules (`validateMove`, `validateChart`, `buildTree`, ...) had to run in the web
