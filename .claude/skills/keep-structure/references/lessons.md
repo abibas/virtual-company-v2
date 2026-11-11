@@ -28,6 +28,20 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-11: S6a's agents' tools: a contract that needs the area's limits, and the tasks service folder
+
+- **What happened:** the tools' inputs (`packages/shared/src/flows/tools.ts`) need the task limits that lived in the
+  barrel `flows.ts`, which re-exports `flows/*`: importing it back would have been a cycle (a TDZ error at load). The
+  limits moved to `flows/limits.ts`, re-exported by `flows.ts` (public paths unchanged), so `flows/tools.ts` and
+  `flows/prompt.ts` import them directly. `apps/server/src/modules/tasks/service/` went 12 → 16 entries (`decision.ts`,
+  `lead.ts`, `step-tools.ts`, `tools.ts`, all under 140 lines); the hub's `hub/turns.ts` reached 290 lines, so the tool
+  relay went to `hub/tools.ts` (86); the runner's relay went to `turns/turn/tools.ts` and `turn.ts` sits at 284 of 300.
+- **Where:** the S6a commits on the `task-tools` branch.
+- **What was done:** as above.
+- **Suggested change:** a placement line "an area's limits that its contract parts share → `<area>/limits.ts`, never the
+  barrel"; at the S6 review, group the tasks module's agent-facing services as `service/tools/` (decision, lead, step).
+- **Status:** `open`.
+
 ### 2026-11-11: S5.3b's step runs: two modules that drive each other, and a test helper for a cross-module world
 
 - **What happened:** the tasks module starts a chat turn (chats) and the chats module tells the tasks module of every

@@ -450,6 +450,26 @@ Done when the demo below passes on the Mac and then on the devbox:
 4. **Demo:** SLOP BOX placed on the Mac first (home folder with its CLAUDE.md and skills, its own `CLAUDE_CONFIG_DIR`, policy `bypass`, worktree root), then on the devbox (`mwc runner install` once over the existing IAP SSH, `systemd --user` + linger). Ihor's Claude Code sends a message through `@mwc/mcp`; SLOP BOX works, calls `ask_user`; the item appears in the inbox and in `mwc inbox watch`; he answers with `mwc inbox answer`; the run continues (live if within 90 s, otherwise as a resumed turn) and reports done; a `report_blocked` variant lands in the inbox as blocked. Recorded against the real CLI; replayed in Playwright with the fake `claude`.
 5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
+**S6a, agents move tasks themselves: built 2026-11-11 on the `task-tools` branch, not merged yet** (docs/processes.md
+"Built in S6a", docs/harness.md "Agents' tools", docs/runner-protocol.md "Chat turns"). Through the runner's MCP bridge
+(item 1's tool server, on the S5.2 socket and token), a task step's turn gets `task_read`, its kind's moves
+(`task_hand_on`; `task_pass`, `task_send_back`; `task_approve`, `task_send_back`), `task_attach` (a note, a link, or a file
+of its outputs folder, kept now) and `task_blocked`; a flow Lead's own chats get `team_board`, `task_show`, `task_create`,
+`task_route`, `task_start`, `task_retry`, `task_cancel`, which act at once as the Lead agent. A step's move is recorded
+as the turn's decision (`tasks.decision`, migration `0024_task_decisions`; a second call replaces it; past the step's
+limit it says the task will be escalated) and applied when the turn ends done, as the agent, in place of
+`ended_without_handoff`, its summary, findings or note the round's hand-off note; a failed or stopped turn drops it.
+New optional frames `turn.tool` → `turn.tool.result` (a relay; the server re-checks the turn, the step's assignee, the
+task's step, the kind, the move and, for the Lead, its own flow), `caps.agentTools`, `TurnSpec.tools`,
+`TurnArtifact.callId`. `rules/access.ts` knows agent callers (a Lead agent in its flow, a step's agent on its step
+through its decision). The step's prompt names the tools when the runner offers them (the S5.3b text otherwise), and a
+Lead's chats get a short section naming its tools. Claude Code's `--allowedTools` lists every offered tool (one
+comma-joined argument); Codex gets `MWC_TOOLS` among the MCP server's `env_vars`. Web: the recorded decision on the task
+page ("Developer will hand on to Code review"), actors' faces in the history, "reported by" on an agent's block. Also
+fixed: the step prompt named the first step as the next one (a row compared by identity). Tests with the fake runner and
+fake harness only. Merging needs the dev API restarted (the migration runs on start), the runner bundle rebuilt and
+Update runner on each machine (an old runner keeps the S5.3b behaviour: no tools, a person moves the task).
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.

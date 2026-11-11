@@ -32,7 +32,8 @@ ProcessSpec  { command, args, env /* to add or override */, unsetEnv /* to remov
                privateDir?: { env?, path: string|null, files: { name, contents, mode, option? }[] },
                turnFiles?: { name, contents, mode }[] /* written in TurnTools.dir */, notices: TurnEvent<'notice'>[] }
 TurnTools    { dir /* the turn's own folder, 0700 */, command, args /* <node> <runner.mjs> mcp */,
-               env /* MWC_ASK_SOCKET, MWC_ASK_TOKEN */ }
+               names /* the MCP tools its server offers: ask_user_question, then the agents' tools (S6a) */,
+               env /* MWC_ASK_SOCKET, MWC_ASK_TOKEN, MWC_TOOLS (the agents' tools, comma-joined, when any) */ }
 
 HarnessDriver { harness; versionArgs; turn(TurnSpec, TurnTools?): ProcessSpec; terminal(TerminalSpec): ProcessSpec;
                 parser(ParserContext?): LineParser; inputLine?(text, id): string /* a message mid-turn's stdin line */ }
@@ -158,7 +159,7 @@ turn:      claude -p --output-format stream-json --verbose --input-format stream
                   [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
                   the prompt as the first user message on stdin, which stays open
            with the runner's tools, after those:
-                  --mcp-config <dir>/mcp.json --allowedTools mcp__mwc__ask_user_question
+                  --mcp-config <dir>/mcp.json --allowedTools mcp__mwc__ask_user_question[,mcp__mwc__<agent tool>…]
                   --append-system-prompt "When the person must choose between options, ask them with the
                   ask_user_question tool, then end your turn: their answer comes as their next message."
 terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
@@ -247,7 +248,7 @@ turn, new:      codex exec --json --skip-git-repo-check -c check_for_update_on_s
 turn, resume:   codex exec resume --json --skip-git-repo-check -c check_for_update_on_startup=false [--model <m>] [-c …] <permissions> [<tools>] <threadId> -
 turn, fork:     codex exec fork … the same options … <threadId> -     (a branch's first turn, "Branching")
 tools:          -c mcp_servers.mwc.command="<node>" -c mcp_servers.mwc.args=["<runner.mjs>","mcp"]
-                -c mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]
+                -c mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"(,"MWC_TOOLS" with agents' tools, S6a)]
                 -c mcp_servers.mwc.default_tools_approval_mode="approve"     and both variables in codex's env
 terminal:       codex [resume] -c check_for_update_on_startup=false [--model <m>] [-c …] <permissions> [<threadId>]
 permissions:    bypass  --dangerously-bypass-approvals-and-sandbox
@@ -791,6 +792,57 @@ prompt. The same bridge is where S6's tool approvals will ride.
   a message". The tool's own call shows no tool row, and the turn that carried the answers shows no prompt bubble. The
   composer stays open: a message instead answers in words.
 
+## Agents' tools
+
+Built in S6a (2026-11-11; what they do for a task is docs/processes.md "Built in S6a"). The same bridge as the questions
+gives a turn the agents' tools: a task step's (`task_read`, its kind's moves, `task_attach`, `task_blocked`) or a flow
+Lead's in its own chats (`team_board`, `task_show`, `task_create`, `task_route`, `task_start`, `task_retry`,
+`task_cancel`). The names, inputs and words are `@mwc/shared/flows`'s (`AgentTool`, `AGENT_TOOL_INPUTS`,
+`AGENT_TOOL_INFO`); the token and socket model is unchanged.
+
+- **Which tools.** The server names them in the turn's spec (`TurnSpec.tools`, by name; at most 32, each once; a name a
+  runner does not know is passed over) only when the runner says `caps.agentTools`. The runner keeps the names it knows
+  (`knownTools`, `turns/ask/agent-tools.ts`) and hands them to the driver (`TurnTools.names`, `ask_user_question` first)
+  and to its MCP server through `MWC_TOOLS` (comma-joined; left out when none). A turn whose socket cannot open runs
+  with no tools, as before.
+- **The MCP server** (`runner.mjs mcp`) lists `ask_user_question` and the turn's agent tools (`tools/list`, each
+  `inputSchema` generated from its zod input by `z.toJSONSchema`, `$schema` left out; `readOnlyHint` for `task_read`,
+  `team_board`, `task_show`). A call of an offered tool is checked against its input first (a bad one is a tool error
+  "<tool> did nothing; fix its input and call it again:" with each issue), then relayed; a tool the turn does not offer
+  is -32602 "Unknown tool".
+- **The socket.** One more request line, `{token, tool, input}` (beside `{token, questions}`, which still works: an MCP
+  server an older `runner.mjs` started may talk to a runner that took its turn back after a self-update), answered by
+  the same `{ok, text}` or `{ok: false, error}`. Once the request line is in, the connection's idle limit
+  (`ASK_CONNECTION_MS`) no longer applies; the MCP server waits up to 60 s for a tool (`TOOL_TIMEOUT_MS`), 10 s for a
+  question.
+- **The relay** (`turns/turn/tools.ts`, `TurnToolCalls`). The turn reads its output so far and sends its batched events
+  first, then `turn.tool {turnId, callId, tool, input}` (`callId` a new UUID), and waits up to 55 s (`TOOL_REPLY_MS`)
+  for `turn.tool.result {turnId, callId, ok, text}`, whose text the tool returns (`ok: false` as a tool error). Not
+  numbered among the turn's events: the harness's own `tool` and `tool_result` events show the call in the thread. A
+  turn ending or stopping answers "This turn is ending; the tool did nothing."; a link that is down answers that the
+  runner lost its link (nothing queued); a call left waiting when the link drops or the runner lets go says it may or
+  may not have taken effect; one past 55 s says the server did not answer in time.
+- **`task_attach {path}`** is read on the runner, which alone sees the files: the path must be a plain path inside the
+  turn's outputs folder (`isArtifactPath`), a regular file whose real path is that one (a link is refused), at most 2 MB,
+  text or an image (`ArtifactCollector.attach`); each refusal is said in words ("not in your outputs folder", "no such
+  file", "over the 2 MB", "neither text nor an image"; a turn without an outputs folder says it has none). The file goes
+  first as `turn.artifact` parts carrying the call's id (index 0), then the call with `input.file {path, contentType,
+  size, sha256}`; the server puts it together and checks it apart from the turn's collection, names it by its path, and
+  the end-of-turn collection does not send it again unless it changes.
+- **The server** (the machines module's hub, `hub/tools.ts`): a `turn.tool` goes to the turn's sink (the chats module,
+  on the turn's write queue so a decision is written before the turn's end), which asks the tasks module's hook
+  (`TaskTurnHook.tool`, with the turn, its chat, the chat's agent, who sent the prompt and, for a task's conversation,
+  its step and round); its answer goes back as `turn.tool.result` on the connection that carries the turn then (cut to
+  50 000 characters, never empty). A turn whose sink takes no calls answers that the server offers it no tools. The hook
+  re-checks everything (docs/processes.md "Built in S6a"); the runner's checks are never trusted.
+- **The harnesses.** Claude Code's `--allowedTools` is one comma-joined argument with every tool the server offers
+  (`allowedTools`, `claude --help` 2.1.322: "Comma or space-separated list of tool names to allow"), so the `ask` policy
+  does not refuse them in print mode; a name that is not one plain lower-case word is passed over. Codex gets the same
+  MCP server with `MWC_TOOLS` among its `env_vars` and the same approval mode (`approve`), so its tool names stay off its
+  command line. The asking line in Claude Code's appended system prompt is unchanged; what the step's tools do is in
+  the step's prompt, and a Lead's section in its chats' standing instructions. Whether a real turn calls them is not
+  verified without one (no test runs a real CLI).
+
 ## Delivery while a turn runs
 
 Built in S5.2 step 6 (2026-11-10): the composer stays open while the agent works, and a message sent then reaches it
@@ -986,6 +1038,10 @@ checks and refusals, the credential's use, the standing instructions, the stream
   (`artifactContentType`), and handed to the turn's sink whole; a file that disagrees is dropped with a log line.
 - **Moving a task while its turn runs** (`POST …/tasks/{taskId}/actions`) is refused with 409 `step_running` unless
   `force`, which stops the turn after the move.
+- **Its tools** (S6a, "Agents' tools"): a message turn of a task's conversation gets its step's tools when its runner
+  offers them (`TaskTurnHook.toolsFor`) and its calls go to the hook (`TaskTurnHook.tool`); a move it records is applied
+  when the turn ends (`ended`), in place of `ended_without_handoff`. The step's prompt is written for the tools then
+  (`TaskTurnRequest.prompt.tools`; `.plain` for an older runner).
 - **A dropped link or a restart** (S5.4, "Surviving restarts"). A task's turn is a chat turn: it waits the grace for
   its runner and goes on when the runner comes back, so its task stays `working` (no false `blocked`). Only a turn that
   finally fails ends through its sink (`machine_disconnected` when the grace after a dropped link runs out,
@@ -1023,6 +1079,16 @@ checks and refusals, the credential's use, the standing instructions, the stream
   again, an old runner without the frames), the artifacts API and the board's counts; the runner's collection on a
   temporary folder and on a sized fake file system (the limits, hidden names, links, a folder outside the home), and the
   frames before `turn.end`.
+- The agents' tools (S6a) are tested the same way: the MCP server's `tools/list` per turn kind (questions only, a Work
+  step's, a Check step's, the Lead's), each tool's input checked, a tool not offered refused; the socket's tool line
+  (an asynchronous answer, the idle limit cleared, the old question line, a wrong token); a turn's relay on fake sends
+  (the answer by its call id, the timeout, ending, offline, a call left waiting); `task_attach {path}` on a temporary
+  folder (its parts before the call, a path outside the folder, `..`, a link, a missing file, over 2 MB, binary, no
+  outputs folder, not collected again); both drivers' arguments; and the server on PGlite with `FakeRunner`: the tools
+  and prompt each turn gets with and without `caps.agentTools`, each tool's validation, a wrong kind, a moved task, a
+  decision applied at the turn's end, a second one replacing the first, a send-back past the limit escalating, a block,
+  a failed and a stopped turn dropping it, attachments (a note, a link, a file, refusals), and the Lead's tools in its
+  own flow and refused in another.
 - The fake binary, `node FAKE_HARNESS_BIN`, plays a `FakeScenario` JSON file named by `FAKE_HARNESS_SCENARIO`: it reads
   stdin, writes what it got (argv, cwd, stdin, only the variables `recordEnv` names) to `record`, prints `lines` (after
   `delayMs` each), then `stderr`, waits `holdMs` and exits with `exitCode`. A runner test points `FakeHarnessDriver` at it

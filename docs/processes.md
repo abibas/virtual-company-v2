@@ -63,8 +63,8 @@ The last step's approval, or its pass, moves the task to Done.
 - **It is told** when a task finishes, is sent back, gets blocked or escalated, or a turn ends without a hand-off.
 - **It answers** the team's questions and brings to a person only what needs one.
 
-Until S6 gives agents their tools, people do these moves on the board, and the Lead is told only through its nearest
-person's notifications (S5.3b: an agent Lead sees nothing automatically yet).
+Since S6a an agent Lead does these moves with its board tools in its own chats ("Built in S6a"); people still do them on
+the board. It is told only through its nearest person's notifications for now (it reads the board when it is asked).
 
 ## Artifacts
 
@@ -75,8 +75,8 @@ Each artifact is kept with its task, step and round, and shown on the task:
 - a pull request link;
 - a plan document.
 
-Agents add them with a tool (S6) or by writing them into the task's folder, which the runner collects when the step's
-turn ends (S5.3b, built: "Built in S5.3b" below).
+Agents add them with a tool (`task_attach`, S6a: "Built in S6a" below) or by writing them into the task's folder, which
+the runner collects when the step's turn ends (S5.3b, built: "Built in S5.3b" below).
 
 ## How a flow is written and drawn
 
@@ -107,7 +107,7 @@ step state and how many artifacts it has.
 | S5.3a | Flows and tasks: the data, the rules, the API, the flow editor, the team's board, the task page, `mwc task`; people move tasks by hand |
 | S5.3b | Steps run: entering a step starts its assignee's run, one conversation per task and step (Keep or Fresh), artifacts collected |
 | S5.4 | Runs survive a runner or server restart (journal, re-attach, Stop) |
-| S6 | Agents' tools: `hand_on`, `pass`, `send_back`, `sign_off`, `attach_artifact`, `ask_user`, `report_blocked`; the Lead's board tools; the Inbox |
+| S6 | Agents' tools (S6a, built: the step's moves as `task_hand_on`, `task_pass`, `task_approve`, `task_send_back`, and `task_read`, `task_attach`, `task_blocked`; the Lead's board tools); `ask_user` was built in S5.2; the Inbox |
 | Check | Ihor's DEVBOX team takes one real ticket from the Lead to the end |
 | Later | "Assembly line", an animated view of the steps with each step clickable (Ihor's reference: buildindex.dev's assembly template), built once everything above is approved and working; a Fable 5.2 subagent builds it |
 
@@ -162,7 +162,7 @@ is never removed while a task enters it.
   (`peopleAtOrAbove` of `@mwc/shared/org-chart`). They, and the company's admins and owners, make every move and change
   the flow, each recorded as themselves. A step's assignee, when a person, makes the step's moves. Members and up create
   tasks (queued; straight into a step only the Lead's people and admins); a task's creator also edits it. Viewers read.
-  Agents get no moves until S6 gives them tools.
+  Agents get no moves through the API: since S6a they act only through their tools ("Built in S6a").
 - **The step list** is refused (422) when empty (`no_steps`), longer than 20 (`too_many_steps`), with two names alike
   (`duplicate_step_name`), an id of no step of the flow (`unknown_step`), an assignee who is not an active person or an
   agent not archived (`assignee_not_found`; a paused agent is fine), a Work step that sends back (`work_sends_back`), or
@@ -326,6 +326,8 @@ roadmap's S5.3b entry.
 
 ### Turn end, before S6's tools
 
+(S6a: a turn that recorded a decision with the step's tools has it applied here instead; "Built in S6a" below.)
+
 Every message turn of a task's conversation (the step's own, and a person's reply in it) reports to the tasks module
 (`taskTurnHook`, `service/hook.ts`, the chats module's `TaskTurnHook` port, wired in `app.ts`):
 
@@ -383,7 +385,7 @@ cards add `artifacts`. The CLI: `mwc task show <key>` lists the conversations (c
 ### The Lead today
 
 Notifications to people only. An agent Lead sees nothing automatically yet: no board, no notice, no conversation of its
-own about the team's tasks; S6 gives agent Leads their board tools.
+own about the team's tasks; S6a gives agent Leads their board tools in their own chats ("Built in S6a").
 
 ### Web
 
@@ -414,3 +416,120 @@ views, sizes; `TaskArtifacts`, `ArtifactRow`, `ArtifactThumb`, `ArtifactViewer`,
 screenshots, a Markdown file, a diff, two skipped files), `T-18` (a running turn; its moves are refused with
 `step_running` to show the forced move), `T-17` (ended without a hand-off), `T-15` (blocked); samples in
 `pages/design/flows/conversation-sample.ts`, `artifact-sample.ts` and `SampleThread.tsx`.
+
+## Built in S6a (2026-11-11)
+
+Agents move tasks themselves: a step's agent records its step's move with a tool during its turn, applied when the turn
+ends; a flow's Lead agent distributes the work with board tools in its own chats. The tools ride the runner's MCP bridge
+(docs/harness.md "Agents' tools"): the runner only relays each call (`turn.tool`, answered by `turn.tool.result`,
+docs/runner-protocol.md "Chat turns"), and the server checks everything again.
+
+### The tools
+
+`AgentTool`, `AGENT_TOOL_INPUTS` and `AGENT_TOOL_INFO` of `@mwc/shared/flows` (`flows/tools.ts`) name them, check their
+inputs and describe them; the runner's `tools/list` is generated from them.
+
+| Who, where | Tool | Input | What it does |
+| --- | --- | --- | --- |
+| A step's turn, every kind | `task_read` | — | the task (key, title, description), its flow's written form, the step, the round, the hand-off and the artifacts (the step's full prompt), then where the task is now and the move recorded so far |
+| Work | `task_hand_on` | `{summary}` | records "hand on" |
+| Check | `task_pass` | `{findings?}` | records "pass" |
+| Check, Sign-off | `task_send_back` | `{reason, findings}` | records "send back" (past the step's limit: escalated to the Lead) |
+| Sign-off | `task_approve` | `{note?}` | records "approve" |
+| A step's turn, every kind | `task_attach` | `{name, text}`, `{path}` or `{name, url}` | keeps a note, a file of the turn's outputs folder (named by its path) or a link with the task now, in the step's round, as the step's agent |
+| A step's turn, every kind | `task_blocked` | `{reason}` | records "blocked" |
+| A Lead's own chats | `team_board` | — | the board in words: Queued, each step (kind, assignee), Done (the latest 10 of all), Escalated, each card's state, round and priority |
+| | `task_show` | `{key}` | one task of its flow: where it is, who has it, a block or escalation, the recorded decision, its description (4 000 characters), its latest 15 history rows |
+| | `task_create` | `{title, description?, priority?, step?}` | a task of its flow, queued or into a step (by name, any case), which runs at once when the step starts by itself |
+| | `task_route`, `task_start`, `task_retry`, `task_cancel` | `{key, step}`, `{key}`, `{key}`, `{key, reason}` | the S5.3a moves, at once |
+
+A turn gets the tools only when its runner offers them (`caps.agentTools`): a task step's turn its kind's
+(`stepTools(kind)`), a chat of the agent that leads a flow (`flows.lead_principal_id`) the Lead's, any other turn none.
+The spec names them (`TurnSpec.tools`); a Compact or a Clear gets none.
+
+### A step's decision
+
+- **Recorded during the turn, applied when it ends.** A move tool (`task_hand_on`, `task_pass`, `task_approve`,
+  `task_send_back`, `task_blocked`) writes the turn's decision on the task (`tasks.decision`, migration
+  `0024_task_decisions`: jsonb, only while `active`, CHECK `tasks_decision_check`; `TaskDecision` of `@mwc/shared/flows`:
+  the turn, conversation, step, round, action, reason, note, agent, when, and what it makes as found then) and answers
+  what will happen: "Recorded: when your turn ends the task goes to "Code review". End your turn now." (or "goes back to
+  "Develop" for round 2", "is done", "is marked blocked: …"). Audited as the agent (`decide`).
+- **One decision per turn.** A second call replaces the first; the answer starts "This replaces your earlier decision
+  (pass).". A decision of another turn on the task is stale and replaced silently.
+- **The limit.** A send-back past the step's limit is still recorded; the answer says it will be escalated: ""Code review"
+  has sent this task back 3 times already, its limit, so when your turn ends it is escalated to the team's Lead (DEVBOX
+  Coordinator) instead of going back to "Develop".", as the S5.3a rules do.
+- **At the turn's end** (the hook's `ended`): a turn that ended **done** with a decision has it applied as the step's
+  agent, under the flow's and the task's locks, in place of `ended_without_handoff`: the move (`handed_on`, `passed`,
+  `signed_off`, `sent_back` or `escalated` with the agent as actor; a next step that starts by itself runs next, its turn
+  started as the agent), or `blocked` with the reason (a `blocked` row by the agent; the Lead's nearest person told). The
+  decision's words become the round's hand-off note in place of the last reply: the summary, the findings or the note, a
+  send-back's as "**Sent back:** <reason>" and its findings; a pass or approval without words, and a block, keep the
+  reply. A move the task no longer allows by then (its flow changed) leaves it `ended_without_handoff`, saying why.
+- **Dropped:** a turn that **failed** blocks the task as before, a turn that was **stopped** leaves it
+  `ended_without_handoff` as before, and both drop the decision (a Stop is a person taking over); so does another turn of
+  the step's conversations still running, and any move or step change of the task (`applyMove`, `applyStepChange` clear it).
+
+**Server re-checks** for every step tool (`stepToolRefusal`, `rules/decision.ts`): the turn is a message turn of the
+task's conversation at the step (the sink's task context, never the runner's word), the step still exists and its
+assignee is the turn's agent (403 `not_your_step` in words), the task is still active at that step (`task_moved`: "The
+task is no longer at your step: nothing was recorded."), and the tool is one of the step's kind (`wrong_kind`: "task_pass
+is not a move of "Develop", a work step: use task_hand_on."); then the move must be one the task allows now (the machine's
+own refusals, e.g. `no_send_back_target`). `task_read` works while the task has moved on (it says where it is).
+
+### The Lead's tools
+
+They apply at once, as the S5.3a actions (`actOnTask`, `createTask`), acting as the Lead agent: the history and audit rows
+name it (`actor_kind` `agent`), and a step that starts by itself runs with its turn started as the Lead. Only its own flow:
+a task of another flow answers "No task T-9 in your flow "DEVBOX delivery"." and nothing of it moves. A move while the
+task's turn runs is refused (`step_running`, in words), never forced. Its chats' standing instructions get a short section
+after its own (`leadSection`):
+
+```
+## Leading your team (from Most Wanted)
+
+You lead the flow "DEVBOX delivery". Your tools act at once, as you: team_board, task_show {key}, task_create {title,
+description?, priority?, step?}, task_route {key, step}, task_start {key}, task_retry {key} and task_cancel {key,
+reason}. Each step's agent moves its own task when its turn ends; you distribute the work, unblock it, and decide on
+escalations.
+```
+
+(`STANDING_INSTRUCTIONS_MAX` grew by `STANDING_SECTION_MAX`, 2 000; a section that would not fit is left out.)
+
+### Who may (`rules/access.ts`)
+
+The caller may be an agent (`Caller.agent`: `lead` or `decision`; its role is `member` only so no role check gives it
+more). A Lead agent (`agent: 'lead'` and the flow's `lead_principal_id`) creates tasks in its own flow, puts them into a
+step (`intoStepRefusal`) and routes, starts, retries and cancels there; a step's agent (`agent: 'decision'`) makes its
+step's moves (`hand_on`, `pass`, `approve`, `send_back`) on its own step only, through its turn's decision. Agents never
+lead (`leads` is false), change a flow or edit a task. People keep all their rights.
+
+### The step's prompt
+
+`stepPrompt` takes `tools` (the runner offers them): the step's ask names the move ("Then call task_hand_on with your
+hand-off for "Code review" … and end your turn."; Check: "call task_pass (with your findings, if any) or task_send_back
+{reason, findings: …}"; Sign-off: "Call task_approve (with a note, if any) or task_send_back {reason, findings}"), and
+"Nobody moves the task for you yet: …" gives way to:
+
+> Your move is recorded when you call it and applied when your turn ends; calling another one replaces it. task_read
+> shows the task, task_attach {name, text | path | url} keeps a note, a file of your outputs folder or a link with the task
+> now, and task_blocked {reason} says you cannot go on. Without a move, a person reads your reply and moves the task.
+
+The tasks module writes both variants and the chats module picks by the agent's runner (`TaskTurnRequest.prompt.plain` and
+`.tools`), so an older runner keeps the S5.3b text.
+
+### Web
+
+- The task page shows the recorded decision while the turn runs, as a notice with the agent's face: "Developer will hand
+  on to Code review" (or "… will send it back over the limit: it goes to the Lead", "… will mark it blocked"), "When its
+  turn ends.", and a send-back's or a block's reason (`decision` in the task's detail: action, outcome, the step it goes
+  to, reason, by, at; `features/flows/task/TaskDecision.tsx`).
+- The history shows each actor's face, an agent's icon when an agent moved the task (`TaskHistory`'s `nodes`).
+- A block an agent reported says so: "Blocked at Develop · reported by Developer", with its reason.
+
+### What is not built
+
+The Lead hears nothing by itself yet (no notice to an agent, no turn started for it); it reads the board when it is
+asked in its chat. A person's reply in a task conversation gets the step's tools too, and a decision it records counts
+the same way. Approving a tool mid-turn (the permission round trip) and the Inbox are the rest of S6.
