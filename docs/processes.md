@@ -268,8 +268,8 @@ Per-step conversations, artifacts, a run started on entering an agent's step, an
 ## Built in S5.3b (2026-11-11)
 
 Steps run: a step whose assignee is an agent runs a real turn of that agent, in a conversation of the task at that step,
-and what it leaves is kept with the task. Server and runner only; the web's views of the conversations and the artifacts
-are a later step (below, "For the web step").
+and what it leaves is kept with the task. Server and runner first, then the web's views of the conversations and the
+artifacts ("Web" below).
 
 ### A step's work is a chat
 
@@ -377,9 +377,32 @@ cards add `artifacts`. The CLI: `mwc task show <key>` lists the conversations (c
 Notifications to people only. An agent Lead sees nothing automatically yet: no board, no notice, no conversation of its
 own about the team's tasks; S6 gives agent Leads their board tools.
 
-### For the web step
+### Web
 
-The task page lists `conversations` (open each with the chat views by `chatId`, its stream and "Open in Claude Code")
-and the artifacts (`GET …/artifacts`, downloads by `…/content`; images can show inline from a blob, text as Markdown or
-plain), shows `blockedReason` and the new history kinds (`blocked`, `turn_ended`; the history words are in already),
-offers Force on a move refused with `step_running`, and the board's cards can show their `artifacts` count.
+The task page (`/:slug/tasks/T-12`) and the board show the runs. The views still take their data as props (`TaskRuns`,
+`features/flows/task/runs.ts`: the artifacts, their bytes, the open conversation's thread), so the gallery draws them on
+samples.
+
+| Where | What it shows |
+| --- | --- |
+| Task page, left | **Blocked at <step>** with `blockedReason` (an error notice under the escalation). The moves, and under them on `ended_without_handoff` one line: "Turn ended. Read the reply, then hand on (pass or send back; approve or send back), or reply in the conversation." A move (or Cancel) refused with `step_running` offers "Stop the turn and move" behind an in-place confirm, resent with `force: true`; "Leave it" drops it |
+| Task page, **Conversations** | One chip per conversation in the flow's order: the agent's face, the step, its rounds (a Keep conversation spans "Rounds 1–2" up to the step's next conversation or its entries so far; Fresh has one per round), its state (Running with a pulsing dot, Queued, Ended, Stopped, Failed, Not started) and its last activity. The current step's latest opens first, else the latest of all. The open one's thread is inline under the chips in a frame at most 40rem high: the chat views' thread (stream, tool calls, subagents, to-dos, copy, answers to questions), the composer (admins and owners; a reply continues the conversation and the server sets the task back to `working`), Stop and the waiting messages, "Open as chat" (the agent's chat page with `?chat=<id>`) and "Open in Claude Code". A turn's end reads the task again (its state, its artifacts). Nothing shows before the first conversation |
+| Task page, right, **Artifacts** | By step in the flow's order, then by round, the latest first. Each round's **hand-off note** is highlighted at its top (its first lines; a click renders it). Images as thumbnails (two a row), full size in the viewer; text and Markdown in a viewer sheet (Markdown rendered, other text monospace) with Download; other files as rows (icon by kind, path, size, time, Download); skipped files faint and struck through with their reason ("neither text nor an image"); a link (S6) opens its address. Bytes come through the bearer client (`api/task-artifacts.ts`) into one object URL per artifact version, shared by thumbnail and viewer; Download saves the same blob (`…/content`). Nothing shows before the first |
+| Board card | A files icon with the artifacts count beside the time; Working with a pulsing dot while a turn runs; a blocked pill's tooltip is `blockedReason` |
+
+The page reads the task again every 30 seconds while visible, like the board.
+
+**Server changes for the web** (small, tested in `test/modules/tasks/service/runs.test.ts`): each conversation in the
+task's detail has `lastTurn: {status, at} | null` (the running turn's status while one runs, else the latest's; the latest
+start or end; Clears left out), and the board's cards carry `blockedReason`.
+
+**Not built:** a "Task conversations" list on the agent's page: the agent's chat list leaves task conversations out
+and no route lists one agent's task chats, so it waits for an API that gives it cheaply.
+
+The parts: `features/flows/conversations/` (`model.ts` pure: states, round spans, order, the first open; `TaskConversations`,
+`ConversationList`, `ThreadFrame`, `TaskThread` (live), `LiveDot`), `features/flows/artifacts/` (`groups.ts` pure: groups,
+views, sizes; `TaskArtifacts`, `ArtifactRow`, `ArtifactThumb`, `ArtifactViewer`, `HandOffNote`), `features/flows/task/ForceMove.tsx`,
+`api/task-artifacts.ts`. The gallery (`/design/flows`): `?task=T-12` (three conversations, notes in every round, two
+screenshots, a Markdown file, a diff, two skipped files), `T-18` (a running turn; its moves are refused with
+`step_running` to show the forced move), `T-17` (ended without a hand-off), `T-15` (blocked); samples in
+`pages/design/flows/conversation-sample.ts`, `artifact-sample.ts` and `SampleThread.tsx`.

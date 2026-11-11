@@ -93,6 +93,9 @@ type CardSpec = readonly [
   minutes: number,
 ];
 
+/** Why the sample's blocked task is blocked (its card's tooltip, its page's notice). */
+export const BLOCKED_REASON = "The agent's machine has no connected runner";
+
 const card = (
   [n, title, priority, state, round, minutes]: CardSpec,
   holder: string | null,
@@ -105,6 +108,7 @@ const card = (
     priority,
     round,
     stepState: state,
+    blockedReason: state === 'blocked' ? BLOCKED_REASON : null,
     assignee: holder ? ref(holder) : null,
     stepId: step,
     artifacts: round === null ? 0 : round + 1,

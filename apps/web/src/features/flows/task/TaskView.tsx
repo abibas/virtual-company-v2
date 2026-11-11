@@ -10,10 +10,13 @@ import { Badge } from '../../../components/ui/Badge.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
 import { Notice } from '../../../components/ui/Notice.tsx';
 import { leadsTeam, myPrincipal, type Viewer } from '../access.ts';
+import { TaskArtifacts } from '../artifacts/TaskArtifacts.tsx';
+import { TaskConversations } from '../conversations/TaskConversations.tsx';
 import { drawnSteps, FlowDrawing } from '../drawing/FlowDrawing.tsx';
 import { type FlowLinks, leadAddress } from '../links.ts';
 import { flowCrumbs } from '../team/TeamHeader.tsx';
 import { stepStateLook, TASK_STATE } from '../words.ts';
+import type { TaskRuns } from './runs.ts';
 import { TaskActions } from './TaskActions.tsx';
 import { TaskDescription } from './TaskDescription.tsx';
 import { TaskFacts } from './TaskFacts.tsx';
@@ -27,6 +30,8 @@ export interface TaskViewProps {
   readonly viewer: Viewer;
   readonly links: FlowLinks;
   readonly calls: FlowCalls;
+  /** Its steps' conversations' threads and its artifacts (S5.3b). */
+  readonly runs: TaskRuns;
   /** The task moved or changed: read it again. */
   readonly onChanged: () => void;
 }
@@ -90,13 +95,24 @@ function Escalation({ task }: { readonly task: TaskDetail }) {
   );
 }
 
+/** Why the task is blocked at its step: its turn could not start, or failed (S5.3b). */
+function Blocked({ task }: { readonly task: TaskDetail }) {
+  if (task.stepState !== 'blocked' || !task.blockedReason) return null;
+  return (
+    <Notice tone="error" title={`Blocked at ${task.step?.name ?? 'its step'}`}>
+      {task.blockedReason}
+    </Notice>
+  );
+}
+
 /**
- * A task's page (`/:slug/tasks/T-12`): the path, its title and where it stands; its moves (the caller's own), its
- * flow drawn with its step ringed and its rounds under each step, its description; beside them its facts and its
+ * A task's page (`/:slug/tasks/T-12`): the path, its title and where it stands; why it is escalated or blocked; its
+ * moves (the caller's own), its flow drawn with its step ringed and its rounds under each step, its steps'
+ * conversations with the open one's thread inline, its description; beside them its facts, its artifacts and its
  * history. The company's route and the design gallery both render it.
  */
 export function TaskView(props: TaskViewProps) {
-  const { task, flow, chart, viewer, links, calls, onChanged } = props;
+  const { task, flow, chart, viewer, links, calls, runs, onChanged } = props;
   const nodes = useMemo(() => nodesById(chart.nodes), [chart]);
   const leads = leadsTeam(viewer, task.flow.lead.principalId);
   const editable =
@@ -113,6 +129,7 @@ export function TaskView(props: TaskViewProps) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex min-w-0 flex-col gap-4">
           <Escalation task={task} />
+          <Blocked task={task} />
           {task.actions.length > 0 && (
             <Card padding="sm">
               <TaskActions task={task} flow={flow} calls={calls} onMoved={onChanged} />
@@ -123,6 +140,7 @@ export function TaskView(props: TaskViewProps) {
               <FlowDrawing steps={drawnSteps(flow)} nodes={nodes} here={here} notes={roundNotes(task)} />
             </Card>
           )}
+          <TaskConversations task={task} flow={flow} nodes={nodes} thread={runs.thread} />
           <Part title="Description">
             <TaskDescription
               value={task.description}
@@ -141,6 +159,7 @@ export function TaskView(props: TaskViewProps) {
               onPriority={(priority) => calls.editTask(task.key, { priority }).then(onChanged)}
             />
           </Card>
+          <TaskArtifacts task={task} flow={flow} runs={runs} />
           <Part title="History">
             <TaskHistory history={task.history} />
           </Part>

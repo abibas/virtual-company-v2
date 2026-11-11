@@ -11,11 +11,12 @@ import {
   Stamp,
 } from 'lucide-react';
 import { useState } from 'react';
-import { friendlyMessage } from '../../../api/errors.ts';
+import { friendlyMessage, isApiError } from '../../../api/errors.ts';
 import type { Flow, FlowCalls, TaskDetail, TaskMove } from '../../../api/flows.ts';
 import { ConfirmInline } from '../../../components/forms/ConfirmInline.tsx';
 import { Select, Textarea } from '../../../components/forms/Input.tsx';
 import { Button, type ButtonTone } from '../../../components/ui/Button.tsx';
+import { ForceMove, TurnEnded } from './ForceMove.tsx';
 
 /** The buttons of the moves that need nothing more than a press. */
 const PLAIN: Readonly<Partial<Record<TaskAction, { label: string; icon: LucideIcon; tone: ButtonTone }>>> = {
@@ -100,26 +101,46 @@ function MovePanel({
 
 type Panel = 'send_back' | 'route';
 
-/** A move being sent: which one is busy, the open panel, the refusal, and the send (with the step it was seen at). */
+type Sent = Omit<TaskMove, 'fromStepId'>;
+
+/**
+ * A move being sent: which one is busy, the open panel, the refusal, the move refused while the step's turn runs
+ * (`stuck`, offered again with force), and the send (with the step it was seen at).
+ */
 function useTaskMove(task: TaskDetail, calls: FlowCalls, onMoved: () => void) {
   const [busy, setBusy] = useState<TaskAction>();
   const [panel, setPanel] = useState<Panel>();
   const [error, setError] = useState<string>();
-  const act = async (move: Omit<TaskMove, 'fromStepId'>) => {
+  const [stuck, setStuck] = useState<Sent>();
+  const refused = (move: Sent, failure: unknown) => {
+    if (isApiError(failure, 'step_running')) setStuck(move);
+    else setError(friendlyMessage(failure));
+  };
+  const act = async (move: Sent) => {
     setBusy(move.action);
     setError(undefined);
+    setStuck(undefined);
     try {
       await calls.act(task.key, { ...move, fromStepId: task.step?.id ?? null });
       setPanel(undefined);
       onMoved();
     } catch (failure) {
-      setError(friendlyMessage(failure));
+      refused(move, failure);
     } finally {
       setBusy(undefined);
     }
   };
+  /** Cancel, asked first in place: a refusal while the turn runs offers the forced move too. */
+  const cancel = () =>
+    calls
+      .act(task.key, { action: 'cancel', fromStepId: task.step?.id ?? null })
+      .then(onMoved)
+      .catch((failure: unknown) => {
+        if (!isApiError(failure, 'step_running')) throw failure;
+        setStuck({ action: 'cancel' });
+      });
   const toggle = (next: Panel) => setPanel((open) => (open === next ? undefined : next));
-  return { busy, panel, setPanel, error, act, toggle };
+  return { busy, panel, setPanel, error, act, cancel, toggle, stuck, setStuck };
 }
 
 type Move = ReturnType<typeof useTaskMove>;
@@ -155,10 +176,51 @@ function PlainButtons({
   });
 }
 
+/** The row of buttons: the one-press moves, Send back…, Route to step… and Cancel (asked first). */
+function MoveButtons({
+  task,
+  flow,
+  move,
+}: {
+  readonly task: TaskDetail;
+  readonly flow: Flow | null | undefined;
+  readonly move: Move;
+}) {
+  const has = (action: TaskAction) => task.actions.includes(action);
+  const idle = move.busy === undefined;
+  return (
+    <div className="flex flex-wrap items-start gap-2">
+      <PlainButtons task={task} flow={flow} move={move} />
+      {has('send_back') && (
+        <Button size="sm" icon={CornerUpLeft} disabled={!idle} onClick={() => move.toggle('send_back')}>
+          Send back…
+        </Button>
+      )}
+      {has('route') && (
+        <Button size="sm" tone="quiet" icon={Route} disabled={!idle} onClick={() => move.toggle('route')}>
+          Route to step…
+        </Button>
+      )}
+      {has('cancel') && (
+        <div className="ml-auto">
+          <ConfirmInline
+            label="Cancel task"
+            question={`Cancel ${task.key}? It leaves the board.`}
+            confirmLabel="Cancel task"
+            onConfirm={move.cancel}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * The moves the caller may make on the task now (the API's `actions`): Start, the step's outcome (Hand on, Pass or
  * Approve, with where it goes), Send back (a reason is required), Route to a step, Retry, and Cancel (asked first).
  * Each is sent with the step the page shows the task at, so a task that moved meanwhile is refused, not moved twice.
+ * A move refused while the step's turn runs offers "Stop the turn and move" (S5.3b); a turn that ended without a
+ * hand-off says what to do next.
  */
 export function TaskActions({
   task,
@@ -172,44 +234,27 @@ export function TaskActions({
   readonly onMoved: () => void;
 }) {
   const move = useTaskMove(task, calls, onMoved);
-  const has = (action: TaskAction) => task.actions.includes(action);
-  const idle = move.busy === undefined;
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-start gap-2">
-        <PlainButtons task={task} flow={flow} move={move} />
-        {has('send_back') && (
-          <Button size="sm" icon={CornerUpLeft} disabled={!idle} onClick={() => move.toggle('send_back')}>
-            Send back…
-          </Button>
-        )}
-        {has('route') && (
-          <Button size="sm" tone="quiet" icon={Route} disabled={!idle} onClick={() => move.toggle('route')}>
-            Route to step…
-          </Button>
-        )}
-        {has('cancel') && (
-          <div className="ml-auto">
-            <ConfirmInline
-              label="Cancel task"
-              question={`Cancel ${task.key}? It leaves the board.`}
-              confirmLabel="Cancel task"
-              onConfirm={() =>
-                calls.act(task.key, { action: 'cancel', fromStepId: task.step?.id ?? null }).then(onMoved)
-              }
-            />
-          </div>
-        )}
-      </div>
+      <MoveButtons task={task} flow={flow} move={move} />
       {move.panel && (
         <MovePanel
           key={move.panel}
           kind={move.panel}
           task={task}
           flow={flow}
-          busy={!idle}
+          busy={move.busy !== undefined}
           onSend={(next) => void move.act(next)}
           onClose={() => move.setPanel(undefined)}
+        />
+      )}
+      {move.stuck && (
+        <ForceMove
+          task={task}
+          move={move.stuck}
+          calls={calls}
+          onMoved={onMoved}
+          onDismiss={() => move.setStuck(undefined)}
         />
       )}
       {move.error && (
@@ -217,6 +262,7 @@ export function TaskActions({
           {move.error}
         </p>
       )}
+      <TurnEnded task={task} />
     </div>
   );
 }

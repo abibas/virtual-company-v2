@@ -405,6 +405,16 @@ runner, the API's roles and other companies' 404s), the runner's collection on a
 prompt per kind and round, the CLI. Merging needs the dev API restarted (its migration runs on start) and the runner
 bundle rebuilt, then Update runner on each machine (an old runner still runs steps, without collecting files).
 
+**S5.3b web: built 2026-11-11 on the `steps-web` branch, not merged yet** (docs/processes.md "Built in S5.3b", "Web").
+The task page lists its conversations as chips (step, rounds, agent, Running/Ended/Failed, last activity) with the open
+one's live thread inline (the chat views' thread, the composer whose reply sets the task working again, Stop, "Open as
+chat", "Open in Claude Code"; the current step's latest first), its artifacts by step and round (hand-off notes
+highlighted, image thumbnails and full size, a Markdown/text viewer, skipped files with why, Download through the bearer
+client), "Blocked at …" with its reason, the turn-ended line, and "Stop the turn and move" (confirmed, `force: true`) on
+a `step_running` refusal. Board cards: the artifacts count and a pulsing Working; a blocked pill's reason as its tooltip.
+Server: `lastTurn` on the detail's conversations, `blockedReason` on board cards (tested). The agent page's task
+conversations wait for an API. Gallery samples for all of it; no frontend tests (typechecked).
+
 ### S6 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
 Done when the demo below passes on the Mac and then on the devbox:

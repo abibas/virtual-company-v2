@@ -1,11 +1,14 @@
 import type { TaskAction, TaskEventKind, TaskState } from '@mwc/shared/enums';
 import type { BoardColumn, Flow, TaskDetail, TaskEvent } from '../../../api/flows.ts';
+import { sampleArtifacts } from './artifact-sample.ts';
+import { sampleConversations } from './conversation-sample.ts';
 import { ago, DESIGN, DEVBOX, ref, sampleBoard } from './flow-sample.ts';
 
 /**
  * The gallery's tasks, as `GET /tasks/:key` would answer them for the owner: T-12 waiting for Ihor's sign-off after a
- * send-back in Code review, T-14 escalated over Code review's limit, and every other card of the sample boards with a
- * short history of its own.
+ * send-back in Code review (with its steps' conversations and artifacts), T-14 escalated over Code review's limit,
+ * T-18 working (its turn running), T-17 ended without a hand-off, T-15 blocked, and every other card of the sample
+ * boards with a short history of its own.
  */
 
 const DESCRIPTION = `Safari drops the session cookie after the redirect from the sign-in page, so the person lands on
@@ -135,7 +138,7 @@ export function sampleTask(key: string): TaskDetail | undefined {
       state,
       step: step ? { id: step.id, name: step.name, kind: step.kind } : null,
       stepState: card.stepState,
-      blockedReason: card.stepState === 'blocked' ? "The agent's machine has no connected runner" : null,
+      blockedReason: card.blockedReason,
       round: card.round,
       assignee: card.assignee,
       createdBy: ref(specs[0]?.[1] ?? 'p-1'),
@@ -156,8 +159,8 @@ export function sampleTask(key: string): TaskDetail | undefined {
           : null,
       history: historyOf(flow, specs),
       actions: actionsOf(state, { ...column, cards: [card] }),
-      conversations: [],
-      artifacts: card.artifacts,
+      conversations: sampleConversations(key),
+      artifacts: sampleArtifacts(key).filter((a) => a.kind !== 'skipped').length,
     };
   }
   return undefined;

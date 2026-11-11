@@ -15,7 +15,9 @@ import { TeamView } from '../../../features/flows/team/TeamView.tsx';
 import { MockShell } from '../MockShell.tsx';
 import { SAMPLE_CHART } from '../org-sample.ts';
 import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from '../records.ts';
+import { sampleArtifacts, sampleBytes } from './artifact-sample.ts';
 import { SAMPLE_FLOW_LIST, SAMPLE_FLOWS, sampleBoard, sampleText } from './flow-sample.ts';
+import { sampleThread } from './SampleThread.tsx';
 import { sampleFlowOf, sampleTask } from './task-sample.ts';
 
 const HERE = '/design/flows';
@@ -64,10 +66,22 @@ function Team({ address, search }: { readonly address: string; readonly search: 
   );
 }
 
+/** A move on a task whose turn runs (T-18): refused with `step_running` until it is forced, as the server does. */
+const RUNNING = new ApiError(
+  409,
+  'step_running',
+  "The step's turn is running: stop it first, or move with force",
+);
+
 /** A task's page on the samples. */
 function Task({ taskKey }: { readonly taskKey: string }) {
   const [api] = useState(sampleApi);
-  const calls = useMemo(() => flowCalls(api, SAMPLE_COMPANY.id), [api]);
+  const calls = useMemo(() => {
+    const real = flowCalls(api, SAMPLE_COMPANY.id);
+    const act: typeof real.act = (key, move) =>
+      key === 'T-18' && !move.force ? Promise.reject(RUNNING) : real.act(key, move);
+    return { ...real, act };
+  }, [api]);
   const task = sampleTask(taskKey);
   if (!task) return <ErrorBlock error={new ApiError(404, 'task_not_found', 'No such task')} />;
   return (
@@ -78,6 +92,7 @@ function Task({ taskKey }: { readonly taskKey: string }) {
       viewer={SAMPLE_VIEWER}
       links={FLOW_LINKS}
       calls={calls}
+      runs={{ artifacts: loaded(sampleArtifacts(taskKey)), bytes: sampleBytes, thread: sampleThread }}
       onChanged={none}
     />
   );
@@ -85,7 +100,8 @@ function Task({ taskKey }: { readonly taskKey: string }) {
 
 /**
  * `/design/flows`: the Flows page; a team's board (`?team=vega`), its flow (`&tab=flow`) and the editor (`&edit=1`);
- * a manager without a flow (`?team=p-1&tab=flow`: the editor that makes one); a task (`?task=T-12`, `T-14` escalated),
+ * a manager without a flow (`?team=p-1&tab=flow`: the editor that makes one); a task (`?task=T-12` with its
+ * conversations and artifacts, `T-14` escalated, `T-18` running, `T-17` ended without a hand-off, `T-15` blocked),
  * on sample records and an API client that refuses every change, as the owner sees them.
  */
 export function FlowsMock() {

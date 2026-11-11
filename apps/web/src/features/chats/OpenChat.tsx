@@ -48,7 +48,11 @@ export interface OpenChatProps {
 }
 
 /** Why the composer is closed: an archived chat, a reader who is not an admin, an agent placed nowhere now. */
-function closedWhy(chat: Chat, admin: boolean, placement: AgentPlacement | undefined): string | undefined {
+export function closedWhy(
+  chat: Chat,
+  admin: boolean,
+  placement: AgentPlacement | undefined,
+): string | undefined {
   if (chat.archivedAt) return 'This chat is archived: it stays readable, and takes no new message.';
   if (!admin) return 'Admins and owners send messages to agents; you can read this chat.';
   if (placement === null)
@@ -67,7 +71,7 @@ function MovedNotice() {
 }
 
 /** True while the chat's last turn asks the person something they have not answered. */
-function asking(thread: readonly ChatTurnWithEvents[]): boolean {
+export function asking(thread: readonly ChatTurnWithEvents[]): boolean {
   const last = thread.at(-1);
   const question = last && questionOf(last.events);
   return question !== undefined && !question.answered && sentAnswer(question.event.id) === undefined;
@@ -119,7 +123,12 @@ function branchView(
 }
 
 /** Edit, Discard, Now and Interrupt on a waiting message (S5.2 step 6), each shown at once. */
-function queueActions(calls: ChatCalls, live: ChatLive, chat: Chat, running: ChatTurnWithEvents | undefined) {
+export function queueActions(
+  calls: ChatCalls,
+  live: ChatLive,
+  chat: Chat,
+  running: ChatTurnWithEvents | undefined,
+) {
   const actions: QueueActions = {
     canNow: running !== undefined && deliveryChoices(chat.harness, running).some((c) => c.value === 'now'),
     running: running !== undefined,
@@ -134,7 +143,7 @@ function queueActions(calls: ChatCalls, live: ChatLive, chat: Chat, running: Cha
 }
 
 /** The thread's turns, the waiting messages in start order, the running turn and how a message may reach it now. */
-function queueView(live: ChatLive, chat: Chat) {
+export function queueView(live: ChatLive, chat: Chat) {
   const { thread, queue } = splitQueue(live.turns);
   const running = live.turns.find((turn) => turn.status === 'running');
   const waiting = queue.length > 0 ? AFTER_ONLY : undefined;

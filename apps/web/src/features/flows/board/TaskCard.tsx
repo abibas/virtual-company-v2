@@ -1,17 +1,39 @@
+import { Files } from 'lucide-react';
 import type { DragEvent } from 'react';
 import type { BoardCard } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
 import { Link } from '../../../app/router.tsx';
 import { cx } from '../../../components/cx.ts';
 import { formatDateTime } from '../../../components/data/format.ts';
-import { Badge } from '../../../components/ui/Badge.tsx';
+import { Badge, type Tone } from '../../../components/ui/Badge.tsx';
 import { ago } from '../../notifications/NotificationList.tsx';
+import { LiveDot } from '../conversations/LiveDot.tsx';
 import { Face } from '../Face.tsx';
 import { PRIORITY, stepStateLook } from '../words.ts';
 
+/** The step state's pill: a pulsing dot while the agent's turn runs, and why it is blocked as its tooltip. */
+function StatePill({
+  card,
+  look,
+}: {
+  readonly card: BoardCard;
+  readonly look: { label: string; tone: Tone };
+}) {
+  const working = card.stepState === 'working';
+  return (
+    <span title={card.blockedReason ?? undefined} className="inline-flex min-w-0">
+      <Badge tone={look.tone} size="sm" dot={!working}>
+        {working && <LiveDot live className="bg-blue" />}
+        {look.label}
+      </Badge>
+    </span>
+  );
+}
+
 /**
- * A task on the board: its key, its priority (unless normal) and when it last moved; its title; its step state, its
- * round from the second on, and who has it. It opens the task's page, and the Lead's people drag it to a step.
+ * A task on the board: its key, its priority (unless normal), its artifacts (a files icon and the count) and when it
+ * last moved; its title; its step state (pulsing while a turn runs, why it is blocked on hover), its round from the
+ * second on, and who has it. It opens the task's page, and the Lead's people drag it to a step.
  */
 export function TaskCard({
   card,
@@ -55,18 +77,27 @@ export function TaskCard({
             {PRIORITY[card.priority].label}
           </Badge>
         )}
-        <time dateTime={card.updatedAt} title={formatDateTime(card.updatedAt)} className="ml-auto text-faint">
+        {card.artifacts > 0 && (
+          <span
+            title={`${card.artifacts} ${card.artifacts === 1 ? 'artifact' : 'artifacts'}`}
+            className="ml-auto inline-flex items-center gap-0.5 font-semibold text-dim tabular"
+          >
+            <Files size={11} aria-hidden="true" />
+            {card.artifacts}
+          </span>
+        )}
+        <time
+          dateTime={card.updatedAt}
+          title={formatDateTime(card.updatedAt)}
+          className={cx('text-faint', card.artifacts === 0 && 'ml-auto')}
+        >
           {ago(card.updatedAt)}
         </time>
       </span>
       <span className="line-clamp-2 text-sm leading-snug font-semibold text-ink">{card.title}</span>
       {(state || card.assignee) && (
         <span className="flex min-w-0 items-center gap-1.5">
-          {state && (
-            <Badge tone={state.tone} size="sm" dot>
-              {state.label}
-            </Badge>
-          )}
+          {state && <StatePill card={card} look={state} />}
           {card.round !== null && card.round > 1 && (
             <span className="text-2xs font-semibold text-dim">round {card.round}</span>
           )}
