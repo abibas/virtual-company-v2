@@ -90,7 +90,15 @@ export function MachineHeader({
   return (
     <div className="flex flex-col gap-2">
       <MachineIdentity
-        stats={{ ...facts, stopped: power?.container?.status === 'stopped' }}
+        stats={{
+          ...facts,
+          stopped: power?.container?.status === 'stopped',
+          // A box that runs (or boots) while its tunnel comes up: its runner is about to connect.
+          starting:
+            facts.status !== 'online' &&
+            (power?.box?.status === 'starting' ||
+              (power?.box?.status === 'running' && machine.tunnel?.state === 'connecting')),
+        }}
         now={now}
         mark={admin ? <EditableMachineLogo mark={mark} onChanged={onChanged} /> : <MachineLogo mark={mark} />}
         name={

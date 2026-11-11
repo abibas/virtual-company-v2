@@ -18,6 +18,7 @@ export function MachineStatus({
 }: {
   readonly stats: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'> & {
     readonly stopped?: boolean | undefined;
+    readonly starting?: boolean | undefined;
   };
   readonly now: number;
   readonly agents?: number | undefined;
@@ -47,6 +48,8 @@ export type IdentityFacts = Pick<
 > & {
   readonly overloaded?: { readonly badge: boolean } | undefined;
   readonly agentCount?: number | undefined;
+  /** A box that runs while its runner has not connected yet (its tunnel is coming up): Starting, not Offline. */
+  readonly starting?: boolean | undefined;
   /** A container Docker reports stopped: its status says Stopped rather than Offline. */
   readonly stopped?: boolean | undefined;
 };

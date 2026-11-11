@@ -44,6 +44,8 @@ export function agoText(iso: string, now: number): string {
 export function statusText(
   machine: Pick<MachineStats, 'status' | 'kind' | 'lastSeenAt' | 'upSince'> & {
     readonly stopped?: boolean | undefined;
+    /** The box runs and its tunnel is coming up, so its runner is about to connect (Ihor: "why offline?"). */
+    readonly starting?: boolean | undefined;
   },
   now: number,
 ): { readonly words: string; readonly tone: Tone } {
@@ -52,6 +54,7 @@ export function statusText(
     const up = machine.upSince ? ` · up ${spanText(now - Date.parse(machine.upSince))}` : '';
     return { words: `Running${up}`, tone: 'done' };
   }
+  if (machine.starting) return { words: 'Starting · runner connects in about a minute', tone: 'input' };
   const down = machine.stopped ? 'Stopped' : machine.kind === 'laptop' ? 'Asleep' : 'Offline';
   const seen = machine.lastSeenAt ? ` · last seen ${agoText(machine.lastSeenAt, now)}` : ' · never connected';
   return { words: `${down}${seen}`, tone: 'pending' };
