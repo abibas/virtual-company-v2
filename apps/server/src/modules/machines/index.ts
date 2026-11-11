@@ -22,6 +22,7 @@ export {
   type TerminalEnding,
   type TerminalRequest,
   type TerminalSink,
+  type TurnAdopter,
   type TurnAsked,
   type TurnChannel,
   type TurnCollected,

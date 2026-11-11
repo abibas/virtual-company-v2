@@ -136,7 +136,7 @@ export function createApp(deps: AppOptions) {
 
 /** A hub of the app's own, closed with the server (its sockets told the server is going away, their writes done). */
 function ownHub(server: ServerDeps): RunnerHub {
-  const hub = createRunnerHub(server);
+  const hub = createRunnerHub(server, { turnGraceMs: server.config.MWC_TURN_GRACE_SECONDS * 1000 });
   server.onShutdown?.(() => hub.close());
   return hub;
 }
@@ -159,8 +159,9 @@ export function machinesRuntime(server: ServerDeps, local: LocalPower | undefine
 }
 
 /**
- * At the server's start, before it listens: the chat turns a stopped server left live fail (`server_restarted`), and a
- * task whose step's turn was one of them is blocked through the tasks module's hook (S5.3b). Returns how many failed.
+ * At the server's start, before it listens: the chat turns a stopped server left waiting where nothing runs fail
+ * (`server_restarted`), and a task whose step's turn was one of them is blocked through the tasks module's hook
+ * (S5.3b); running turns wait for their runners (S5.4, the chats runtime). Returns how many failed.
  */
 export const reapTurns = (deps: Pick<ServerDeps, 'db' | 'logger'> & { readonly clock: () => Date }) =>
   reapChatTurns({ ...deps, tasks: taskTurnHook(deps) });

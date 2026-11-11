@@ -1,6 +1,7 @@
 import { type DbHandle, type TenantDb, tenant } from '@mwc/db';
 import {
   encodeFrame,
+  type HeldTurn,
   harnessVersionOf,
   isTerminalFrame,
   isTurnFrame,
@@ -45,6 +46,8 @@ export interface ConnectionContext {
   terminal(connection: RunnerConnection, frame: TerminalRunnerFrame): void;
   /** A frame of one of the chat turns this connection carries (the hub hands it to the turn's sink). */
   turn(connection: RunnerConnection, frame: TurnRunnerFrame): void;
+  /** The turns its hello names (S5.4): bound to it and answered with `turn.resume`. */
+  resume(connection: RunnerConnection, held: readonly HeldTurn[]): Promise<void>;
 }
 
 interface Pending {
@@ -63,7 +66,8 @@ interface Pending {
  * hello's caps (and the machine's slots and Claude Code version), terminal frames go to the hub's terminals and chat
  * turns' frames to their sinks; command replies settle the hub's requests (`tools.output` goes to its request);
  * frames of runs (S5) are accepted and left; unknown frames are ignored, invalid ones logged. Its close ends the session
- * (and the terminals and turns it carried) and, unless it was replaced, takes the machine offline.
+ * (and the terminals it carried; its turns wait for their runner when it keeps them, S5.4) and, unless it was replaced,
+ * takes the machine offline. Its hello's turns are bound to it once it answered (`turn.resume`).
  */
 export class RunnerConnection {
   readonly runner: RunnerCredential;
@@ -188,6 +192,7 @@ export class RunnerConnection {
       protocol: RUNNER_PROTOCOL_VERSION,
       minRunnerVersion: this.#ctx.minRunnerVersion,
       machineId: this.machineId,
+      resume: true,
     });
     if (hello.protocol !== RUNNER_PROTOCOL_VERSION) {
       this.link.close(RUNNER_CLOSE.unsupportedProtocol, `Protocol ${RUNNER_PROTOCOL_VERSION} only`);
@@ -210,8 +215,11 @@ export class RunnerConnection {
         this.#session = await online(t, this.machineId, { ...facts, remoteIp: this.link.remoteIp, now });
         this.readyAt = now;
         this.link.send(serverHello);
-        this.#log('info', { version: hello.version }, 'runner: connected');
+        this.#log('info', { version: hello.version, turns: hello.turns?.length ?? 0 }, 'runner: connected');
         this.#ctx.ready(this);
+        await this.#ctx.resume(this, hello.turns ?? []).catch((error: unknown) => {
+          this.#log('error', { err: error }, 'runner: could not take back the turns it holds');
+        });
       },
       () => this.link.close(1011, 'The server could not record the connection'),
     );

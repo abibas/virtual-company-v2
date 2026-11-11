@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { agents, chats, type DbHandle, taskArtifacts, tasks } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { TurnEvent } from '@mwc/shared/harness';
-import type { TurnArtifact, TurnStart } from '@mwc/shared/runner-protocol';
+import type { RunnerCaps, TurnArtifact, TurnStart } from '@mwc/shared/runner-protocol';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { asc, eq } from 'drizzle-orm';
 import {
@@ -46,13 +46,15 @@ export interface RunOptions {
   readonly reviewReturns?: 'keep' | 'fresh';
   /** Leave the Developer without a placement. */
   readonly unplaced?: boolean;
+  /** The runner's caps over both harnesses (S5.4: `reattach`). */
+  readonly caps?: Partial<RunnerCaps>;
 }
 
 /** The team company, its machine online, its Developer and Code Reviewer placed with a profile, and the flow. */
 export async function runScene(w: ChatsWorld, options: RunOptions = {}): Promise<RunScene> {
   const c = await teamCompany(w);
   const { machineId, runnerKey } = await enroll(w, c);
-  const runner = await w.connect(runnerKey, { caps: BOTH_HARNESSES });
+  const runner = await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, ...options.caps } });
   const credential = await addSubscription(w, w.keyring, c.owner.userId, 'claude_setup_token');
   const profile = await seedProfile(w.t.db, c.owner.userId, {
     credentialId: credential.id,

@@ -316,8 +316,8 @@ describe('the sign-in routes', () => {
 
   it('end when the server shuts down: the sign-ins in progress cancelled and their sandboxes removed', async () => {
     const started = await begin(ihor, { provider: 'claude' });
-    // The sign-ins' stop, and the runner hub's (the app made its own).
-    expect(stops).toHaveLength(2);
+    // The sign-ins' stop, the runner hub's (the app made its own) and the chats' grace sweep's.
+    expect(stops).toHaveLength(3);
     await Promise.all(stops.map((stop) => stop()));
     expect([helper.last.kills, helper.last.removed]).toEqual([1, true]);
     expect(await poll(ihor, started.id)).toMatchObject({

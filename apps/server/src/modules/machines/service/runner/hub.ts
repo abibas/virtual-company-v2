@@ -5,6 +5,7 @@ import {
   type FsList,
   type FsMkdir,
   type FsResult,
+  type HeldTurn,
   type PowerCommand,
   type PowerResult,
   RUNNER_HELLO_TIMEOUT_MS,
@@ -31,12 +32,19 @@ import {
   terminalBoard,
 } from './hub/terminals.ts';
 import { type HubTunnels, tunnelBoard } from './hub/tunnels.ts';
-import { type TurnChannel, type TurnRequest, type TurnSink, turnBoard } from './hub/turns.ts';
+import {
+  type TurnAdopter,
+  type TurnChannel,
+  type TurnRequest,
+  type TurnSink,
+  turnBoard,
+} from './hub/turns.ts';
 
 export { HubError, type HubErrorCode } from './connection.ts';
 export type { TerminalChannel, TerminalEnding, TerminalRequest, TerminalSink } from './hub/terminals.ts';
 export type {
   CollectedArtifact,
+  TurnAdopter,
   TurnAsked,
   TurnChannel,
   TurnCollected,
@@ -84,6 +92,8 @@ export interface HubOptions {
   readonly pingMs?: number;
   /** How long `close` waits for the sockets' close handshakes before it cuts them (2 s). */
   readonly closeTimeoutMs?: number;
+  /** How long a turn whose runner went away waits for it (S5.4; `TURN_REATTACH_GRACE_MS`, 180 s). */
+  readonly turnGraceMs?: number;
 }
 
 /**
@@ -122,7 +132,9 @@ export interface RunnerHub {
    * undefined when the runner is not ready. The caller checks the runner has the harness (`caps.harnesses`).
    */
   turn(machineId: string, request: TurnRequest, sink: TurnSink): TurnChannel | undefined;
-  /** The machine's live work: its chat turns running and its terminals open (the machine's and the chats'). */
+  /** Who builds the sink of a running turn a restarted server takes back from its runner (the chats module, S5.4). */
+  adoptTurns(adopter: TurnAdopter): void;
+  /** The machine's live work: its chat turns running (or waiting for their runner) and its terminals open. */
   live(machineId: string): { readonly turns: number; readonly terminals: number };
   /** Closes every socket of the machine with `code`; false when it has none. */
   disconnect(machineId: string, code: number, reason: string): boolean;
@@ -179,15 +191,16 @@ function connectListeners(logger: Logger) {
 type HubDeps = { readonly db: DbHandle; readonly logger: Logger; readonly clock: () => Date };
 
 /** What the hub keeps: its sockets, write queues, connect listeners and the boards of tunnels, terminals and turns. */
-function hubParts(deps: HubDeps) {
+function hubParts(deps: HubDeps, options: HubOptions) {
   const sockets = connections();
+  const turnOptions = options.turnGraceMs === undefined ? {} : { graceMs: options.turnGraceMs };
   return {
     sockets,
     queues: machineQueues(deps.logger),
     listeners: connectListeners(deps.logger),
     tunnels: tunnelBoard(deps.clock, sockets.ready),
     terminals: terminalBoard(),
-    turns: turnBoard(deps.logger),
+    turns: turnBoard({ ...turnOptions, logger: deps.logger }),
   };
 }
 
@@ -209,13 +222,14 @@ function connectionContext(deps: HubDeps, options: HubOptions, parts: ReturnType
     tunnel: tunnels.record,
     terminal: terminals.record,
     turn: turns.record,
+    resume: (connection: RunnerConnection, held: readonly HeldTurn[]) => turns.resume(connection, held),
   };
   return ctx;
 }
 
 /** The hub on the server's database, logger and clock. */
 export function createRunnerHub(deps: HubDeps, options: HubOptions = {}): RunnerHub {
-  const parts = hubParts(deps);
+  const parts = hubParts(deps, options);
   const { sockets, queues, listeners, tunnels, terminals, turns } = parts;
   const ctx = connectionContext(deps, options, parts);
   const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
@@ -250,6 +264,7 @@ export function createRunnerHub(deps: HubDeps, options: HubOptions = {}): Runner
       const connection = sockets.ready(machineId);
       return connection === undefined ? undefined : turns.start(connection, request, sink);
     },
+    adoptTurns: (adopter) => turns.adopt(adopter),
     live: (machineId) => ({ turns: turns.count(machineId), terminals: terminals.count(machineId) }),
     disconnect(machineId, code, reason) {
       const ofMachine = [...sockets.all].filter((connection) => connection.machineId === machineId);
@@ -265,6 +280,7 @@ export function createRunnerHub(deps: HubDeps, options: HubOptions = {}): Runner
     idle: queues.idle,
     close() {
       closing = true;
+      turns.close();
       return closeAll(sockets.all, options.closeTimeoutMs ?? 2000, queues.idle);
     },
   };

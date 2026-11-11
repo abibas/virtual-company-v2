@@ -1,18 +1,19 @@
 import { type Agent, type Chat, type DbHandle, tenant } from '@mwc/db';
 import type { Logger } from 'pino';
-import { failLiveTurns, type ReapedTurn } from '../repo/reaper.ts';
+import { failWaitingTurns, type ReapedTurn } from '../repo/reaper.ts';
 import { chatsRepo } from '../repo.ts';
+import { SERVER_RESTARTED } from './adopt.ts';
 import { type TaskTurnHook, taskContext, taskDraft } from './task-hook.ts';
 
-/** Why a turn a stopped server left live failed. */
-export const SERVER_RESTARTED = 'server_restarted';
+export { SERVER_RESTARTED } from './adopt.ts';
 
 /**
- * At the server's start, before it listens (S5.1b, `platform/start.ts`): every turn left queued or running by a stopped
- * server fails with `server_restarted`, since its runner dropped it with the old server's connection. A message turn of
- * a task's conversation (S5.3b) is reported to the tasks module's hook as a failed turn, so its task is blocked rather
- * than left worked on. Says how many when there were any; one that cannot run (an unmigrated database) is a warning,
- * never a stop. Returns how many failed.
+ * At the server's start, before it listens (S5.1b, `platform/start.ts`): every turn left waiting by a stopped server in
+ * a chat where nothing runs fails with `server_restarted`. A running turn is not failed here (S5.4): its runner keeps it
+ * and takes it back to this server, and the waiting turns of its chat start once it ends; the ones no runner takes back
+ * within the grace end then (`adopt.ts`, `failLeftTurns`). A message turn of a task's conversation (S5.3b) that failed
+ * here is reported to the tasks module's hook as a failed turn. Says how many when there were any; one that cannot run
+ * (an unmigrated database) is a warning, never a stop. Returns how many failed.
  */
 export async function reapTurns(deps: {
   readonly db: DbHandle;
@@ -21,13 +22,13 @@ export async function reapTurns(deps: {
   readonly tasks?: TaskTurnHook | undefined;
 }): Promise<number> {
   try {
-    const failed = await failLiveTurns(deps.db, deps.clock(), SERVER_RESTARTED);
+    const failed = await failWaitingTurns(deps.db, deps.clock(), SERVER_RESTARTED);
     if (failed.length > 0)
-      deps.logger.info({ failed: failed.length }, 'failed the chat turns a stopped server left running');
+      deps.logger.info({ failed: failed.length }, 'failed the chat turns a stopped server left waiting');
     for (const turn of failed) if (turn.kind === 'message') await reportTask(deps, turn);
     return failed.length;
   } catch (error) {
-    deps.logger.warn({ err: error }, 'could not fail the chat turns a stopped server left running');
+    deps.logger.warn({ err: error }, 'could not fail the chat turns a stopped server left waiting');
     return 0;
   }
 }

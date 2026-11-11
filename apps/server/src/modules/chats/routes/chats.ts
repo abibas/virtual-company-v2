@@ -143,7 +143,7 @@ const archiveRoute = (deps: ServerDeps) => {
   });
 };
 
-export function chatRoutes(deps: ServerDeps) {
+export function chatRoutes(deps: ServerDeps, isDetached?: (turnId: string) => boolean) {
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
       const result = await listChats(c.var.tenant, c.req.valid('param').agentId);
@@ -158,7 +158,7 @@ export function chatRoutes(deps: ServerDeps) {
       return c.json(result.chat, 201);
     })
     .openapi(getChatRoute(deps), async (c) => {
-      const result = await getChat(c.var.tenant, c.req.valid('param').chatId);
+      const result = await getChat(c.var.tenant, c.req.valid('param').chatId, isDetached);
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
       return c.json(result.chat, 200);
     })

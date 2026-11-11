@@ -38,7 +38,13 @@ describe('GET /api/runner/ws', () => {
     const { machineId, runnerKey } = await enroll(w, company);
     const runner = await w.connect(runnerKey);
     expect(runner.frames.of('server.hello')).toEqual([
-      { type: 'server.hello', protocol: RUNNER_PROTOCOL_VERSION, minRunnerVersion: '0.0.0', machineId },
+      {
+        type: 'server.hello',
+        protocol: RUNNER_PROTOCOL_VERSION,
+        minRunnerVersion: '0.0.0',
+        machineId,
+        resume: true,
+      },
     ]);
     expect((await as(w, company.owner)('GET', machinesPath(company, `/${machineId}`))).body).toMatchObject({
       status: 'online',

@@ -113,6 +113,14 @@ export const ChatTurnSchema = z
     endedAt: dateTime.nullable(),
     resultText: z.string().nullable().openapi({ description: "The reply: the result's text" }),
     error: z.string().nullable(),
+    detached: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "True while a running turn's runner is away (its link dropped, or the server restarted) and the turn waits " +
+          'for it to come back with it (docs/harness.md "Surviving restarts"); left out otherwise',
+      }),
     usage: z
       .record(z.string(), z.unknown())
       .nullable()

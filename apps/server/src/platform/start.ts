@@ -207,7 +207,7 @@ export async function start(
     identity,
     ...webDist,
   };
-  await reapTurns(serverDeps); // before listening: the turns an earlier server left running fail
+  await reapTurns(serverDeps); // before listening: the turns an earlier server left waiting fail (running ones wait)
   const { app, jobs, loginHelper, stops } = compose(serverDeps, deps, keyring, local);
   const websocket = { server: createSocketServer() };
   const server = deps.serve(

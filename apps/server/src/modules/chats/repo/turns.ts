@@ -19,6 +19,13 @@ async function get(t: TenantDb, chatId: string, id: string): Promise<ChatTurn | 
   return row;
 }
 
+/** One turn by its id alone (a runner names it, S5.4); undefined for an unknown or malformed id. */
+async function byId(t: TenantDb, id: string): Promise<ChatTurn | undefined> {
+  if (!isUuid(id)) return undefined;
+  const [row] = await t.select(chatTurns, eq(chatTurns.id, id));
+  return row;
+}
+
 /** The chat's turns from `fromSeq` on, in order. */
 const ofChat = (t: TenantDb, chatId: string, fromSeq = 1): Promise<ChatTurn[]> =>
   t
@@ -80,6 +87,7 @@ const eventsOf = (t: TenantDb, turnIds: readonly string[]): Promise<ChatEvent[]>
 
 export const turnsRepo = {
   get,
+  byId,
   ofChat,
   liveOf,
   lastSeq,

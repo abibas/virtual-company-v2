@@ -22,7 +22,9 @@ import { streamEvent, turnView } from './views.ts';
  * turn). Every write runs on one queue per turn, so the end is written after the last event, and what follows a turn's
  * end (the chat's next waiting turn starts, `onEnded`) after it. A failure is logged by the turn's id, never thrown into
  * the hub. A task's turn (S5.3b) hands the files the runner collected, what it left out and its end to the tasks
- * module's hook, on the same queue, before the next waiting turn starts.
+ * module's hook, on the same queue, before the next waiting turn starts. A turn whose runner went away (S5.4) is
+ * `detached` until its runner comes back with it (the stream shows it reconnecting) and says the last event it stored
+ * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events.
  */
 
 /** The subscription a turn runs on: which credential, whose, of which kind (a Codex login is sealed again). */
@@ -43,6 +45,8 @@ export interface LiveDeps {
 interface LiveTurn {
   channel: TurnChannel | undefined;
   stopRequested: boolean;
+  /** Its runner went away and the turn waits for it (S5.4). */
+  detached: boolean;
 }
 
 /** One turn's end as `ended` writes it. */
@@ -139,14 +143,29 @@ export function chatsLive(deps: LiveDeps) {
   return {
     bus,
     /**
-     * The sink of a turn about to start: its events and its end go to the database and the stream, in order; a task's
-     * turn's collected files and what was left out go to the tasks module's hook.
+     * The sink of a turn about to start (or, `adopted`, of one a restarted server takes back): its events and its end go
+     * to the database and the stream, in order; a task's turn's collected files and what was left out go to the tasks
+     * module's hook.
      */
-    sink(t: TenantDb, turn: ChatTurn, used: TurnCredential, task?: TaskTurnContext): TurnSink {
+    sink(
+      t: TenantDb,
+      turn: ChatTurn,
+      used: TurnCredential,
+      task?: TaskTurnContext,
+      adopted = false,
+    ): TurnSink {
       const run = queue(deps.logger, turn.id);
       let outcome: TurnOutcome = {};
-      live.set(turn.id, { channel: undefined, stopRequested: false });
+      const entry: LiveTurn = { channel: undefined, stopRequested: false, detached: false };
+      live.set(turn.id, entry);
       const hook = task === undefined ? undefined : deps.tasks;
+      if (adopted) {
+        // A turn taken back after a restart: what its stored events said so far.
+        void run(async () => {
+          const rows = await turnsRepo.eventsOf(t, [turn.id]);
+          outcome = rows.reduce((sum, row) => withEvent(sum, row.event as TurnEvent), outcome);
+        });
+      }
       return {
         events: (items) =>
           void run(async () => {
@@ -159,8 +178,34 @@ export function chatsLive(deps: LiveDeps) {
           }),
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
-        end: (ending) => void run(() => ended(l, t, turn, { ending, outcome, used, task })),
+        end: (ending) => run(() => ended(l, t, turn, { ending, outcome, used, task })),
+        lastSeq: async () => {
+          let seq = 0;
+          await run(async () => {
+            seq = await turnsRepo.lastEventSeq(t, turn.id);
+          });
+          return seq;
+        },
+        detached: (away) => {
+          entry.detached = away;
+          void run(async () => {
+            const row = await turnsRepo.get(t, turn.chatId, turn.id);
+            if (row?.status === 'running')
+              bus.publish(turn.chatId, { kind: 'turn', turn: { ...turnView(row), detached: away } });
+          });
+        },
+        adopted: (channel) => {
+          entry.channel = channel;
+        },
       };
+    },
+    /** Whether a running turn waits for its runner: it went away, or this process has not taken the turn back yet. */
+    isDetached(turnId: string): boolean {
+      return live.get(turnId)?.detached ?? true;
+    },
+    /** Whether this process holds the turn (it started it, or took it back after a restart). */
+    holds(turnId: string): boolean {
+      return live.has(turnId);
     },
     /** The started turn's channel, for a stop. */
     started(turnId: string, channel: TurnChannel): void {

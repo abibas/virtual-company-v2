@@ -3,7 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import { INSTALL_PORT } from '@mwc/shared/ports';
 import { type RunnerUpdate, updateErrorCode } from '@mwc/shared/runner-protocol';
 import { machinesRepo } from '../../repo.ts';
-import { liveWork, machineBusy } from '../../rules/jobs.ts';
+import { liveWork, machineBusy, workAnUpdateEnds } from '../../rules/jobs.ts';
 import { isPowered } from '../../rules/power.ts';
 import {
   manualUpdate,
@@ -178,7 +178,8 @@ async function carryOut(
 
 /**
  * The update of a machine's runner by the path that applies, audited when it was carried out; refused while another job
- * runs on the machine, or while chat turns or terminals run on it unless `force`.
+ * runs on the machine, or while terminals (or chat turns its restart would end: an older runner's, a container's) run
+ * on it unless `force`.
  */
 export async function updateRunner(
   deps: UpdateDeps,
@@ -194,7 +195,8 @@ export async function updateRunner(
   if (!taken.ok) return machineBusy(taken.running);
   const { lease } = taken;
   const force = options.force === true;
-  const live = force ? undefined : liveWork(deps.hub.live(machine.id));
+  const reattach = deps.hub.connected(machine.id)?.caps.reattach === true;
+  const live = force ? undefined : liveWork(workAnUpdateEnds(deps.hub.live(machine.id), path, reattach));
   if (live !== undefined) {
     lease.release();
     return live;

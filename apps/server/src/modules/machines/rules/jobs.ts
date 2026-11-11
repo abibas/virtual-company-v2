@@ -82,6 +82,18 @@ export function liveWork(live: MachineLiveView, what = 'update the runner'): Ref
   return refuse(409, 'machine_busy', `${words}: ${what} once ${one ? 'it ends' : 'they end'}`);
 }
 
+/**
+ * The live work a runner update would end (S5.4): a runner that keeps its turns (`caps.reattach`) keeps them through its
+ * own restart (a self-update, an SSH reinstall), so only its terminals count then; a container's rebuild ends them all.
+ */
+export function workAnUpdateEnds(
+  live: MachineLiveView,
+  path: RunnerUpdatePath,
+  reattach: boolean,
+): MachineLiveView {
+  return reattach && path !== 'docker_rebuild' ? { ...live, turns: 0 } : live;
+}
+
 /** A job as the API shows it. */
 export function jobView(job: MachineJob | undefined): MachineJobView | null {
   if (job === undefined) return null;
