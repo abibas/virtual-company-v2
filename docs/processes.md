@@ -107,7 +107,7 @@ step state and how many artifacts it has.
 | S5.3a | Flows and tasks: the data, the rules, the API, the flow editor, the team's board, the task page, `mwc task`; people move tasks by hand |
 | S5.3b | Steps run: entering a step starts its assignee's run, one conversation per task and step (Keep or Fresh), artifacts collected |
 | S5.4 | Runs survive a runner or server restart (journal, re-attach, Stop) |
-| S6 | Agents' tools (S6a, built: the step's moves as `task_hand_on`, `task_pass`, `task_approve`, `task_send_back`, and `task_read`, `task_attach`, `task_blocked`; the Lead's board tools); `ask_user` was built in S5.2; the Inbox |
+| S6 | Agents' tools (S6a, built: the step's moves as `task_hand_on`, `task_pass`, `task_approve`, `task_send_back`, and `task_read`, `task_attach`, `task_blocked`; the Lead's board tools); `ask_user` was built in S5.2; the Inbox (S6b, built: "Built in S6b") |
 | Check | Ihor's DEVBOX team takes one real ticket from the Lead to the end |
 | Later | "Assembly line", an animated view of the steps with each step clickable (Ihor's reference: buildindex.dev's assembly template), built once everything above is approved and working; a Fable 5.2 subagent builds it |
 
@@ -532,4 +532,111 @@ The tasks module writes both variants and the chats module picks by the agent's 
 
 The Lead hears nothing by itself yet (no notice to an agent, no turn started for it); it reads the board when it is
 asked in its chat. A person's reply in a task conversation gets the step's tools too, and a decision it records counts
-the same way. Approving a tool mid-turn (the permission round trip) and the Inbox are the rest of S6.
+the same way. Approving a tool mid-turn (the permission round trip) is the rest of S6; the Inbox is S6b, below.
+
+## Built in S6b (2026-11-11)
+
+The Inbox: what needs a person now, in the right panel of every company page ("Attention", across all their companies),
+with the notifications moved there from the top bar's bell (docs/notifications.md, "Web"). Ihor's ask: "Approvals for me
+should be added to the Attention required" and "Notifications icon should disappear (near my face), and its function
+moved to the one at the right vertical rail".
+
+### What needs a person (`apps/server/src/modules/inbox/`)
+
+**Computed live, no table.** Every read works the items out from the tasks and the chats as they stand (the module's
+repo reads their rows, read only; the rules are `rules.ts`, pure). Nothing is resolved, expired or kept: an item is there
+while its cause is, and it goes once the task moves or the question is answered. Every item leads to the routes that
+already act on it (the task's actions, the chat's answers); the inbox adds no write path.
+
+| Kind | Who sees it | Rule (`taskKind`, `answersQuestions`) |
+| --- | --- | --- |
+| `signoff` (Sign-off) | the step's person | an active task at a Sign-off step whose assignee is the viewer (`needs_person`) |
+| `step` (Your step) | the step's person | an active task at another step of the viewer's (Work or Check), whatever its step state: a person's step runs nothing, so it waits for them |
+| `escalated` (Escalated) | the Lead's people | an escalated task in a flow whose Lead the viewer is, or is above on the chart (`peopleAtOrAbove`, the S5.3a rule; an admin beside the chain is not one) |
+| `blocked` (Blocked) | the Lead's people, and the step's person | an active task whose step state is `blocked` |
+| `turn_ended` (Turn ended) | the Lead's people, and the step's person | an active task whose step state is `ended_without_handoff` |
+| `question` (Question) | admins and owners, as `POST …/chats/{chatId}/answers` allows | a chat (not archived, its agent not archived) whose last turn has an open question: its latest question, not answered (the chats' own `openQuestion`); a task's conversation asks like any chat |
+
+Viewers (the role) make no moves, so nothing needs them: their inbox is empty. Each item carries its `kind`, its
+`company` (id, slug, name), a `title` (the task's, or the agent's first question), a `subtitle` (`DEVBOX delivery ·
+Approve`, or the agent and its chat's title), the `reason` it waits (a block's, an escalation's, else the send-back's
+that brought it), `from` (who handed it on, sent it back, escalated it or asked; a block or a turn's end by itself names
+the step's agent), its `link` inside the company (`tasks/T-12`, or `chats/<agentId>?chat=<chatId>` with the question
+card), the `actions` the caller may take now (the task's moves exactly as the task page's `actions`, or `answer`), the
+`task` (key, title, priority, flow and Lead, step, round) or the `question` (chat, agent, id, how many it asks, the task
+whose conversation it is), and `at`, since when it waits (the history row that moved or stopped the task, or the
+question's event).
+
+**The order, the most urgent first:** the task's priority (urgent, high, normal, low; a question counts as normal), then
+the kind (Sign-off, question, your step, escalated, blocked, turn ended), then the longest waiting.
+
+### The API
+
+| Route | Who | |
+| --- | --- | --- |
+| `GET /api/companies/{companyId}/inbox` | viewer+ (a viewer's is empty) | `{items, count}`; another company's is the same 404 as none |
+| `GET /api/companies/{companyId}/inbox/count` | viewer+ | `{count}`, for a badge |
+| `GET /api/me/inbox` | any signed-in person (a session or a personal API key) | `{items, count, companies}`: every company where their membership is active, each item naming its company, and each company's count by name. An API key acts in its own company only, so its inbox is that company's |
+| `GET /api/me/inbox/count` | the same | `{count, companies}` |
+
+The panel reads `GET /api/me/inbox`, since it says "Across all companies"; the CLI reads the company's unless `--all`.
+
+### Web: the right panel
+
+- **Two tabs** at the top of the right rail's card, Attention and Notifications, each with its count (red: what needs
+  you; blue: unread), and the collapse button. Under them a line with the view's scope ("Across all companies", "In
+  Acme") and, for Notifications, Mark all read.
+- **Attention** lists the items as compact cards: the kind's chip (Sign-off violet, Question amber, Your step blue,
+  Escalated red, Blocked, Turn ended grey), the task's key, its priority unless normal, the company when it is another
+  one, how long it has waited; the title (a link to the task or the chat); the flow and step with who moved it and Open;
+  the reason, two lines at most. A Sign-off the person may decide has **Approve** and **Send back…** (a required reason
+  in place) instead of Open, calling `POST …/tasks/{key}/actions` in the task's own company with the step it was seen at
+  (`fromStepId`); a refusal shows its words on the card. Read again every 30 seconds while the page is visible, when the
+  tab comes back, and right after a move. Empty: "Nothing needs you."
+- **Quick create** sits at the foot of Attention (members and up): chips of the company's flows' Leads (an agent's icon
+  or a person's initials and the Lead's name), a title, send. It makes the task with the existing `POST …/tasks`:
+  queued, or straight into the flow's first step for those who lead the team (the flows' pages' own `leadsTeam`; the
+  server stays the judge); the made task's key links to it. No flows yet: one line with a link to the flows. It replaced
+  the old dock that picked an agent and said "Tasks arrive in S4".
+- **The collapsed strip**: expand, the inbox icon with the attention count (red, pulsing while something waits), the
+  bell with the unread count (blue), each opening its tab, and "+" at the foot opening Attention with the quick create's
+  title focused. The rail still opens by itself while something needs you until you toggle it (`mwc.rightRail`).
+- **The top bar** has no bell: from 80rem nothing sits beside the person. Below 80rem one inbox button (both counts, red
+  while something needs you) opens the same two tabs in a drawer, which closes when a card or a notice opens its page.
+- The left rail's muted "Inbox, coming in S6" item is gone.
+
+The parts: `apps/web/src/api/inbox.ts` (`useInbox`), `features/inbox/` (`InboxView`, `InboxCard`, `kinds.ts`,
+`QuickTask`, `LeadChips`, `LiveQuickTask`, `use-company-rail.tsx`: the rail's props for a company page),
+`features/notifications/` (`NotificationsView`, `MarkAllRead`, `EmailSetting` with `EmailSwitch`), `components/layout/`
+(`RailViews`, `RightRail`, `RailStrip`, `TopBar`, `AppShell`), and `CountDot`'s blue `info` tone (`IconButton`'s
+`badgeTone`). `ago` ("5 min ago") moved from the notifications list to `components/data/format.ts`; the old
+`AttentionFeed`, `QuickCreate`, `NotificationsBell` and the empty `api/attention.ts` are gone. The gallery (`/design/dashboard` and every mock page; `?inbox=empty` for the empty views) draws
+the panel on samples (`pages/design/inbox-sample.ts`, `sample-rail.tsx`); its Lists section shows every card kind and the
+dock.
+
+### The CLI
+
+- `mwc inbox list [--all]`: a table of kind, key, title, where, from, since and what you may do (with the company with
+  `--all`); "Nothing needs you in Acme." when empty.
+- `mwc inbox count [--all]`: the number alone, for a status line.
+- `mwc inbox approve <key>` and `mwc inbox send-back <key> --reason <text>`: thin wrappers over `POST …/tasks/{key}/actions`
+  (the server's refusals as they come).
+
+Each takes `--company`, `--json` and `--server` like `mwc task`. With a personal API key `--all` is the key's own company.
+
+### Tests
+
+`apps/server/test/modules/inbox/`: the rules (`rules.test.ts`), each kind through the real task moves on PGlite (a
+Sign-off until approved, a person's QA step and a send-back away from it, an escalation over the limit, a block from a
+Start without a placement, a turn ended), the order and the count, a viewer at their own step, tenancy (another company's
+404, an outsider's empty inbox) (`routes/company.test.ts`); open questions for admins and owners only, answered,
+superseded, an archived chat and agent, a turn's latest question, a task's conversation, a question between a Sign-off
+and a block (`routes/questions.test.ts`); one person in two companies, a suspended membership, an API key, no credential
+(`routes/mine.test.ts`); the names (`service/names.test.ts`). `packages/cli/test/inbox/`: the commands against the real
+API in-process, and the table.
+
+### Not built
+
+The live wait of S6's plan (an `attention_items` table, a question answered within 90 s reaching the waiting process,
+`mwc inbox watch`, the MCP's `inbox_list` / `inbox_answer`): questions are answered on the chat's card as in S5.2. No
+notice is written for a new question, and Answer is not inline on the card (Open goes to the chat's question card).

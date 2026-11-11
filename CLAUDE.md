@@ -63,6 +63,7 @@ pnpm mwc login --server URL --company ID|SLUG  # save a personal API key (MWC_AP
 pnpm mwc whoami         # who the saved key (or MWC_SERVER + MWC_API_KEY) acts as; mwc logout removes it
 pnpm mwc org tree       # the org chart as an indented tree; mwc agents list: the agents as a table (--json for both)
 pnpm mwc flow show LEAD # a team's flow as its written table; mwc task create|list|show|move: its tasks, moved by hand
+pnpm mwc inbox list     # what needs you now (--all across your companies); inbox count|approve KEY|send-back KEY --reason R
 ```
 
 `@mwc/mcp` (`packages/mcp`) is the MCP server for a person's own Claude Code (`me`, `org_chart`, `agents_list`), with

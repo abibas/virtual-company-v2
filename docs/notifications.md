@@ -102,19 +102,22 @@ out by email.
   the mark sends that email again.
 - **Skips.** Notices the person read in the app before their email went are skipped ("read in the app first") and the
   rest sent; a person who turned email off, one with no address, and a server with email off skip the batch.
-- **The preference.** Per person and company, on by default: the switch at the bottom of the bell's panel ("Email me
-  these"). The profile page (`/profile`) is the person's name and photo across every company, so a per-company
+- **The preference.** Per person and company, on by default: the switch at the foot of the right rail's Notifications
+  tab ("Email me these"; the bell's panel until S6b). The profile page (`/profile`) is the person's name and photo across every company, so a per-company
   setting sits with the notifications instead.
 
 ## Web
 
-The top bar's bell (`apps/web/src/features/notifications/NotificationsBell.tsx`, in every company page through
-`CompanyShell` and `AppShell`'s `bell`) shows the unread count and opens a panel: the newest 20 (Show older for more),
-each with its words, who did it and how long ago, unread ones marked with a dot. Opening one marks it read and goes to
-its page; Mark all read clears the count; the email switch sits at the bottom with what this server does with email.
-It refreshes every minute while the page is visible, and when the tab comes back (`api/notifications.ts`); there is no
-live channel to the web yet. The attention feed (the right rail, the inbox of S6) keeps its own button beside the
-bell, shown while it holds something.
+Since S6b (2026-11-11, Ihor: "Notifications icon should disappear (near my face), and its function moved to the one at
+the right vertical rail") the notifications live in the right rail, beside the inbox (docs/processes.md, "Built in
+S6b"); the top bar has no bell. The rail's card has two tabs, Attention and Notifications; the Notifications tab
+(`apps/web/src/features/notifications/NotificationsView.tsx`, wired for a company page by `features/inbox/use-company-rail.tsx`)
+counts the unread in blue on its tab and on the collapsed strip's bell, and holds what the bell's panel held: the newest
+20 (Show older for more), each with its words, who did it and how long ago, unread ones marked with a dot; opening one
+marks it read and goes to its page; Mark all read (beside "In Acme", under the tabs) clears the count; the email switch
+("Email me these", `EmailSetting.tsx`) sits at the foot with what this server does with email. It refreshes every
+minute while the page is visible, and when the tab comes back (`api/notifications.ts`); there is no live channel to the
+web yet. Below 80rem the top bar's one inbox button opens both tabs in a drawer.
 
 ## Merging
 

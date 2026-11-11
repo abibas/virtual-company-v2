@@ -40,7 +40,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── speech/         dictation: POST /api/me/speech/transcribe (built) S5.2
 │   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); step runs, artifacts (built S5.3b); agents' tools, decisions (built S6a)
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
-│   │   │   │   ├── inbox/          questions, permissions, blocked, review     S6
+│   │   │   │   ├── inbox/          what needs a person, computed live (built S6b); permissions S6
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
 │   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
 │   │   │   └── dev/                in-memory server for local demos

@@ -470,6 +470,21 @@ fixed: the step prompt named the first step as the next one (a row compared by i
 fake harness only. Merging needs the dev API restarted (the migration runs on start), the runner bundle rebuilt and
 Update runner on each machine (an old runner keeps the S5.3b behaviour: no tools, a person moves the task).
 
+**S6b, the Inbox: built 2026-11-11 on the `inbox` branch, not merged yet** (docs/processes.md "Built in S6b",
+docs/notifications.md "Web"). What needs a person is computed live from the tasks and the chats (no table): a Sign-off or
+another step of theirs, an escalated task and a blocked one or one whose turn ended without a hand-off in a team they lead
+(the Lead's people on the chart), and an agent's open question for admins and owners; viewers get none. `GET
+/api/companies/{companyId}/inbox` and `GET /api/me/inbox` (across the caller's companies; an API key covers its own),
+each with `/count`; every item names its company, task or chat, who moved it, since when and the moves the tasks API
+allows the caller, the most urgent first. The web's right rail becomes the Inbox: two tabs, Attention (compact cards;
+Approve and Send back… in place for a Sign-off, Open for the rest; every 30 s and after a move) and Notifications (moved
+from the top bar's bell, which is gone: Mark all read, Show older, Email me these); the collapsed strip shows the
+attention count on the inbox icon (red) and the unread on the bell (blue); quick create picks a team by its Lead's chip
+and a title (queued, or into the first step for those who lead the team), replacing the "Tasks arrive in S4" dock; the
+left rail's muted Inbox item is gone. `mwc inbox list|count [--all]`, `mwc inbox approve|send-back`. Not built: the live
+wait (`attention_items`, answers reaching a waiting process, `mwc inbox watch|answer`, the MCP's inbox tools). Merging
+needs the dev API restarted (new routes; no migration) and the web reloaded.
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.
