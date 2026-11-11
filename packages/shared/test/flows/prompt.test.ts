@@ -74,7 +74,8 @@ describe('stepPrompt, full', () => {
         '## Your outputs',
         '',
         'Write the files you make for this step (notes, logs, screenshots) to ' +
-          '`tasks/T-12/artifacts/1-develop/round-1/` in your home folder. When your turn ends they are collected and ' +
+          '`tasks/T-12/artifacts/1-develop/round-1/`, relative to the working directory your turn starts in, where ' +
+          'it is made for you (not under `~`, unless that is where you start). When your turn ends they are collected and ' +
           'kept with the task: text and images, up to 2.0 MB each and 20 files. Your final reply is kept as the ' +
           "step's hand-off note.",
       ].join('\n'),

@@ -187,7 +187,10 @@ function handoffText(input: StepPromptInput, artifactsTitle: string): string {
 
 /** Where outputs go, and what happens to them. */
 const outputsText = (input: StepPromptInput) =>
-  `Write the files you make for this step (notes, logs, screenshots) to \`${input.folder}/\` in your home folder. ` +
+  // Relative to the working directory the turn starts in (the agent's home folder on the chart), never \`~\`: a live
+  // test (T-1, 2026-11-11) wrote to \`~/tasks/…\` and nothing was collected.
+  `Write the files you make for this step (notes, logs, screenshots) to \`${input.folder}/\`, relative to the working ` +
+  `directory your turn starts in, where it is made for you (not under \`~\`, unless that is where you start). ` +
   `When your turn ends they are collected and kept with the task: text and images, up to ${sizeWords(ARTIFACT_LIMITS.fileBytes)} ` +
   `each and ${ARTIFACT_LIMITS.files} files. Your final reply is kept as the step's hand-off note.`;
 
