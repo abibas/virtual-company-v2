@@ -367,6 +367,18 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
 
 **S5.3a, flows and tasks, server side: built 2026-11-11 on the `flows-server` branch, not merged yet** (docs/processes.md "Built in S5.3a"). Migration `0022_flows`: `flows` (one per Lead), `flow_steps` (position, kind, assignee, starts, on return, send-back target and limit; steps keep their ids when the list is reordered), `tasks` (`T-<n>` per company, state, step, step state, rounds per step, escalation, priority) and `task_events` (the history, with the steps' names as they were), and four task notification kinds. The `tasks` module (the map's `tasks/`): pure rules for the step list, the moves (`start`, `hand_on`, `pass`, `approve`, `send_back` with its limit escalating to the Lead, and the Lead's `route`, `retry`, `cancel`) and who may make them (the step's person, the Lead's people: the Lead when a person and every person above it, admins and owners); flows (list, by id, by Lead, create, rename, `PUT …/steps`, the written form, the board), tasks (list with filters and pages, create queued or into a step, read with history and the caller's moves, edit) and `POST …/tasks/{taskId}/actions`; notices to the person a task comes to, the Lead's nearest person on an escalation, and the creator and that person when done. `flowText` in `@mwc/shared/flows`, `peopleAtOrAbove` in `@mwc/shared/org-chart`. CLI: `mwc task create|list|show|move`, `mwc flow show`. Tests: every rule (each move, the limit, the retry, the step list, who may act), the routes on PGlite (each role, other companies' 404s, the board, the history, the notices, a step removed with and without tasks), the CLI against the test server, the db constraints and keys. No web yet.
 
+**S5.3a, the web: built 2026-11-11 on the `flows-web` branch, not merged yet** (docs/processes.md "Web"). The rail's
+Flows item; `/:slug/flows` (every team's flow as a card with its steps' chips and counts, "Create a flow" for a manager
+without one); a team's page `/:slug/flows/<lead>` with its Board (Queued, each step with its kind's colour and
+assignee, Done, Escalated; the Lead's people drag a card onto a step to route it, a refusal puts it back with the
+server's words; New task; read again every 30 s) and its Flow (the drawing with its dashed send-back arrows, the written
+form with Copy, and the editor in place: name, kind, assignee, Starts, Comes back again, Sends back to, limit, reorder by
+handle or Up and Down, remove, `step_has_tasks` shown); the task page `/:slug/tasks/T-12` (the notifications' links:
+its moves from `actions`, Send back with its required reason, Route to a step, Cancel asked first, the drawing with its
+step ringed and its rounds, the description in Markdown, the facts and the history); "Open its flow" / "Create its
+flow" in the org chart's card menus; the gallery's `/design/flows` on sample data. No server change; no frontend tests
+(typechecked, built in `--full`).
+
 ### S6 — inbox, attention, CEO chat tooling  ← **the SLOP BOX milestone**
 
 Done when the demo below passes on the Mac and then on the devbox:

@@ -15,12 +15,13 @@ import { SAMPLE_AGENTS, SAMPLE_ATTENTION, SAMPLE_LOGO_SRC, SAMPLE_NOW } from './
 /** The version the sample company's logo is primed under with `?logo=1` (the hook asks for it; the gallery has no API). */
 export const SAMPLE_LOGO_VERSION = 'sample';
 
-export type MockPage = 'dashboard' | 'org' | 'members' | 'api-keys' | 'settings';
+export type MockPage = 'dashboard' | 'org' | 'flows' | 'members' | 'api-keys' | 'settings';
 
 /** The mock page of each section of the real company pages, so the rail is the company's own, pointing here. */
 const MOCK_PATHS: Readonly<Record<string, string>> = {
   '': '/design/dashboard',
   structure: '/design/org',
+  flows: '/design/flows',
   'api-keys': '/design/api-keys',
   settings: '/design/settings',
 };
@@ -29,6 +30,7 @@ const MOCK_PATHS: Readonly<Record<string, string>> = {
 const SECTIONS: Readonly<Record<MockPage, string>> = {
   dashboard: '',
   org: 'structure',
+  flows: 'flows',
   members: 'structure',
   'api-keys': 'api-keys',
   settings: 'settings',

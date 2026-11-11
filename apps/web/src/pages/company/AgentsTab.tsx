@@ -1,11 +1,14 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { useState } from 'react';
 import { useCompanyLogo } from '../../api/company-logo.ts';
+import { useFlows } from '../../api/flows.ts';
 import { useAgentList, useOrgChart } from '../../api/org.ts';
 import type { AgentFilter } from '../../api/types.ts';
 import { useCompany } from '../../app/company.ts';
 import { AgentsView, type AgentsTab as Tab } from '../../features/agents/AgentsView.tsx';
 import { companyAgentLinks } from '../../features/agents/links.ts';
+import { chartFlowItems } from '../../features/flows/access.ts';
+import { companyFlowLinks } from '../../features/flows/links.ts';
 
 /**
  * The Org chart (`/:slug/structure`: the canvas, where people and agents are dragged to another manager, added,
@@ -19,6 +22,8 @@ export function AgentsTab({ tab }: { readonly tab: Tab }) {
   const chart = useOrgChart(companyId);
   const agents = useAgentList(companyId, status);
   const logo = useCompanyLogo(companyId, membership.logo?.version);
+  const flows = useFlows(companyId);
+  const viewer = { role: membership.role, userId: me.user.id, chart: chart.data };
   return (
     <AgentsView
       companyId={companyId}
@@ -32,6 +37,7 @@ export function AgentsTab({ tab }: { readonly tab: Tab }) {
       myRole={membership.role}
       meUserId={me.user.id}
       company={{ name: membership.name, logo }}
+      flowItem={chartFlowItems(viewer, flows.data?.flows, companyFlowLinks(membership.slug))}
       onChanged={(self) => {
         chart.reload();
         agents.reload();

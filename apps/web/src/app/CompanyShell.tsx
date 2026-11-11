@@ -13,11 +13,15 @@ import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
+import { FLOW_TAB } from '../features/flows/links.ts';
 import { NotificationsBell } from '../features/notifications/NotificationsBell.tsx';
 import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { ChatPage } from '../pages/company/ChatPage.tsx';
+import { FlowsPage } from '../pages/company/flows/FlowsPage.tsx';
+import { TaskPage } from '../pages/company/flows/TaskPage.tsx';
+import { TeamPage } from '../pages/company/flows/TeamPage.tsx';
 import { MachinesPage } from '../pages/company/MachinesPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
 import {
@@ -37,6 +41,7 @@ import { rememberCompany, useSession } from './session.tsx';
 /** The pages of a company, by the path after `/:slug/`; `subscriptions`, `gateways` and `profiles` are the person's own. */
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
+  flows: FlowsPage,
   machines: MachinesPage,
   subscriptions: SubscriptionsCompanyPage,
   gateways: GatewaysCompanyPage,
@@ -91,9 +96,19 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
+/** A team's page (`flows/<lead>`, `flows/<lead>/flow`) or a task's (`tasks/<key>`; `tasks` alone opens the flows). */
+function flowPageAt(head: string, rest: readonly string[]): ReactNode {
+  const [address, more] = rest;
+  if (head === 'flows' && address && (more === undefined || (more === FLOW_TAB && rest.length === 2))) {
+    return <TeamPage key={address} address={address} tab={more === FLOW_TAB ? 'flow' : 'board'} />;
+  }
+  if (head === 'tasks' && rest.length === 1 && address) return <TaskPage key={address} taskKey={address} />;
+  return undefined;
+}
+
 /**
  * The page at `section` (the path after `/:slug/`): a company page, a Company structure tab, an agent's page or chats,
- * or not found.
+ * a team's or a task's page, or not found.
  */
 function pageAt(section: string): ReactNode {
   const [head = '', ...rest] = section.split('/');
@@ -102,6 +117,8 @@ function pageAt(section: string): ReactNode {
   if (tab) return <StructurePage tab={tab} />;
   if (head === 'agents' && address) return <AgentPage address={address} />;
   if (head === 'chats' && address) return <ChatPage key={address} agentId={address} />;
+  const flowPage = flowPageAt(head, rest);
+  if (flowPage) return flowPage;
   const Page = rest.length === 0 ? SECTIONS[head] : undefined;
   if (Page) return <Page />;
   return (

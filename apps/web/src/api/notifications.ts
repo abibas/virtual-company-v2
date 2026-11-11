@@ -33,7 +33,7 @@ export interface LiveNotifications extends Loaded<NotificationList> {
 const routesOf = (api: Api) => api.api.companies[':companyId'].notifications;
 
 /** Reloads every `ms` while the document is visible, and at once when it becomes visible again. */
-function useEvery(ms: number, reload: () => void) {
+export function useEvery(ms: number, reload: () => void) {
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') reload();

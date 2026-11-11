@@ -7,6 +7,7 @@ import { COMPANY } from '../../components/org/ChartCard.tsx';
 import { nodesById } from '../../components/org/chart.ts';
 import { type LayoutNode, layoutChart } from '../../components/org/layout.ts';
 import type { AgentLinks } from '../agents/links.ts';
+import type { ChartFlowItem } from '../flows/access.ts';
 import type { MenuAt } from './ChartMenu.tsx';
 import type { ChartAbilities, ChartActions, ChartTask } from './ChartMenuItems.tsx';
 import { dropMove, dropPlan } from './drop-targets.ts';
@@ -28,6 +29,8 @@ export interface BoardInput {
   readonly calls: OrgCalls;
   readonly links: AgentLinks;
   readonly abilities: ChartAbilities;
+  /** A manager's flow item in its card's menu. */
+  readonly flowItem: (principalId: string) => ChartFlowItem | undefined;
   readonly onChanged: (self?: boolean) => void;
 }
 
@@ -35,7 +38,7 @@ export interface BoardInput {
  * The org chart board's state: the chart with the moves being made, its layout, the card being dragged and where it
  * may go, the open menu and sheet, and what the menus' items do (sheets, pause and resume, the hire form, pages).
  */
-export function useBoard({ chart: loaded, calls, links, abilities, onChanged }: BoardInput) {
+export function useBoard({ chart: loaded, calls, links, abilities, flowItem, onChanged }: BoardInput) {
   const moves = useChartMoves({ chart: loaded, calls, onChanged });
   const chart = moves.chart;
   const [menu, setMenu] = useState<MenuAt>();
@@ -79,6 +82,7 @@ export function useBoard({ chart: loaded, calls, links, abilities, onChanged }: 
     hireHref: (principalId) => hireUnder(links.hire, principalId),
     agentHref: (agent) => links.agent({ slug: agent.slug, id: agent.agentId }),
     peopleHref: links.people,
+    flow: flowItem,
   };
   return { moves, chart, nodes, menu, setMenu, task, setTask, canvas, frame, drag, plan, layout, actions };
 }

@@ -6,7 +6,10 @@ import { AgentProfile } from '../../features/agents/AgentProfile.tsx';
 import { AgentsView } from '../../features/agents/AgentsView.tsx';
 import { HireAgent } from '../../features/agents/HireAgent.tsx';
 import type { AgentLinks } from '../../features/agents/links.ts';
+import { chartFlowItems } from '../../features/flows/access.ts';
 import { StructureView } from '../../features/structure/StructureView.tsx';
+import { FLOW_LINKS, SAMPLE_VIEWER } from './flows/FlowsMock.tsx';
+import { SAMPLE_FLOW_LIST } from './flows/flow-sample.ts';
 import { MockShell } from './MockShell.tsx';
 import { SAMPLE_CHART, sampleAgent, sampleAgentList } from './org-sample.ts';
 import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from './records.ts';
@@ -46,6 +49,7 @@ function AgentsBody({ list }: { readonly list: boolean }) {
         myRole="owner"
         meUserId={SAMPLE_ME.id}
         company={{ name: SAMPLE_COMPANY.name, logo: null }}
+        flowItem={chartFlowItems(SAMPLE_VIEWER, SAMPLE_FLOW_LIST.flows, FLOW_LINKS)}
         onChanged={none}
       />
     </StructureView>

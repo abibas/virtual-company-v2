@@ -110,9 +110,9 @@ step state and how many artifacts it has.
 | Check | Ihor's DEVBOX team takes one real ticket from the Lead to the end |
 | Later | "Assembly line", an animated view of the steps with each step clickable (Ihor's reference: buildindex.dev's assembly template), built once everything above is approved and working; a Fable 5.2 subagent builds it |
 
-## Built in S5.3a (server side, 2026-11-11)
+## Built in S5.3a (2026-11-11)
 
-The data, the rules, the API and `mwc task` / `mwc flow`. The web (flow editor, board, task page) is the next step.
+The data, the rules, the API and `mwc task` / `mwc flow`, then the web (flow editor, board, task page; "Web" below).
 People move tasks by hand; nothing runs yet.
 
 ### Tables (migration `0022_flows`)
@@ -217,6 +217,47 @@ text. A person's step shows a dash for "comes back again" (people keep no conver
 - `mwc task move <key> <action> [--to <step>] [--reason <text>]`: one move; a step by its name or id.
 
 Each takes `--company`, `--json` and `--server` like `mwc org tree`.
+
+### Web
+
+The rail's **Flows** item (a task's page belongs to it too). Every page starts with the path Company structure / Flows /
+the flow / `T-12`. The views take their data and calls as props, so the design gallery (`/design/flows`) draws them on
+sample records.
+
+| Route | What it shows |
+| --- | --- |
+| `/:slug/flows` | Every team's flow as a card: the Lead's face, the flow's name, its open tasks, its steps as chips in their kind's colour with the tasks at each, and Queued, Done and Escalated counts (each card reads its board with `?done=0`). "Create a flow" lists the managers without one that the viewer may lead |
+| `/:slug/flows/<lead>` | The team's **Board**: Queued, each step (its name, kind colour and assignee's face), Done (the latest 10, "3 of 14") and Escalated. A card shows its key, priority (unless normal), when it last moved, its title, its step state ("Needs you" to the person it waits for), its round from the second on and who has it; it opens the task. **New task** (member and up): title, description (Markdown), priority, and "Start at" a step for those who lead the team. Read again every 30 seconds while the page is visible |
+| `/:slug/flows/<lead>/flow` | The team's **Flow**: the drawing (one row of boxes in their kind's colour, each with its assignee's face and name, Keep ↻ or Fresh ✦ on an agent's step, the limit as "3×", then Done; dashed arrows in an SVG under the row from each Check and Sign-off box back to its target) and the written form (`GET …/text`) with Copy. **Edit** (`?edit=1`) for those who lead the team |
+| `/:slug/tasks/T-12` | The task: its title (renamed in place), state and step state; its moves (the API's `actions`); the flow drawn with its step ringed and each step's rounds and send-backs under its box; its description (Markdown, edited in place); its facts (flow, step, round, who has it, priority as a select, who made it, when) and its history as a timeline (who, what, from and to which step, the reason, when). Escalated: the reason and where Retry goes. `/:slug/tasks` alone opens the flows |
+
+`<lead>` is an agent Lead's slug or a person Lead's principal id. A Lead without a flow gets the editor that makes one
+(`POST …/flows`) for those who may, and "No flow yet" for everyone else. On the org chart a manager's ⋯ menu has "Open
+its flow", or "Create its flow" for those who may lead the team.
+
+**Who sees what.** The web works out who leads a team the way the API does, from the chart: an admin or owner, or a
+member who is the Lead or above it (`peopleAtOrAbove`). They get Edit, "Start at", the board's drag and "Create a
+flow"; the task's creator and they edit a task. The task's moves come from the API (`actions`). The server stays the
+judge: a refusal shows its own words.
+
+**The board's drag.** Those who lead the team drag a card (from Queued, a step or Escalated, not Done) onto a step's
+column; while it is dragged the columns it may land on are outlined and the others dimmed (Queued, Done, Escalated and
+the step an active task is at already). The drop shows the card there at once and sends `route` with `fromStepId` (the
+step it was seen at); a refusal (`task_moved`, `wrong_state`, …) puts it back and shows the server's message at the
+bottom of the window. Done and Cancel are the task page's buttons.
+
+**The flow editor** edits the step list in place, with a live drawing of the draft above it: the flow's name; per step
+its name, kind (Work, Check, Sign-off), assignee (the company's people, then its agents), Starts (Auto, On Start), Comes
+back again (Keep, Fresh; an agent's step only), and for Check and Sign-off where it sends back to (an earlier step) and
+its limit (a number, or none). Steps move by their handle (the browser's drag and drop) or Up and Down, and are
+removed with the bin; a send-back to a removed step is cleared, and a Work step keeps none. A step keeps its id, so
+`PUT …/steps` keeps its tasks; send-backs are sent by the target's name. A step with no name, a name used twice, a
+send-back to a later step or a limit without a target is marked under the step and holds Save. The server's refusals
+show above the buttons (`step_has_tasks` names the tasks).
+
+The web's parts: `apps/web/src/api/flows.ts` (the types inferred from the routes, the hooks, the calls),
+`features/flows/` (`list/`, `team/`, `board/`, `drawing/`, `editor/`, `task/`, and `access.ts`, `links.ts`, `words.ts`,
+`Face.tsx`), `pages/company/flows/` and `pages/design/flows/`.
 
 ### Left for S5.3b (design only, no tables yet)
 

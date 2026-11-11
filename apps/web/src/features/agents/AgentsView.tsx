@@ -5,6 +5,7 @@ import { orgCalls } from '../../api/org.ts';
 import type { AgentFilter, AgentList, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { nodesById } from '../../components/org/chart.ts';
+import type { ChartFlowItem } from '../flows/access.ts';
 import { OrgChartBoard } from '../structure/OrgChartBoard.tsx';
 import { AgentsTable } from './AgentsTable.tsx';
 import type { AgentLinks } from './links.ts';
@@ -26,6 +27,8 @@ export interface AgentsViewProps {
   readonly meUserId: string;
   /** The company at the top of the chart: its name and its logo (an object URL, or null). */
   readonly company: { readonly name: string; readonly logo: string | null };
+  /** A manager's flow item in its chart card's menu (S5.3a). */
+  readonly flowItem: (principalId: string) => ChartFlowItem | undefined;
   /** Someone moved, got a title or a role: read the chart and the team again (`self`: one's own role changed). */
   readonly onChanged: (self?: boolean) => void;
 }
@@ -46,6 +49,7 @@ export function AgentsView({
   myRole,
   meUserId,
   company,
+  flowItem,
   onChanged,
 }: AgentsViewProps) {
   const api = useApi();
@@ -59,6 +63,7 @@ export function AgentsView({
       calls={calls}
       links={links}
       abilities={{ admin, myRole, meUserId }}
+      flowItem={flowItem}
       onChanged={onChanged}
     />
   ) : (

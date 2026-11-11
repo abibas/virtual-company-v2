@@ -28,6 +28,24 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-11: S5.3a's web: one `features/flows/` area with subfolders, and its shared looks and links
+
+- **What happened:** the flows' web went to one area, `apps/web/src/features/flows/` (4 files: `access.ts`, `links.ts`,
+  `words.ts`, `Face.tsx`, and 6 folders `list/`, `team/`, `board/`, `drawing/`, `editor/`, `task/`, 2–6 files each, all
+  under 200 lines), the pages to `pages/company/flows/` (3 files; `pages/company/` 11 → 12 entries) and the gallery's
+  mock to `pages/design/flows/` (3 files). `features/` went 12 → 13 entries and `pages/design/` 12 → 13 (`big-folder`).
+  `features/flows/words.ts` (the kinds' colours, the step states' and priorities' words) is imported for its values by 9
+  files and `links.ts` by 8 (`fan-in`): they are the area's building blocks, as `components/` is the app's. Six
+  components went over 60 lines on the first pass (TaskActions 103, NewTaskSheet 92, StepOptions 88, FlowEditor 80,
+  useBoardMoves 77, TeamView 64) and were split into named parts before commit. `api/flows.ts` (124 lines) takes
+  `api/` from 24 to 25 entries; `useEvery` is now exported from `api/notifications.ts` for the board's refresh.
+- **Where:** the flows-web commit.
+- **What was done:** as above.
+- **Suggested change:** `fanInExempt` for a feature's own look and link files (`features/<area>/words.ts`,
+  `links.ts`), or a placement row for them; at the S5 review, group `pages/design/` mocks by area
+  (`pages/design/<area>/`, as `flows/` now) and `api/` by area.
+- **Status:** `open`.
+
 ### 2026-11-11: S5.3a's flows and tasks: the map's `tasks/` module, and an area's enums beside its contract
 
 - **What happened:** the flows and tasks went to the map's planned `apps/server/src/modules/tasks/` (S5: "tasks,

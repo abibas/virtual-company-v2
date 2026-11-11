@@ -10,10 +10,12 @@ import {
   Tag,
   UserPlus,
   Users,
+  Workflow,
 } from 'lucide-react';
 import type { ChartNode } from '../../api/types.ts';
 import { MenuItem, MenuLabel, MenuSeparator } from '../../components/forms/Menu.tsx';
 import { nodeName } from '../../components/org/chart.ts';
+import type { ChartFlowItem } from '../flows/access.ts';
 
 /** What a menu item opens in a sheet: a principal's manager, title, role or archiving, or an invitation under someone. */
 export type ChartTask =
@@ -37,6 +39,8 @@ export interface ChartActions {
   agentHref(agent: { readonly slug: string; readonly agentId: string }): string;
   /** The People tab. */
   readonly peopleHref: string;
+  /** A manager's flow: open it, or make it (S5.3a); nothing for anyone else. */
+  flow(principalId: string): ChartFlowItem | undefined;
 }
 
 interface ItemsProps {
@@ -103,9 +107,10 @@ function AgentStatusItems({
 }
 
 /**
- * A card's menu items. `more` (its ⋯): open it; change its manager and title (admins; anyone their own title); an
- * agent's pause, resume and archive and a person's role (admins, the roles they may give); then the add items. `add`
- * (its +): hire an agent under it, invite a person under it.
+ * A card's menu items. `more` (its ⋯): open it, and a manager's flow (open it, or create it for those who lead the
+ * team); change its manager and title (admins; anyone their own title); an agent's pause, resume and archive and a
+ * person's role (admins, the roles they may give); then the add items. `add` (its +): hire an agent under it, invite a
+ * person under it.
  */
 export function ChartMenuItems({ kind, node, abilities, actions }: ItemsProps) {
   if (kind === 'add' || !node) return <AddItems node={node} abilities={abilities} actions={actions} />;
@@ -113,6 +118,7 @@ export function ChartMenuItems({ kind, node, abilities, actions }: ItemsProps) {
   const roles = node.kind === 'person' ? grantableRoles(abilities.myRole, node.person.role) : [];
   const task = (kind: 'manager' | 'title' | 'role') => () =>
     actions.task({ kind, principalId: node.principalId });
+  const flow = actions.flow(node.principalId);
   return (
     <>
       <MenuLabel>{nodeName(node)}</MenuLabel>
@@ -123,6 +129,11 @@ export function ChartMenuItems({ kind, node, abilities, actions }: ItemsProps) {
       ) : (
         <MenuItem icon={ArrowUpRight} href={actions.peopleHref}>
           Open in People
+        </MenuItem>
+      )}
+      {flow && (
+        <MenuItem icon={Workflow} href={flow.href}>
+          {flow.label}
         </MenuItem>
       )}
       {abilities.admin && (

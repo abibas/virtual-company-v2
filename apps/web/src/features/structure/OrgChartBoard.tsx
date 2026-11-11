@@ -11,6 +11,7 @@ import { Badge } from '../../components/ui/Badge.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { Skeleton } from '../../components/ui/Skeleton.tsx';
 import type { AgentLinks } from '../agents/links.ts';
+import type { ChartFlowItem } from '../flows/access.ts';
 import { CardButtons, ChartLayer, DragGhost } from './ChartLayer.tsx';
 import { ChartMenu } from './ChartMenu.tsx';
 import { type ChartAbilities, ChartMenuItems } from './ChartMenuItems.tsx';
@@ -27,6 +28,8 @@ export interface OrgChartBoardProps {
   readonly calls: OrgCalls;
   readonly links: AgentLinks;
   readonly abilities: ChartAbilities;
+  /** A manager's flow item in its card's menu: "Open its flow" or "Create its flow". */
+  readonly flowItem: (principalId: string) => ChartFlowItem | undefined;
   /** The chart changed: read it again (`self`: the signed-in person's own role changed). */
   readonly onChanged: (self?: boolean) => void;
 }

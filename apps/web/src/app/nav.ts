@@ -4,12 +4,12 @@ import {
   Inbox,
   KeyRound,
   LayoutGrid,
-  ListChecks,
   type LucideIcon,
   Network,
   Server,
   Settings,
   Waypoints,
+  Workflow,
 } from 'lucide-react';
 import type { NavItem } from '../components/layout/Rail.tsx';
 
@@ -36,17 +36,22 @@ export function withoutOldPrefix(href: string): string {
 
 /**
  * The rail section a company path belongs to, from its first segment: an agent's page (`agents/...`) and its chats
- * (`chats/...`) are part of Company structure (`structure`); every other section is its own.
+ * (`chats/...`) are part of Company structure (`structure`), a task's page (`tasks/...`) part of Flows; every other
+ * section is its own.
  */
-export const railSection = (first: string): string =>
-  first === 'agents' || first === 'chats' ? 'structure' : first;
+export function railSection(first: string): string {
+  if (first === 'agents' || first === 'chats') return 'structure';
+  return first === 'tasks' ? 'flows' : first;
+}
 
 /**
  * The new address of a company page that moved (2026-11-09), or undefined: `agents` (the org chart, or its list with
- * `?view=list`) and `members` are tabs of Company structure now.
+ * `?view=list`) and `members` are tabs of Company structure now; `tasks` alone (a notification of no one task) opens
+ * the flows.
  */
 export function movedSection(section: string, search: URLSearchParams): string | undefined {
   if (section === 'members') return 'structure/people';
+  if (section === 'tasks') return 'flows';
   if (section === 'agents') return search.get('view') === 'list' ? 'structure/agents' : 'structure';
   return undefined;
 }
@@ -64,13 +69,13 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
   return [
     page('overview', 'Overview', LayoutGrid),
     page('structure', 'Company structure', Network),
+    page('flows', 'Flows', Workflow),
     page('machines', 'Machines', Server),
     { ...page('subscriptions', 'Subscriptions', CreditCard), divider: true, railOnly: true },
     { ...page('gateways', 'AI gateways', Waypoints), railOnly: true },
     { ...page('profiles', 'Access profiles', IdCard), railOnly: true },
     { ...page('api-keys', 'API keys', KeyRound), divider: true },
     page('settings', 'Settings', Settings),
-    { key: 'tasks', label: 'Tasks', icon: ListChecks, soon: 'coming in S5' },
     { key: 'inbox', label: 'Inbox', icon: Inbox, soon: 'coming in S6' },
   ];
 }

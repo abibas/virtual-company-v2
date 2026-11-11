@@ -6,6 +6,7 @@ import { Brand } from '../../components/layout/Brand.tsx';
 import { ThemeToggle } from '../../components/layout/ThemeToggle.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { DashboardMock } from './DashboardMock.tsx';
+import { FlowsMock } from './flows/FlowsMock.tsx';
 import { BadgesSection } from './gallery/Badges.tsx';
 import { ButtonsSection } from './gallery/Buttons.tsx';
 import { CardsSection } from './gallery/Cards.tsx';
@@ -21,6 +22,7 @@ const VIEWS = [
   { href: '/design', label: 'Components' },
   { href: '/design/dashboard', label: 'Dashboard' },
   { href: '/design/org', label: 'Company structure' },
+  { href: '/design/flows', label: 'Flows' },
   { href: '/design/members', label: 'People' },
   { href: '/design/api-keys', label: 'API keys' },
   { href: '/design/settings', label: 'Settings' },
@@ -108,6 +110,8 @@ function mockAt(pathname: string) {
       return <DashboardMock />;
     case '/design/org':
       return <OrgMock />;
+    case '/design/flows':
+      return <FlowsMock />;
     case '/design/members':
       return <PagesMock page="members" />;
     case '/design/api-keys':
@@ -127,7 +131,7 @@ function mockAt(pathname: string) {
 
 /**
  * `/design` (development only, no API and no sign-in): the component gallery; the dashboard, the org chart (with the
- * agents' list, form and page), Members, API keys and Settings pages in the shell with sample data; the home page's
+ * agents' list, form and page), the flows (a team's board, its flow and editor, a task), Members, API keys and Settings pages in the shell with sample data; the home page's
  * Subscription limits widget on sample cards; the sign-in layout with a stand-in for Clerk; the create-company page.
  * `?theme=dark` (or light) picks the scheme, so a screenshot run can ask for either.
  */
