@@ -3,6 +3,7 @@ import { FAKE_CREDENTIALS, fakeTerminalSpec } from '@mwc/harness-core/fake';
 import { describe, expect, it } from 'vitest';
 import {
   ASK_PROMPT,
+  allowedTools,
   CLAUDE_ACCOUNT_VARS,
   claudeEnv,
   credentialEnv,
@@ -111,6 +112,7 @@ const TOOLS = {
     MWC_ASK_SOCKET: '/home/agent/.local/state/mwc-runner/turns/0a1b2c3d4e5f/ask.sock',
     MWC_ASK_TOKEN: 'tok',
   },
+  names: ['ask_user_question'],
 };
 
 describe('the runner’s tools', () => {
@@ -128,6 +130,25 @@ describe('the runner’s tools', () => {
         'turn: their answer comes as their next message.',
     );
     expect(ASK_PROMPT).not.toContain('\n');
+  });
+
+  it('allow the agents’ tools as one comma-joined argument after the question tool, passing over odd names', () => {
+    const work = {
+      ...TOOLS,
+      env: { ...TOOLS.env, MWC_TOOLS: 'task_read,task_hand_on,task_attach,task_blocked' },
+      names: ['ask_user_question', 'task_read', 'task_hand_on', 'task_attach', 'task_blocked'],
+    };
+    expect(toolArgs(work, false)).toEqual([
+      '--mcp-config',
+      `${TOOLS.dir}/mcp.json`,
+      '--allowedTools',
+      'mcp__mwc__ask_user_question,mcp__mwc__task_read,mcp__mwc__task_hand_on,mcp__mwc__task_attach,' +
+        'mcp__mwc__task_blocked',
+    ]);
+    expect(allowedTools({ ...TOOLS, names: ['team_board', 'Bash rm', 'a,b', 'task_show'] })).toBe(
+      'mcp__mwc__ask_user_question,mcp__mwc__team_board,mcp__mwc__task_show',
+    );
+    expect(allowedTools({ ...TOOLS, names: [] })).toBe('mcp__mwc__ask_user_question');
   });
 
   it('start the runner’s MCP server with its socket and token in the config, never on a command line', () => {

@@ -2,6 +2,7 @@
 // The recorded-style turns for tests are a separate import: @mwc/harness-claude-code/fixtures.
 export {
   ASK_PROMPT,
+  allowedTools,
   CLAUDE_ACCOUNT_VARS,
   CLAUDE_COMMAND,
   claudeEnv,

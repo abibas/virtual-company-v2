@@ -170,6 +170,7 @@ describe('when the tunnels cannot be sent', () => {
         folders: false,
         forks: false,
         reattach: false,
+        agentTools: false,
       },
       builtAt: null,
       build: null,

@@ -1,6 +1,13 @@
 import type { AskQuestions } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { type AskRelay, JSON_RPC, MCP_PROTOCOL_VERSIONS, McpServer } from '../../../src/turns/ask/mcp.ts';
+import { agentToolDefinition } from '../../../src/turns/ask/agent-tools.ts';
+import {
+  type AskRelay,
+  JSON_RPC,
+  MCP_PROTOCOL_VERSIONS,
+  McpServer,
+  type ToolRelay,
+} from '../../../src/turns/ask/mcp.ts';
 import { ASK_REPLY, ASK_TOOL_DEFINITION } from '../../../src/turns/ask/tool.ts';
 import { QUESTION } from '../../fixtures/ask.ts';
 
@@ -26,6 +33,29 @@ const request = (id: number | string, method: string, params?: unknown) => ({
 
 const call = (args: unknown, name = 'ask_user_question') =>
   request(7, 'tools/call', { name, arguments: args });
+
+/** A server offering `tools`, whose tool relay records each call and answers `reply` (or throws it). */
+function toolServer(
+  tools: Parameters<typeof agentToolDefinition>[0][],
+  reply: Awaited<ReturnType<ToolRelay>> | Error = { ok: true, text: 'Recorded.' },
+) {
+  const calls: unknown[] = [];
+  const mcp = new McpServer({
+    version: '0.5.0',
+    ask: () => Promise.resolve({ ok: true, text: ASK_REPLY }),
+    tools,
+    call: (relayed) => {
+      calls.push(relayed);
+      return reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply);
+    },
+  });
+  return { mcp, calls };
+}
+
+const names = async (mcp: McpServer) =>
+  (
+    (await mcp.handle(request(3, 'tools/list'))) as { result: { tools: { name: string }[] } }
+  ).result.tools.map((tool) => tool.name);
 
 describe("the runner's MCP server", () => {
   it('initializes with tools only, in the version asked for when it speaks it, else its newest', async () => {
@@ -143,5 +173,76 @@ describe("the runner's MCP server", () => {
     expect(JSON.parse((await mcp.line(JSON.stringify(request(2, 'ping')))) as string)).toMatchObject({
       id: 2,
     });
+  });
+});
+
+describe("the runner's MCP server with the agents' tools (S6a)", () => {
+  it('lists the question tool, then the turn’s tools: none, a Work step’s, a Check step’s or the Lead’s', async () => {
+    expect(await names(server().mcp)).toEqual(['ask_user_question']);
+    expect(await names(toolServer(['task_read', 'task_hand_on', 'task_attach', 'task_blocked']).mcp)).toEqual(
+      ['ask_user_question', 'task_read', 'task_hand_on', 'task_attach', 'task_blocked'],
+    );
+    const check = ['task_read', 'task_pass', 'task_send_back', 'task_attach', 'task_blocked'] as const;
+    expect(await names(toolServer([...check]).mcp)).toEqual(['ask_user_question', ...check]);
+    const lead = [
+      'team_board',
+      'task_show',
+      'task_create',
+      'task_route',
+      'task_start',
+      'task_retry',
+      'task_cancel',
+    ] as const;
+    const listed = (await toolServer([...lead]).mcp.handle(request(3, 'tools/list'))) as {
+      result: { tools: unknown[] };
+    };
+    expect(listed.result.tools).toEqual([ASK_TOOL_DEFINITION, ...lead.map(agentToolDefinition)]);
+    // Tools without a relay are not offered.
+    const bare = new McpServer({
+      version: '0.5.0',
+      ask: () => Promise.resolve({ ok: true, text: '' }),
+      tools: ['task_read'],
+    });
+    expect(await names(bare)).toEqual(['ask_user_question']);
+  });
+
+  it('relays an offered tool’s checked input and answers with the runner’s text, or its error', async () => {
+    const { mcp, calls } = toolServer(['task_read', 'task_pass']);
+    expect(await mcp.handle(call({ findings: ' Looks right. ' }, 'task_pass'))).toEqual({
+      jsonrpc: '2.0',
+      id: 7,
+      result: { content: [{ type: 'text', text: 'Recorded.' }] },
+    });
+    expect(calls).toEqual([{ tool: 'task_pass', input: { findings: 'Looks right.' } }]);
+    const refused = toolServer(['task_read'], { ok: false, error: 'The task moved on.' });
+    expect(await refused.mcp.handle(call({}, 'task_read'))).toMatchObject({
+      result: { content: [{ text: 'The task moved on.' }], isError: true },
+    });
+    const thrown = toolServer(['task_read'], new Error('socket gone'));
+    expect(await thrown.mcp.handle(call({}, 'task_read'))).toMatchObject({
+      result: { content: [{ text: 'socket gone' }], isError: true },
+    });
+  });
+
+  it('answers a bad input as a tool error saying what to fix, without relaying it', async () => {
+    const { mcp, calls } = toolServer(['task_send_back']);
+    const answer = (await mcp.handle(call({ reason: 'Wrong' }, 'task_send_back'))) as {
+      result: { content: { text: string }[]; isError: boolean };
+    };
+    expect(answer.result.isError).toBe(true);
+    expect(answer.result.content[0]?.text).toMatch(
+      /^task_send_back did nothing; fix its input and call it again:\nfindings: /,
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses a tool this turn does not offer as an unknown tool', async () => {
+    const { mcp, calls } = toolServer(['task_read', 'task_hand_on']);
+    expect(await mcp.handle(call({ key: 'T-1' }, 'task_show'))).toEqual({
+      jsonrpc: '2.0',
+      id: 7,
+      error: { code: JSON_RPC.invalidParams, message: 'Unknown tool: task_show' },
+    });
+    expect(calls).toEqual([]);
   });
 });

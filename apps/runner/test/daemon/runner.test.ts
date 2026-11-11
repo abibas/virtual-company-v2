@@ -53,6 +53,7 @@ describe('the runner on the wire', () => {
         folders: false,
         forks: true,
         reattach: false,
+        agentTools: false,
       },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });

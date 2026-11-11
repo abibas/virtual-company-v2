@@ -1,12 +1,15 @@
+import type { AgentTool } from '@mwc/shared/flows';
 import { ASK_TOOL, AskInput, type AskQuestions } from '@mwc/shared/harness';
+import { agentToolDefinition, checkToolInput } from './agent-tools.ts';
 import { ASK_TOOL_DEFINITION, type AskReply, MCP_SERVER_NAME } from './tool.ts';
 
 /**
- * The runner's MCP server, by hand (docs/harness.md, "Asking the person"): JSON-RPC 2.0 messages, one per line, as the
- * stdio transport carries them. It answers `initialize` (tools only), `ping`, `tools/list` (one tool) and `tools/call`
- * of `ask_user_question`: the input is checked first (a bad one is a tool error the model reads and corrects), then
- * relayed to the runner (`ask`), whose text is the tool's result. Notifications (`notifications/initialized`) get no
- * answer; an unknown method is -32601, a line that is no JSON -32700, anything else that is no request -32600.
+ * The runner's MCP server, by hand (docs/harness.md, "Asking the person" and "Agents' tools"): JSON-RPC 2.0 messages,
+ * one per line, as the stdio transport carries them. It answers `initialize` (tools only), `ping`, `tools/list` (the
+ * question tool, then the turn's agents' tools, S6a) and `tools/call` of one of them: the input is checked first (a bad
+ * one is a tool error the model reads and corrects), then relayed to the runner (`ask`, `call`), whose text is the
+ * tool's result. A tool this turn does not offer is -32602. Notifications (`notifications/initialized`) get no answer;
+ * an unknown method is -32601, a line that is no JSON -32700, anything else that is no request -32600.
  */
 
 /** The protocol versions it speaks, newest first; a client asking for another gets the newest. */
@@ -21,6 +24,12 @@ export const JSON_RPC = {
 
 /** Relays a tool call's questions to the runner that started the turn. */
 export type AskRelay = (questions: AskQuestions) => Promise<AskReply>;
+
+/** Relays a call of an agents' tool, its input checked, to the runner that started the turn (S6a). */
+export type ToolRelay = (call: {
+  readonly tool: AgentTool;
+  readonly input: Record<string, unknown>;
+}) => Promise<AskReply>;
 
 type Id = string | number | null;
 type Message = Record<string, unknown>;
@@ -47,9 +56,24 @@ function issuesText(issues: readonly { readonly path: readonly PropertyKey[]; re
   return `The questions were not shown; fix them and call ${ASK_TOOL} again:\n${lines.join('\n')}`;
 }
 
+/** A relay's answer as the tool's result: its text, or its error (a thrown one too) as a tool error. */
+async function relayed(relay: () => Promise<AskReply>) {
+  let reply: AskReply;
+  try {
+    reply = await relay();
+  } catch (error) {
+    reply = { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  return reply.ok ? toolText(reply.text) : toolText(reply.error, true);
+}
+
 export interface McpServerOptions {
   readonly version: string;
   readonly ask: AskRelay;
+  /** The agents' tools this turn offers (S6a); none: the question tool alone. */
+  readonly tools?: readonly AgentTool[];
+  /** Where their calls go; required with `tools`. */
+  readonly call?: ToolRelay;
 }
 
 export class McpServer {
@@ -91,7 +115,7 @@ export class McpServer {
       case 'ping':
         return result(id, {});
       case 'tools/list':
-        return result(id, { tools: [ASK_TOOL_DEFINITION] });
+        return result(id, { tools: [ASK_TOOL_DEFINITION, ...this.#tools.map(agentToolDefinition)] });
       case 'tools/call':
         return this.#call(id, params);
       default:
@@ -109,18 +133,26 @@ export class McpServer {
     };
   }
 
+  get #tools(): readonly AgentTool[] {
+    return this.#options.call === undefined ? [] : (this.#options.tools ?? []);
+  }
+
   async #call(id: Id, params: Message) {
+    const agentTool = this.#tools.find((tool) => tool === params.name);
+    if (agentTool !== undefined) return this.#agentTool(id, agentTool, params.arguments);
     if (params.name !== ASK_TOOL) {
       return failure(id, JSON_RPC.invalidParams, `Unknown tool: ${String(params.name)}`);
     }
     const input = AskInput.safeParse(params.arguments ?? {});
     if (!input.success) return result(id, toolText(issuesText(input.error.issues), true));
-    let reply: AskReply;
-    try {
-      reply = await this.#options.ask(input.data.questions);
-    } catch (error) {
-      reply = { ok: false, error: error instanceof Error ? error.message : String(error) };
-    }
-    return result(id, reply.ok ? toolText(reply.text) : toolText(reply.error, true));
+    return result(id, await relayed(() => this.#options.ask(input.data.questions)));
+  }
+
+  /** An agents' tool's call: its input checked, then relayed; the runner's text is the result. */
+  async #agentTool(id: Id, tool: AgentTool, args: unknown) {
+    const checked = checkToolInput(tool, args);
+    if (!checked.ok) return result(id, toolText(checked.error, true));
+    const call = this.#options.call as ToolRelay;
+    return result(id, await relayed(() => call({ tool, input: checked.input })));
   }
 }

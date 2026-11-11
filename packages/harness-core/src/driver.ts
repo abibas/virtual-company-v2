@@ -36,12 +36,15 @@ export interface PrivateDir {
 /** The variables that tell the runner's MCP server where the turn's socket is and the token it must present. */
 export const ASK_SOCKET_ENV = 'MWC_ASK_SOCKET';
 export const ASK_TOKEN_ENV = 'MWC_ASK_TOKEN';
+/** The variable that names the agents' tools the turn's MCP server offers (S6a), comma-joined; absent: none. */
+export const TOOLS_ENV = 'MWC_TOOLS';
 
 /**
- * The runner's tools a turn may call (docs/harness.md, "Asking the person"): its MCP server, which a harness starts as
- * `command args` with `env` (the socket and its token) and which relays an `ask_user_question` call to the runner, and
- * this turn's own folder (0700), which the runner makes before the start and removes after the exit. A driver that
- * needs a file for it (Claude Code's `--mcp-config`) names it in `ProcessSpec.turnFiles`.
+ * The runner's tools a turn may call (docs/harness.md, "Asking the person" and "Agents' tools"): its MCP server, which a
+ * harness starts as `command args` with `env` (the socket and its token, and the agents' tools it offers) and which
+ * relays an `ask_user_question` call, or a call of an agents' tool (S6a), to the runner, and this turn's own folder
+ * (0700), which the runner makes before the start and removes after the exit. A driver that needs a file for it (Claude
+ * Code's `--mcp-config`) names it in `ProcessSpec.turnFiles`, and allows `names` (Claude Code's `--allowedTools`).
  */
 export interface TurnTools {
   readonly dir: string;
@@ -49,8 +52,10 @@ export interface TurnTools {
   readonly command: string;
   /** `[<runner.mjs>, 'mcp']`. */
   readonly args: readonly string[];
-  /** `ASK_SOCKET_ENV` and `ASK_TOKEN_ENV`. */
+  /** `ASK_SOCKET_ENV` and `ASK_TOKEN_ENV`, and `TOOLS_ENV` when it offers agents' tools. */
   readonly env: Readonly<Record<string, string>>;
+  /** The MCP tools its server offers: `ask_user_question` first, then the turn's agents' tools in order. */
+  readonly names: readonly string[];
 }
 
 /** A notice the runner sends before the process's own events (a setting the harness cannot honour). */

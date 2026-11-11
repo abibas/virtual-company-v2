@@ -2,6 +2,7 @@ import type { ProcessSpec } from '@mwc/harness-core';
 import type { TurnStart } from '@mwc/shared/runner-protocol';
 import type { Log } from '../system/log.ts';
 import { ArtifactCollector } from './artifacts/collect.ts';
+import { knownTools } from './ask/agent-tools.ts';
 import { type AskBridge, turnTools } from './ask/bridge.ts';
 import { processEnv } from './env.ts';
 import { type PrivateLease, withPrivateDir } from './private-dir.ts';
@@ -13,7 +14,8 @@ import type { HarnessHost } from './turns.ts';
 
 /**
  * What a turn runs with (`turns.ts`): a fresh one's driver spec, run folder, private folder, environment, parser,
- * question socket and outputs folder, built after the checks; a turn found on the disk at start (S5.4) takes its
+ * question socket (with the agents' tools the spec names that this runner knows, S6a) and outputs folder, built after
+ * the checks; a turn found on the disk at start (S5.4) takes its
  * driver's parser (from the turn's own start), its private folder adopted, its question socket listening again and its
  * outputs folder as its run folder noted it.
  */
@@ -61,7 +63,10 @@ export function prepareTurn(
   const bridge = openBridge(host, turnId, log);
   let built: ProcessSpec;
   try {
-    built = driver.turn(spec, bridge && host.ask && turnTools(host.ask, bridge));
+    built = driver.turn(
+      spec,
+      bridge && host.ask && turnTools(host.ask, bridge, knownTools(spec.tools ?? [])),
+    );
   } catch (error) {
     bridge?.close();
     return { refused: `invalid_spec: ${messageOf(error)}` };

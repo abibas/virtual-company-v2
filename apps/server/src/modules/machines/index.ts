@@ -29,6 +29,8 @@ export {
   type TurnEnding,
   type TurnRequest,
   type TurnSink,
+  type TurnToolCall,
+  type TurnToolReply,
 } from './service/runner/hub.ts';
 export {
   type IssuedTicket,

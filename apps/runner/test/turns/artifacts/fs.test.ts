@@ -45,4 +45,14 @@ describe('nodeArtifactFs', () => {
     expect(fs.read(root, 100)).toBeUndefined();
     expect(fs.read(join(root, 'none'), 100)).toBeUndefined();
   });
+
+  it('says what a path is without following a link', () => {
+    const root = tempDir();
+    writeFileSync(join(root, 'a.txt'), 'hello');
+    symlinkSync(join(root, 'a.txt'), join(root, 'link.txt'));
+    expect(fs.stat(join(root, 'a.txt'))).toMatchObject({ kind: 'file', size: 5 });
+    expect(fs.stat(join(root, 'link.txt'))?.kind).toBe('link');
+    expect(fs.stat(root)?.kind).toBe('other');
+    expect(fs.stat(join(root, 'none'))).toBeUndefined();
+  });
 });

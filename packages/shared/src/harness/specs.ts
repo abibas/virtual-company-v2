@@ -3,6 +3,7 @@ import { STANDING_INSTRUCTIONS_MAX } from '../agent-briefing.ts';
 import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
 import { type CredentialKind, Effort, Harness, PermissionPolicy } from '../enums.ts';
 import { ArtifactsDir } from '../flows/artifacts.ts';
+import { AgentToolName, TURN_TOOLS_MAX } from '../flows/tools.ts';
 import { PlacementPath } from '../machines.ts';
 import { MODEL_ID_PATTERN, ModelId } from '../models.ts';
 import { protocolObject } from '../runner-protocol/common.ts';
@@ -128,10 +129,22 @@ export const TurnArtifactsSpec = protocolObject({ dir: ArtifactsDir });
 export type TurnArtifactsSpec = z.infer<typeof TurnArtifactsSpec>;
 
 /**
+ * The agents' tools a turn gets (S6a, docs/harness.md "Agents' tools"): a task step's by its kind, a flow Lead's in its
+ * own chats, by name (`AgentTool` of `@mwc/shared/flows`). The runner's MCP server offers these besides its question
+ * tool and relays their calls (`turn.tool`); a name the runner does not know is passed over. Sent only to a runner that
+ * says `caps.agentTools`; an older one would ignore it.
+ */
+export const TurnToolNames = z
+  .array(AgentToolName)
+  .max(TURN_TOOLS_MAX)
+  .refine((names) => new Set(names).size === names.length, 'each tool once');
+
+/**
  * One chat turn: `prompt` (the message, verbatim) sent to the conversation, as one process. A branch's first turn
  * (docs/harness.md "Branching") resumes `sessionId` forked (`forkSession`: a new conversation from a copy, the original
  * untouched), with Claude Code up to `resumeAt` (a message id) when it continues from an earlier reply; absent: false,
- * none. A turn of a task's step (S5.3b) names its outputs' folder (`artifacts`).
+ * none. A turn of a task's step (S5.3b) names its outputs' folder (`artifacts`); one with the agents' tools (S6a) names
+ * them (`tools`).
  */
 export const TurnSpec = protocolObject({
   ...sessionFields,
@@ -139,5 +152,6 @@ export const TurnSpec = protocolObject({
   forkSession: z.boolean().optional(),
   resumeAt: HarnessMessageId.optional(),
   artifacts: TurnArtifactsSpec.optional(),
+  tools: TurnToolNames.optional(),
 });
 export type TurnSpec = z.infer<typeof TurnSpec>;

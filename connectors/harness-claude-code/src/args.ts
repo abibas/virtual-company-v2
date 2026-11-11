@@ -3,7 +3,6 @@ import { HarnessError, type TurnTools } from '@mwc/harness-core';
 import {
   ASK_SERVER,
   ASK_TOOL,
-  ASK_TOOL_CALLS,
   type HarnessCredential,
   type TerminalSpec,
   type TurnSpec,
@@ -75,17 +74,32 @@ export function mcpConfig(tools: TurnTools): string {
   return JSON.stringify({ mcpServers: { [ASK_SERVER]: server } });
 }
 
+/** An MCP tool's name as Claude Code calls it: `mcp__<server>__<tool>`; only plain lower-case names are allowed. */
+const TOOL_NAME = /^[a-z][a-z_]{0,63}$/;
+
 /**
- * A turn's arguments for the runner's tools: the MCP config file in the turn's folder, the question tool allowed (so
- * the `ask` policy does not refuse it in print mode), and the line that says when to use it, unless that line goes in
- * the standing instructions' file (`prompt` false).
+ * What `--allowedTools` takes for the runner's tools: one argument, every tool its server offers as Claude Code names it
+ * (`mcp__mwc__ask_user_question,mcp__mwc__task_read,…`; `claude --help` 2.1.322: "Comma or space-separated list of tool
+ * names to allow"), so the `ask` policy does not refuse them in print mode. A name that is not one plain word is passed
+ * over (it could name another tool); the question tool is always there.
+ */
+export function allowedTools(tools: TurnTools): string {
+  const names = tools.names.filter((name) => TOOL_NAME.test(name));
+  const offered = names.includes(ASK_TOOL) ? names : [ASK_TOOL, ...names];
+  return offered.map((name) => `mcp__${ASK_SERVER}__${name}`).join(',');
+}
+
+/**
+ * A turn's arguments for the runner's tools: the MCP config file in the turn's folder, its tools allowed
+ * (`allowedTools`), and the line that says when to ask, unless that line goes in the standing instructions' file
+ * (`prompt` false).
  */
 export function toolArgs(tools: TurnTools, prompt = true): string[] {
   return [
     '--mcp-config',
     join(tools.dir, MCP_CONFIG_FILE),
     '--allowedTools',
-    ASK_TOOL_CALLS[0],
+    allowedTools(tools),
     ...(prompt ? ['--append-system-prompt', ASK_PROMPT] : []),
   ];
 }

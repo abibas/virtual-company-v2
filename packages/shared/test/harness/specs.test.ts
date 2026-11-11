@@ -169,3 +169,17 @@ describe('standing instructions on a spec', () => {
     expect(TurnSpec.safeParse({ ...turn, instructions: long.slice(1) }).success).toBe(true);
   });
 });
+
+describe('the agents’ tools on a spec (S6a)', () => {
+  it('are optional, by name, each once; a name a runner does not know yet still parses', () => {
+    expect(TurnSpec.parse(turn).tools).toBeUndefined();
+    const tools = ['task_read', 'task_hand_on', 'task_review_later'];
+    expect(TurnSpec.parse({ ...turn, tools }).tools).toEqual(tools);
+    expect(TurnSpec.safeParse({ ...turn, tools: ['task_read', 'task_read'] }).success).toBe(false);
+    expect(TurnSpec.safeParse({ ...turn, tools: ['Bash'] }).success).toBe(false);
+    expect(
+      TurnSpec.safeParse({ ...turn, tools: Array.from({ length: 33 }, (_, i) => `t${'x'.repeat(i)}`) })
+        .success,
+    ).toBe(false);
+  });
+});

@@ -34,7 +34,8 @@ import { type TurnParts, TurnProcess } from './turn.ts';
  * (`reattach`), names them in its hello (`held`) and resumes each where the server's `turn.resume` says, or forgets it
  * (stopped, its folder removed) when the server no longer has it; `turn.ack` removes an ended turn's folder. Live turns
  * count for the runner's own hold. A runner that offers its tools opens each turn's question socket first (a turn whose
- * socket cannot open runs without it, logged); a task step's turn (S5.3b) gets its outputs folder made and noted first.
+ * socket cannot open runs without it, logged), and its MCP server offers the agents' tools the spec names (S6a), whose
+ * answers come back as `turn.tool.result`; a task step's turn (S5.3b) gets its outputs folder made and noted first.
  */
 
 /** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
@@ -110,7 +111,10 @@ export class Turns {
     if (frame.type === 'turn.start') this.#start(frame);
     else if (frame.type === 'turn.resume') this.#resume(frame);
     else if (frame.type === 'turn.ack') this.#turns.get(frame.turnId)?.acknowledged();
-    else this.#steer(frame);
+    else if (frame.type === 'turn.tool.result') {
+      if (this.#turns.get(frame.turnId)?.toolResult(frame) !== true)
+        this.#deps.log.info('turn.tool.result for no waiting call; dropped', { turnId: frame.turnId });
+    } else this.#steer(frame);
   }
 
   /** `turn.input` and `turn.stop` of a turn it holds (or one whose harness it is looking for again). */

@@ -1,5 +1,6 @@
 import { rmSync } from 'node:fs';
 import { PARSER_TICK_MS } from '@mwc/harness-core';
+import type { TurnToolResult } from '@mwc/shared/runner-protocol';
 import { every } from '../system/time.ts';
 import type { TurnInput } from './input.ts';
 import type { RunExit, RunMeta } from './runs/folder.ts';
@@ -16,10 +17,12 @@ import {
 import { logState, type TurnEvents } from './turn/events.ts';
 import type { TurnOutput } from './turn/output.ts';
 import { type TurnDeps, type TurnLaunch, type TurnParts, wireTurn } from './turn/parts.ts';
+import { TOOL_ENDING, TOOL_LOST, type TurnToolCalls } from './turn/tools.ts';
 
 export { INVALID_LOGIN } from './turn/end.ts';
 export { ASK_ENDING, ASK_OFFLINE } from './turn/events.ts';
 export type { TurnDeps, TurnLaunch, TurnParts } from './turn/parts.ts';
+export { TOOL_ENDING, TOOL_LOST, TOOL_NO_ANSWER, TOOL_OFFLINE, TOOL_REPLY_MS } from './turn/tools.ts';
 
 /**
  * One chat turn's process (docs/harness.md, "How a turn runs" and "Surviving restarts", S5.4). The runner starts its
@@ -32,7 +35,9 @@ export type { TurnDeps, TurnLaunch, TurnParts } from './turn/parts.ts';
  * resume (`attach`). When the keeper ends: the parser's last events, then the task step's files and `turn.end` once the
  * turn is attached (the Codex login the process rewrote goes back as `authJson`); the run folder goes when the server
  * acknowledges the end. `stop` walks the ladder on the keeper's process group: SIGINT, SIGTERM 10 s later, SIGKILL 20 s
- * after the SIGINT, each only while the keeper is still there (never a pid that may no longer be the turn's).
+ * after the SIGINT, each only while the keeper is still there (never a pid that may no longer be the turn's). The agent's
+ * calls of the agents' tools (S6a) go to the server and back through `turn/tools.ts`; a call still waiting when the turn
+ * ends, is let go of or loses its link is answered that it may not have taken effect.
  */
 
 /** How often a live turn's output is read. */
@@ -47,6 +52,7 @@ export class TurnProcess {
   readonly #events: TurnEvents;
   readonly #input: TurnInput;
   readonly #output: TurnOutput;
+  readonly #tools: TurnToolCalls;
   readonly #resolve: () => void;
   #meta: RunMeta | undefined;
   #kept: Kept | undefined;
@@ -67,14 +73,18 @@ export class TurnProcess {
     this.done = promise;
     this.#resolve = resolve;
     const stdin = { write: (text: string) => this.#kept?.write(text) ?? false, end: () => this.#kept?.end() };
-    const wired = wireTurn(turnId, parts, deps, stdin);
+    const wired = wireTurn(turnId, parts, deps, stdin, () => !this.#ended && !this.#stopping);
     this.#events = wired.events;
     this.#input = wired.input;
     this.#output = wired.output;
-    parts.bridge?.bind((questions) => {
-      // The output so far first: the events before the question are numbered before it.
-      if (!this.#ended) this.#output.read();
-      return this.#events.ask(questions, this.#ended || this.#stopping);
+    this.#tools = wired.tools;
+    parts.bridge?.bind({
+      ask: (questions) => {
+        // The output so far first: the events before the question are numbered before it.
+        if (!this.#ended) this.#output.read();
+        return this.#events.ask(questions, this.#ended || this.#stopping);
+      },
+      tool: (tool, input) => this.#tools.call(tool, input),
     });
   }
 
@@ -141,9 +151,15 @@ export class TurnProcess {
     if (this.#stopping) this.#walkLadder();
   }
 
-  /** The link dropped: its frames wait in the run folder. */
+  /** The link dropped: its frames wait in the run folder; a tool's call waiting for the server gets no answer now. */
   detach(): void {
     this.#events.detach();
+    this.#tools.closeAll(TOOL_LOST);
+  }
+
+  /** The server's answer to a tool's call (`turn.tool.result`); false when no call of that id waits. */
+  toolResult(frame: TurnToolResult): boolean {
+    return this.#tools.result(frame);
   }
 
   /** The server said where to resume: what it has not stored goes now, then the end once the process ended. */
@@ -174,6 +190,7 @@ export class TurnProcess {
   forget(): void {
     this.#forgotten = true;
     this.#events.detach();
+    this.#tools.closeAll(TOOL_ENDING);
     if (this.#ended) this.#done();
     else void this.stop();
   }
@@ -181,6 +198,7 @@ export class TurnProcess {
   /** The runner stops or restarts: it lets go of the turn, which runs on for the next runner; nothing is sent. */
   release(): void {
     this.#events.detach();
+    this.#tools.closeAll(TOOL_LOST);
     this.#stopTimers();
     this.#kept?.release();
     this.#parts.bridge?.release();
@@ -211,6 +229,7 @@ export class TurnProcess {
     if (this.#ended) return;
     this.#ended = true;
     this.#stopTimers();
+    this.#tools.closeAll(TOOL_ENDING);
     this.#parts.bridge?.close();
     this.#exit = this.#parts.folder.exit();
     const detail =

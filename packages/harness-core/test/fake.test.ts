@@ -35,7 +35,13 @@ describe('FakeHarnessDriver', () => {
   it('gives a turn with tools their folder, variables and file, and records them', () => {
     const driver = new FakeHarnessDriver({ env: { KEEP: '1' } });
     const env = { [ASK_SOCKET_ENV]: '/state/turns/a/ask.sock', [ASK_TOKEN_ENV]: 'token' };
-    const tools = { dir: '/state/turns/a', command: '/usr/bin/node', args: ['/opt/runner.mjs', 'mcp'], env };
+    const tools = {
+      dir: '/state/turns/a',
+      command: '/usr/bin/node',
+      args: ['/opt/runner.mjs', 'mcp'],
+      env,
+      names: ['ask_user_question'],
+    };
     expect(driver.turn(fakeTurnSpec('claude_code'), tools)).toMatchObject({
       args: ['turn', '--tools', '/state/turns/a'],
       env: { KEEP: '1', MWC_ASK_SOCKET: '/state/turns/a/ask.sock', MWC_ASK_TOKEN: 'token' },

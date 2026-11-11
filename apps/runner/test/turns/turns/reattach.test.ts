@@ -3,10 +3,10 @@ import { createServer, type Socket } from 'node:net';
 import { dirname, join } from 'node:path';
 import { FAKE_CREDENTIALS, FakeHarnessDriver, fakeLines, fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
-import type { TurnArtifact, TurnEnd, TurnQuestion } from '@mwc/shared/runner-protocol';
+import type { TurnArtifact, TurnEnd, TurnQuestion, TurnTool } from '@mwc/shared/runner-protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { nodeArtifactFs } from '../../../src/turns/artifacts/fs.ts';
-import { askRunner } from '../../../src/turns/ask/client.ts';
+import { askRunner, callRunner } from '../../../src/turns/ask/client.ts';
 import { ASK_REPLY } from '../../../src/turns/ask/tool.ts';
 import { nodePrivateFs } from '../../../src/turns/files.ts';
 import { LineReader } from '../../../src/turns/lines.ts';
@@ -71,7 +71,11 @@ describe('a turn taken back after a restart', () => {
     const machine = codexHost();
     const first = turnsWorld({ host: machine.host });
     const turnId = newId();
-    const spec = { ...fakeTurnSpec('codex', { cwd: machine.cwd }), artifacts: { dir: DIR } };
+    const spec = {
+      ...fakeTurnSpec('codex', { cwd: machine.cwd }),
+      artifacts: { dir: DIR },
+      tools: ['task_read'],
+    };
     first.turns.handle({ type: 'turn.start', turnId, spec });
     await vi.waitFor(() => expect(first.spawn.calls).toHaveLength(1));
     const call = first.spawn.calls[0] as (typeof first.spawn.calls)[number];
@@ -93,6 +97,18 @@ describe('a turn taken back after a restart', () => {
     second.turns.handle({ type: 'turn.input', turnId, inputId: newId(), text: 'Use staging' });
     await vi.waitFor(() => expect(keeper.commands).toHaveLength(1));
     expect(await askRunner(socketPath, token, [QUESTION])).toEqual({ ok: true, text: ASK_REPLY });
+    // The agents' tools go through the socket listening again too (S6a).
+    const read = callRunner(socketPath, token, { tool: 'task_read', input: {} });
+    await vi.waitFor(() => expect(second.sent.some((frame) => frame.type === 'turn.tool')).toBe(true));
+    const tool = second.sent.find((frame) => frame.type === 'turn.tool') as TurnTool;
+    second.turns.handle({
+      type: 'turn.tool.result',
+      turnId,
+      callId: tool.callId,
+      ok: true,
+      text: '{"key":"T-12"}',
+    });
+    expect(await read).toEqual({ ok: true, text: '{"key":"T-12"}' });
     writeFileSync(join(machine.cwd, DIR, 'notes.md'), '# Notes');
     writeFileSync(join(home, 'auth.json'), '{"tokens":{"access_token":"fresh"}}');
     appendFileSync(folder.path('out'), `${fakeLines([{ type: 'result', ok: true, text: 'Done.' }])}\n`);

@@ -58,8 +58,14 @@ export const UNNAMED_PERSON = 'Unnamed person';
 /** The longest briefing: the heading and five lines of at most `BRIEFING_LIST_MAX` names of 80 characters and more. */
 export const BRIEFING_MAX = 20_000;
 
-/** The longest standing text a turn carries: a briefing, the agent's instructions and the headings between them. */
-export const STANDING_INSTRUCTIONS_MAX = BRIEFING_MAX + AGENT_INSTRUCTIONS_MAX + 100;
+/** The longest section a turn's standing text adds after the agent's own instructions (S6a: a Lead's tools). */
+export const STANDING_SECTION_MAX = 2_000;
+
+/**
+ * The longest standing text a turn carries: a briefing, the agent's instructions and the headings between them, and a
+ * section after them (a Lead's tools). A runner older than the section never gets one, so the larger limit is safe.
+ */
+export const STANDING_INSTRUCTIONS_MAX = BRIEFING_MAX + AGENT_INSTRUCTIONS_MAX + 100 + STANDING_SECTION_MAX;
 
 /** One line of words: runs of whitespace (a newline in a name) become one space, so a name cannot start a line. */
 const words = (text: string): string => text.replace(/\s+/g, ' ').trim();

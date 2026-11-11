@@ -65,7 +65,8 @@ export const NO_UPDATE_CHECK = configFlagArg('check_for_update_on_startup', fals
 
 /**
  * A turn's overrides for the runner's tools: its MCP server's command and arguments, the variables Codex hands it from
- * its own environment (`env_vars`: the socket and the token, so the token is not on the command line), and its tools
+ * its own environment (`env_vars`: the socket and the token, so the token is not on the command line, and the agents'
+ * tools it offers, S6a), and its tools
  * approved without asking (a turn's approvals are off). Codex gets no extra instruction line: its
  * `developer_instructions` would replace the agent's own; the tool's description says when to use it.
  */

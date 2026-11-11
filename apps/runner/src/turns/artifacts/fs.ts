@@ -15,7 +15,7 @@ import type { ArtifactEntry, ArtifactFs } from './collect.ts';
 /**
  * A step's outputs folder on Node's own file system (S5.3b, `system/node.ts` hands it to the daemon): the folder made
  * with its parents (0755, less the umask: the agent writes there), real paths, a walk that follows no link and passes
- * over hidden names, and a bounded read (one open, one size check, one read).
+ * over hidden names, a bounded read (one open, one size check, one read) and what a path is (no link followed).
  */
 export function nodeArtifactFs(): ArtifactFs {
   return {
@@ -38,6 +38,15 @@ export function nodeArtifactFs(): ArtifactFs {
     read: (path, max) => {
       try {
         return readBounded(path, max);
+      } catch {
+        return undefined;
+      }
+    },
+    stat: (path) => {
+      try {
+        const stat = lstatSync(path);
+        const kind = stat.isSymbolicLink() ? 'link' : stat.isFile() ? 'file' : 'other';
+        return { kind, size: stat.size, mtimeMs: stat.mtimeMs };
       } catch {
         return undefined;
       }

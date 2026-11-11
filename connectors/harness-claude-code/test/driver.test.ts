@@ -165,6 +165,7 @@ describe('ClaudeCodeDriver.turn', () => {
       command: '/usr/bin/node',
       args: ['/opt/runner.mjs', 'mcp'],
       env: { MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock', MWC_ASK_TOKEN: 'tok' },
+      names: ['ask_user_question'],
     };
     const process = driver.turn(fakeTurnSpec('claude_code', { permissionPolicy: 'bypass' }), tools);
     expect(process.args).toEqual([
@@ -191,7 +192,13 @@ describe('ClaudeCodeDriver.turn', () => {
   });
 
   it('gives standing instructions in a private file, renders the prompt fresh, and puts the asking line in it', () => {
-    const tools = { dir: '/state/turns/0a1b', command: '/usr/bin/node', args: ['/r.mjs', 'mcp'], env: {} };
+    const tools = {
+      dir: '/state/turns/0a1b',
+      command: '/usr/bin/node',
+      args: ['/r.mjs', 'mcp'],
+      env: { MWC_TOOLS: 'task_read,task_pass,task_send_back' },
+      names: ['ask_user_question', 'task_read', 'task_pass', 'task_send_back'],
+    };
     const spec = fakeTurnSpec('claude_code', {
       sessionId: SESSION,
       instructions: '## Your place\n\n- You are QA.',
@@ -210,7 +217,7 @@ describe('ClaudeCodeDriver.turn', () => {
       '--mcp-config',
       '/state/turns/0a1b/mcp.json',
       '--allowedTools',
-      'mcp__mwc__ask_user_question',
+      'mcp__mwc__ask_user_question,mcp__mwc__task_read,mcp__mwc__task_pass,mcp__mwc__task_send_back',
     ]);
     expect(asked.privateDir?.files[1]?.contents).toBe(`## Your place\n\n- You are QA.\n\n${ASK_PROMPT}`);
     expect(asked.privateDir?.files[1]?.name).not.toBe(plain.privateDir?.files[1]?.name);

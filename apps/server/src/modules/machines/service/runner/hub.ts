@@ -51,6 +51,8 @@ export type {
   TurnEnding,
   TurnRequest,
   TurnSink,
+  TurnToolCall,
+  TurnToolReply,
 } from './hub/turns.ts';
 
 /**

@@ -8,7 +8,8 @@ import type { FlowStepKind, TaskArtifactKind } from './enums.ts';
  * characters (the task's description gives way first). The full prompt holds the task, the flow in its written form with
  * the step it is at, what the step's kind asks for and how to answer, the hand-off (how the task came, the reason and
  * findings of a send-back, the last reply of the step it came from, the task's artifacts) and where to put outputs. A
- * conversation that continues (Keep) gets only what is new: the hand-off since its last round.
+ * conversation that continues (Keep) gets only what is new: the hand-off since its last round. With the step's tools
+ * (S6a, `tools`) the ask names the move to call, and what the tools do replaces "nobody moves the task for you yet".
  */
 
 /** How a task came to the step this time (the history row that brought it), or `new` for none before it. */
@@ -52,6 +53,8 @@ export interface StepPromptInput {
   /** Where the round's outputs go, relative to the agent's home folder (`artifactsFolder`). */
   readonly folder: string;
   readonly handoff: StepHandoff;
+  /** True when the turn gets the step's tools (S6a: its runner offers them); the agent then moves the task itself. */
+  readonly tools?: boolean;
 }
 
 /** The longest prompt: a chat prompt's limit. */
@@ -89,13 +92,14 @@ export function sizeWords(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** What the step's kind asks for, and how to answer. */
+/** What the step's kind asks for, and how to answer: in its last reply, or with its tools (S6a). */
 function stepAsk(input: StepPromptInput): string {
   const back = input.sendsBackTo
     ? ` A send-back returns the task to "${input.sendsBackTo}" for another round.`
     : '';
+  const to = input.next ? `"${input.next}"` : 'the person who closes it';
+  if (input.tools === true) return toolsAsk(input, to, back);
   if (input.step.kind === 'work') {
-    const to = input.next ? `"${input.next}"` : 'the person who closes it';
     return (
       `Do the work the task asks for. End your turn with a short hand-off for ${to}: what you did, where it is ` +
       '(branch, commit, files) and what to check.'
@@ -109,6 +113,27 @@ function stepAsk(input: StepPromptInput): string {
     );
   }
   return `Decide whether the task is done. End your turn with APPROVE or SEND BACK alone on its first line, then why.${back}`;
+}
+
+/** The step's ask with its tools: the move to call, and that the task moves when the turn ends. */
+function toolsAsk(input: StepPromptInput, to: string, back: string): string {
+  if (input.step.kind === 'work') {
+    return (
+      'Do the work the task asks for. Then call task_hand_on with your hand-off for ' +
+      `${to} (what you did, where it is: branch, commit, files; what to check) and end your turn.`
+    );
+  }
+  if (input.step.kind === 'check') {
+    return (
+      'Check the work handed to you against the task; do not fix it yourself. Then call task_pass (with your ' +
+      'findings, if any) or task_send_back {reason, findings: what is wrong, where, and what to change}, and end ' +
+      `your turn.${back}`
+    );
+  }
+  return (
+    'Decide whether the task is done. Call task_approve (with a note, if any) or task_send_back {reason, findings}, ' +
+    `and end your turn.${back}`
+  );
 }
 
 /** How the task came, in one sentence. */
@@ -169,6 +194,16 @@ const outputsText = (input: StepPromptInput) =>
 const NOBODY_MOVES =
   'Nobody moves the task for you yet: when your turn ends, a person reads your reply and moves the task on.';
 
+/** What the step's tools do (S6a), in place of `NOBODY_MOVES` when the turn gets them. */
+const YOUR_TOOLS =
+  'Your move is recorded when you call it and applied when your turn ends; calling another one replaces it. ' +
+  'task_read shows the task, task_attach {name, text | path | url} keeps a note, a file of your outputs folder or a ' +
+  'link with the task now, and task_blocked {reason} says you cannot go on. Without a move, a person reads your ' +
+  'reply and moves the task.';
+
+/** How the task moves: by the agent's own tools, or by a person. */
+const howItMoves = (input: StepPromptInput) => (input.tools === true ? YOUR_TOOLS : NOBODY_MOVES);
+
 /** The full prompt: a new conversation (the step's first, or Fresh). */
 function fullPrompt(input: StepPromptInput): string {
   const { task, step } = input;
@@ -176,7 +211,7 @@ function fullPrompt(input: StepPromptInput): string {
   const head = `# ${task.key} · ${task.title}\n\nYou are working on task ${task.key} at ${at} of its flow.`;
   const after = [
     `## The flow\n\n${input.flowText.trimEnd()}\n\nYou are at "${step.name}".`,
-    `## Your step\n\n${stepAsk(input)}\n\n${NOBODY_MOVES}`,
+    `## Your step\n\n${stepAsk(input)}\n\n${howItMoves(input)}`,
     `## The hand-off\n\n${handoffText(input, 'The task’s artifacts so far (kept with the task):')}`,
     `## Your outputs\n\n${outputsText(input)}`,
   ].join('\n\n');

@@ -128,6 +128,7 @@ export class FakeRunner {
       folders: false,
       forks: false,
       reattach: false,
+      agentTools: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;

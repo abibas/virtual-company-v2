@@ -217,6 +217,8 @@ export {
   type TurnServerFrame,
   TurnStart,
   TurnStop,
+  TurnTool,
+  TurnToolResult,
 } from './runner-protocol/turns.ts';
 export {
   ContainerId,

@@ -3,7 +3,9 @@ import { fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIVE_RUNS_HOLD_MS } from '../../../src/hold/manager.ts';
+import { askRoot, testAskHost } from '../../fixtures/ask.ts';
 import { cleanUpLinks, fakeServer } from '../../fixtures/link.ts';
+import { memoryLog } from '../../fixtures/log.ts';
 import { startRunner, stopRunners } from '../../fixtures/runner.ts';
 import { FakeSpawn } from '../../fixtures/spawn.ts';
 import { answerLines, FAKE_COMMAND, fakeHarnessHost } from '../../fixtures/turns.ts';
@@ -29,6 +31,20 @@ describe("the runner's chat turns on the wire", () => {
     const events = await server.frames.next('turn.events');
     expect(events.events.map((item) => item.event.type)).toEqual(['session', 'text', 'result']);
     expect(await server.frames.next('turn.end')).toEqual({ type: 'turn.end', turnId, ok: true, exitCode: 0 });
+  });
+
+  it('offers the agents’ tools only with the runner’s own tools and a way to start processes', async () => {
+    const server = await fakeServer();
+    const { host, root } = fakeHarnessHost();
+    startRunner(server, { harness: host, spawn: new FakeSpawn() });
+    expect((await server.frames.next('runner.hello')).caps.agentTools).toBe(false);
+    const tooled = await fakeServer();
+    const ask = testAskHost(memoryLog().log, askRoot(root));
+    startRunner(tooled, { harness: { ...host, ask }, spawn: new FakeSpawn() });
+    expect((await tooled.frames.next('runner.hello')).caps.agentTools).toBe(true);
+    const idle = await fakeServer();
+    startRunner(idle, { harness: { ...host, ask } });
+    expect((await idle.frames.next('runner.hello')).caps.agentTools).toBe(false);
   });
 
   it('has no harness without a way to start processes, and answers every start unsupported', async () => {

@@ -1,3 +1,4 @@
+import type { AgentTool } from '@mwc/shared/flows';
 import { ASK_LIMITS, ASK_SERVER, ASK_TOOL, type AskQuestions } from '@mwc/shared/harness';
 import { z } from 'zod';
 
@@ -5,7 +6,9 @@ import { z } from 'zod';
  * The runner's one MCP tool (docs/harness.md, "Asking the person"): `ask_user_question`, in the shape of Claude Code's
  * own AskUserQuestion (1–4 questions, each with a header and 2–8 options, one pick or several). Its description says
  * when to use it and that the answer comes as the person's next message; its reply tells the agent to end its turn.
- * And the line protocol of the turn's private socket, between the MCP server (`runner.mjs mcp`) and the runner.
+ * And the line protocol of the turn's private socket, between the MCP server (`runner.mjs mcp`) and the runner: a
+ * question (`{token, questions}`) or, since S6a, a call of an agents' tool (`{token, tool, input}`), each answered by
+ * `{ok: true, text}` or `{ok: false, error}`.
  */
 
 /** The MCP server's name in its `initialize` answer (the harnesses name its tools after it: `mcp__mwc__…`). */
@@ -80,8 +83,17 @@ export const ASK_SOCKET_FILE = 'ask.sock';
 /** The longest line either side of the socket sends; a longer request is refused. */
 export const ASK_LINE_MAX = 64 * 1024;
 
-/** The MCP server's request to the runner: the token of the turn's socket and the questions. */
-export const AskRequest = z.object({ token: z.string().min(1).max(200), questions: z.unknown() });
+/**
+ * The MCP server's request to the runner: the token of the turn's socket and the questions, or an agents' tool and its
+ * input (S6a). An MCP server an older runner started (a turn taken back after a self-update) sends questions only.
+ */
+export const AskRequest = z.object({
+  token: z.string().min(1).max(200),
+  questions: z.unknown().optional(),
+  tool: z.string().min(1).max(64).optional(),
+  input: z.unknown().optional(),
+});
+export type AskRequest = z.infer<typeof AskRequest>;
 
 /** The runner's answer: the text the tool returns, or why the questions were not shown. */
 export const AskReply = z.discriminatedUnion('ok', [
@@ -90,5 +102,11 @@ export const AskReply = z.discriminatedUnion('ok', [
 ]);
 export type AskReply = z.infer<typeof AskReply>;
 
-/** What the runner does with a turn's questions (`turns/turn.ts`): shows them, or says why not. */
-export type AskHandler = (questions: AskQuestions) => AskReply;
+/**
+ * What the runner does with a turn's requests (`turns/turn.ts`): shows its questions, or says why not; relays an agents'
+ * tool's call to the server and answers what it said (S6a).
+ */
+export interface AskHandler {
+  ask(questions: AskQuestions): AskReply;
+  tool(tool: AgentTool, input: Record<string, unknown>): Promise<AskReply>;
+}

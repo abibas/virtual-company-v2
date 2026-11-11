@@ -69,6 +69,7 @@ describe('FakeRunner: connecting', () => {
         folders: false,
         forks: false,
         reattach: false,
+        agentTools: false,
       },
     });
     expect(await server.frames.next('runner.resync')).toEqual({ type: 'runner.resync', runs: [] });

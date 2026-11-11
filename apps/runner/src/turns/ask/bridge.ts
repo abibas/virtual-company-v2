@@ -2,18 +2,28 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
-import { ASK_SOCKET_ENV, ASK_TOKEN_ENV, type PrivateFile, type TurnTools } from '@mwc/harness-core';
-import { AskQuestions } from '@mwc/shared/harness';
+import {
+  ASK_SOCKET_ENV,
+  ASK_TOKEN_ENV,
+  type PrivateFile,
+  TOOLS_ENV,
+  type TurnTools,
+} from '@mwc/harness-core';
+import { AgentTool } from '@mwc/shared/flows';
+import { ASK_TOOL, AskQuestions } from '@mwc/shared/harness';
 import type { Log } from '../../system/log.ts';
 import { LineReader } from '../lines.ts';
+import { checkToolInput } from './agent-tools.ts';
 import { ASK_LINE_MAX, ASK_SOCKET_FILE, type AskHandler, type AskReply, AskRequest } from './tool.ts';
 
 /**
  * The runner's side of a turn's questions (docs/harness.md, "Asking the person"): a private folder per turn
  * (`<state>/turns/<12 hex>/`, 0700) holding a Unix socket (`ask.sock`) the turn's MCP server connects to, and the
  * files a driver asks for (Claude Code's `mcp.json`, 0600). A call must carry the turn's random token (compared in
- * constant time) and valid questions; the handler the turn binds answers it. The socket listens before the process
- * starts (Node binds a path at once) and the folder goes, socket and files with it, when the process ends. A runner that
+ * constant time) and valid questions, or an agents' tool and a valid input (S6a); the handler the turn binds answers it,
+ * a tool's call once the server said (the connection waits; only sending the request is timed). The socket listens
+ * before the process starts (Node binds a path at once) and the folder goes, socket and files with it, when the process
+ * ends. A runner that
  * takes a turn back after its restart (S5.4) listens on the same socket again (`reopen`), checking calls against the
  * token's SHA-256, which the turn's run folder keeps (never the token).
  */
@@ -21,7 +31,7 @@ import { ASK_LINE_MAX, ASK_SOCKET_FILE, type AskHandler, type AskReply, AskReque
 /** The longest socket path (macOS's `sun_path` is 104 bytes with its end). */
 export const SOCKET_PATH_MAX = 103;
 
-/** How long a connection may stay without sending its request. */
+/** How long a connection may stay without sending its request (the answer may take longer: a tool's server round trip). */
 export const ASK_CONNECTION_MS = 10_000;
 
 export const ASK_REFUSED = 'refused: wrong token';
@@ -66,13 +76,13 @@ export const tokenDigest = (token: string) => digest(token).toString('hex');
 export const sameToken = (given: string, token: string): boolean =>
   timingSafeEqual(digest(given), digest(token));
 
-/** The answer to one request line, its token checked against `tokenSha256`. */
+/** The answer to one request line, its token checked against `tokenSha256`: a question's at once, a tool's later. */
 export function answerRequest(
   line: string,
   tokenSha256: string,
   handler: AskHandler | undefined,
   log: Log,
-): AskReply {
+): AskReply | Promise<AskReply> {
   let request: unknown;
   try {
     request = JSON.parse(line);
@@ -85,19 +95,31 @@ export function answerRequest(
     log.warn('a question came with a wrong token; refused');
     return { ok: false, error: ASK_REFUSED };
   }
+  if (parsed.data.tool !== undefined) return toolRequest(parsed.data, handler);
   const questions = AskQuestions.safeParse(parsed.data.questions);
   if (!questions.success) return { ok: false, error: 'The questions are not valid.' };
-  return handler === undefined ? { ok: false, error: NOT_READY } : handler(questions.data);
+  return handler === undefined ? { ok: false, error: NOT_READY } : handler.ask(questions.data);
 }
 
-/** Serves one connection: one request line, one answer line, then the end. */
-function serve(socket: Socket, answer: (line: string) => AskReply): void {
+/** An agents' tool's call: a tool the runner knows, its input checked again, then the handler's (the server's) word. */
+function toolRequest(request: AskRequest, handler: AskHandler | undefined): AskReply | Promise<AskReply> {
+  const tool = AgentTool.safeParse(request.tool);
+  if (!tool.success) return { ok: false, error: `Unknown tool: ${request.tool}` };
+  const input = checkToolInput(tool.data, request.input);
+  if (!input.ok) return input;
+  return handler === undefined ? { ok: false, error: NOT_READY } : handler.tool(tool.data, input.input);
+}
+
+/**
+ * Serves one connection: one request line, one answer line, then the end. Only the request is timed: once its line is
+ * in, the answer may take as long as the handler takes (a tool waits for the server, which bounds it).
+ */
+function serve(socket: Socket, answer: (line: string) => AskReply | Promise<AskReply>): void {
   const reader = new LineReader();
   let received = 0;
   let answered = false;
   const reply = (value: AskReply) => {
-    answered = true;
-    socket.end(`${JSON.stringify(value)}\n`);
+    if (!socket.destroyed) socket.end(`${JSON.stringify(value)}\n`);
   };
   socket.setTimeout(ASK_CONNECTION_MS, () => socket.destroy());
   socket.on('error', () => socket.destroy());
@@ -105,8 +127,11 @@ function serve(socket: Socket, answer: (line: string) => AskReply): void {
     if (answered) return;
     received += chunk.length;
     const [line] = reader.push(chunk);
-    if (line !== undefined) reply(answer(line));
-    else if (received > ASK_LINE_MAX) reply({ ok: false, error: 'a request too long' });
+    if (line === undefined && received <= ASK_LINE_MAX) return;
+    answered = true;
+    socket.setTimeout(0);
+    if (line === undefined) reply({ ok: false, error: 'a request too long' });
+    else void Promise.resolve(answer(line)).then(reply);
   });
 }
 
@@ -164,13 +189,21 @@ function listenBridge(dir: string, token: string, tokenSha256: string, log: Log)
   };
 }
 
-/** What a driver gets of a turn's bridge: its folder, how to start the MCP server, and the socket and token for it. */
-export function turnTools(host: AskHost, bridge: AskBridge): TurnTools {
+/**
+ * What a driver gets of a turn's bridge: its folder, how to start the MCP server, the socket and token for it, and the
+ * agents' tools it offers (S6a: `MWC_TOOLS`, comma-joined, only when there are any), named after the question tool.
+ */
+export function turnTools(host: AskHost, bridge: AskBridge, tools: readonly AgentTool[] = []): TurnTools {
   return {
     dir: bridge.dir,
     command: host.command,
     args: host.args,
-    env: { [ASK_SOCKET_ENV]: bridge.socketPath, [ASK_TOKEN_ENV]: bridge.token },
+    env: {
+      [ASK_SOCKET_ENV]: bridge.socketPath,
+      [ASK_TOKEN_ENV]: bridge.token,
+      ...(tools.length > 0 ? { [TOOLS_ENV]: tools.join(',') } : {}),
+    },
+    names: [ASK_TOOL, ...tools],
   };
 }
 

@@ -112,6 +112,16 @@ export class TurnEvents {
   }
 
   /**
+   * Sends a frame that is no event (an agents' tool's call and its file, S6a) after the events so far, while attached;
+   * false when the link is down (a link found down detaches the turn). Nothing is kept in the log: a call is not resent.
+   */
+  relay(frame: TurnRunnerFrame): boolean {
+    if (!this.#attached) return false;
+    this.flush();
+    return this.#send(frame);
+  }
+
+  /**
    * Sends what the server has not stored (after `lastSeq`) from the log, in order (a number logged twice is its last
    * record: a question that could not be sent); then the turn is attached.
    */

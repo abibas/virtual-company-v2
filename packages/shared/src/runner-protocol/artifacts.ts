@@ -31,7 +31,9 @@ export const ArtifactData = z
 /**
  * Runner to server: one part of a collected file. `index` numbers the turn's files from 0; every part of a file repeats
  * its `path`, `contentType` (what the runner made of it; the server tells again from the bytes), `size` and `sha256`;
- * `part` counts from 0 to `parts - 1`, each part but the last exactly `partBytes` long. No answer.
+ * `part` counts from 0 to `parts - 1`, each part but the last exactly `partBytes` long. A file an agent attaches with
+ * `task_attach {path}` (S6a) carries the call's id (`callId`, index 0): its parts come right before that call's
+ * `turn.tool`, and the server puts it together apart from the turn's collection. No answer.
  */
 export const TurnArtifact = frame('turn.artifact', {
   turnId: Uuid,
@@ -49,6 +51,7 @@ export const TurnArtifact = frame('turn.artifact', {
     .max(ARTIFACT_PARTS_MAX - 1),
   parts: z.int().min(1).max(ARTIFACT_PARTS_MAX),
   data: ArtifactData,
+  callId: Uuid.optional(),
 });
 export type TurnArtifact = z.infer<typeof TurnArtifact>;
 

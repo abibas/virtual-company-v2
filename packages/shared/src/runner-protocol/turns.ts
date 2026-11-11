@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { CHAT_PROMPT } from '../chats.ts';
 import { Harness } from '../enums.ts';
+import { AgentToolName, TOOL_RESULT_MAX } from '../flows/tools.ts';
 import { AskQuestions, CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts';
 import { TurnArtifact, TurnArtifacts } from './artifacts.ts';
-import { ErrorText, frame, protocolObject, Uuid } from './common.ts';
+import { ErrorText, frame, JsonObject, protocolObject, Uuid } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
 import { TurnAck, TurnResume } from './reattach.ts';
 
@@ -12,7 +13,8 @@ import { TurnAck, TurnResume } from './reattach.ts';
  * (`turn.start`, with the credential it resolved), may send the person's message into it while it runs (`turn.input`,
  * S5.2 step 6) and may stop it (`turn.stop`); the runner sends the turn's events as
  * they come (`turn.events`, batched), a question the agent asked through the runner's tool (`turn.question`, S5.2), a
- * task step's collected files (`turn.artifact`, `turn.artifacts`, S5.3b) and how it ended (`turn.end`, once). Since
+ * task step's collected files (`turn.artifact`, `turn.artifacts`, S5.3b), a call of an agents' tool (`turn.tool`,
+ * answered by `turn.tool.result`, S6a) and how it ended (`turn.end`, once). Since
  * S5.4 a turn outlives its link: the runner keeps its process and its events, says hello with it after a reconnect or
  * its own restart, and the server answers where to resume (`turn.resume`) and acknowledges its end (`turn.ack`;
  * `reattach.ts`). And what a runner says of its harnesses in its hello: each CLI's version, or null when it is not
@@ -131,6 +133,32 @@ export const TurnQuestion = frame('turn.question', {
 export type TurnQuestion = z.infer<typeof TurnQuestion>;
 
 /**
+ * Runner to server: the agent called one of the turn's agents' tools (S6a, docs/harness.md "Agents' tools"), relayed
+ * from the runner's MCP server over the turn's private socket. `callId` is the runner's UUID for the call (a file
+ * `task_attach {path}` attaches came just before, as `turn.artifact` parts with this id), `input` the tool's arguments
+ * as the runner checked them (the server checks them again, with who may do what). Answered by `turn.tool.result`.
+ */
+export const TurnTool = frame('turn.tool', {
+  turnId: Uuid,
+  callId: Uuid,
+  tool: AgentToolName,
+  input: JsonObject,
+});
+export type TurnTool = z.infer<typeof TurnTool>;
+
+/**
+ * Server to runner: the answer to a `turn.tool`, which the tool returns to the agent: `ok` with what happened (a move
+ * recorded as the turn's decision, an artifact kept, the board), or not with why (a tool error the agent reads).
+ */
+export const TurnToolResult = frame('turn.tool.result', {
+  turnId: Uuid,
+  callId: Uuid,
+  ok: z.boolean(),
+  text: z.string().min(1).max(TOOL_RESULT_MAX),
+});
+export type TurnToolResult = z.infer<typeof TurnToolResult>;
+
+/**
  * Runner to server: the turn ended, after its last events. `ok` is its result's; `exitCode` the process's (null when a
  * signal ended it or it never started); `error` why the runner ended or refused it (a `TURN_ERRORS` code); `authJson`
  * the Codex login the process rewrote while it ran (its token refreshed), for the server to seal again.
@@ -145,12 +173,26 @@ export const TurnEnd = frame('turn.end', {
 export type TurnEnd = z.infer<typeof TurnEnd>;
 
 /** The turn frames the server sends. */
-export const TURN_SERVER_FRAMES = [TurnStart, TurnInput, TurnStop, TurnResume, TurnAck] as const;
-export type TurnServerFrame = TurnStart | TurnInput | TurnStop | TurnResume | TurnAck;
+export const TURN_SERVER_FRAMES = [
+  TurnStart,
+  TurnInput,
+  TurnStop,
+  TurnResume,
+  TurnAck,
+  TurnToolResult,
+] as const;
+export type TurnServerFrame = TurnStart | TurnInput | TurnStop | TurnResume | TurnAck | TurnToolResult;
 
 /** The turn frames a runner sends (a task step's artifacts, S5.3b, are `artifacts.ts`'s). */
-export const TURN_RUNNER_FRAMES = [TurnEvents, TurnQuestion, TurnArtifact, TurnArtifacts, TurnEnd] as const;
-export type TurnRunnerFrame = TurnEvents | TurnQuestion | TurnArtifact | TurnArtifacts | TurnEnd;
+export const TURN_RUNNER_FRAMES = [
+  TurnEvents,
+  TurnQuestion,
+  TurnTool,
+  TurnArtifact,
+  TurnArtifacts,
+  TurnEnd,
+] as const;
+export type TurnRunnerFrame = TurnEvents | TurnQuestion | TurnTool | TurnArtifact | TurnArtifacts | TurnEnd;
 
 /** True for a frame of a chat turn (`turn.*`), of either direction. */
 export function isTurnFrame<F extends { readonly type: string }>(

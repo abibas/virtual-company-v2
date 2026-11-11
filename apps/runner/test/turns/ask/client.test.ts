@@ -1,7 +1,7 @@
 import { createServer, type Server, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { askRunner, NOT_IN_TURN } from '../../../src/turns/ask/client.ts';
+import { askRunner, callRunner, NOT_IN_TURN, TOOL_NOT_IN_TURN } from '../../../src/turns/ask/client.ts';
 import { QUESTION } from '../../fixtures/ask.ts';
 import { tempDir } from '../../fixtures/runner.ts';
 
@@ -59,6 +59,28 @@ describe("the MCP server's call to the runner", () => {
     expect(await askRunner(long.path, 'tok', [QUESTION])).toEqual({
       ok: false,
       error: `${NOT_IN_TURN} (an answer too long)`,
+    });
+  });
+});
+
+describe("the MCP server's tool call to the runner (S6a)", () => {
+  it('sends the token, the tool and its input as one line and reads the answer line', async () => {
+    const socket = await socketDoing((s) => s.end(`${JSON.stringify({ ok: true, text: 'Recorded.' })}\n`));
+    const call = { tool: 'task_hand_on' as const, input: { summary: 'Done.' } };
+    expect(await callRunner(socket.path, 'tok', call)).toEqual({ ok: true, text: 'Recorded.' });
+    expect(socket.lines.map((line) => JSON.parse(line))).toEqual([{ token: 'tok', ...call }]);
+  });
+
+  it('says the tool did nothing when the turn is not reachable or answers nothing in time', async () => {
+    const call = { tool: 'team_board' as const, input: {} };
+    expect(await callRunner(join(tempDir(), 'gone.sock'), 'tok', call)).toEqual({
+      ok: false,
+      error: TOOL_NOT_IN_TURN,
+    });
+    const silent = await socketDoing(() => undefined);
+    expect(await callRunner(silent.path, 'tok', call, 50)).toEqual({
+      ok: false,
+      error: `${TOOL_NOT_IN_TURN} (no answer in time)`,
     });
   });
 });

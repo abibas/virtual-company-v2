@@ -13,11 +13,13 @@ import { JournalReader, type ReadAt } from '../runs/journal.ts';
 import type { KeeperCommand } from '../runs/kept.ts';
 import { TurnEvents } from './events.ts';
 import { TurnOutput } from './output.ts';
+import { TurnToolCalls } from './tools.ts';
 
 /**
  * What a turn process (`../turn.ts`) is made of (S5.4): what it needs from the runner, what it runs with (fresh or taken
  * back from its run folder), what starts a fresh one, and its pieces wired together: the events on their way to the
- * server (`events.ts`), the harness's stdin (`../input.ts`) and its output read through the parser (`output.ts`).
+ * server (`events.ts`), the harness's stdin (`../input.ts`), its output read through the parser (`output.ts`) and its
+ * calls of the agents' tools (`tools.ts`, S6a).
  */
 
 export interface TurnDeps {
@@ -59,8 +61,17 @@ export interface TurnLaunch {
   readonly startedAt: number;
 }
 
-/** A turn's events, stdin and output, wired: the output's offset numbers the events, the input filters its echoes. */
-export function wireTurn(turnId: string, parts: TurnParts, deps: TurnDeps, stdin: TurnStdin) {
+/**
+ * A turn's events, stdin, output and tool calls, wired: the output's offset numbers the events, the input filters its
+ * echoes, and a tool's call goes after the output read so far (`live`: false once the turn ends or stops).
+ */
+export function wireTurn(
+  turnId: string,
+  parts: TurnParts,
+  deps: TurnDeps,
+  stdin: TurnStdin,
+  live: () => boolean,
+) {
   const read: { output?: TurnOutput } = {};
   const events = new TurnEvents({
     turnId,
@@ -84,5 +95,16 @@ export function wireTurn(turnId: string, parts: TurnParts, deps: TurnDeps, stdin
   const journal = new JournalReader(parts.folder.path('out'), deps.readAt);
   const output = new TurnOutput({ journal, parser: parts.parser, input, events });
   read.output = output;
-  return { events, input, output };
+  const tools = new TurnToolCalls({
+    turnId,
+    timers: deps.timers,
+    log: deps.log,
+    live,
+    artifacts: parts.artifacts,
+    relay: (frame) => {
+      output.read();
+      return events.relay(frame);
+    },
+  });
+  return { events, input, output, tools };
 }

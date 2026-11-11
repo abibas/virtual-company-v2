@@ -227,6 +227,7 @@ export class RunnerDaemon implements Runner {
       folders: this.#options.folders !== undefined,
       forks: true,
       reattach: harness?.keeper !== undefined && processes !== undefined,
+      agentTools: harness?.ask !== undefined && processes !== undefined,
       ...(tools ? { tools } : {}),
       ...(containerId ? { containerId } : {}),
     };

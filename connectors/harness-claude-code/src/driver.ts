@@ -39,7 +39,8 @@ export interface ClaudeCodeDriverOptions {
  * which stays open for the person's messages while the turn runs (`inputLine`, `input.ts`); a terminal is the same
  * without the print-mode arguments, the TUI.
  * With the runner's tools a turn also gets its MCP server (`--mcp-config <dir>/mcp.json`, the file written by the runner),
- * the question tool allowed and one line of system prompt (`toolArgs`). Every turn and terminal gets a private settings
+ * its tools allowed (the question tool, and the agents' tools it offers, S6a) and one line of system prompt
+ * (`toolArgs`). Every turn and terminal gets a private settings
  * file the runner writes and names with `--settings <path>` (`settings.ts`): the profile's gateway, or Anthropic's own
  * address, over whatever the machine's settings say. Standing instructions (the agent's place in the company and its
  * own) come in a private file too, `--append-system-prompt-file <path>`, with the line on asking at its end

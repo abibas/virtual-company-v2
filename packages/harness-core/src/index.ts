@@ -21,6 +21,7 @@ export {
   type PrivateDir,
   type PrivateFile,
   type ProcessSpec,
+  TOOLS_ENV,
   type TurnNotice,
   type TurnTools,
 } from './driver.ts';

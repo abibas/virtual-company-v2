@@ -122,13 +122,18 @@ describe('CodexDriver.turn', () => {
       dir: '/state/turns/0a1b',
       command: '/usr/bin/node',
       args: ['/opt/runner.mjs', 'mcp'],
-      env: { MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock', MWC_ASK_TOKEN: 'tok' },
+      env: {
+        MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock',
+        MWC_ASK_TOKEN: 'tok',
+        MWC_TOOLS: 'task_read,task_hand_on,task_attach,task_blocked',
+      },
+      names: ['ask_user_question', 'task_read', 'task_hand_on', 'task_attach', 'task_blocked'],
     };
     const process = driver.turn(
       fakeTurnSpec('codex', { credential: FAKE_CREDENTIALS.openai_api_key }),
       tools,
     );
-    expect(process.args).toContain('mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"]');
+    expect(process.args).toContain('mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN","MWC_TOOLS"]');
     expect(process.env).toEqual({ CODEX_API_KEY: 'sk-fake-openai-key', ...tools.env });
     expect(process.turnFiles).toBeUndefined();
     expect(process.unsetEnv).not.toContain('CODEX_API_KEY');

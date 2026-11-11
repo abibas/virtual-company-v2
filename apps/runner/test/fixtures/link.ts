@@ -24,6 +24,7 @@ export const HELLO: RunnerHello = {
     folders: false,
     forks: true,
     reattach: false,
+    agentTools: false,
   },
 };
 

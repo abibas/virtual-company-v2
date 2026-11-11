@@ -14,8 +14,10 @@ import {
 import type { Logger } from 'pino';
 import type { RunnerConnection } from '../connection.ts';
 import { type ArtifactAssembler, artifactAssembler, type CollectedArtifact } from './artifacts.ts';
+import { type TurnToolCall, type TurnToolReply, toolCalls } from './tools.ts';
 
 export type { CollectedArtifact } from './artifacts.ts';
+export type { TurnToolCall, TurnToolReply } from './tools.ts';
 
 /**
  * The hub's chat turns (S5.1b, docs/runner-protocol.md "Chat turns"; S5.4, "Surviving restarts"): each turn by its id,
@@ -27,7 +29,8 @@ export type { CollectedArtifact } from './artifacts.ts';
  * sink from the database. A hello that leaves out a detached turn of its machine, the grace running out, and the close
  * of an older runner's connection end the turn (`machine_disconnected`). A stop asked while detached goes once the
  * turn is bound again. Once a sink recorded a turn's end, the runner hears `turn.ack`. A task step's collected files
- * (S5.3b) are put together here (`artifacts.ts`) and handed to the sink whole, with what the runner left out.
+ * (S5.3b) are put together here (`artifacts.ts`) and handed to the sink whole, with what the runner left out. An agent's
+ * tool call (S6a, `tools.ts`) goes to the sink and its answer back to the runner.
  */
 
 /** A turn to start: the server's id and the spec with its credential. */
@@ -54,6 +57,8 @@ export interface TurnSink {
   artifact?(file: CollectedArtifact): void;
   /** What the runner collected and left out (S5.3b); after the last file, before the end. */
   artifacts?(collected: TurnCollected): void;
+  /** An agent's tool call (S6a): the answer the tool returns. */
+  tool?(call: TurnToolCall): Promise<TurnToolReply>;
   /** The end; nothing follows it. Resolves once it is recorded (then the runner hears `turn.ack`). */
   end(ending: TurnEnding): void | Promise<void>;
   /** The highest event number stored so far, once what came before is stored (S5.4). */
@@ -108,6 +113,7 @@ export function turnBoard(options: { readonly graceMs?: number; readonly logger?
   const graceMs = options.graceMs ?? TURN_REATTACH_GRACE_MS;
   const bindings = new Map<string, Binding>();
   const files = new Map<string, ArtifactAssembler>();
+  const tools = toolCalls({ logger });
   let adopter: TurnAdopter | undefined;
 
   /** A collected file's part: the sink gets the file once it is whole and checked. */
@@ -128,6 +134,7 @@ export function turnBoard(options: { readonly graceMs?: number; readonly logger?
     clearTimeout(binding.grace);
     bindings.delete(binding.turnId);
     files.delete(binding.turnId);
+    tools.drop(binding.turnId);
     void Promise.resolve(binding.sink.end(ending)).then(() => {
       if (ack?.hello?.caps.reattach) send(ack, { type: 'turn.ack', turnId: binding.turnId });
     });
@@ -195,8 +202,15 @@ export function turnBoard(options: { readonly graceMs?: number; readonly logger?
       else if (frame.type === 'turn.question') {
         const { seq, questionId, questions } = frame;
         sink.question({ seq, questionId, questions });
-      } else if (frame.type === 'turn.artifact') artifactPart(sink, frame);
-      else if (frame.type === 'turn.artifacts')
+      } else if (frame.type === 'turn.tool') {
+        const answer = sink.tool?.bind(sink);
+        tools.call(frame, answer, (result) =>
+          send(bindings.get(frame.turnId)?.connection ?? connection, result),
+        );
+      } else if (frame.type === 'turn.artifact') {
+        if (frame.callId === undefined) artifactPart(sink, frame);
+        else tools.part({ ...frame, callId: frame.callId });
+      } else if (frame.type === 'turn.artifacts')
         sink.artifacts?.({ files: frame.files, skipped: frame.skipped });
       else end(binding, endingOf(frame), connection);
     },

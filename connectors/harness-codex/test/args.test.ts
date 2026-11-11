@@ -135,6 +135,7 @@ const TOOLS = {
   command: '/usr/local/bin/node',
   args: ['/home/agent/.local/share/mwc-runner/runner.mjs', 'mcp'],
   env: { MWC_ASK_SOCKET: '/state/turns/0a1b/ask.sock', MWC_ASK_TOKEN: 'tok' },
+  names: ['ask_user_question'],
 };
 
 const TOOL_ARGS = [
@@ -153,6 +154,18 @@ describe('the runner’s tools', () => {
     expect(toolArgs(TOOLS)).toEqual(TOOL_ARGS);
     expect(toolArgs(TOOLS).join(' ')).not.toContain('tok"');
     expect(configListArg('k', ['a "b"', 'c\\d'])).toEqual(['-c', 'k=["a \\"b\\"","c\\\\d"]']);
+  });
+
+  it('pass the agents’ tools to the MCP server by name too, never their values on the command line', () => {
+    const lead = {
+      ...TOOLS,
+      env: { ...TOOLS.env, MWC_TOOLS: 'team_board,task_show,task_create' },
+      names: ['ask_user_question', 'team_board', 'task_show', 'task_create'],
+    };
+    expect(toolArgs(lead)).toContain(
+      'mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN","MWC_TOOLS"]',
+    );
+    expect(toolArgs(lead).join(' ')).not.toContain('team_board');
   });
 
   it('come after the permissions, before the thread and the stdin marker', () => {

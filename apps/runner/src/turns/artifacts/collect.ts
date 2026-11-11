@@ -12,7 +12,10 @@ import type { Log } from '../../system/log.ts';
  * are new or changed (size or time), at most `ARTIFACT_LIMITS.files` of at most 2 MB each and 10 MB together, text or
  * images only, and lists the rest as skipped with why. The folder must stay inside the home folder once links are
  * followed (else nothing is collected); links and hidden names inside it are passed over. What was there before is
- * kept in the turn's run folder (`snapshot`), so a turn taken back after a runner restart still collects (S5.4).
+ * kept in the turn's run folder (`snapshot`), so a turn taken back after a runner restart still collects (S5.4). An
+ * agent may attach one of its files at once (`task_attach {path}`, S6a: `attach`): the same rules, and once it was sent
+ * it counts as there before, so the end does not send it again unless it changes (a runner that takes the turn back
+ * after a restart has the snapshot of the start, and sends it again under the same name).
  */
 
 /** What a collection noted before the turn: the folder and each file's size and time (a run folder keeps it). */
@@ -28,6 +31,13 @@ export interface ArtifactEntry {
   readonly mtimeMs: number;
 }
 
+/** What a path is, without following a link: a regular file, a link, or something else; its size and last change. */
+export interface ArtifactStat {
+  readonly kind: 'file' | 'link' | 'other';
+  readonly size: number;
+  readonly mtimeMs: number;
+}
+
 /** The file operations a collection needs (`nodeArtifactFs`, `fs.ts`). */
 export interface ArtifactFs {
   /** Makes the folder and its parents when missing; its real path, or undefined when it cannot be made. */
@@ -38,6 +48,8 @@ export interface ArtifactFs {
   walk(dir: string, max: number, depth: number): ArtifactEntry[];
   /** A file's bytes, at most `max` of them (undefined when it cannot be read or is longer). */
   read(path: string, max: number): Uint8Array | undefined;
+  /** What a path is, no link followed; undefined when there is nothing there. */
+  stat(path: string): ArtifactStat | undefined;
 }
 
 /** How many entries a walk looks at, and how deep. */
@@ -58,14 +70,19 @@ export interface Collected {
   readonly skipped: readonly SkippedArtifact[];
 }
 
-const stamp = (entry: ArtifactEntry) => `${entry.size}:${entry.mtimeMs}`;
+const stamp = (entry: Pick<ArtifactEntry, 'size' | 'mtimeMs'>) => `${entry.size}:${entry.mtimeMs}`;
+
+/** A file an agent attaches (`attach`): the file to send, or why not, in words it can act on. */
+export type Attached = { readonly file: CollectedFile; readonly stamp: string } | { readonly error: string };
+
+const refused = (error: string): Attached => ({ error });
 
 export class ArtifactCollector {
   readonly #fs: ArtifactFs;
   readonly #root: string;
-  readonly #before: ReadonlyMap<string, string>;
+  readonly #before: Map<string, string>;
 
-  private constructor(fs: ArtifactFs, root: string, before: ReadonlyMap<string, string>) {
+  private constructor(fs: ArtifactFs, root: string, before: Map<string, string>) {
     this.#fs = fs;
     this.#root = root;
     this.#before = before;
@@ -94,6 +111,37 @@ export class ArtifactCollector {
   /** What `open` noted, for the run folder. */
   snapshot(): ArtifactSnapshot {
     return { root: this.#root, before: [...this.#before] };
+  }
+
+  /**
+   * One file of the folder an agent attaches now (S6a), by its path inside it: a plain path (no `.` or `..` part), a
+   * regular file whose real path stays inside the folder (no link), at most 2 MB, text or an image; else why not.
+   */
+  attach(path: string): Attached {
+    if (!isArtifactPath(path))
+      return refused(
+        `"${path}" is not a path inside your outputs folder (no "." or ".." parts, no leading "/").`,
+      );
+    const full = join(this.#root, path);
+    const found = this.#fs.stat(full);
+    if (found === undefined) return refused(`There is no file "${path}" in your outputs folder.`);
+    if (found.kind === 'link')
+      return refused(`"${path}" is a link: attach the file itself, inside your outputs folder.`);
+    if (found.kind !== 'file') return refused(`"${path}" is not a file.`);
+    if (this.#fs.realpath(full) !== full) return refused(`"${path}" is not in your outputs folder.`);
+    if (found.size > ARTIFACT_LIMITS.fileBytes)
+      return refused(`"${path}" is over the ${ARTIFACT_LIMITS.fileBytes / (1024 * 1024)} MB a file may be.`);
+    const bytes = this.#fs.read(full, ARTIFACT_LIMITS.fileBytes);
+    if (bytes === undefined) return refused(`"${path}" could not be read.`);
+    const contentType = artifactContentType(path, bytes);
+    if (contentType === undefined) return refused(`"${path}" is neither text nor an image.`);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    return { file: { path, contentType, bytes, sha256 }, stamp: stamp(found) };
+  }
+
+  /** An attached file was sent: the end's collection passes over it unless it changes (`stamp` is `attach`'s). */
+  sent(path: string, sentStamp: string): void {
+    this.#before.set(path, sentStamp);
   }
 
   /** The files new or changed since `open`, in path order, within the limits; the rest skipped with why. */
@@ -130,30 +178,36 @@ export class ArtifactCollector {
   }
 }
 
+/** One file's parts (`turn.artifact`), numbered `index` in the turn; an attached file's carry its call's id (S6a). */
+export function fileFrames(
+  turnId: string,
+  index: number,
+  file: CollectedFile,
+  callId?: string,
+): TurnArtifact[] {
+  const parts = artifactParts(file.bytes.length);
+  return Array.from({ length: parts }, (_, part) => ({
+    type: 'turn.artifact',
+    turnId,
+    index,
+    path: file.path,
+    contentType: file.contentType,
+    size: file.bytes.length,
+    sha256: file.sha256,
+    part,
+    parts,
+    data: Buffer.from(
+      file.bytes.subarray(part * ARTIFACT_LIMITS.partBytes, (part + 1) * ARTIFACT_LIMITS.partBytes),
+    ).toString('base64'),
+    ...(callId === undefined ? {} : { callId }),
+  }));
+}
+
 /** The frames of a collection: each file's parts (`turn.artifact`), then what was collected and left out. */
 export function artifactFrames(turnId: string, collected: Collected): (TurnArtifact | TurnArtifacts)[] {
-  const frames: (TurnArtifact | TurnArtifacts)[] = [];
-  collected.files.forEach((file, index) => {
-    const parts = artifactParts(file.bytes.length);
-    for (let part = 0; part < parts; part++) {
-      const slice = file.bytes.subarray(
-        part * ARTIFACT_LIMITS.partBytes,
-        (part + 1) * ARTIFACT_LIMITS.partBytes,
-      );
-      frames.push({
-        type: 'turn.artifact',
-        turnId,
-        index,
-        path: file.path,
-        contentType: file.contentType,
-        size: file.bytes.length,
-        sha256: file.sha256,
-        part,
-        parts,
-        data: Buffer.from(slice).toString('base64'),
-      });
-    }
-  });
+  const frames: (TurnArtifact | TurnArtifacts)[] = collected.files.flatMap((file, index) =>
+    fileFrames(turnId, index, file),
+  );
   frames.push({
     type: 'turn.artifacts',
     turnId,
