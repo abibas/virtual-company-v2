@@ -14,7 +14,8 @@ import type { Timers } from '../system/time.ts';
  * came, gathered and sent `TURN_EVENTS_BATCH_MS` after the first one, or at once from `TURN_EVENTS_BATCH_BYTES` or
  * `EVENT_BATCH_MAX_EVENTS`. Every frame stays far below the frame limit: a text longer than a batch is split into
  * several text events (each keeping its `parentId`), and a result's text is cut to `RESULT_EVENT_MAX_BYTES` (its full
- * reply is in the text events).
+ * reply is in the text events). Each event is handed to `record` as it is numbered (the run folder's log, S5.4), before
+ * it is sent, so a runner that restarts resends what the server never stored.
  */
 
 /** The largest text event: a longer text is split into pieces of at most this size. */
@@ -66,6 +67,8 @@ export interface BatcherDeps {
   readonly timers: Timers;
   /** Sends one batch (`turn.events`). */
   send(events: readonly TurnEventItem[]): void;
+  /** Keeps the events just numbered, before they are sent (S5.4). */
+  record?(items: readonly TurnEventItem[]): void;
 }
 
 export class EventBatcher {
@@ -90,9 +93,25 @@ export class EventBatcher {
     return this.#seq;
   }
 
+  /** Goes on numbering after `seq` (a turn taken back after a restart, S5.4). */
+  resumeAfter(seq: number): void {
+    this.#seq = Math.max(this.#seq, seq);
+  }
+
   /** The next events, in order. */
   push(events: readonly TurnEvent[]): void {
-    for (const event of events.flatMap(fitEvent)) this.#add({ seq: ++this.#seq, event });
+    const items = events.flatMap(fitEvent).map((event) => ({ seq: ++this.#seq, event }));
+    if (items.length === 0) return;
+    this.#deps.record?.(items);
+    for (const item of items) this.#add(item);
+  }
+
+  /** Forgets what waits to be sent (it is resent from the record instead). */
+  drop(): void {
+    this.#deps.timers.clearTimeout(this.#timer);
+    this.#timer = undefined;
+    this.#pending = [];
+    this.#bytes = 0;
   }
 
   /** Sends what is waiting now. */

@@ -23,6 +23,7 @@ export const HELLO: RunnerHello = {
     selfUpdate: false,
     folders: false,
     forks: true,
+    reattach: false,
   },
 };
 

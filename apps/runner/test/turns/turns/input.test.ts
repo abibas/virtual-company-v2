@@ -3,6 +3,7 @@ import { CLAUDE_SESSION_ID } from '@mwc/harness-claude-code/fixtures';
 import { fakeInputLine, fakeLines, fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import { describe, expect, it, vi } from 'vitest';
+import { JOURNAL_POLL_MS } from '../../../src/turns/turn.ts';
 import { settle } from '../../fixtures/time.ts';
 import { FAKE_COMMAND, fakeHarnessHost, turnsWorld } from '../../fixtures/turns.ts';
 
@@ -37,6 +38,7 @@ describe('a turn that takes messages while it runs', () => {
       { type: 'result', ok: true, text: 'On staging.' },
     ]);
     child.stdout?.write(`${lines.join('\n')}\n`);
+    await w.time.advance(JOURNAL_POLL_MS);
     await vi.waitFor(() => expect(child.inputClosed).toBe(true));
     child.exit(0);
     await vi.waitFor(() => expect(w.ends()).toHaveLength(1));
@@ -87,6 +89,7 @@ describe('a turn that takes messages while it runs', () => {
       { type: 'result', subtype: 'success', is_error: false, result: 'On staging.' },
     ];
     child.stdout?.write(`${output.map((line) => JSON.stringify(line)).join('\n')}\n`);
+    await w.time.advance(JOURNAL_POLL_MS);
     await vi.waitFor(() => expect(child.inputClosed).toBe(true));
     child.exit(0);
     await vi.waitFor(() => expect(w.ends()).toHaveLength(1));

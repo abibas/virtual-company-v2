@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -70,34 +71,59 @@ describe("the runner's chat turns on the wire", () => {
     expect(runner.status().liveRuns).toBe(0);
   });
 
-  it('stops its turns when the link drops', async () => {
-    const server = await fakeServer();
+  it('keeps its turns through a dropped link, names them in its next hello and resumes where the server says', async () => {
+    const server = await fakeServer({ resume: true });
     const { host, cwd } = fakeHarnessHost();
     const spawn = new FakeSpawn();
-    startRunner(server, { harness: host, spawn });
-    await server.frames.next('runner.heartbeat');
-    server.send({ type: 'turn.start', turnId: newId(), spec: fakeTurnSpec('claude_code', { cwd }) });
-    await vi.waitFor(() => expect(spawn.calls).toHaveLength(1));
-    server.dropAll();
-    await vi.waitFor(() => expect(spawn.groupKills.map((kill) => kill.signal)).toEqual(['SIGINT']));
-  });
-
-  it('ends its turns when it stops, telling the server before the socket closes', async () => {
-    const server = await fakeServer();
-    const { host, cwd } = fakeHarnessHost();
-    const spawn = new FakeSpawn();
-    const { runner } = startRunner(server, { harness: host, spawn });
+    const { time } = startRunner(server, { harness: host, spawn });
+    expect((await server.frames.next('runner.hello')).caps.reattach).toBe(true);
     await server.frames.next('runner.heartbeat');
     const turnId = newId();
     server.send({ type: 'turn.start', turnId, spec: fakeTurnSpec('claude_code', { cwd }) });
     await vi.waitFor(() => expect(spawn.calls).toHaveLength(1));
+    server.dropAll();
+    await vi.waitFor(() => expect(time.pending).toContain(1_000));
+    spawn.calls[0]?.child.finish(answerLines('4'), 0);
+    await time.advance(1_000);
+    expect(spawn.groupKills).toEqual([]);
+    expect((await server.frames.next('runner.hello')).turns).toEqual([{ turnId, lastSeq: 3, ended: true }]);
+    server.send({ type: 'turn.resume', turns: [{ turnId, lastSeq: 1 }] });
+    const resent = await server.frames.next('turn.events');
+    expect(resent.events.map((item) => item.seq)).toEqual([2, 3]);
+    expect(await server.frames.next('turn.end')).toMatchObject({ turnId, ok: true, exitCode: 0 });
+    server.send({ type: 'turn.ack', turnId });
+    await vi.waitFor(() => expect(readdirSync(host.runs)).toEqual([]));
+  });
+
+  it('leaves its turns running when it stops: no signal, no end, its line let go', async () => {
+    const server = await fakeServer({ resume: true });
+    const { host, cwd } = fakeHarnessHost({ driver: { liveInput: true } });
+    const spawn = new FakeSpawn();
+    const { runner } = startRunner(server, { harness: host, spawn });
+    await server.frames.next('runner.heartbeat');
+    server.send({ type: 'turn.start', turnId: newId(), spec: fakeTurnSpec('claude_code', { cwd }) });
+    await vi.waitFor(() => expect(spawn.calls).toHaveLength(1));
     await runner.stop();
-    expect(await server.frames.next('turn.end')).toEqual({
-      type: 'turn.end',
-      turnId,
-      ok: false,
-      exitCode: null,
-      error: 'runner_stopping',
-    });
+    expect(spawn.groupKills).toEqual([]);
+    expect([spawn.calls[0]?.child.released, spawn.calls[0]?.child.inputClosed]).toEqual([true, false]);
+    expect(server.frames.of('turn.end')).toEqual([]);
+  });
+
+  it('forgets its turns on a server that takes no turn back: stopped, nothing sent', async () => {
+    const server = await fakeServer();
+    const { host, cwd } = fakeHarnessHost();
+    const spawn = new FakeSpawn();
+    const { time } = startRunner(server, { harness: host, spawn });
+    await server.frames.next('runner.heartbeat');
+    server.send({ type: 'turn.start', turnId: newId(), spec: fakeTurnSpec('claude_code', { cwd }) });
+    await vi.waitFor(() => expect(spawn.calls).toHaveLength(1));
+    server.dropAll();
+    await vi.waitFor(() => expect(time.pending).toContain(1_000));
+    expect(spawn.groupKills).toEqual([]);
+    await time.advance(1_000);
+    await server.frames.next('runner.hello');
+    await vi.waitFor(() => expect(spawn.groupKills.map((kill) => kill.signal)).toEqual(['SIGINT']));
+    await vi.waitFor(() => expect(readdirSync(host.runs)).toEqual([]));
+    expect(server.frames.of('turn.end')).toEqual([]);
   });
 });

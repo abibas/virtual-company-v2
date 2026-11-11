@@ -1,261 +1,262 @@
-import { randomUUID } from 'node:crypto';
-import { type LineParser, PARSER_TICK_MS, type ProcessSpec } from '@mwc/harness-core';
-import type { AskQuestions, TurnEvent } from '@mwc/shared/harness';
+import { PARSER_TICK_MS } from '@mwc/harness-core';
+import { every } from '../system/time.ts';
+import type { TurnInput } from './input.ts';
+import type { RunExit, RunMeta } from './runs/folder.ts';
+import { type Kept, spawnKeeper } from './runs/kept.ts';
 import {
-  TURN_STOP_KILL_MS,
-  TURN_STOP_TERM_MS,
-  type TurnEnd,
-  type TurnRunnerFrame,
-} from '@mwc/shared/runner-protocol';
-import type { Log } from '../system/log.ts';
-import type { ChildLike, KillGroup, Spawn } from '../system/process.ts';
-import { every, type Timers } from '../system/time.ts';
-import { type ArtifactCollector, artifactFrames } from './artifacts/collect.ts';
-import type { AskBridge } from './ask/bridge.ts';
-import { ASK_REPLY, type AskReply } from './ask/tool.ts';
-import { EventBatcher } from './batch.ts';
-import { TurnInput } from './input.ts';
-import { LineReader, TailBuffer } from './lines.ts';
-import { type PrivateLease, releaseLogin } from './private-dir.ts';
+  endFrame,
+  metaOf,
+  rewrittenLogin,
+  sendArtifacts,
+  startFailure,
+  stderrTail,
+  walkLadder,
+} from './turn/end.ts';
+import { logState, type TurnEvents } from './turn/events.ts';
+import type { TurnOutput } from './turn/output.ts';
+import { type TurnDeps, type TurnLaunch, type TurnParts, wireTurn } from './turn/parts.ts';
+
+export { INVALID_LOGIN } from './turn/end.ts';
+export { ASK_ENDING, ASK_OFFLINE } from './turn/events.ts';
+export type { TurnDeps, TurnLaunch, TurnParts } from './turn/parts.ts';
 
 /**
- * One chat turn's process (docs/harness.md, "How a turn runs"): started from the driver's process spec in the agent's
- * folder as its own process group, the prompt written to its stdin and closed (or kept open for the person's messages
- * while it runs, `input.ts`, S5.2 step 6), its stdout read line by line through the driver's parser into events (the driver's notices first; a parser's `tick` every `PARSER_TICK_MS`, between lines), batched to the link, and the end of its stderr kept. When
- * it ends: the parser's last events, the private folder released (a Codex login it rewrote goes back as `authJson`),
- * then `turn.end` once. `stop` walks the ladder: SIGINT to the group, SIGTERM 5 s later, SIGKILL 10 s after the SIGINT.
- * With the runner's tools, a question the agent asks through its bridge goes out as `turn.question`, numbered among the
- * events (those before it sent first), and the agent is told to end its turn; the bridge closes when the process ends.
- * A task step's outputs (S5.3b) go out after its last events and before its `turn.end`.
+ * One chat turn's process (docs/harness.md, "How a turn runs" and "Surviving restarts", S5.4). The runner starts its
+ * keeper (`runs/keeper.ts`) in the turn's run folder, which starts the harness with its output in files; the runner
+ * reads that output every `JOURNAL_POLL_MS` through the driver's parser into numbered events, each kept in the run
+ * folder before it is sent (`turn/events.ts`), and the prompt goes to the harness's stdin through the keeper, which
+ * keeps it open for the person's messages while the turn runs (`input.ts`). The turn outlives the runner: `release`
+ * lets go of it (the runner stops or restarts) and a later runner takes it back from its run folder (`resume`), reading
+ * the output again up to where its log got; a dropped link only holds its frames back until the server says where to
+ * resume (`attach`). When the keeper ends: the parser's last events, then the task step's files and `turn.end` once the
+ * turn is attached (the Codex login the process rewrote goes back as `authJson`); the run folder goes when the server
+ * acknowledges the end. `stop` walks the ladder on the keeper's process group: SIGINT, SIGTERM 10 s later, SIGKILL 20 s
+ * after the SIGINT, each only while the keeper is still there (never a pid that may no longer be the turn's).
  */
 
-/** Why the runner ended a turn: a person stopped it, the runner stops, or the link dropped (nothing gets through). */
-export type StopReason = 'stopped' | 'runner_stopping' | 'link_lost';
-
-export interface TurnDeps {
-  readonly spawn: Spawn;
-  readonly killGroup: KillGroup;
-  readonly timers: Timers;
-  readonly log: Log;
-  /** Sends a frame on the link; false when it is down. */
-  send(frame: TurnRunnerFrame): boolean;
-  /** Called once, right after its `turn.end` was sent. */
-  ended(turnId: string): void;
-}
-
-/** What starts the process. */
-export interface TurnLaunch {
-  readonly process: ProcessSpec;
-  readonly cwd: string;
-  readonly env: Readonly<Record<string, string>>;
-  readonly parser: LineParser;
-  readonly lease: PrivateLease | undefined;
-  /** The turn's question socket, when the runner offers its tools. */
-  readonly bridge?: AskBridge | undefined;
-  /** The driver's line for a message mid-turn, when the process keeps stdin open (`ProcessSpec.stdinOpen`). */
-  readonly inputLine?: ((text: string, id: string) => string) | undefined;
-  /** A task step's outputs folder (S5.3b), collected when the process ends, before `turn.end`. */
-  readonly artifacts?: ArtifactCollector | undefined;
-}
-
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-/** Why a question was not shown: the turn is ending, or the link is down. */
-export const ASK_ENDING = 'The question was not shown: this turn is ending.';
-export const ASK_OFFLINE = 'The question was not shown: the runner has lost its link to the server.';
-
-/** The log line of a login a harness rewrote into something that is not one (its text is never logged). */
-export const INVALID_LOGIN = 'the harness rewrote its login into something that is not one; not sent back';
+/** How often a live turn's output is read. */
+export const JOURNAL_POLL_MS = 100;
 
 export class TurnProcess {
   readonly turnId: string;
-  /** Resolves once its `turn.end` was sent. */
+  /** Resolves once its process ended and its end was handled (sent, or waiting for the link). */
   readonly done: Promise<void>;
   readonly #deps: TurnDeps;
-  readonly #launch: TurnLaunch;
-  readonly #batcher: EventBatcher;
-  readonly #stdout = new LineReader();
-  readonly #stderr = new TailBuffer();
+  readonly #parts: TurnParts;
+  readonly #events: TurnEvents;
+  readonly #input: TurnInput;
+  readonly #output: TurnOutput;
   readonly #resolve: () => void;
-  #child: ChildLike | undefined;
-  #input: TurnInput | undefined;
-  #result: Extract<TurnEvent, { type: 'result' }> | undefined;
-  #stopped: StopReason | undefined;
-  #timers: unknown[] = [];
-  #stopTicks: (() => void) | undefined;
+  #meta: RunMeta | undefined;
+  #kept: Kept | undefined;
+  #exit: RunExit | undefined;
+  #spawnError: string | undefined;
+  #stopping = false;
+  #forgotten = false;
+  #ladder: unknown[] = [];
+  #timers: (() => void)[] = [];
   #ended = false;
+  #login: { readonly authJson: string | undefined } | undefined;
 
-  constructor(turnId: string, launch: TurnLaunch, deps: TurnDeps) {
+  constructor(turnId: string, parts: TurnParts, deps: TurnDeps) {
     this.turnId = turnId;
-    this.#launch = launch;
+    this.#parts = parts;
     this.#deps = deps;
     const { promise, resolve } = Promise.withResolvers<void>();
     this.done = promise;
     this.#resolve = resolve;
-    this.#batcher = new EventBatcher({
-      timers: deps.timers,
-      send: (events) => deps.send({ type: 'turn.events', turnId, events: [...events] }),
+    const stdin = { write: (text: string) => this.#kept?.write(text) ?? false, end: () => this.#kept?.end() };
+    const wired = wireTurn(turnId, parts, deps, stdin);
+    this.#events = wired.events;
+    this.#input = wired.input;
+    this.#output = wired.output;
+    parts.bridge?.bind((questions) => {
+      // The output so far first: the events before the question are numbered before it.
+      if (!this.#ended) this.#output.read();
+      return this.#events.ask(questions, this.#ended || this.#stopping);
     });
-    launch.bridge?.bind((questions) => this.#ask(questions));
   }
 
-  /** Starts the process; throws when it cannot even be spawned (the caller refuses the turn). */
-  start(): void {
-    const { process, cwd, env } = this.#launch;
-    const child = this.#deps.spawn(process.command, process.args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      detached: true,
+  /** True while its process runs. */
+  get running(): boolean {
+    return !this.#ended;
+  }
+
+  /** What a hello says of it: its last event's number and whether its process ended. */
+  get held() {
+    return { turnId: this.turnId, lastSeq: this.#events.lastSeq, ended: this.#ended };
+  }
+
+  /** Starts a fresh turn's keeper; throws when it cannot even be spawned (the caller refuses the turn). */
+  start(launch: TurnLaunch): void {
+    const { process } = launch;
+    const { folder, cwd } = this.#parts;
+    const kept = spawnKeeper(this.#deps.spawn, launch.keeper, {
+      dir: folder.dir,
+      command: process.command,
+      args: process.args,
       cwd,
-      env,
+      env: launch.env,
     });
-    this.#child = child;
-    const { parser, inputLine } = this.#launch;
-    this.#input = new TurnInput({
-      turnId: this.turnId,
-      stdin: child.stdin,
-      line: inputLine,
-      open: process.stdinOpen === true,
-      settled: () => parser.settled?.() ?? true,
-      timers: this.#deps.timers,
-      log: this.#deps.log,
-    });
-    this.#events(process.notices);
-    child.stdout?.on('data', (chunk: Buffer | string) => {
-      for (const line of this.#stdout.push(chunk)) this.#line(line);
-    });
-    child.stderr?.on('data', (chunk: Buffer | string) => this.#stderr.push(chunk));
-    child.once('error', (error) => this.#finish(null, `spawn_failed: ${messageOf(error)}`));
-    child.once('close', (code) => this.#finish(code));
+    if (kept.pid !== undefined) this.#writeMeta(metaOf(this.turnId, this.#parts, kept.pid, launch.startedAt));
+    this.#hold(kept);
     this.#input.begin(process.stdin);
-    const tick = parser.tick?.bind(parser);
-    if (tick) this.#stopTicks = every(this.#deps.timers, PARSER_TICK_MS, () => this.#events(tick()));
-    this.#deps.log.info('turn started', { turnId: this.turnId, command: process.command, pid: child.pid });
+    this.#output.push(process.notices);
+    this.#deps.log.info('turn started', { turnId: this.turnId, command: process.command, pid: kept.pid });
   }
 
   /**
-   * The person's message for the running turn (`turn.input`): written to a harness that takes messages mid-turn; false
-   * when it does not or no longer does (its result came, it is stopping or ended), so the server starts it next.
+   * Takes back a turn an earlier runner started (its run folder's `meta`), its keeper found again or gone: its log says
+   * how far the output was read and numbered, and the output is read again up to there, then goes on. It is not
+   * attached until the server says where to resume.
    */
+  resume(meta: RunMeta, kept: Kept | undefined): void {
+    this.#meta = meta;
+    this.#stopping = meta.stopping === true;
+    this.#events.detach();
+    const { folder } = this.#parts;
+    const log = logState(folder.events());
+    this.#events.resumeAfter(log.lastSeq);
+    this.#input.restore(folder.inputs());
+    this.#deps.log.info('turn taken back', {
+      turnId: this.turnId,
+      lastSeq: log.lastSeq,
+      live: kept !== undefined,
+    });
+    if (log.finished) {
+      kept?.release();
+      this.#output.result = log.result;
+      this.#exit = folder.exit();
+      this.#ended = true;
+      this.#resolve();
+      return;
+    }
+    this.#output.replay(log.offset);
+    if (kept === undefined) {
+      this.#gone();
+      return;
+    }
+    this.#hold(kept);
+    if (this.#stopping) this.#walkLadder();
+  }
+
+  /** The link dropped: its frames wait in the run folder. */
+  detach(): void {
+    this.#events.detach();
+  }
+
+  /** The server said where to resume: what it has not stored goes now, then the end once the process ended. */
+  attach(lastSeq: number): void {
+    const resent = this.#events.resend(lastSeq);
+    this.#deps.log.info('turn resumed', { turnId: this.turnId, lastSeq, resent });
+    if (this.#ended) this.#deliver();
+  }
+
+  /** The person's message for the running turn (`turn.input`); false when it takes none now (the server starts it next). */
   input(inputId: string, text: string): boolean {
-    // Only a started turn is live: its input is there.
-    const input = this.#input as TurnInput;
-    const taken = !this.#ended && this.#stopped === undefined && input.send(inputId, text);
+    const taken = !this.#ended && !this.#stopping && this.#input.send(inputId, text);
     if (!taken) this.#deps.log.info('turn.input not taken; dropped', { turnId: this.turnId, inputId });
     return taken;
   }
 
-  /** Ends it by the stop ladder (once); `reason` goes in its `turn.end`. */
-  stop(reason: StopReason): Promise<void> {
-    if (this.#stopped !== undefined || this.#ended) return this.done;
-    this.#stopped = reason;
-    const pid = this.#child?.pid;
-    if (pid === undefined) return this.done;
-    (this.#input as TurnInput).close('stopping');
-    const { killGroup, timers } = this.#deps;
-    killGroup(pid, 'SIGINT');
-    this.#timers = [
-      timers.setTimeout(() => killGroup(pid, 'SIGTERM'), TURN_STOP_TERM_MS),
-      timers.setTimeout(() => killGroup(pid, 'SIGKILL'), TURN_STOP_KILL_MS),
-    ];
+  /** Ends it by the stop ladder (once). */
+  stop(): Promise<void> {
+    if (this.#stopping || this.#ended) return this.done;
+    this.#stopping = true;
+    if (this.#meta !== undefined) this.#writeMeta({ ...this.#meta, stopping: true });
+    this.#input.close('stopping');
+    this.#walkLadder();
     return this.done;
   }
 
-  /** The agent asked the person: the events so far, then the question with the next number. */
-  #ask(questions: AskQuestions): AskReply {
-    if (this.#ended || this.#stopped !== undefined) return { ok: false, error: ASK_ENDING };
-    this.#batcher.flush();
-    const seq = this.#batcher.reserve();
-    const questionId = randomUUID();
-    if (!this.#deps.send({ type: 'turn.question', turnId: this.turnId, seq, questionId, questions })) {
-      return { ok: false, error: ASK_OFFLINE };
-    }
-    this.#deps.log.info('turn asked the person', {
-      turnId: this.turnId,
-      questionId,
-      questions: questions.length,
+  /** The server no longer has the turn: it is stopped, sends nothing more, and its folder goes once it ended. */
+  forget(): void {
+    this.#forgotten = true;
+    this.#events.detach();
+    if (this.#ended) this.#done();
+    else void this.stop();
+  }
+
+  /** The runner stops or restarts: it lets go of the turn, which runs on for the next runner; nothing is sent. */
+  release(): void {
+    this.#events.detach();
+    this.#stopTimers();
+    this.#kept?.release();
+    this.#parts.bridge?.close();
+  }
+
+  /** The server recorded the turn's end: its private files and run folder go. */
+  acknowledged(): void {
+    if (this.#ended) this.#done();
+  }
+
+  #hold(kept: Kept): void {
+    this.#kept = kept;
+    kept.gone((error) => {
+      this.#spawnError = error;
+      this.#gone();
     });
-    return { ok: true, text: ASK_REPLY };
+    this.#timers.push(every(this.#deps.timers, JOURNAL_POLL_MS, () => this.#output.read()));
+    if (this.#output.ticks)
+      this.#timers.push(every(this.#deps.timers, PARSER_TICK_MS, () => this.#output.tick()));
   }
 
-  /** One line of stdout through the parser, the echoes of this turn's messages kept (`input.ts`). */
-  #line(line: string): void {
-    const input = this.#input as TurnInput;
-    input.activity();
-    this.#events(input.filter(this.#launch.parser.feed(line)));
+  #walkLadder(): void {
+    this.#ladder = walkLadder(this.#kept, this.#deps.killGroup, this.#deps.timers);
   }
 
-  #events(events: readonly TurnEvent[]): void {
-    for (const event of events) if (event.type === 'result') this.#result = event;
-    this.#batcher.push(events);
-  }
-
-  /** The process ended (or never started): its last events, the private folder released, then `turn.end`. */
-  #finish(code: number | null, failure?: string): void {
+  /** The keeper ended (or was never there): the rest of the output and the parser's last events, then the end. */
+  #gone(): void {
     if (this.#ended) return;
     this.#ended = true;
-    this.#launch.bridge?.close();
-    for (const timer of this.#timers) this.#deps.timers.clearTimeout(timer);
-    this.#stopTicks?.();
-    const last = this.#stdout.end();
-    if (last !== undefined) this.#line(last);
-    (this.#input as TurnInput).close();
-    this.#events(this.#launch.parser.end(code, failure ?? this.#stderr.text()));
-    this.#batcher.flush();
-    this.#sendArtifacts();
-    const end = this.#end(code, failure);
-    this.#deps.send(end);
-    const { ok, exitCode, error } = end;
-    this.#deps.log.info('turn ended', {
-      turnId: this.turnId,
-      ok,
-      exitCode,
-      error,
-      events: this.#batcher.lastSeq,
-    });
-    this.#resolve();
+    this.#stopTimers();
+    this.#parts.bridge?.close();
+    this.#exit = this.#parts.folder.exit();
+    const detail =
+      startFailure(this.#spawnError, this.#exit) ??
+      stderrTail(this.#deps.readAt, this.#parts.folder.path('err'));
+    this.#output.end(this.#exit?.code ?? null, detail);
+    this.#input.close();
+    this.#events.finish();
     this.#deps.ended(this.turnId);
+    if (this.#forgotten) this.#done();
+    else if (this.#events.attached) this.#deliver();
+    this.#resolve();
   }
 
-  /** A task step's outputs: the files new or changed in its folder, then what was left out (logged, never thrown). */
-  #sendArtifacts(): void {
-    const collector = this.#launch.artifacts;
-    if (collector === undefined) return;
-    try {
-      const collected = collector.collect();
-      for (const frame of artifactFrames(this.turnId, collected)) this.#deps.send(frame);
-      const { files, skipped } = collected;
-      this.#deps.log.info('turn outputs collected', {
-        turnId: this.turnId,
-        files: files.length,
-        skipped: skipped.length,
-      });
-    } catch (error) {
-      this.#deps.log.warn('turn outputs could not be collected', {
-        turnId: this.turnId,
-        error: messageOf(error),
-      });
-    }
+  /** The task step's files and `turn.end`; again after a reconnect until the server acknowledges it. */
+  #deliver(): void {
+    if (this.#forgotten) return;
+    const { turnId } = this;
+    const { send, log } = this.#deps;
+    sendArtifacts(this.#parts.artifacts, turnId, send, log);
+    this.#login ??= { authJson: rewrittenLogin(this.#parts.lease, log, turnId) };
+    const end = endFrame({
+      turnId,
+      exit: this.#exit,
+      spawnError: this.#spawnError,
+      stopping: this.#stopping,
+      result: this.#output.result,
+      authJson: this.#login.authJson,
+    });
+    send(end);
+    const { ok, exitCode, error } = end;
+    log.info('turn ended', { turnId, ok, exitCode, error, events: this.#events.lastSeq });
   }
 
-  #end(code: number | null, failure: string | undefined): TurnEnd {
-    const error = failure ?? this.#stopped;
-    const ok = error === undefined && this.#result?.ok === true;
-    const authJson = this.#rewrittenLogin();
-    return {
-      type: 'turn.end',
-      turnId: this.turnId,
-      ok,
-      exitCode: code,
-      ...(error === undefined ? {} : { error }),
-      ...(authJson === undefined ? {} : { authJson }),
-    };
+  #done(): void {
+    this.#parts.lease?.release();
+    this.#parts.folder.remove();
+    this.#deps.done(this.turnId);
   }
 
-  /** The Codex login the process rewrote, when it is still a login the server can take; never logged. */
-  #rewrittenLogin(): string | undefined {
-    const login = releaseLogin(this.#launch.lease);
-    if (login !== 'invalid') return login;
-    this.#deps.log.warn(INVALID_LOGIN, { turnId: this.turnId });
-    return undefined;
+  #stopTimers(): void {
+    for (const stop of this.#timers.splice(0)) stop();
+    for (const timer of this.#ladder.splice(0)) this.#deps.timers.clearTimeout(timer);
+  }
+
+  #writeMeta(meta: RunMeta): void {
+    this.#meta = meta;
+    this.#parts.folder.writeMeta(meta);
   }
 }

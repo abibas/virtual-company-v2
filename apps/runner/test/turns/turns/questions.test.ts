@@ -8,10 +8,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AskHost } from '../../../src/turns/ask/bridge.ts';
 import { askRunner, NOT_IN_TURN } from '../../../src/turns/ask/client.ts';
 import { ASK_REPLY, type AskReply } from '../../../src/turns/ask/tool.ts';
+import { ASK_NOT_SHOWN } from '../../../src/turns/turn/events.ts';
 import { ASK_ENDING, ASK_OFFLINE } from '../../../src/turns/turn.ts';
 import { askRoot, QUESTION, TOOL_SERVER, testAskHost } from '../../fixtures/ask.ts';
 import { memoryLog } from '../../fixtures/log.ts';
 import type { FakeChild } from '../../fixtures/spawn.ts';
+import { settle } from '../../fixtures/time.ts';
 import { answerLines, FAKE_COMMAND, fakeHarnessHost, turnsWorld } from '../../fixtures/turns.ts';
 
 /** A world whose host offers the runner's tools under a temporary root. */
@@ -116,25 +118,36 @@ describe("a chat turn's questions", () => {
     expect(questions(w)).toEqual([]);
   });
 
-  it('says the question was not shown while the link is down', async () => {
+  it('says the question was not shown while the link is down, and resends a notice in its place', async () => {
     let online = true;
     const { w, cwd } = askWorld({ online: () => online });
     w.spawn.when(FAKE_COMMAND, (child) => {
       child.dies = false;
     });
-    start(w, cwd);
+    const turnId = start(w, cwd);
     await vi.waitFor(() => expect(w.spawn.calls).toHaveLength(1));
     const { socket, token } = socketOf(w.spawn.calls[0]?.options ?? {});
     online = false;
     expect(await askRunner(socket, token, [QUESTION])).toEqual({ ok: false, error: ASK_OFFLINE });
+    expect(await askRunner(socket, token, [QUESTION])).toEqual({ ok: false, error: ASK_OFFLINE });
     w.spawn.calls[0]?.child.exit(0);
-    await vi.waitFor(() => expect(w.ends()).toHaveLength(1));
+    await settle();
+    expect(w.ends()).toEqual([]);
+    online = true;
+    w.sent.length = 0;
+    w.turns.handle({ type: 'turn.resume', turns: [{ turnId, lastSeq: 0 }] });
+    expect(w.events()[0]).toEqual({ seq: 1, event: ASK_NOT_SHOWN });
+    expect(questions(w)).toEqual([]);
+    expect(w.ends()).toHaveLength(1);
   });
 
   it('runs a turn without its tools when its folder cannot be made, and logs why', async () => {
     const failing: AskHost = {
       ...TOOL_SERVER,
       open: () => {
+        throw new Error('no space left');
+      },
+      reopen: () => {
         throw new Error('no space left');
       },
     };
@@ -156,6 +169,9 @@ describe("a chat turn's questions", () => {
     const closed: string[] = [];
     const tracking = (fail?: 'write'): AskHost => ({
       ...TOOL_SERVER,
+      reopen: () => {
+        throw new Error('not used');
+      },
       open: () => {
         const dir = `/t/${opened.length}`;
         opened.push(dir);
@@ -163,6 +179,7 @@ describe("a chat turn's questions", () => {
           dir,
           socketPath: `${dir}/ask.sock`,
           token: 'tok',
+          tokenSha256: 'ab'.repeat(32),
           bind: () => undefined,
           write: () => {
             if (fail === 'write') throw new Error('read-only file system');

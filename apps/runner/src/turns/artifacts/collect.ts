@@ -11,8 +11,15 @@ import type { Log } from '../../system/log.ts';
  * `tasks/T-12/artifacts/1-develop/round-1`) and notes what is there; when the process ends it collects the files that
  * are new or changed (size or time), at most `ARTIFACT_LIMITS.files` of at most 2 MB each and 10 MB together, text or
  * images only, and lists the rest as skipped with why. The folder must stay inside the home folder once links are
- * followed (else nothing is collected); links and hidden names inside it are passed over.
+ * followed (else nothing is collected); links and hidden names inside it are passed over. What was there before is
+ * kept in the turn's run folder (`snapshot`), so a turn taken back after a runner restart still collects (S5.4).
  */
+
+/** What a collection noted before the turn: the folder and each file's size and time (a run folder keeps it). */
+export interface ArtifactSnapshot {
+  readonly root: string;
+  readonly before: readonly (readonly [string, string])[];
+}
 
 /** A regular file under the folder: its path relative to it, its size and its last change. */
 export interface ArtifactEntry {
@@ -77,6 +84,16 @@ export class ArtifactCollector {
     }
     const before = new Map(fs.walk(root, WALK_MAX, WALK_DEPTH).map((entry) => [entry.path, stamp(entry)]));
     return new ArtifactCollector(fs, root, before);
+  }
+
+  /** The collector of a turn taken back after a restart, from what its run folder kept. */
+  static restore(fs: ArtifactFs, snapshot: ArtifactSnapshot): ArtifactCollector {
+    return new ArtifactCollector(fs, snapshot.root, new Map(snapshot.before));
+  }
+
+  /** What `open` noted, for the run folder. */
+  snapshot(): ArtifactSnapshot {
+    return { root: this.#root, before: [...this.#before] };
   }
 
   /** The files new or changed since `open`, in path order, within the limits; the rest skipped with why. */

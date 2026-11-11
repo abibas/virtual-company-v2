@@ -1,13 +1,41 @@
 import { EventEmitter } from 'node:events';
+import { appendFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { ChildLike, KillGroup, Spawn, SpawnOptions } from '../../src/system/process.ts';
+import { LineReader } from '../../src/turns/lines.ts';
 
-/** A child process that does what the test says: print and exit, fail to start, or run until killed. */
+/** The keeper command the fake harness hosts name: the fake spawn plays the keeper and the harness in one child. */
+export const FAKE_KEEPER = 'mwc-keeper';
+
+/** A stream whose writes land in a file at once (a kept harness's output). */
+class FileStream extends PassThrough {
+  readonly #path: string;
+
+  constructor(path: string) {
+    super();
+    this.#path = path;
+  }
+
+  override write(chunk: unknown): boolean {
+    appendFileSync(this.#path, chunk as string | Buffer);
+    return true;
+  }
+}
+
+/**
+ * A child process that does what the test says: print and exit, fail to start, or run until killed. Started as a turn's
+ * keeper (`FAKE_KEEPER`), it plays the keeper and the harness together: what the runner writes is decoded from the
+ * keeper's commands into `input`, what it prints goes to the run folder's `out` and `err`, and its exit writes
+ * `exit.json` (not after a SIGKILL, which ends the keeper too).
+ */
 export class FakeChild extends EventEmitter implements ChildLike {
   readonly pid: number;
   readonly stdin: PassThrough | null;
   readonly stdout: PassThrough | null;
   readonly stderr: PassThrough | null;
+  /** The run folder, when it plays a keeper. */
+  readonly runDir: string | undefined;
   /** What was written to its stdin, and whether stdin was closed. */
   input = '';
   inputClosed = false;
@@ -17,18 +45,41 @@ export class FakeChild extends EventEmitter implements ChildLike {
   /** Whether `kill` ends it (true by default). */
   dies = true;
 
-  constructor(pid: number, piped: boolean, errPiped = false, inPiped = false) {
+  constructor(pid: number, piped: boolean, errPiped = false, inPiped = false, runDir?: string) {
     super();
     this.pid = pid;
-    this.stdin = inPiped ? new PassThrough() : null;
+    this.runDir = runDir;
+    this.stdin = inPiped || runDir !== undefined ? new PassThrough() : null;
+    if (runDir === undefined) {
+      this.stdin?.on('data', (chunk: Buffer) => {
+        this.input += chunk.toString();
+      });
+      this.stdin?.on('end', () => {
+        this.inputClosed = true;
+      });
+      this.stdout = piped ? new PassThrough() : null;
+      this.stderr = errPiped ? new PassThrough() : null;
+      return;
+    }
+    const reader = new LineReader();
     this.stdin?.on('data', (chunk: Buffer) => {
-      this.input += chunk.toString();
+      for (const line of reader.push(chunk)) this.#command(JSON.parse(line) as { w?: string; end?: true });
     });
-    this.stdin?.on('end', () => {
-      this.inputClosed = true;
-    });
-    this.stdout = piped ? new PassThrough() : null;
-    this.stderr = errPiped ? new PassThrough() : null;
+    this.stdout = new FileStream(join(runDir, 'out'));
+    this.stderr = new FileStream(join(runDir, 'err'));
+  }
+
+  /** What `released` says: the runner let go of the line without closing stdin. */
+  released = false;
+
+  #command(command: { w?: string; end?: true }): void {
+    if (command.w !== undefined && !this.inputClosed) this.input += command.w;
+    if (command.end) this.inputClosed = true;
+  }
+
+  /** The runner let go (its stdin ended without a close): the harness runs on. */
+  unref(): void {
+    this.released = true;
   }
 
   kill(signal: NodeJS.Signals = 'SIGTERM'): boolean {
@@ -52,6 +103,13 @@ export class FakeChild extends EventEmitter implements ChildLike {
   exit(code: number | null, signal: NodeJS.Signals | null = null): void {
     if (this.exited) return;
     this.exited = true;
+    if (this.runDir !== undefined) {
+      if (signal !== 'SIGKILL')
+        writeFileSync(join(this.runDir, 'exit.json'), JSON.stringify({ code, signal }));
+      this.emit('exit', code, signal);
+      this.emit('close', code, signal);
+      return;
+    }
     this.emit('exit', code, signal);
     const streams = [this.stdout, this.stderr].filter((stream) => stream !== null);
     let open = streams.length;
@@ -68,13 +126,23 @@ export class FakeChild extends EventEmitter implements ChildLike {
     }
   }
 
-  /** Fails as a missing program does. */
+  /** Fails as a missing program does (a kept harness: the keeper writes why, and exits). */
   fail(message = 'spawn ENOENT'): void {
-    this.emit('error', new Error(message));
+    if (this.runDir === undefined) {
+      this.emit('error', new Error(message));
+      return;
+    }
+    writeFileSync(
+      join(this.runDir, 'exit.json'),
+      JSON.stringify({ code: null, signal: null, error: message }),
+    );
+    this.exited = true;
+    this.emit('exit', 0, null);
   }
 }
 
 export interface SpawnCall {
+  /** The program; for a turn's keeper, the harness it starts. */
   readonly file: string;
   readonly args: readonly string[];
   readonly options: SpawnOptions;
@@ -99,7 +167,11 @@ export class FakeSpawn {
   /** The signals `killGroup` sent, in order, by process group. */
   readonly groupKills: { readonly pid: number; readonly signal: NodeJS.Signals }[] = [];
 
-  readonly spawn: Spawn = (file, args, options) => {
+  readonly spawn: Spawn = (program, programArgs, options) => {
+    // A turn's keeper is recorded as the harness it starts (`<run folder> -- <command> <args…>`).
+    const kept = program === FAKE_KEEPER ? programArgs : undefined;
+    const file = kept === undefined ? program : (kept[2] as string);
+    const args = kept === undefined ? programArgs : kept.slice(3);
     if (this.throwsFor.has(file)) throw new Error(`cannot start ${file}`);
     const pid = 4000 + this.calls.length;
     const child = new FakeChild(
@@ -107,6 +179,7 @@ export class FakeSpawn {
       options.stdio[1] === 'pipe',
       options.stdio[2] === 'pipe',
       options.stdio[0] === 'pipe',
+      kept?.[0],
     );
     this.calls.push({ file, args: [...args], options, child });
     const behaviour = this.#behaviours.get(file);

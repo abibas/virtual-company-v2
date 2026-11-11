@@ -7,10 +7,11 @@ import type { TurnEvent } from '@mwc/shared/harness';
 import type { TurnEnd, TurnEventItem, TurnRunnerFrame } from '@mwc/shared/runner-protocol';
 import { nodePrivateFs } from '../../src/turns/files.ts';
 import { PrivateDirs } from '../../src/turns/private-dir.ts';
+import { runsRoot } from '../../src/turns/runs/folder.ts';
 import { type HarnessHost, Turns } from '../../src/turns/turns.ts';
 import { memoryLog } from './log.ts';
 import { tempDir } from './runner.ts';
-import { FakeSpawn } from './spawn.ts';
+import { FAKE_KEEPER, FakeSpawn } from './spawn.ts';
 import { FakeTime } from './time.ts';
 
 /** The program the fake drivers name; the fake spawn plays it. */
@@ -36,6 +37,9 @@ export function fakeHarnessHost(
     env: options.env ?? { PATH: '/usr/bin', HOME: root },
     dirs: new PrivateDirs({ fs, stateDir }),
     isDirectory: (path) => fs.isDirectory(path),
+    runs: runsRoot(stateDir),
+    readAt: (path, offset, bytes) => fs.readAt(path, offset, bytes),
+    keeper: { command: FAKE_KEEPER, args: [] },
   };
   return { host, driver, root, cwd, stateDir };
 }
@@ -69,6 +73,7 @@ export function turnsWorld(
     host: options.host,
     processes: options.processes === false ? undefined : { spawn: spawn.spawn, killGroup: spawn.killGroup },
     slots: () => options.slots ?? 2,
+    clock: time,
     timers: time,
     log: logs.log,
     send: (frame) => {

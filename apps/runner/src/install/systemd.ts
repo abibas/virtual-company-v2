@@ -42,8 +42,8 @@ export function renderUnit(spec: ServiceSpec): string {
     'Restart=always',
     'RestartSec=10',
     `RestartPreventExitStatus=${PERMANENT_EXIT_CODES.join(' ')}`,
-    // SIGTERM to the runner alone, which stops its runs itself; everything left is killed after 90 s.
-    'KillMode=mixed',
+    // SIGTERM to the runner alone; its turns' keepers stay (they outlive a restart, S5.4) and their turns run on.
+    'KillMode=process',
     'TimeoutStopSec=90',
     '',
     '[Install]',

@@ -9,6 +9,7 @@ import type { ToolsHost } from '../tools/host.ts';
 import type { ArtifactFs } from '../turns/artifacts/collect.ts';
 import type { FindHarness, HarnessClis, ToolServer } from '../turns/drivers.ts';
 import type { PrivateFs } from '../turns/private-dir.ts';
+import type { KeeperCommand } from '../turns/runs/kept.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
 import type { KillGroup, Spawn } from './process.ts';
 import type { Clock, Timers } from './time.ts';
@@ -67,6 +68,8 @@ export interface MainDeps {
   readonly tools?: { readonly host: ToolsHost; readonly found: RunnerTools };
   /** How a harness starts the runner's MCP server (`cli.ts`: its Node and bundle); left out, turns run without it. */
   readonly toolServer?: ToolServer;
+  /** How a turn's keeper starts (`cli.ts`: its Node and bundle, `keep`, S5.4); left out, the runner runs no turn. */
+  readonly keeper?: KeeperCommand;
   /** The build it runs (`cli.ts` hashes the bundle once), sent in the hello; left out when unknown. */
   readonly build?: string | null;
   /** How it updates itself, for an installed copy under launchd or systemd (`cli.ts`); none otherwise. */

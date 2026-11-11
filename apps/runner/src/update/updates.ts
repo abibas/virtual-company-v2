@@ -5,8 +5,9 @@ import { type SelfUpdate, UpdateError } from './self-update.ts';
 
 /**
  * The server's `runner.update` (docs/runner-protocol.md, "Updating a runner"): a runner that cannot update itself
- * answers `unsupported`; one installing a tool, or updating already, `busy`; one with live runs, chat turns or open
- * terminals `busy` too unless the frame says `force` (it never ends one for an update unasked); otherwise it puts the
+ * answers `unsupported`; one installing a tool, or updating already, `busy`; one with live runs or open terminals
+ * `busy` too unless the frame says `force` (it never ends one for an update unasked; chat turns are not counted: they
+ * outlive the restart and the restarted runner takes them back, S5.4); otherwise it puts the
  * server's runner in place (`self-update.ts`), ends its open terminals with a notice, answers `ok` with the new build
  * and, a moment later (so the answer leaves first), asks to restart: the daemon stops and exits with a code its service
  * manager starts it again after (`daemon/start.ts`). A failed update answers why, and the runner goes on as it was.
@@ -27,7 +28,7 @@ export interface UpdatesDeps {
   readonly update: SelfUpdate | undefined;
   /** The server it is linked to (its configuration's), where the new files come from. */
   serverUrl(): string;
-  /** How many runs are live (chat turns among them). */
+  /** How many runs are live (not chat turns, which outlive the restart). */
   liveRuns(): number;
   /** How many terminals are open. */
   openTerminals(): number;

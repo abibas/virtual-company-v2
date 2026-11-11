@@ -8,6 +8,7 @@ import { type FindHarness, type HarnessCli, harnessHost } from '../../src/turns/
 import { nodePrivateFs } from '../../src/turns/files.ts';
 import { memoryLog } from '../fixtures/log.ts';
 import { tempDir } from '../fixtures/runner.ts';
+import { FAKE_KEEPER } from '../fixtures/spawn.ts';
 import { answerLines, turnsWorld } from '../fixtures/turns.ts';
 
 const CLAUDE = '/home/u/.local/bin/claude';
@@ -25,8 +26,9 @@ function missingAtStart(found: () => HarnessCli | undefined, gate?: Promise<void
     await gate;
     return found();
   };
+  const keeper = { command: FAKE_KEEPER, args: [] };
   const host = harnessHost(
-    { clis: {}, env: { PATH: '/usr/bin' }, fs: nodePrivateFs(), stateDir: join(root, 'state'), find },
+    { clis: {}, env: { PATH: '/usr/bin' }, fs: nodePrivateFs(), stateDir: join(root, 'state'), find, keeper },
     logs.log,
   );
   return { host, cwd, logs, searched };
@@ -60,24 +62,21 @@ describe('a harness missing when the runner started', () => {
     expect(w.spawn.calls).toEqual([]);
   });
 
-  it('shares one search between turns; a turn stopped, or every turn ended, while it searches is not started', async () => {
+  it('shares one search between turns; a turn stopped, or the runner stopping, while it searches is not started', async () => {
     const { promise: gate, resolve } = Promise.withResolvers<void>();
     const { host, cwd, searched } = missingAtStart(() => FOUND, gate);
     const w = turnsWorld({ host, slots: 4 });
-    const [stopped, lost, again] = [newId(), newId(), newId()];
+    const [stopped, again] = [newId(), newId()];
     const spec = fakeTurnSpec('claude_code', { cwd });
     w.turns.handle({ type: 'turn.start', turnId: stopped, spec });
     w.turns.handle({ type: 'turn.start', turnId: stopped, spec });
     w.turns.handle({ type: 'turn.stop', turnId: stopped });
-    w.turns.handle({ type: 'turn.start', turnId: lost, spec });
-    await w.turns.stopAll('link_lost');
     w.turns.handle({ type: 'turn.start', turnId: again, spec });
     await w.turns.stop();
     resolve();
-    await vi.waitFor(() => expect(w.ends()).toHaveLength(3));
+    await vi.waitFor(() => expect(w.ends()).toHaveLength(2));
     expect(w.ends().map((end) => [end.turnId, end.error])).toEqual([
       [stopped, 'stopped'],
-      [lost, 'link_lost'],
       [again, 'runner_stopping'],
     ]);
     expect(searched).toEqual(['claude_code']);

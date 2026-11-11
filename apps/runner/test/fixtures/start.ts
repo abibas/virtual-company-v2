@@ -9,7 +9,7 @@ import { CAFFEINATE_BIN } from '../../src/hold/driver.ts';
 import { nodePrivateFs } from '../../src/turns/files.ts';
 import type { LogEntry } from './log.ts';
 import { httpOf, runnerConfig, tempDir } from './runner.ts';
-import { FakeSpawn } from './spawn.ts';
+import { FAKE_KEEPER, FakeSpawn } from './spawn.ts';
 import { FakeTime } from './time.ts';
 
 const cores = [{ times: { user: 1, nice: 0, sys: 1, idle: 8, irq: 0 } }];
@@ -103,7 +103,9 @@ export function world(options: WorldOptions = {}) {
     ...proc.process,
     version: '0.1.0',
     ...(options.power ? { power: options.power } : {}),
-    ...(options.harnesses ? { harnesses: options.harnesses } : {}),
+    ...(options.harnesses
+      ? { harnesses: options.harnesses, keeper: { command: FAKE_KEEPER, args: [] } }
+      : {}),
     loadPty: options.loadPty ?? (() => ({ ok: false, reason: 'no PTY in this test' })),
   };
   const entries = () => proc.lines.map((line) => JSON.parse(line) as LogEntry);

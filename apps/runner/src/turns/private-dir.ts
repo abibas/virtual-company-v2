@@ -13,7 +13,9 @@ import { CodexAuthJson } from '@mwc/shared/harness';
  * the process and removes them when the last process using the folder ends, so a login is on disk only while a process
  * runs; a file of that name it did not write is set aside and put back, never overwritten. A file whose text changed
  * while the process ran (Codex refreshed its token) is handed back. A marker names the files the runner wrote, so after
- * a crash the next use knows them as its own and puts the folder back first. Contents are never logged.
+ * a crash the next use knows them as its own and puts the folder back first. Contents are never logged. The runner
+ * remembers each file by its SHA-256 only, so a turn taken back after a restart (S5.4) `adopt`s its folder from what
+ * its run folder recorded (names, hashes, the files set aside) and still hands back a login the process rewrote.
  */
 
 /**
@@ -41,21 +43,31 @@ export const WRITTEN_MARKER = '.mwc-runner-files';
 /** Where a file of that name the runner did not write waits while a process uses the folder. */
 export const asideName = (name: string): string => `.${name}.mwc-aside`;
 
+/** A file the runner wrote, as it is remembered: its name and the SHA-256 of its text. */
+export interface WrittenFile {
+  readonly name: string;
+  readonly sha256: string;
+}
+
 /** One process's use of a folder. */
 export interface PrivateLease {
   /** The folder, for the driver's variable. */
   readonly path: string;
+  /** The runner's files in it now (names and hashes), and the files set aside: what a run folder records. */
+  record(): { readonly files: WrittenFile[]; readonly aside: string[] };
   /** Ends this use (once): the texts of the runner's files that changed meanwhile, by name; the last use removes them. */
   release(): Readonly<Record<string, string>>;
 }
 
 interface Folder {
   users: number;
-  /** What the runner last wrote in each of its files (or last saw there). */
+  /** The SHA-256 of what the runner last wrote in each of its files (or last saw there). */
   readonly written: Map<string, string>;
   /** The files it set aside, to put back. */
   readonly aside: Set<string>;
 }
+
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 /**
  * Ends a process's use of its folder and gives the Codex login it rewrote meanwhile (its token refreshed): the text,
@@ -115,9 +127,30 @@ export class PrivateDirs {
       this.#release(path, folder);
       throw error;
     }
+    return this.#lease(path, folder);
+  }
+
+  /**
+   * Takes back the use of a folder by a process that outlived the runner (S5.4): its files as the run folder recorded
+   * them, nothing written, and no crash clean-up of the folder while it is in use.
+   */
+  adopt(path: string, files: readonly WrittenFile[], aside: readonly string[]): PrivateLease {
+    const folder = this.#folders.get(path) ?? { users: 0, written: new Map(), aside: new Set() };
+    this.#folders.set(path, folder);
+    folder.users++;
+    for (const file of files) if (!folder.written.has(file.name)) folder.written.set(file.name, file.sha256);
+    for (const name of aside) folder.aside.add(name);
+    return this.#lease(path, folder);
+  }
+
+  #lease(path: string, folder: Folder): PrivateLease {
     let released = false;
     return {
       path,
+      record: () => ({
+        files: [...folder.written].map(([name, hash]) => ({ name, sha256: hash })),
+        aside: [...folder.aside],
+      }),
       release: () => {
         if (released) return {};
         released = true;
@@ -147,7 +180,7 @@ export class PrivateDirs {
       this.#fs.rename(target, join(path, asideName(file.name)));
       folder.aside.add(file.name);
     }
-    folder.written.set(file.name, file.contents);
+    folder.written.set(file.name, sha256(file.contents));
     // The marker first: a crash between the two leaves a file the next use knows as the runner's.
     this.#fs.write(join(path, WRITTEN_MARKER), `${[...folder.written.keys()].join('\n')}\n`, 0o600);
     this.#fs.write(target, file.contents, file.mode);
@@ -156,11 +189,11 @@ export class PrivateDirs {
   #release(path: string, folder: Folder): Record<string, string> {
     folder.users--;
     const changed: Record<string, string> = {};
-    for (const [name, text] of folder.written) {
+    for (const [name, hash] of folder.written) {
       const now = this.#fs.read(join(path, name));
-      if (now !== undefined && now !== text) {
+      if (now !== undefined && sha256(now) !== hash) {
         changed[name] = now;
-        folder.written.set(name, now);
+        folder.written.set(name, sha256(now));
       }
     }
     if (folder.users > 0) return changed;

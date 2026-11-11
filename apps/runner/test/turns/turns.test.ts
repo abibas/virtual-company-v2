@@ -9,6 +9,7 @@ import { newId } from '@mwc/shared/ids';
 import { TURN_STOP_KILL_MS, TURN_STOP_TERM_MS } from '@mwc/shared/runner-protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { nodePrivateFs } from '../../src/turns/files.ts';
+import { JOURNAL_POLL_MS } from '../../src/turns/turn.ts';
 import type { FakeChild } from '../fixtures/spawn.ts';
 import { settle } from '../fixtures/time.ts';
 import { answerLines, FAKE_COMMAND, fakeHarnessHost, turnsWorld } from '../fixtures/turns.ts';
@@ -52,7 +53,7 @@ describe('a chat turn', () => {
     const [call] = w.spawn.calls;
     expect(call?.args).toEqual(['turn']);
     expect(call?.options).toEqual({
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['pipe', 'ignore', 'ignore'],
       detached: true,
       cwd,
       env: { PATH: '/usr/bin', KEEP: '1', CLAUDE_CODE_OAUTH_TOKEN: 'token' },
@@ -193,18 +194,20 @@ describe('a chat turn', () => {
     expect(w.time.pending).toEqual([]);
   });
 
-  it('ends every live turn when the link drops, and refuses new ones once the runner stops', async () => {
-    const { host, cwd } = fakeHarnessHost();
+  it('keeps its turns running when the link drops and when the runner stops, and refuses new ones once it stops', async () => {
+    const { host, cwd } = fakeHarnessHost({ driver: { liveInput: true } });
     const w = turnsWorld({ host });
     start(w, fakeTurnSpec('claude_code', { cwd }));
     start(w, fakeTurnSpec('claude_code', { cwd }));
     await settle();
-    await w.turns.stopAll('link_lost');
-    expect(w.ends().map((end) => end.error)).toEqual(['link_lost', 'link_lost']);
-    start(w, fakeTurnSpec('claude_code', { cwd }));
-    await settle();
+    w.turns.linkDown();
     await w.turns.stop();
-    expect(w.ends().map((end) => end.error)).toEqual(['link_lost', 'link_lost', 'runner_stopping']);
+    expect(w.ends()).toEqual([]);
+    expect(w.spawn.groupKills).toEqual([]);
+    expect(w.spawn.calls.map((call) => [call.child.released, call.child.inputClosed])).toEqual([
+      [true, false],
+      [true, false],
+    ]);
     start(w, fakeTurnSpec('claude_code', { cwd }));
     expect(w.ends().at(-1)?.error).toBe('runner_stopping');
   });
@@ -421,6 +424,8 @@ describe("a Codex turn's context reading", () => {
     w.spawn.when(FAKE_COMMAND, (child) => child.stdout?.write(`${STDOUT.split('\n')[0]}\n`));
     start(w, fakeTurnSpec('codex', { cwd }));
     await settle();
+    // The thread's line is read before its file is there (a new thread's file is read from its start).
+    await w.time.advance(JOURNAL_POLL_MS);
     const day = join(w.spawn.calls[0]?.options.env?.CODEX_HOME as string, 'sessions', '2026', '11', '10');
     mkdirSync(day, { recursive: true });
     const turnStarted = line('event_msg', {

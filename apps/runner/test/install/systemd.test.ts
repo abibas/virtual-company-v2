@@ -22,7 +22,7 @@ Environment="MWC_RUNNER_STATE_DIR=/var/lib/mwc runner"
 Restart=always
 RestartSec=10
 RestartPreventExitStatus=76 77 78
-KillMode=mixed
+KillMode=process
 TimeoutStopSec=90
 
 [Install]

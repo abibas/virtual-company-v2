@@ -9,6 +9,8 @@ import type { ArtifactFs } from './artifacts/collect.ts';
 import { askHost } from './ask/bridge.ts';
 import type { Env } from './env.ts';
 import { PrivateDirs, type PrivateFs } from './private-dir.ts';
+import { runsRoot } from './runs/folder.ts';
+import type { KeeperCommand } from './runs/kept.ts';
 import type { HarnessHost } from './turns.ts';
 
 /**
@@ -65,7 +67,8 @@ export const turnsRoot = (stateDir: string) => join(stateDir, 'turns');
  * under the state folder; logged by version, never an environment value. With `find`, a harness that was missing is
  * looked for again when a turn or a terminal needs it (no process unless it is found now): a CLI installed since the
  * runner started is then driven, and its version goes in the next hello. With `tools`, each turn gets the runner's MCP
- * server and its own question socket under the state folder.
+ * server and its own question socket under the state folder. With `keeper`, turns run through it in run folders under
+ * the state folder (S5.4); without it, none runs.
  */
 export function harnessHost(
   machine: {
@@ -77,6 +80,8 @@ export function harnessHost(
     readonly tools?: ToolServer | undefined;
     /** A task step's outputs folders (S5.3b). */
     readonly artifacts?: ArtifactFs | undefined;
+    /** How a turn's keeper starts (`<node> <runner.mjs> keep`, S5.4). */
+    readonly keeper?: KeeperCommand | undefined;
   },
   log: Log,
 ): HarnessHost {
@@ -102,6 +107,9 @@ export function harnessHost(
     env: machine.env,
     dirs: new PrivateDirs({ fs: machine.fs, stateDir: machine.stateDir }),
     isDirectory: (path) => machine.fs.isDirectory(path),
+    runs: runsRoot(machine.stateDir),
+    readAt: (path, offset, bytes) => machine.fs.readAt(path, offset, bytes),
+    ...(machine.keeper === undefined ? {} : { keeper: machine.keeper }),
     ...(machine.artifacts === undefined ? {} : { artifacts: machine.artifacts }),
     ...(machine.tools === undefined
       ? {}

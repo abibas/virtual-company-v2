@@ -29,7 +29,9 @@ import { helloOf, NO_HARNESSES } from './hello.ts';
  * The daemon behind `createRunner` (`../runner.ts`, its contract): it makes the hold manager, the heartbeats, the
  * commands, the chat turns, the terminals, the self-update, the machine's tools, a power controller's tunnels and the
  * link, and wires each to the others (and the commands to the folder browser). Live turns and the runs `setLiveRuns`
- * reports count together as live work; a change of the tools is sent as `runner.caps`.
+ * reports count together as live work for the hold; a change of the tools is sent as `runner.caps`. Turns outlive the
+ * link and the runner (S5.4): it takes back the ones on its disk before its first hello, names them in each hello, and
+ * a dropped link or a stop leaves them running; a self-update waits for runs and terminals, not for turns.
  */
 
 const holdState = (state: HoldReport): HoldState => ({ type: 'hold.state', ...state });
@@ -51,6 +53,7 @@ export class RunnerDaemon implements Runner {
   readonly #tools: Tools;
   #config: RunnerConfig;
   #draining = false;
+  #stopped = false;
   #runs = 0;
 
   constructor(options: RunnerOptions) {
@@ -83,6 +86,7 @@ export class RunnerDaemon implements Runner {
       host: options.harness,
       processes: options.processes,
       slots: () => this.#config.slots,
+      clock,
       timers,
       log,
       send: (frame) => this.#link.send(frame),
@@ -100,7 +104,8 @@ export class RunnerDaemon implements Runner {
     this.#updates = new Updates({
       update: options.update,
       serverUrl: () => this.#config.serverUrl,
-      liveRuns,
+      // Chat turns outlive the restart (S5.4): only runs and terminals would end with it.
+      liveRuns: () => this.#runs,
       openTerminals: () => this.#terminals.open,
       installing: () => this.#tools.installing,
       closeTerminals: (notice) => this.#terminals.closeAll('runner_updating', notice),
@@ -157,7 +162,7 @@ export class RunnerDaemon implements Runner {
       refuse: (text, why) => this.#commands.refuse(text, why),
       dropped: () => {
         void this.#terminals.closeAll('link_lost');
-        void this.#turns.stopAll('link_lost');
+        this.#turns.linkDown();
       },
     });
   }
@@ -166,11 +171,21 @@ export class RunnerDaemon implements Runner {
     return this.#draining;
   }
 
+  /** Takes back the turns on its disk, then connects (its hello names them). */
   start(): void {
-    this.#link.start();
+    void this.#turns.reattach().then(
+      () => {
+        if (!this.#stopped) this.#link.start();
+      },
+      (error: unknown) => {
+        this.#options.log.error('could not take back the turns on the disk', { error });
+        if (!this.#stopped) this.#link.start();
+      },
+    );
   }
 
   async stop(): Promise<void> {
+    this.#stopped = true;
     this.#tools.stop();
     await Promise.all([this.#turns.stop(), this.#terminals.stop()]);
     await this.#link.stop();
@@ -211,6 +226,7 @@ export class RunnerDaemon implements Runner {
       selfUpdate: this.#updates.available,
       folders: this.#options.folders !== undefined,
       forks: true,
+      reattach: harness?.keeper !== undefined && processes !== undefined,
       ...(tools ? { tools } : {}),
       ...(containerId ? { containerId } : {}),
     };
@@ -220,7 +236,15 @@ export class RunnerDaemon implements Runner {
     const { harness, version, builtAt, claudeVersion, build } = this.#options;
     // A Claude Code found after the start (a turn looked again) is in the next hello.
     const claude = harness?.versions.claude_code ?? claudeVersion;
-    return helloOf({ version, builtAt: builtAt ?? null, caps: this.#caps(), claudeVersion: claude, build });
+    const turns = this.#turns.held();
+    return helloOf({
+      version,
+      builtAt: builtAt ?? null,
+      caps: this.#caps(),
+      claudeVersion: claude,
+      build,
+      turns,
+    });
   }
 
   #afterHello(hello: ServerHello): RunnerFrame[] {
@@ -231,6 +255,7 @@ export class RunnerDaemon implements Runner {
       });
     }
     this.#heartbeats.connected();
+    this.#turns.connected(hello);
     return [resync(), holdState(this.#hold.state), ...(this.#tunnels?.states() ?? [])];
   }
 

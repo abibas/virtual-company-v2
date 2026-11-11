@@ -9,6 +9,7 @@ import {
   openAskBridge,
   SOCKET_PATH_MAX,
   sameToken,
+  tokenDigest,
   turnTools,
 } from '../../../src/turns/ask/bridge.ts';
 import { askRunner } from '../../../src/turns/ask/client.ts';
@@ -115,8 +116,8 @@ describe('answerRequest', () => {
 
   it('answers a valid request from the handler', () => {
     const line = JSON.stringify({ token: 'tok', questions: [QUESTION] });
-    expect(answerRequest(line, 'tok', handler, log)).toEqual({ ok: true, text: 'asked 1' });
-    expect(answerRequest(line, 'tok', undefined, log)).toEqual({ ok: false, error: NOT_READY });
+    expect(answerRequest(line, tokenDigest('tok'), handler, log)).toEqual({ ok: true, text: 'asked 1' });
+    expect(answerRequest(line, tokenDigest('tok'), undefined, log)).toEqual({ ok: false, error: NOT_READY });
   });
 
   it('refuses what is no request, a wrong token and questions that are not valid', () => {
@@ -130,7 +131,7 @@ describe('answerRequest', () => {
       ],
     ];
     for (const [line, error] of cases)
-      expect(answerRequest(line, 'tok', handler, log)).toEqual({ ok: false, error });
+      expect(answerRequest(line, tokenDigest('tok'), handler, log)).toEqual({ ok: false, error });
   });
 
   it('compares tokens of any length', () => {

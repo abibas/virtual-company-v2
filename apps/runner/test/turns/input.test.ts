@@ -1,8 +1,8 @@
-import { PassThrough } from 'node:stream';
 import { fakeInputLine } from '@mwc/harness-core/fake';
 import type { TurnEvent } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
 import { INPUT_QUIET_MS, TurnInput } from '../../src/turns/input.ts';
+import type { InputRecord } from '../../src/turns/runs/folder.ts';
 import { memoryLog } from '../fixtures/log.ts';
 import { FakeTime } from '../fixtures/time.ts';
 
@@ -10,28 +10,41 @@ const ID = '0a8d6c3e-5f1b-4c2a-9e7d-3b6f1a2c4d5e';
 const OTHER = '6b1f0c2d-8e3a-4d5b-9c7f-1a2b3c4d5e6f';
 const RESULT: TurnEvent = { type: 'result', ok: true, text: 'Done' };
 
-/** A turn's stdin on a pipe, with what was written and whether it was closed. */
-function inputOf(options: { open?: boolean; line?: boolean; settled?: () => boolean; stdin?: boolean } = {}) {
+/** A turn's stdin through its keeper, with what was written, whether it was closed, and what was recorded. */
+function inputOf(
+  options: {
+    open?: boolean;
+    line?: boolean;
+    settled?: () => boolean;
+    stdin?: boolean;
+    writes?: boolean;
+  } = {},
+) {
   const time = new FakeTime();
   const logs = memoryLog();
-  const pipe = new PassThrough();
   const seen = { text: '', closed: false };
-  pipe.on('data', (chunk: Buffer) => {
-    seen.text += chunk.toString();
-  });
-  pipe.on('finish', () => {
-    seen.closed = true;
-  });
+  const records: InputRecord[] = [];
+  const stdin = {
+    write: (text: string) => {
+      if (options.writes === false) return false;
+      seen.text += text;
+      return true;
+    },
+    end: () => {
+      seen.closed = true;
+    },
+  };
   const input = new TurnInput({
     turnId: 'turn-1',
-    stdin: options.stdin === false ? null : pipe,
+    stdin: options.stdin === false ? undefined : stdin,
     line: options.line === false ? undefined : fakeInputLine,
     open: options.open ?? true,
     settled: options.settled ?? (() => true),
     timers: time,
     log: logs.log,
+    record: (record) => void records.push(record),
   });
-  return { input, time, logs, seen, pipe };
+  return { input, time, logs, seen, records };
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -130,13 +143,52 @@ describe('a turn’s stdin', () => {
     expect(t.time.pending).toEqual([]);
   });
 
-  it('runs without a stdin, and ignores a pipe the process closed first', () => {
+  it('runs without a stdin, and takes no message its keeper no longer takes', () => {
     const none = inputOf({ stdin: false });
     none.input.begin('first');
     expect(none.input.open).toBe(false);
     expect(none.input.send(ID, 'x')).toBe(false);
-    const gone = inputOf();
+    const gone = inputOf({ writes: false });
     gone.input.begin('first\n');
-    expect(() => gone.pipe.emit('error', new Error('EPIPE'))).not.toThrow();
+    expect(gone.input.send(ID, 'x')).toBe(false);
+    expect(gone.records).toEqual([]);
+  });
+
+  it('records each message written and the close, for a runner that takes the turn back (S5.4)', () => {
+    const t = inputOf();
+    t.input.begin('first\n');
+    t.input.send(ID, 'Use staging');
+    t.input.close();
+    expect(t.records).toEqual([{ id: ID, text: 'Use staging' }, { end: true }]);
+    const once = inputOf({ open: false });
+    once.input.begin('prompt');
+    expect(once.records).toEqual([{ end: true }]);
+  });
+});
+
+describe('a turn’s stdin taken back after a restart', () => {
+  it('keeps the earlier messages’ echoes and closes after the replay only when a settled result came', () => {
+    const t = inputOf();
+    t.input.restore([{ id: ID, text: 'Use staging' }]);
+    expect(t.input.open).toBe(true);
+    const echoed = t.input.filter([{ type: 'input', text: 'x', inputId: ID }, RESULT]);
+    expect(echoed[0]).toEqual({ type: 'input', text: 'Use staging', inputId: ID });
+    expect(t.seen.closed).toBe(false);
+    t.input.replayed();
+    expect(t.seen.closed).toBe(true);
+    const quiet = inputOf();
+    quiet.input.restore([]);
+    quiet.input.replayed();
+    expect(quiet.input.open).toBe(true);
+  });
+
+  it('knows a stdin closed before the restart, and one that never took messages', () => {
+    const closed = inputOf();
+    closed.input.restore([{ id: ID, text: 'x' }, { end: true }]);
+    expect(closed.input.open).toBe(false);
+    expect(closed.input.send(OTHER, 'y')).toBe(false);
+    const once = inputOf({ open: false });
+    once.input.restore([]);
+    expect(once.input.open).toBe(false);
   });
 });

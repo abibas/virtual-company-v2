@@ -17,13 +17,16 @@ import { runnerBuiltAt } from './system/version.ts';
 import { harnessesOf } from './tools/find.ts';
 import { toolsHost } from './tools/host.ts';
 import { type McpIo, mcpCommand, nodeMcpIo } from './turns/ask/command.ts';
+import { type KeeperIo, runKeeper } from './turns/runs/keeper.ts';
+import { nodeKeeperIo } from './turns/runs/keeper-io.ts';
 import { runnerBuild, updateTarget } from './update/build.ts';
 import { selfUpdater } from './update/self-update.ts';
 
 /**
  * `mwc-runner <command>` (`node runner.mjs <command>`): the daemon (`run`, what the service starts), the commands a
- * person runs on the machine (`enroll`, `install`, `status`, `uninstall`), and `mcp`, the MCP server a harness starts
- * for a chat turn (docs/harness.md, "Asking the person"). `main.ts` calls it with the real process.
+ * person runs on the machine (`enroll`, `install`, `status`, `uninstall`), `mcp`, the MCP server a harness starts
+ * for a chat turn (docs/harness.md, "Asking the person"), and `keep`, the keeper the runner starts for each turn
+ * (docs/harness.md, "Surviving restarts"). `main.ts` calls it with the real process.
  */
 
 export interface CliDeps {
@@ -33,6 +36,8 @@ export interface CliDeps {
   host(): Host;
   /** The MCP server's stdio (`turns/ask/command.ts`), made for `mcp` only; the real process's by default. */
   mcp?(version: string): McpIo;
+  /** A turn's keeper's process (`turns/runs/keeper.ts`), made for `keep` only; the real process's by default. */
+  keeper?(argv: readonly string[]): KeeperIo;
 }
 
 export const HELP = `usage: mwc-runner <command>   (node runner.mjs <command>)
@@ -49,6 +54,8 @@ export const HELP = `usage: mwc-runner <command>   (node runner.mjs <command>)
   uninstall [--purge]       stop and remove the service and the installed runner; --purge also removes
                             the configuration (the runner key) and the state folder
   mcp                       the runner's MCP server on stdio, as a harness starts it for a chat turn
+  keep DIR -- COMMAND ...   a turn's keeper: starts the harness with its output in the run folder DIR and holds
+                            its stdin, so the turn outlives the runner (the runner starts it)
 `;
 
 const OPTIONS = {
@@ -151,12 +158,14 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
   const claudeVersion = harnesses.claude_code?.version ?? null;
   const findHarness = (harness: Harness) => harnessCli(host, harness);
   const toolServer = { command: host.execPath, args: [resolve(host.selfPath), 'mcp'] };
+  const keeper = { command: host.execPath, args: [resolve(host.selfPath), 'keep'] };
   return main(argv, {
     ...daemon,
     harnesses,
     findHarness,
     claudeVersion,
     toolServer,
+    keeper,
     tools: { host: tools, found: found.versions },
     ...selfFacts(host),
     exit,
@@ -181,6 +190,7 @@ async function command(name: string, args: readonly string[], host: Host): Promi
 export async function runCli(argv: readonly string[], deps: CliDeps): Promise<number> {
   const [name, ...args] = argv;
   if (name === 'run') return run(argv, deps);
+  if (name === 'keep') return runKeeper((deps.keeper ?? nodeKeeperIo)(args));
   const host = deps.host();
   if (name === 'mcp') return mcpCommand((deps.mcp ?? nodeMcpIo)(host.version));
   if (name !== undefined && Object.hasOwn(COMMAND_OPTIONS, name)) return command(name, args, host);

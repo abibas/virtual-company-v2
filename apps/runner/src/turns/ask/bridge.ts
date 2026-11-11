@@ -13,7 +13,9 @@ import { ASK_LINE_MAX, ASK_SOCKET_FILE, type AskHandler, type AskReply, AskReque
  * (`<state>/turns/<12 hex>/`, 0700) holding a Unix socket (`ask.sock`) the turn's MCP server connects to, and the
  * files a driver asks for (Claude Code's `mcp.json`, 0600). A call must carry the turn's random token (compared in
  * constant time) and valid questions; the handler the turn binds answers it. The socket listens before the process
- * starts (Node binds a path at once) and the folder goes, socket and files with it, when the process ends.
+ * starts (Node binds a path at once) and the folder goes, socket and files with it, when the process ends. A runner that
+ * takes a turn back after its restart (S5.4) listens on the same socket again (`reopen`), checking calls against the
+ * token's SHA-256, which the turn's run folder keeps (never the token).
  */
 
 /** The longest socket path (macOS's `sun_path` is 104 bytes with its end). */
@@ -29,7 +31,10 @@ export const NOT_READY = 'The turn is not ready for questions yet; try again.';
 export interface AskBridge {
   readonly dir: string;
   readonly socketPath: string;
+  /** The token the MCP server sends (a new bridge's; empty for a reopened one, which knows only its SHA-256). */
   readonly token: string;
+  /** The token's SHA-256 (hex), for the run folder. */
+  readonly tokenSha256: string;
   /** Who answers its calls; until then, each one is refused as not ready. */
   bind(handler: AskHandler): void;
   /** Writes a driver's file in the turn's folder with its mode. */
@@ -46,18 +51,23 @@ export interface AskHost {
   readonly args: readonly string[];
   /** Opens a new turn's bridge; throws when its folder or socket cannot be made. */
   open(): AskBridge;
+  /** Listens again on a re-attached turn's socket in `dir`, for the token whose SHA-256 is `tokenSha256` (S5.4). */
+  reopen(dir: string, tokenSha256: string): AskBridge;
 }
 
 const digest = (text: string) => createHash('sha256').update(text).digest();
+
+/** A token's SHA-256, hex. */
+export const tokenDigest = (token: string) => digest(token).toString('hex');
 
 /** The token, compared in constant time. */
 export const sameToken = (given: string, token: string): boolean =>
   timingSafeEqual(digest(given), digest(token));
 
-/** The answer to one request line. */
+/** The answer to one request line, its token checked against `tokenSha256`. */
 export function answerRequest(
   line: string,
-  token: string,
+  tokenSha256: string,
   handler: AskHandler | undefined,
   log: Log,
 ): AskReply {
@@ -69,7 +79,7 @@ export function answerRequest(
   }
   const parsed = AskRequest.safeParse(request);
   if (!parsed.success) return { ok: false, error: 'not a request' };
-  if (!sameToken(parsed.data.token, token)) {
+  if (!timingSafeEqual(digest(parsed.data.token), Buffer.from(tokenSha256, 'hex'))) {
     log.warn('a question came with a wrong token; refused');
     return { ok: false, error: ASK_REFUSED };
   }
@@ -109,8 +119,21 @@ export function openAskBridge(root: string, log: Log): AskBridge {
   mkdirSync(dir, { mode: 0o700 });
   chmodSync(dir, 0o700);
   const token = randomBytes(32).toString('hex');
+  return listenBridge(dir, token, tokenDigest(token), log);
+}
+
+/** Listens again on a turn's socket in `dir` (a stale socket file removed first), for the token of that SHA-256. */
+export function reopenAskBridge(dir: string, tokenSha256: string, log: Log): AskBridge {
+  rmSync(join(dir, ASK_SOCKET_FILE), { force: true });
+  return listenBridge(dir, '', tokenSha256, log);
+}
+
+function listenBridge(dir: string, token: string, tokenSha256: string, log: Log): AskBridge {
+  const socketPath = join(dir, ASK_SOCKET_FILE);
   let handler: AskHandler | undefined;
-  const server = createServer((socket) => serve(socket, (line) => answerRequest(line, token, handler, log)));
+  const server = createServer((socket) =>
+    serve(socket, (line) => answerRequest(line, tokenSha256, handler, log)),
+  );
   server.on('error', (error) => log.warn('the question socket failed', { error: error.message }));
   server.listen(socketPath);
   let closed = false;
@@ -118,6 +141,7 @@ export function openAskBridge(root: string, log: Log): AskBridge {
     dir,
     socketPath,
     token,
+    tokenSha256,
     bind: (next) => {
       handler = next;
     },
@@ -156,5 +180,6 @@ export function askHost(options: {
     command: options.command,
     args: options.args,
     open: () => openAskBridge(options.root, options.log),
+    reopen: (dir, tokenSha256) => reopenAskBridge(dir, tokenSha256, options.log),
   };
 }
