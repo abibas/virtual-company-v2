@@ -142,6 +142,7 @@ describe('main', () => {
       ['agents', 'list'],
       ['machine', 'enroll-token'],
       ['task', 'list'],
+      ['inbox', 'list'],
     ]) {
       const c = capture({ env: config.env });
       expect(await main(argv, c.io, { account })).toBe(1);
@@ -170,6 +171,7 @@ describe('main', () => {
       '  machine enroll-token [--company SLUG] [--server URL]',
       '  task create --flow LEAD --title T [--step S] [--description D] [--priority P]',
       '  flow show LEAD [--json]',
+      '  inbox list [--all]  |  inbox count [--all]',
     ]) {
       expect(c.out()).toContain(command);
     }

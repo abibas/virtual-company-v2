@@ -26,6 +26,8 @@
  *                                    the company's agents as a table, with whom each reports to (org/commands.ts)
  *   mwc task create|list|show|move …, mwc flow show <lead>
  *                                    a team's tasks moved by hand, and its flow's written form (tasks/commands.ts)
+ *   mwc inbox list|count [--all], mwc inbox approve|send-back <key>
+ *                                    what needs you now, and a Sign-off's two moves (inbox/commands.ts)
  *   mwc machine enroll-token [--company SLUG] [--server URL]
  *                                    a one-time enrollment token and the commands that install a runner with it
  *                                    on This Mac, the Airia devbox and a container (machines/commands.ts)
@@ -41,6 +43,7 @@ import { parseArgs } from './args.ts';
 import { commitMessageText, formatHits, type ScanDeps, scanText } from './banned.ts';
 import { bannedNames, runCheck, structureCheck } from './check.ts';
 import { runDev, systemDevDeps } from './dev.ts';
+import { inboxCommand } from './inbox/commands.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
 import { machineCommand } from './machines/commands.ts';
 import { agentsCommand, orgCommand } from './org/commands.ts';
@@ -136,6 +139,12 @@ const HELP = [
   '                                 its history, move it (start, hand_on, pass, approve, send_back, route, retry,',
   '                                 cancel); a flow by its Lead (slug, id or name) or its own name',
   "  flow show LEAD [--json]        a team's flow as the written table of docs/processes.md",
+  '  inbox list [--all]  |  inbox count [--all]',
+  '                                 what needs you now (a Sign-off, your step, a stuck task of a team you lead,',
+  "                                 an agent's question), the most urgent first; --all across your companies",
+  '                                 (an API key covers its own company only); count prints the number alone',
+  '  inbox approve KEY  |  inbox send-back KEY --reason R',
+  "                                 a Sign-off's moves, as task move does them",
   '  machine enroll-token [--company SLUG] [--server URL]',
   '                                 a one-time token that enrolls one machine (admins and owners), with the',
   '                                 command that installs a runner with it on This Mac, the Airia devbox and',
@@ -154,7 +163,7 @@ export interface MainDeps {
   /** The coverage summary `mwc structure --report` reads; the last run's in .cache/coverage by default. */
   coverage?(): string | undefined;
   /**
-   * What the commands that call the API reach (login, whoami, org, agents, machine, task, flow): fetch and standard input; the
+   * What the commands that call the API reach (login, whoami, org, agents, machine, task, flow, inbox): fetch and standard input; the
    * process's own by default.
    */
   account?: AccountDeps;
@@ -201,6 +210,8 @@ export function main(argv: readonly string[], io: MainIo, deps: MainDeps = {}): 
       return taskCommand(args, io, deps.account ?? systemAccount());
     case 'flow':
       return flowCommand(args, io, deps.account ?? systemAccount());
+    case 'inbox':
+      return inboxCommand(args, io, deps.account ?? systemAccount());
     case undefined:
     case 'help':
       io.stdout(HELP);
