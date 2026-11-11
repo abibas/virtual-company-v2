@@ -7,7 +7,7 @@ import { ago, DESIGN, DEVBOX, ref, sampleBoard } from './flow-sample.ts';
 /**
  * The gallery's tasks, as `GET /tasks/:key` would answer them for the owner: T-12 waiting for Ihor's sign-off after a
  * send-back in Code review (with its steps' conversations and artifacts), T-14 escalated over Code review's limit,
- * T-18 working (its turn running), T-17 ended without a hand-off, T-15 blocked, and every other card of the sample
+ * T-18 working (its turn running, its hand-on recorded), T-17 ended without a hand-off, T-15 blocked, and every other card of the sample
  * boards with a short history of its own.
  */
 
@@ -161,6 +161,18 @@ export function sampleTask(key: string): TaskDetail | undefined {
       actions: actionsOf(state, { ...column, cards: [card] }),
       conversations: sampleConversations(key),
       artifacts: sampleArtifacts(key).filter((a) => a.kind !== 'skipped').length,
+      // T-18's running turn recorded its hand-on (S6a): the page says what happens when the turn ends.
+      decision:
+        key === 'T-18' && card.assignee
+          ? {
+              action: 'hand_on' as const,
+              outcome: 'moved' as const,
+              to: { id: 's-review', name: 'Code review' },
+              reason: null,
+              by: card.assignee,
+              at: ago(2),
+            }
+          : null,
     };
   }
   return undefined;

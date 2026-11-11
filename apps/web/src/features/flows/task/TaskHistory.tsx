@@ -1,8 +1,10 @@
 import type { TaskEventKind } from '@mwc/shared/enums';
 import type { TaskEvent } from '../../../api/flows.ts';
+import type { ChartNode } from '../../../api/types.ts';
 import { cx } from '../../../components/cx.ts';
 import { formatDateTime } from '../../../components/data/format.ts';
 import { ago } from '../../notifications/NotificationList.tsx';
+import { Face } from '../Face.tsx';
 
 /** What each move says after its actor's name, and its dot's colour. */
 const WORDS: Readonly<Record<TaskEventKind, readonly [string, string]>> = {
@@ -54,10 +56,17 @@ function lineOf(event: TaskEvent): string {
 }
 
 /**
- * A task's history, oldest first, as a compact timeline: each move's dot in its colour, who did what from and to which
- * step, its reason, and when. A step entered after a move is a quieter line under it.
+ * A task's history, oldest first, as a compact timeline: each move's dot in its colour, who did what (with their face:
+ * an agent's icon when an agent moved it with its tools, S6a) from and to which step, its reason, and when. A step
+ * entered after a move is a quieter line under it.
  */
-export function TaskHistory({ history }: { readonly history: readonly TaskEvent[] }) {
+export function TaskHistory({
+  history,
+  nodes,
+}: {
+  readonly history: readonly TaskEvent[];
+  readonly nodes: ReadonlyMap<string, ChartNode>;
+}) {
   return (
     <ol className="relative flex flex-col gap-1.5 before:absolute before:top-2 before:bottom-2 before:left-[4px] before:w-px before:bg-line-2">
       {history.map((event) => {
@@ -79,6 +88,9 @@ export function TaskHistory({ history }: { readonly history: readonly TaskEvent[
                     quiet ? 'text-xs text-dim' : 'text-sm font-medium text-ink',
                   )}
                 >
+                  {event.actor && !quiet && (
+                    <Face who={event.actor} nodes={nodes} className="mr-1.5 inline-flex align-middle" />
+                  )}
                   {lineOf(event)}
                 </span>
                 <time

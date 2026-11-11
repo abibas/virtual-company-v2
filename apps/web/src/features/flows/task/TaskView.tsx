@@ -18,6 +18,7 @@ import { flowCrumbs } from '../team/TeamHeader.tsx';
 import { stepStateLook, TASK_STATE } from '../words.ts';
 import type { TaskRuns } from './runs.ts';
 import { TaskActions } from './TaskActions.tsx';
+import { TaskDecision } from './TaskDecision.tsx';
 import { TaskDescription } from './TaskDescription.tsx';
 import { TaskFacts } from './TaskFacts.tsx';
 import { TaskHistory } from './TaskHistory.tsx';
@@ -95,11 +96,16 @@ function Escalation({ task }: { readonly task: TaskDetail }) {
   );
 }
 
-/** Why the task is blocked at its step: its turn could not start, or failed (S5.3b). */
+/**
+ * Why the task is blocked at its step: its turn could not start, or failed (S5.3b), or its agent said it cannot go on
+ * (S6a, `task_blocked`: the block's history row names the agent).
+ */
 function Blocked({ task }: { readonly task: TaskDetail }) {
   if (task.stepState !== 'blocked' || !task.blockedReason) return null;
+  const last = task.history.findLast((event) => event.kind === 'blocked');
+  const by = last?.actor?.kind === 'agent' ? ` · reported by ${last.actor.name}` : '';
   return (
-    <Notice tone="error" title={`Blocked at ${task.step?.name ?? 'its step'}`}>
+    <Notice tone="error" title={`Blocked at ${task.step?.name ?? 'its step'}${by}`}>
       {task.blockedReason}
     </Notice>
   );
@@ -130,6 +136,7 @@ export function TaskView(props: TaskViewProps) {
         <div className="flex min-w-0 flex-col gap-4">
           <Escalation task={task} />
           <Blocked task={task} />
+          <TaskDecision task={task} nodes={nodes} />
           {task.actions.length > 0 && (
             <Card padding="sm">
               <TaskActions task={task} flow={flow} calls={calls} onMoved={onChanged} />
@@ -161,7 +168,7 @@ export function TaskView(props: TaskViewProps) {
           </Card>
           <TaskArtifacts task={task} flow={flow} runs={runs} />
           <Part title="History">
-            <TaskHistory history={task.history} />
+            <TaskHistory history={task.history} nodes={nodes} />
           </Part>
         </div>
       </div>
