@@ -37,17 +37,7 @@ export function LimitCard({ limits, now }: { readonly limits: SubscriptionLimits
   );
 }
 
-/** Keys and gateways: one quiet line, since the provider sets them no plan limits. */
-function PayAsYouGo({ items }: { readonly items: readonly SubscriptionLimits[] }) {
-  return (
-    <p className="mt-3 text-xs text-dim">
-      <span className="font-semibold text-ink-2">{items.map((item) => item.label).join(', ')}</span>
-      {items.length === 1 ? ' has' : ' have'} no limits (pay as you go).
-    </p>
-  );
-}
-
-/** The cards, two across from md, then the pay-as-you-go line; the invitation to add one when there is none. */
+/** The cards of the subscriptions with plan limits, two across from md; the invitation to add one when there is none. */
 function LimitsGrid({
   limits,
   now,
@@ -57,37 +47,31 @@ function LimitsGrid({
   readonly now: number;
   readonly onAdd: () => void;
 }) {
+  // Keys and gateways have no plan limits: they are not listed here (Ihor: no line about them).
   const plans = limits.filter((item) => hasLimits(item.kind));
-  const payg = limits.filter((item) => !hasLimits(item.kind));
   if (plans.length === 0) {
     return (
-      <>
-        <EmptyState
-          icon={Gauge}
-          tone="blue"
-          size="sm"
-          title="No subscription limits yet"
-          action={
-            <Button tone="primary" icon={Plus} onClick={onAdd}>
-              Add a subscription
-            </Button>
-          }
-        >
-          Add your Claude or OpenAI subscription to see its limits here.
-        </EmptyState>
-        {payg.length > 0 && <PayAsYouGo items={payg} />}
-      </>
+      <EmptyState
+        icon={Gauge}
+        tone="blue"
+        size="sm"
+        title="No subscription limits yet"
+        action={
+          <Button tone="primary" icon={Plus} onClick={onAdd}>
+            Add a subscription
+          </Button>
+        }
+      >
+        Add your Claude or OpenAI subscription to see its limits here.
+      </EmptyState>
     );
   }
   return (
-    <>
-      <div className="grid gap-3 md:grid-cols-2">
-        {plans.map((item) => (
-          <LimitCard key={item.credentialId} limits={item} now={now} />
-        ))}
-      </div>
-      {payg.length > 0 && <PayAsYouGo items={payg} />}
-    </>
+    <div className="grid gap-3 md:grid-cols-2">
+      {plans.map((item) => (
+        <LimitCard key={item.credentialId} limits={item} now={now} />
+      ))}
+    </div>
   );
 }
 
@@ -116,7 +100,6 @@ export function LimitsWidget({ limits, refreshing, onRefresh, manageHref, onAdd,
   return (
     <Panel
       title="Subscription limits"
-      description="Your own subscriptions, in every company you work in."
       actions={
         <>
           <IconButton

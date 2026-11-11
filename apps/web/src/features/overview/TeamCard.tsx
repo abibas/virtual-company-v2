@@ -78,9 +78,6 @@ export function TeamCard({ agents, href, hireHref }: TeamCardProps) {
               {agents.length === 1 ? 'agent' : 'agents'}
             </span>
           </p>
-          <p className="mt-1 max-w-sm text-sm text-white/80">
-            On the chart beside your people. You will hand them tasks by their faces from the dock.
-          </p>
           <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-6">
             <AvatarStack people={faces} size="md" max={6} ring="ring-white/40" />
             <ButtonLink href={href} tone="inverse" trailingIcon={ArrowRight}>

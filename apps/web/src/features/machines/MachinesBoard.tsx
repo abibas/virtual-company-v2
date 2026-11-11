@@ -36,7 +36,6 @@ export function MachinesBoard({
   return (
     <Panel
       title="Machines"
-      description="Where your agents run, and how they are doing."
       actions={
         <ButtonLink href={machinesHref} size="sm" tone="quiet" trailingIcon={ArrowRight}>
           Open Machines

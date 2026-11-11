@@ -19,7 +19,8 @@ export function CompanyHero({
   readonly name: string;
   readonly status: string;
   /** One line about the person's role here. */
-  readonly summary: string;
+  /** A line under the name; none on the company's own home (Ihor: no filler). */
+  readonly summary?: string;
   /** The company's logo (an object URL); its initials without one. */
   readonly logoSrc?: string | null | undefined;
   readonly actions?: ReactNode;
@@ -45,9 +46,11 @@ export function CompanyHero({
           >
             {name}
           </h2>
-          <p className={cx('text-white/80', compact ? 'mt-0.5 text-xs' : 'mt-2 max-w-xl text-md')}>
-            {summary}
-          </p>
+          {summary && (
+            <p className={cx('text-white/80', compact ? 'mt-0.5 text-xs' : 'mt-2 max-w-xl text-md')}>
+              {summary}
+            </p>
+          )}
         </div>
       </div>
       {actions && (

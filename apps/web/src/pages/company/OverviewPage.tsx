@@ -15,13 +15,6 @@ import { CompanyHero } from '../../features/overview/CompanyHero.tsx';
 import { TeamCard } from '../../features/overview/TeamCard.tsx';
 import { SubscriptionLimitsWidget } from '../../features/subscriptions/LimitsWidget.tsx';
 
-const ROLE_SUMMARY = {
-  owner: 'You own this company: you manage its people, its agents and its settings, and can delete it.',
-  admin: 'You are an admin: you invite people, hire agents, set roles and change the company’s settings.',
-  member: 'You are a member: you work in the company and see its people and agents.',
-  viewer: 'You are a viewer: you can look around, and change nothing but your own API keys.',
-} as const;
-
 /** The counts of the tiles: members, and pending invitations (admins and owners). */
 function useOverviewData(companyId: string, admin: boolean) {
   const api = useApi();
@@ -111,7 +104,6 @@ export function OverviewPage() {
         name={membership.name}
         status={membership.companyStatus}
         logoSrc={logoSrc}
-        summary={ROLE_SUMMARY[membership.role]}
         actions={
           <ButtonLink href={links.people} tone="inverse" icon={admin ? Plus : Users}>
             {admin ? 'Invite a teammate' : 'See the members'}
