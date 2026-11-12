@@ -174,11 +174,15 @@ export function ChartCard({
         drop && DROP_LOOK[drop],
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cx('absolute inset-x-4 top-0 h-[3px] rounded-b-full', agent ? 'bg-teal' : 'bg-blue')}
-      />
-      {accent && <div className="absolute inset-x-3 -top-2.5 z-10 flex min-w-0 gap-1">{accent.tags}</div>}
+      {/* A highlighted card's chips take the place of its top bar. */}
+      {accent ? (
+        <div className="absolute inset-x-3 -top-2.5 z-10 flex min-w-0 gap-1">{accent.tags}</div>
+      ) : (
+        <span
+          aria-hidden="true"
+          className={cx('absolute inset-x-4 top-0 h-[3px] rounded-b-full', agent ? 'bg-teal' : 'bg-blue')}
+        />
+      )}
       <div className="flex min-w-0 items-start gap-2.5">
         <Face node={node} />
         <div className="min-w-0 flex-1 pt-0.5">

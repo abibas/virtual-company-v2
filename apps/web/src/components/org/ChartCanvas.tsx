@@ -175,7 +175,8 @@ function useCanvasView(box: RefObject<HTMLDivElement | null>, props: ChartCanvas
   useLayoutEffect(() => {
     const r = box.current?.getBoundingClientRect();
     if (view !== undefined || !r || r.width === 0) return;
-    setRawView(readView(storageKey, r.width) ?? firstView(width, height, r.width, r.height));
+    // A view set meanwhile (a `fitTo` right after mounting) stays: StrictMode runs this effect again with the old view.
+    setRawView((v) => v ?? readView(storageKey, r.width) ?? firstView(width, height, r.width, r.height));
   }, [box, view, storageKey, width, height]);
   const moved = useRef(props.onMove);
   moved.current = props.onMove;

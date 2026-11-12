@@ -86,7 +86,7 @@ export interface ChartLayerProps {
 
 /** Where a card sits; outside a highlighted flow it fades and greys, in its place. */
 const PLACE = 'absolute transition-[opacity,filter] duration-200 motion-reduce:transition-none';
-const FADED = 'opacity-35 saturate-0';
+const FADED = 'opacity-40 saturate-0';
 
 /**
  * What the canvas zooms: the lines, then each card where the layout puts it (the company on top), each a drop target

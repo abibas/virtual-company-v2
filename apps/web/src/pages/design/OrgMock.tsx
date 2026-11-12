@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ApiContext } from '../../api/context.ts';
 import type { AgentFilter } from '../../api/types.ts';
 import { useLocation } from '../../app/router.tsx';
@@ -7,9 +7,12 @@ import { AgentsView } from '../../features/agents/AgentsView.tsx';
 import { HireAgent } from '../../features/agents/HireAgent.tsx';
 import type { AgentLinks } from '../../features/agents/links.ts';
 import { chartFlowItems } from '../../features/flows/access.ts';
+import { FLOW_PARAM } from '../../features/flows/links.ts';
+import { FlowPicker } from '../../features/structure/flow/FlowPicker.tsx';
+import { flowAt, flowFocus } from '../../features/structure/flow/flow-focus.ts';
 import { StructureView } from '../../features/structure/StructureView.tsx';
 import { FLOW_LINKS, SAMPLE_VIEWER } from './flows/FlowsMock.tsx';
-import { SAMPLE_FLOW_LIST } from './flows/flow-sample.ts';
+import { SAMPLE_FLOW_LIST, SAMPLE_FLOWS } from './flows/flow-sample.ts';
 import { MockShell } from './MockShell.tsx';
 import { SAMPLE_CHART, sampleAgent, sampleAgentList } from './org-sample.ts';
 import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from './records.ts';
@@ -32,11 +35,25 @@ const LINKS: AgentLinks = {
 
 const none = () => undefined;
 
-/** The Company structure page on the sample chart, as the owner sees it, with the list filtered in memory. */
+/**
+ * The Company structure page on the sample chart, as the owner sees it, with the list filtered in memory and a sample
+ * flow highlighted on the chart (`?flow=vega`).
+ */
 function AgentsBody({ list }: { readonly list: boolean }) {
   const [status, setStatus] = useState<AgentFilter>('active');
+  const chosen = flowAt(SAMPLE_FLOW_LIST.flows, useLocation().search.get(FLOW_PARAM));
+  const focus = useMemo(() => {
+    const flow = SAMPLE_FLOWS.find((f) => f.id === chosen?.id);
+    return flow && flowFocus(flow);
+  }, [chosen?.id]);
   return (
-    <StructureView tab={list ? 'agents' : 'chart'} links={LINKS} hireHref={LINKS.hire} admin>
+    <StructureView
+      tab={list ? 'agents' : 'chart'}
+      links={LINKS}
+      hireHref={LINKS.hire}
+      admin
+      tools={list ? undefined : <FlowPicker flows={SAMPLE_FLOW_LIST.flows} />}
+    >
       <AgentsView
         companyId={SAMPLE_COMPANY.id}
         tab={list ? 'list' : 'chart'}
@@ -51,6 +68,7 @@ function AgentsBody({ list }: { readonly list: boolean }) {
         company={{ name: SAMPLE_COMPANY.name, logo: null }}
         flowItem={chartFlowItems(SAMPLE_VIEWER, SAMPLE_FLOW_LIST.flows, FLOW_LINKS)}
         onChanged={none}
+        focus={focus}
       />
     </StructureView>
   );

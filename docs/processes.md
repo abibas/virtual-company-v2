@@ -237,6 +237,9 @@ sample records.
 `<lead>` is an agent Lead's slug or a person Lead's principal id. A Lead without a flow gets the editor that makes one
 (`POST …/flows`) for those who may, and "No flow yet" for everyone else. On the org chart a manager's ⋯ menu has "Open
 its flow", or "Create its flow" for those who may lead the team.
+The org chart's flow picker (`/:slug/structure?flow=<lead>`) highlights a flow: its Lead and each step's assignee get a
+ring and chips with their steps, everyone else fades in place; each flow's card and header link there ("Show on org
+chart").
 
 **Who sees what.** The web works out who leads a team the way the API does, from the chart: an admin or owner, or a
 member who is the Lead or above it (`peopleAtOrAbove`). They get Edit, "Start at", the board's drag and "Create a
