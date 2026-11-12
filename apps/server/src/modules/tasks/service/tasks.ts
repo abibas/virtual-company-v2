@@ -100,6 +100,9 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
     t,
     chats.map((chat) => chat.id),
   );
+  const machines = await repo.conversations.machineNames(t, [
+    ...new Set(chats.map((chat) => chat.machineId)),
+  ]);
   const conversations = chats.map((chat) =>
     conversationView(
       chat,
@@ -107,7 +110,7 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
       agents.get(chat.agentId),
       names,
       turns.filter((turn) => turn.chatId === chat.id),
-      deps.steps?.away,
+      { away: deps.steps?.away, machine: machines.get(chat.machineId) ?? null },
     ),
   );
   const artifacts = (await repo.artifacts.counts(t, [task.id])).get(task.id) ?? 0;

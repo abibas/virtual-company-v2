@@ -3,6 +3,7 @@ import { taskKey } from '@mwc/shared/flows';
 import { peopleAtOrAbove } from '@mwc/shared/org-chart';
 import { orgOf, type PrincipalNames, principalNames } from '../../org/index.ts';
 import { allowedActions } from '../../tasks/rules/access.ts';
+import { readableReason } from '../../tasks/rules/failure.ts';
 import { roundsAt } from '../../tasks/rules.ts';
 import type { InboxRepo } from '../repo.ts';
 import { lastMove, taskKind, type Viewer } from '../rules.ts';
@@ -25,7 +26,7 @@ interface Found {
 
 /** Why it waits: a block's or an escalation's reason, else the reason of the move that brought it (a send-back's). */
 function reasonOf(found: Found, move: TaskEvent): string | null {
-  if (found.kind === 'blocked') return found.task.blockedReason;
+  if (found.kind === 'blocked') return readableReason(found.task.blockedReason);
   if (found.kind === 'escalated') return found.task.escalationReason;
   return move.reason;
 }

@@ -11,6 +11,7 @@ import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome, withEvent } from '../rules.ts';
 import { noticeQuestion } from './ask-notice.ts';
 import { type ChatBus, chatBus } from './bus.ts';
+import { heldForSlot } from './live-slot.ts';
 import { NO_TOOLS_HERE, toolCall } from './live-tools.ts';
 import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
@@ -27,7 +28,8 @@ import { streamEvent, turnView } from './views.ts';
  * module's hook, on the same queue, before the next waiting turn starts. A turn whose runner went away (S5.4) is
  * `detached` until its runner comes back with it (the stream shows it reconnecting) and says the last event it stored
  * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events. An agent's
- * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end.
+ * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end. A
+ * turn the runner refuses for a full machine (`busy`) waits for a free slot instead of ending (`live-slot.ts`).
  */
 
 /** The subscription a turn runs on: which credential, whose, of which kind (a Codex login is sealed again). */
@@ -80,6 +82,8 @@ interface Live {
   readonly turns: Map<string, LiveTurn>;
   /** What runs once a turn's end is written (the chats' queue starts the next waiting turn). */
   ended?: (t: TenantDb, chatId: string) => Promise<void>;
+  /** What runs once a turn the runner refused for a full machine waits for a slot (`live-slot.ts`). */
+  busy?: (t: TenantDb, turn: ChatTurn) => Promise<void>;
 }
 
 /** One turn's writes, in order; a failure is logged and the next write still runs. */
@@ -127,6 +131,11 @@ async function taken(l: Live, t: TenantDb, chatId: string, inputId: string): Pro
 /** Closes the turn's row from its end, and seals again a Codex login the process rewrote. */
 async function ended(l: Live, t: TenantDb, turn: ChatTurn, end: Ending): Promise<void> {
   const { ending, outcome, used } = end;
+  const hold = { bus: l.bus, clock: l.deps.clock, busy: l.busy };
+  if (await heldForSlot(hold, t, turn, ending)) {
+    l.turns.delete(turn.id);
+    return;
+  }
   if (ending.authJson !== undefined && used.kind === 'codex_oauth') {
     await l.deps.credentials.rewriteCodexLogin(
       used.credentialId,
@@ -254,6 +263,10 @@ export function chatsLive(deps: LiveDeps) {
     /** What runs once each turn's end is written: the chats' queue starts the next waiting turn. */
     onEnded(then: (t: TenantDb, chatId: string) => Promise<void>): void {
       l.ended = then;
+    },
+    /** What runs once a turn the runner refused for a full machine waits for a slot. */
+    onBusy(then: (t: TenantDb, turn: ChatTurn) => Promise<void>): void {
+      l.busy = then;
     },
     /** Asks the turn's runner to stop it; false when this process has no such live turn. */
     stop(turnId: string): boolean {

@@ -83,7 +83,7 @@ describe('reapTurns and a task’s conversation (S5.3b)', () => {
     expect((await turnRow(w.t.db, reply.id))?.status).toBe('failed');
     expect(await taskRow(w.t.db, task.id)).toMatchObject({
       stepState: 'blocked',
-      blockedReason: SERVER_RESTARTED,
+      blockedReason: 'The server restarted during the turn',
     });
   });
 

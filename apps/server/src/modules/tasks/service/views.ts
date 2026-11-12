@@ -2,6 +2,7 @@ import type { Flow, FlowStep, Task, TaskEvent } from '@mwc/db';
 import type { TaskAction } from '@mwc/shared/enums';
 import { taskKey } from '@mwc/shared/flows';
 import type { ConversationRow, ConversationTurnRow } from '../repo.ts';
+import { readableReason } from '../rules/failure.ts';
 import { inOrder, roundsAt } from '../rules.ts';
 import type { BoardCardView } from '../schemas/board.ts';
 import type { FlowSummaryView, FlowView, StepView } from '../schemas/flows.ts';
@@ -103,7 +104,7 @@ export function taskSummary(
     state: task.state,
     step: step ? stepRef(step) : null,
     stepState: task.stepState,
-    blockedReason: task.blockedReason,
+    blockedReason: readableReason(task.blockedReason),
     round: step ? roundsAt(task.rounds, step.id).entries || null : null,
     assignee: holder === null ? null : names(holder),
     createdBy: names(task.createdBy),
@@ -123,7 +124,7 @@ export function eventView(event: TaskEvent, names: Names): TaskEventView {
     from: named(event.fromStepId, event.fromStepName),
     to: named(event.toStepId, event.toStepName),
     round: event.round,
-    reason: event.reason,
+    reason: event.kind === 'blocked' ? readableReason(event.reason) : event.reason,
     details: event.details,
     at: event.createdAt.toISOString(),
   };
@@ -203,9 +204,9 @@ export function boardCard(
 }
 
 /**
- * Where a conversation's turns stand: the running one's status, else the latest's, whether it waits for its stopped
- * machine to start, and whether a running one waits for its machine's runner to come back (`away`, S5.4); and its last
- * start or end.
+ * Where a conversation's turns stand: the running one's status, else the latest's, whether it waits for its machine
+ * (to start, or for a free slot), and whether a running one waits for its machine's runner to come back (`away`, S5.4);
+ * and its last start or end.
  */
 export function lastTurnOf(
   turns: readonly ConversationTurnRow[],
@@ -216,28 +217,33 @@ export function lastTurnOf(
   const shown = turns.find((turn) => turn.status === 'running') ?? latest;
   const at = Math.max(...turns.map((turn) => (turn.endedAt ?? turn.startedAt ?? turn.createdAt).getTime()));
   const waitsForMachine = shown.status === 'queued' && shown.machineWaitAt !== null;
+  const machineWait = waitsForMachine ? (shown.machineWait ?? 'stopped') : null;
   const reconnecting = shown.status === 'running' && away(shown.id);
-  return { status: shown.status, at: new Date(at).toISOString(), waitsForMachine, reconnecting };
+  return { status: shown.status, at: new Date(at).toISOString(), waitsForMachine, machineWait, reconnecting };
 }
 
-/** A step's conversation of the task: its chat, the step (by its name now), the round it began in, its agent. */
+/**
+ * A step's conversation of the task: its chat, its machine (by name), the step (by its name now), the round it began in,
+ * its agent.
+ */
 export function conversationView(
   row: ConversationRow,
   steps: ReadonlyMap<string, FlowStep>,
   agent: string | undefined,
   names: Names,
   turns: readonly ConversationTurnRow[] = [],
-  away?: (turnId: string) => boolean,
+  of: { readonly away?: ((turnId: string) => boolean) | undefined; readonly machine?: string | null } = {},
 ): TaskConversationView {
   const stepId = row.taskStepId as string;
   return {
     chatId: row.id,
+    machine: of.machine ?? null,
     step: { id: stepId, name: steps.get(stepId)?.name ?? 'a removed step' },
     round: row.taskRound as number,
     agent: agent === undefined ? null : names(agent),
     title: row.title,
     started: row.sessionId !== null,
-    lastTurn: lastTurnOf(turns, away),
+    lastTurn: lastTurnOf(turns, of.away),
     createdAt: row.createdAt.toISOString(),
   };
 }

@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness, MachineWait } from '@mwc/shared/enums';
 import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared/harness';
 import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
 import { ChatContextSchema } from './schemas/context.ts';
@@ -123,8 +123,12 @@ export const ChatTurnSchema = z
     error: z.string().nullable(),
     machineWaitAt: dateTime.nullable().openapi({
       description:
-        'Since when a `queued` turn waits for its stopped machine to start (docs/harness.md "When the machine is ' +
-        'stopped"): it starts once the machine\'s runner connects; null for any other turn',
+        'Since when a `queued` turn waits for its machine (docs/harness.md "When the machine is stopped", "Waiting ' +
+        'for a free slot"): it starts once the machine\'s runner connects, or a turn there ends; null for any other turn',
+    }),
+    machineWait: MachineWait.nullable().openapi({
+      description:
+        'What a turn waiting for its machine waits for: to start (`stopped`), or a free slot (`slots`)',
     }),
     detached: z
       .boolean()

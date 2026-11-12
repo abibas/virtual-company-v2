@@ -70,12 +70,19 @@ const SPECS: Readonly<Record<string, readonly Spec[]>> = {
 export const sampleConversations = (key: string): Conversation[] =>
   (SPECS[key] ?? []).map((spec) => ({
     chatId: spec.chatId,
+    machine: 'Airia devbox',
     step: { id: spec.step[0], name: spec.step[1] },
     round: spec.round,
     agent: ref(spec.agent),
     title: `${key} · ${spec.step[1]} · a sample`,
     started: true,
-    lastTurn: { status: spec.status, at: ago(spec.minutes), waitsForMachine: false, reconnecting: false },
+    lastTurn: {
+      status: spec.status,
+      at: ago(spec.minutes),
+      waitsForMachine: false,
+      machineWait: null,
+      reconnecting: false,
+    },
     createdAt: ago(60 * 26),
   }));
 
@@ -124,6 +131,7 @@ const turn = (
     delivery: null,
     system: false,
     machineWaitAt: null,
+    machineWait: null,
     profileId: null,
     credentialId: null,
     startedAt: ago(minutes),

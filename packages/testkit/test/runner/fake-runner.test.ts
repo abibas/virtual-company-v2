@@ -61,7 +61,7 @@ describe('FakeRunner: connecting', () => {
       builtAt: null,
       caps: {
         harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
-        slots: 1,
+        slots: 8,
         hold: 'none',
         power: [],
         terminal: false,

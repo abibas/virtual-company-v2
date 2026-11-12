@@ -61,12 +61,12 @@ describe('a step’s turn ends', () => {
     ]);
   });
 
-  it('a failed turn blocks the task with its error; a stopped one ends without a hand-off', async () => {
+  it('a failed turn blocks the task with its error in words; a stopped one ends without a hand-off', async () => {
     const s = await atDevelop();
     sendEvents(s.runner, s.start.turnId, [{ type: 'session', sessionId: 'b4c1f0e2-session' }]);
     endTurn(s.runner, s.start.turnId, { ok: false, exitCode: 1, error: 'spawn_failed: no claude here' });
     const row = await stepStateIs(w.t.db, s.task.id, 'blocked');
-    expect(row.blockedReason).toBe('spawn_failed: no claude here');
+    expect(row.blockedReason).toBe('The harness did not start on This Mac (no claude here)');
     expect((await historyOf(w.t.db, s.task.id)).at(-1)).toEqual(['blocked', null, 'Develop', 1]);
     expect(await taskNotices(w.t.db, s.c.companyId)).toEqual([[s.c.manager.principalId, 'task_blocked']]);
     expect(await artifactsOf(w.t.db, s.task.id)).toEqual([]);

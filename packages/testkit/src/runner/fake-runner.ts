@@ -46,7 +46,7 @@ export interface FakeRunnerOptions {
   /** `runner.hello`'s protocol; `RUNNER_PROTOCOL_VERSION` by default. */
   readonly protocol?: number;
   /**
-   * `runner.hello`'s caps over the defaults: Claude Code (`FAKE_CLAUDE_VERSION`, no Codex), one slot, no hold, no power,
+   * `runner.hello`'s caps over the defaults: Claude Code (`FAKE_CLAUDE_VERSION`, no Codex), eight slots (room for every turn a scene runs), no hold, no power,
    * no terminal, no self-update, no folders, no forks, turns that end with the link (no `reattach`).
    */
   readonly caps?: Partial<RunnerCaps>;
@@ -120,7 +120,7 @@ export class FakeRunner {
   get hello(): RunnerHello {
     const caps: RunnerCaps = {
       harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
-      slots: 1,
+      slots: 8,
       hold: 'none',
       power: [],
       terminal: false,

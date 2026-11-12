@@ -6,6 +6,7 @@ import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { nextQueued, startSeq } from '../rules/queue.ts';
 import { CHAT_ARCHIVED, MACHINE_OFFLINE, type Refusal, titleOf } from '../rules.ts';
+import { holdForSlot, slotCheck } from './slot-wait.ts';
 import { resolveTarget, type Target } from './target.ts';
 import { artifactsOf, taskDraft } from './task-hook.ts';
 import { INVALID_SPEC, launch, specIssues, specTools, type TurnsDeps } from './turns.ts';
@@ -16,7 +17,8 @@ import { turnView } from './views.ts';
  * runs, the next waiting one (`nextQueued`) starts as a prompt does, as the person who sent it (its checks, its
  * credential, its runner), resuming the chat's session; one refused fails with the refusal's words and the next one is
  * tried, except while a turn of the chat waits for its stopped machine to start (`machine-wait.ts`): its queue then
- * waits for the runner. Called after each turn's end, after each message queued or moved up and when a machine that
+ * waits for the runner; while every slot of the chat's machine is taken, its next turn waits for a free slot
+ * (`slot-wait.ts`). Called after each turn's end, after each message queued or moved up and when a machine that
  * was waited for connects; one chat's starts run one at a time in this process, and a start that loses a race to
  * another (the one-running-turn index) leaves the chat to it.
  */
@@ -25,8 +27,11 @@ export interface DrainDeps extends TurnsDeps {
   readonly logger: Logger;
 }
 
-/** How one start went: started (or lost a race to another start), gone meanwhile, failed, or refused. */
-type Outcome = 'started' | 'raced' | 'gone' | 'failed' | Refusal;
+/**
+ * How one start went: started (or lost a race to another start), waits for a free slot, gone meanwhile, failed, or
+ * refused.
+ */
+type Outcome = 'started' | 'raced' | 'slots' | 'gone' | 'failed' | Refusal;
 
 /** Takes the waiting turn: running, numbered after every turn that started, the chat titled; or why not. */
 async function claim(deps: DrainDeps, t: TenantDb, chat: Chat, id: string, target: Target) {
@@ -66,6 +71,11 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
   if (chat.archivedAt !== null) return CHAT_ARCHIVED;
   const target = await resolveTarget(deps, t, chat, { principalId: head.createdBy, purpose: 'chat_turn' });
   if (!target.ok) return target;
+  const slot = await slotCheck(deps, t, chat);
+  if (!slot.free) {
+    await holdForSlot(deps, t, head, slot.slots);
+    return 'slots';
+  }
   const draft = await taskDraft(deps.tasks, t, { chat, agent: target.agent, kind: head.kind });
   const tools = await specTools(deps, t, { chat, target, kind: head.kind, draft });
   const row = await claim(deps, t, chat, head.id, target);
@@ -97,7 +107,7 @@ async function drain(deps: DrainDeps, t: TenantDb, chatId: string): Promise<void
     const head = nextQueued(await queueRepo.queuedOf(t, chatId));
     if (head === undefined) return;
     const outcome = await startOne(deps, t, chatId, head);
-    if (outcome === 'started' || outcome === 'raced') return;
+    if (outcome === 'started' || outcome === 'raced' || outcome === 'slots') return;
     if (typeof outcome !== 'object') continue;
     if (outcome.code === MACHINE_OFFLINE.code && (await queueRepo.machineWaitsOf(t, chatId)).length > 0)
       return;

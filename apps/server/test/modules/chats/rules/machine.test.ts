@@ -3,9 +3,13 @@ import {
   cannotStart,
   isMachineStopped,
   MACHINE_WAIT_MS,
+  machineBusy,
   machineStopped,
   messageReason,
+  noSlotText,
   notConnectedText,
+  SLOT_WAIT_MS,
+  slotFree,
   waitedOut,
 } from '../../../../src/modules/chats/rules/machine.ts';
 import { MACHINE_OFFLINE } from '../../../../src/modules/chats/rules.ts';
@@ -45,5 +49,40 @@ describe('a turn for a stopped machine', () => {
     const since = new Date('2026-11-12T09:00:00Z');
     expect(waitedOut(since, new Date(since.getTime() + MACHINE_WAIT_MS - 1))).toBe(false);
     expect(waitedOut(since, new Date(since.getTime() + MACHINE_WAIT_MS))).toBe(true);
+  });
+});
+
+describe('a turn for a machine with every slot taken', () => {
+  const box = (live: number, slots = 2) => ({ name: 'Airia devbox', slots, live });
+  const at = (minute: number) => new Date(Date.UTC(2026, 10, 12, 9, minute));
+
+  it('takes a slot only when the live turns and the chats waiting longer leave one', () => {
+    const waiters = [
+      { chatId: 'c', since: at(2) },
+      { chatId: 'b', since: at(1) },
+      { chatId: 'a', since: at(1) },
+    ];
+    expect(slotFree('new', [], box(1))).toBe(true);
+    expect(slotFree('new', [], box(2))).toBe(false);
+    expect(slotFree('new', waiters, box(0, 3))).toBe(false);
+    expect(slotFree('a', waiters, box(1))).toBe(true);
+    expect(slotFree('b', waiters, box(1))).toBe(false);
+    expect(slotFree('b', waiters, box(0))).toBe(true);
+    expect(slotFree('c', waiters, box(0))).toBe(false);
+    expect(slotFree('c', waiters, box(0, 3))).toBe(true);
+    expect(slotFree('a', [], box(0, 0))).toBe(false);
+  });
+
+  it('words the wait and a Compact’s refusal, and waits 30 minutes', () => {
+    expect(noSlotText(box(2))).toBe('Airia devbox had no free slot for 30 minutes (2 of 2 in use)');
+    expect(machineBusy(box(2))).toEqual({
+      ok: false,
+      status: 409,
+      code: 'machine_busy',
+      message: 'Airia devbox has no free slot (2 of 2 in use): try again when a turn there ends',
+    });
+    const since = at(0);
+    expect(waitedOut(since, new Date(since.getTime() + MACHINE_WAIT_MS), 'slots')).toBe(false);
+    expect(waitedOut(since, new Date(since.getTime() + SLOT_WAIT_MS), 'slots')).toBe(true);
   });
 });

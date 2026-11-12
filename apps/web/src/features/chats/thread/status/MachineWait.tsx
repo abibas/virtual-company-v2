@@ -14,15 +14,24 @@ import { QueuedStatus } from './WorkingStatus.tsx';
 /**
  * A turn waiting for the agent's stopped machine (docs/harness.md, "When the machine is stopped"): one line that follows
  * the machine — "Starting Airia devbox… 0:42", then "Airia devbox is up · runner connecting… 1:05", then "Sending…"
- * once its runner is back — with Cancel. The chat page and the rail's chat give it their machine through
+ * once its runner is back — with Cancel; or for a free slot on it ("Waiting for a free slot on Airia devbox 1:10",
+ * "Waiting for a free slot"). The chat page and the rail's chat give it their machine through
  * `ChatMachineContext`; without one it is the plain queued pill.
  */
 
 export { type ChatMachine, ChatMachineContext };
 
-/** Where the machine is, in a few words: online (the message is on its way), up without its runner, or starting. */
-function phaseText(machine: MachineChoice | undefined, power: MachinePower | undefined): string {
+/**
+ * Where the machine is, in a few words: every slot taken, online (the message is on its way), up without its runner, or
+ * starting.
+ */
+function phaseText(
+  turn: ChatTurnWithEvents,
+  machine: MachineChoice | undefined,
+  power: MachinePower | undefined,
+): string {
   const name = machine?.name ?? 'the machine';
+  if (turn.machineWait === 'slots') return `Waiting for a free slot on ${name}`;
   if (machine?.status === 'online') return 'Sending…';
   const up = power?.box?.status === 'running' || power?.container?.status === 'running';
   return up ? `${name} is up · runner connecting…` : `Starting ${name}…`;
@@ -49,7 +58,7 @@ function Waiting({ turn, at }: { readonly turn: ChatTurnWithEvents; readonly at:
     <div className="inline-flex h-7 w-fit max-w-full items-center gap-2 rounded-full bg-surface-2 px-3 text-xs text-ink-2 ring-1 ring-line ring-inset">
       <Spinner size={12} className="shrink-0 text-dim" />
       <span className="truncate" role="status">
-        {phaseText(machine, power.data)}
+        {phaseText(turn, machine, power.data)}
       </span>
       <span className="text-dim tabular">{elapsedText(now - since)}</span>
       <button

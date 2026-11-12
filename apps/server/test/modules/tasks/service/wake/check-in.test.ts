@@ -193,5 +193,7 @@ describe('a flow’s check-ins', () => {
     const clock = { lookedAt: () => new Date(0), look: () => undefined, keepOnly: () => undefined };
     const of = { flowId: quiet.flow.id, minutes: 5, clock, now: w.clock() };
     expect(await checkInFlow({ db: w.t.db }, tasksRepo, t, of)).toBe('none');
+    const justLooked = { ...clock, lookedAt: () => w.clock() };
+    expect(await checkInFlow({ db: w.t.db }, tasksRepo, t, { ...of, clock: justLooked })).toBe('not_due');
   });
 });

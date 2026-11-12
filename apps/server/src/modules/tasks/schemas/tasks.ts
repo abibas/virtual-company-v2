@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import {
   ChatTurnStatus,
+  MachineWait,
   TaskAction,
   TaskEventKind,
   TaskPriority,
@@ -133,6 +134,8 @@ export const TaskEventSchema = z
 export const TaskConversationSchema = z
   .object({
     chatId: z.string(),
+    /** The name of the machine it runs on; null for a machine removed since. */
+    machine: z.string().nullable(),
     /** The step, by its name now (a step removed since: `a removed step`). */
     step: z.object({ id: z.string(), name: z.string() }),
     /** The round of the step it began in. */
@@ -150,7 +153,11 @@ export const TaskConversationSchema = z
         status: ChatTurnStatus,
         at: At,
         waitsForMachine: z.boolean().openapi({
-          description: "A `queued` turn that waits for the agent's stopped machine to start",
+          description: "A `queued` turn that waits for the agent's machine (to start, or for a free slot)",
+        }),
+        machineWait: MachineWait.nullable().openapi({
+          description:
+            'What it waits for: the machine to start (`stopped`) or a free slot (`slots`); null otherwise',
         }),
         reconnecting: z.boolean().openapi({
           description:

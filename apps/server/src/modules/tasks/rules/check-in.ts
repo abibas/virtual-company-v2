@@ -1,5 +1,6 @@
 import type { Task } from '@mwc/db';
 import type { CheckInTurn, LeadCheckInTask } from '@mwc/shared/flows';
+import { readableReason } from './failure.ts';
 
 // A flow Lead's check-ins (docs/processes.md "Check-ins"), pure: when one is due (every N minutes after the Lead's
 // last wake-up, and after the flow was last looked at for one), when a due one is skipped, and an open task as its
@@ -65,6 +66,10 @@ export function checkInTask(
     stepState: escalated ? null : task.stepState,
     minutes: (of.now.getTime() - since.getTime()) / MINUTE_MS,
     turn: of.turn ?? 'none',
-    reason: escalated ? task.escalationReason : task.stepState === 'blocked' ? task.blockedReason : null,
+    reason: escalated
+      ? task.escalationReason
+      : task.stepState === 'blocked'
+        ? readableReason(task.blockedReason)
+        : null,
   };
 }

@@ -39,7 +39,7 @@ async function container(connect: 'with id' | 'none' = 'with id') {
   const runner =
     connect === 'none'
       ? undefined
-      : await w.connect(runnerKey, { caps: { containerId: ID, terminal: true } });
+      : await w.connect(runnerKey, { caps: { containerId: ID, terminal: true, slots: 1 } });
   const owner = as(w, company.owner);
   const path = (rest = '') => powerPath(company, machineId, rest);
   return {

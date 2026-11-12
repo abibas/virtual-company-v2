@@ -16,9 +16,21 @@ export interface ConversationLook {
   readonly live: boolean;
 }
 
+/** What a conversation's waiting turn waits for: a free slot on its machine, the machine to start, or its turn. */
+function queuedLook(conversation: TaskConversation): ConversationLook {
+  const last = conversation.lastTurn;
+  if (last?.machineWait === 'slots') {
+    const on = conversation.machine === null ? '' : ` on ${conversation.machine}`;
+    return { label: `Waiting for a free slot${on}`, tone: 'pending', live: true };
+  }
+  return last?.waitsForMachine
+    ? { label: 'Starting machine', tone: 'pending', live: true }
+    : { label: 'Queued', tone: 'pending', live: true };
+}
+
 /**
- * Running (Reconnecting while its machine's runner is away and the turn waits for it), Starting machine (its turn waits
- * for the stopped machine), Queued, Ended, Stopped, Failed, or Not started.
+ * Running (Reconnecting while its machine's runner is away and the turn waits for it), Waiting for a free slot on
+ * <machine>, Starting machine (its turn waits for the stopped machine), Queued, Ended, Stopped, Failed, or Not started.
  */
 export function conversationLook(conversation: TaskConversation): ConversationLook {
   switch (conversation.lastTurn?.status) {
@@ -29,9 +41,7 @@ export function conversationLook(conversation: TaskConversation): ConversationLo
         ? { label: 'Reconnecting', tone: 'pending', live: true }
         : { label: 'Running', tone: 'blue', live: true };
     case 'queued':
-      return conversation.lastTurn?.waitsForMachine
-        ? { label: 'Starting machine', tone: 'pending', live: true }
-        : { label: 'Queued', tone: 'pending', live: true };
+      return queuedLook(conversation);
     case 'done':
       return { label: 'Ended', tone: 'done', live: false };
     case 'stopped':

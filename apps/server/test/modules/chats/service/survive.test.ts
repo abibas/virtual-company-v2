@@ -213,7 +213,7 @@ describe('failLeftTurns (S5.4)', () => {
     expect(await turnRow(w.t.db, start.turnId)).toMatchObject({ status: 'failed', error: SERVER_RESTARTED });
     expect(await taskRow(w.t.db, task.id)).toMatchObject({
       stepState: 'blocked',
-      blockedReason: SERVER_RESTARTED,
+      blockedReason: 'The server restarted during the turn',
     });
     expect(lines.some((line) => line.msg === 'failed the chat turns a stopped server left running')).toBe(
       true,

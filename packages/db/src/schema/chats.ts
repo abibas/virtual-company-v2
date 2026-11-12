@@ -1,5 +1,5 @@
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness } from '@mwc/shared/enums';
+import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness, MachineWait } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import {
@@ -120,7 +120,9 @@ export const chats = pgTable(
  * no process (always `done`, on no credential) and marks where the chat's next turn starts a new conversation. A turn
  * Most Wanted queued itself (`system`, S6c: a Lead's wake-up) names the agent as its sender and shows as Most Wanted's.
  * A turn for an agent whose machine was stopped waits `queued` while the machine starts (`machine_wait_at`, migration
- * 0026): it starts once the machine's runner connects, and fails when the start fails or takes too long.
+ * 0026): it starts once the machine's runner connects, and fails when the start fails or takes too long. Since 0028 a
+ * turn also waits so while every slot of its machine is taken (`machine_wait` says which: `stopped` or `slots`), and
+ * starts when a turn on that machine ends.
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -136,8 +138,10 @@ export const chatTurns = pgTable(
     delivery: text('delivery').$type<ChatTurnDelivery>(),
     /** Queued by Most Wanted itself, not by a person (S6c: a Lead's wake-up); `created_by` is then the agent. */
     system: boolean('system').notNull().default(false),
-    /** Since when the turn waits for its machine to start (it was stopped when the turn came); null for any other turn. */
+    /** Since when the turn waits for its machine (to start, or for a free slot); null for any other turn. */
     machineWaitAt: at('machine_wait_at'),
+    /** What it waits for: the machine to start (`stopped`), or a free slot (`slots`). */
+    machineWait: text('machine_wait').$type<MachineWait>(),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     startedAt: at('started_at'),
@@ -158,6 +162,11 @@ export const chatTurns = pgTable(
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
     check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),
     check('chat_turns_delivery_check', oneOf(t.delivery, ChatTurnDelivery.options)),
+    check('chat_turns_machine_wait_check', oneOf(t.machineWait, MachineWait.options)),
+    check(
+      'chat_turns_machine_wait_at_check',
+      sql`${t.machineWait} is null or ${t.machineWaitAt} is not null`,
+    ),
     check(
       'chat_turns_clear_check',
       sql`${t.kind} <> 'clear' or (${t.status} = 'done' and ${t.credentialId} is null)`,

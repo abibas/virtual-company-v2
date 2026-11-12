@@ -10,6 +10,7 @@ import {
   waitingSignoffs,
 } from '../../repo/wakes-due.ts';
 import { tasksRepo } from '../../repo.ts';
+import { checkInDue } from '../../rules/check-in.ts';
 import { rosterOf } from '../team.ts';
 import { type CheckInClock, checkInClock, checkInFlow } from './check-in.ts';
 import { deliverFlow, type FlowDelivery } from './deliver.ts';
@@ -88,6 +89,9 @@ async function checkIns(deps: LeadWakesDeps, clock: CheckInClock, now: Date): Pr
   if (due.length < CHECK_IN_FLOWS_PER_TICK) clock.keepOnly(due.map((flow) => flow.flowId));
   let told = 0;
   for (const flow of due) {
+    // Not due by the tick's own clock: the company is not even opened.
+    const lookedAt = clock.lookedAt(flow.flowId, now);
+    if (!checkInDue({ minutes: flow.minutes, lookedAt, lastWoke: undefined, now })) continue;
     const t = await tenant(deps.db, flow.companyId);
     const of = { flowId: flow.flowId, minutes: flow.minutes, clock, now };
     if ((await checkInFlow(deps, tasksRepo, t, of)) === 'woke') told++;

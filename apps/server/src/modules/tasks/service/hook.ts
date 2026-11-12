@@ -10,6 +10,7 @@ import type {
 } from '../../chats/index.ts';
 import { tasksRepo } from '../repo.ts';
 import { decisionNote, decisionOf } from '../rules/decision.ts';
+import { failureWords } from '../rules/failure.ts';
 import { carriedOn, replyStarted, turnEnded } from '../rules/runs.ts';
 import { roundsAt } from '../rules.ts';
 import { storeFile, storeNote, storeSkipped } from './artifacts.ts';
@@ -23,9 +24,9 @@ import { callTool, toolsFor } from './tools.ts';
  * a task that waits, ended without a hand-off or is blocked at the step is worked on again (a person's reply in the
  * conversation continues it); each collected file and each file left out is kept with the task, the step and the round;
  * at its end the reply is kept as the step's hand-off note and, while the task is still worked on at the step and no
- * other turn of its conversations runs there, the task ends `ended_without_handoff` (or `blocked` by a failure) and the
- * Lead's nearest person is told. Since S6a it gives an agent's turns their tools and answers their calls (`tools.ts`):
- * a step's turn that recorded a decision and ended done has it applied in place of `ended_without_handoff`, its summary,
+ * other turn of its conversations runs there, the task ends `ended_without_handoff` (or `blocked` by a failure, its
+ * reason in words naming the machine: `rules/failure.ts`) and the Lead's nearest person is told. Since S6a it gives an
+ * agent's turns their tools and answers their calls (`tools.ts`): a step's turn that recorded a decision and ended done has it applied in place of `ended_without_handoff`, its summary,
  * findings or note as the round's hand-off note; a turn that fails or is stopped drops it. A failed turn its runner
  * came back with undoes the block it caused (`reattached`, 2026-11-12). Each method logs its own failure and never
  * throws (it runs on a turn's write queue).
@@ -50,6 +51,14 @@ async function started(t: TenantDb, turn: TaskTurnContext, by: string) {
 }
 
 /**
+ * A failed turn's error as its block says it, here and when its runner comes back with it: in words naming the
+ * conversation's machine (`rules/failure.ts`); null stays null.
+ */
+async function failureReason(t: TenantDb, turn: TaskTurnContext, error: string | null) {
+  return error === null ? null : failureWords(error, await repo.conversations.machineOfChat(t, turn.chatId));
+}
+
+/**
  * The turn ended: the round's hand-off note (its decision's words, else its reply), then its decision applied, or the
  * task waiting for a person (see above).
  */
@@ -68,7 +77,8 @@ async function ended(deps: RunDeps, t: TenantDb, turn: TaskTurnContext, end: Tas
     await applyDecision(deps, repo, t, turn, now);
     return;
   }
-  await changeStep(repo, t, task, turn.stepId, (at, step) => turnEnded(at, step, end));
+  const ending = end.status === 'failed' ? { ...end, error: await failureReason(t, turn, end.error) } : end;
+  await changeStep(repo, t, task, turn.stepId, (at, step) => turnEnded(at, step, ending));
   // A failed or stopped turn's decision goes, even when the task's step state did not change.
   if (decision !== undefined) await dropDecision(repo, t, turn);
 }
@@ -81,9 +91,10 @@ async function reattached(t: TenantDb, turn: TaskTurnContext, failure: { readonl
   const task = await repo.tasks.get(t, { id: turn.taskId });
   if (task === undefined) return false;
   const history = await repo.tasks.events(t, task.id);
+  const error = await failureReason(t, turn, failure.error);
   let undone = false;
   await changeStep(repo, t, task, turn.stepId, (now, step) => {
-    const change = carriedOn(now, step, failure.error, history);
+    const change = carriedOn(now, step, error, history);
     undone = change !== undefined;
     return change;
   });

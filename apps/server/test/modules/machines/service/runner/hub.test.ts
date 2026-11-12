@@ -57,7 +57,7 @@ describe('which runners the hub has', () => {
       build: 'ab'.repeat(32),
       caps: {
         harnesses: { claude_code: FAKE_CLAUDE_VERSION, codex: null },
-        slots: 1,
+        slots: 8,
         hold: 'caffeinate',
         power: ['airia_devbox'],
         terminal: false,

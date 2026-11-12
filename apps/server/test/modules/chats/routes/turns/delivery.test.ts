@@ -99,7 +99,7 @@ describe('POST chats/:chatId/turns with a delivery: after this turn', () => {
     const first = await runningTurn(w, s);
     const second = await queued(w, s, 'second');
     const third = await queued(w, s, 'third');
-    endTurn(runner, first.turnId, { ok: false, exitCode: 1, error: 'busy' });
+    endTurn(runner, first.turnId, { ok: false, exitCode: 1, error: 'home_missing' });
     expect((await runner.frames.next('turn.start')).turnId).toBe(second.id);
     const stop = await as(w, s.company.owner)(
       'POST',

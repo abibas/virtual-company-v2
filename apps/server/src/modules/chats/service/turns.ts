@@ -4,6 +4,7 @@ import { TurnSpec } from '@mwc/shared/harness';
 import { newId } from '@mwc/shared/ids';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import { machineBusy } from '../rules/machine.ts';
 import {
   CHAT_ARCHIVED,
   CHAT_NOT_FOUND,
@@ -18,6 +19,7 @@ import {
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
+import { slotCheck, waitForSlot } from './slot-wait.ts';
 import { resolveTarget, type Target, type TargetDeps } from './target.ts';
 import {
   artifactsOf,
@@ -38,7 +40,8 @@ import { turnView } from './views.ts';
  * checks and marks its question in the transaction that records the turn. A message sent while a turn runs waits in
  * the chat's queue instead (`queue.ts`, S5.2 step 6), which starts it through `launch` once the running turn ended. A
  * message turn of a task's conversation (S5.3b) gets its outputs folder from the tasks module's hook, which hears of
- * its start (`task-hook.ts`). A prompt whose machine is stopped may start it and wait for it (`machine-wait.ts`).
+ * its start (`task-hook.ts`). A prompt whose machine is stopped may start it and wait for it (`machine-wait.ts`); one
+ * whose machine has every slot taken waits for a free slot (`slot-wait.ts`; a Compact or an answer is refused then).
  */
 
 export interface TurnsDeps extends TargetDeps {
@@ -139,6 +142,11 @@ export async function startTurn(
     ...tools,
   });
   if (!spec.success) return INVALID_SPEC(specIssues(spec.error));
+  const slot = await slotCheck(deps, t, chat);
+  if (!slot.free) {
+    const waits = how.kind === 'message' && how.check === undefined && deps.waits !== undefined;
+    return waits ? waitForSlot(deps, t, caller, chat, prompt, slot.slots) : machineBusy(slot.slots);
+  }
   const now = deps.clock();
   const turn = await record(
     t,

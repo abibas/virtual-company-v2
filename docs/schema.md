@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 38. Migrations: 28, the last is `0027_lead_check_ins`.
+Tables: 38. Migrations: 29, the last is `0028_chat_slot_waits`.
 
 ```mermaid
 erDiagram
@@ -112,6 +112,7 @@ erDiagram
     text delivery "nullable, now|after|interrupt"
     boolean system "not null, default false"
     timestamptz machine_wait_at "nullable"
+    text machine_wait "nullable, stopped|slots"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     timestamptz started_at "nullable"
@@ -854,6 +855,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `delivery` | `text` | yes |  |  | `now`, `after`, `interrupt` |
 | `system` | `boolean` | no | `false` |  |  |
 | `machine_wait_at` | `timestamp with time zone` | yes |  |  |  |
+| `machine_wait` | `text` | yes |  |  | `stopped`, `slots` |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `started_at` | `timestamp with time zone` | yes |  |  |  |
@@ -876,6 +878,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
   - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
   - `chat_turns_delivery_check`: `delivery` is one of `now`, `after`, `interrupt`
+  - `chat_turns_machine_wait_check`: `machine_wait` is one of `stopped`, `slots`
+  - `chat_turns_machine_wait_at_check`: `"machine_wait" is null or "machine_wait_at" is not null`
   - `chat_turns_clear_check`: `"kind" <> 'clear' or ("status" = 'done' and "credential_id" is null)`
   - `chat_turns_seq_check`: `"seq" >= 1`
   - `chat_turns_prompt_check`: `char_length("prompt") between 1 and 20000`

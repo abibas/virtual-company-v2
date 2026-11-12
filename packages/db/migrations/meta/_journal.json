@@ -197,6 +197,13 @@
       "when": 1794500440763,
       "tag": "0027_lead_check_ins",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794501181563,
+      "tag": "0028_chat_slot_waits",
+      "breakpoints": true
     }
   ]
 }

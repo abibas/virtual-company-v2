@@ -202,6 +202,13 @@ export const ChatTurnDelivery = z.enum(['now', 'after', 'interrupt']);
 export type ChatTurnDelivery = z.infer<typeof ChatTurnDelivery>;
 
 /**
+ * `chat_turns.machine_wait` (docs/harness.md "When the machine is stopped" and "Waiting for a free slot"): what a
+ * `queued` turn waits for on its machine: to start (`stopped`), or a free slot while every one is taken (`slots`).
+ */
+export const MachineWait = z.enum(['stopped', 'slots']);
+export type MachineWait = z.infer<typeof MachineWait>;
+
+/**
  * `notifications.kind` (S2.9, docs/notifications.md): what changed for the person who gets it. Their manager changed
  * (`manager_changed`); someone started or stopped reporting to them (`report_added`, `report_removed`); their role
  * changed; their membership was suspended, reactivated or removed; an agent reporting to them was paused, resumed or
