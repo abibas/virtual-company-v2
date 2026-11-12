@@ -52,7 +52,7 @@ export interface DockedChatsProps {
   readonly onPick: (agentId: string) => void;
   readonly mode: DockMode;
   readonly onMode: (mode: DockMode) => void;
-  /** The chat page with this chat open ("Open full chat"); none before a chat exists. */
+  /** The chat page ("Open full chat"): with this chat open, or the agent's chats before one exists. */
   readonly fullHref: string | undefined;
   /** Starts a new chat with the agent on the next message (admins and owners); none hides it. */
   readonly onNew?: (() => void) | undefined;

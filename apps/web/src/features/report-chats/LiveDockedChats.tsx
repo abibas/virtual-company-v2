@@ -97,7 +97,7 @@ export function LiveDockedChats({
       onPick={onPick}
       mode={mode}
       onMode={onMode}
-      fullHref={chatId ? chatsPath(slug, agent.id, chatId) : undefined}
+      fullHref={chatsPath(slug, agent.id, chatId)}
       onNew={admin ? () => onOverride({ agentId: agent.id, chatId: DRAFT }) : undefined}
       body={body}
     />
