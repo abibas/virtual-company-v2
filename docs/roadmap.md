@@ -456,8 +456,14 @@ Done when the demo below passes on the Mac and then on the devbox:
    and its caps by `capsOf` (`daemon.ts` 298 → 235), the runner's `turns.test.ts` split along its describes (468 → 196),
    the config's modes in `shared/src/config/modes.ts` (`config.ts` 297 → 261). (3) The web's image caches share one
    versioned store, `api/images/store.ts` (`api/` 26 → 23 entries). (4) The sockets test pings on a fake clock, so a
-   loaded machine cannot cut its sockets. The report went from 118 warnings to 113. Items 3 and 4 of the review (one
-   tool-input check; one names lookup across tasks, inbox and notifications) wait for the `lead-wake` branch.
+   loaded machine cannot cut its sockets. The report went from 118 warnings to 113. Items 3 and 4 of the review, built
+   after S6c on the `review-s6b` branch, not merged yet: (5) one check for the agents' tool inputs, `checkToolInput` and
+   `issueLines` in `shared/src/flows/tool-input.ts`, run by the server's `tasks/service/tools.ts` and the runner's
+   `turns/ask/` (three copies of the issue words gone; the question tool keeps its heading), and the tools' words in
+   `flows/tool-words.ts` (`flows/tools.ts` 275 → 188 lines); (6) the principals' names read in one place, the org
+   module's `principalNames` (`org/service/names.ts`, its reads in `org/repo/names.ts`), for the tasks, the inbox and the
+   notifications (three `namesOf` with their own `Someone` and three copies of their reads gone; `inbox/service/names.ts`
+   removed). With S6c merged the report went from 114 warnings to 113.
 
 **S6a, agents move tasks themselves: built 2026-11-11 on the `task-tools` branch, not merged yet** (docs/processes.md
 "Built in S6a", docs/harness.md "Agents' tools", docs/runner-protocol.md "Chat turns"). Through the runner's MCP bridge

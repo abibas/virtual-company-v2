@@ -434,8 +434,9 @@ docs/runner-protocol.md "Chat turns"), and the server checks everything again.
 
 ### The tools
 
-`AgentTool`, `AGENT_TOOL_INPUTS` and `AGENT_TOOL_INFO` of `@mwc/shared/flows` (`flows/tools.ts`) name them, check their
-inputs and describe them; the runner's `tools/list` is generated from them.
+`AgentTool`, `AGENT_TOOL_INPUTS` and `AGENT_TOOL_INFO` of `@mwc/shared/flows` (`flows/tools.ts`, the words in
+`flows/tool-words.ts`) name them, check their inputs and describe them; the runner's `tools/list` is generated from them.
+The runner and the server check a call's input with the same `checkToolInput` (`flows/tool-input.ts`).
 
 | Who, where | Tool | Input | What it does |
 | --- | --- | --- | --- |
@@ -640,7 +641,7 @@ Start without a placement, a turn ended), the order and the count, a viewer at t
 404, an outsider's empty inbox) (`routes/company.test.ts`); open questions for admins and owners only, answered,
 superseded, an archived chat and agent, a turn's latest question, a task's conversation, a question between a Sign-off
 and a block (`routes/questions.test.ts`); one person in two companies, a suspended membership, an API key, no credential
-(`routes/mine.test.ts`); the names (`service/names.test.ts`). `packages/cli/test/inbox/`: the commands against the real
+(`routes/mine.test.ts`); the names are the org module's `principalNames` (`apps/server/test/modules/org/service/names.test.ts`). `packages/cli/test/inbox/`: the commands against the real
 API in-process, and the table.
 
 ### Not built

@@ -28,6 +28,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-12: The org module's names lookup, which the notifications import by its file
+
+- **What happened:** the S5/S6 review's item 4 moved the principals' names (three `namesOf`, three copies of their reads
+  in the tasks, inbox and notifications repos) to the org module's `principalNames` (`org/service/names.ts`, 58 lines,
+  its reads `org/repo/names.ts`), exported by `org/index.ts`. The org module already calls the notifications service
+  (its notices: `org/service/{lifecycle,positions,agents}.ts`), so the notifications reaching `org/index.ts` would close
+  a file cycle; `notifications/service/names.ts` imports `org/service/names.ts` by its file instead (no file cycle,
+  checked), and org and notifications now import each other as modules, as identity and members already do. The
+  notifications repo keeps `members` for an email's address (`service/delivery.ts`).
+- **Where:** 3619a1a.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a read several modules show of another module's rows (names) → the owning
+  module's service, exported by its index; a module that the owner itself calls imports that service file directly";
+  or a port the notifications define, passed by `app.ts`, if module cycles should stay out altogether.
+- **Status:** `open`.
+
 ### 2026-11-12: S6c's Lead wake-ups: a background tick that needs the app's live runtime
 
 - **What happened:** the wake-up tick must start chat turns, which only the process holding the runners' sockets and the
@@ -58,8 +74,10 @@ Newest first, one entry per lesson:
 - **Suggested change:** a placement line "an area's limits that its contract parts share → `<area>/limits.ts`, never the
   barrel"; at the S6 review, group the tasks module's agent-facing services as `service/tools/` (decision, lead, step).
 - **Status:** the hub part `adopted` (2026-11-12, S5/S6 review 1, 1f396f4: `hub/turns.ts` 291 → 167 lines with
-  `hub/turn-types.ts` and `hub/turn-resume.ts`, `hub.ts` 289 → 167 with `hub/types.ts`); the limits line and the tasks
-  module's `service/tools/` still `open` (that module waits for the `lead-wake` branch).
+  `hub/turn-types.ts` and `hub/turn-resume.ts`, `hub.ts` 289 → 167 with `hub/types.ts`); the contract `adopted`
+  (2026-11-12, S5/S6 review 5, a69a788: the one input check `flows/tool-input.ts`, which the server and the runner both
+  run, and the words `flows/tool-words.ts`; `flows/tools.ts` 275 → 188); the limits line and the tasks module's
+  `service/tools/` still `open`.
 
 ### 2026-11-11: S5.3b's step runs: two modules that drive each other, and a test helper for a cross-module world
 
@@ -312,3 +330,5 @@ count clearly grew. The review adds a row.
 | 2026-11-09 | S4.8, after the approved changes      | 4          | 12            | 2          | 2      | 4            | 24    |
 | 2026-11-12 | S6, before the S5/S6 review           | 34         | 38            | 34         | 12     | –            | 118   |
 | 2026-11-12 | S6, after the approved changes        | 30         | 37            | 34         | 12     | –            | 113   |
+| 2026-11-12 | S6c merged, before items 3 and 4      | 30         | 38            | 34         | 12     | –            | 114   |
+| 2026-11-12 | S6, after items 3 and 4 (fresh check) | 29         | 38            | 34         | 12     | 40           | 153   |

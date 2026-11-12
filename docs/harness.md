@@ -800,7 +800,8 @@ Built in S6a (2026-11-11; what they do for a task is docs/processes.md "Built in
 gives a turn the agents' tools: a task step's (`task_read`, its kind's moves, `task_attach`, `task_blocked`) or a flow
 Lead's in its own chats (`team_board`, `task_show`, `task_create`, `task_route`, `task_start`, `task_retry`,
 `task_cancel`). The names, inputs and words are `@mwc/shared/flows`'s (`AgentTool`, `AGENT_TOOL_INPUTS`,
-`AGENT_TOOL_INFO`); the token and socket model is unchanged.
+`AGENT_TOOL_INFO`), and the runner and the server check an input with the same `checkToolInput`; the token and socket
+model is unchanged.
 
 - **Which tools.** The server names them in the turn's spec (`TurnSpec.tools`, by name; at most 32, each once; a name a
   runner does not know is passed over) only when the runner says `caps.agentTools`. The runner keeps the names it knows
