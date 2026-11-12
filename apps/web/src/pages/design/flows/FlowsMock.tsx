@@ -8,13 +8,17 @@ import { useLocation } from '../../../app/router.tsx';
 import { ErrorBlock } from '../../../components/data/LoadState.tsx';
 import type { Viewer } from '../../../features/flows/access.ts';
 import { nodeAddress } from '../../../features/flows/access.ts';
-import type { FlowLinks } from '../../../features/flows/links.ts';
+import type { FlowLinks, TeamTab } from '../../../features/flows/links.ts';
 import { FlowsView } from '../../../features/flows/list/FlowsView.tsx';
 import { TaskView } from '../../../features/flows/task/TaskView.tsx';
 import { TeamView } from '../../../features/flows/team/TeamView.tsx';
+import { RoomCapSection } from '../../../features/room/RoomCap.tsx';
+import { RoomFrame } from '../../../features/room/RoomFrame.tsx';
+import { RoomFaces, RoomView } from '../../../features/room/RoomView.tsx';
 import { MockShell } from '../MockShell.tsx';
-import { SAMPLE_CHART } from '../org-sample.ts';
+import { SAMPLE_CHART, SAMPLE_NODES } from '../org-sample.ts';
 import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from '../records.ts';
+import { SAMPLE_ROOM } from '../team-chat-sample.ts';
 import { sampleArtifacts, sampleBytes } from './artifact-sample.ts';
 import { SAMPLE_FLOW_LIST, SAMPLE_FLOWS, sampleBoard, sampleText } from './flow-sample.ts';
 import { sampleThread } from './SampleThread.tsx';
@@ -40,6 +44,32 @@ export function useSampleBoard(_companyId: string, flowId: string): Loaded<Board
 }
 
 const none = () => undefined;
+const refuse = () => Promise.reject(new Error('Sample data: nothing is sent here'));
+
+/** The team page's tab in the gallery's address (`&tab=flow`, `&tab=chat`), the board otherwise. */
+const tabOf = (search: URLSearchParams): TeamTab => {
+  const tab = search.get('tab');
+  return tab === 'flow' || tab === 'chat' ? tab : 'board';
+};
+
+/** The Team chat tab on the sample room. */
+function SampleRoomTab() {
+  const { members } = SAMPLE_ROOM;
+  return (
+    <RoomFrame>
+      <div className="mx-auto w-full max-w-[44rem] px-4 pb-1 md:px-8">
+        <RoomFaces members={[...members.agents, ...members.people]} nodes={SAMPLE_NODES} />
+      </div>
+      <RoomView
+        room={SAMPLE_ROOM}
+        nodes={SAMPLE_NODES}
+        reader={SAMPLE_ME}
+        taskHref={FLOW_LINKS.task}
+        onSend={refuse}
+      />
+    </RoomFrame>
+  );
+}
 
 /** A team's page on the samples: its board, its flow, the editor (`&edit=1`), or a manager's new flow. */
 function Team({ address, search }: { readonly address: string; readonly search: URLSearchParams }) {
@@ -50,7 +80,7 @@ function Team({ address, search }: { readonly address: string; readonly search: 
   return (
     <TeamView
       address={address}
-      tab={search.get('tab') === 'flow' ? 'flow' : 'board'}
+      tab={tabOf(search)}
       editing={search.get('edit') === '1'}
       flow={flow}
       lead={lead}
@@ -62,6 +92,8 @@ function Team({ address, search }: { readonly address: string; readonly search: 
       calls={calls}
       onFlowSaved={none}
       onBoardChanged={none}
+      wakes={<RoomCapSection maxPerHour={30} askedLastHour={4} onSave={refuse} />}
+      room={<SampleRoomTab />}
     />
   );
 }

@@ -10,12 +10,13 @@ import { ChatThread } from '../../features/chats/thread/ChatThread.tsx';
 import { DockedChats, type DockMode } from '../../features/report-chats/DockedChats.tsx';
 import { ReportStrip } from '../../features/report-chats/ReportStrip.tsx';
 import type { RailReport, ReportDot } from '../../features/report-chats/standing.ts';
+import { RoomFaces, RoomView } from '../../features/room/RoomView.tsx';
 import { sampleTurns } from './flows/conversation-sample.ts';
 import { NO_EARLIER, SAMPLE_CONFIG } from './flows/SampleThread.tsx';
 import { SAMPLE_NODES } from './org-sample.ts';
 import { SAMPLE_SESSION, sampleApi } from './records.ts';
 import { SAMPLE_AGENTS } from './sample.ts';
-import { TEAM_CHAT_TURNS } from './team-chat-sample.ts';
+import { SAMPLE_ROOM } from './team-chat-sample.ts';
 
 /** A sample direct report: the agent, a Lead's team, and its dot. */
 function sample(agent: AgentRef, dot: ReportDot, team?: string): RailReport {
@@ -52,11 +53,25 @@ export const SAMPLE_REPORTS: readonly RailReport[] = [
 
 const refuse = () => Promise.reject(new Error('Sample data: nothing is sent here'));
 
-/** A sample chat in the rail (a Lead's team chat, else the Develop conversation's turns); its composer sends nothing. */
+/** A Lead's team room in the rail, on samples: who is in it, the feed, and a composer that sends nothing. */
+function SampleRoom() {
+  const { members } = SAMPLE_ROOM;
+  return (
+    <>
+      <div className="px-2 pt-2">
+        <RoomFaces members={[...members.agents, ...members.people]} nodes={SAMPLE_NODES} />
+      </div>
+      <RoomView dense room={SAMPLE_ROOM} nodes={SAMPLE_NODES} reader={SAMPLE_SESSION.user} onSend={refuse} />
+    </>
+  );
+}
+
+/** A sample chat in the rail (a Lead's team room, else the Develop conversation's turns); its composer sends nothing. */
 function SampleDockBody({ face, team }: { readonly face: AgentRef; readonly team: boolean }) {
-  const turns = team ? TEAM_CHAT_TURNS : sampleTurns('c-12-dev');
-  const name = face.name;
   const [api] = useState(sampleApi);
+  if (team) return <SampleRoom />;
+  const turns = sampleTurns('c-12-dev');
+  const name = face.name;
   const authors = threadAuthors({ agent: face, nodes: SAMPLE_NODES, reader: SAMPLE_SESSION.user });
   return (
     <ApiContext value={api}>

@@ -1,49 +1,53 @@
-import { leadWakeMessage } from '@mwc/shared/flows';
-import type { ChatTurnWithEvents, TurnEvent } from '../../api/types.ts';
+import { leadCheckInMessage, leadWakeMessage, stepEndText } from '@mwc/shared/flows';
+import type { Room, RoomMember, RoomMessage } from '../../api/room.ts';
 import { ago } from './flows/flow-sample.ts';
 
 /**
- * A Lead's team chat in the gallery's rail (S6c): Most Wanted's wake-up about a blocked task, then a message from
- * another person (Olena, on the left) and one from the reader (Ihor, on the right), each with Vega's reply.
+ * A team room in the gallery (docs/processes.md "The team room"): Vega's DEVBOX delivery with Mason and Pip, Ihor and
+ * Olena. Most Wanted's wake-up about a blocked task and Vega's reply, Mason's line when Develop ended, Olena asking the
+ * team and two answers (Pip stayed silent), Ihor naming Mason, a check-in, and Pip answering now.
  */
 
-const CHAT = 'c-team-vega';
+const agent = (slug: string, name: string): RoomMember => ({
+  principalId: `p-${slug}`,
+  kind: 'agent',
+  name,
+  slug,
+});
+const person = (n: number, name: string): RoomMember => ({
+  principalId: `p-${n}`,
+  kind: 'person',
+  name,
+  slug: null,
+});
 
-const turn = (
-  seq: number,
-  prompt: string,
-  by: { readonly principalId: string; readonly system?: boolean },
-  reply: string,
+const VEGA = agent('vega', 'Vega');
+const MASON = agent('mason', 'Mason');
+const PIP = agent('pip', 'Pip');
+const IHOR = person(1, 'Ihor Herasko');
+const OLENA = person(2, 'Olena Marsh');
+
+let seq = 0;
+const message = (
+  kind: RoomMessage['kind'],
+  author: RoomMember | null,
+  body: string,
   minutes: number,
-): ChatTurnWithEvents => {
-  const events: TurnEvent[] = [
-    { type: 'init', model: 'claude-opus-5-5', effort: 'xhigh', cwd: '/Users/ihor/agents/vega' },
-    { type: 'text', text: reply },
-    { type: 'result', ok: true, text: reply, durationMs: 41_000 },
-  ];
-  return {
-    id: `${CHAT}-t${seq}`,
-    chatId: CHAT,
-    seq,
-    kind: 'message',
-    prompt,
-    status: 'done',
-    delivery: null,
-    system: by.system ?? false,
-    machineWaitAt: null,
-    machineWait: null,
-    profileId: null,
-    credentialId: null,
-    startedAt: ago(minutes),
-    endedAt: ago(minutes - 1),
-    resultText: reply,
-    error: null,
-    usage: { inputTokens: 12_480, outputTokens: 610, includedInPlan: true },
-    createdBy: by.principalId,
-    createdAt: ago(minutes),
-    events: events.map((event, index) => ({ seq: index + 1, event, at: ago(minutes - index * 0.2) })),
-  };
-};
+  more: Partial<RoomMessage> = {},
+): RoomMessage => ({
+  id: `rm-${++seq}`,
+  kind,
+  author,
+  body,
+  at: ago(minutes),
+  task: null,
+  step: null,
+  to: [],
+  asked: null,
+  chatId: null,
+  turnId: null,
+  ...more,
+});
 
 const WAKE = leadWakeMessage({
   flow: 'DEVBOX delivery',
@@ -58,26 +62,53 @@ const WAKE = leadWakeMessage({
   ],
 });
 
-export const TEAM_CHAT_TURNS: readonly ChatTurnWithEvents[] = [
-  turn(
-    1,
-    WAKE,
-    { principalId: 'p-vega', system: true },
-    'Asked Mason to add a fixture session for the review machine; T-12 goes back to Code review once it lands.',
-    48,
-  ),
-  turn(
-    2,
-    'Hold T-14 until the new sign-in screens are approved.',
-    { principalId: 'p-2' },
-    'Held T-14 at Develop with that note; it waits for the design sign-off.',
-    30,
-  ),
-  turn(
-    3,
-    'Ship T-12 as soon as QA passes.',
-    { principalId: 'p-1' },
-    'Will do: T-12 goes to the PR step right after QA approves.',
-    12,
-  ),
-];
+const CHECK_IN = leadCheckInMessage({
+  flow: 'DEVBOX delivery',
+  tasks: [
+    {
+      task: { key: 'T-12', title: 'Fix the login on Safari' },
+      state: 'active',
+      step: 'QA',
+      stepState: 'working',
+      minutes: 4,
+      turn: 'live',
+      reason: null,
+    },
+  ],
+});
+
+const STEP = { action: 'hand_on', from: 'Develop', to: 'Code review', round: 2 } as const;
+const WORDS = 'fixture session added; the Safari test passes on the review machine';
+const T12 = { id: 't-12', key: 'T-12', title: 'Fix the login on Safari' };
+
+export const SAMPLE_ROOM: Room = {
+  flow: { id: 'f-vega', name: 'DEVBOX delivery', leadPrincipalId: VEGA.principalId },
+  members: { agents: [VEGA, MASON, PIP], people: [IHOR, OLENA] },
+  mayWrite: true,
+  messages: [
+    message('notice', null, WAKE, 52),
+    message(
+      'reply',
+      VEGA,
+      'Asked Mason for a fixture session on the review machine; T-12 goes back to Code review once it lands.',
+      51,
+    ),
+    message('step_end', MASON, stepEndText('T-12', STEP, WORDS), 34, {
+      task: T12,
+      step: { ...STEP, words: WORDS },
+    }),
+    message('message', OLENA, 'Can T-12 make today’s release?', 30, { asked: 3 }),
+    message('reply', VEGA, 'Yes if QA passes within the hour; it is in QA now.', 29),
+    message('reply', MASON, 'The fix is small: one fixture and a test. Low risk.', 29),
+    message('message', IHOR, '@Mason add a note on the fixture to the PR description.', 12, {
+      to: [MASON.principalId],
+      asked: 1,
+    }),
+    message('reply', MASON, 'Added under **Testing** in the description.', 11),
+    message('notice', null, CHECK_IN, 5),
+    message('reply', VEGA, 'On track.', 5),
+  ],
+  nextBefore: null,
+  replying: [{ principalId: PIP.principalId, status: 'running', machineWait: null }],
+  cap: { maxPerHour: 30, askedLastHour: 4 },
+};

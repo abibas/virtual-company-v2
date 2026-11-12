@@ -30,14 +30,14 @@ function MentionList({
 }) {
   return (
     <ul
-      role="listbox"
       aria-label="Agents"
       className="absolute bottom-full left-2 z-10 mb-1 grid min-w-48 gap-0.5 rounded-xl bg-surface p-1 shadow-float ring-1 ring-line-2"
     >
       {choices.map((agent, index) => (
-        <li key={agent.principalId} role="option" aria-selected={index === active}>
+        <li key={agent.principalId}>
           <button
             type="button"
+            aria-current={index === active || undefined}
             onMouseDown={(event) => {
               event.preventDefault();
               onPick(agent);
