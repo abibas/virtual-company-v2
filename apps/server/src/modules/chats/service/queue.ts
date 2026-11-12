@@ -92,6 +92,7 @@ export async function sendMessage(
       delivery,
       createdBy: caller.principalId,
       system: caller.system === true,
+      roomMessageId: caller.roomMessageId ?? null,
     };
     return turnsRepo.insert(tx, { ...values, status: 'queued' });
   });

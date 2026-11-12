@@ -38,6 +38,16 @@ export interface TaskTurnEnd {
   readonly error: string | null;
 }
 
+/**
+ * A turn Most Wanted queued that ended (a Lead's wake-up or check-in, a team room's turn, a step's own prompt), for the
+ * team room (docs/processes.md "The team room"): its chat, the room's message it answered, and how it ended.
+ */
+export interface SystemTurnEnd extends TaskTurnEnd {
+  readonly chatId: string;
+  readonly turnId: string;
+  readonly roomMessageId: string | null;
+}
+
 /** An agent's turn as its tools see it (S6a): the turn, its chat, the chat's agent, who sent its prompt, its task step. */
 export interface AgentToolTurn {
   readonly turnId: string;
@@ -87,6 +97,8 @@ export interface TaskTurnHook {
   ): Promise<AgentToolsPlan>;
   /** A call of one of them during the turn, checked again and answered (S6a). */
   tool?(t: TenantDb, turn: AgentToolTurn, call: TurnToolCall): Promise<TurnToolReply>;
+  /** A message turn Most Wanted queued ended (its row is closed): the team room posts its reply. */
+  systemEnded?(t: TenantDb, end: SystemTurnEnd): Promise<void>;
 }
 
 /** A task turn before it has an id: what `startTurn` and the queue add to its spec and hand to the live turn. */

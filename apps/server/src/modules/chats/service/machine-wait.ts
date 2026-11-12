@@ -74,6 +74,7 @@ export interface WaitingDeps {
 export interface WaitingCaller {
   readonly principalId: string;
   readonly system?: boolean | undefined;
+  readonly roomMessageId?: string | undefined;
   readonly wake?: TurnWake | undefined;
 }
 
@@ -98,6 +99,7 @@ export const recordWaiting = (
       machineWaitAt: deps.clock(),
       createdBy: caller.principalId,
       system: caller.system === true,
+      roomMessageId: caller.roomMessageId ?? null,
     });
   });
 

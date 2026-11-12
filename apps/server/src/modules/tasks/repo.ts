@@ -4,6 +4,7 @@ import { checkInRows } from './repo/check-ins.ts';
 import { conversationRows } from './repo/conversations.ts';
 import { flowRows } from './repo/flows.ts';
 import { nameRows } from './repo/names.ts';
+import { roomRows } from './repo/room.ts';
 import { taskRows } from './repo/tasks.ts';
 import { wakeRows } from './repo/wakes.ts';
 
@@ -17,7 +18,7 @@ export type { TaskFilter } from './repo/tasks.ts';
  * (`repo/names.ts`, read only), the company's lock (a task's number is the next one under it) and the audit rows; and
  * (S5.3b) the tasks' artifacts (`repo/artifacts.ts`) and their conversations (`repo/conversations.ts`, read only); and
  * (S6c) what wakes a flow's Lead agent (`repo/wakes.ts`; across companies, for the tick, `repo/wakes-due.ts`) and
- * what its check-ins read (`repo/check-ins.ts`, the chats' rows read only).
+ * what its check-ins read (`repo/check-ins.ts`, the chats' rows read only); and the flows' team rooms (`repo/room.ts`).
  */
 export const tasksRepo = {
   flows: flowRows,
@@ -27,6 +28,7 @@ export const tasksRepo = {
   conversations: conversationRows,
   wakes: wakeRows,
   checkIns: checkInRows,
+  room: roomRows,
   lockCompany: (t: TenantDb) => t.lockCompany(),
   audit: (t: TenantDb, entry: AuditEntry) => auditChanges(t, entry),
 };

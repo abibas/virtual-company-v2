@@ -15,8 +15,10 @@ import {
 } from '../rules/decision.ts';
 import { move, type Transition } from '../rules/machine.ts';
 import { moveRefusal } from '../rules/moves.ts';
+import { movedLine, type StepEndLine, stoppedLine } from '../rules/room.ts';
 import { applyMove } from './apply.ts';
 import { AUDIT_IGNORED, type Caller } from './audit.ts';
+import { postStepEnd } from './room/post.ts';
 import { applyStepChange, type RunDeps, runStep, startedNow } from './runs.ts';
 import { rosterOf } from './team.ts';
 
@@ -94,15 +96,18 @@ export async function recordDecision(
 /**
  * Applies the turn's decision when it ended done (see above), under the flow's and the task's locks: nothing unless the
  * task still holds this turn's decision at its step. A move the task no longer allows (its flow changed meanwhile)
- * leaves it `ended_without_handoff`, saying why. Whatever happens, the decision goes.
+ * leaves it `ended_without_handoff`, saying why. Whatever happens, the decision goes. The step's agent posts its line in
+ * the flow's team room in the same transaction (the move and its own words, `rules/room.ts`; `reply` is the turn's last
+ * reply, for a pass or an approval without words).
  */
 export async function applyDecision(
   deps: RunDeps,
   repo: TasksRepo,
   t: TenantDb,
   turn: TaskTurnContext,
-  now: Date,
+  ended: { readonly now: Date; readonly reply: string | null },
 ): Promise<void> {
+  const { now } = ended;
   const caller = deciding(turn);
   const moved = await t.transaction(async (tx): Promise<Transition | undefined> => {
     const { flow, task, steps } = await locked(repo, tx, turn.taskId);
@@ -112,9 +117,12 @@ export async function applyDecision(
     const roster = await rosterOf(tx);
     const write = (change: Parameters<typeof applyStepChange>[2]['change']) =>
       applyStepChange(repo, tx, { task, flow, step, change, by: { ...turnBy(caller), agent: true } });
+    const line = (end: StepEndLine) =>
+      postStepEnd(repo, tx, { flowId: flow.id, task, agentPrincipalId: turn.agentPrincipalId, end, now });
     if (decision.action === 'blocked') {
       const change = decidedBlock(task, step, decision.reason ?? 'The agent cannot go on');
       if (change) await write(change);
+      if (change) await line(stoppedLine('blocked', step.name, decision.round, decision.reason));
       return undefined;
     }
     const input = { action: decision.action, reason: decision.reason ?? undefined };
@@ -124,10 +132,13 @@ export async function applyDecision(
     const transition = refused ?? move(task, steps, input, roster.isPerson);
     if (!transition.ok) {
       await write(decisionFailed(task, step, decision, transition.message));
+      await line(stoppedLine('turn_ended', step.name, decision.round, transition.message));
       return undefined;
     }
     const moving = { task, flow, from: step, roster, transition, action: input.action, now };
     await applyMove(repo, tx, caller, moving);
+    const to = steps.find((s) => s.id === transition.task.currentStepId)?.name ?? null;
+    await line(movedLine(decision, step.name, { outcome: transition.outcome, to }, ended.reply));
     return transition;
   });
   if (moved && startedNow(moved)) await runStep(deps, repo, t, caller, turn.taskId);

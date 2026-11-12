@@ -8,6 +8,7 @@ export { reapTurns, SERVER_RESTARTED } from './service/reaper.ts';
 export type {
   AgentToolsPlan,
   AgentToolTurn,
+  SystemTurnEnd,
   TaskTurnContext,
   TaskTurnDraft,
   TaskTurnEnd,
@@ -16,4 +17,4 @@ export type {
   TaskTurnPlan,
 } from './service/task-hook.ts';
 export type { StepPrompts, TaskTurnRequest, TaskTurnStarted, TaskTurns } from './service/tasks.ts';
-export type { LeadWakeRequest, LeadWakeSent, TeamChats } from './service/team.ts';
+export type { LeadWakeRequest, LeadWakeSent, RoomTurnRequest, TeamChats } from './service/team.ts';

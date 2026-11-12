@@ -60,6 +60,8 @@ export interface TurnsDeps extends TargetDeps {
 export interface TurnCaller {
   readonly principalId: string;
   readonly system?: boolean | undefined;
+  /** The team room's message a turn Most Wanted queues answers (docs/processes.md "The team room"). */
+  readonly roomMessageId?: string | undefined;
   /** What a prompt may do when the agent's machine is stopped: wake it for a message or for work. */
   readonly wake?: TurnWake | undefined;
 }
@@ -162,6 +164,7 @@ export async function startTurn(
       startedAt: now,
       createdBy: caller.principalId,
       system: caller.system === true,
+      roomMessageId: caller.roomMessageId ?? null,
     },
     how,
   );

@@ -92,7 +92,9 @@ export function taskTurns(deps: TurnsDeps) {
       const written = offers ? request.prompt.tools : request.prompt.plain;
       const prompt = continued && chat.sessionId !== null ? written.delta : written.full;
       const wake = { trigger: 'work' as const, reason: request.wakeReason };
-      const started = await startTurn(deps, t, { principalId: request.by, wake }, chat.id, prompt);
+      // Most Wanted writes the step's prompt (`system`); the person whose move started it stays its sender.
+      const caller = { principalId: request.by, system: true, wake };
+      const started = await startTurn(deps, t, caller, chat.id, prompt);
       if (!started.ok) return started;
       if (started.turn.status === 'failed') return MACHINE_OFFLINE;
       return { ok: true, chatId: chat.id, turnId: started.turn.id, continued };

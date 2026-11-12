@@ -142,7 +142,7 @@ export function createApp(deps: AppOptions) {
     .route('/', chatsRoutes(chatsDeps, chats))
     .route('/', speechRoutes({ ...server, speech }))
     .route('/', notificationsRoutes(server))
-    .route('/', tasksRoutes({ ...server, steps: chats.taskTurns }))
+    .route('/', tasksRoutes({ ...server, steps: chats.taskTurns, team: chats.teamChats }))
     .route('/', inboxRoutes(server));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.

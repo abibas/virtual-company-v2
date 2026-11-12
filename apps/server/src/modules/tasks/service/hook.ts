@@ -11,10 +11,13 @@ import type {
 import { tasksRepo } from '../repo.ts';
 import { decisionNote, decisionOf } from '../rules/decision.ts';
 import { failureWords } from '../rules/failure.ts';
+import { type StepEndLine, stoppedLine } from '../rules/room.ts';
 import { carriedOn, replyStarted, turnEnded } from '../rules/runs.ts';
 import { roundsAt } from '../rules.ts';
 import { storeFile, storeNote, storeSkipped } from './artifacts.ts';
 import { applyDecision, dropDecision } from './decision.ts';
+import { roomTurnEnded } from './room/ended.ts';
+import { postStepEnd } from './room/post.ts';
 import { changeStep, type RunDeps } from './runs.ts';
 import { callTool, toolsFor } from './tools.ts';
 
@@ -74,11 +77,26 @@ async function ended(deps: RunDeps, t: TenantDb, turn: TaskTurnContext, end: Tas
     return;
   }
   if (applies) {
-    await applyDecision(deps, repo, t, turn, now);
+    await applyDecision(deps, repo, t, turn, { now, reply: end.resultText });
     return;
   }
   const ending = end.status === 'failed' ? { ...end, error: await failureReason(t, turn, end.error) } : end;
-  await changeStep(repo, t, task, turn.stepId, (at, step) => turnEnded(at, step, ending));
+  let line: StepEndLine | undefined;
+  await changeStep(repo, t, task, turn.stepId, (at, step) => {
+    const change = turnEnded(at, step, ending);
+    const noHandoff = change?.stepState === 'ended_without_handoff' && change.quiet !== true;
+    if (noHandoff) line = stoppedLine('turn_ended', step.name, turn.round, end.resultText);
+    return change;
+  });
+  // The step's agent says in the team room that its turn ended without a move (not when a person stopped it).
+  if (line !== undefined)
+    await postStepEnd(repo, t, {
+      flowId: task.flowId,
+      task,
+      agentPrincipalId: turn.agentPrincipalId,
+      end: line,
+      now,
+    });
   // A failed or stopped turn's decision goes, even when the task's step state did not change.
   if (decision !== undefined) await dropDecision(repo, t, turn);
 }
@@ -167,5 +185,11 @@ export function taskTurnHook(deps: HookDeps): TaskTurnHook {
       ok: false,
       text: TOOL_FAILED,
     }),
+    systemEnded: guarded(
+      logger,
+      'post its reply in the team room',
+      (t, end) => roomTurnEnded(deps, repo, t, end, clock()),
+      undefined,
+    ),
   };
 }

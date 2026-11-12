@@ -14,6 +14,7 @@ import {
   tellsPerson,
   windowPassed,
 } from '../../rules/wake.ts';
+import { postNotice } from '../room/post.ts';
 import { type Roster, rosterOf } from '../team.ts';
 import { wakeMessage } from './message.ts';
 import { leadIsAgent } from './record.ts';
@@ -105,8 +106,9 @@ async function tell(
     await tellPerson(t, held, 'unreachable', { reason: 'unreachable', detail: sent.message });
     return 'unreachable';
   }
-  const told = { outcome: 'woke' as const, deliveredAt: now, chatId: sent.chatId, turnId: sent.turnId };
-  await repo.wakes.finish(t, ids(events), told);
+  const turn = { chatId: sent.chatId, turnId: sent.turnId };
+  await repo.wakes.finish(t, ids(events), { outcome: 'woke', deliveredAt: now, ...turn });
+  await postNotice(repo, t, { flowId: flow.id, body: prompt, about: 'wake', now, turn });
   return 'woke';
 }
 

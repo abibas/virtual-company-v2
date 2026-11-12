@@ -29,7 +29,8 @@ import { streamEvent, turnView } from './views.ts';
  * `detached` until its runner comes back with it (the stream shows it reconnecting) and says the last event it stored
  * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events. An agent's
  * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end. A
- * turn the runner refuses for a full machine (`busy`) waits for a free slot instead of ending (`live-slot.ts`).
+ * turn the runner refuses for a full machine (`busy`) waits for a free slot instead of ending (`live-slot.ts`). A turn
+ * Most Wanted queued tells the tasks module's hook its end too (`systemEnded`: the team room posts its reply).
  */
 
 /** The subscription a turn runs on: which credential, whose, of which kind (a Codex login is sealed again). */
@@ -154,9 +155,11 @@ async function ended(l: Live, t: TenantDb, turn: ChatTurn, end: Ending): Promise
   if (row === undefined) return;
   await chatsRepo.update(t, turn.chatId, { updatedAt: l.deps.clock() });
   l.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(row) });
-  if (end.task !== undefined) {
-    const { status, resultText, error } = row;
-    await l.deps.tasks?.ended(t, end.task, { status, resultText, error });
+  const { status, resultText, error } = row;
+  if (end.task !== undefined) await l.deps.tasks?.ended(t, end.task, { status, resultText, error });
+  if (row.system && row.kind === 'message') {
+    const which = { chatId: row.chatId, turnId: row.id, roomMessageId: row.roomMessageId };
+    await l.deps.tasks?.systemEnded?.(t, { ...which, status, resultText, error });
   }
   await l.ended?.(t, turn.chatId);
 }

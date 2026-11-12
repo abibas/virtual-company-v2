@@ -3,6 +3,7 @@ import { isStuck, type LeadCheckInTask, leadCheckInMessage, taskKey } from '@mwc
 import type { TasksRepo } from '../../repo.ts';
 import { type CheckInSkip, checkInDue, checkInSkip, checkInTask } from '../../rules/check-in.ts';
 import { capReached, DAY_MS, HOUR_MS, settingsOf } from '../../rules/wake.ts';
+import { postNotice } from '../room/post.ts';
 import { type Roster, rosterOf } from '../team.ts';
 import { CAP_WORDS, tellPerson, type WakeDeps } from './deliver.ts';
 import { leadIsAgent } from './record.ts';
@@ -106,7 +107,9 @@ async function tell(
     await tellPerson(t, held, 'unreachable', { reason: 'unreachable', detail: sent.message });
     return 'unreachable';
   }
-  await repo.wakes.insert(t, { ...row, outcome: 'woke', chatId: sent.chatId, turnId: sent.turnId });
+  const turn = { chatId: sent.chatId, turnId: sent.turnId };
+  await repo.wakes.insert(t, { ...row, outcome: 'woke', ...turn });
+  await postNotice(repo, t, { flowId: flow.id, body: prompt, about: 'check_in', now, turn });
   return 'woke';
 }
 

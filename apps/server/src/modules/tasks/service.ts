@@ -3,6 +3,7 @@ import { tasksRepo } from './repo.ts';
 import type { StepInput } from './rules/steps.ts';
 import { FLOW_NOT_FOUND, taskRef } from './rules.ts';
 import type { CreateFlow } from './schemas/flows.ts';
+import type { RoomQuery } from './schemas/room.ts';
 import type { CreateTask, EditTask, TaskActionRequest, TaskListQuery } from './schemas/tasks.ts';
 import type { LeadWakeSettingsBody } from './schemas/wakes.ts';
 import { actOnTask } from './service/actions.ts';
@@ -18,6 +19,10 @@ import {
   shownFlow,
   writtenFlow,
 } from './service/flows.ts';
+import { roomFeed } from './service/room/feed.ts';
+import type { RoomDeps } from './service/room/members.ts';
+import { sayInRoom } from './service/room/say.ts';
+import { putRoomCap } from './service/room/settings.ts';
 import type { RunDeps } from './service/runs.ts';
 import { createTask, editTask, getTask, listTasks } from './service/tasks.ts';
 import { leadWakesOf, putLeadWakes } from './service/wake/settings.ts';
@@ -32,9 +37,11 @@ export { type Caller, callerOf } from './service/audit.ts';
  * A move that starts a task at an agent's step runs it through the chats module's `steps` (S5.3b, `service/runs.ts`),
  * whose turns report back through `taskTurnHook` (`service/hook.ts`); the artifacts they leave are
  * `service/artifacts.ts`'s. Since S6c an agent Lead wakes up by itself (`service/wake/`): its settings here, the events
- * written by the moves and the runs, and the tick that tells them (`leadWakes`, started by `createApp`).
+ * written by the moves and the runs, and the tick that tells them (`leadWakes`, started by `createApp`). Each flow has a
+ * team room (`service/room/`): its feed, a person's message that asks the team's agents through the chats module's
+ * `team`, and its cap.
  */
-export function tasksService(deps: RunDeps) {
+export function tasksService(deps: RunDeps & Pick<RoomDeps, 'team'>) {
   const repo = tasksRepo;
   /** A flow by reference, or the refusal. */
   const flowOr404 = async (t: TenantDb, ref: { readonly id: string } | { readonly lead: string }) => {
@@ -75,6 +82,18 @@ export function tasksService(deps: RunDeps) {
     leadWakes: (t: TenantDb, flowId: string, now: Date) => leadWakesOf(repo, t, flowId, now),
     putLeadWakes: (t: TenantDb, caller: Caller, flowId: string, settings: LeadWakeSettingsBody, now: Date) =>
       putLeadWakes(repo, t, caller, { flowId, settings, now }),
+    room: (t: TenantDb, caller: Caller, read: { flowId: string; query: RoomQuery; now: Date }) =>
+      roomFeed(deps, repo, t, caller, read),
+    /** A person's message in the room, then the room as it stands. */
+    async say(t: TenantDb, caller: Caller, said: { flowId: string; body: string; now: Date }) {
+      const done = await sayInRoom(deps, repo, t, caller, said);
+      return done.ok ? roomFeed(deps, repo, t, caller, { ...said, query: {} }) : done;
+    },
+    /** The room's cap changed, then the room as it stands. */
+    async putRoomCap(t: TenantDb, caller: Caller, change: { flowId: string; maxPerHour: number; now: Date }) {
+      const done = await putRoomCap(repo, t, caller, change);
+      return done.ok ? roomFeed(deps, repo, t, caller, { ...change, query: {} }) : done;
+    },
   };
 }
 
