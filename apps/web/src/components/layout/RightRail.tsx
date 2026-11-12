@@ -1,10 +1,12 @@
 import { PanelRightClose } from 'lucide-react';
-import { type ReactNode, type RefObject, useEffect, useRef } from 'react';
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import { cx } from '../cx.ts';
 import { Card } from '../ui/Card.tsx';
 import { IconButton } from '../ui/IconButton.tsx';
+import { RailResizer } from './RailResizer.tsx';
 import { RailStrip } from './RailStrip.tsx';
 import { type RailView, RailViews } from './RailViews.tsx';
+import { useRailWidth } from './rail-width.ts';
 
 export type { RailView };
 
@@ -100,7 +102,8 @@ export interface RightRailFrameProps extends RightRailProps {
  * The right rail on wide screens: open, a card the height of the window with the open view scrolling inside it;
  * collapsed, a slim strip at the right edge whose icons open each view. The width moves between the two in a short
  * transition (none with reduced motion) and the page takes the room; the card keeps its width and slides out from the
- * edge. After a toggle the focus moves to the button that toggles back.
+ * edge. After a toggle the focus moves to the button that toggles back. Open, its left edge drags to make it wider or
+ * narrower (`RailResizer`), and the width is kept in this browser.
  */
 export function RightRail({
   asideRef,
@@ -113,6 +116,8 @@ export function RightRail({
   ...content
 }: RightRailFrameProps) {
   const toggled = useRef(false);
+  const rail = useRailWidth();
+  const [dragging, setDragging] = useState(false);
   const toggle = (next: boolean) => {
     toggled.current = true;
     onOpenChange(next);
@@ -134,15 +139,27 @@ export function RightRail({
       aria-label="Inbox"
       className={cx(
         'sticky top-0 hidden h-screen shrink-0 py-3 pr-3 outline-none transition-[width] duration-200 ease-out motion-reduce:transition-none xl:block',
-        open ? 'w-aside' : 'w-16',
+        open ? undefined : 'w-16',
+        dragging && 'transition-none',
       )}
+      style={open ? { width: rail.width } : undefined}
     >
+      {open && (
+        <RailResizer
+          width={rail.width}
+          onWidth={rail.preview}
+          onDone={rail.keep}
+          onReset={rail.reset}
+          onDragging={setDragging}
+        />
+      )}
       {open ? (
         // Clips the card while the rail widens; 1rem of room on the left keeps its shadow.
         <div className="pointer-events-none absolute inset-y-0 right-0 -left-4 flex justify-end overflow-hidden py-3 pr-3 pl-4">
           <Card
             padding="sm"
-            className="pointer-events-auto flex h-full w-[calc(var(--spacing-aside)-0.75rem)] shrink-0 flex-col"
+            className="pointer-events-auto flex h-full shrink-0 flex-col"
+            style={{ width: rail.width - 12 }}
           >
             <RightRailContent
               {...content}

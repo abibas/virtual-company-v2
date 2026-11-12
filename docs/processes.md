@@ -616,7 +616,8 @@ The panel reads `GET /api/me/inbox`, since it says "Across all companies"; the C
   the old dock that picked an agent and said "Tasks arrive in S4".
 - **The collapsed strip**: expand, the inbox icon with the attention count (red, pulsing while something waits), the
   bell with the unread count (blue), each opening its tab, and "+" at the foot opening Attention with the quick create's
-  title focused. The rail still opens by itself while something needs you until you toggle it (`mwc.rightRail`).
+  title focused. The rail still opens by itself while something needs you until you toggle it (`mwc.rightRail`). Its left edge drags to make it wider or narrower (320 px up to 960 px or 60% of the window; arrow keys too; a double
+  click resets it), and the width is kept in this browser (`mwc.rightRail.width`).
 - **The top bar** has no bell: from 80rem nothing sits beside the person. Below 80rem one inbox button (both counts, red
   while something needs you) opens the same two tabs in a drawer, which closes when a card or a notice opens its page.
 - The left rail's muted "Inbox, coming in S6" item is gone.
