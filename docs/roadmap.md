@@ -615,6 +615,31 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
        refused for any repository outside the profile.
    - Tests: the kinds and their checks with fake providers, the profiles' rules, each tool's permission check, the
      runner's per-turn handover with a fake `gh`. Ihor's first real sign-ins are the live check.
+   - **Decided with Ihor (2026-11-12):**
+     - Atlassian signs in with an API token for now.
+     - GitHub and Atlassian get separate tool profiles, picked per agent next to the AI profile.
+     - Work stops after each step below for a live test.
+   - **How his Mac does it today**, read on 2026-11-12, as the model to follow:
+     - git pushes over SSH with the Mac's key (`git@github.com:AiriaLLC/...`);
+     - `gh` is signed in through GitHub's device sign-in, with the token in the keychain, for PRs, runs and repos;
+     - Atlassian goes through Atlassian's remote MCP (`mcp.atlassian.com`, OAuth), whose tool names are
+       `getJiraIssue`, `searchJiraIssuesUsingJql`, `getConfluencePage`, `createConfluencePage`, and so on.
+     - So a GitHub turn gets `GH_TOKEN` and git's own `gh auth git-credential` helper, with `git@github.com:` rewritten
+       to https, all through the turn's environment (`GIT_CONFIG_*`), with nothing written to disk. Existing SSH
+       remotes then push with the profile's token.
+     - The Atlassian tools keep the remote MCP's names and inputs, so agents' habits and skills carry over.
+   - **Steps**, each ending in a stop for Ihor's live test:
+     - **S7.1a** The sign-ins: Sign in with GitHub (device sign-in), a pasted GitHub token, and Add Atlassian (site,
+       email, API token). Each is checked against the provider, showing the account, the scopes and whether Jira and
+       Confluence answer, on the Subscriptions page's Tools part. Test: he signs in to both, and the cards show his
+       accounts.
+     - **S7.1b** The tool profiles: GitHub and Atlassian profiles on Access profiles, with their rights; the agent
+       form's two pickers; and the agent's page and briefing. Test: he gives his DEVBOX agents profiles.
+     - **S7.1c** The Atlassian tools for agents: Jira read first, then Confluence read and write, then Jira changes,
+       each checked on the server against the profile. Test: an agent reads a real ticket and writes a Confluence
+       page in a test space.
+     - **S7.1d** GitHub in a turn: the per-turn token, the credential helper, the SSH rewrite and the repository
+       allowlist. Test: an agent pushes a branch to a sandbox repo and lists its PRs.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
