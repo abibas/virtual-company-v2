@@ -17,6 +17,7 @@ import { ChartMenu } from './ChartMenu.tsx';
 import { type ChartAbilities, ChartMenuItems } from './ChartMenuItems.tsx';
 import { ChartSheet } from './ChartSheets.tsx';
 import type { DropPlan } from './drop-targets.ts';
+import type { FlowFocus } from './flow/flow-focus.ts';
 import { MoveToast } from './MoveToast.tsx';
 import { type Board, useBoard } from './use-board.ts';
 
@@ -32,6 +33,8 @@ export interface OrgChartBoardProps {
   readonly flowItem: (principalId: string) => ChartFlowItem | undefined;
   /** The chart changed: read it again (`self`: the signed-in person's own role changed). */
   readonly onChanged: (self?: boolean) => void;
+  /** The flow highlighted on the chart (`?flow=`): its members ringed, the rest faded, the view on them. */
+  readonly focus?: FlowFocus | undefined;
 }
 
 const orphansOf = (tree: readonly OrgTreeNode[]) =>
@@ -117,6 +120,7 @@ function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board:
                 grab={drag.grab}
                 buttons={buttons}
                 agentHref={(node) => board.actions.agentHref(node.agent)}
+                focus={board.focused}
               />
             </ChartCanvas>
           )

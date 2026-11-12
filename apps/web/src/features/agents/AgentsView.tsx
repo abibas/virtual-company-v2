@@ -6,6 +6,7 @@ import type { AgentFilter, AgentList, OrgChart } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { nodesById } from '../../components/org/chart.ts';
 import type { ChartFlowItem } from '../flows/access.ts';
+import type { FlowFocus } from '../structure/flow/flow-focus.ts';
 import { OrgChartBoard } from '../structure/OrgChartBoard.tsx';
 import { AgentsTable } from './AgentsTable.tsx';
 import type { AgentLinks } from './links.ts';
@@ -31,6 +32,8 @@ export interface AgentsViewProps {
   readonly flowItem: (principalId: string) => ChartFlowItem | undefined;
   /** Someone moved, got a title or a role: read the chart and the team again (`self`: one's own role changed). */
   readonly onChanged: (self?: boolean) => void;
+  /** The flow highlighted on the org chart (`?flow=`), if any. */
+  readonly focus?: FlowFocus | undefined;
 }
 
 /**
@@ -51,6 +54,7 @@ export function AgentsView({
   company,
   flowItem,
   onChanged,
+  focus,
 }: AgentsViewProps) {
   const api = useApi();
   const calls = useMemo(() => orgCalls(api, companyId), [api, companyId]);
@@ -65,6 +69,7 @@ export function AgentsView({
       abilities={{ admin, myRole, meUserId }}
       flowItem={flowItem}
       onChanged={onChanged}
+      focus={focus}
     />
   ) : (
     <AgentsTable

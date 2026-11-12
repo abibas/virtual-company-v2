@@ -14,7 +14,15 @@ export {
   runsModelLabel,
 } from './agent-labels.ts';
 export { type CanvasHandle, ChartCanvas, type ChartCanvasProps, DRAGGABLE } from './ChartCanvas.tsx';
-export { ChartCard, type ChartCardProps, COMPANY, DROP_ID, DROP_LOOK, type DropState } from './ChartCard.tsx';
+export {
+  type CardAccent,
+  ChartCard,
+  type ChartCardProps,
+  COMPANY,
+  DROP_ID,
+  DROP_LOOK,
+  type DropState,
+} from './ChartCard.tsx';
 export { ChartLines } from './ChartLines.tsx';
 export { CompanyCard, type CompanyCardProps } from './CompanyCard.tsx';
 export {

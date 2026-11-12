@@ -5,7 +5,8 @@ import type { ChartNode } from '../../../api/types.ts';
 import { Tabs } from '../../../components/forms/Segmented.tsx';
 import { Breadcrumbs, type Crumb } from '../../../components/layout/Breadcrumbs.tsx';
 import { Who } from '../Face.tsx';
-import type { FlowLinks, TeamTab } from '../links.ts';
+import { chartWithFlow, type FlowLinks, type TeamTab } from '../links.ts';
+import { ShowOnChart } from './ShowOnChart.tsx';
 
 /** Company structure / Flows, then the rest of the path. */
 export const flowCrumbs = (links: FlowLinks, ...rest: Crumb[]): Crumb[] => [
@@ -15,8 +16,8 @@ export const flowCrumbs = (links: FlowLinks, ...rest: Crumb[]): Crumb[] => [
 ];
 
 /**
- * A team's page's one header row: the path (Company structure / Flows / the flow), its Lead, then the Board and Flow
- * tabs (none before the team has a flow) and the tab's action on the right.
+ * A team's page's one header row: the path (Company structure / Flows / the flow), its Lead, then Show on org chart,
+ * the Board and Flow tabs (none before the team has a flow) and the tab's action on the right.
  */
 export function TeamHeader({
   title,
@@ -47,6 +48,7 @@ export function TeamHeader({
         </span>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
+        {tab && <ShowOnChart href={chartWithFlow(links, address)} />}
         {tab && (
           <Tabs
             label="Team views"

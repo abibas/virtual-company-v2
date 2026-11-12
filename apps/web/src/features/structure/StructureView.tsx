@@ -28,14 +28,16 @@ export const structureTabAt = (path: string): StructureTab | undefined =>
   TABS.find((t) => t.path === path)?.tab;
 
 /**
- * The Company structure page: one compact row with the tabs and, for admins and owners beside the chart and the agents,
- * Hire an agent; then the current tab's body. The company's route and the design gallery both render it.
+ * The Company structure page: one compact row with the tabs, the tab's own controls (the org chart's flow picker) and,
+ * for admins and owners beside the chart and the agents, Hire an agent; then the current tab's body. The company's
+ * route and the design gallery both render it.
  */
 export function StructureView({
   tab,
   links,
   hireHref,
   admin,
+  tools,
   children,
 }: {
   readonly tab: StructureTab;
@@ -43,11 +45,13 @@ export function StructureView({
   /** The hire form; the People tab has its own invitation form instead. */
   readonly hireHref: string;
   readonly admin: boolean;
+  /** The tab's own controls, before Hire (the org chart's flow picker). */
+  readonly tools?: ReactNode;
   readonly children: ReactNode;
 }) {
   return (
     <>
-      {/* One compact row (Ihor: no title or lede eating the chart's space): the tabs, and Hire an agent. */}
+      {/* One compact row (Ihor: no title or lede eating the chart's space): the tabs, the tab's controls, Hire. */}
       <h1 className="sr-only">Company structure</h1>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <Tabs
@@ -59,11 +63,14 @@ export function StructureView({
             current: t.tab === tab,
           }))}
         />
-        {admin && tab !== 'people' && (
-          <ButtonLink href={hireHref} tone="primary" size="sm" icon={Plus}>
-            Hire an agent
-          </ButtonLink>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {tools}
+          {admin && tab !== 'people' && (
+            <ButtonLink href={hireHref} tone="primary" size="sm" icon={Plus}>
+              Hire an agent
+            </ButtonLink>
+          )}
+        </div>
       </div>
       {children}
     </>

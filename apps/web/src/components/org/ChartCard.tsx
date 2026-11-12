@@ -132,12 +132,20 @@ export interface ChartCardProps {
   /** Admins and owners drag cards to another manager. */
   readonly draggable: boolean;
   readonly onPointerDown?: ((event: PointerEvent<HTMLElement>) => void) | undefined;
+  /** A highlighted card (a flow's member): its ring's colour class and the chips over its top edge. */
+  readonly accent?: CardAccent | undefined;
+}
+
+export interface CardAccent {
+  readonly ring: string;
+  readonly tags: ReactNode;
 }
 
 /**
  * A person or an agent on the chart canvas, compact and of one size (`CARD`): the face (an agent's with its status
  * dot), the name, the title or role, and a line of facts. People carry the blue accent and agents the teal one. A
- * drop target while another card is dragged, and draggable itself for admins and owners.
+ * drop target while another card is dragged, and draggable itself for admins and owners. A highlighted card (`accent`)
+ * wears a coloured ring and chips over its top edge.
  */
 export function ChartCard({
   node,
@@ -148,6 +156,7 @@ export function ChartCard({
   drop,
   draggable,
   onPointerDown,
+  accent,
 }: ChartCardProps) {
   const agent = node.kind === 'agent';
   const name = nodeName(node);
@@ -159,8 +168,8 @@ export function ChartCard({
       onPointerDown={onPointerDown}
       style={{ width: CARD.width, height: CARD.height }}
       className={cx(
-        'group/card relative flex flex-col gap-2 rounded-xl bg-surface p-3 shadow-card ring-1 transition-[opacity,transform,box-shadow] duration-150 [-webkit-touch-callout:none]',
-        agent ? 'ring-teal/30' : 'ring-line',
+        'group/card relative flex flex-col gap-2 rounded-xl bg-surface p-3 shadow-card ring-1 transition-[opacity,transform,box-shadow] duration-150 motion-reduce:transition-none [-webkit-touch-callout:none]',
+        accent ? cx('shadow-raised ring-2', accent.ring) : agent ? 'ring-teal/30' : 'ring-line',
         draggable && 'cursor-grab active:cursor-grabbing',
         drop && DROP_LOOK[drop],
       )}
@@ -169,6 +178,7 @@ export function ChartCard({
         aria-hidden="true"
         className={cx('absolute inset-x-4 top-0 h-[3px] rounded-b-full', agent ? 'bg-teal' : 'bg-blue')}
       />
+      {accent && <div className="absolute inset-x-3 -top-2.5 z-10 flex min-w-0 gap-1">{accent.tags}</div>}
       <div className="flex min-w-0 items-start gap-2.5">
         <Face node={node} />
         <div className="min-w-0 flex-1 pt-0.5">

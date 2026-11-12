@@ -23,6 +23,13 @@ export interface CanvasHandle {
   panBy(dx: number, dy: number): void;
   /** Ends a pan in progress (a long press that turned into dragging a card). */
   cancelPan(): void;
+  /** Shows a box of the chart (chart pixels) as `fitView` shows the whole chart (a highlighted group). */
+  fitTo(box: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  }): void;
 }
 
 /** What starts no pan: the controls, and (for a mouse or a pen) a card that may be dragged. */
@@ -156,6 +163,15 @@ function useCanvasView(box: RefObject<HTMLDivElement | null>, props: ChartCanvas
     const r = box.current?.getBoundingClientRect();
     if (r && r.width > 0) setRawView(fitView(width, height, r.width, r.height));
   }, [box, width, height]);
+  const fitTo = useCallback<CanvasHandle['fitTo']>(
+    (b) => {
+      const r = box.current?.getBoundingClientRect();
+      if (!r || r.width === 0) return;
+      const { k, x, y } = fitView(b.width, b.height, r.width, r.height);
+      setRawView({ k, x: x - b.x * k, y: y - b.y * k });
+    },
+    [box],
+  );
   useLayoutEffect(() => {
     const r = box.current?.getBoundingClientRect();
     if (view !== undefined || !r || r.width === 0) return;
@@ -169,7 +185,7 @@ function useCanvasView(box: RefObject<HTMLDivElement | null>, props: ChartCanvas
     const timer = setTimeout(() => saveView(storageKey, view, box.current?.clientWidth ?? 0), 300);
     return () => clearTimeout(timer);
   }, [box, view, storageKey]);
-  return { view, setView, fit };
+  return { view, setView, fit, fitTo };
 }
 
 /** Zoom in, zoom out and fit, with the zoom in per cent, in the canvas's top right corner. */
@@ -222,13 +238,17 @@ function canvasEvents(setView: (f: (v: CanvasView) => CanvasView) => void, fit: 
 export function ChartCanvas(props: ChartCanvasProps) {
   const { width, height, label, handle, className, children } = props;
   const box = useRef<HTMLDivElement>(null);
-  const { view, setView, fit } = useCanvasView(box, props);
+  const { view, setView, fit, fitTo } = useCanvasView(box, props);
   const { panning, stop, handlers } = usePanZoom(box, setView);
   useWheel(box, setView);
   useImperativeHandle(
     handle,
-    () => ({ panBy: (dx, dy) => setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy })), cancelPan: stop }),
-    [setView, stop],
+    () => ({
+      panBy: (dx, dy) => setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy })),
+      cancelPan: stop,
+      fitTo,
+    }),
+    [setView, stop, fitTo],
   );
   const zoomBy = (factor: number) => {
     const r = box.current?.getBoundingClientRect();

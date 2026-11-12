@@ -13,7 +13,7 @@ import { EmptyState } from '../../../components/ui/EmptyState.tsx';
 import { Skeleton } from '../../../components/ui/Skeleton.tsx';
 import { flowCandidates, nodeAddress, type Viewer } from '../access.ts';
 import { Face } from '../Face.tsx';
-import { type FlowLinks, leadAddress } from '../links.ts';
+import { chartWithFlow, type FlowLinks, leadAddress } from '../links.ts';
 import { FlowCard } from './FlowCard.tsx';
 
 export interface FlowsViewProps {
@@ -66,7 +66,16 @@ function LiveCard({
 }) {
   const board = props.useBoard(props.companyId, flow.id);
   const nodes = useMemo(() => nodesById(props.chart?.nodes ?? []), [props.chart]);
-  return <FlowCard flow={flow} board={board} nodes={nodes} href={props.links.team(leadAddress(flow.lead))} />;
+  const lead = leadAddress(flow.lead);
+  return (
+    <FlowCard
+      flow={flow}
+      board={board}
+      nodes={nodes}
+      href={props.links.team(lead)}
+      chartHref={chartWithFlow(props.links, lead)}
+    />
+  );
 }
 
 /**

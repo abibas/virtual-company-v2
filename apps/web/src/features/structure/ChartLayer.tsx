@@ -10,6 +10,8 @@ import type { ChartLayout } from '../../components/org/layout.ts';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import type { MenuAt } from './ChartMenu.tsx';
 import { type DropPlan, stateAt } from './drop-targets.ts';
+import { FlowTags, ringOf } from './flow/FlowTags.tsx';
+import type { FlowFocus } from './flow/flow-focus.ts';
 
 /** A card's buttons: + (hire or invite under it; admins, on hover or focus) and ⋯ (its menu). */
 export function CardButtons({
@@ -78,24 +80,36 @@ export interface ChartLayerProps {
   /** A card's buttons (the company's with `COMPANY`). */
   readonly buttons: (target: string, node: ChartNode | undefined) => ReactNode;
   readonly agentHref: (node: ChartNode & { kind: 'agent' }) => string;
+  /** A highlighted flow: its members ringed with their roles, everyone else faded; and the lines that join them. */
+  readonly focus?: { readonly flow: FlowFocus; readonly edges: ReadonlySet<string> } | undefined;
 }
+
+/** Where a card sits; outside a highlighted flow it fades and greys, in its place. */
+const PLACE = 'absolute transition-[opacity,filter] duration-200 motion-reduce:transition-none';
+const FADED = 'opacity-35 saturate-0';
 
 /**
  * What the canvas zooms: the lines, then each card where the layout puts it (the company on top), each a drop target
- * while another card is dragged, and draggable itself for admins and owners.
+ * while another card is dragged, and draggable itself for admins and owners. A highlighted flow rings its members and
+ * fades the rest.
  */
 export function ChartLayer(props: ChartLayerProps) {
-  const { layout, nodes, plan, over, buttons } = props;
+  const { layout, nodes, plan, over, buttons, focus } = props;
   const faded = plan ? new Set([plan.principalId]) : undefined;
+  const place = (id: string) => cx(PLACE, focus && !focus.flow.members.has(id) && FADED);
+  const accentOf = (id: string) => {
+    const roles = focus?.flow.members.get(id);
+    return roles && { ring: ringOf(roles), tags: <FlowTags roles={roles} /> };
+  };
   return (
     <>
-      <ChartLines layout={layout} faded={faded} />
+      <ChartLines layout={layout} faded={faded} emphasis={focus?.edges} />
       {layout.cards.map((card) => {
         const node = nodes.get(card.id);
         const style = { left: card.x, top: card.y };
         if (card.id === COMPANY) {
           return (
-            <div key={card.id} className="absolute" style={style}>
+            <div key={card.id} className={place(card.id)} style={style}>
               <CompanyCard
                 {...props.company}
                 drop={stateAt(plan, COMPANY, over)}
@@ -106,8 +120,9 @@ export function ChartLayer(props: ChartLayerProps) {
         }
         if (!node) return null;
         return (
-          <div key={card.id} className="absolute" style={style}>
+          <div key={card.id} className={place(card.id)} style={style}>
             <ChartCard
+              accent={accentOf(node.principalId)}
               node={node}
               you={node.kind === 'person' && node.person.userId === props.meUserId}
               orphan={props.orphans.has(node.principalId)}

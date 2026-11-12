@@ -5,6 +5,7 @@ import { Link } from '../../../app/router.tsx';
 import { cx } from '../../../components/cx.ts';
 import { Skeleton } from '../../../components/ui/Skeleton.tsx';
 import { Face } from '../Face.tsx';
+import { ShowOnChart } from '../team/ShowOnChart.tsx';
 import { KIND } from '../words.ts';
 
 /** A count with its word, dimmed at zero. */
@@ -50,36 +51,53 @@ function Columns({ board }: { readonly board: Board }) {
 
 /**
  * A team's flow on the Flows page: its Lead's face, its name and its Lead, its open tasks; its steps as coloured chips
- * with the tasks at each, and its Queued, Done and Escalated counts. The whole card opens the team's board.
+ * with the tasks at each, and its Queued, Done and Escalated counts. The whole card opens the team's board; the
+ * button in its bottom right corner (`chartHref`) shows the flow on the org chart.
  */
 export function FlowCard({
   flow,
   board,
   nodes,
   href,
+  chartHref,
 }: {
   readonly flow: FlowSummary;
   readonly board: Loaded<Board>;
   readonly nodes: ReadonlyMap<string, ChartNode>;
   readonly href: string;
+  /** The org chart with this flow highlighted. */
+  readonly chartHref?: string | undefined;
 }) {
+  const lift = 'transition-[box-shadow,transform] duration-200 group-hover/flow:-translate-y-0.5';
   return (
-    <Link
-      to={href}
-      className="flex flex-col gap-3 rounded-2xl bg-surface p-4 shadow-card ring-1 ring-transparent transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-raised focus-visible:ring-blue focus-visible:outline-none"
-    >
-      <span className="flex items-center gap-3">
-        <Face who={flow.lead} nodes={nodes} size="md" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-md font-bold text-ink">{flow.name}</span>
-          <span className="block truncate text-xs text-dim">{flow.lead.name}</span>
+    <div className="group/flow relative">
+      <Link
+        to={href}
+        className={cx(
+          'flex h-full flex-col gap-3 rounded-2xl bg-surface p-4 shadow-card ring-1 ring-transparent group-hover/flow:shadow-raised focus-visible:ring-blue focus-visible:outline-none',
+          lift,
+        )}
+      >
+        <span className="flex items-center gap-3">
+          <Face who={flow.lead} nodes={nodes} size="md" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-md font-bold text-ink">{flow.name}</span>
+            <span className="block truncate text-xs text-dim">{flow.lead.name}</span>
+          </span>
+          <span className="shrink-0 text-right">
+            <span className="block text-lg leading-none font-extrabold text-ink tabular">
+              {flow.openTasks}
+            </span>
+            <span className="text-2xs text-dim">open</span>
+          </span>
         </span>
-        <span className="shrink-0 text-right">
-          <span className="block text-lg leading-none font-extrabold text-ink tabular">{flow.openTasks}</span>
-          <span className="text-2xs text-dim">open</span>
+        {board.data ? <Columns board={board.data} /> : <Skeleton className="h-12" />}
+      </Link>
+      {chartHref && (
+        <span className={cx('absolute right-2 bottom-2', lift)}>
+          <ShowOnChart href={chartHref} side="top" />
         </span>
-      </span>
-      {board.data ? <Columns board={board.data} /> : <Skeleton className="h-12" />}
-    </Link>
+      )}
+    </div>
   );
 }

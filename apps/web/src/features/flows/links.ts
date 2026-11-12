@@ -22,6 +22,13 @@ export const leadAddress = (lead: {
   readonly slug?: string | null | undefined;
 }): string => lead.slug ?? lead.principalId;
 
+/** The query parameter of the org chart that highlights a flow, by its Lead's address (`/structure?flow=<lead>`). */
+export const FLOW_PARAM = 'flow';
+
+/** The org chart with the flow of the Lead at `lead` highlighted. */
+export const chartWithFlow = (links: FlowLinks, lead: string): string =>
+  `${links.structure}?${FLOW_PARAM}=${encodeURIComponent(lead)}`;
+
 /** The word after a team's address that opens its Flow tab (`/flows/<lead>/flow`). */
 export const FLOW_TAB = 'flow';
 
