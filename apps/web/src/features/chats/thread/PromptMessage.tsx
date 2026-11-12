@@ -35,7 +35,10 @@ export function PromptMessage({
         className={cx(
           'max-w-full break-words whitespace-pre-wrap',
           system
-            ? 'justify-self-start rounded-lg bg-surface-2 px-3 py-2 text-[0.8125rem] leading-relaxed text-ink-2'
+            ? cx(
+                'justify-self-start rounded-lg bg-surface-2 px-3 py-2 leading-relaxed text-ink-2',
+                dense ? 'text-xs' : 'text-[0.8125rem]',
+              )
             : 'rounded-2xl px-4 py-2.5 text-[0.9375rem] leading-relaxed text-ink',
           !system && (dense ? 'sm:max-w-[92%]' : 'sm:max-w-[85%]'),
           !system && (own ? 'rounded-tr-md bg-blue-soft' : 'justify-self-start rounded-tl-md bg-surface-2'),

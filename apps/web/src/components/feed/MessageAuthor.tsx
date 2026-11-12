@@ -18,14 +18,17 @@ export const SYSTEM_AUTHOR: MessageAuthorView = { kind: 'system', name: 'Most Wa
 export function MessageFace({
   author,
   dense = false,
+  own = false,
 }: {
   readonly author: MessageAuthorView;
   readonly dense?: boolean;
+  /** The reader: their initials on the brand gradient, as in the top bar. */
+  readonly own?: boolean;
 }) {
   if (author.kind === 'system') return <BrandMark size={dense ? 'xs' : 'sm'} className="shadow-none" />;
   const size = dense ? 'xs' : 'xs-sm';
   if (author.kind === 'agent') return <AgentIcon agent={author.agent} size={size} />;
-  return <Avatar name={author.name} src={author.imageUrl} size={size} />;
+  return <Avatar name={author.name} src={author.imageUrl} size={size} tone={own ? 'gradient' : 'tint'} />;
 }
 
 /** How far a message's body sits in from its side: past the face and the gap after it. */
@@ -64,7 +67,7 @@ export function MessageAuthor({
       <div
         className={cx('flex min-w-0 items-center', dense ? 'gap-2' : 'gap-2.5', end && 'flex-row-reverse')}
       >
-        <MessageFace author={author} dense={dense} />
+        <MessageFace author={author} dense={dense} own={end} />
         <div className={cx('flex min-w-0 items-baseline gap-2', end && 'flex-row-reverse')}>
           <span className="truncate text-sm font-semibold text-ink">{author.name}</span>
           {at && (
