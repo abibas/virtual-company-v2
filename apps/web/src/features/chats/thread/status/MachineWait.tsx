@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { useApi } from '../../../../api/context.ts';
 import { WAKE_EVERY_MS } from '../../../../api/machine-wake.ts';
 import { machineCalls, useVisibleInterval } from '../../../../api/machines.ts';
@@ -7,6 +7,7 @@ import type { ChatTurnWithEvents, MachineChoice, MachinePower } from '../../../.
 import { useLoad } from '../../../../api/use-load.ts';
 import { Spinner } from '../../../../components/ui/Button.tsx';
 import { elapsedText } from '../../../placements/wake-text.ts';
+import { type ChatMachine, ChatMachineContext } from './chat-machine.ts';
 import { useNow } from './use-now.ts';
 import { QueuedStatus } from './WorkingStatus.tsx';
 
@@ -17,14 +18,7 @@ import { QueuedStatus } from './WorkingStatus.tsx';
  * `ChatMachineContext`; without one it is the plain queued pill.
  */
 
-/** The open chat's machine, and how a turn's wait for it is cancelled (its Stop). */
-export interface ChatMachine {
-  readonly companyId: string;
-  readonly machineId: string;
-  readonly cancel: (turnId: string) => Promise<void>;
-}
-
-export const ChatMachineContext = createContext<ChatMachine | undefined>(undefined);
+export { type ChatMachine, ChatMachineContext };
 
 /** Where the machine is, in a few words: online (the message is on its way), up without its runner, or starting. */
 function phaseText(machine: MachineChoice | undefined, power: MachinePower | undefined): string {

@@ -16,13 +16,18 @@ export interface ConversationLook {
   readonly live: boolean;
 }
 
-/** Running, Starting machine (its turn waits for the stopped machine), Queued, Ended, Stopped, Failed, or Not started. */
+/**
+ * Running (Reconnecting while its machine's runner is away and the turn waits for it), Starting machine (its turn waits
+ * for the stopped machine), Queued, Ended, Stopped, Failed, or Not started.
+ */
 export function conversationLook(conversation: TaskConversation): ConversationLook {
   switch (conversation.lastTurn?.status) {
     case undefined:
       return { label: 'Not started', tone: 'pending', live: false };
     case 'running':
-      return { label: 'Running', tone: 'blue', live: true };
+      return conversation.lastTurn?.reconnecting
+        ? { label: 'Reconnecting', tone: 'pending', live: true }
+        : { label: 'Running', tone: 'blue', live: true };
     case 'queued':
       return conversation.lastTurn?.waitsForMachine
         ? { label: 'Starting machine', tone: 'pending', live: true }

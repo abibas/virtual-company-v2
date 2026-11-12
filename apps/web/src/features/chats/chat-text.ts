@@ -1,3 +1,4 @@
+import { disconnectedWords } from '@mwc/shared/chats';
 import type { ChatTurnStatus } from '@mwc/shared/enums';
 import { ApiError, friendlyMessage } from '../../api/errors.ts';
 import type { Tone } from '../../components/ui/Badge.tsx';
@@ -48,7 +49,7 @@ export const TURN_STATUS: Readonly<Record<ChatTurnStatus, { readonly tone: Tone;
 /** The runner's and the server's reasons a turn ended without a reply, in words. */
 const TURN_ERRORS: Readonly<Record<string, string>> = {
   stopped: 'Stopped before it finished.',
-  machine_disconnected: 'The machine disconnected during the turn.',
+  machine_disconnected: "The agent's machine was unreachable for too long: the turn stopped.",
   server_restarted: 'The server restarted during the turn.',
   runner_stopping: 'The runner on the machine stopped during the turn.',
   busy: 'The machine was running as many turns as it can. Try again in a moment.',
@@ -56,10 +57,15 @@ const TURN_ERRORS: Readonly<Record<string, string>> = {
   unsupported: "The machine's runner can't run this harness.",
 };
 
-/** A turn's error as people read it: the known reasons in words, `spawn_failed: …` as not starting, else as it is. */
+/**
+ * A turn's error as people read it: the known reasons in words, `machine_disconnected: …` as the server worded it (the
+ * machine and how long, 2026-11-12), `spawn_failed: …` as not starting, else as it is.
+ */
 export function turnErrorText(error: string): string {
   const known = TURN_ERRORS[error];
   if (known) return known;
+  const away = disconnectedWords(error);
+  if (away !== undefined) return away;
   if (error.startsWith('spawn_failed'))
     return `The harness didn't start (${error.replace(/^spawn_failed:?\s*/, '')}).`;
   return error;

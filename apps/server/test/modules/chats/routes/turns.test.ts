@@ -175,7 +175,7 @@ describe('POST chats/:chatId/turns/:turnId/stop', () => {
 });
 
 describe('a runner that goes away', () => {
-  it('fails its running turns with machine_disconnected', async () => {
+  it("fails an older runner's running turns with machine_disconnected, naming the machine", async () => {
     const s = await scene(w);
     const start = await startedTurn(w, s);
     sendEvents(s.runner as FakeRunner, start.turnId, ANSWER.slice(0, 2));
@@ -186,7 +186,9 @@ describe('a runner that goes away', () => {
     await (s.runner as FakeRunner).disconnect();
     expect(await ended(w.t.db, start.turnId)).toMatchObject({
       status: 'failed',
-      error: 'machine_disconnected',
+      error: expect.stringMatching(
+        /^machine_disconnected: .+ disconnected, and its runner is too old to keep a turn/,
+      ),
     });
   });
 });

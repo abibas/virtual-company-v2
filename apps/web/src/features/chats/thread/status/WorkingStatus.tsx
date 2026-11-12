@@ -1,12 +1,14 @@
 import { Clock } from 'lucide-react';
 import type { ChatTurnWithEvents } from '../../../../api/types.ts';
 import { Spinner } from '../../../../components/ui/Button.tsx';
+import { elapsedText } from '../../../placements/wake-text.ts';
 import { ActionWords } from '../activity/ActionWords.tsx';
 import { Disclosure } from '../activity/Disclosure.tsx';
 import { currentAction, historyOf } from '../model/current-action.ts';
 import { elapsed, modelLabel } from '../model/format.ts';
 import type { TurnModel } from '../model/parts.ts';
 import { ActionHistory } from './ActionHistory.tsx';
+import { ReconnectingWords } from './Reconnecting.tsx';
 import { useNow } from './use-now.ts';
 
 /** What the turn runs on, from its `init` or the chat's: "Opus 5.5 · high". */
@@ -16,8 +18,9 @@ export interface RunsOn {
 }
 
 /**
- * The pill: a spinner, "Working" with a soft shimmer (or "Reconnecting…" while the turn's runner is away and the turn
- * waits for it, S5.4), the live time, and the model and effort.
+ * The pill: a spinner, "Working" with a soft shimmer and the live time; or, while the turn's runner is away and the turn
+ * waits for it (S5.4), "Reconnecting to Airia devbox…" and how long it has been away (m:ss, when known); then the model
+ * and effort.
  */
 function WorkingPill({
   since,
@@ -26,27 +29,29 @@ function WorkingPill({
 }: {
   readonly since: string;
   readonly runsOn: RunsOn | undefined;
-  readonly detached: boolean;
+  readonly detached: { readonly at: string | undefined } | undefined;
 }) {
   const now = useNow(true);
   const meta = [runsOn?.model ? modelLabel(runsOn.model) : undefined, runsOn?.effort]
     .filter(Boolean)
     .join(' · ');
+  const ran = elapsed(now - new Date(since).getTime());
+  const away = detached?.at === undefined ? undefined : elapsedText(now - new Date(detached.at).getTime());
   return (
     <div className="inline-flex h-7 w-fit max-w-full items-center gap-2 rounded-full bg-surface-2 px-3 text-xs ring-1 ring-line ring-inset">
-      <Spinner size={12} className={detached ? 'text-pending' : 'text-blue'} />
+      <Spinner size={12} className={detached ? 'shrink-0 text-pending' : 'shrink-0 text-blue'} />
       {detached ? (
         <span
-          className="font-semibold text-pending"
-          title="The agent's machine lost its link; the turn goes on there and shows again when it is back"
+          className="min-w-0 truncate font-semibold text-pending"
+          title={`The link to the agent's machine dropped; the turn goes on there and shows again when it is back (it has run ${ran})`}
         >
-          Reconnecting…
+          <ReconnectingWords />
         </span>
       ) : (
         <span className="text-shimmer font-semibold motion-safe:animate-shimmer">Working</span>
       )}
-      <span aria-hidden="true" className="tabular text-dim">
-        · {elapsed(now - new Date(since).getTime())}
+      <span aria-hidden="true" className="shrink-0 tabular text-dim">
+        {away ?? `· ${ran}`}
       </span>
       {meta && <span className="min-w-0 truncate text-faint">· {meta}</span>}
     </div>
@@ -95,7 +100,7 @@ export function WorkingStatus({
       <WorkingPill
         since={turn.startedAt ?? turn.createdAt}
         runsOn={runsOn}
-        detached={turn.detached === true}
+        detached={turn.detached === true ? { at: turn.detachedAt } : undefined}
       />
       <CurrentActionRow model={model} />
       <p aria-live="polite" className="sr-only">
