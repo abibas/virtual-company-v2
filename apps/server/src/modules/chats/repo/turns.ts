@@ -8,7 +8,7 @@ import {
   type TenantSet,
   type TenantValues,
 } from '@mwc/db';
-import { and, asc, eq, gte, inArray, max } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNotNull, max } from 'drizzle-orm';
 
 /** A chat's turns and their events (S5.1b), through the company's tenant only. */
 
@@ -63,6 +63,30 @@ async function updateLive(
   return row;
 }
 
+/**
+ * A failed turn running again (its runner came back with it, 2026-11-12), while it is still failed with the same error;
+ * undefined otherwise.
+ */
+async function reopen(t: TenantDb, turn: ChatTurn): Promise<ChatTurn | undefined> {
+  if (turn.status !== 'failed' || turn.error === null) return undefined;
+  const where = and(
+    eq(chatTurns.id, turn.id),
+    eq(chatTurns.status, 'failed'),
+    eq(chatTurns.error, turn.error),
+  );
+  const [row] = await t
+    .update(chatTurns, { status: 'running', error: null, endedAt: null }, where)
+    .returning();
+  return row;
+}
+
+/** True when a turn of the chat after turn number `seq` ever started. */
+async function startedAfter(t: TenantDb, chatId: string, seq: number): Promise<boolean> {
+  const where = and(eq(chatTurns.chatId, chatId), gt(chatTurns.seq, seq), isNotNull(chatTurns.startedAt));
+  const [row] = await t.selectFields(chatTurns, { id: chatTurns.id }, where).limit(1);
+  return row !== undefined;
+}
+
 /** Stores events of a turn (one or more); one already stored (a resend) is kept as it was. Returns the new ones. */
 async function insertEvents(
   t: TenantDb,
@@ -93,6 +117,8 @@ export const turnsRepo = {
   lastSeq,
   insert,
   updateLive,
+  reopen,
+  startedAfter,
   insertEvents,
   lastEventSeq,
   eventsOf,

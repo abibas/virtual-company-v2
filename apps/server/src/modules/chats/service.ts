@@ -12,6 +12,7 @@ import type { ChatDetailView, ChatView, CreateChat, UpdateChat } from './schemas
 import { auditChat } from './service/audit.ts';
 import { branchedFromOf } from './service/branch.ts';
 import { currentConversation } from './service/history.ts';
+import type { TurnAway } from './service/live.ts';
 import { chatView } from './service/views.ts';
 
 /**
@@ -86,20 +87,22 @@ export async function createChat(
  * One chat (archived ones too) with its current conversation: the turns since its last Clear, the latest 30 with their
  * events, and what is left out (`service/history.ts`); what that conversation runs on and how full it is (the last
  * `init`, its size), its open question and its waiting turns in the order they start; a running turn whose runner is
- * away says `detached` (S5.4, `isDetached`); 404 for an unknown one.
+ * away says `detached` and since when (S5.4, `awayOf`); 404 for an unknown one.
  */
 export async function getChat(
   t: TenantDb,
   chatId: string,
-  isDetached: (turnId: string) => boolean = () => false,
+  awayOf: (turnId: string) => TurnAway | undefined = () => undefined,
 ): Promise<{ ok: true; chat: ChatDetailView } | Refusal> {
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
   const current = await currentConversation(t, chat);
   const { earlier, state } = current;
-  const turns = current.turns.map((turn) =>
-    turn.status === 'running' && isDetached(turn.id) ? { ...turn, detached: true } : turn,
-  );
+  const turns = current.turns.map((turn) => {
+    const away = turn.status === 'running' ? awayOf(turn.id) : undefined;
+    if (away === undefined) return turn;
+    return { ...turn, detached: true, ...(away.since ? { detachedAt: away.since.toISOString() } : {}) };
+  });
   const queue = turns.filter((turn) => turn.status === 'queued').sort(queueOrder);
   const question = openQuestion(turns);
   const branchedFrom = await branchedFromOf(t, chat);

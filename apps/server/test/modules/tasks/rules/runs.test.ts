@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   arrivalOf,
   blocked,
+  CARRIED_ON,
+  carriedOn,
   conversationTitle,
+  failureText,
   noteBytes,
   previousEntryAt,
   replyStarted,
@@ -153,5 +156,50 @@ describe('noteBytes', () => {
     const cut = noteBytes(`a${'é'.repeat(1024 * 1024)}`);
     expect(cut).toHaveLength(2 * 1024 * 1024 - 1);
     expect(new TextDecoder('utf-8', { fatal: true }).decode(cut).endsWith('é')).toBe(true);
+  });
+});
+
+describe('a failed turn taken back (2026-11-12)', () => {
+  const error = 'machine_disconnected: Airia devbox was unreachable for 30 minutes: the turn stopped.';
+  const reason = 'Airia devbox was unreachable for 30 minutes: the turn stopped.';
+  const blockedBy = (why: string | null, overrides: Partial<TaskNow> = {}) => ({
+    ...at('blocked', overrides),
+    blockedReason: why,
+  });
+  const history = [row('started', 'dev'), row('blocked', 'dev', { reason })];
+
+  it('blocks a task with the words of a machine that went away, and any other error as it is', () => {
+    expect(failureText(error)).toBe(reason);
+    expect(failureText('machine_disconnected')).toBe('machine_disconnected');
+    expect(failureText(null)).toBe('The turn failed');
+    expect(turnEnded(at('working'), develop, { status: 'failed', error })).toMatchObject({
+      stepState: 'blocked',
+      blockedReason: reason,
+    });
+  });
+
+  it('carries the task on when that failure blocked it and nothing happened since but an edit', () => {
+    const change = {
+      stepState: 'working',
+      blockedReason: null,
+      event: { kind: 'started', system: true, to: develop, round: 2, reason: CARRIED_ON },
+      quiet: true,
+    };
+    expect(carriedOn(blockedBy(reason), develop, error, history)).toEqual(change);
+    expect(carriedOn(blockedBy(reason), develop, error, [...history, row('edited', null)])).toEqual(change);
+  });
+
+  it('leaves a task that moved, another block, or a block by something else', () => {
+    const cases: [ReturnType<typeof blockedBy>, readonly ReturnType<typeof row>[]][] = [
+      [blockedBy(reason, { state: 'cancelled' }), history],
+      [blockedBy(reason, { currentStepId: 'cr' }), history],
+      [{ ...at('working'), blockedReason: null }, history],
+      [blockedBy('Something else'), history],
+      [blockedBy(reason), [...history, row('retried', 'dev')]],
+      [blockedBy(reason), [row('blocked', 'dev', { reason: 'Something else' })]],
+      [blockedBy(reason), [row('blocked', 'cr', { reason })]],
+      [blockedBy(reason), []],
+    ];
+    for (const [task, rows] of cases) expect(carriedOn(task, develop, error, rows)).toBeUndefined();
   });
 });

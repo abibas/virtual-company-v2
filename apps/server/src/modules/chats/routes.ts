@@ -85,7 +85,7 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
   const { turns, queue, live } = runtime;
   const queued = { ...turns, queue };
   return newRouter()
-    .route('/', chatRoutes(deps, live.isDetached))
+    .route('/', chatRoutes(deps, live.awayOf))
     .route('/', reportChatRoutes(deps))
     .route('/', branchRoutes(deps))
     .route('/', turnRoutes(queued))

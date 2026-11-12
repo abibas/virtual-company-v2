@@ -25,7 +25,7 @@ describe('loadConfig', () => {
       MWC_COMPANY_CREATORS: [],
       MWC_JOBS: true,
       MWC_RECONCILE_MINUTES: 10,
-      MWC_TURN_GRACE_SECONDS: 180,
+      MWC_TURN_GRACE_SECONDS: 1800,
       MWC_LOGIN_HELPER: 'docker',
       MWC_LOCAL_POWER: 'auto',
       MWC_LOCAL_DOCKER: 'auto',
@@ -292,10 +292,11 @@ describe('loadConfig jobs', () => {
     expect(() => loadConfig({ ...valid, MWC_JOBS: 'sometimes' })).toThrow(/MWC_JOBS/);
   });
 
-  it('keeps a turn whose runner went away for 180 s unless MWC_TURN_GRACE_SECONDS says otherwise (1 to 3600)', () => {
-    expect(loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: '' }).MWC_TURN_GRACE_SECONDS).toBe(180);
+  it('keeps a turn whose runner went away for 30 minutes unless MWC_TURN_GRACE_SECONDS says otherwise (1 to 86400)', () => {
+    expect(loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: '' }).MWC_TURN_GRACE_SECONDS).toBe(1800);
     expect(loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: '30' }).MWC_TURN_GRACE_SECONDS).toBe(30);
-    for (const seconds of ['0', '3601', '1.5', 'soon']) {
+    expect(loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: '86400' }).MWC_TURN_GRACE_SECONDS).toBe(86_400);
+    for (const seconds of ['0', '86401', '1.5', 'soon']) {
       expect(() => loadConfig({ ...valid, MWC_TURN_GRACE_SECONDS: seconds })).toThrow(
         /MWC_TURN_GRACE_SECONDS/,
       );

@@ -15,9 +15,11 @@ export const HELD_TURNS_MAX = 256;
 
 /**
  * How long the server keeps a turn whose runner went away (its link dropped, or the server restarted) waiting for that
- * runner to say hello with it, before it fails the turn (`machine_disconnected`, `server_restarted`).
+ * runner to say hello with it, before it fails the turn (`machine_disconnected`, `server_restarted`): 30 minutes since
+ * 2026-11-12 (180 s before, which a network outage of a few minutes outlasted). A runner that comes back later still
+ * gets the turn back while nothing else ran in its chat (docs/harness.md "Surviving restarts").
  */
-export const TURN_REATTACH_GRACE_MS = 180_000;
+export const TURN_REATTACH_GRACE_MS = 30 * 60_000;
 
 /** A turn a runner holds as it says hello. */
 export const HeldTurn = protocolObject({

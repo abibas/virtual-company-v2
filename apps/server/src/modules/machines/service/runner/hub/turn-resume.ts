@@ -1,14 +1,7 @@
 import type { HeldTurn, ResumedTurn } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import type { RunnerConnection } from '../connection.ts';
-import {
-  type Binding,
-  sendFrame,
-  TURN_DISCONNECTED,
-  type TurnAdopter,
-  type TurnChannel,
-  type TurnEnding,
-} from './turn-types.ts';
+import { type Binding, sendFrame, type TurnAdopter, type TurnChannel } from './turn-types.ts';
 
 /**
  * Taking turns back (S5.4, docs/runner-protocol.md "Surviving restarts"): a runner's hello names the turns it holds;
@@ -17,8 +10,8 @@ import {
  */
 export interface ResumeDeps {
   readonly bindings: Map<string, Binding>;
-  /** Ends a turn: its binding goes and its sink hears the end. */
-  readonly end: (binding: Binding, ending: TurnEnding) => void;
+  /** Ends a waiting turn its runner came back without (`machine_disconnected: …`). */
+  readonly lost: (binding: Binding) => void;
   /** The channel of a turn, which follows it from connection to connection. */
   readonly channelOf: (binding: Binding) => TurnChannel;
   /** Who builds the sink of a turn a restarted server takes back, when one was set. */
@@ -51,11 +44,11 @@ async function adoptOne(
   if (sink === undefined || bindings.has(turnId)) return undefined;
   const binding: Binding = {
     turnId,
+    companyId: connection.runner.companyId,
     machineId: connection.machineId,
     sink,
     connection,
     grace: undefined,
-    stopWanted: false,
   };
   bindings.set(turnId, binding);
   sink.adopted?.(deps.channelOf(binding));
@@ -64,23 +57,22 @@ async function adoptOne(
 
 /**
  * A runner's hello (S5.4): each turn it holds is bound to its connection (taken back from the chats module when this
- * process has none) and `turn.resume` says where to resume, null for a turn the server no longer has; a waiting turn
- * of its machine it does not hold ends; a stop asked meanwhile goes now.
+ * process has none, or no longer has it live: the chats module decides, `turnAdopter`) and `turn.resume` says where to
+ * resume, null for a turn the server no longer has; a waiting turn of its machine it does not hold ends.
  */
 export async function resume(
   deps: ResumeDeps,
   connection: RunnerConnection,
   held: readonly HeldTurn[],
 ): Promise<void> {
-  const { bindings, end } = deps;
+  const { bindings } = deps;
   const named = new Set(held.map((turn) => turn.turnId));
   for (const binding of [...bindings.values()]) {
     const waiting = binding.machineId === connection.machineId && binding.connection === undefined;
-    if (waiting && !named.has(binding.turnId)) end(binding, TURN_DISCONNECTED);
+    if (waiting && !named.has(binding.turnId)) deps.lost(binding);
   }
   if (held.length === 0) return;
   const turns: ResumedTurn[] = [];
-  const bound: Binding[] = [];
   for (const { turnId } of held) {
     const known = bindings.get(turnId);
     const binding =
@@ -94,13 +86,7 @@ export async function resume(
       continue;
     }
     bind(binding, connection);
-    bound.push(binding);
     turns.push({ turnId, lastSeq: (await binding.sink.lastSeq?.()) ?? 0 });
   }
   sendFrame(connection, { type: 'turn.resume', turns });
-  for (const binding of bound) {
-    if (!binding.stopWanted || bindings.get(binding.turnId) !== binding) continue;
-    binding.stopWanted = false;
-    sendFrame(connection, { type: 'turn.stop', turnId: binding.turnId });
-  }
 }

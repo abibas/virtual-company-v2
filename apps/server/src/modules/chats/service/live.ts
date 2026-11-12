@@ -4,14 +4,15 @@ import type { TurnEvent } from '@mwc/shared/harness';
 import type { TurnEventItem } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import type { CredentialsForHarness } from '../../credentials/index.ts';
-import type { TurnChannel, TurnEnding, TurnSink, TurnToolCall, TurnToolReply } from '../../machines/index.ts';
+import type { TurnChannel, TurnEnding, TurnSink } from '../../machines/index.ts';
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome, withEvent } from '../rules.ts';
 import { noticeQuestion } from './ask-notice.ts';
 import { type ChatBus, chatBus } from './bus.ts';
-import type { AgentToolTurn, TaskTurnContext, TaskTurnHook } from './task-hook.ts';
+import { NO_TOOLS_HERE, toolCall } from './live-tools.ts';
+import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
 
 /**
@@ -47,8 +48,13 @@ export interface LiveDeps {
 interface LiveTurn {
   channel: TurnChannel | undefined;
   stopRequested: boolean;
-  /** Its runner went away and the turn waits for it (S5.4). */
-  detached: boolean;
+  /** Since when its runner is away and the turn waits for it (S5.4); undefined while attached. */
+  detachedAt: Date | undefined;
+}
+
+/** A running turn's runner is away: since when, when this process saw it go. */
+export interface TurnAway {
+  readonly since: Date | undefined;
 }
 
 /** What a turn's sink knows besides its row: its task step (S5.3b) and the chat's agent, whose tools it answers (S6a). */
@@ -57,7 +63,7 @@ export interface SinkContext {
   readonly agentPrincipalId?: string | undefined;
 }
 
-export const NO_TOOLS_HERE = 'This turn has no tools from the server.';
+export { NO_TOOLS_HERE };
 
 /** One turn's end as `ended` writes it. */
 interface Ending {
@@ -146,33 +152,6 @@ async function ended(l: Live, t: TenantDb, turn: ChatTurn, end: Ending): Promise
   await l.ended?.(t, turn.chatId);
 }
 
-/** An agent's tool call, answered by the tasks module's hook on the turn's queue; none without a hook or an agent. */
-async function toolCall(
-  deps: LiveDeps,
-  run: (work: () => Promise<void>) => Promise<void>,
-  t: TenantDb,
-  of: { readonly turn: ChatTurn; readonly context: SinkContext },
-  call: TurnToolCall,
-): Promise<TurnToolReply> {
-  const { turn, context } = of;
-  const agentPrincipalId = context.agentPrincipalId ?? context.task?.agentPrincipalId;
-  if (deps.tasks?.tool === undefined || agentPrincipalId === undefined)
-    return { ok: false, text: NO_TOOLS_HERE };
-  const at: AgentToolTurn = {
-    turnId: turn.id,
-    chatId: turn.chatId,
-    agentPrincipalId,
-    by: turn.createdBy,
-    task: context.task,
-  };
-  let reply: TurnToolReply = { ok: false, text: NO_TOOLS_HERE };
-  const answer = deps.tasks.tool.bind(deps.tasks);
-  await run(async () => {
-    reply = await answer(t, at, call);
-  });
-  return reply;
-}
-
 export function chatsLive(deps: LiveDeps) {
   const bus = chatBus();
   const live = new Map<string, LiveTurn>();
@@ -194,7 +173,7 @@ export function chatsLive(deps: LiveDeps) {
       const { task } = context;
       const run = queue(deps.logger, turn.id);
       let outcome: TurnOutcome = {};
-      const entry: LiveTurn = { channel: undefined, stopRequested: false, detached: false };
+      const entry: LiveTurn = { channel: undefined, stopRequested: false, detachedAt: undefined };
       live.set(turn.id, entry);
       const hook = task === undefined ? undefined : deps.tasks;
       if (adopted) {
@@ -218,7 +197,7 @@ export function chatsLive(deps: LiveDeps) {
           }),
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
-        tool: (call) => toolCall(deps, run, t, { turn, context }, call),
+        tool: (call) => toolCall(deps.tasks, run, t, { turn, context }, call),
         end: (ending) => run(() => ended(l, t, turn, { ending, outcome, used, task })),
         lastSeq: async () => {
           let seq = 0;
@@ -228,11 +207,15 @@ export function chatsLive(deps: LiveDeps) {
           return seq;
         },
         detached: (away) => {
-          entry.detached = away;
+          entry.detachedAt = away ? deps.clock() : undefined;
+          const since = entry.detachedAt === undefined ? {} : { detachedAt: entry.detachedAt.toISOString() };
           void run(async () => {
             const row = await turnsRepo.get(t, turn.chatId, turn.id);
             if (row?.status === 'running')
-              bus.publish(turn.chatId, { kind: 'turn', turn: { ...turnView(row), detached: away } });
+              bus.publish(turn.chatId, {
+                kind: 'turn',
+                turn: { ...turnView(row), detached: away, ...since },
+              });
           });
         },
         adopted: (channel) => {
@@ -240,9 +223,14 @@ export function chatsLive(deps: LiveDeps) {
         },
       };
     },
-    /** Whether a running turn waits for its runner: it went away, or this process has not taken the turn back yet. */
-    isDetached(turnId: string): boolean {
-      return live.get(turnId)?.detached ?? true;
+    /**
+     * A running turn waiting for its runner: since when it went away, or an unknown time when this process has not
+     * taken the turn back yet; undefined while attached.
+     */
+    awayOf(turnId: string): TurnAway | undefined {
+      const entry = live.get(turnId);
+      if (entry === undefined) return { since: undefined };
+      return entry.detachedAt === undefined ? undefined : { since: entry.detachedAt };
     },
     /** Whether this process holds the turn (it started it, or took it back after a restart). */
     holds(turnId: string): boolean {

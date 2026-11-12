@@ -1,5 +1,5 @@
-import type { TaskEvent } from '@mwc/db';
-import { CHAT_TITLE } from '@mwc/shared/chats';
+import type { Task, TaskEvent } from '@mwc/db';
+import { CHAT_TITLE, disconnectedWords } from '@mwc/shared/chats';
 import type { ArtifactSkipReason, ChatTurnStatus, TaskStepState } from '@mwc/shared/enums';
 import {
   ARTIFACT_LIMITS,
@@ -13,8 +13,8 @@ import type { EventDraft } from './machine.ts';
 
 // A step's run (S5.3b, docs/processes.md "Built in S5.3b"), pure: how the task came to the step this time (the prompt's
 // hand-off), what a turn's end or a refused start makes of the task's step state, what a person's reply in the step's
-// conversation does, a conversation's title and a skipped file's words. The service reads the rows and writes what
-// these return.
+// conversation does, a failed turn taken back (2026-11-12), a conversation's title and a skipped file's words. The
+// service reads the rows and writes what these return.
 
 /** The history rows that bring a task to a step, and how a prompt says it. */
 const ARRIVALS: Readonly<Partial<Record<TaskEvent['kind'], ArrivalKind>>> = {
@@ -66,6 +66,13 @@ export interface StepChange {
 const reasonOf = (text: string) =>
   text.length > TASK_REASON_MAX ? `${text.slice(0, TASK_REASON_MAX - 1)}…` : text;
 
+/** Why the task is blocked, from a failure's text: cut to a reason's length, "The turn failed" for none. */
+const blockReason = (text: string) => reasonOf(text.trim() || 'The turn failed');
+
+/** A failed turn's error as a blocked task says it: the words of `machine_disconnected: <words>`, else as it is. */
+export const failureText = (error: string | null): string =>
+  error === null ? 'The turn failed' : (disconnectedWords(error) ?? error);
+
 /** True while the task is active at the step and being worked on there. */
 const workingAt = (task: TaskNow, step: StepRule) =>
   task.state === 'active' && task.currentStepId === step.id && task.stepState === 'working';
@@ -74,7 +81,7 @@ const workingAt = (task: TaskNow, step: StepRule) =>
 export function blocked(task: TaskNow, step: StepRule, reason: string): StepChange | undefined {
   if (!workingAt(task, step)) return undefined;
   const round = roundsAt(task.rounds, step.id).entries;
-  const why = reasonOf(reason.trim() || 'The turn failed');
+  const why = blockReason(reason);
   return {
     stepState: 'blocked',
     blockedReason: why,
@@ -91,7 +98,7 @@ export function turnEnded(
   step: StepRule,
   end: { readonly status: ChatTurnStatus; readonly error: string | null },
 ): StepChange | undefined {
-  if (end.status === 'failed') return blocked(task, step, end.error ?? 'The turn failed');
+  if (end.status === 'failed') return blocked(task, step, failureText(end.error));
   if (!workingAt(task, step)) return undefined;
   const round = roundsAt(task.rounds, step.id).entries;
   const stopped = end.status === 'stopped';
@@ -101,6 +108,34 @@ export function turnEnded(
     blockedReason: null,
     event: { kind: 'turn_ended', system: true, to: step, round, reason },
     ...(stopped ? { quiet: true } : {}),
+  };
+}
+
+/** The history row a taken-back turn's task says it carries on with. */
+export const CARRIED_ON = 'The machine came back with the turn; it goes on';
+
+/**
+ * A step's turn that failed because its runner was away, taken back when that runner came back with it (2026-11-12):
+ * the task works at the step again, while that failure blocked it (its reason, as `turnEnded` wrote it) and nothing
+ * happened to it since (the block is its latest history row but edits); undefined otherwise. Wakes nobody.
+ */
+export function carriedOn(
+  task: TaskNow & Pick<Task, 'blockedReason'>,
+  step: StepRule,
+  error: string | null,
+  history: readonly Pick<TaskEvent, 'kind' | 'toStepId' | 'reason'>[],
+): StepChange | undefined {
+  const reason = blockReason(failureText(error));
+  const last = history.findLast((event) => event.kind !== 'edited');
+  const blockedBy = task.stepState === 'blocked' && task.blockedReason === reason;
+  if (task.state !== 'active' || task.currentStepId !== step.id || !blockedBy) return undefined;
+  if (last?.kind !== 'blocked' || last.toStepId !== step.id || last.reason !== reason) return undefined;
+  const round = roundsAt(task.rounds, step.id).entries;
+  return {
+    stepState: 'working',
+    blockedReason: null,
+    event: { kind: 'started', system: true, to: step, round, reason: CARRIED_ON },
+    quiet: true,
   };
 }
 

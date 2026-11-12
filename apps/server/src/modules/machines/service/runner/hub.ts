@@ -1,4 +1,4 @@
-import type { DbHandle } from '@mwc/db';
+import { type DbHandle, tenant } from '@mwc/db';
 import {
   encodeFrame,
   type HeldTurn,
@@ -7,6 +7,7 @@ import {
   type RunnerHello,
 } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
+import { machinesRepo } from '../../repo.ts';
 import { MIN_RUNNER_VERSION } from '../../rules.ts';
 import { type ConnectionContext, HubError, RunnerConnection } from './connection.ts';
 import { closeAll, connections, GOING_AWAY, machineQueues } from './hub/sockets.ts';
@@ -70,6 +71,11 @@ function connectListeners(logger: Logger) {
 
 type HubDeps = { readonly db: DbHandle; readonly logger: Logger; readonly clock: () => Date };
 
+/** A machine's name, for the words of a turn whose runner went away for good; undefined once it is gone. */
+async function machineName(db: DbHandle, companyId: string, machineId: string): Promise<string | undefined> {
+  return (await machinesRepo().get(await tenant(db, companyId), machineId))?.name;
+}
+
 /** What the hub keeps: its sockets, write queues, connect listeners and the boards of tunnels, terminals and turns. */
 function hubParts(deps: HubDeps, options: HubOptions) {
   const sockets = connections();
@@ -80,7 +86,11 @@ function hubParts(deps: HubDeps, options: HubOptions) {
     listeners: connectListeners(deps.logger),
     tunnels: tunnelBoard(deps.clock, sockets.ready),
     terminals: terminalBoard(),
-    turns: turnBoard({ ...turnOptions, logger: deps.logger }),
+    turns: turnBoard({
+      ...turnOptions,
+      logger: deps.logger,
+      machineName: (companyId, machineId) => machineName(deps.db, companyId, machineId),
+    }),
   };
 }
 

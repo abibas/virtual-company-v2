@@ -99,6 +99,8 @@ export function taskTurns(deps: TurnsDeps) {
     },
     /** The turn of the task's conversations at the step that runs or waits for its machine, if any. */
     running: (t: TenantDb, taskId: string, stepId: string) => taskChatsRepo.runningTurnOf(t, taskId, stepId),
+    /** True while a running turn waits for its machine's runner to come back with it (S5.4). */
+    away: (turnId: string): boolean => deps.live.awayOf(turnId) !== undefined,
     /**
      * Asks the turn's runner to stop it, or ends it while it waits for its machine; false when this process has no such
      * live turn and it does not wait.

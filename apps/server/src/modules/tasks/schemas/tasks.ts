@@ -152,6 +152,11 @@ export const TaskConversationSchema = z
         waitsForMachine: z.boolean().openapi({
           description: "A `queued` turn that waits for the agent's stopped machine to start",
         }),
+        reconnecting: z.boolean().openapi({
+          description:
+            "A `running` turn whose machine's runner is away (its link dropped): it goes on there, and the task stays " +
+            'worked on, until the runner comes back with it or the grace runs out (docs/harness.md "Surviving restarts")',
+        }),
       })
       .nullable(),
     createdAt: At,

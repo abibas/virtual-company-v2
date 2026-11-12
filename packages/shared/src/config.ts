@@ -96,9 +96,13 @@ const EnvSchema = z.object({
   MWC_RECONCILE_MINUTES: z.preprocess(emptyAsUnset, z.coerce.number().int().min(1).max(1440).default(10)),
   /**
    * Seconds a running chat turn whose runner went away (its link dropped, or this server restarted) waits for that
-   * runner to come back with it before it fails (1 to 3600; docs/harness.md "Surviving restarts"). Default 180.
+   * runner to come back with it before it fails (1 to 86400; docs/harness.md "Surviving restarts"). Default 1800 (30
+   * minutes, since 2026-11-12), for every machine.
    */
-  MWC_TURN_GRACE_SECONDS: z.preprocess(emptyAsUnset, z.coerce.number().int().min(1).max(3600).default(180)),
+  MWC_TURN_GRACE_SECONDS: z.preprocess(
+    emptyAsUnset,
+    z.coerce.number().int().min(1).max(86_400).default(1800),
+  ),
   /**
    * The master key that seals people's subscriptions (AES-256-GCM): the base64 of 32 random bytes. Required in
    * production; in development the server makes `.data/master.key` once instead, and tests use a key in memory. A

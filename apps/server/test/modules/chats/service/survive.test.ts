@@ -25,13 +25,14 @@ import {
   turnRow,
 } from '../../../fixtures/chats/world.ts';
 import { as } from '../../../fixtures/members/members.ts';
-import { runScene, taskRow } from '../../../fixtures/runs.ts';
+import { runScene, stepStateIs, taskRow } from '../../../fixtures/runs.ts';
 import { historyOf, makeTask, stepOf } from '../../../fixtures/tasks.ts';
 
 /**
  * Turns that survive restarts, the server's side (S5.4): a dropped link leaves a turn running and detached for the
  * grace, a reconnect within it resumes the turn where the server's events stop, a restarted server takes a turn back
- * from the runner's hello, and the grace running out fails the turn (its task blocked once). On PGlite with `FakeRunner`.
+ * from the runner's hello, and the grace running out fails the turn in words naming the machine (its task blocked
+ * once). A runner coming back after the grace is `reclaim.test.ts`'s. On PGlite with `FakeRunner`.
  */
 
 const KEEPS = { reattach: true } as const;
@@ -71,7 +72,11 @@ describe('a turn whose runner keeps it (caps.reattach)', () => {
     await eventually('two events stored', async () => (await eventRows(w.t.db, start.turnId)).length === 2);
     await drop(w, s);
     expect((await turnRow(w.t.db, start.turnId))?.status).toBe('running');
-    expect((await detailOf(w, s)).turns.at(-1)).toMatchObject({ id: start.turnId, detached: true });
+    expect((await detailOf(w, s)).turns.at(-1)).toMatchObject({
+      id: start.turnId,
+      detached: true,
+      detachedAt: w.clock().toISOString(),
+    });
     expect(w.hub.live(s.machineId).turns).toBe(1);
     const runner = await comeBack(s, [{ turnId: start.turnId, lastSeq: 4, ended: true }]);
     expect(await runner.frames.next('turn.resume')).toEqual({
@@ -95,11 +100,11 @@ describe('a turn whose runner keeps it (caps.reattach)', () => {
     expect((await runner.frames.next('turn.resume')).turns).toEqual([{ turnId: unknown, lastSeq: null }]);
     expect(await ended(w.t.db, start.turnId)).toMatchObject({
       status: 'failed',
-      error: 'machine_disconnected',
+      error: expect.stringMatching(/^machine_disconnected: .+ came back without this turn: it stopped there/),
     });
   });
 
-  it('delivers a stop asked while it waits once its runner is back', async () => {
+  it('ends at once when stopped while it waits (2026-11-12), and its runner coming back with it hears it is gone', async () => {
     const s = await scene(w, { caps: KEEPS });
     const start = await startedTurn(w, s);
     await drop(w, s);
@@ -108,11 +113,12 @@ describe('a turn whose runner keeps it (caps.reattach)', () => {
       chatPath(s.company, s.chat.id, `/turns/${start.turnId}/stop`),
     );
     expect(stop.status).toBe(202);
-    const runner = await comeBack(s, [{ turnId: start.turnId, lastSeq: 0, ended: false }]);
-    await runner.frames.next('turn.resume');
-    expect(await runner.frames.next('turn.stop')).toEqual({ type: 'turn.stop', turnId: start.turnId });
-    endTurn(runner, start.turnId, { ok: false, exitCode: null, error: 'stopped' });
     expect(await ended(w.t.db, start.turnId)).toMatchObject({ status: 'stopped' });
+    const runner = await comeBack(s, [{ turnId: start.turnId, lastSeq: 0, ended: false }]);
+    expect((await runner.frames.next('turn.resume')).turns).toEqual([
+      { turnId: start.turnId, lastSeq: null },
+    ]);
+    expect(runner.frames.of('turn.stop')).toEqual([]);
   });
 
   it('starts no second turn in its chat while it waits: a message queues, and starts once the turn ended', async () => {
@@ -169,11 +175,15 @@ describe('the grace (S5.4)', () => {
     });
     const start = await s.runner.frames.next('turn.start');
     await s.runner.disconnect();
+    const words = /^.+ was unreachable for under a second: the turn stopped\.$/;
     expect(await ended(quick.t.db, start.turnId)).toMatchObject({
       status: 'failed',
-      error: 'machine_disconnected',
+      error: expect.stringMatching(new RegExp(`^machine_disconnected: ${words.source.slice(1)}`)),
     });
-    expect(await taskRow(quick.t.db, task.id)).toMatchObject({ stepState: 'blocked' });
+    // The task says the words, without the code.
+    expect(await stepStateIs(quick.t.db, task.id, 'blocked')).toMatchObject({
+      blockedReason: expect.stringMatching(words),
+    });
     expect((await historyOf(quick.t.db, task.id)).filter(([kind]) => kind === 'blocked')).toHaveLength(1);
   });
 

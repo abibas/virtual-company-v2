@@ -67,8 +67,8 @@ export type TurnAdopter = (
   turnId: string,
 ) => Promise<TurnSink | undefined>;
 
-/** The end of a turn whose runner went away for good. */
-export const TURN_DISCONNECTED: TurnEnding = { ok: false, exitCode: null, error: 'machine_disconnected' };
+/** The end of a turn stopped while its runner was away (S5.4; at once since 2026-11-12, not after the grace). */
+export const TURN_STOPPED_AWAY: TurnEnding = { ok: false, exitCode: null, error: 'stopped' };
 
 /** What a `turn.end` says, without its unknown fields. */
 export function endingOf(frame: TurnEnd): TurnEnding {
@@ -83,11 +83,11 @@ export function endingOf(frame: TurnEnd): TurnEnding {
 /** A turn as the board holds it: its sink and the connection carrying it (none while it waits for its runner). */
 export interface Binding {
   readonly turnId: string;
+  readonly companyId: string;
   readonly machineId: string;
   readonly sink: TurnSink;
   connection: RunnerConnection | undefined;
   grace: ReturnType<typeof setTimeout> | undefined;
-  stopWanted: boolean;
 }
 
 /** Sends a server frame on a connection. */

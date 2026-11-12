@@ -58,7 +58,7 @@ export interface HubOptions {
   readonly pingMs?: number;
   /** How long `close` waits for the sockets' close handshakes before it cuts them (2 s). */
   readonly closeTimeoutMs?: number;
-  /** How long a turn whose runner went away waits for it (S5.4; `TURN_REATTACH_GRACE_MS`, 180 s). */
+  /** How long a turn whose runner went away waits for it (S5.4; `TURN_REATTACH_GRACE_MS`, 30 minutes). */
   readonly turnGraceMs?: number;
 }
 

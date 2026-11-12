@@ -34,7 +34,7 @@ const ofTask = (t: TenantDb, taskId: string): Promise<ConversationRow[]> =>
 /** A turn of a task's conversation as its list shows it: how far it got and when. */
 export type ConversationTurnRow = Pick<
   typeof chatTurns.$inferSelect,
-  'chatId' | 'seq' | 'status' | 'createdAt' | 'startedAt' | 'endedAt' | 'machineWaitAt'
+  'id' | 'chatId' | 'seq' | 'status' | 'createdAt' | 'startedAt' | 'endedAt' | 'machineWaitAt'
 >;
 
 /** The turns of these conversations (Clears left out: they run nothing), for each one's state and last activity. */
@@ -43,6 +43,7 @@ async function turnsOf(t: TenantDb, chatIds: readonly string[]): Promise<Convers
   return t.selectFields(
     chatTurns,
     {
+      id: chatTurns.id,
       chatId: chatTurns.chatId,
       seq: chatTurns.seq,
       status: chatTurns.status,

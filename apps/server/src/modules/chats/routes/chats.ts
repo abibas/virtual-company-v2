@@ -14,6 +14,7 @@ import {
   CreateChatSchema,
   UpdateChatSchema,
 } from '../schemas.ts';
+import type { TurnAway } from '../service/live.ts';
 import { archiveChat, type ChatCaller, createChat, getChat, listChats, updateChat } from '../service.ts';
 
 /**
@@ -143,7 +144,7 @@ const archiveRoute = (deps: ServerDeps) => {
   });
 };
 
-export function chatRoutes(deps: ServerDeps, isDetached?: (turnId: string) => boolean) {
+export function chatRoutes(deps: ServerDeps, awayOf?: (turnId: string) => TurnAway | undefined) {
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
       const result = await listChats(c.var.tenant, c.req.valid('param').agentId);
@@ -158,7 +159,7 @@ export function chatRoutes(deps: ServerDeps, isDetached?: (turnId: string) => bo
       return c.json(result.chat, 201);
     })
     .openapi(getChatRoute(deps), async (c) => {
-      const result = await getChat(c.var.tenant, c.req.valid('param').chatId, isDetached);
+      const result = await getChat(c.var.tenant, c.req.valid('param').chatId, awayOf);
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
       return c.json(result.chat, 200);
     })

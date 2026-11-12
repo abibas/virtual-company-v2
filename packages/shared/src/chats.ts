@@ -96,3 +96,36 @@ export const BRANCH_SUPPORT: Readonly<Record<Harness, BranchSupport>> = {
   claude_code: 'any',
   codex: 'latest',
 };
+
+/**
+ * The error of a turn whose machine's runner went away (S5.4): `machine_disconnected`, and since 2026-11-12 the words
+ * the server writes after it, naming the machine and how long ("machine_disconnected: Airia devbox was unreachable for
+ * 30 minutes: the turn stopped."). The web and a blocked task show the words; a runner that comes back later with a
+ * turn ended so (or `server_restarted`) may still get it back (docs/harness.md "Surviving restarts").
+ */
+export const MACHINE_DISCONNECTED = 'machine_disconnected';
+const DISCONNECTED_PREFIX = `${MACHINE_DISCONNECTED}: `;
+
+/** `machine_disconnected: <words>`. */
+export const disconnectedError = (words: string): string => `${DISCONNECTED_PREFIX}${words}`;
+
+/** The words of `machine_disconnected: <words>`; undefined for any other error (the bare code too). */
+export const disconnectedWords = (error: string): string | undefined =>
+  error.startsWith(DISCONNECTED_PREFIX) ? error.slice(DISCONNECTED_PREFIX.length) : undefined;
+
+/** True for the error of a turn whose machine's runner went away, bare (before 2026-11-12) or with its words. */
+export const isDisconnected = (error: string | null | undefined): boolean =>
+  error === MACHINE_DISCONNECTED || (error ?? '').startsWith(DISCONNECTED_PREFIX);
+
+/** A length of time as people read it: "under a second", "45 seconds", "1 minute", "30 minutes", "2 hours 5 minutes". */
+export function durationWords(ms: number): string {
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+  if (ms < 1000) return 'under a second';
+  if (ms < 60_000) return plural(Math.floor(ms / 1000), 'second');
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return plural(minutes, 'minute');
+  const rest = minutes % 60;
+  return rest === 0
+    ? plural(minutes / 60, 'hour')
+    : `${plural(Math.floor(minutes / 60), 'hour')} ${plural(rest, 'minute')}`;
+}

@@ -172,6 +172,15 @@ describe('tunnel.set', () => {
       'tunnels.0.machineId',
     ]);
   });
+
+  it('says optionally whether the box reads running, as a boolean only', () => {
+    for (const running of [true, false]) {
+      expect(issuesOf(TunnelSet, { ...set, tunnels: [{ ...tunnel, running }] })).toEqual([]);
+    }
+    expect(issuesOf(TunnelSet, { ...set, tunnels: [{ ...tunnel, running: 'yes' }] })).toEqual([
+      'tunnels.0.running',
+    ]);
+  });
 });
 
 describe('ServerFrame', () => {

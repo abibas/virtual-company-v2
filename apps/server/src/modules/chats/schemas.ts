@@ -134,6 +134,11 @@ export const ChatTurnSchema = z
           "True while a running turn's runner is away (its link dropped, or the server restarted) and the turn waits " +
           'for it to come back with it (docs/harness.md "Surviving restarts"); left out otherwise',
       }),
+    detachedAt: dateTime.optional().openapi({
+      description:
+        'While `detached`: since when its runner is away, as this server saw the link drop (2026-11-12); left out when ' +
+        'not known (the server restarted and has not taken the turn back yet) and while attached',
+    }),
     usage: z
       .record(z.string(), z.unknown())
       .nullable()

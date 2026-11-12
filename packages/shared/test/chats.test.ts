@@ -4,7 +4,11 @@ import {
   CHAT_QUEUE_MAX,
   CHAT_TITLE,
   chatEventId,
+  disconnectedError,
+  disconnectedWords,
+  durationWords,
   isAfter,
+  isDisconnected,
   parseChatEventId,
   queueOrder,
 } from '../src/chats.ts';
@@ -41,5 +45,36 @@ describe('chats', () => {
     ] as const;
     expect([...queued].sort(queueOrder).map((turn) => turn.id)).toEqual(['e', 'b', 'd', 'a', 'c']);
     expect(CHAT_QUEUE_MAX).toBe(10);
+  });
+
+  it('write and read the words of a turn whose machine went away, and tell its error from any other', () => {
+    const error = disconnectedError('Airia devbox was unreachable for 30 minutes: the turn stopped.');
+    expect(error).toBe(
+      'machine_disconnected: Airia devbox was unreachable for 30 minutes: the turn stopped.',
+    );
+    expect(disconnectedWords(error)).toBe('Airia devbox was unreachable for 30 minutes: the turn stopped.');
+    expect(disconnectedWords('machine_disconnected')).toBeUndefined();
+    expect(disconnectedWords('spawn_failed: no claude')).toBeUndefined();
+    expect([error, 'machine_disconnected', 'server_restarted', null, undefined].map(isDisconnected)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('say a length of time in words', () => {
+    expect(
+      [300, 1000, 45_500, 60_000, 30 * 60_000 + 999, 60 * 60_000, 125 * 60_000].map(durationWords),
+    ).toEqual([
+      'under a second',
+      '1 second',
+      '45 seconds',
+      '1 minute',
+      '30 minutes',
+      '1 hour',
+      '2 hours 5 minutes',
+    ]);
   });
 });

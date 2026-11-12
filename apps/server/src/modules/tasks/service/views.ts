@@ -203,16 +203,21 @@ export function boardCard(
 }
 
 /**
- * Where a conversation's turns stand: the running one's status, else the latest's, and whether it waits for its stopped
- * machine to start; and its last start or end.
+ * Where a conversation's turns stand: the running one's status, else the latest's, whether it waits for its stopped
+ * machine to start, and whether a running one waits for its machine's runner to come back (`away`, S5.4); and its last
+ * start or end.
  */
-export function lastTurnOf(turns: readonly ConversationTurnRow[]): TaskConversationView['lastTurn'] {
+export function lastTurnOf(
+  turns: readonly ConversationTurnRow[],
+  away: (turnId: string) => boolean = () => false,
+): TaskConversationView['lastTurn'] {
   if (turns.length === 0) return null;
   const latest = turns.reduce((a, b) => (b.seq > a.seq ? b : a));
   const shown = turns.find((turn) => turn.status === 'running') ?? latest;
   const at = Math.max(...turns.map((turn) => (turn.endedAt ?? turn.startedAt ?? turn.createdAt).getTime()));
   const waitsForMachine = shown.status === 'queued' && shown.machineWaitAt !== null;
-  return { status: shown.status, at: new Date(at).toISOString(), waitsForMachine };
+  const reconnecting = shown.status === 'running' && away(shown.id);
+  return { status: shown.status, at: new Date(at).toISOString(), waitsForMachine, reconnecting };
 }
 
 /** A step's conversation of the task: its chat, the step (by its name now), the round it began in, its agent. */
@@ -222,6 +227,7 @@ export function conversationView(
   agent: string | undefined,
   names: Names,
   turns: readonly ConversationTurnRow[] = [],
+  away?: (turnId: string) => boolean,
 ): TaskConversationView {
   const stepId = row.taskStepId as string;
   return {
@@ -231,7 +237,7 @@ export function conversationView(
     agent: agent === undefined ? null : names(agent),
     title: row.title,
     started: row.sessionId !== null,
-    lastTurn: lastTurnOf(turns),
+    lastTurn: lastTurnOf(turns, away),
     createdAt: row.createdAt.toISOString(),
   };
 }

@@ -107,6 +107,7 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
       agents.get(chat.agentId),
       names,
       turns.filter((turn) => turn.chatId === chat.id),
+      deps.steps?.away,
     ),
   );
   const artifacts = (await repo.artifacts.counts(t, [task.id])).get(task.id) ?? 0;

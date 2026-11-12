@@ -70,6 +70,16 @@ export interface TaskTurnHook {
   skipped(t: TenantDb, turn: TaskTurnContext, collected: TurnCollected): Promise<void>;
   /** The turn ended (its row is closed). */
   ended(t: TenantDb, turn: TaskTurnContext, end: TaskTurnEnd): Promise<void>;
+  /**
+   * A turn that failed because its runner was away (`error`), which that runner came back with (2026-11-12): the task
+   * works at the step again when that failure blocked it and nothing happened to it since; false otherwise (the turn
+   * then stays failed and its runner stops it).
+   */
+  reattached?(
+    t: TenantDb,
+    turn: TaskTurnContext,
+    failure: { readonly error: string | null },
+  ): Promise<boolean>;
   /** The agents' tools a turn of this chat gets (S6a): a task step's by its kind, a Lead's in its own chats, or none. */
   toolsFor?(
     t: TenantDb,
