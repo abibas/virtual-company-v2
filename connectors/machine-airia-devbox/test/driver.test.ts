@@ -253,6 +253,8 @@ describe('AiriaDevboxDriver: tunnelCommand', () => {
         '-o',
         'ServerAliveCountMax=3',
         '-o',
+        'ConnectTimeout=30',
+        '-o',
         'BatchMode=yes',
         '-R',
         '127.0.0.1:9950:127.0.0.1:9950',

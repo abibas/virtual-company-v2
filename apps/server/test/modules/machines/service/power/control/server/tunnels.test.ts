@@ -35,6 +35,7 @@ const tunnelTo = (machineId: string) => ({
   target: { provider: 'airia_devbox', ref: BOX_REF },
   remotePort: PORT,
   localPort: PORT,
+  running: false,
 });
 const heldIds = () => power.held().map((tunnel) => tunnel.machineId);
 

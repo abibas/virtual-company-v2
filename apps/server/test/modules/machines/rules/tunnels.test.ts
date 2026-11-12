@@ -34,4 +34,10 @@ describe('tunnelSetKey', () => {
     expect(tunnelSetKey([tunnel(a)])).not.toBe(tunnelSetKey([tunnel(b)]));
     expect(tunnelSetKey([])).toBe('[]');
   });
+
+  it('differs once a box reads running, and treats a left-out running as false', () => {
+    const a = '019a0000-0000-7000-8000-00000000000a';
+    expect(tunnelSetKey([{ ...tunnel(a), running: true }])).not.toBe(tunnelSetKey([tunnel(a)]));
+    expect(tunnelSetKey([{ ...tunnel(a), running: false }])).toBe(tunnelSetKey([tunnel(a)]));
+  });
 });

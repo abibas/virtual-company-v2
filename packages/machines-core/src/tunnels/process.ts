@@ -13,6 +13,11 @@ export const TUNNEL_UP_AFTER_MS = 10_000;
 export const TUNNEL_RETRY_INITIAL_MS = 5_000;
 /** The longest wait between two starts. */
 export const TUNNEL_RETRY_MAX_MS = 5 * 60_000;
+/**
+ * The longest wait between two starts while the machine's last power reading says it runs (`TunnelSpec.running`): a
+ * running box's tunnel is down only because the link was, so it comes back soon after the link does.
+ */
+export const TUNNEL_RETRY_RUNNING_MAX_MS = 30_000;
 /** A tunnel that stayed up this long starts again after the first wait when it ends. */
 export const TUNNEL_STABLE_MS = 60_000;
 /** How long a stopped tunnel has after SIGTERM before its group gets SIGKILL. */
@@ -21,6 +26,11 @@ export const TUNNEL_KILL_GRACE_MS = 5_000;
 export const TUNNEL_CLEAR_RETRY_MS = 2_000;
 /** A tunnel clears its machine's port at most once in this long, so a port that stays taken falls back to the backoff. */
 export const TUNNEL_CLEAR_EVERY_MS = 5 * 60_000;
+/**
+ * While the machine reads running, the clearing runs before every try that follows a forward failure (or the end of a
+ * tunnel that was up), at most once in this long, so it cannot spin.
+ */
+export const TUNNEL_CLEAR_COOLDOWN_MS = 20_000;
 /** How long the clearing may take before its group gets SIGKILL. */
 export const TUNNEL_CLEAR_TIMEOUT_MS = 60_000;
 
@@ -76,6 +86,12 @@ export interface TunnelDeps {
 /** The wait before the start that follows `failures` failures in a row (0 for the first). */
 export function retryDelay(failures: number): number {
   return Math.min(TUNNEL_RETRY_MAX_MS, TUNNEL_RETRY_INITIAL_MS * 2 ** failures);
+}
+
+/** The same wait, capped at 30 s while the machine reads running (`TunnelSpec.running`). */
+export function retryDelayFor(failures: number, running: boolean): number {
+  const delay = retryDelay(failures);
+  return running ? Math.min(TUNNEL_RETRY_RUNNING_MAX_MS, delay) : delay;
 }
 
 /** The last line a process printed, trimmed and cut to the protocol's limit; undefined when it printed none. */

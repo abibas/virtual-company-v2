@@ -14,7 +14,10 @@ export function isTunnelWanted(status: PowerStatus | null): boolean {
   return status === null || LINKED.has(status);
 }
 
-/** A set's identity: each tunnel's machine and what it forwards where, in machine order (a box's size is left out). */
+/**
+ * A set's identity: each tunnel's machine, what it forwards where and whether its box reads running, in machine order
+ * (a box's size is left out), so a box turning running sends its controller the set again.
+ */
 export function tunnelSetKey(tunnels: readonly TunnelSpec[]): string {
   const rows = tunnels.map((tunnel) => [
     tunnel.machineId,
@@ -23,6 +26,7 @@ export function tunnelSetKey(tunnels: readonly TunnelSpec[]): string {
     tunnel.target.ref.zone,
     tunnel.remotePort,
     tunnel.localPort,
+    tunnel.running === true,
   ]);
   rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
   return JSON.stringify(rows);

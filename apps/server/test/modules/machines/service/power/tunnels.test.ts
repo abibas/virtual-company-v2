@@ -34,11 +34,13 @@ afterAll(() => w.close());
 
 /** The app's own port (`testConfig`): both ends of every tunnel. */
 const PORT = 9950;
-const tunnelTo = (machineId: string, port = PORT) => ({
+/** A box's tunnel; `running` while its last reading says it runs. */
+const tunnelTo = (machineId: string, port = PORT, running = false) => ({
   machineId,
   target: { provider: 'airia_devbox', ref: BOX_REF },
   remotePort: port,
   localPort: port,
+  running,
 });
 
 /** The controller's next `tunnel.set`, as the machines it names. */
@@ -90,7 +92,8 @@ describe('the tunnels a controller is sent', () => {
     expect(stop.status).toBe(202);
     expect(await nextSet(controller)).toEqual([]);
     await as(w, company.owner)('POST', powerPath(company, box.machineId, '/start'));
-    expect(await nextSet(controller)).toEqual([tunnelTo(box.machineId)]);
+    // The start read it running: the set says so, for the holder's quicker retries.
+    expect(await nextSet(controller)).toEqual([tunnelTo(box.machineId, PORT, true)]);
     // A scheduler step reads the box (running, unchanged) and sends nothing new.
     const step = scheduler(PORT);
     w.clock.advance(10 * 60_000);

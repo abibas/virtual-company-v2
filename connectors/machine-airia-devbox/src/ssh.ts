@@ -9,7 +9,10 @@ import type { PowerRef, TunnelPorts } from '@mwc/machines-core';
 
 /**
  * The ssh options of the standing tunnel: no shell on the box (`-N`), an exit when the box's port is taken
- * (`ExitOnForwardFailure`, so the runner retries), a dead link noticed within 45 s, and never a prompt (`BatchMode`).
+ * (`ExitOnForwardFailure`, so the holder retries), a dead link noticed within 45 s, a handshake that hangs given up
+ * after 30 s (`ConnectTimeout`, which bounds the banner exchange through gcloud's IAP proxy command too; 2026-11-12,
+ * after a flaky link left tries hanging), and never a prompt (`BatchMode`). No `TCPKeepAlive`: ssh talks to the IAP
+ * helper over a pipe, so TCP keepalives never reach the link (and it is on by default); `ServerAliveInterval` covers it.
  */
 export const TUNNEL_SSH_ARGS: readonly string[] = [
   '-N',
@@ -19,6 +22,8 @@ export const TUNNEL_SSH_ARGS: readonly string[] = [
   'ServerAliveInterval=15',
   '-o',
   'ServerAliveCountMax=3',
+  '-o',
+  'ConnectTimeout=30',
   '-o',
   'BatchMode=yes',
 ];

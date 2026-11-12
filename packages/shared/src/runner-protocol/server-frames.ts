@@ -155,13 +155,16 @@ const Port = z.int().min(1).max(65535);
 /**
  * One reverse SSH tunnel a power controller holds for a machine it powers: the machine's `127.0.0.1:remotePort` leads
  * to the controller's `127.0.0.1:localPort` (the server's own port), so the machine's runner reaches the server with
- * no public address.
+ * no public address. `running` (2026-11-12) is true while the machine's last power reading says it runs: the holder
+ * then retries within 30 s and clears the machine's port before each retry that follows a forward failure; left out
+ * (by an older server too) it is false. A change of it alone never restarts a tunnel.
  */
 export const TunnelSpec = protocolObject({
   machineId: Uuid,
   target: PowerTarget,
   remotePort: Port,
   localPort: Port,
+  running: z.boolean().optional(),
 });
 export type TunnelSpec = z.infer<typeof TunnelSpec>;
 
