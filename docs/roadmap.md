@@ -578,6 +578,29 @@ running for the slots. A step's failure is stored in words naming the
 machine (a bare code read back in words). "Check in every" on the Flow tab. Merging needs the dev API restarted
 (migrations 0027 and 0028 run on start) and the web reloaded; the runner is unchanged.
 
+### Between S6 and S7: the team room (Ihor, 2026-11-12)
+
+"Why in the team chat, others are not contributing … So there is a real teamchat. imagine that i'm here and Added
+collegue. So we are 2 humans 5 agents." He chose:
+
+1. **Faces on every message** (built first, branch `chat-faces`). An agent's icon, a person's avatar, or Most Wanted's
+   mark for system notices.
+2. **A flow's team chat becomes a group room.**
+   - **Who's in it:** the Lead, every step agent, and people.
+   - **Who may write:** the team's people on the org chart (the Lead's manager and anyone placed in the team) and
+     company admins and owners. Other members read only.
+   - **Step ends:** each step agent posts one line when its step ends (handed on, passed, sent back, blocked), under
+     its face, made from its own summary of that move. This costs no tokens and wakes no one; the Lead keeps its
+     event wake-ups and check-ins.
+   - **A person's message reaches every agent of the team**, his choice: "everyone may chime in". Each agent gets a
+     turn in its own room conversation (Keep context) with the recent messages, answers in the room under its face,
+     or stays silent: an empty or "nothing to add" reply posts nothing.
+   - **Guards:**
+     - an "@Name" message goes only to those agents;
+     - agents' own posts never trigger other agents, so there are no loops;
+     - the turns wait for free machine slots;
+     - a per-room cap on answers an hour.
+
 ### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
 Reshaped on 2026-11-12 with Ihor ("GitHub LOGIN and Confluence Login. I do wanna have SIMILAR profile to push data as
