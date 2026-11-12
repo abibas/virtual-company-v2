@@ -32,6 +32,7 @@ const SETTINGS = {
   windowSeconds: 120,
   maxPerHour: 3,
   maxPerDay: 20,
+  checkInMinutes: 10,
 };
 
 describe('a flow’s Lead wake-ups', () => {
@@ -53,8 +54,9 @@ describe('a flow’s Lead wake-ups', () => {
       done: false,
       signoffHours: null,
       windowSeconds: 60,
-      maxPerHour: 6,
-      maxPerDay: 40,
+      maxPerHour: 12,
+      maxPerDay: 150,
+      checkInMinutes: 5,
       leadIsAgent: true,
       chat: null,
       last: null,
@@ -75,11 +77,12 @@ describe('a flow’s Lead wake-ups', () => {
         ['update', 'wakeDone', false, true],
         ['update', 'wakeSignoffHours', null, 24],
         ['update', 'wakeWindowSeconds', 60, 120],
-        ['update', 'wakeMaxPerHour', 6, 3],
-        ['update', 'wakeMaxPerDay', 40, 20],
+        ['update', 'wakeMaxPerHour', 12, 3],
+        ['update', 'wakeMaxPerDay', 150, 20],
+        ['update', 'wakeCheckInMinutes', 5, 10],
       ]),
     );
-    expect(updates).toHaveLength(6);
+    expect(updates).toHaveLength(7);
     expect((await as(w, c.viewer)('GET', path())).body).toMatchObject(SETTINGS);
   });
 
@@ -89,11 +92,16 @@ describe('a flow’s Lead wake-ups', () => {
       { maxPerHour: 0 },
       { maxPerDay: 501 },
       { signoffHours: 0 },
+      { checkInMinutes: 2 },
+      { checkInMinutes: 61 },
       { done: 'yes' },
     ]) {
       expect((await as(w, c.owner)('PUT', path(), { ...SETTINGS, ...bad })).status).toBe(400);
     }
     expect((await as(w, c.owner)('PUT', path(), { escalated: true })).status).toBe(400);
+    expect((await as(w, c.owner)('PUT', path(), { ...SETTINGS, checkInMinutes: null })).body).toMatchObject({
+      checkInMinutes: null,
+    });
     const other = await teamCompany(w);
     const theirs = await makeFlow(w, other);
     expect((await as(w, c.owner)('GET', flowsPath(c, `/${theirs.id}/lead-wakes`))).status).toBe(404);

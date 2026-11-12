@@ -4,15 +4,25 @@ import { friendlyMessage } from '../../../api/errors.ts';
 import type { LeadWakeSettings, LeadWakes } from '../../../api/flows.ts';
 import { Link } from '../../../app/router.tsx';
 import { Input } from '../../../components/forms/Input.tsx';
+import { SegmentedControl } from '../../../components/forms/Segmented.tsx';
 import { Switch } from '../../../components/forms/Switch.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
-import { BOUNDS, lastWords, settingsOf, WAKE_EVENTS, within } from './words.ts';
+import {
+  BOUNDS,
+  checkInChoice,
+  checkInMinutes,
+  checkInOptions,
+  lastWords,
+  settingsOf,
+  WAKE_EVENTS,
+  within,
+} from './words.ts';
 
 /**
  * The Flow tab's "Lead wakes up on" section (S6c), for those who lead the team when the Lead is an agent: the events
- * that wake it in its team chat, a sign-off's waiting hours, the quiet window and the caps per hour and per day, Save;
- * and one line saying how the last wake-up went, with the team chat. Data and the save come as props.
+ * that wake it in its team chat, its check-ins, a sign-off's waiting hours, the quiet window and the caps per hour and
+ * per day, Save; and one line saying how the last wake-up went, with the team chat. Data and the save come as props.
  */
 
 type Change = (change: Partial<LeadWakeSettings>) => void;
@@ -82,6 +92,31 @@ function SignoffWait({
           hours
         </>
       )}
+    </Sentence>
+  );
+}
+
+/** How often the Lead is checked in with while its flow has work: Off or a few minutes. */
+function CheckIns({
+  draft,
+  disabled,
+  change,
+}: {
+  draft: LeadWakeSettings;
+  disabled: boolean;
+  change: Change;
+}) {
+  return (
+    <Sentence>
+      Check in every
+      <SegmentedControl
+        label="Check in every"
+        size="sm"
+        options={checkInOptions(draft.checkInMinutes)}
+        value={checkInChoice(draft.checkInMinutes)}
+        disabled={disabled}
+        onChange={(choice) => change({ checkInMinutes: checkInMinutes(choice) })}
+      />
     </Sentence>
   );
 }
@@ -182,6 +217,7 @@ export function LeadWakesSection({
           />
         ))}
       </div>
+      <CheckIns draft={draft} disabled={busy} change={change} />
       <SignoffWait draft={draft} disabled={busy} change={change} />
       <Limits draft={draft} disabled={busy} change={change} />
       <p className="text-xs text-dim">{lastWords(wakes)}</p>

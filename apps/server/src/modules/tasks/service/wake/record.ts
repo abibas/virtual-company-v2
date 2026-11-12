@@ -1,5 +1,5 @@
 import type { Flow, TenantDb } from '@mwc/db';
-import type { LeadWakeKind } from '@mwc/shared/enums';
+import type { LeadEventKind } from '@mwc/shared/flows';
 import type { TasksRepo } from '../../repo.ts';
 import { wakeReason, wakesOn } from '../../rules/wake.ts';
 import type { Roster } from '../team.ts';
@@ -21,7 +21,7 @@ export async function recordWake(
     readonly flow: Flow;
     readonly roster: Roster;
     readonly taskId: string;
-    readonly kind: LeadWakeKind | undefined;
+    readonly kind: LeadEventKind | undefined;
     readonly step: string | null;
     readonly reason: string | null;
   },

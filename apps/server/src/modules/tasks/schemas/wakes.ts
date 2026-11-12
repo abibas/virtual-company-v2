@@ -8,7 +8,7 @@ import { At } from '../schemas.ts';
 const bounded = (range: { readonly min: number; readonly max: number }) =>
   z.number().int().min(range.min).max(range.max);
 
-/** Which events wake the flow's Lead agent, the quiet window that coalesces them, and the caps. */
+/** Which events wake the flow's Lead agent, the quiet window that coalesces them, the caps, and its check-ins. */
 export const LeadWakeSettingsSchema = z
   .object({
     escalated: z.boolean(),
@@ -22,6 +22,8 @@ export const LeadWakeSettingsSchema = z
     /** At most this many wake-ups an hour, and a day; past either, the Lead's nearest person is told instead. */
     maxPerHour: bounded(LEAD_WAKE.perHour),
     maxPerDay: bounded(LEAD_WAKE.perDay),
+    /** Check in with the Lead every this many minutes while the flow has work; null: never. */
+    checkInMinutes: bounded(LEAD_WAKE.checkInMinutes).nullable(),
   })
   .openapi('LeadWakeSettings');
 

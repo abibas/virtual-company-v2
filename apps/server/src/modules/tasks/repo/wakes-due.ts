@@ -1,11 +1,12 @@
-import { companies, type DbHandle, flowSteps, flows, leadWakeEvents, tasks } from '@mwc/db';
+import { companies, type DbHandle, flowSteps, flows, leadWakeEvents, principals, tasks } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { and, eq, isNotNull, isNull, min, ne, sql } from 'drizzle-orm';
 
 /**
  * The Lead wake-ups across every company (S6c, the server's wake-up tick): the one place this module reads without a
  * tenant, listed in biome.json's exemption, since any flow's Lead may be due. It only stamps and finds; each flow's
- * events are read, told and marked through its company's tenant (`service/wake/deliver.ts`).
+ * events are read, told and marked through its company's tenant (`service/wake/deliver.ts`), and so are its
+ * check-ins (`service/wake/check-in.ts`).
  */
 
 /** Stamps the pending events the tick sees for the first time with its clock; returns how many. */
@@ -50,6 +51,44 @@ export async function waitingFlows(db: DbHandle, limit: number): Promise<Waiting
     .orderBy(min(leadWakeEvents.seenAt))
     .limit(limit);
   return rows.map((row) => ({ ...row, oldestSeen: row.oldestSeen as Date }));
+}
+
+/** A flow that checks in with its agent Lead and has work: its company, and the minutes between check-ins. */
+export interface CheckInFlow {
+  readonly companyId: string;
+  readonly flowId: string;
+  readonly minutes: number;
+}
+
+/**
+ * The flows with check-ins on whose Lead is an agent and that have active or escalated tasks, in companies not deleted,
+ * the longest since their Lead's last wake-up first (never woken first).
+ */
+export function checkInFlows(db: DbHandle, limit: number): Promise<CheckInFlow[]> {
+  const lastWoke = sql`(select max(w.delivered_at) from lead_wake_events w where w.company_id = ${flows.companyId} and w.flow_id = ${flows.id} and w.outcome = 'woke')`;
+  return rawDb(db)
+    .select({
+      companyId: flows.companyId,
+      flowId: flows.id,
+      minutes: sql<number>`${flows.wakeCheckInMinutes}`,
+    })
+    .from(flows)
+    .innerJoin(companies, eq(companies.id, flows.companyId))
+    .innerJoin(
+      principals,
+      and(eq(principals.companyId, flows.companyId), eq(principals.id, flows.leadPrincipalId)),
+    )
+    .where(
+      and(
+        ne(companies.status, 'deleted'),
+        isNull(companies.deletedAt),
+        eq(principals.kind, 'agent'),
+        isNotNull(flows.wakeCheckInMinutes),
+        sql`exists (select 1 from tasks t where t.company_id = ${flows.companyId} and t.flow_id = ${flows.id} and t.state in ('active', 'escalated'))`,
+      ),
+    )
+    .orderBy(sql`${lastWoke} asc nulls first`, flows.id)
+    .limit(limit);
 }
 
 /** A task waiting for a person's sign-off longer than its flow's hours, not told of since it began to wait. */

@@ -6,10 +6,12 @@ import type { FlowStepKind, PrincipalKind, StepOnReturn } from './enums.ts';
  * `mwc flow show`, a step's prompt and, from S6, the agents' tools write the same text). The enums are `flows/enums.ts`,
  * re-exported by `@mwc/shared/enums`, and the limits are `flows/limits.ts`; a step's run (S5.3b) adds its prompt
  * (`flows/prompt.ts`) and its artifacts (`flows/artifacts.ts`), S6a the agents' tools (`flows/tools.ts`, with their
- * input check `flows/tool-input.ts` and words `flows/tool-words.ts`) and S6c the Lead's wake-ups (`flows/wake.ts`).
+ * input check `flows/tool-input.ts` and words `flows/tool-words.ts`) and S6c the Lead's wake-ups (`flows/wake.ts`) and
+ * check-ins (`flows/check-in.ts`).
  */
 
 export * from './flows/artifacts.ts';
+export * from './flows/check-in.ts';
 export * from './flows/enums.ts';
 export * from './flows/keys.ts';
 export * from './flows/limits.ts';

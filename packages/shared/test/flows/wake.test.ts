@@ -22,11 +22,18 @@ const ended: LeadWakeItem = { kind: 'turn_ended', task: task(14, 'Add SSO'), ste
 
 describe('the Lead wake-ups’ contract', () => {
   it('lists the kinds and outcomes the database CHECKs allow', () => {
-    expect(LeadWakeKind.options).toEqual(['escalated', 'blocked', 'turn_ended', 'done', 'signoff_waiting']);
+    expect(LeadWakeKind.options).toEqual([
+      'escalated',
+      'blocked',
+      'turn_ended',
+      'done',
+      'signoff_waiting',
+      'check_in',
+    ]);
     expect(LeadWakeOutcome.options).toEqual(['pending', 'woke', 'capped', 'unreachable', 'dropped']);
   });
 
-  it('wakes on escalations, blocks and ended turns by default, within a minute, six an hour', () => {
+  it('wakes on escalations, blocks and ended turns by default, within a minute, checks in every 5 minutes', () => {
     expect(LEAD_WAKE_DEFAULTS).toEqual({
       escalated: true,
       blocked: true,
@@ -34,8 +41,9 @@ describe('the Lead wake-ups’ contract', () => {
       done: false,
       signoffHours: null,
       windowSeconds: 60,
-      maxPerHour: 6,
-      maxPerDay: 40,
+      maxPerHour: 12,
+      maxPerDay: 150,
+      checkInMinutes: 5,
     });
   });
 

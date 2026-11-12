@@ -99,8 +99,8 @@ const wake = (values: Partial<NewLeadWakeEvent> = {}) =>
     .values({ companyId: acme.id, flowId: flow.id, taskId: task.id, kind: 'escalated', ...values })
     .returning();
 
-describe('flows: the Lead wake-up settings (0025)', () => {
-  it('defaults to escalated, blocked and a turn ended, a minute’s window, six an hour and forty a day', () => {
+describe('flows: the Lead wake-up settings (0025, check-ins 0027)', () => {
+  it('defaults to escalated, blocked and a turn ended, a minute’s window, 12 an hour, 150 a day, a check-in every 5 minutes', () => {
     expect(flow).toMatchObject({
       wakeEscalated: true,
       wakeBlocked: true,
@@ -108,8 +108,9 @@ describe('flows: the Lead wake-up settings (0025)', () => {
       wakeDone: false,
       wakeSignoffHours: null,
       wakeWindowSeconds: 60,
-      wakeMaxPerHour: 6,
-      wakeMaxPerDay: 40,
+      wakeMaxPerHour: 12,
+      wakeMaxPerDay: 150,
+      wakeCheckInMinutes: 5,
     });
   });
 
@@ -124,7 +125,15 @@ describe('flows: the Lead wake-up settings (0025)', () => {
     expect(await constraint(insert({ wakeWindowSeconds: 601 }))).toBe('flows_wake_window_check');
     expect(await constraint(insert({ wakeMaxPerHour: 0 }))).toBe('flows_wake_per_hour_check');
     expect(await constraint(insert({ wakeMaxPerDay: 501 }))).toBe('flows_wake_per_day_check');
-    await insert({ wakeSignoffHours: 168, wakeWindowSeconds: 0, wakeMaxPerHour: 60, wakeMaxPerDay: 500 });
+    expect(await constraint(insert({ wakeCheckInMinutes: 2 }))).toBe('flows_wake_check_in_check');
+    expect(await constraint(insert({ wakeCheckInMinutes: 61 }))).toBe('flows_wake_check_in_check');
+    await insert({
+      wakeSignoffHours: 168,
+      wakeWindowSeconds: 0,
+      wakeMaxPerHour: 60,
+      wakeMaxPerDay: 500,
+      wakeCheckInMinutes: null,
+    });
   });
 });
 
@@ -152,6 +161,15 @@ describe('lead_wake_events (0025)', () => {
     expect(await constraint(wake({ stepName: '' }))).toBe('lead_wake_events_step_name_check');
     expect(await constraint(wake({ reason: 'x'.repeat(301) }))).toBe('lead_wake_events_reason_check');
     expect(await constraint(wake({ detail: '' }))).toBe('lead_wake_events_detail_check');
+  });
+
+  it('keeps a check-in of no task, and only a check-in without one (0027)', async () => {
+    const chat = await chatOf({ flowId: flow.id });
+    const told = { outcome: 'woke', deliveredAt: new Date(), chatId: chat.id, turnId: MISSING_ID } as const;
+    const [checkIn] = await wake({ kind: 'check_in', taskId: null, ...told });
+    expect(checkIn).toMatchObject({ kind: 'check_in', taskId: null, outcome: 'woke' });
+    expect(await constraint(wake({ kind: 'check_in' }))).toBe('lead_wake_events_task_check');
+    expect(await constraint(wake({ kind: 'blocked', taskId: null }))).toBe('lead_wake_events_task_check');
   });
 
   it('keeps the outcome, its time and its turn together', async () => {

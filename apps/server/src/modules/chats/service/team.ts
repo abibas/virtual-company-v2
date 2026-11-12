@@ -23,17 +23,22 @@ import { turnView } from './views.ts';
  * Most Wanted queued (`system`, the agent as its sender), delivered "after this turn": at once while nothing runs, else
  * behind the running turn; while a wake-up of its own still waits there, the new message joins it rather than queue
  * another. Every check of a turn holds (the placement, the runner, the profile); a paused agent is not woken. A stopped
- * machine is started when its policy starts it for work, and the wake-up waits for it. A refusal says why in words.
+ * machine is started when its policy starts it for work, and the wake-up waits for it, unless the request says not to
+ * (a check-in). A refusal says why in words.
  */
 
 export const AGENT_PAUSED = refuse(409, 'agent_paused', 'The agent is paused: resume it to wake it');
 
-/** What a wake-up asks: the flow (its name titles a new team chat), the Lead agent, the message. */
+/**
+ * What a wake-up asks: the flow (its name titles a new team chat), the Lead agent, the message, and whether a stopped
+ * machine may be started for it (a check-in never starts one: `machine_offline` instead).
+ */
 export interface LeadWakeRequest {
   readonly flowId: string;
   readonly flowName: string;
   readonly agentPrincipalId: string;
   readonly prompt: string;
+  readonly startMachine?: boolean | undefined;
 }
 
 /** Where the message went: the team chat, its turn, and whether it joined a wake-up that was waiting there. */
@@ -100,11 +105,8 @@ export function teamChats(deps: QueueDeps): TeamChats {
       const joined = await joinWaiting(deps, t, chat, request.prompt);
       if (joined !== undefined) return { ok: true, chatId: chat.id, turnId: joined.id, merged: true };
       const reason = `Started for a wake-up of the Lead of ${request.flowName}`;
-      const caller = {
-        principalId: request.agentPrincipalId,
-        system: true,
-        wake: { trigger: 'work' as const, reason },
-      };
+      const wake = request.startMachine === false ? undefined : { trigger: 'work' as const, reason };
+      const caller = { principalId: request.agentPrincipalId, system: true, wake };
       const sent = await sendMessage(deps, t, caller, chat.id, request.prompt, 'after');
       if (!sent.ok) return sent;
       if (sent.turn.status === 'failed') {

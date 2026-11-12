@@ -124,6 +124,7 @@ describe('the Lead wakes up on its team’s events', () => {
       windowSeconds: 0,
       maxPerHour: 6,
       maxPerDay: 40,
+      checkInMinutes: null,
     };
     const put = await as(w, s.c.owner)('PUT', flowsPath(s.c, `/${s.flow.id}/lead-wakes`), settings);
     expect(put.status).toBe(200);

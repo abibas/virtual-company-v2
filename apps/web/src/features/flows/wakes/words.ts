@@ -1,10 +1,11 @@
-import { LEAD_WAKE } from '@mwc/shared/flows';
+import { LEAD_CHECK_IN_CHOICES, LEAD_WAKE } from '@mwc/shared/flows';
 import type { LeadWakeSettings, LeadWakes } from '../../../api/flows.ts';
 import { ago } from '../../../components/data/format.ts';
+import type { SegmentOption } from '../../../components/forms/Segmented.tsx';
 
 /**
- * The "Lead wakes up on" section's words and bounds (S6c), pure: the events' switches, a number kept within its
- * bounds, the settings a PUT sends from the view, and the line saying how the last wake-up went.
+ * The "Lead wakes up on" section's words and bounds (S6c), pure: the events' switches, the check-ins' choices, a number
+ * kept within its bounds, the settings a PUT sends from the view, and the line saying how the last wake-up went.
  */
 
 /** The events' switches, in order. */
@@ -17,6 +18,19 @@ export const WAKE_EVENTS: readonly {
   { key: 'turnEnded', label: 'Turn ended without a hand-off' },
   { key: 'done', label: 'Done (a digest)' },
 ];
+
+/** The check-ins' choices: Off and the minutes offered, with a value set elsewhere kept among them. */
+export function checkInOptions(current: number | null): SegmentOption<string>[] {
+  const minutes = [...new Set([...LEAD_CHECK_IN_CHOICES, ...(current === null ? [] : [current])])];
+  return [
+    { value: 'off', label: 'Off' },
+    ...minutes.sort((a, b) => a - b).map((m) => ({ value: String(m), label: `${m} min` })),
+  ];
+}
+
+/** The check-ins' setting as a choice, and back. */
+export const checkInChoice = (minutes: number | null): string => (minutes === null ? 'off' : String(minutes));
+export const checkInMinutes = (choice: string): number | null => (choice === 'off' ? null : Number(choice));
 
 /** A number typed in a box, whole and within `range`. */
 export const within = (value: string, range: { readonly min: number; readonly max: number }): number =>
@@ -34,6 +48,7 @@ export const settingsOf = (wakes: LeadWakes): LeadWakeSettings => ({
   windowSeconds: wakes.windowSeconds,
   maxPerHour: wakes.maxPerHour,
   maxPerDay: wakes.maxPerDay,
+  checkInMinutes: wakes.checkInMinutes,
 });
 
 /** How the last wake-up went, and the counts: "Woke it 5 min ago · 2 this hour, 3 today". */

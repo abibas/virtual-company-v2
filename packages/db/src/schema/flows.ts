@@ -28,7 +28,8 @@ const within = (value: SQL | AnyPgColumn, range: { readonly min: number; readonl
  * A team's flow (S5.3a, docs/processes.md): its Lead, the manager on the chart whose team it is (a person or an agent;
  * one flow per Lead for now), and its name. Its steps are `flow_steps`, its tasks `tasks`. Since S6c an agent Lead wakes
  * up by itself in its team chat (`lead_wake_events`): which events wake it, the quiet window that coalesces them, and
- * the caps on wake-ups per hour and per day (`wake_*`, defaults `LEAD_WAKE_DEFAULTS`).
+ * the caps on wake-ups per hour and per day (`wake_*`, defaults `LEAD_WAKE_DEFAULTS`), and since its check-ins the
+ * minutes between two while the flow has work (`wake_check_in_minutes`, 5 by default; null: none).
  */
 export const flows = pgTable(
   'flows',
@@ -52,6 +53,8 @@ export const flows = pgTable(
     /** At most this many wake-ups an hour, and a day; past either, the Lead's nearest person is told instead. */
     wakeMaxPerHour: integer('wake_max_per_hour').notNull().default(LEAD_WAKE.perHour.default),
     wakeMaxPerDay: integer('wake_max_per_day').notNull().default(LEAD_WAKE.perDay.default),
+    /** Check in with the Lead agent every this many minutes while the flow has work; null: never. */
+    wakeCheckInMinutes: integer('wake_check_in_minutes').default(LEAD_WAKE.checkInMinutes.default),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -69,6 +72,10 @@ export const flows = pgTable(
     check('flows_wake_window_check', within(t.wakeWindowSeconds, LEAD_WAKE.windowSeconds)),
     check('flows_wake_per_hour_check', within(t.wakeMaxPerHour, LEAD_WAKE.perHour)),
     check('flows_wake_per_day_check', within(t.wakeMaxPerDay, LEAD_WAKE.perDay)),
+    check(
+      'flows_wake_check_in_check',
+      sql`${t.wakeCheckInMinutes} is null or ${within(t.wakeCheckInMinutes, LEAD_WAKE.checkInMinutes)}`,
+    ),
   ],
 );
 

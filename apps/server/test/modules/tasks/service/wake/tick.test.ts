@@ -44,6 +44,7 @@ const settings = (more: Record<string, unknown> = {}) => ({
   windowSeconds: 60,
   maxPerHour: 6,
   maxPerDay: 40,
+  checkInMinutes: 5,
   ...more,
 });
 

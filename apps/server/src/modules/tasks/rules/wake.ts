@@ -1,6 +1,6 @@
 import type { Flow } from '@mwc/db';
 import type { LeadWakeKind, LeadWakeOutcome } from '@mwc/shared/enums';
-import { clipLine, LEAD_WAKE_REASON_MAX, type LeadWakeSettings } from '@mwc/shared/flows';
+import { clipLine, LEAD_WAKE_REASON_MAX, type LeadEventKind, type LeadWakeSettings } from '@mwc/shared/flows';
 import type { TaskNow } from '../rules.ts';
 import type { StepChange } from './runs.ts';
 
@@ -18,6 +18,7 @@ export const settingsOf = (flow: Flow): LeadWakeSettings => ({
   windowSeconds: flow.wakeWindowSeconds,
   maxPerHour: flow.wakeMaxPerHour,
   maxPerDay: flow.wakeMaxPerDay,
+  checkInMinutes: flow.wakeCheckInMinutes,
 });
 
 /** The flow's columns for these settings. */
@@ -30,6 +31,7 @@ export const settingsColumns = (settings: LeadWakeSettings) => ({
   wakeWindowSeconds: settings.windowSeconds,
   wakeMaxPerHour: settings.maxPerHour,
   wakeMaxPerDay: settings.maxPerDay,
+  wakeCheckInMinutes: settings.checkInMinutes,
 });
 
 /** True when the flow's settings wake its Lead for this kind of event. */
@@ -40,12 +42,13 @@ export function wakesOn(flow: Flow, kind: LeadWakeKind): boolean {
     turn_ended: flow.wakeTurnEnded,
     done: flow.wakeDone,
     signoff_waiting: flow.wakeSignoffHours !== null,
+    check_in: flow.wakeCheckInMinutes !== null,
   };
   return on[kind];
 }
 
 /** The event a move makes: an escalation, or a task done. */
-export function moveWake(outcome: string): LeadWakeKind | undefined {
+export function moveWake(outcome: string): LeadEventKind | undefined {
   if (outcome === 'escalated') return 'escalated';
   return outcome === 'done' ? 'done' : undefined;
 }
@@ -54,7 +57,7 @@ export function moveWake(outcome: string): LeadWakeKind | undefined {
  * The event a step's run makes: blocked, or its turn ended without a hand-off; none for a turn a person stopped (they
  * took it over) or a start.
  */
-export function changeWake(change: StepChange): LeadWakeKind | undefined {
+export function changeWake(change: StepChange): LeadEventKind | undefined {
   if (change.quiet) return undefined;
   if (change.stepState === 'blocked') return 'blocked';
   return change.stepState === 'ended_without_handoff' ? 'turn_ended' : undefined;
@@ -67,7 +70,7 @@ export const wakeReason = (reason: string | null | undefined): string | null =>
     : clipLine(reason, LEAD_WAKE_REASON_MAX);
 
 /** True while the task still is what the event said when it is told: a person may have moved it meanwhile. */
-export function stillCurrent(kind: LeadWakeKind, task: Pick<TaskNow, 'state' | 'stepState'>): boolean {
+export function stillCurrent(kind: LeadEventKind, task: Pick<TaskNow, 'state' | 'stepState'>): boolean {
   if (kind === 'escalated') return task.state === 'escalated';
   if (kind === 'done') return task.state === 'done';
   const want = { blocked: 'blocked', turn_ended: 'ended_without_handoff', signoff_waiting: 'needs_person' }[

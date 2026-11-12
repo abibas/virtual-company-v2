@@ -19,7 +19,8 @@ const at = (name: string) => timestamp(name, { withTimezone: true });
  * first sees it (`seen_at`, its clock) and the flow's quiet window after the oldest seen passes; then the flow's pending
  * events go together as one turn in the Lead's team chat (`woke`, with the chat and the turn), are held by a cap
  * (`capped`) or by a Lead that cannot run (`unreachable`, with why in `detail`), or are let go (`dropped`: the task moved
- * on first). `turn_id` is a plain id: a person may discard the waiting turn.
+ * on first). `turn_id` is a plain id: a person may discard the waiting turn. A check-in (`check_in`, of no task) is
+ * written as it is told or held, never pending.
  */
 export const leadWakeEvents = pgTable(
   'lead_wake_events',
@@ -27,7 +28,8 @@ export const leadWakeEvents = pgTable(
     id: uuid('id').primaryKey().$defaultFn(newId),
     companyId: companyIdColumn(),
     flowId: uuid('flow_id').notNull(),
-    taskId: uuid('task_id').notNull(),
+    /** The task it is about; null for a check-in, which is of the whole board. */
+    taskId: uuid('task_id'),
     kind: text('kind').$type<LeadWakeKind>().notNull(),
     /** The step it happened at, as it was called then; null for none (a done task). */
     stepName: text('step_name'),
@@ -51,6 +53,7 @@ export const leadWakeEvents = pgTable(
     tenantForeignKey('lead_wake_events_task_fk', t.companyId, t.taskId, tasks),
     tenantForeignKey('lead_wake_events_chat_fk', t.companyId, t.chatId, chats),
     check('lead_wake_events_kind_check', oneOf(t.kind, LeadWakeKind.options)),
+    check('lead_wake_events_task_check', sql`(${t.kind} = 'check_in') = (${t.taskId} is null)`),
     check('lead_wake_events_outcome_check', oneOf(t.outcome, LeadWakeOutcome.options)),
     check(
       'lead_wake_events_step_name_check',

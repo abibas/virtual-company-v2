@@ -93,9 +93,17 @@ export type ArtifactSkipReason = z.infer<typeof ArtifactSkipReason>;
 /**
  * `lead_wake_events.kind` (S6c, docs/processes.md "Built: the Lead wakes up"): what wakes a flow's Lead agent in its team
  * chat: a task escalated to it, blocked at its step, a step's turn that ended without a hand-off, a task done (a digest),
- * or a task that has waited for a person's sign-off over the flow's hours.
+ * or a task that has waited for a person's sign-off over the flow's hours; or the flow's regular check-in while it has
+ * work (`check_in`, of no one task).
  */
-export const LeadWakeKind = z.enum(['escalated', 'blocked', 'turn_ended', 'done', 'signoff_waiting']);
+export const LeadWakeKind = z.enum([
+  'escalated',
+  'blocked',
+  'turn_ended',
+  'done',
+  'signoff_waiting',
+  'check_in',
+]);
 export type LeadWakeKind = z.infer<typeof LeadWakeKind>;
 
 /**

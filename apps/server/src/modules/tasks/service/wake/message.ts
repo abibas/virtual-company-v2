@@ -1,5 +1,5 @@
 import type { DbHandle, Flow, LeadWakeEvent, Task, TenantDb } from '@mwc/db';
-import { type LeadWakeItem, leadWakeMessage, taskKey } from '@mwc/shared/flows';
+import { type LeadEventKind, type LeadWakeItem, leadWakeMessage, taskKey } from '@mwc/shared/flows';
 import { principalNames } from '../../../org/index.ts';
 import type { TasksRepo } from '../../repo.ts';
 import { hoursSince } from '../../rules/wake.ts';
@@ -29,7 +29,7 @@ export async function wakeMessage(
     task.currentStepId === null ? undefined : steps.get(task.currentStepId)?.assigneePrincipalId;
   const names = await principalNames(deps.db, t, [person, ...[...tasks.values()].map(assignee)]);
   const items = events.flatMap((event): LeadWakeItem[] => {
-    const task = tasks.get(event.taskId);
+    const task = event.taskId === null ? undefined : tasks.get(event.taskId);
     if (task === undefined) return [];
     const who = assignee(task);
     const waiting =
@@ -38,7 +38,7 @@ export async function wakeMessage(
         : undefined;
     return [
       {
-        kind: event.kind,
+        kind: event.kind as LeadEventKind,
         task: { key: taskKey(task.number), title: task.title },
         step: event.stepName,
         reason: event.reason,

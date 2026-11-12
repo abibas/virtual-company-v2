@@ -47,6 +47,16 @@ async function wokeSince(t: TenantDb, flowId: string, since: Date): Promise<numb
   return row?.n ?? 0;
 }
 
+/** When the flow's Lead was last woken (an event's wake-up or a check-in, told); undefined before any. */
+async function lastWoke(t: TenantDb, flowId: string): Promise<Date | undefined> {
+  const [row] = await t.selectFields(
+    leadWakeEvents,
+    { at: max(leadWakeEvents.deliveredAt) },
+    and(eq(leadWakeEvents.flowId, flowId), eq(leadWakeEvents.outcome, 'woke')),
+  );
+  return row?.at ?? undefined;
+}
+
 /** The flow's latest event that was told or held (a let-go one is passed over); undefined before any. */
 async function lastOutcome(t: TenantDb, flowId: string): Promise<LeadWakeEvent | undefined> {
   const [row] = await t
@@ -100,7 +110,7 @@ async function toldOf(t: TenantDb, taskIds: readonly string[]): Promise<Map<stri
     )
     .groupBy(taskEvents.taskId);
   const lastMove = new Map(moved.map((row) => [row.taskId, row.at]));
-  const latest = new Map(wakes.map((row) => [row.taskId, row]));
+  const latest = new Map(wakes.flatMap((row) => (row.taskId === null ? [] : [[row.taskId, row] as const])));
   const told = new Map<string, Date>();
   for (const [taskId, row] of latest) {
     const after = lastMove.get(taskId);
@@ -110,4 +120,4 @@ async function toldOf(t: TenantDb, taskIds: readonly string[]): Promise<Map<stri
   return told;
 }
 
-export const wakeRows = { insert, pendingOf, finish, wokeSince, lastOutcome, lastChat, toldOf };
+export const wakeRows = { insert, pendingOf, finish, wokeSince, lastWoke, lastOutcome, lastChat, toldOf };

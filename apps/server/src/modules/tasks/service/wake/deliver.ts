@@ -1,5 +1,6 @@
 import type { DbHandle, Flow, LeadWakeEvent, Task, TenantDb } from '@mwc/db';
 import type { LeadWakeOutcome } from '@mwc/shared/enums';
+import type { LeadEventKind } from '@mwc/shared/flows';
 import type { TeamChats } from '../../../chats/index.ts';
 import type { LeadNotWokenReason } from '../../../notifications/rules.ts';
 import { notify } from '../../../notifications/service.ts';
@@ -37,7 +38,7 @@ export interface WakeDeps {
 export type FlowDelivery = Exclude<LeadWakeOutcome, 'pending'> | 'waiting' | 'none';
 
 const DROPPED = { lead: 'The Lead is no agent on the chart now', moved: 'The task moved on first' } as const;
-const CAP_WORDS: Readonly<Record<'hour_cap' | 'day_cap', string>> = {
+export const CAP_WORDS: Readonly<Record<'hour_cap' | 'day_cap', string>> = {
   hour_cap: "Over the flow's wake-ups for this hour",
   day_cap: "Over the flow's wake-ups for today",
 };
@@ -45,7 +46,7 @@ const CAP_WORDS: Readonly<Record<'hour_cap' | 'day_cap', string>> = {
 /** The pending events' tasks as they are now, by id. */
 async function tasksOf(repo: TasksRepo, t: TenantDb, events: readonly LeadWakeEvent[]) {
   const tasks = new Map<string, Task>();
-  for (const id of new Set(events.map((event) => event.taskId))) {
+  for (const id of new Set(events.flatMap((event) => (event.taskId === null ? [] : [event.taskId])))) {
     const task = await repo.tasks.get(t, { id });
     if (task) tasks.set(id, task);
   }
@@ -55,7 +56,7 @@ async function tasksOf(repo: TasksRepo, t: TenantDb, events: readonly LeadWakeEv
 const ids = (events: readonly LeadWakeEvent[]) => events.map((event) => event.id);
 
 /** Tells the Lead's nearest person that the Lead was not woken, once per reason (see above). */
-async function tellPerson(
+export async function tellPerson(
   t: TenantDb,
   of: { readonly flow: Flow; readonly roster: Roster; readonly previous: LeadWakeOutcome | undefined },
   outcome: 'capped' | 'unreachable',
@@ -130,8 +131,8 @@ export async function deliverFlow(
   }
   const tasks = await tasksOf(repo, t, pending);
   const isCurrent = (event: LeadWakeEvent) => {
-    const task = tasks.get(event.taskId);
-    return task !== undefined && stillCurrent(event.kind, task);
+    const task = event.taskId === null ? undefined : tasks.get(event.taskId);
+    return task !== undefined && stillCurrent(event.kind as LeadEventKind, task);
   };
   const stale = pending.filter((event) => !isCurrent(event));
   await repo.wakes.finish(t, ids(stale), { outcome: 'dropped', deliveredAt: now, detail: DROPPED.moved });

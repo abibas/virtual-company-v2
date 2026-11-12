@@ -24,8 +24,9 @@ const flow = (more: Partial<Flow> = {}) =>
     wakeDone: false,
     wakeSignoffHours: null,
     wakeWindowSeconds: 60,
-    wakeMaxPerHour: 6,
-    wakeMaxPerDay: 40,
+    wakeMaxPerHour: 12,
+    wakeMaxPerDay: 150,
+    wakeCheckInMinutes: 5,
     ...more,
   }) as Flow;
 
@@ -58,6 +59,8 @@ describe('the Lead wake-ups’ rules', () => {
     expect(wakesOn(flow(), 'escalated')).toBe(true);
     expect(wakesOn(flow(), 'done')).toBe(false);
     expect(wakesOn(flow(), 'signoff_waiting')).toBe(false);
+    expect(wakesOn(flow(), 'check_in')).toBe(true);
+    expect(wakesOn(flow({ wakeCheckInMinutes: null }), 'check_in')).toBe(false);
     expect(wakesOn(flow({ wakeSignoffHours: 4, wakeBlocked: false }), 'signoff_waiting')).toBe(true);
     expect(wakesOn(flow({ wakeBlocked: false }), 'blocked')).toBe(false);
     expect(wakesOn(flow({ wakeTurnEnded: false }), 'turn_ended')).toBe(false);

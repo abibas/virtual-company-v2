@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 38. Migrations: 27, the last is `0026_chat_machine_waits`.
+Tables: 38. Migrations: 28, the last is `0027_lead_check_ins`.
 
 ```mermaid
 erDiagram
@@ -231,8 +231,9 @@ erDiagram
     boolean wake_done "not null, default false"
     integer wake_signoff_hours "nullable"
     integer wake_window_seconds "not null, default 60"
-    integer wake_max_per_hour "not null, default 6"
-    integer wake_max_per_day "not null, default 40"
+    integer wake_max_per_hour "not null, default 12"
+    integer wake_max_per_day "not null, default 150"
+    integer wake_check_in_minutes "nullable, default 5"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -298,8 +299,8 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
     uuid flow_id FK "not null"
-    uuid task_id FK "not null"
-    text kind "not null, escalated|blocked|turn_ended|done|signoff_waiting"
+    uuid task_id FK "nullable"
+    text kind "not null, escalated|blocked|turn_ended|done|signoff_waiting|check_in"
     text step_name "nullable"
     text reason "nullable"
     text outcome "not null, default 'pending', pending|woke|capped|unreachable|dropped"
@@ -568,7 +569,7 @@ erDiagram
   invitations }o--o| principals : "company_id, reports_to_principal_id"
   lead_wake_events }o--|| companies : "company_id"
   lead_wake_events }o--|| flows : "company_id, flow_id"
-  lead_wake_events }o--|| tasks : "company_id, task_id"
+  lead_wake_events }o--o| tasks : "company_id, task_id"
   lead_wake_events }o--o| chats : "company_id, chat_id"
   machine_logos }o--|| companies : "company_id"
   machine_logos |o--|| machines : "company_id, machine_id"
@@ -1126,8 +1127,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `wake_done` | `boolean` | no | `false` |  |  |
 | `wake_signoff_hours` | `integer` | yes |  |  |  |
 | `wake_window_seconds` | `integer` | no | `60` |  |  |
-| `wake_max_per_hour` | `integer` | no | `6` |  |  |
-| `wake_max_per_day` | `integer` | no | `40` |  |  |
+| `wake_max_per_hour` | `integer` | no | `12` |  |  |
+| `wake_max_per_day` | `integer` | no | `150` |  |  |
+| `wake_check_in_minutes` | `integer` | yes | `5` |  |  |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1146,6 +1148,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `flows_wake_window_check`: `"wake_window_seconds" between 0 and 600`
   - `flows_wake_per_hour_check`: `"wake_max_per_hour" between 1 and 60`
   - `flows_wake_per_day_check`: `"wake_max_per_day" between 1 and 500`
+  - `flows_wake_check_in_check`: `"wake_check_in_minutes" is null or "wake_check_in_minutes" between 3 and 60`
 - **Indexes:** none
 
 ### `identity_events`
@@ -1279,8 +1282,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `company_id` | `uuid` | no |  | FK |  |
 | `flow_id` | `uuid` | no |  | FK |  |
-| `task_id` | `uuid` | no |  | FK |  |
-| `kind` | `text` | no |  |  | `escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting` |
+| `task_id` | `uuid` | yes |  | FK |  |
+| `kind` | `text` | no |  |  | `escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting`, `check_in` |
 | `step_name` | `text` | yes |  |  |  |
 | `reason` | `text` | yes |  |  |  |
 | `outcome` | `text` | no | `'pending'` |  | `pending`, `woke`, `capped`, `unreachable`, `dropped` |
@@ -1300,7 +1303,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Unique:**
   - `lead_wake_events_company_id_id_unique` (`company_id`, `id`)
 - **Checks:**
-  - `lead_wake_events_kind_check`: `kind` is one of `escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting`
+  - `lead_wake_events_kind_check`: `kind` is one of `escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting`, `check_in`
+  - `lead_wake_events_task_check`: `("kind" = 'check_in') = ("task_id" is null)`
   - `lead_wake_events_outcome_check`: `outcome` is one of `pending`, `woke`, `capped`, `unreachable`, `dropped`
   - `lead_wake_events_step_name_check`: `char_length("step_name") between 1 and 60`
   - `lead_wake_events_reason_check`: `char_length("reason") <= 300`
