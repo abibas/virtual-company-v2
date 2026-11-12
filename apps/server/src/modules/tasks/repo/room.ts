@@ -93,17 +93,15 @@ async function busy(t: TenantDb, flowId: string): Promise<RoomTurnNow[]> {
   );
   if (turns.length === 0) return [];
   const owners = await chatAgents(t, [...new Set(turns.map((turn) => turn.chatId))]);
-  return turns.flatMap((turn) => {
-    const agentPrincipalId = owners.get(turn.chatId);
-    if (agentPrincipalId === undefined) return [];
-    const status = turn.status as RoomTurnNow['status'];
-    return [{ agentPrincipalId, status, machineWait: turn.machineWait }];
-  });
+  return turns.map((turn) => ({
+    agentPrincipalId: owners.get(turn.chatId) as string,
+    status: turn.status as RoomTurnNow['status'],
+    machineWait: turn.machineWait,
+  }));
 }
 
-/** The agents' principals of these chats, by chat id. */
+/** The agents' principals of these chats (at least one), by chat id; every chat has its agent (a key). */
 async function chatAgents(t: TenantDb, chatIds: readonly string[]): Promise<Map<string, string>> {
-  if (chatIds.length === 0) return new Map();
   const rows = await t.selectFields(
     chats,
     { id: chats.id, agentId: chats.agentId },
@@ -116,12 +114,7 @@ async function chatAgents(t: TenantDb, chatIds: readonly string[]): Promise<Map<
     inArray(agents.id, ids),
   );
   const byAgent = new Map(principals.map((row) => [row.id, row.principalId]));
-  return new Map(
-    rows.flatMap((row) => {
-      const principal = byAgent.get(row.agentId);
-      return principal === undefined ? [] : [[row.id, principal] as const];
-    }),
-  );
+  return new Map(rows.map((row) => [row.id, byAgent.get(row.agentId) as string]));
 }
 
 /** When the agent's last turn in the flow's room conversations started; null before any. */
@@ -144,8 +137,7 @@ async function lastStartedAt(t: TenantDb, flowId: string, agentPrincipalId: stri
 async function roomChat(t: TenantDb, chatId: string) {
   const [chat] = await t.selectFields(chats, { flowId: chats.flowId }, eq(chats.id, chatId));
   if (chat?.flowId === null || chat?.flowId === undefined) return undefined;
-  const agentPrincipalId = (await chatAgents(t, [chatId])).get(chatId);
-  return agentPrincipalId === undefined ? undefined : { flowId: chat.flowId, agentPrincipalId };
+  return { flowId: chat.flowId, agentPrincipalId: (await chatAgents(t, [chatId])).get(chatId) as string };
 }
 
 /** The keys and titles of these tasks (the feed's step-end lines name theirs). */
