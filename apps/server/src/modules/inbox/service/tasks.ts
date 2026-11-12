@@ -1,13 +1,12 @@
 import type { DbHandle, Flow, FlowStep, Task, TaskEvent, TenantDb } from '@mwc/db';
 import { taskKey } from '@mwc/shared/flows';
 import { peopleAtOrAbove } from '@mwc/shared/org-chart';
-import { orgOf } from '../../org/index.ts';
+import { orgOf, type PrincipalNames, principalNames } from '../../org/index.ts';
 import { allowedActions } from '../../tasks/rules/access.ts';
 import { roundsAt } from '../../tasks/rules.ts';
 import type { InboxRepo } from '../repo.ts';
 import { lastMove, taskKind, type Viewer } from '../rules.ts';
 import type { InboxCompany, InboxItem, InboxKind } from '../schemas.ts';
-import { type Names, namesOf } from './names.ts';
 
 /**
  * The open tasks that need the viewer (S6b, `rules.ts`'s `taskKind`): at their own step, or stuck in a team they lead
@@ -42,7 +41,7 @@ function itemOf(
     readonly company: InboxCompany;
     readonly viewer: Viewer;
     readonly move: TaskEvent;
-    readonly names: Names;
+    readonly names: PrincipalNames;
   },
 ): InboxItem {
   const { task, step, kind } = found;
@@ -104,7 +103,7 @@ export async function taskItems(
   );
   // Every task has its `created` row at least.
   const lastOf = (taskId: string) => lastMove(moves.filter((move) => move.taskId === taskId)) as TaskEvent;
-  const names = await namesOf(deps.db, repo, t, [
+  const names = await principalNames(deps.db, t, [
     ...found.flatMap((f) => [f.lead, f.step.assigneePrincipalId]),
     ...moves.map((move) => move.actorPrincipalId),
   ]);

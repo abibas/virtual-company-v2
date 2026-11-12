@@ -1,5 +1,4 @@
 import {
-  agents,
   type Flow,
   type FlowStep,
   flowSteps,
@@ -18,8 +17,9 @@ export type { QuestionRow } from './repo/questions.ts';
 
 /**
  * The inbox's reads, through the company's tenant only and read only (S6b): the rows belong to the tasks, chats, org and
- * members modules, and the inbox writes none. Its open tasks, their flows, steps and history, the viewer's membership, and
- * the names of the principals it shows; the chats' open questions are `repo/questions.ts`'s.
+ * members modules, and the inbox writes none. Its open tasks, their flows, steps and history, and the viewer's membership; the
+ * chats' open questions are `repo/questions.ts`'s. The names of the principals it shows are the org module's
+ * (`principalNames`).
  */
 
 /** The company's flows and every step of theirs. */
@@ -56,27 +56,11 @@ async function memberOf(t: TenantDb, userId: string) {
   return row;
 }
 
-/** The agents of these principals: names, slugs and ids (archived ones too, so the history keeps its names). */
-function agentsOf(t: TenantDb, principalIds: readonly string[]) {
-  if (principalIds.length === 0) return Promise.resolve([]);
-  const fields = { id: agents.id, principalId: agents.principalId, name: agents.name, slug: agents.slug };
-  return t.selectFields(agents, fields, inArray(agents.principalId, [...principalIds]));
-}
-
-/** The memberships of these principals: whose person they are (former members too). */
-function membersOf(t: TenantDb, principalIds: readonly string[]) {
-  if (principalIds.length === 0) return Promise.resolve([]);
-  const fields = { principalId: memberships.principalId, userId: memberships.userId };
-  return t.selectFields(memberships, fields, inArray(memberships.principalId, [...principalIds]));
-}
-
 export const inboxRepo = {
   flowsAndSteps,
   waiting,
   moves,
   memberOf,
-  agentsOf,
-  membersOf,
   questions: questionRows,
 };
 

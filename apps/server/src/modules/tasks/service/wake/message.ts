@@ -1,8 +1,9 @@
 import type { DbHandle, Flow, LeadWakeEvent, Task, TenantDb } from '@mwc/db';
 import { type LeadWakeItem, leadWakeMessage, taskKey } from '@mwc/shared/flows';
+import { principalNames } from '../../../org/index.ts';
 import type { TasksRepo } from '../../repo.ts';
 import { hoursSince } from '../../rules/wake.ts';
-import { namesOf, type Roster } from '../team.ts';
+import type { Roster } from '../team.ts';
 
 /**
  * A wake-up's message (S6c): the flow's events as `leadWakeMessage` of `@mwc/shared/flows` writes them, each with its
@@ -26,7 +27,7 @@ export async function wakeMessage(
   const steps = new Map((await repo.flows.steps(t, flow.id)).map((step) => [step.id, step]));
   const assignee = (task: Task) =>
     task.currentStepId === null ? undefined : steps.get(task.currentStepId)?.assigneePrincipalId;
-  const names = await namesOf(deps.db, repo, t, [person, ...[...tasks.values()].map(assignee)]);
+  const names = await principalNames(deps.db, t, [person, ...[...tasks.values()].map(assignee)]);
   const items = events.flatMap((event): LeadWakeItem[] => {
     const task = tasks.get(event.taskId);
     if (task === undefined) return [];

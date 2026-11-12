@@ -1,9 +1,9 @@
 import type { DbHandle, Flow, Task, TenantDb } from '@mwc/db';
 import { BOARD_DONE } from '@mwc/shared/flows';
+import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { boardOrder, inOrder } from '../rules.ts';
 import type { BoardColumnView, BoardView } from '../schemas/board.ts';
-import { namesOf } from './team.ts';
 import { boardCard, holderOf } from './views.ts';
 
 /**
@@ -30,7 +30,7 @@ export async function boardOf(
       flow.leadPrincipalId,
     ),
   );
-  const names = await namesOf(deps.db, repo, t, [
+  const names = await principalNames(deps.db, t, [
     flow.leadPrincipalId,
     ...steps.map((step) => step.assigneePrincipalId),
     ...holders,

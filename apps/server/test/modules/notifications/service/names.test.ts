@@ -1,7 +1,8 @@
 import { type notifications, tenant } from '@mwc/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { notificationsRepo } from '../../../../src/modules/notifications/repo.ts';
-import { mentioned, namesOf, SOMEONE } from '../../../../src/modules/notifications/service/names.ts';
+import { mentioned, namesOf } from '../../../../src/modules/notifications/service/names.ts';
+import { SOMEONE } from '../../../../src/modules/org/service/names.ts';
 import { membersCompany } from '../../../fixtures/members/members.ts';
 import { makeAgent, placedMember } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';

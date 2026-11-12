@@ -1,12 +1,9 @@
 import type { DbHandle, Notification, TenantDb } from '@mwc/db';
 import { taskKey } from '@mwc/shared/flows';
-import { profilesOf } from '../../identity/service.ts';
+import { principalNames, SOMEONE } from '../../org/service/names.ts';
 import type { NotificationsRepo } from '../repo.ts';
 import { type Names, noticePath, noticeText } from '../rules/words.ts';
 import type { NoticePayload } from '../rules.ts';
-
-/** Whom a notice that names nobody known calls them. */
-export const SOMEONE = 'Someone';
 
 /** The principals a notice names: whom it is about, the managers of a move, and who made it. */
 export function mentioned(rows: readonly Notification[]): string[] {
@@ -25,8 +22,9 @@ export function mentionedTasks(rows: readonly Notification[]): string[] {
 }
 
 /**
- * The names of these principals as they are now: a person's name (their email while they have none), read through the
- * identity module's service outside any transaction, and an agent's name and slug; and these tasks' keys and titles.
+ * The names of these principals as they are now (the org module's `principalNames`, outside any transaction: a person's
+ * name, their email while they have none, and an agent's name and slug; `SOMEONE` for nobody known); and these tasks'
+ * keys and titles. The org module is imported by its file, not its index, which imports this module's service.
  */
 export async function namesOf(
   db: DbHandle,
@@ -35,25 +33,11 @@ export async function namesOf(
   ids: readonly string[],
   taskIds: readonly string[] = [],
 ): Promise<Names> {
-  const members = await repo.members(t, ids);
-  const profiles = await profilesOf(
-    db,
-    members.map((member) => member.userId),
-  );
-  const names = new Map<string, string>();
-  for (const member of members) {
-    const profile = profiles.get(member.userId);
-    if (profile) names.set(member.principalId, profile.displayName ?? profile.primaryEmail);
-  }
-  const slugs = new Map<string, string>();
-  for (const agent of await repo.agents(t, ids)) {
-    names.set(agent.principalId, agent.name);
-    slugs.set(agent.principalId, agent.slug);
-  }
+  const names = await principalNames(db, t, ids);
   const tasks = new Map((await repo.tasks(t, taskIds)).map((task) => [task.id, task]));
   return {
-    name: (id) => (id ? (names.get(id) ?? SOMEONE) : SOMEONE),
-    agentSlug: (id) => slugs.get(id),
+    name: (id) => (id ? names(id).name : SOMEONE),
+    agentSlug: (id) => names(id).slug ?? undefined,
     task: (id) => {
       const task = id === undefined ? undefined : tasks.get(id);
       return task && { key: taskKey(task.number), title: task.title };

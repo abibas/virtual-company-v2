@@ -1,5 +1,6 @@
 import type { Flow, FlowStep, Task, TenantDb } from '@mwc/db';
 import { TASK_PAGE } from '@mwc/shared/flows';
+import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { allowedActions, editRefusal, intoStepRefusal } from '../rules/access.ts';
 import { move } from '../rules/machine.ts';
@@ -14,7 +15,7 @@ import type {
 import { applyMove, eventRow } from './apply.ts';
 import { audit, type Caller } from './audit.ts';
 import { type RunDeps, runStep } from './runs.ts';
-import { namesOf, rosterOf } from './team.ts';
+import { rosterOf } from './team.ts';
 import { conversationView, taskDetail, taskPrincipals, taskSummary } from './views.ts';
 
 /** The tasks (S5.3a): the list, one task with its history, a new task, and an edit of its title, text or priority. */
@@ -54,9 +55,8 @@ export async function listTasks(
   const leads = new Map(flows.map((flow) => [flow.id, flow.leadPrincipalId]));
   const lead = (task: Task) => leads.get(task.flowId) as string;
   const step = (task: Task) => (task.currentStepId === null ? undefined : byId.get(task.currentStepId));
-  const names = await namesOf(
+  const names = await principalNames(
     deps.db,
-    repo,
     t,
     kept.flatMap((task) => taskPrincipals(task, step(task), lead(task))),
   );
@@ -87,7 +87,7 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
     ...agents.values(),
     task.decision?.by,
   ];
-  const names = await namesOf(deps.db, repo, t, ids);
+  const names = await principalNames(deps.db, t, ids);
   const actions = allowedActions(caller, roster.team(flow.leadPrincipalId), task, current);
   const byId = new Map(steps.map((step) => [step.id, step]));
   const turns = await repo.conversations.turnsOf(

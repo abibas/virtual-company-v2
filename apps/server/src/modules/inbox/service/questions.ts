@@ -2,10 +2,10 @@ import type { DbHandle, TenantDb } from '@mwc/db';
 import { taskKey } from '@mwc/shared/flows';
 import type { AskQuestion, TurnEvent } from '@mwc/shared/harness';
 import { type OpenQuestion, openQuestion } from '../../chats/rules/questions.ts';
+import { principalNames } from '../../org/index.ts';
 import type { InboxRepo, QuestionRow } from '../repo.ts';
 import { answersQuestions, type Viewer } from '../rules.ts';
 import type { InboxCompany, InboxItem } from '../schemas.ts';
-import { namesOf } from './names.ts';
 
 /**
  * The agents' open questions (S6b): a chat's question is open while it is the latest of the chat's last turn and nothing
@@ -49,9 +49,8 @@ export async function questionItems(
       )
     ).map((chat) => [chat.id, chat]),
   );
-  const names = await namesOf(
+  const names = await principalNames(
     deps.db,
-    repo,
     t,
     [...chats.values()].map((chat) => chat.agentPrincipalId),
   );

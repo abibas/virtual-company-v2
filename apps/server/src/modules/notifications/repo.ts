@@ -1,5 +1,4 @@
 import {
-  agents,
   invitations,
   memberships,
   type Notification,
@@ -15,7 +14,8 @@ import type { NoticePayload } from './rules.ts';
 
 /**
  * The notifications' rows in one company, through the tenant layer: writing them, a person's page and unread count,
- * marking them read, the person's settings, the principals they name (people and agents), and their email state.
+ * marking them read, the person's settings and membership (whose address an email goes to), and their email state.
+ * The names a notice shows are the org module's (`principalNames`).
  */
 
 /** A notification to write. */
@@ -120,7 +120,7 @@ export function notificationsRepo() {
       return rows.map((row) => row.principalId);
     },
 
-    /** The memberships of these principals: whose person they are, and how they stand. */
+    /** The memberships of these principals: whose person they are (an email's address), and how they stand. */
     members(t: TenantDb, ids: readonly string[]) {
       if (ids.length === 0) return Promise.resolve([]);
       const fields = {
@@ -129,13 +129,6 @@ export function notificationsRepo() {
         status: memberships.status,
       };
       return t.selectFields(memberships, fields, inArray(memberships.principalId, [...ids]));
-    },
-
-    /** The agents of these principals: their names and slugs. */
-    agents(t: TenantDb, ids: readonly string[]) {
-      if (ids.length === 0) return Promise.resolve([]);
-      const fields = { principalId: agents.principalId, name: agents.name, slug: agents.slug };
-      return t.selectFields(agents, fields, inArray(agents.principalId, [...ids]));
     },
 
     tasks: tasksNamed,

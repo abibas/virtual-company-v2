@@ -1,5 +1,6 @@
 import { diffFields, type Flow, type FlowStep, type Task, type TenantDb } from '@mwc/db';
 import type { TaskTurnContext } from '../../chats/index.ts';
+import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { actRefusal } from '../rules/access.ts';
 import {
@@ -17,7 +18,7 @@ import { moveRefusal } from '../rules/moves.ts';
 import { applyMove } from './apply.ts';
 import { AUDIT_IGNORED, type Caller } from './audit.ts';
 import { applyStepChange, type RunDeps, runStep, startedNow } from './runs.ts';
-import { namesOf, rosterOf } from './team.ts';
+import { rosterOf } from './team.ts';
 
 /**
  * A step's turn's decision (S6a, docs/processes.md "Built in S6a"): a decision tool records the move on the task
@@ -64,7 +65,7 @@ export async function recordDecision(
 ): Promise<ToolReply> {
   const task = await repo.tasks.get(t, { id: turn.taskId });
   const flow = task && (await repo.flows.get(t, task.flowId));
-  const lead = flow && (await namesOf(deps.db, repo, t, [flow.leadPrincipalId]))(flow.leadPrincipalId).name;
+  const lead = flow && (await principalNames(deps.db, t, [flow.leadPrincipalId]))(flow.leadPrincipalId).name;
   return t.transaction(async (tx): Promise<ToolReply> => {
     const { task: now, steps } = await locked(repo, tx, turn.taskId);
     const step = steps.find((s) => s.id === turn.stepId);

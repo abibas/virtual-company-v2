@@ -3,11 +3,11 @@ import type { DbHandle, Task, TaskArtifact, TenantDb } from '@mwc/db';
 import { HANDOFF_NOTE } from '@mwc/shared/flows';
 import type { TaskTurnContext } from '../../chats/index.ts';
 import type { CollectedArtifact, TurnCollected } from '../../machines/index.ts';
+import { principalNames } from '../../org/index.ts';
 import type { ArtifactRow, TasksRepo } from '../repo.ts';
 import { noteBytes, skipWords } from '../rules/runs.ts';
 import { type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
 import type { ArtifactView } from '../schemas/artifacts.ts';
-import { namesOf } from './team.ts';
 
 /**
  * A task's artifacts (S5.3b, docs/processes.md "Built in S5.3b"): what a step's turn left, kept with the task, the step
@@ -124,9 +124,8 @@ export async function listArtifacts(deps: Deps, repo: TasksRepo, t: TenantDb, re
   const task = ref === undefined ? undefined : await repo.tasks.get(t, ref);
   if (task === undefined) return TASK_NOT_FOUND;
   const rows = await repo.artifacts.ofTask(t, task.id);
-  const names = await namesOf(
+  const names = await principalNames(
     deps.db,
-    repo,
     t,
     rows.map((row) => row.createdBy),
   );

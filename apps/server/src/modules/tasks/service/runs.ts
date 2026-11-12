@@ -9,6 +9,7 @@ import {
 } from '@mwc/shared/flows';
 import type { TaskTurns } from '../../chats/index.ts';
 import { notify } from '../../notifications/service.ts';
+import { principalNames } from '../../org/index.ts';
 import type { ArtifactRow, TasksRepo } from '../repo.ts';
 import type { Transition } from '../rules/machine.ts';
 import { runNotices } from '../rules/notices.ts';
@@ -110,7 +111,8 @@ export async function runStep(deps: RunDeps, repo: TasksRepo, t: TenantDb, calle
   if (task?.state !== 'active' || task.stepState !== 'working' || task.currentStepId === null) return;
   const flow = (await repo.flows.get(t, task.flowId)) as Flow;
   const step = (await repo.flows.steps(t, flow.id)).find((s) => s.id === task.currentStepId) as FlowStep;
-  if ((await repo.names.agentsOf(t, [step.assigneePrincipalId])).length === 0) return;
+  const assignee = (await principalNames(deps.db, t, [step.assigneePrincipalId]))(step.assigneePrincipalId);
+  if (assignee.kind !== 'agent') return;
   const { round, prompt } = await prompts(deps, repo, t, task, step);
   const started = await deps.steps.start(t, {
     by: caller.principalId,

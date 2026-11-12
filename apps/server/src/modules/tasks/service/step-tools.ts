@@ -3,6 +3,7 @@ import type { FlowStep, Task, TenantDb } from '@mwc/db';
 import { type AttachInput, clipText, stepPrompt, TOOL_RESULT_MAX, taskKey } from '@mwc/shared/flows';
 import type { TaskTurnContext } from '../../chats/index.ts';
 import type { CollectedArtifact } from '../../machines/index.ts';
+import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { stepToolRefusal } from '../rules/decision.ts';
 import { noteBytes } from '../rules/runs.ts';
@@ -10,7 +11,6 @@ import { attachedText, decisionText, whereText } from '../rules/tool-text.ts';
 import { storeFile } from './artifacts.ts';
 import type { ToolReply } from './decision.ts';
 import { type RunDeps, stepPromptInput } from './runs.ts';
-import { namesOf } from './team.ts';
 import { decisionView, taskSummary } from './views.ts';
 
 /**
@@ -32,7 +32,7 @@ export async function readTask(
   const step = steps.find((s) => s.id === turn.stepId);
   if (step === undefined) return { ok: false, text: 'Your step is no longer in the flow.' };
   const flow = await repo.flows.get(t, task.flowId);
-  const names = await namesOf(deps.db, repo, t, [flow?.leadPrincipalId, task.createdBy, task.decision?.by]);
+  const names = await principalNames(deps.db, t, [flow?.leadPrincipalId, task.createdBy, task.decision?.by]);
   const { all } = await stepPromptInput(deps, repo, t, task, step);
   const byId = new Map(steps.map((s) => [s.id, s]));
   const summary = taskSummary(task, byId, flow?.leadPrincipalId ?? '', names);

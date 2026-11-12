@@ -1,5 +1,6 @@
 import { type DbHandle, type Flow, type FlowStep, isUuid, type TenantDb } from '@mwc/db';
 import { flowText } from '@mwc/shared/flows';
+import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { leadRefusal } from '../rules/access.ts';
 import { planSteps, type StepInput } from '../rules/steps.ts';
@@ -7,7 +8,7 @@ import { FLOW_NOT_FOUND, inOrder, type Refusal, refuse } from '../rules.ts';
 import type { CreateFlow, FlowSummaryView, FlowView } from '../schemas/flows.ts';
 import { audit, type Caller } from './audit.ts';
 import { writeSteps } from './steps.ts';
-import { namesOf, rosterOf } from './team.ts';
+import { rosterOf } from './team.ts';
 import { flowPrincipals, flowSummary, flowView } from './views.ts';
 
 /** A team's flow (S5.3a): listing, reading (by id, by Lead, written), making one, renaming it and its step list. */
@@ -20,7 +21,7 @@ export type FlowResult<S extends 403 | 404 | 409 | 422 = 403 | 404 | 409 | 422> 
 /** A flow as the API shows it, its names and open tasks read now (outside any transaction). */
 export async function shownFlow(deps: Deps, repo: TasksRepo, t: TenantDb, flow: Flow): Promise<FlowView> {
   const steps = await repo.flows.steps(t, flow.id);
-  const names = await namesOf(deps.db, repo, t, flowPrincipals(flow, steps));
+  const names = await principalNames(deps.db, t, flowPrincipals(flow, steps));
   return flowView(flow, steps, names, await repo.flows.openCounts(t, flow.id));
 }
 
@@ -29,9 +30,8 @@ export async function listFlows(deps: Deps, repo: TasksRepo, t: TenantDb): Promi
   const rows = await repo.flows.list(t);
   const steps = await repo.flows.allSteps(t);
   const open = await repo.tasks.openByFlow(t);
-  const names = await namesOf(
+  const names = await principalNames(
     deps.db,
-    repo,
     t,
     rows.map((flow) => flow.leadPrincipalId),
   );
@@ -53,7 +53,7 @@ export async function findFlow(
 /** The flow's written form (docs/processes.md), with its Lead's and assignees' names as they are now. */
 export async function writtenFlow(deps: Deps, repo: TasksRepo, t: TenantDb, flow: Flow): Promise<string> {
   const steps = inOrder(await repo.flows.steps(t, flow.id));
-  const names = await namesOf(deps.db, repo, t, flowPrincipals(flow, steps));
+  const names = await principalNames(deps.db, t, flowPrincipals(flow, steps));
   const byId = new Map(steps.map((step) => [step.id, step]));
   return flowText({
     name: flow.name,

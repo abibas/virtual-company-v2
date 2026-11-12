@@ -15,7 +15,7 @@ import type {
 import type { StepRef } from '../schemas.ts';
 import type { Names } from './team.ts';
 
-/** Rows as the API shows them (S5.3a); names come from `namesOf`, read before. */
+/** Rows as the API shows them (S5.3a); names come from the org module's `principalNames`, read before. */
 
 export const stepRef = (step: Pick<FlowStep, 'id' | 'name' | 'kind'>): StepRef => ({
   id: step.id,
