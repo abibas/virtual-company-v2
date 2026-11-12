@@ -8,7 +8,9 @@ import { taskNumber } from '@mwc/shared/flows';
  */
 
 /** `queued`, or several states with commas between them: what `?state=` accepts. */
-export const STATES_PATTERN = new RegExp(`^(${TaskState.options.join('|')})(,(${TaskState.options.join('|')}))*$`);
+export const STATES_PATTERN = new RegExp(
+  `^(${TaskState.options.join('|')})(,(${TaskState.options.join('|')}))*$`,
+);
 
 /** The states a `?state=` names, each once. */
 export const statesOf = (state: string): TaskState[] => [

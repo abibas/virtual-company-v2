@@ -3,6 +3,7 @@ import {
   IdCard,
   KeyRound,
   LayoutGrid,
+  ListChecks,
   type LucideIcon,
   Network,
   Server,
@@ -35,22 +36,19 @@ export function withoutOldPrefix(href: string): string {
 
 /**
  * The rail section a company path belongs to, from its first segment: an agent's page (`agents/...`) and its chats
- * (`chats/...`) are part of Company structure (`structure`), a task's page (`tasks/...`) part of Flows; every other
- * section is its own.
+ * (`chats/...`) are part of Company structure (`structure`); every other section is its own, so a task's page
+ * (`tasks/T-12`) is under Tasks, with its list.
  */
 export function railSection(first: string): string {
-  if (first === 'agents' || first === 'chats') return 'structure';
-  return first === 'tasks' ? 'flows' : first;
+  return first === 'agents' || first === 'chats' ? 'structure' : first;
 }
 
 /**
  * The new address of a company page that moved (2026-11-09), or undefined: `agents` (the org chart, or its list with
- * `?view=list`) and `members` are tabs of Company structure now; `tasks` alone (a notification of no one task) opens
- * the flows.
+ * `?view=list`) and `members` are tabs of Company structure now.
  */
 export function movedSection(section: string, search: URLSearchParams): string | undefined {
   if (section === 'members') return 'structure/people';
-  if (section === 'tasks') return 'flows';
   if (section === 'agents') return search.get('view') === 'list' ? 'structure/agents' : 'structure';
   return undefined;
 }
@@ -69,6 +67,7 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
     page('overview', 'Overview', LayoutGrid),
     page('structure', 'Company structure', Network),
     page('flows', 'Flows', Workflow),
+    page('tasks', 'Tasks', ListChecks),
     page('machines', 'Machines', Server),
     { ...page('subscriptions', 'Subscriptions', CreditCard), divider: true, railOnly: true },
     { ...page('gateways', 'AI gateways', Waypoints), railOnly: true },

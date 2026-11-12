@@ -20,6 +20,7 @@ import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { ChatPage } from '../pages/company/ChatPage.tsx';
 import { FlowsPage } from '../pages/company/flows/FlowsPage.tsx';
 import { TaskPage } from '../pages/company/flows/TaskPage.tsx';
+import { TasksPage } from '../pages/company/flows/TasksPage.tsx';
 import { TeamPage } from '../pages/company/flows/TeamPage.tsx';
 import { MachinesPage } from '../pages/company/MachinesPage.tsx';
 import { OverviewPage } from '../pages/company/OverviewPage.tsx';
@@ -41,6 +42,7 @@ import { rememberCompany, useSession } from './session.tsx';
 const SECTIONS: Readonly<Record<string, ComponentType>> = {
   '': OverviewPage,
   flows: FlowsPage,
+  tasks: TasksPage,
   machines: MachinesPage,
   subscriptions: SubscriptionsCompanyPage,
   gateways: GatewaysCompanyPage,
@@ -95,7 +97,7 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
-/** A team's page (`flows/<lead>`, `flows/<lead>/flow`) or a task's (`tasks/<key>`; `tasks` alone opens the flows). */
+/** A team's page (`flows/<lead>`, `flows/<lead>/flow`) or a task's (`tasks/<key>`; `tasks` alone is the task list). */
 function flowPageAt(head: string, rest: readonly string[]): ReactNode {
   const [address, more] = rest;
   if (head === 'flows' && address && (more === undefined || (more === FLOW_TAB && rest.length === 2))) {

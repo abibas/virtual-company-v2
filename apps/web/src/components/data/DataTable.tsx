@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import { navigate } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
 
 export interface Column<T> {
@@ -15,6 +16,13 @@ export interface Column<T> {
 
 const HIDE = { sm: 'max-sm:hidden', md: 'max-md:hidden', lg: 'max-lg:hidden' } as const;
 
+/** A click on a row opens its page, unless it was on a control of its own; with ⌘ or Ctrl, in a new tab. */
+function openRow(event: MouseEvent<HTMLTableRowElement>, href: string) {
+  if ((event.target as Element).closest('a, button, input, select, textarea, label')) return;
+  if (event.metaKey || event.ctrlKey) window.open(href, '_blank', 'noopener');
+  else navigate(href);
+}
+
 /**
  * The table of every list of records (members, invitations, keys): a quiet header, hairline rows, cells that
  * hide below a breakpoint, and the actions on the right. It scrolls sideways on its own at phone width.
@@ -24,11 +32,14 @@ export function DataTable<T>({
   rows,
   rowKey,
   empty,
+  rowHref,
   className,
 }: {
   readonly columns: readonly Column<T>[];
   readonly rows: readonly T[];
   readonly rowKey: (row: T) => string;
+  /** Each row's page: a click anywhere on the row opens it (a link in the row stays the keyboard's way there). */
+  readonly rowHref?: (row: T) => string;
   /** Shown instead of the table when there are no rows. */
   readonly empty?: ReactNode;
   readonly className?: string;
@@ -56,7 +67,14 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} className="border-b border-line align-top last:border-b-0">
+            <tr
+              key={rowKey(row)}
+              onClick={rowHref ? (event) => openRow(event, rowHref(row)) : undefined}
+              className={cx(
+                'border-b border-line align-top last:border-b-0',
+                rowHref && 'cursor-pointer transition-colors duration-100 hover:bg-surface-2',
+              )}
+            >
               {columns.map((column) => (
                 <td
                   key={column.key}

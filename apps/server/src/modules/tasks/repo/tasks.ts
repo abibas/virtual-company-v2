@@ -10,8 +10,8 @@ import {
 } from '@mwc/db';
 import type { TaskState } from '@mwc/shared/enums';
 import { and, asc, count, desc, eq, ilike, inArray, lt, max, or, type SQL, sql } from 'drizzle-orm';
-import type { TaskRef } from '../rules.ts';
 import { likeLiteral, type TaskCursor, type TaskSearch } from '../rules/list.ts';
+import type { TaskRef } from '../rules.ts';
 
 /** The tasks and their history, through the company's tenant only (S5.3a). */
 
