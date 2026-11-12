@@ -11,6 +11,7 @@ import {
   standingInstructions,
   UNNAMED_PERSON,
 } from '../src/agent-briefing.ts';
+import type { BriefingTool } from '../src/credentials/tool-words.ts';
 import { AGENT_INSTRUCTIONS_MAX } from '../src/org.ts';
 
 type Status = 'active' | 'paused' | 'archived';
@@ -135,6 +136,35 @@ describe('agentBriefing', () => {
     expect(lines(brief('a', loop)).slice(1, 3)).toEqual([
       '- You report to B (PM; an agent).',
       '- You have no teammates: nobody else reports to B.',
+    ]);
+  });
+
+  it('ends with a line per tool profile, GitHub’s then Atlassian’s, and none for an agent off the chart', () => {
+    const tools: BriefingTool[] = [
+      {
+        provider: 'github',
+        account: 'ihorherasko',
+        site: null,
+        rights: { repos: ['AiriaLLC/*'], push: true, pullRequests: true },
+      },
+      {
+        provider: 'atlassian',
+        account: 'Ihor Herasko',
+        site: 'airia.atlassian.net',
+        rights: { jira: 'read', jiraProjects: ['AP'], confluence: 'off', confluenceSpaces: 'all' },
+      },
+    ];
+    const text = agentBriefing({ company: 'X', nodes: chart, principalId: 'dev', tools }).text;
+    expect(lines(text).slice(-2)).toEqual([
+      '- GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
+        'merges, force-pushes, deletes or pushes to a default branch. Configured; the tools that use it arrive with ' +
+        'Most Wanted’s tools.',
+      '- Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: none; never ' +
+        'deletes or archives. Configured; the tools that use it arrive with Most Wanted’s tools.',
+    ]);
+    const off = [agent('gone', 'Gone', 'Coder', null, 'archived')];
+    expect(lines(agentBriefing({ company: 'X', nodes: off, principalId: 'gone', tools }).text)).toEqual([
+      '- You are not on the org chart of X.',
     ]);
   });
 

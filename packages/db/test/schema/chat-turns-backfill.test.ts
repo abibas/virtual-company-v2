@@ -6,7 +6,7 @@ import { migrateToLatest } from '../../src/migrate.ts';
 import { type Chat, chats, chatTurns } from '../../src/schema/index.ts';
 import { createTestDb, pgError, type TestDb, testDbKind } from '../../src/testing.ts';
 import { migrateUpTo } from '../fixtures/migrations.ts';
-import { insertAgent, insertCompany, insertMachine } from '../fixtures/rows.ts';
+import { insertAgentBefore0030, insertCompany, insertMachine } from '../fixtures/rows.ts';
 
 /**
  * The data step of migration `0028_chat_slot_waits` (the `-- custom:` part of `migrations/0028_chat_slot_waits.sql`): a
@@ -24,7 +24,7 @@ beforeAll(async () => {
   handle = testDb.handle;
   await migrateUpTo(handle, '0027_lead_check_ins');
   const company = await insertCompany(handle);
-  const agent = await insertAgent(handle, company.id);
+  const agent = await insertAgentBefore0030(handle, company.id);
   const machine = await insertMachine(handle, company.id);
   const [row] = await handle.db
     .insert(chats)

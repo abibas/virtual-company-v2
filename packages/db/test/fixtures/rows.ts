@@ -175,6 +175,23 @@ export async function insertAgentBefore0017(
 }
 
 /**
+ * An agent written with the columns `agents` had before migration `0030_tool_profiles` (no tool profiles), for a test
+ * seeded at an older migration; only the columns that have no default.
+ */
+export async function insertAgentBefore0030(handle: RawDbHandle, companyId: string): Promise<Agent> {
+  const principalId = (await insertPrincipal(handle, companyId, 'agent')).id;
+  const slug = unique('agent');
+  const [row] = await queryRows<{ id: string; principal_id: string }>(
+    handle,
+    sql`insert into agents (id, company_id, principal_id, name, slug, role_title)
+        values (${newId()}, ${companyId}, ${principalId}, ${slug}, ${slug}, 'Coder')
+        returning id, principal_id`,
+  );
+  const { id } = one(row ? [row] : []);
+  return { id, principalId, companyId } as Agent;
+}
+
+/**
  * A sealed credential written with the columns `credentials` had before migration `0029_tool_sign_ins` (no last check),
  * for a data-step test seeded at an older migration; random bytes stand in for a seal.
  */

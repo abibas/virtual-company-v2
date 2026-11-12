@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 38. Migrations: 30, the last is `0029_tool_sign_ins`.
+Tables: 38. Migrations: 31, the last is `0030_tool_profiles`.
 
 ```mermaid
 erDiagram
@@ -11,11 +11,12 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     uuid owner_user_id FK "not null"
     text name "not null"
-    text provider "not null, claude|openai"
+    text provider "not null, claude|openai|github|atlassian"
     uuid credential_id FK "nullable"
     uuid gateway_credential_id FK "nullable"
     text model "nullable"
     text effort "nullable, low|medium|high|xhigh|max|ultra"
+    jsonb rights "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -61,6 +62,8 @@ erDiagram
     text icon_emoji "nullable"
     jsonb settings "not null, default '{}'"
     uuid profile_id FK "nullable"
+    uuid github_profile_id FK "nullable"
+    uuid atlassian_profile_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -529,6 +532,8 @@ erDiagram
   agent_placements }o--|| machines : "company_id, machine_id"
   agents }o--|| companies : "company_id"
   agents }o--o| access_profiles : "profile_id"
+  agents }o--o| access_profiles : "github_profile_id"
+  agents }o--o| access_profiles : "atlassian_profile_id"
   agents |o--|| principals : "company_id, principal_id"
   api_keys }o--|| companies : "company_id"
   api_keys }o--|| principals : "company_id, principal_id"
@@ -633,11 +638,12 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `owner_user_id` | `uuid` | no |  | FK |  |
 | `name` | `text` | no |  |  |  |
-| `provider` | `text` | no |  |  | `claude`, `openai` |
+| `provider` | `text` | no |  |  | `claude`, `openai`, `github`, `atlassian` |
 | `credential_id` | `uuid` | yes |  | FK |  |
 | `gateway_credential_id` | `uuid` | yes |  | FK |  |
 | `model` | `text` | yes |  |  |  |
 | `effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
+| `rights` | `jsonb` | yes |  |  |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 
@@ -650,9 +656,12 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `access_profiles_owner_user_id_name_unique` (`owner_user_id`, `name`)
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
-  - `access_profiles_provider_check`: `provider` is one of `claude`, `openai`
+  - `access_profiles_provider_check`: `provider` is one of `claude`, `openai`, `github`, `atlassian`
   - `access_profiles_model_check`: `char_length("model") between 1 and 100`
   - `access_profiles_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - `access_profiles_rights_check`: `("provider" in ('github', 'atlassian')) = ("rights" is not null)`
+  - `access_profiles_rights_object_check`: `jsonb_typeof("rights") = 'object'`
+  - `access_profiles_tool_check`: `"provider" in ('claude', 'openai') or ("gateway_credential_id" is null and "model" is null and "effort" is null)`
 - **Indexes:** none
 
 ### `agent_icons`
@@ -735,6 +744,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `icon_emoji` | `text` | yes |  |  |  |
 | `settings` | `jsonb` | no | `'{}'` |  |  |
 | `profile_id` | `uuid` | yes |  | FK |  |
+| `github_profile_id` | `uuid` | yes |  | FK |  |
+| `atlassian_profile_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 
@@ -742,6 +753,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Foreign keys:**
   - `company_id` → `companies` (`id`), on delete no action (`agents_company_id_companies_id_fk`)
   - `profile_id` → `access_profiles` (`id`), on delete set null (`agents_profile_id_access_profiles_id_fk`)
+  - `github_profile_id` → `access_profiles` (`id`), on delete set null (`agents_github_profile_id_access_profiles_id_fk`)
+  - `atlassian_profile_id` → `access_profiles` (`id`), on delete set null (`agents_atlassian_profile_id_access_profiles_id_fk`)
   - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`agents_principal_fk`)
 - **Unique:**
   - `agents_company_id_id_unique` (`company_id`, `id`)
@@ -761,6 +774,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `agents_icon_emoji_check`: `char_length("icon_emoji") between 1 and 16`
 - **Indexes:**
   - `agents_profile_idx` on (`profile_id`)
+  - `agents_github_profile_idx` on (`github_profile_id`)
+  - `agents_atlassian_profile_idx` on (`atlassian_profile_id`)
 
 ### `api_keys`
 

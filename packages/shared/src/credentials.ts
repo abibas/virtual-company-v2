@@ -1,4 +1,9 @@
-import type { CredentialKind, Harness, ProfileProvider } from './enums.ts';
+import type { AiProvider, CredentialKind, Harness, ProfileProvider, ToolProvider } from './enums.ts';
+
+/** A tool profile's rights (S7.1b) and who its sign-in acts as: `credentials/tool-rights.ts`; in words: `tool-words.ts`. */
+export * from './credentials/tool-rights.ts';
+export * from './credentials/tool-words.ts';
+export type { ToolProvider } from './enums.ts';
 
 /**
  * The personal credential store's contract (docs/subscriptions.md): the limits the API's schemas and the CHECKs of
@@ -47,9 +52,8 @@ export const TOOL_CREDENTIAL_KINDS = [
 ] as const satisfies readonly CredentialKind[];
 export type ToolCredentialKind = (typeof TOOL_CREDENTIAL_KINDS)[number];
 
-/** The tools they sign in to, in the order the page shows them. */
-export const TOOL_PROVIDERS = ['github', 'atlassian'] as const;
-export type ToolProvider = (typeof TOOL_PROVIDERS)[number];
+/** The tools they sign in to, in the order the pages show them. */
+export const TOOL_PROVIDERS = ['github', 'atlassian'] as const satisfies readonly ToolProvider[];
 
 /** The tool each tool sign-in is for. */
 export const TOOL_PROVIDER_OF = {
@@ -96,28 +100,50 @@ export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;
 
 /**
  * The credential kinds an access profile of each provider holds (docs/subscriptions.md): a Claude profile one Claude
- * subscription, for `claude_code` agents; an OpenAI profile one OpenAI subscription, for `codex` agents. Either also
- * takes any of its owner's gateways (`GATEWAY_KINDS`): gateways are universal since 2026-11-10. A profile holds its
- * owner's own credentials, never a revoked one.
+ * subscription, for `claude_code` agents; an OpenAI profile one OpenAI subscription, for `codex` agents; a GitHub
+ * profile one GitHub sign-in and an Atlassian profile one Atlassian sign-in (S7.1b), for the agents given them. Only the
+ * AI profiles also take any of their owner's gateways (`GATEWAY_KINDS`): gateways are universal since 2026-11-10. A
+ * profile holds its owner's own credentials, never a revoked one, so a tool sign-in never goes in an AI profile, nor an
+ * AI subscription in a tool profile.
  */
 export const PROVIDER_KINDS = {
   claude: ['claude_oauth', 'claude_setup_token', 'anthropic_api_key'],
   openai: ['codex_oauth', 'openai_api_key'],
+  github: ['github_oauth', 'github_token'],
+  atlassian: ['atlassian_api_token'],
 } as const satisfies Record<ProfileProvider, readonly CredentialKind[]>;
 
 /** The kinds a profile's gateway takes. */
 export const GATEWAY_KINDS = ['gateway'] as const satisfies readonly CredentialKind[];
 
-/** The providers in the order the profiles page groups them. */
-export const PROFILE_PROVIDERS = ['claude', 'openai'] as const satisfies readonly ProfileProvider[];
+/** The providers in the order the profiles page groups them: the AI ones, then the tools. */
+export const PROFILE_PROVIDERS = [
+  'claude',
+  'openai',
+  'github',
+  'atlassian',
+] as const satisfies readonly ProfileProvider[];
+
+/** The AI providers, in the same order: the ones with a model, an effort, a gateway and a member's default. */
+export const AI_PROVIDERS = ['claude', 'openai'] as const satisfies readonly AiProvider[];
+
+/** True for a Claude or an OpenAI profile, false for a tool profile. */
+export function isAiProvider(provider: ProfileProvider): provider is AiProvider {
+  return (AI_PROVIDERS as readonly ProfileProvider[]).includes(provider);
+}
+
+/** True for a GitHub or an Atlassian profile. */
+export function isToolProvider(provider: ProfileProvider): provider is ToolProvider {
+  return (TOOL_PROVIDERS as readonly ProfileProvider[]).includes(provider);
+}
 
 /** The provider whose profiles a harness runs on: Claude for Claude Code, OpenAI for Codex. */
 export const HARNESS_PROVIDER = {
   claude_code: 'claude',
   codex: 'openai',
-} as const satisfies Record<Harness, ProfileProvider>;
+} as const satisfies Record<Harness, AiProvider>;
 
-/** True when a credential of `kind` is the subscription of a `provider` profile. */
+/** True when a credential of `kind` is the subscription (or, for a tool profile, the sign-in) of a `provider` profile. */
 export function fitsProvider(provider: ProfileProvider, kind: CredentialKind): boolean {
   return (PROVIDER_KINDS[provider] as readonly CredentialKind[]).includes(kind);
 }
