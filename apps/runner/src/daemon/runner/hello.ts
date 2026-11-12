@@ -4,7 +4,10 @@ import {
   RUNNER_PROTOCOL_VERSION,
   type RunnerCaps,
   type RunnerHello,
+  type RunnerTools,
 } from '@mwc/shared/runner-protocol';
+import type { PowerExecutor } from '../../power/executor.ts';
+import type { RunnerOptions } from '../runner.ts';
 
 /**
  * The runner's `runner.hello` (docs/runner-protocol.md, "Connection"): its version, when its bundle was built (null from
@@ -34,5 +37,34 @@ export function helloOf({ version, builtAt, caps, claudeVersion, build, turns }:
     ...(claudeVersion === undefined ? {} : { claudeVersion }),
     ...(build === undefined ? {} : { build }),
     ...(turns === undefined || turns.length === 0 ? {} : { turns: [...turns] }),
+  };
+}
+
+/** What the daemon's parts can do now, beside its options. */
+export interface CapsNow {
+  readonly slots: number;
+  readonly power: PowerExecutor['providers'];
+  readonly terminal: boolean;
+  readonly selfUpdate: boolean;
+  readonly tools: RunnerTools | undefined;
+}
+
+/** What it can do now (the hello's and `runner.caps`'s). */
+export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
+  const { harness, processes, containerId } = options;
+  const { tools } = now;
+  return {
+    harnesses: harness && processes ? harness.versions : NO_HARNESSES,
+    slots: now.slots,
+    hold: options.hold.kind,
+    power: [...now.power],
+    terminal: now.terminal,
+    selfUpdate: now.selfUpdate,
+    folders: options.folders !== undefined,
+    forks: true,
+    reattach: harness?.keeper !== undefined && processes !== undefined,
+    agentTools: harness?.ask !== undefined && processes !== undefined,
+    ...(tools ? { tools } : {}),
+    ...(containerId ? { containerId } : {}),
   };
 }

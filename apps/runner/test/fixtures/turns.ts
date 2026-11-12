@@ -1,9 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HarnessDriver } from '@mwc/harness-core';
-import { FakeHarnessDriver, type FakeHarnessDriverOptions, fakeLines } from '@mwc/harness-core/fake';
+import {
+  FAKE_CREDENTIALS,
+  FakeHarnessDriver,
+  type FakeHarnessDriverOptions,
+  fakeLines,
+} from '@mwc/harness-core/fake';
 import type { Harness } from '@mwc/shared/enums';
-import type { TurnEvent } from '@mwc/shared/harness';
+import type { TurnEvent, TurnSpec } from '@mwc/shared/harness';
+import { newId } from '@mwc/shared/ids';
 import type { TurnEnd, TurnEventItem, TurnRunnerFrame } from '@mwc/shared/runner-protocol';
 import { nodePrivateFs } from '../../src/turns/files.ts';
 import { PrivateDirs } from '../../src/turns/private-dir.ts';
@@ -86,4 +92,24 @@ export function turnsWorld(
   const events = (): TurnEventItem[] =>
     sent.flatMap((frame) => (frame.type === 'turn.events' ? frame.events : []));
   return { turns, time, logs, spawn, sent, counts, ends, events };
+}
+
+/** Starts a turn of `spec` in the world; its id. */
+export const startTurn = (w: ReturnType<typeof turnsWorld>, spec: TurnSpec, turnId = newId()) => {
+  w.turns.handle({ type: 'turn.start', turnId, spec });
+  return turnId;
+};
+
+/** A Codex host whose driver keeps its login in a private folder of the runner's. */
+export function codexHost(authJson = FAKE_CREDENTIALS.codex_oauth.authJson) {
+  const driver = new FakeHarnessDriver({
+    harness: 'codex',
+    command: FAKE_COMMAND,
+    privateDir: {
+      env: 'CODEX_HOME',
+      path: null,
+      files: [{ name: 'auth.json', contents: authJson, mode: 0o600 }],
+    },
+  });
+  return fakeHarnessHost({ drivers: { codex: driver } });
 }

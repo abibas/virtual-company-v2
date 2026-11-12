@@ -1,4 +1,4 @@
-import { Tunnels } from '@mwc/machines-core/tunnels';
+import type { Tunnels } from '@mwc/machines-core/tunnels';
 import type {
   HoldState,
   RunnerCaps,
@@ -8,22 +8,30 @@ import type {
   ServerHello,
   TunnelSpec,
 } from '@mwc/shared/runner-protocol';
-import { WebSocket } from 'ws';
-import { type RunnerConfig, runnerWsUrl } from '../../config.ts';
-import { browse } from '../../folders/browse.ts';
+import type { RunnerConfig } from '../../config.ts';
 import { HoldManager, type HoldReport } from '../../hold/manager.ts';
-import { Commands } from '../../link/commands.ts';
+import type { Commands } from '../../link/commands.ts';
 import { Heartbeats } from '../../link/heartbeat.ts';
-import { Link, type LinkEnd } from '../../link/link.ts';
+import type { Link, LinkEnd } from '../../link/link.ts';
 import { NO_POWER, type PowerExecutor } from '../../power/executor.ts';
 import { type Clock, SYSTEM_CLOCK, SYSTEM_TIMERS, type Timers } from '../../system/time.ts';
-import { TerminalSessions } from '../../terminal/sessions.ts';
-import { Tools } from '../../tools/tools.ts';
-import { Turns } from '../../turns/turns.ts';
-import { Updates } from '../../update/updates.ts';
+import type { TerminalSessions } from '../../terminal/sessions.ts';
+import type { Tools } from '../../tools/tools.ts';
+import type { Turns } from '../../turns/turns.ts';
+import type { Updates } from '../../update/updates.ts';
 import type { HealthStatus } from '../health.ts';
 import type { Runner, RunnerOptions } from '../runner.ts';
-import { helloOf, NO_HARNESSES } from './hello.ts';
+import { capsOf, helloOf } from './hello.ts';
+import {
+  controllerTunnels,
+  type DaemonWires,
+  makeCommands,
+  makeLink,
+  makeTerminals,
+  makeTools,
+  makeTurns,
+  makeUpdates,
+} from './parts.ts';
 
 /**
  * The daemon behind `createRunner` (`../runner.ts`, its contract): it makes the hold manager, the heartbeats, the
@@ -31,7 +39,8 @@ import { helloOf, NO_HARNESSES } from './hello.ts';
  * link, and wires each to the others (and the commands to the folder browser). Live turns and the runs `setLiveRuns`
  * reports count together as live work for the hold; a change of the tools is sent as `runner.caps`. Turns outlive the
  * link and the runner (S5.4): it takes back the ones on its disk before its first hello, names them in each hello, and
- * a dropped link or a stop leaves them running; a self-update waits for runs and terminals, not for turns.
+ * a dropped link or a stop leaves them running; a self-update waits for runs and terminals, not for turns. The parts
+ * are made in `parts.ts` over the daemon's callbacks (`DaemonWires`).
  */
 
 const holdState = (state: HoldReport): HoldState => ({ type: 'hold.state', ...state });
@@ -68,103 +77,40 @@ export class RunnerDaemon implements Runner {
     this.#hold = new HoldManager({ driver: options.hold, clock, timers, log, report });
     const liveRuns = () => this.#hold.liveRuns;
     this.#heartbeats = new Heartbeats({ clock, sampler: options.sampler, liveRuns, log });
-    this.#commands = new Commands({
-      setServerHold: (until) => this.#hold.setServerHold(until),
-      power: this.#power,
-      saveKey: (runnerKey) => this.#saveKey(runnerKey),
-      drain: () => this.#drain(),
-      setTunnels: (tunnels) => this.#setTunnels(tunnels),
-      terminal: (frame) => this.#terminals.handle(frame),
-      turn: (frame) => this.#turns.handle(frame),
-      update: (frame) => this.#updates.handle(frame),
-      folders: (frame) => browse(this.#options.folders, frame),
-      tools: (frame) => this.#tools.handle(frame),
-      log,
-    });
-    this.#tools = this.#makeTools(timers);
-    this.#turns = new Turns({
-      host: options.harness,
-      processes: options.processes,
-      slots: () => this.#config.slots,
-      clock,
-      timers,
-      log,
-      send: (frame) => this.#link.send(frame),
-      count: () => void this.#applyLive(),
-    });
-    this.#terminals = new TerminalSessions({
-      host: options.terminal,
-      harness: options.harness,
-      timers,
-      log,
-      send: (frame) => this.#link.send(frame),
-      buffered: () => this.#link.bufferedAmount,
-      count: (open) => void this.#hold.setTerminals(open),
-    });
-    this.#updates = new Updates({
-      update: options.update,
-      serverUrl: () => this.#config.serverUrl,
-      // Chat turns outlive the restart (S5.4): only runs and terminals would end with it.
-      liveRuns: () => this.#runs,
-      openTerminals: () => this.#terminals.open,
-      installing: () => this.#tools.installing,
-      closeTerminals: (notice) => this.#terminals.closeAll('runner_updating', notice),
-      timers,
-      log,
-    });
+    const wires = this.#wires(clock, timers);
+    this.#commands = makeCommands(wires);
+    this.#tools = makeTools(wires);
+    this.#turns = makeTurns(wires);
+    this.#terminals = makeTerminals(wires);
+    this.#updates = makeUpdates(wires);
     this.restart = this.#updates.restart;
-    this.#tunnels = this.#controllerTunnels(clock, timers);
-    this.#link = this.#makeLink(clock, timers);
+    this.#tunnels = controllerTunnels(wires);
+    this.#link = makeLink(wires);
     this.ended = this.#link.ended;
   }
 
-  /** The machine's tools: their output and a change of them (`runner.caps`) go through the link. */
-  #makeTools(timers: Timers): Tools {
-    const { tools, processes, harness, log } = this.#options;
-    return new Tools({
-      ...{ host: tools?.host, found: tools?.found, processes, harness, timers, log },
-      send: (frame) => this.#link.send(frame),
-      changed: () => this.#link.send({ type: 'runner.caps', caps: this.#caps() }),
-      updating: () => this.#updates.updating,
-    });
-  }
-
-  /** A power controller's tunnels (`tunnel.set`), reported through the link; none without power or processes. */
-  #controllerTunnels(clock: Clock, timers: Timers): Tunnels | undefined {
-    const { processes, log } = this.#options;
-    if (this.#power.providers.length === 0 || processes === undefined) return undefined;
-    return new Tunnels({
-      command: (tunnel) => this.#power.tunnelCommand?.(tunnel),
-      clearPortCommand: this.#power.clearPortCommand?.bind(this.#power),
-      ...processes,
-      clock,
-      timers,
-      log,
-      report: (state) => this.#link.send(state),
-    });
-  }
-
-  /** The link to the server, wired to the hello, the heartbeats, the commands, the turns and the terminals. */
-  #makeLink(clock: Clock, timers: Timers): Link {
-    const options = this.#options;
-    return new Link({
-      url: runnerWsUrl(options.config.serverUrl),
-      key: () => this.#config.runnerKey,
-      WebSocket: options.WebSocket ?? WebSocket,
-      clock,
-      timers,
-      random: options.random ?? Math.random,
-      log: options.log,
+  /** What the parts reach the daemon and each other through (`parts.ts`). */
+  #wires(clock: Clock, timers: Timers): DaemonWires {
+    return {
+      ...{ options: this.#options, clock, timers, power: this.#power },
+      config: () => this.#config,
+      link: () => this.#link,
+      hold: () => this.#hold,
+      commands: () => this.#commands,
+      turns: () => this.#turns,
+      terminals: () => this.#terminals,
+      tools: () => this.#tools,
+      updates: () => this.#updates,
+      runs: () => this.#runs,
+      applyLive: () => void this.#applyLive(),
+      saveKey: (runnerKey) => this.#saveKey(runnerKey),
+      drain: () => this.#drain(),
+      setTunnels: (tunnels) => this.#setTunnels(tunnels),
+      caps: () => this.#caps(),
       hello: () => this.#hello(),
       afterHello: (hello) => this.#afterHello(hello),
       beat: () => this.#beat(),
-      handle: (frame) => this.#commands.handle(frame),
-      refuse: (text, why) => this.#commands.refuse(text, why),
-      dropped: () => {
-        void this.#terminals.closeAll('link_lost');
-        this.#turns.linkDown();
-      },
-    });
+    };
   }
 
   get draining(): boolean {
@@ -215,22 +161,13 @@ export class RunnerDaemon implements Runner {
 
   /** What it can do now (the hello's and `runner.caps`'s). */
   #caps(): RunnerCaps {
-    const { harness, processes, containerId } = this.#options;
-    const tools = this.#tools.current;
-    return {
-      harnesses: harness && processes ? harness.versions : NO_HARNESSES,
+    return capsOf(this.#options, {
       slots: this.#config.slots,
-      hold: this.#options.hold.kind,
-      power: [...this.#power.providers],
+      power: this.#power.providers,
       terminal: this.#terminals.available,
       selfUpdate: this.#updates.available,
-      folders: this.#options.folders !== undefined,
-      forks: true,
-      reattach: harness?.keeper !== undefined && processes !== undefined,
-      agentTools: harness?.ask !== undefined && processes !== undefined,
-      ...(tools ? { tools } : {}),
-      ...(containerId ? { containerId } : {}),
-    };
+      tools: this.#tools.current,
+    });
   }
 
   #hello(): RunnerHello {

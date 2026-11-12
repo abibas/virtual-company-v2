@@ -1,11 +1,19 @@
 import { z } from 'zod';
+import {
+  CompanyCreation,
+  EmailMode,
+  IdentityMode,
+  LocalDockerMode,
+  LocalPowerMode,
+  LoginHelperMode,
+  WhisperMode,
+} from './config/modes.ts';
 import { PORTS, SLOT_COUNT, slotPorts } from './ports.ts';
+
+export * from './config/modes.ts';
 
 /** An empty variable (`MWC_PORT_SLOT=` in a .env file) counts as unset, not as 0. */
 const emptyAsUnset = (value: unknown) => (value === '' ? undefined : value);
-
-/** Which identity provider signs people in; `none` serves health and the UI only (MWC_IDENTITY). */
-export const IdentityMode = z.enum(['clerk', 'none']);
 
 /**
  * The shape of a Clerk secret key, `sk_test_...` or `sk_live_...` (the Clerk connector checks it the same way). Only a
@@ -21,42 +29,6 @@ export function decodeMasterKey(value: string): Uint8Array | undefined {
   if (!MASTER_KEY_PATTERN.test(value)) return undefined;
   return new Uint8Array(Buffer.from(value, 'base64'));
 }
-
-/**
- * Where Sign in with Claude and Sign in with OpenAI run the official CLI's login (MWC_LOGIN_HELPER,
- * docs/subscriptions.md): a throwaway Docker container (`docker`), a private temporary folder on a Linux server that
- * has the CLIs (`local`), or nowhere (`none`: those sign-ins answer 503).
- */
-export const LoginHelperMode = z.enum(['docker', 'local', 'none']);
-
-/**
- * Whether the server starts and stops the Airia devboxes itself with this computer's airia CLI and gcloud, and holds
- * their tunnels (MWC_LOCAL_POWER, docs/machines.md): `auto` when both are found outside production, `on` always (the
- * start fails without them), `off` never (runner controllers do it).
- */
-export const LocalPowerMode = z.enum(['auto', 'on', 'off']);
-
-/**
- * Whether the server rebuilds a container runner's image itself to update its runner, with this computer's Docker CLI
- * (MWC_LOCAL_DOCKER, docs/machines.md "Updating a runner"): `auto` when `docker` is found and NODE_ENV is development,
- * `on` whenever it is found (the start fails without it), `off` never (the card shows the command to run instead).
- */
-export const LocalDockerMode = z.enum(['auto', 'on', 'off']);
-
-/**
- * Whether dictation transcribes with whisper.cpp on the server's own computer (MWC_WHISPER, docs/speech.md): `auto` when
- * its binaries and a model are found, outside production and tests; `off` never (`POST /api/me/speech/transcribe` 503s).
- */
-export const WhisperMode = z.enum(['auto', 'off']);
-
-/**
- * How notification emails go out (MWC_EMAIL, docs/notifications.md): written to the development outbox
- * (`.data/outbox/`, read with `mwc dev outbox`), through SMTP (not built yet: refused), or not at all.
- */
-export const EmailMode = z.enum(['outbox', 'smtp', 'off']);
-
-/** Who may create companies (MWC_COMPANY_CREATION): anyone signed in, the MWC_COMPANY_CREATORS, or nobody. */
-export const CompanyCreation = z.enum(['any', 'allowlist', 'none']);
 
 /** A comma-separated list (`a@x.com, b@y.com`) as trimmed, lower-cased entries; empty or unset is none. */
 const emailList = (value: unknown) =>
@@ -177,14 +149,6 @@ const EnvSchema = z.object({
   /** The SMTP server for MWC_EMAIL=smtp (smtp:// or smtps://, with its user and password): a secret, never echoed. */
   MWC_SMTP_URL: z.preprocess(emptyAsUnset, z.url({ protocol: /^smtps?$/ }).optional()),
 });
-
-export type IdentityMode = z.infer<typeof IdentityMode>;
-export type EmailMode = z.infer<typeof EmailMode>;
-export type CompanyCreation = z.infer<typeof CompanyCreation>;
-export type LoginHelperMode = z.infer<typeof LoginHelperMode>;
-export type LocalPowerMode = z.infer<typeof LocalPowerMode>;
-export type LocalDockerMode = z.infer<typeof LocalDockerMode>;
-export type WhisperMode = z.infer<typeof WhisperMode>;
 
 /** MWC_IDENTITY when it is set, else clerk for a well-formed Clerk secret key, else none. */
 function identityMode(env: z.infer<typeof EnvSchema>): IdentityMode {
