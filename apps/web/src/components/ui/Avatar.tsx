@@ -1,10 +1,12 @@
 import { type ReactNode, useState } from 'react';
 import { cx } from '../cx.ts';
 
-export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+/** `xs-sm` (28 px) sits between `xs` (24) and `sm` (32): a message's author in the full chat. */
+export type AvatarSize = 'xs' | 'xs-sm' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 
 const SIZES: Readonly<Record<AvatarSize, string>> = {
   xs: 'size-6 text-2xs',
+  'xs-sm': 'size-7 text-2xs',
   sm: 'size-8 text-xs',
   md: 'size-10 text-sm',
   lg: 'size-12 text-base',

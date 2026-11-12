@@ -10,3 +10,10 @@ export {
   KINDS,
   type KindStyle,
 } from './kinds.ts';
+export {
+  MessageAuthor,
+  type MessageAuthorProps,
+  type MessageAuthorView,
+  MessageFace,
+  SYSTEM_AUTHOR,
+} from './MessageAuthor.tsx';

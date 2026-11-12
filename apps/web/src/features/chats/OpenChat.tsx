@@ -26,6 +26,7 @@ import { AFTER_ONLY, deliveryChoices, splitQueue, waitsForMachine } from './deli
 import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx';
 import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
+import { useThreadAuthors } from './thread/authors.ts';
 import { ChatThread } from './thread/ChatThread.tsx';
 import { questionOf } from './thread/question/question-model.ts';
 import { rememberSent, sentAnswer } from './thread/question/use-question-draft.ts';
@@ -207,6 +208,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const live = useChatLive(companyId, chatId);
   const folds = useEarlierConversations(calls, chatId);
+  const authors = useThreadAuthors(companyId, agent);
   const [mode, setMode] = useState<ChatMode>('chat');
   // The rail's dot for a direct report's chat clears once its reply shows here.
   useMarkSeen(chatId, live.turns);
@@ -241,6 +243,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
             <ChatThread
               turns={thread}
               agentName={agent.name}
+              authors={authors}
               chatInit={live.detail.data?.init ?? undefined}
               answering={{ answer: actions.answer, closed }}
               history={{ live: live.earlier, folds }}

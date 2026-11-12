@@ -5,9 +5,11 @@ import type { AgentPlacement } from '../../api/types.ts';
 import { useEarlierConversations } from '../../api/use-chat-earlier.ts';
 import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
+import type { AgentIconSubject } from '../../components/feed/AgentIcon.tsx';
 import { Composer } from '../chats/Composer.tsx';
 import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
 import { asking, chatActions, chatMachine, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
+import { useThreadAuthors } from '../chats/thread/authors.ts';
 import { ChatThread } from '../chats/thread/ChatThread.tsx';
 import { ChatMachineContext } from '../chats/thread/status/MachineWait.tsx';
 import { useMarkSeen } from './seen.ts';
@@ -45,6 +47,7 @@ export function DockedThread({
   companyId,
   chatId,
   agentName,
+  face,
   admin,
   placement,
   onChanged,
@@ -52,6 +55,8 @@ export function DockedThread({
   readonly companyId: string;
   readonly chatId: string;
   readonly agentName: string;
+  /** The agent's icon, beside its replies. */
+  readonly face: AgentIconSubject;
   readonly admin: boolean;
   readonly placement: AgentPlacement | undefined;
   /** A message was sent, or a turn started or ended. */
@@ -61,6 +66,7 @@ export function DockedThread({
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const live = useChatLive(companyId, chatId);
   const folds = useEarlierConversations(calls, chatId);
+  const authors = useThreadAuthors(companyId, face);
   useMarkSeen(chatId, live.turns);
   useRunningChange(live.turns.find((turn) => turn.status === 'running')?.id, onChanged);
   const chat = live.chat;
@@ -74,6 +80,7 @@ export function DockedThread({
         dense
         turns={view.thread}
         agentName={agentName}
+        authors={authors}
         chatInit={live.detail.data?.init ?? undefined}
         answering={{ answer: actions.answer, closed }}
         history={{ live: live.earlier, folds }}

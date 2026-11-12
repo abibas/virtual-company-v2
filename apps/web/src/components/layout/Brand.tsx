@@ -1,7 +1,12 @@
 import { Link } from '../../app/router.tsx';
 import { cx } from '../cx.ts';
 
-const SIZES = { sm: 'size-7 rounded-md', md: 'size-9 rounded-lg', lg: 'size-11 rounded-xl' } as const;
+const SIZES = {
+  xs: 'size-6 rounded-md',
+  sm: 'size-7 rounded-md',
+  md: 'size-9 rounded-lg',
+  lg: 'size-11 rounded-xl',
+} as const;
 
 /** The mark: an org tree (one at the top, three below) in white on the blue gradient; `inverse` on a gradient card. */
 export function BrandMark({

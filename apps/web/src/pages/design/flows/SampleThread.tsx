@@ -2,18 +2,16 @@ import { MessagesSquare } from 'lucide-react';
 import { PublicConfigContext } from '../../../api/config.ts';
 import type { PublicConfig } from '../../../api/types.ts';
 import type { ChatEarlierLive } from '../../../api/use-chat-live.ts';
-import { nodesById } from '../../../components/org/chart.ts';
 import { Composer } from '../../../features/chats/Composer.tsx';
 import { HEADER_CONTROL } from '../../../features/chats/header/ChatBar.tsx';
 import { OpenInClaudeCode } from '../../../features/chats/header/OpenInClaudeCode.tsx';
+import { replierOf, threadAuthors } from '../../../features/chats/thread/authors.ts';
 import { ChatThread } from '../../../features/chats/thread/ChatThread.tsx';
 import type { RoundSpan, TaskConversation } from '../../../features/flows/conversations/model.ts';
 import { ThreadFrame } from '../../../features/flows/conversations/ThreadFrame.tsx';
-import { SAMPLE_CHART } from '../org-sample.ts';
-import { SAMPLE_COMPANY } from '../records.ts';
+import { SAMPLE_NODES } from '../org-sample.ts';
+import { SAMPLE_COMPANY, SAMPLE_SESSION } from '../records.ts';
 import { sampleChat, sampleCwd, sampleTurns } from './conversation-sample.ts';
-
-const NODES = nodesById(SAMPLE_CHART.nodes);
 
 /** Nothing before the sample turns: no older page, no conversation before a Clear. */
 export const NO_EARLIER: ChatEarlierLive = {
@@ -47,6 +45,11 @@ function SampleThread({
   readonly span: RoundSpan | undefined;
 }) {
   const turns = sampleTurns(conversation.chatId);
+  const authors = threadAuthors({
+    agent: replierOf(conversation.agent, SAMPLE_NODES),
+    nodes: SAMPLE_NODES,
+    reader: SAMPLE_SESSION.user,
+  });
   const controls = (
     <>
       <a href="#chat" className={HEADER_CONTROL}>
@@ -63,10 +66,11 @@ function SampleThread({
   );
   return (
     <PublicConfigContext value={SAMPLE_CONFIG}>
-      <ThreadFrame conversation={conversation} span={span} nodes={NODES} controls={controls}>
+      <ThreadFrame conversation={conversation} span={span} nodes={SAMPLE_NODES} controls={controls}>
         <ChatThread
           turns={turns}
           agentName={conversation.agent?.name ?? 'the agent'}
+          authors={authors}
           chatInit={{ model: 'claude-opus-5-5', effort: 'high' }}
           answering={undefined}
           history={{ live: NO_EARLIER, folds: { loaded: new Map(), load: () => undefined } }}

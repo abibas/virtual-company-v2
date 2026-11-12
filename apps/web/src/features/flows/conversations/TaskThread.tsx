@@ -6,6 +6,7 @@ import { useAgentPlacement } from '../../../api/org.ts';
 import type { ChartNode, Chat } from '../../../api/types.ts';
 import { useEarlierConversations } from '../../../api/use-chat-earlier.ts';
 import { type ChatLive, type StreamState, useChatLive } from '../../../api/use-chat-live.ts';
+import { useCompany } from '../../../app/company.ts';
 import { Link } from '../../../app/router.tsx';
 import { ErrorBlock, LoadingBlock } from '../../../components/data/LoadState.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
@@ -14,6 +15,7 @@ import { QueuedMessages } from '../../chats/delivery/QueuedMessages.tsx';
 import { HEADER_CONTROL } from '../../chats/header/ChatBar.tsx';
 import { OpenInClaudeCode } from '../../chats/header/OpenInClaudeCode.tsx';
 import { asking, closedWhy, queueActions, queueView } from '../../chats/OpenChat.tsx';
+import { replierOf, type ThreadAuthors, threadAuthors } from '../../chats/thread/authors.ts';
 import { ChatThread } from '../../chats/thread/ChatThread.tsx';
 import { rememberSent } from '../../chats/thread/question/use-question-draft.ts';
 import type { RoundSpan, TaskConversation } from './model.ts';
@@ -42,6 +44,7 @@ function LiveBody({
   live,
   chat,
   agentName,
+  authors,
   closed,
   onChanged,
 }: {
@@ -49,6 +52,7 @@ function LiveBody({
   readonly live: ChatLive;
   readonly chat: Chat;
   readonly agentName: string;
+  readonly authors: ThreadAuthors;
   readonly closed: string | undefined;
   readonly onChanged: () => void;
 }) {
@@ -59,6 +63,7 @@ function LiveBody({
       <ChatThread
         turns={view.thread}
         agentName={agentName}
+        authors={authors}
         chatInit={live.detail.data?.init ?? undefined}
         answering={{
           closed,
@@ -116,6 +121,12 @@ export function TaskThread(props: TaskThreadProps) {
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const live = useChatLive(companyId, conversation.chatId);
   const placement = useAgentPlacement(companyId, props.agentId).data;
+  const reader = useCompany().me.user;
+  const agentName = conversation.agent?.name ?? 'the agent';
+  const authors = useMemo(
+    () => threadAuthors({ agent: replierOf(conversation.agent, props.nodes), nodes: props.nodes, reader }),
+    [conversation, props.nodes, reader],
+  );
   const chat = live.chat;
   const running = live.turns.find((turn) => turn.status === 'running');
   useSettled(running?.id, props.onChanged);
@@ -158,7 +169,8 @@ export function TaskThread(props: TaskThreadProps) {
         calls={calls}
         live={live}
         chat={chat}
-        agentName={conversation.agent?.name ?? 'the agent'}
+        agentName={agentName}
+        authors={authors}
         closed={closed}
         onChanged={props.onChanged}
       />

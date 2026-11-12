@@ -9,6 +9,7 @@ import type {
   OrgTreeNode,
 } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
+import { nodesById } from '../../components/org/chart.ts';
 import { days, loaded } from './records.ts';
 
 /**
@@ -118,6 +119,9 @@ function treeOf(nodes: readonly ChartNode[], reportsTo: string | null = null): O
 }
 
 export const SAMPLE_CHART: OrgChart = { nodes: [...NODES], tree: treeOf(NODES) };
+
+/** The chart's principals by id, as a page that loaded the chart keeps them. */
+export const SAMPLE_NODES = nodesById(NODES);
 
 const INSTRUCTIONS = `You are Vega, the platform team's PM.
 

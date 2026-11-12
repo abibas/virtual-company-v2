@@ -81,7 +81,10 @@ export function LiveDockedChats({
       }}
     />
   );
-  if (chatId) body = <DockedThread key={chatId} {...thread} chatId={chatId} onChanged={onChanged} />;
+  if (chatId)
+    body = (
+      <DockedThread key={chatId} {...thread} face={selected.face} chatId={chatId} onChanged={onChanged} />
+    );
   else if (mode === 'team')
     body = (
       <div className="flex flex-1 flex-col justify-center p-3">

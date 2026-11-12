@@ -5,14 +5,17 @@ import type { ReportChat } from '../../api/report-chats.ts';
 import type { AgentRef } from '../../components/feed/kinds.ts';
 import type { RightRailProps } from '../../components/layout/RightRail.tsx';
 import { Composer } from '../../features/chats/Composer.tsx';
+import { threadAuthors } from '../../features/chats/thread/authors.ts';
 import { ChatThread } from '../../features/chats/thread/ChatThread.tsx';
 import { DockedChats, type DockMode } from '../../features/report-chats/DockedChats.tsx';
 import { ReportStrip } from '../../features/report-chats/ReportStrip.tsx';
 import type { RailReport, ReportDot } from '../../features/report-chats/standing.ts';
 import { sampleTurns } from './flows/conversation-sample.ts';
 import { NO_EARLIER, SAMPLE_CONFIG } from './flows/SampleThread.tsx';
-import { sampleApi } from './records.ts';
+import { SAMPLE_NODES } from './org-sample.ts';
+import { SAMPLE_SESSION, sampleApi } from './records.ts';
 import { SAMPLE_AGENTS } from './sample.ts';
+import { TEAM_CHAT_TURNS } from './team-chat-sample.ts';
 
 /** A sample direct report: the agent, a Lead's team, and its dot. */
 function sample(agent: AgentRef, dot: ReportDot, team?: string): RailReport {
@@ -49,10 +52,12 @@ export const SAMPLE_REPORTS: readonly RailReport[] = [
 
 const refuse = () => Promise.reject(new Error('Sample data: nothing is sent here'));
 
-/** A sample chat in the rail: the Develop conversation's turns, and a composer that sends nothing. */
-function SampleDockBody({ name }: { readonly name: string }) {
-  const turns = sampleTurns('c-12-dev');
+/** A sample chat in the rail (a Lead's team chat, else the Develop conversation's turns); its composer sends nothing. */
+function SampleDockBody({ face, team }: { readonly face: AgentRef; readonly team: boolean }) {
+  const turns = team ? TEAM_CHAT_TURNS : sampleTurns('c-12-dev');
+  const name = face.name;
   const [api] = useState(sampleApi);
+  const authors = threadAuthors({ agent: face, nodes: SAMPLE_NODES, reader: SAMPLE_SESSION.user });
   return (
     <ApiContext value={api}>
       <PublicConfigContext value={SAMPLE_CONFIG}>
@@ -60,6 +65,7 @@ function SampleDockBody({ name }: { readonly name: string }) {
           dense
           turns={turns}
           agentName={name}
+          authors={authors}
           chatInit={{ model: 'claude-opus-5-5', effort: 'high' }}
           answering={undefined}
           history={{ live: NO_EARLIER, folds: { loaded: new Map(), load: () => undefined } }}
@@ -101,7 +107,15 @@ export function useSampleRailChats(empty: boolean): Pick<RightRailProps, 'chats'
         onMode={setMode}
         fullHref="/design/pages"
         onNew={() => undefined}
-        body={<SampleDockBody key={`${picked}:${mode}`} name={selected?.report.agent.name ?? 'the agent'} />}
+        body={
+          selected && (
+            <SampleDockBody
+              key={`${picked}:${mode}`}
+              face={selected.face}
+              team={mode === 'team' && selected.report.team !== null}
+            />
+          )
+        }
       />
     ),
     chatsCount: SAMPLE_REPORTS.filter((r) => r.dot === 'question' || r.dot === 'unseen').length,

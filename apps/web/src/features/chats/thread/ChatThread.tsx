@@ -1,11 +1,12 @@
 import { ArrowDown, MessagesSquare } from 'lucide-react';
-import type { ReactNode, RefObject } from 'react';
+import { type ReactNode, type RefObject, useMemo } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import type { EarlierConversations as Folds } from '../../../api/use-chat-earlier.ts';
 import type { ChatEarlierLive } from '../../../api/use-chat-live.ts';
 import { cx } from '../../../components/cx.ts';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
 import { branchState } from '../branch/branch-state.ts';
+import { type ThreadAuthors, ThreadLookContext } from './authors.ts';
 import { EarlierConversations } from './earlier/EarlierConversations.tsx';
 import { LoadOlder } from './earlier/LoadOlder.tsx';
 import { useKeepScroll } from './earlier/use-keep-scroll.ts';
@@ -53,6 +54,8 @@ function currentOf(turns: readonly ChatTurnWithEvents[]) {
 export interface ChatThreadProps {
   readonly turns: readonly ChatTurnWithEvents[];
   readonly agentName: string;
+  /** Who writes here: the agent's face on its replies, each prompt's writer (`useThreadAuthors`). */
+  readonly authors: ThreadAuthors;
   readonly chatInit: RunsOn | undefined;
   /** How the person answers the agent's questions (S5.2 step 4). */
   readonly answering: Answering | undefined;
@@ -116,6 +119,7 @@ function branchFor(
 export function ChatThread({
   turns,
   agentName,
+  authors,
   chatInit,
   answering,
   history,
@@ -133,45 +137,48 @@ export function ChatThread({
     void history.live.loadOlder();
   };
   const empty = current.length === 0 && history.live.conversations.length === 0;
+  const look = useMemo(() => ({ authors, dense }), [authors, dense]);
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <div
-        ref={follow.box}
-        onScroll={follow.onScroll}
-        aria-busy={streaming || undefined}
-        className={cx(
-          'scroll-quiet min-h-0 flex-1 overflow-y-auto select-text [overflow-anchor:none]',
-          dense ? 'px-2 pt-4 pb-3' : 'px-4 pt-6 pb-4 md:px-8',
-        )}
-      >
-        {lead && <div className={cx(THREAD_WIDTH, 'mb-6')}>{lead}</div>}
-        {empty ? (
-          <EmptyState icon={MessagesSquare} tone="blue" title="No messages yet" size="sm">
-            Write to {agentName} below. It answers from its folder on its machine, with its own tools.
-          </EmptyState>
-        ) : (
-          <div className={cx(THREAD_WIDTH, 'grid', dense ? 'gap-6' : 'gap-8')}>
-            <Above history={history} root={follow.box} onLoadOlder={loadOlder} agentName={agentName} />
-            <ol ref={follow.content} className={cx('grid', dense ? 'gap-6' : 'gap-8')}>
-              {current.map((turn, index) => (
-                <TurnView
-                  key={turn.id}
-                  turn={turn}
-                  agentName={agentName}
-                  chatInit={chatInit}
-                  place={{
-                    last: index === current.length - 1,
-                    answer: answers.has(turn.id),
-                    answering,
-                    branch: branchFor(branching, current, turn),
-                  }}
-                />
-              ))}
-            </ol>
-          </div>
-        )}
+    <ThreadLookContext value={look}>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={follow.box}
+          onScroll={follow.onScroll}
+          aria-busy={streaming || undefined}
+          className={cx(
+            'scroll-quiet min-h-0 flex-1 overflow-y-auto select-text [overflow-anchor:none]',
+            dense ? 'px-2 pt-4 pb-3' : 'px-4 pt-6 pb-4 md:px-8',
+          )}
+        >
+          {lead && <div className={cx(THREAD_WIDTH, 'mb-6')}>{lead}</div>}
+          {empty ? (
+            <EmptyState icon={MessagesSquare} tone="blue" title="No messages yet" size="sm">
+              Write to {agentName} below. It answers from its folder on its machine, with its own tools.
+            </EmptyState>
+          ) : (
+            <div className={cx(THREAD_WIDTH, 'grid', dense ? 'gap-6' : 'gap-8')}>
+              <Above history={history} root={follow.box} onLoadOlder={loadOlder} agentName={agentName} />
+              <ol ref={follow.content} className={cx('grid', dense ? 'gap-6' : 'gap-8')}>
+                {current.map((turn, index) => (
+                  <TurnView
+                    key={turn.id}
+                    turn={turn}
+                    agentName={agentName}
+                    chatInit={chatInit}
+                    place={{
+                      last: index === current.length - 1,
+                      answer: answers.has(turn.id),
+                      answering,
+                      branch: branchFor(branching, current, turn),
+                    }}
+                  />
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+        {follow.away && <JumpToLatest onClick={follow.jump} />}
       </div>
-      {follow.away && <JumpToLatest onClick={follow.jump} />}
-    </div>
+    </ThreadLookContext>
   );
 }

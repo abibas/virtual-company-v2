@@ -1,16 +1,17 @@
 import { CircleAlert } from 'lucide-react';
 import { useMemo } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
-import { cx } from '../../../components/cx.ts';
-import { formatTime } from '../../../components/data/format.ts';
+import { MessageAuthor } from '../../../components/feed/MessageAuthor.tsx';
 import { BranchAction } from '../branch/BranchAction.tsx';
 import type { BranchState } from '../branch/branch-state.ts';
 import { turnErrorText } from '../chat-text.ts';
 import { STARTED_NOTE } from '../delivery/delivery.ts';
+import { type ThreadAuthors, useThreadLook } from './authors.ts';
 import type { TurnModel } from './model/parts.ts';
 import { turnModel } from './model/turn-model.ts';
 import { type Answering, QuestionCard } from './question/QuestionCard.tsx';
 import { questionStatus } from './question/question-model.ts';
+import { PromptMessage } from './PromptMessage.tsx';
 import { ReplyParts } from './ReplyParts.tsx';
 import { MachineWaitStatus } from './status/MachineWait.tsx';
 import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
@@ -20,11 +21,12 @@ import { ClearDivider, CompactTurn } from './TurnMarkers.tsx';
 import { TodoCard } from './todo/TodoCard.tsx';
 
 /**
- * One turn of a chat (S5.1c, S5.2): the person's prompt on the right; the agent's reply on the left as its events build
- * it (Markdown text, quiet activity rows, subagent blocks), the to-do card, the agent's question (S5.2 step 4), and the
- * live status while it runs (or the machine's progress while it waits for its stopped machine) or the quiet summary
- * once it ended, with Copy and Branch under the reply. A Compact turn is a marker, a Clear a divider; a turn
- * whose prompt carried answers shows no prompt (the question's receipt stands for it).
+ * One turn of a chat (S5.1c, S5.2): the prompt under its author's face (the reader's own on the right, `PromptMessage`);
+ * the agent's reply on the left under its face as its events build it (Markdown text, quiet activity rows, subagent
+ * blocks), the to-do card, the agent's question (S5.2 step 4), and the live status while it runs (or the machine's
+ * progress while it waits for its stopped machine) or the quiet summary once it ended, with Copy and Branch under the
+ * reply. A Compact turn is a marker, a Clear a divider; a turn whose prompt carried answers shows no prompt (the
+ * question's receipt stands for it). The authors and the faces' size come from the thread (`ThreadLookContext`).
  */
 
 function FailedBox({ error }: { readonly error: string }) {
@@ -35,38 +37,6 @@ function FailedBox({ error }: { readonly error: string }) {
     >
       <CircleAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-failed" />
       <span className="min-w-0 break-words whitespace-pre-wrap">{turnErrorText(error)}</span>
-    </div>
-  );
-}
-
-/**
- * The person's message: a softly tinted bubble on the right, its delivery note and its actions under it. One Most Wanted
- * queued itself (S6c: a Lead's wake-up) says so above it, in a neutral bubble.
- */
-function PromptBubble({
-  prompt,
-  note,
-  system,
-}: {
-  readonly prompt: string;
-  readonly note: string | undefined;
-  readonly system: boolean;
-}) {
-  return (
-    <div className="group/message grid justify-items-end gap-1">
-      {system && <span className="text-2xs font-semibold text-dim">Most Wanted</span>}
-      <p
-        className={cx(
-          'max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap text-ink',
-          system ? 'bg-surface-2 ring-1 ring-line ring-inset' : 'bg-blue-soft',
-        )}
-      >
-        {prompt}
-      </p>
-      <div className="flex min-h-7 items-center gap-2">
-        {note && <span className="text-2xs text-dim">{note}</span>}
-        <MessageActions text={prompt} label="Copy message" className={REVEAL_ACTIONS} />
-      </div>
     </div>
   );
 }
@@ -92,59 +62,57 @@ function branchOf(branch: TurnPlace['branch']) {
 function Reply({
   turn,
   model,
-  agentName,
+  authors,
+  dense,
   runsOn,
   place,
 }: {
   readonly turn: ChatTurnWithEvents;
   readonly model: TurnModel;
-  readonly agentName: string;
+  readonly authors: ThreadAuthors;
+  readonly dense: boolean;
   readonly runsOn: RunsOn | undefined;
   readonly place: TurnPlace;
 }) {
   const running = turn.status === 'running';
   return (
-    <div className="group/message grid min-w-0 gap-3">
-      <div className="flex items-baseline gap-2 text-sm">
-        <span className="font-semibold text-ink">{agentName}</span>
-        <time dateTime={turn.createdAt} className="text-xs text-faint tabular">
-          {formatTime(turn.createdAt)}
-        </time>
-      </div>
-      {model.parts.length > 0 && (
-        <div className="grid min-w-0 gap-2.5">
-          <ReplyParts parts={model.parts} model={model} live={running} />
-        </div>
-      )}
-      {model.todo && model.todo.length > 0 && <TodoCard items={model.todo} live={running} />}
-      {model.question && (
-        <QuestionCard
-          question={model.question}
-          status={questionStatus(model.question, place.last)}
-          running={running}
-          answering={place.answering}
-        />
-      )}
-      {model.error !== undefined && <FailedBox error={model.error} />}
-      {running && <WorkingStatus turn={turn} model={model} runsOn={runsOn} />}
-      {turn.status === 'queued' &&
-        (turn.machineWaitAt === null ? <QueuedStatus /> : <MachineWaitStatus turn={turn} />)}
-      {!running && turn.status !== 'queued' && (
-        <div className="-mt-1 flex min-h-7 min-w-0 items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <TurnFooter turn={turn} model={model} />
+    <MessageAuthor author={authors.agent} at={turn.createdAt} dense={dense} className="group/message">
+      <div className="grid min-w-0 gap-3 pt-1">
+        {model.parts.length > 0 && (
+          <div className="grid min-w-0 gap-2.5">
+            <ReplyParts parts={model.parts} model={model} live={running} />
           </div>
-          {model.replyText && (
-            <MessageActions
-              text={model.replyText}
-              label="Copy reply"
-              more={branchOf(place.branch)}
-              className={REVEAL_ACTIONS}
-            />
-          )}
-        </div>
-      )}
-    </div>
+        )}
+        {model.todo && model.todo.length > 0 && <TodoCard items={model.todo} live={running} />}
+        {model.question && (
+          <QuestionCard
+            question={model.question}
+            status={questionStatus(model.question, place.last)}
+            running={running}
+            answering={place.answering}
+          />
+        )}
+        {model.error !== undefined && <FailedBox error={model.error} />}
+        {running && <WorkingStatus turn={turn} model={model} runsOn={runsOn} />}
+        {turn.status === 'queued' &&
+          (turn.machineWaitAt === null ? <QueuedStatus /> : <MachineWaitStatus turn={turn} />)}
+        {!running && turn.status !== 'queued' && (
+          <div className="-mt-1 flex min-h-7 min-w-0 items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <TurnFooter turn={turn} model={model} />
+            </div>
+            {model.replyText && (
+              <MessageActions
+                text={model.replyText}
+                label="Copy reply"
+                more={branchOf(place.branch)}
+                className={REVEAL_ACTIONS}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </MessageAuthor>
   );
 }
 
@@ -161,6 +129,7 @@ export function TurnView({
   readonly place: TurnPlace;
 }) {
   const model = useMemo(() => turnModel(turn), [turn]);
+  const { authors, dense } = useThreadLook(agentName);
   if (turn.kind === 'clear') {
     return (
       <li>
@@ -178,8 +147,23 @@ export function TurnView({
   const note = turn.delivery ? STARTED_NOTE[turn.delivery] : undefined;
   return (
     <li className="grid gap-2">
-      {!place.answer && <PromptBubble prompt={turn.prompt} note={note} system={turn.system} />}
-      <Reply turn={turn} model={model} agentName={agentName} runsOn={model.init ?? chatInit} place={place} />
+      {!place.answer && (
+        <PromptMessage
+          prompt={turn.prompt}
+          prompter={authors.prompter(turn)}
+          at={turn.createdAt}
+          note={note}
+          dense={dense}
+        />
+      )}
+      <Reply
+        turn={turn}
+        model={model}
+        authors={authors}
+        dense={dense}
+        runsOn={model.init ?? chatInit}
+        place={place}
+      />
     </li>
   );
 }

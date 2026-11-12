@@ -36,6 +36,7 @@ export interface AgentIconProps {
 /** An emoji's size in each avatar size: about half the tile. */
 const EMOJI_SIZES: Readonly<Record<AvatarSize, string>> = {
   xs: 'text-sm',
+  'xs-sm': 'text-sm',
   sm: 'text-base',
   md: 'text-xl',
   lg: 'text-2xl',
