@@ -41,6 +41,8 @@ company. Kinds:
 "Subscription login" (Ihor, 2026-11-05): adding a subscription obtains **and stores** its login token and config,
 so nothing has to be signed in again on a machine.
 
+The GitHub and Atlassian sign-ins (S7.1a) share this store with three more kinds: "Tool sign-ins" below.
+
 ### The sign-in helper
 
 The official CLIs run their own login in an isolated Linux sandbox that is thrown away afterwards: a throwaway Docker
@@ -53,7 +55,9 @@ deleted. Only Ihor completes a sign-in; nothing signs in for him.
 As built in S3.2:
 
 - **The port.** `LoginHelper` (`apps/server/src/platform/processes/login-helper/port.ts`) starts one login in a sandbox and gives
-  its output as it comes, typing into its terminal, reading a file of its home and killing it. `MWC_LOGIN_HELPER`
+  its output as it comes, typing into its terminal, reading a file of its home, running a short command of the CLI once
+  the login has finished (`run`, S7.1a: `gh auth token`) and killing it. A login runs behind `script`'s terminal unless
+  its command says `tty: false` (the GitHub CLI's). `MWC_LOGIN_HELPER`
   chooses it: `docker` (the development default), `local`, or `none` (production and tests by default, until the
   server image carries the CLIs: `POST /api/me/subscriptions/sign-in` answers 503 `sign_in_unavailable`; tests pass a
   fake).
@@ -314,6 +318,130 @@ on a Claude one). A profile no agent used kept both null. Then `agents.model` an
 (`agents.harness` stays). The audit log has each value set, by the system, with the request id
 `migration:0017_profile_model`.
 
+## Tool sign-ins
+
+Built in S7.1a (2026-11-12). Ihor decided that day: Atlassian signs in with an API token for now (an Atlassian OAuth
+2.0 app is the later upgrade, once there is a public address for its callback), GitHub and Atlassian get tool profiles
+of their own in S7.1b, and work stops after each step for his live test.
+
+A tool sign-in lives in the same personal store as the subscriptions, with three more kinds. Each is sealed like the
+others, write-only, managed only in a Clerk session (an API key is 403 `session_required`) and audited, and every
+server-side use of its secret is a `credential_uses` row (purpose `tool_check`). Tool sign-ins never power an AI turn
+and never go in an AI access profile: as a profile's subscription it is 422 `provider_mismatch`, as its gateway 422
+`credential_kind_mismatch`. They have no plan limits: `GET /api/me/subscriptions/limits` leaves them out, so the home
+page's widget never shows them. `TOOL_CREDENTIAL_KINDS`, `isToolKind`, `TOOL_PROVIDER_OF` and `atlassianSite` are
+`@mwc/shared/credentials`'.
+
+| Kind                  | How it is added                                                     | Sealed                    | Account details (`accountMeta`)                               | Its check |
+| --------------------- | ------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------- | --------- |
+| `github_oauth`        | **Sign in with GitHub**: the GitHub CLI's device sign-in in the sign-in helper | `{ token }` (`gh auth token`) | `host` (`github.com`), `login`, `name`, `scopes`; its public email is the account email | GitHub `GET https://api.github.com/user` |
+| `github_token`        | paste a classic (`ghp_`) or fine-grained (`github_pat_`) personal access token | `{ token }`           | the same, and `tokenType` (`classic` or `fine_grained`); no `scopes` for a fine-grained token | the same |
+| `atlassian_api_token` | the site, the account email and an API token                        | `{ site, email, token }`  | `site`, `jira` and `confluence` (true when that product answered), `accountId`, `displayName`; the email is the account email | Jira `GET https://<site>/rest/api/3/myself` and Confluence `GET https://<site>/wiki/rest/api/user/current`, basic auth, side by side |
+
+Migration `0029_tool_sign_ins` widened the kind CHECK and added `credentials.checked_at` (a tool sign-in's last check
+with its provider; null for the AI kinds, whose limits checks live in the server's memory) and `check_error` (why it did
+not finish: `ToolCheckError` of `@mwc/shared/enums`, with its CHECK). The API shows both on every subscription:
+`checkedAt` and `checkError: { code, message } | null`.
+
+### Sign in with GitHub
+
+The GitHub CLI's own device sign-in, as Ihor's Mac's `gh` was signed in, run in the sign-in helper's throwaway sandbox
+like the Claude and OpenAI logins (no app to register):
+
+```
+gh auth login --hostname github.com --git-protocol https --web --scopes workflow --insecure-storage
+```
+
+- **Why the two extra flags:** `--scopes workflow` is what an interactive https login adds when it sets up git's
+  credentials, so pushes that change workflow files work later (S7.1d); the token gets `repo`, `read:org`, `gist` and
+  `workflow`. `--insecure-storage` because the sandbox has no keyring: the token goes to the throwaway home's
+  `~/.config/gh/hosts.yml`.
+- **No terminal:** the CLI runs with plain pipes (`LoginCommand.tty: false`, so not behind `script`) and
+  `GH_PROMPT_DISABLED=1`, so it never prompts. gh 2.103.3 then prints, and waits:
+
+  ```
+  ! First copy your one-time code: XXXX-XXXX
+  Open this URL to continue in your web browser: https://github.com/login/device
+  ```
+
+  The address is passed on only when it is https `github.com/login/device`; the code is `[A-Z0-9]{4}-[A-Z0-9]{4}`.
+- **Done:** once Ihor enters the code on GitHub, the CLI exits 0. The flow then runs `gh auth token --hostname
+  github.com` and `gh api user --include` in the sandbox (`LoginSandbox.run`: `docker exec` with no terminal, or the
+  local home's own environment), stores `github_oauth` named "GitHub · <login>" with its first check (`checked_at`; no
+  use is recorded, since GitHub's own CLI made that check) and removes the sandbox. A token or an account that is not
+  there fails the sign-in in plain words.
+- **The same sessions** as the other sign-ins: `POST /api/me/subscriptions/sign-in {provider: 'github'}`, the states,
+  10 minutes, one at a time per person, Cancel, and Sign in again with `credentialId` of a `github_oauth` (422
+  `sign_in_kind_mismatch` for another kind).
+- **The image:** `deploy/Dockerfile.login` adds gh 2.103.3 (published 2026-10-26, pinned 2026-11-12): the release
+  tarball for the build machine's architecture, checked against the SHA-256 GitHub published for it, with
+  `GH_PROMPT_DISABLED=1`, `GH_NO_UPDATE_NOTIFIER=1`, `GH_TELEMETRY=false` and `GH_SPINNER_DISABLED=1`. The local helper
+  gives a login the same switches. A changed Dockerfile is a new tag, so the dev server builds the image again on the
+  next sign-in.
+
+### Adding a token, Atlassian, and Check again
+
+- **Adding:** `POST /api/me/subscriptions/tools` takes `{ kind: 'github_token', label?, token }` or `{ kind:
+  'atlassian_api_token', label?, site, email, token }`. A light format check first (400): a GitHub token is one word of
+  letters, digits and `_` starting with `ghp_` or `github_pat_`; a site as typed (`https://airia.atlassian.net/jira/`,
+  `airia.atlassian.net` or just `airia`) becomes its host `<name>.atlassian.net` (`atlassianSite`), anything else is
+  refused; the email is trimmed. Then the provider is asked, and only once it names the account is the secret sealed,
+  with that check and its `tool_check` use: 201, named "GitHub · <login>" or "Atlassian · <site>" unless a name is
+  given. A refusal stores nothing: 422 `tool_sign_in_refused` ("GitHub did not accept this token.", "Neither Jira nor
+  Confluence answered on airia.atlassian.net."), 502 `provider_unavailable`, `rate_limited`, `invalid_response` or
+  `check_failed`.
+- **A new secret in place:** the same request with `credentialId` (a card's Sign in again for a pasted token or
+  Atlassian) checks the new secret, then replaces the sign-in's in place (`renewCredentialLogin`: same id and name, set
+  `active` with the new account, a `replace_secret` audit row). 404 for none of the caller's, 422 `tool_kind_mismatch`
+  for another kind, 422 `credential_revoked`.
+- **Check again:** `POST /api/me/subscriptions/:credentialId/check` opens the secret for `tool_check` and asks the
+  provider now: 200 with the sign-in after its check; 404, or 422 `not_a_tool` for an AI subscription and
+  `credential_revoked`.
+- **Reading GitHub's answer:** 200 with a login is the account, its scopes from `X-OAuth-Scopes` (none for a
+  fine-grained token); 401 `needs_sign_in`; 403 is `rate_limited` when `X-RateLimit-Remaining` is 0, else `refused`;
+  429 `rate_limited`; 5xx, a network failure or the 10-second deadline `provider_unavailable`; anything else
+  `invalid_response`. Headers: the bearer, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`,
+  `User-Agent: mwc`.
+- **Reading Atlassian's:** each product that answers 200 with the account counts (Confluence's anonymous user, `type:
+  anonymous`, does not); the name and id come from Jira, else Confluence. When neither does: a 401 (or the anonymous
+  user) is `needs_sign_in`, then a 429, then an outage; two products that are not there (404) or not open to the
+  account (403) are `no_products`; the rest `invalid_response`.
+- **What a check keeps:** working, the sign-in turns `active` with the account the provider names; a 401 sets it
+  `needs_sign_in`; a check that does not finish keeps its status and stores why (`check_error`, shown in words: "GitHub
+  did not answer the last check."). A change of status or account is audited, by the person for Check again and by the
+  system for the daily check; the check's own time and error are bookkeeping, like `last_used_at`. Every provider call
+  goes through `providerFetch` with redirects refused, so no test reaches GitHub or Atlassian.
+- **The daily check:** a job of the jobs loop (`toolChecks`, MWC_JOBS) looks every 10 minutes for up to 10 tool
+  sign-ins due: never checked, last checked a day ago or more, or an hour ago or more when that check did not finish;
+  not revoked; one that needs signing in again too, so a token that works again turns active. The due list is the
+  credentials module's one raw read, `modules/credentials/repo/checks-due.ts` (in the Biome exemption, as the
+  notifications' and Lead wake-ups' due lists); each is then opened, checked and changed through its owner's personal
+  layer. AI limits are checked when a page asks for them; tool sign-ins have no page watching them, so the server
+  checks them on its own schedule.
+
+### The Tools part of the Subscriptions page
+
+Under the AI subscriptions, **Tools**: one card per GitHub or Atlassian sign-in, with its logo and kind, its status, its
+name (renamed in place), the account it acts as ("@login · Name", or "Name · email" and the site), GitHub's scopes (or
+"Fine-grained") or Jira and Confluence (one that does not answer struck through), when it was last checked and why that
+check did not finish; **Check again**, **Sign in again** (Sign in with GitHub again, or a new token or Atlassian API
+token for the same sign-in) and **Remove**. **Add a tool** opens a sheet: GitHub, **Sign in with GitHub**
+(recommended) or **Paste a token**; Atlassian, **Jira and Confluence** (site, email, API token, with **Create an API
+token** linking to id.atlassian.com/manage-profile/security/api-tokens). The marks are inline SVGs (`ProviderLogo`:
+`github`, `atlassian`).
+
+### How to test it (Ihor)
+
+1. Merge, then restart the dev API (`pnpm dev`): migration `0029_tool_sign_ins` runs on start. Docker Desktop runs.
+2. Subscriptions page → **Tools** → **Add a tool** → **Sign in with GitHub**. The first sign-in builds the new sign-in
+   image (a minute or two) unless it was built already. Open github.com/login/device from the sheet, enter the code it
+   shows, approve; the card shows "GitHub · <login>", the scopes and "Checked just now".
+3. **Add a tool** → **Paste a token** (optional): a classic or fine-grained token; the card shows its account and type.
+4. **Add a tool** → **Jira and Confluence**: the site (`airia` is enough), the account email and an API token from
+   **Create an API token**; the card shows the name, the email, the site, and whether Jira and Confluence answered.
+5. **Check again** on a card asks the provider at once. Revoking a token at the provider and checking again shows
+   "Needs sign-in" and **Sign in again** in blue.
+
 ## Security
 
 - **At rest:** AES-256-GCM per secret, with the AAD binding it to its id, owner and kind, and a key version so the
@@ -329,8 +457,8 @@ on a Claude one). A profile no agent used kept both null. Then `agents.model` an
   of 2026-11-09) use the fallback: each turn's credential goes in its `turn.start` over the runner's link, refreshed by
   the server first; on disk only while its process runs: Codex's `auth.json`, and Claude Code's settings file with the
   gateway's headers (0600, in a 0700 folder of the runner's; docs/harness.md, "How a turn runs").
-- **Audit:** every add, change, removal and assignment, and every server-side use of a secret (a usage check, later a
-  run), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
+- **Audit:** every add, change, removal and assignment, and every server-side use of a secret (a usage check, a tool
+  sign-in's check, a run), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
   subscription is removed (S3.1).
 
 ## The limits widget
@@ -389,5 +517,5 @@ reset has passed shows "updating…" over a dimmed bar, never its old share.
 
 ## Out of scope for S3
 
-Runs and the relay (S5); GitHub and Jira sign-ins (S7); company-owned subscriptions; sharing a personal subscription
+Runs and the relay (S5); GitHub and Jira sign-ins (S7, built in S7.1a: "Tool sign-ins" above); company-owned subscriptions; sharing a personal subscription
 with other people (it stays its owner's, within the provider's terms).

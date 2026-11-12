@@ -633,6 +633,21 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
        email, API token). Each is checked against the provider, showing the account, the scopes and whether Jira and
        Confluence answer, on the Subscriptions page's Tools part. Test: he signs in to both, and the cards show his
        accounts.
+       **Built 2026-11-12** (docs/subscriptions.md, "Tool sign-ins"; waiting for his live test):
+       - Kinds `github_oauth`, `github_token` and `atlassian_api_token` in the personal store (sealed, write-only,
+         session-only, audited), and migration `0029_tool_sign_ins`: the kind CHECK, `checked_at` and `check_error`.
+       - Sign in with GitHub: `gh auth login --hostname github.com --git-protocol https --web --scopes workflow
+         --insecure-storage` in the sign-in helper's sandbox with no terminal, then `gh auth token` and
+         `gh api user --include` in it (the port's new `run`). `deploy/Dockerfile.login` carries gh 2.103.3,
+         checksum-pinned.
+       - `POST /api/me/subscriptions/tools`: a pasted GitHub token, or an Atlassian site, email and token, checked
+         with GitHub `GET /user` or Jira `myself` and Confluence `user/current` before it is stored (or renewed in
+         place with `credentialId`).
+       - Check again (`POST /api/me/subscriptions/:id/check`) and a daily check in the jobs loop. A 401 means
+         `needs_sign_in`; each check is a `tool_check` use.
+       - Limits leave tool sign-ins out. The page's Tools part: the cards and Add a tool.
+       - Tests with a fake provider and a fake helper for every kind, the checks, the 401 path, the job, write-only
+         secrets, the owner and session rules and the audit.
      - **S7.1b** The tool profiles: GitHub and Atlassian profiles on Access profiles, with their rights; the agent
        form's two pickers; and the agent's page and briefing. Test: he gives his DEVBOX agents profiles.
      - **S7.1c** The Atlassian tools for agents: Jira read first, then Confluence read and write, then Jira changes,

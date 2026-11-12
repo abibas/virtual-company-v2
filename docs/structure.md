@@ -321,7 +321,9 @@ notifications module's (S2.9) is `modules/notifications/repo/delivery.ts`, in th
 people whose email is due in any company, then reads and marks each batch through that company's tenant. The tasks
 module's (S6c) is `modules/tasks/repo/wakes-due.ts`, in the same exemption: the Lead wake-up tick stamps the new wake
 events and finds the flows whose window passed (and the sign-offs waiting too long) in any company, then reads, tells and
-marks each flow's events through that company's tenant.
+marks each flow's events through that company's tenant. The credentials module's (S7.1a) is
+`modules/credentials/repo/checks-due.ts`, in the same exemption: the jobs loop finds the tool sign-ins due for their
+daily check across every person, then opens, checks and changes each through its owner's personal layer.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the
