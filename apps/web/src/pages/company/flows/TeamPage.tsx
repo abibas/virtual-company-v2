@@ -11,12 +11,15 @@ import { leadsTeam, nodeAddress } from '../../../features/flows/access.ts';
 import { companyFlowLinks, type TeamTab } from '../../../features/flows/links.ts';
 import { TeamView, type TeamViewProps } from '../../../features/flows/team/TeamView.tsx';
 import { LiveLeadWakes } from '../../../features/flows/wakes/LiveLeadWakes.tsx';
+import { LiveRoom } from '../../../features/room/LiveRoom.tsx';
+import { LiveRoomCap } from '../../../features/room/RoomCap.tsx';
+import { RoomFrame } from '../../../features/room/RoomFrame.tsx';
 
 type Common = Omit<TeamViewProps, 'flow' | 'board' | 'text' | 'onBoardChanged'>;
 
 /**
- * A team with its flow: the board (read again every 30 seconds while visible), the written form and, for those who lead
- * the team when the Lead is an agent, the Lead's wake-ups (S6c).
+ * A team with its flow: the board (read again every 30 seconds while visible), the written form, the team room and,
+ * for those who lead the team, the Lead's wake-ups (S6c, when the Lead is an agent) and the room's cap.
  */
 function WithFlow({
   common,
@@ -30,10 +33,15 @@ function WithFlow({
   const { companyId, slug } = useCompany().membership;
   const board = useFlowBoard(companyId, flow.id);
   const text = useFlowText(companyId, flow.id, flow.updatedAt);
-  const wakes =
-    flow.lead.kind === 'agent' && leadsTeam(common.viewer, flow.lead.principalId) ? (
-      <LiveLeadWakes companyId={companyId} slug={slug} flow={flow} calls={common.calls} />
-    ) : undefined;
+  const leads = leadsTeam(common.viewer, flow.lead.principalId);
+  const wakes = leads ? (
+    <>
+      {flow.lead.kind === 'agent' && (
+        <LiveLeadWakes companyId={companyId} slug={slug} flow={flow} calls={common.calls} />
+      )}
+      <LiveRoomCap flowId={flow.id} />
+    </>
+  ) : undefined;
   return (
     <TeamView
       {...common}
@@ -41,6 +49,11 @@ function WithFlow({
       board={board}
       text={text}
       wakes={wakes}
+      room={
+        <RoomFrame>
+          <LiveRoom flowId={flow.id} faces />
+        </RoomFrame>
+      }
       onBoardChanged={() => {
         board.reload();
         loaded.reload();

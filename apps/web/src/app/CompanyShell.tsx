@@ -12,7 +12,7 @@ import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
-import { FLOW_TAB } from '../features/flows/links.ts';
+import { CHAT_TAB, FLOW_TAB, type TeamTab } from '../features/flows/links.ts';
 import { useCompanyRail } from '../features/inbox/use-company-rail.tsx';
 import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
@@ -97,12 +97,17 @@ function useCompanyMembership(slug: string) {
   return { view, provisioning, checked: checkedSlug === slug };
 }
 
-/** A team's page (`flows/<lead>`, `flows/<lead>/flow`) or a task's (`tasks/<key>`; `tasks` alone is the task list). */
+/** A team page's tab by the word after its address. */
+const TEAM_TABS: Readonly<Record<string, TeamTab>> = { [FLOW_TAB]: 'flow', [CHAT_TAB]: 'chat' };
+
+/**
+ * A team's page (`flows/<lead>`, `flows/<lead>/flow`, `flows/<lead>/chat`) or a task's (`tasks/<key>`; `tasks` alone is
+ * the task list).
+ */
 function flowPageAt(head: string, rest: readonly string[]): ReactNode {
   const [address, more] = rest;
-  if (head === 'flows' && address && (more === undefined || (more === FLOW_TAB && rest.length === 2))) {
-    return <TeamPage key={address} address={address} tab={more === FLOW_TAB ? 'flow' : 'board'} />;
-  }
+  const tab = more === undefined ? 'board' : rest.length === 2 ? TEAM_TABS[more] : undefined;
+  if (head === 'flows' && address && tab) return <TeamPage key={address} address={address} tab={tab} />;
   if (head === 'tasks' && rest.length === 1 && address) return <TaskPage key={address} taskKey={address} />;
   return undefined;
 }

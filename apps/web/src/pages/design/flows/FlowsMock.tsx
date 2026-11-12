@@ -27,7 +27,7 @@ export const FLOW_LINKS: FlowLinks = {
   structure: '/design/org',
   flows: HERE,
   team: (lead, tab = 'board', edit = false) =>
-    `${HERE}?team=${encodeURIComponent(lead)}${tab === 'flow' ? '&tab=flow' : ''}${edit ? '&edit=1' : ''}`,
+    `${HERE}?team=${encodeURIComponent(lead)}${tab === 'board' ? '' : `&tab=${tab}`}${edit ? '&edit=1' : ''}`,
   task: (key) => `${HERE}?task=${encodeURIComponent(key)}`,
 };
 

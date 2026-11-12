@@ -1,7 +1,7 @@
-import { Users } from 'lucide-react';
 import { useAgentPlacement } from '../../api/org.ts';
-import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { chatsPath } from '../agents/links.ts';
+import { companyFlowLinks } from '../flows/links.ts';
+import { LiveRoom } from '../room/LiveRoom.tsx';
 import { DockedChats, type DockMode } from './DockedChats.tsx';
 import { DockedThread } from './DockedThread.tsx';
 import { DraftChat } from './DraftChat.tsx';
@@ -16,20 +16,19 @@ export interface DockOverride {
 
 export const DRAFT = 'draft';
 
-/** Which chat of the open report the rail shows: the team chat, the one it opened itself, or its main chat. */
+/** Which chat of the open report the rail shows: the one it opened itself, or its main chat (the team mode shows the room). */
 export function dockedChatId(
   report: RailReport['report'],
-  mode: DockMode,
   override: DockOverride | undefined,
 ): string | undefined {
-  if (mode === 'team') return report.team?.chatId ?? undefined;
   const own = override?.agentId === report.agent.id ? override.chatId : report.chat?.id;
   return own === DRAFT ? undefined : own;
 }
 
 /**
- * The Chats view, live: the open report's chat (its main chat with you, its team chat for a Lead, or a new one on the
- * first message) in the docked frame, with its placement (why a message cannot go) and its full chat page's address.
+ * The Chats view, live: the open report's chat (its main chat with you, or a new one on the first message) in the docked
+ * frame, with its placement (why a message cannot go) and its full chat page's address; for a Lead in Team chat, its
+ * flow's team room, with the team page's Team chat as its full page.
  */
 export function LiveDockedChats({
   companyId,
@@ -68,7 +67,20 @@ export function LiveDockedChats({
         body={null}
       />
     );
-  const chatId = dockedChatId(selected.report, mode, override);
+  const team = mode === 'team' ? selected.report.team : null;
+  if (team !== null)
+    return (
+      <DockedChats
+        reports={reports}
+        selected={selected}
+        onPick={onPick}
+        mode={mode}
+        onMode={onMode}
+        fullHref={companyFlowLinks(slug).team(agent.slug, 'chat')}
+        body={<LiveRoom key={team.flowId} flowId={team.flowId} dense faces />}
+      />
+    );
+  const chatId = dockedChatId(selected.report, override);
   const thread = { companyId, agentName: agent.name, admin, placement };
   let body = (
     <DraftChat
@@ -84,14 +96,6 @@ export function LiveDockedChats({
   if (chatId)
     body = (
       <DockedThread key={chatId} {...thread} face={selected.face} chatId={chatId} onChanged={onChanged} />
-    );
-  else if (mode === 'team')
-    body = (
-      <div className="flex flex-1 flex-col justify-center p-3">
-        <EmptyState icon={Users} size="sm" title="No team chat yet">
-          Most Wanted starts it the first time the team’s events wake {agent.name}.
-        </EmptyState>
-      </div>
     );
   return (
     <DockedChats

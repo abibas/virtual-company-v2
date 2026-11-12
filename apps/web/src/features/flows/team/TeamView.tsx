@@ -42,6 +42,8 @@ export interface TeamViewProps {
   readonly onBoardChanged: () => void;
   /** The Flow tab's "Lead wakes up on" section (S6c), for those who lead the team; none hides it. */
   readonly wakes?: ReactNode;
+  /** The Team chat tab: the team room. */
+  readonly room?: ReactNode;
 }
 
 /** The Flow tab: the drawing and the written form, or the editor in their place; then the Lead's wake-ups (S6c). */
@@ -167,8 +169,8 @@ function TeamAction({
 }
 
 /**
- * A team's page (`/:slug/flows/<lead>`): its header row, then the Board (with New task) or the Flow (with Edit for the
- * Lead's people and admins). The company's route and the design gallery both render it.
+ * A team's page (`/:slug/flows/<lead>`): its header row, then the Board (with New task), the Flow (with Edit for the
+ * Lead's people and admins) or the Team chat (the team room). The company's route and the design gallery both render it.
  */
 export function TeamView(props: TeamViewProps) {
   const { flow, lead, chart, viewer, tab } = props;
@@ -190,6 +192,7 @@ export function TeamView(props: TeamViewProps) {
       {!flow && <NoFlow props={props} lead={lead} />}
       {flow && tab === 'flow' && <FlowTab props={props} flow={flow} nodes={nodes} />}
       {flow && tab === 'board' && <BoardTab props={props} nodes={nodes} leads={leads} />}
+      {flow && tab === 'chat' && props.room}
       {adding && flow && (
         <NewTaskSheet
           flow={flow}

@@ -1,7 +1,7 @@
 import { companyPath } from '../../app/nav.ts';
 
-/** A team's page's tabs: its board and its flow. */
-export type TeamTab = 'board' | 'flow';
+/** A team's page's tabs: its board, its flow and its team chat (the team room). */
+export type TeamTab = 'board' | 'flow' | 'chat';
 
 /**
  * Where the flows' pages link to, so the same parts serve the company's routes and the design gallery: Company
@@ -32,6 +32,9 @@ export const chartWithFlow = (links: FlowLinks, lead: string): string =>
 /** The word after a team's address that opens its Flow tab (`/flows/<lead>/flow`). */
 export const FLOW_TAB = 'flow';
 
+/** The word after a team's address that opens its team chat (`/flows/<lead>/chat`). */
+export const CHAT_TAB = 'chat';
+
 /** The links of a company's flows: `/:slug/flows`, `/flows/<lead>`, `/flows/<lead>/flow` and `/tasks/<key>`. */
 export function companyFlowLinks(slug: string): FlowLinks {
   const flows = companyPath(slug, 'flows');
@@ -41,6 +44,7 @@ export function companyFlowLinks(slug: string): FlowLinks {
     team: (lead, tab = 'board', edit = false) => {
       const base = `${flows}/${encodeURIComponent(lead)}`;
       if (tab === 'board') return base;
+      if (tab === 'chat') return `${base}/${CHAT_TAB}`;
       return `${base}/${FLOW_TAB}${edit ? '?edit=1' : ''}`;
     },
     task: (key) => companyPath(slug, `tasks/${encodeURIComponent(key)}`),

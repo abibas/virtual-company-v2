@@ -43,7 +43,7 @@ const agentSubject = ({ agent }: AgentNode): AgentIconSubject => ({
 });
 
 /** A principal on the chart as a message's author. */
-function nodeAuthor(node: ChartNode): MessageAuthorView {
+export function nodeAuthor(node: ChartNode): MessageAuthorView {
   if (node.kind === 'agent') return { kind: 'agent', name: node.agent.name, agent: agentSubject(node) };
   const { displayName, email, imageUrl } = node.person;
   return personAuthor(displayName, email, imageUrl);

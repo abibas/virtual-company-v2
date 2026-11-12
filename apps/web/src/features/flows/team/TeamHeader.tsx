@@ -1,4 +1,4 @@
-import { KanbanSquare, Workflow } from 'lucide-react';
+import { KanbanSquare, MessagesSquare, Workflow } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { PrincipalRef } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
@@ -17,7 +17,7 @@ export const flowCrumbs = (links: FlowLinks, ...rest: Crumb[]): Crumb[] => [
 
 /**
  * A team's page's one header row: the path (Company structure / Flows / the flow), its Lead, then Show on org chart,
- * the Board and Flow tabs (none before the team has a flow) and the tab's action on the right.
+ * the Board, Flow and Team chat tabs (none before the team has a flow) and the tab's action on the right.
  */
 export function TeamHeader({
   title,
@@ -56,6 +56,12 @@ export function TeamHeader({
             items={[
               { href: links.team(address), label: 'Board', icon: KanbanSquare, current: tab === 'board' },
               { href: links.team(address, 'flow'), label: 'Flow', icon: Workflow, current: tab === 'flow' },
+              {
+                href: links.team(address, 'chat'),
+                label: 'Team chat',
+                icon: MessagesSquare,
+                current: tab === 'chat',
+              },
             ]}
           />
         )}
