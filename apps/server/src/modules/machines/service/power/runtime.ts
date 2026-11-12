@@ -13,7 +13,11 @@ import { machineWake } from './wake.ts';
  * (`wake`), which start a machine through the same paths as a Start by hand.
  */
 export function machinePowerRuntime(
-  deps: ServerDeps & { readonly hub: RunnerHub; readonly control: PowerControl },
+  deps: Pick<ServerDeps, 'db' | 'logger' | 'clock' | 'localDocker'> & {
+    readonly config: Pick<ServerDeps['config'], 'NODE_ENV'>;
+    readonly hub: RunnerHub;
+    readonly control: PowerControl;
+  },
 ) {
   const jobs = machineJobs(deps.clock);
   const containers = containerPower({

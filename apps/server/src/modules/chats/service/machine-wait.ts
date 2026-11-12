@@ -106,18 +106,20 @@ export async function waitForMachine(
   if (waits === undefined || wake === undefined) return MACHINE_OFFLINE;
   const agent = (await chatsRepo.agentOf(t, chat.agentId)) as Agent;
   const request = { ...wake, reason: wake.reason ?? messageReason(agent.name) };
+  // Recorded first, so a start that fails at once finds the turn to fail; taken back when no start comes.
+  const turn = await recordWaiting(deps, t, caller, chat, prompt);
   const woken = await waits.wake.wake(t, chat.machineId, request);
   if (!woken.ok) {
+    await queueRepo.deleteQueued(t, chat.id, turn.id);
     return 'canStart' in woken
       ? machineStopped(woken.machine, woken.canStart, wake.trigger)
       : cannotStart(woken.message);
   }
-  const turn = await recordWaiting(deps, t, caller, chat, prompt);
-  deps.live.bus.publish(chat.id, { kind: 'turn', turn: turnView(turn) });
   waits.watch(t, chat.id, woken.machine.name);
   if (woken.state === 'up') await waits.startNext(t, chat.id);
-  const now = await turnsRepo.get(t, chat.id, turn.id);
-  return { ok: true, turn: turnView(now ?? turn) };
+  const now = turnView((await turnsRepo.get(t, chat.id, turn.id)) ?? turn);
+  deps.live.bus.publish(chat.id, { kind: 'turn', turn: now });
+  return { ok: true, turn: now };
 }
 
 export interface MachineWaitsDeps {
