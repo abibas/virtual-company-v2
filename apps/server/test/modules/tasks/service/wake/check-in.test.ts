@@ -12,6 +12,7 @@ import {
   runDevelop,
   taskAt,
   teamChatsOf,
+  turnsOf,
   type WakeScene,
   type WakeWorld,
   wakeEvents,
@@ -165,6 +166,23 @@ describe('a flow’s check-ins', () => {
     expect((await s.runner.frames.next('turn.start')).spec.prompt).toContain(
       'check-in, 1 open task (1 stuck).',
     );
+  });
+
+  it('tells a turn waiting for a free slot, and itself waits for one on a full machine', async () => {
+    const s = await wakeScene(w, { slots: 2 });
+    await developing(s, 'One');
+    await developing(s, 'Two');
+    const third = await taskAt(w, s, 'Develop', 'Three');
+    await moved(w, s.c, s.c.owner, third.key, { action: 'start' });
+    await tickAfter(5);
+    const [team] = await teamChatsOf(w.t.db, s.flow.id);
+    const [turn] = await turnsOf(w.t.db, team?.id as string);
+    expect(turn).toMatchObject({ status: 'queued', machineWait: 'slots', system: true });
+    expect(turn?.prompt).toMatch(
+      new RegExp(`\\n- ${third.key} “Three” · Develop · working [45] min · turn waiting to start\\n`),
+    );
+    expect(turn?.prompt).toContain('· turn live');
+    expect(await checkIns(s)).toMatchObject([{ outcome: 'woke', turnId: turn?.id }]);
   });
 
   it('never starts a stopped machine, holds a Lead that cannot run, and none with check-ins off or no work', async () => {

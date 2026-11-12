@@ -37,13 +37,16 @@ export interface WakeScene {
 export interface WakeOptions {
   /** Leave the Lead without a placement. */
   readonly leadUnplaced?: boolean;
+  /** The machine's slots (the fake runner's eight unless said). */
+  readonly slots?: number;
 }
 
 /** The team, its machine online (with the agents' tools), the Lead and the Developer placed with a profile, the flow. */
 export async function wakeScene(w: WakeWorld, options: WakeOptions = {}): Promise<WakeScene> {
   const c = await teamCompany(w);
   const { machineId, runnerKey } = await enroll(w, c);
-  const runner = await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, agentTools: true } });
+  const slots = options.slots === undefined ? {} : { slots: options.slots };
+  const runner = await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, agentTools: true, ...slots } });
   const credential = await addSubscription(w, w.keyring, c.owner.userId, 'claude_setup_token');
   const profile = await seedProfile(w.t.db, c.owner.userId, {
     credentialId: credential.id,

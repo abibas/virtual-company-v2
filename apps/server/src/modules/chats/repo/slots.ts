@@ -8,47 +8,39 @@ import type { SlotWaiter } from '../rules/machine.ts';
  * on it, and the chats on it with turns waiting for a free slot.
  */
 
-/** The machine's name and recorded slots; undefined for an unknown one. */
-async function machineOf(
-  t: TenantDb,
-  machineId: string,
-): Promise<{ name: string; slots: number } | undefined> {
+/** The machine's name and recorded slots (a chat's machine: always there, removed ones too). */
+async function machineOf(t: TenantDb, machineId: string): Promise<{ name: string; slots: number }> {
   const [row] = await t.selectFields(
     machines,
     { name: machines.name, slots: machines.slots },
     eq(machines.id, machineId),
   );
-  return row;
+  return row as { name: string; slots: number };
 }
 
-/** The ids of the chats on the machine. */
-const chatsOn = async (t: TenantDb, machineId: string): Promise<string[]> =>
-  (await t.selectFields(chats, { id: chats.id }, eq(chats.machineId, machineId))).map((row) => row.id);
+/** The chats on the machine, as a subquery. */
+const chatsOn = (t: TenantDb, machineId: string) =>
+  t.selectFields(chats, { id: chats.id }, eq(chats.machineId, machineId));
 
 /** How many turns run on the machine (in any of its chats). */
 async function liveOn(t: TenantDb, machineId: string): Promise<number> {
-  const on = await chatsOn(t, machineId);
-  if (on.length === 0) return 0;
-  const [row] = await t.selectFields(
-    chatTurns,
-    { n: count() },
-    and(inArray(chatTurns.chatId, on), eq(chatTurns.status, 'running')),
-  );
-  return row?.n ?? 0;
+  const running = and(inArray(chatTurns.chatId, chatsOn(t, machineId)), eq(chatTurns.status, 'running'));
+  const [row] = await t.selectFields(chatTurns, { n: count() }, running);
+  return (row as { n: number }).n;
 }
 
 /** The chats on the machine with turns waiting for a free slot, each since its oldest began to wait. */
 async function waitersOn(t: TenantDb, machineId: string): Promise<SlotWaiter[]> {
-  const on = await chatsOn(t, machineId);
-  if (on.length === 0) return [];
+  const waiting = and(
+    inArray(chatTurns.chatId, chatsOn(t, machineId)),
+    eq(chatTurns.status, 'queued'),
+    eq(chatTurns.machineWait, 'slots'),
+  );
   const rows = await t
-    .selectFields(
-      chatTurns,
-      { chatId: chatTurns.chatId, since: min(chatTurns.machineWaitAt) },
-      and(inArray(chatTurns.chatId, on), eq(chatTurns.status, 'queued'), eq(chatTurns.machineWait, 'slots')),
-    )
+    .selectFields(chatTurns, { chatId: chatTurns.chatId, since: min(chatTurns.machineWaitAt) }, waiting)
     .groupBy(chatTurns.chatId);
-  return rows.flatMap((row) => (row.since === null ? [] : [{ chatId: row.chatId, since: row.since }]));
+  // A turn waiting for a slot always says since when (CHECK `chat_turns_machine_wait_at_check`).
+  return rows.map((row) => ({ chatId: row.chatId, since: row.since as Date }));
 }
 
 export const slotsRepo = { machineOf, liveOn, waitersOn };

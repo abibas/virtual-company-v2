@@ -64,15 +64,13 @@ const MACHINE_OFF: ReadonlySet<string> = new Set(['machine_offline', 'machine_st
 async function openBoard(repo: TasksRepo, t: TenantDb, flow: Flow, now: Date): Promise<LeadCheckInTask[]> {
   const open = (await repo.tasks.open(t, flow.id)).filter((task) => task.state !== 'queued');
   const steps = new Map((await repo.flows.steps(t, flow.id)).map((step) => [step.id, step.name]));
-  const since = await repo.checkIns.lastEventAt(
-    t,
-    open.map((task) => task.id),
-  );
-  const turns = await repo.checkIns.turnsOn(t, open);
+  const since = await repo.checkIns.lastEventAt(t, flow.id);
+  const turns = await repo.checkIns.turnsOn(t, flow.id, open);
   return open.map((task) =>
     checkInTask(task, {
       key: taskKey(task.number),
-      step: task.currentStepId === null ? null : (steps.get(task.currentStepId) ?? null),
+      // An active or escalated task is always at a step (escalated: the one it came from).
+      step: steps.get(task.currentStepId as string) ?? null,
       since: since.get(task.id),
       turn: turns.get(task.id),
       now,

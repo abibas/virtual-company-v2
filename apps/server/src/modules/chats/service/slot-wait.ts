@@ -28,8 +28,8 @@ export interface SlotDeps {
 /** The machine's slots now: its name, the slots its runner says (else its row's), and the turns running there. */
 export async function slotsOf(deps: SlotDeps, t: TenantDb, machineId: string): Promise<MachineSlots> {
   const row = await slotsRepo.machineOf(t, machineId);
-  const slots = deps.hub.connected(machineId)?.caps.slots ?? row?.slots ?? 1;
-  return { name: row?.name ?? 'The machine', slots, live: await slotsRepo.liveOn(t, machineId) };
+  const slots = deps.hub.connected(machineId)?.caps.slots ?? row.slots;
+  return { name: row.name, slots, live: await slotsRepo.liveOn(t, machineId) };
 }
 
 /** The words of a wait for a free slot that ran out, with the chat's machine's slots now. */

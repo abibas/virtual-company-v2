@@ -7,7 +7,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatTurnView } from '../../../../src/modules/chats/schemas.ts';
 import type { ChatsLive } from '../../../../src/modules/chats/service/live.ts';
 import type { MachineWaits } from '../../../../src/modules/chats/service/machine-wait.ts';
-import { slotWaits, waitForSlot } from '../../../../src/modules/chats/service/slot-wait.ts';
+import { slotsOf, slotWaits, waitForSlot } from '../../../../src/modules/chats/service/slot-wait.ts';
+import type { RunnerHub } from '../../../../src/modules/machines/index.ts';
+import { queued } from '../../../fixtures/chats/queue.ts';
 import {
   beginChat,
   type ChatsWorld,
@@ -92,6 +94,26 @@ describe('a turn waits for a free slot', () => {
     expect((await runner(s).frames.next('turn.start')).turnId).toBe(waited.id);
     const d = await otherChat(s);
     await waiting(s, d.id, 'Four');
+  });
+
+  it('holds a chat’s next message behind the chats that waited longer, keeping its wait', async () => {
+    const s = await scene(w, { caps: { slots: 1 } });
+    await prompt(s, s.chat.id, 'First');
+    const first = await runner(s).frames.next('turn.start');
+    const later = await queued(w, s, 'Later');
+    expect(later.machineWait).toBeNull();
+    const b = await otherChat(s);
+    const second = await waiting(s, b.id, 'Second');
+    w.clock.advance(1_000);
+    endTurn(runner(s), first.turnId);
+    expect((await runner(s).frames.next('turn.start')).turnId).toBe(second.id);
+    const held = await turnRow(w.t.db, later.id);
+    expect(held).toMatchObject({ status: 'queued', machineWait: 'slots' });
+    w.clock.advance(1_000);
+    await queued(w, s, 'Even later');
+    expect((await turnRow(w.t.db, later.id))?.machineWaitAt).toEqual(held?.machineWaitAt);
+    endTurn(runner(s), second.id);
+    expect((await runner(s).frames.next('turn.start')).turnId).toBe(later.id);
   });
 
   it('waits again when the runner says every slot is taken, and starts when a turn there ends', async () => {
@@ -180,5 +202,7 @@ describe('the slots’ edges', () => {
       machine,
     );
     expect(sent).toMatchObject({ ok: true, turn: { status: 'queued', machineWait: 'slots' } });
+    const gone = { connected: () => undefined } as unknown as RunnerHub;
+    expect(await slotsOf({ hub: gone }, t, s.machineId)).toMatchObject({ slots: 1, live: 0 });
   });
 });
