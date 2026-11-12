@@ -51,7 +51,9 @@ describe('the Lead’s wake-ups and check-ins in the team room', () => {
     });
     finish(s.runner, start, 'Retried it at Develop.');
     await ended(w.t.db, start.turnId);
-    expect((await roomLines(w.t.db, s.flow.id)).slice(1)).toEqual([['reply', s.c.lead, 'Retried it at Develop.']]);
+    expect((await roomLines(w.t.db, s.flow.id)).slice(1)).toEqual([
+      ['reply', s.c.lead, 'Retried it at Develop.'],
+    ]);
   });
 
   it('posts nothing for a silent reply or a stopped turn, and a notice for a failed one', async () => {
@@ -111,12 +113,14 @@ describe('the Lead’s wake-ups and check-ins in the team room', () => {
     expect(after[1]?.prompt).toContain('wrote:\nAnd T-15 too.');
     expect(after[1]?.prompt).toContain(': Hold T-14 until the design is signed off.');
     expect(after[2]?.prompt).toBe(nextWake?.prompt);
-    expect((await roomLines(w.t.db, s.flow.id)).map(([kind, , body]) => [kind, body.split('\n')[0]])).toEqual([
-      ['notice', WAKE],
-      ['message', 'Hold T-14 until the design is signed off.'],
-      ['notice', WAKE],
-      ['message', 'And T-15 too.'],
-    ]);
+    expect((await roomLines(w.t.db, s.flow.id)).map(([kind, , body]) => [kind, body.split('\n')[0]])).toEqual(
+      [
+        ['notice', WAKE],
+        ['message', 'Hold T-14 until the design is signed off.'],
+        ['notice', WAKE],
+        ['message', 'And T-15 too.'],
+      ],
+    );
   });
 
   it('shows a check-in as Most Wanted’s notice', async () => {

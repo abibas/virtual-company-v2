@@ -27,7 +27,8 @@ export const say = (w: WakeWorld, s: WakeScene, by: Person, body: string) =>
 /** A person writes in the room, which must take it: the room after it. */
 export async function said(w: WakeWorld, s: WakeScene, by: Person, body: string): Promise<RoomView> {
   const res = await say(w, s, by, body);
-  if (res.status !== 201) throw new Error(`POST room/messages answered ${res.status}: ${JSON.stringify(res.body)}`);
+  if (res.status !== 201)
+    throw new Error(`POST room/messages answered ${res.status}: ${JSON.stringify(res.body)}`);
   return res.body as RoomView;
 }
 
@@ -60,13 +61,23 @@ export async function roomChatOf(db: DbHandle, flowId: string, agentPrincipalId:
 /** The agent principal whose chat a started turn is in. */
 async function agentOfTurn(db: DbHandle, turnId: string): Promise<string> {
   const turn = await turnRow(db, turnId);
-  const [chat] = await rawDb(db).select().from(chats).where(eq(chats.id, turn?.chatId as string));
-  const [agent] = await rawDb(db).select().from(agents).where(eq(agents.id, chat?.agentId as string));
+  const [chat] = await rawDb(db)
+    .select()
+    .from(chats)
+    .where(eq(chats.id, turn?.chatId as string));
+  const [agent] = await rawDb(db)
+    .select()
+    .from(agents)
+    .where(eq(agents.id, chat?.agentId as string));
   return agent?.principalId as string;
 }
 
 /** The next `count` turns the runner starts, by the agent whose chat each is in. */
-export async function startsByAgent(w: WakeWorld, s: WakeScene, count: number): Promise<Map<string, TurnStart>> {
+export async function startsByAgent(
+  w: WakeWorld,
+  s: WakeScene,
+  count: number,
+): Promise<Map<string, TurnStart>> {
   const starts = new Map<string, TurnStart>();
   for (let i = 0; i < count; i++) {
     const start = await s.runner.frames.next('turn.start');

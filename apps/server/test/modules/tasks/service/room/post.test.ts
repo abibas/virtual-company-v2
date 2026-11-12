@@ -6,7 +6,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { RoomView } from '../../../../../src/modules/tasks/schemas/room.ts';
 import { type ChatsWorld, chatsWorld } from '../../../../fixtures/chats/world.ts';
 import { as } from '../../../../fixtures/members/members.ts';
-import { endTurn, eventually, finish, type RunScene, stepStateIs, taskRow } from '../../../../fixtures/runs.ts';
+import {
+  endTurn,
+  eventually,
+  finish,
+  type RunScene,
+  stepStateIs,
+  taskRow,
+} from '../../../../fixtures/runs.ts';
 import { flowsPath, makeTask, moved, stepOf } from '../../../../fixtures/tasks.ts';
 import { toolCall, toolScene } from '../../../../fixtures/tools.ts';
 
@@ -53,11 +60,17 @@ describe('a step agent’s line when its step ends', () => {
   it('says a hand-on with the agent’s summary, linked to the task, and shows its move in the feed', async () => {
     const s = await toolScene(w);
     const { task, start } = await atStep(s);
-    await toolCall(s.runner, start.turnId, 'task_hand_on', { summary: 'three scripts and their logs,\noverlap shown' });
+    await toolCall(s.runner, start.turnId, 'task_hand_on', {
+      summary: 'three scripts and their logs,\noverlap shown',
+    });
     finish(s.runner, start, 'Done.');
     const review = await s.runner.frames.next('turn.start');
     expect(await linesAre(s.flow.id, 1)).toEqual([
-      ['step_end', s.c.developer, `${task.key} · Develop → Code review: three scripts and their logs, overlap shown`],
+      [
+        'step_end',
+        s.c.developer,
+        `${task.key} · Develop → Code review: three scripts and their logs, overlap shown`,
+      ],
     ]);
     const room = (await as(w, s.c.viewer)('GET', flowsPath(s.c, `/${s.flow.id}/room`))).body as RoomView;
     expect(room.messages[0]).toMatchObject({
@@ -84,10 +97,15 @@ describe('a step agent’s line when its step ends', () => {
   it('says a send-back with its reason, and an escalation past the limit', async () => {
     const s = await toolScene(w);
     const { task, start } = await atStep(s, 'Code review');
-    await toolCall(s.runner, start.turnId, 'task_send_back', { reason: 'Empty passwords pass', findings: 'line 12' });
+    await toolCall(s.runner, start.turnId, 'task_send_back', {
+      reason: 'Empty passwords pass',
+      findings: 'line 12',
+    });
     finish(s.runner, start, 'SEND BACK');
     const develop = await s.runner.frames.next('turn.start');
-    expect((await linesAre(s.flow.id, 1))[0]?.[2]).toBe(`${task.key} · Code review sent back → Develop: Empty passwords pass`);
+    expect((await linesAre(s.flow.id, 1))[0]?.[2]).toBe(
+      `${task.key} · Code review sent back → Develop: Empty passwords pass`,
+    );
     endTurn(s.runner, develop.turnId, { ok: false, exitCode: null, error: 'stopped' });
     await stepStateIs(w.t.db, task.id, 'ended_without_handoff');
     await moved(w, s.c, s.c.owner, task.key, { action: 'hand_on' });
@@ -100,7 +118,11 @@ describe('a step agent’s line when its step ends', () => {
     await toolCall(s.runner, again.turnId, 'task_send_back', { reason: 'Still broken', findings: 'Same.' });
     finish(s.runner, again, 'SEND BACK');
     const all = await linesAre(s.flow.id, 2);
-    expect(all[1]).toEqual(['step_end', s.c.reviewer, `${task.key} · Code review escalated → Lead: Still broken`]);
+    expect(all[1]).toEqual([
+      'step_end',
+      s.c.reviewer,
+      `${task.key} · Code review escalated → Lead: Still broken`,
+    ]);
   });
 
   it('says an approval at the last step as done', async () => {
@@ -135,7 +157,11 @@ describe('a step agent’s line when its step ends', () => {
     await stepStateIs(w.t.db, ended.task.id, 'ended_without_handoff');
     expect(await linesAre(s.flow.id, 2)).toEqual([
       ['step_end', s.c.developer, `${blocked.task.key} · Develop · blocked: No access to the repo`],
-      ['step_end', s.c.developer, `${ended.task.key} · Develop · no hand-off: I looked at it. Nothing to change yet.`],
+      [
+        'step_end',
+        s.c.developer,
+        `${ended.task.key} · Develop · no hand-off: I looked at it. Nothing to change yet.`,
+      ],
     ]);
   });
 

@@ -169,15 +169,13 @@ describe('a room turn and the flow’s cap (0031)', () => {
     expect(flow.roomMaxPerHour).toBe(30);
     const other = await insertPrincipal(handle, acme.id);
     const insert = (roomMaxPerHour: number) =>
-      handle.db
-        .insert(flows)
-        .values({
-          companyId: acme.id,
-          leadPrincipalId: other.id,
-          name: 'F',
-          createdBy: other.id,
-          roomMaxPerHour,
-        });
+      handle.db.insert(flows).values({
+        companyId: acme.id,
+        leadPrincipalId: other.id,
+        name: 'F',
+        createdBy: other.id,
+        roomMaxPerHour,
+      });
     expect(await constraint(insert(0))).toBe('flows_room_per_hour_check');
     expect(await constraint(insert(201))).toBe('flows_room_per_hour_check');
     await insert(200);

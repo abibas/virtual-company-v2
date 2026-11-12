@@ -42,11 +42,15 @@ describe('a person’s message in the team room', () => {
     const starts = await startsByAgent(w, s, 2);
     const lead = get(starts, s.c.lead);
     const developer = get(starts, s.c.developer);
-    expect(lead.spec.prompt).toContain("Most Wanted · DEVBOX delivery team room. You are DEVBOX Coordinator, the team's Lead.");
+    expect(lead.spec.prompt).toContain(
+      "Most Wanted · DEVBOX delivery team room. You are DEVBOX Coordinator, the team's Lead.",
+    );
     expect(lead.spec.prompt).toContain('wrote:\nShould we ship T-2 today?');
     expect(lead.spec.prompt.endsWith(ROOM_ASK)).toBe(true);
     expect(lead.spec.tools).toContain('team_board');
-    expect(developer.spec.prompt).toContain('team room. You are Developer.\nAgents: DEVBOX Coordinator, Developer;');
+    expect(developer.spec.prompt).toContain(
+      'team room. You are Developer.\nAgents: DEVBOX Coordinator, Developer;',
+    );
     expect(developer.spec.tools).toBeUndefined();
     const leadChat = await roomChatOf(w.t.db, s.flow.id, s.c.lead);
     const devChat = await roomChatOf(w.t.db, s.flow.id, s.c.developer);
@@ -63,7 +67,11 @@ describe('a person’s message in the team room', () => {
       ['reply', s.c.lead, 'Not yet: QA has not passed it.'],
     ]);
     const reply = (await roomRows(w.t.db, s.flow.id))[1];
-    expect(reply).toMatchObject({ chatId: leadChat?.id, turnId: lead.turnId, details: { replyTo: message?.id } });
+    expect(reply).toMatchObject({
+      chatId: leadChat?.id,
+      turnId: lead.turnId,
+      details: { replyTo: message?.id },
+    });
     expect((await turnsOf(w.t.db, devChat?.id as string))[0]?.resultText).toBe('NOTHING_TO_ADD');
     // No loop: the reply asked nobody.
     expect(await turnsOf(w.t.db, leadChat?.id as string)).toHaveLength(1);
@@ -86,7 +94,9 @@ describe('a person’s message in the team room', () => {
     await said(w, s, s.c.manager, 'Thanks. @DEVBOX Coordinator, route it to QA.');
     const lead = get(await startsByAgent(w, s, 1), s.c.lead);
     expect(lead.spec.prompt).toContain('Since your last turn here:\n- ');
-    expect(lead.spec.prompt).toContain(': @developer is the branch pushed?\n- Developer: Yes, pushed to t-2-login.');
+    expect(lead.spec.prompt).toContain(
+      ': @developer is the branch pushed?\n- Developer: Yes, pushed to t-2-login.',
+    );
     expect(lead.spec.prompt).toContain('wrote:\nThanks. @DEVBOX Coordinator, route it to QA.');
   });
 
@@ -140,7 +150,9 @@ describe('a person’s message in the team room', () => {
     });
     expect(paused.status).toBe(200);
     const room = await said(w, s, s.c.owner, 'Hello team');
-    expect(room.messages.at(-1)?.body).toBe('Developer was not asked: The agent is paused: resume it to wake it');
+    expect(room.messages.at(-1)?.body).toBe(
+      'Developer was not asked: The agent is paused: resume it to wake it',
+    );
     expect(room.messages[0]?.asked).toBe(1);
   });
 });

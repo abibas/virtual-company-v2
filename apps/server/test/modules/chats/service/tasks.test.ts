@@ -11,6 +11,8 @@ import {
   chatPath,
   chatsWorld,
   place,
+  sendPrompt,
+  turnRow,
 } from '../../../fixtures/chats/world.ts';
 import { enroll } from '../../../fixtures/machines/machines.ts';
 import { as } from '../../../fixtures/members/members.ts';
@@ -100,5 +102,34 @@ describe('Keep starts a new conversation when the last one cannot go on', () => 
     const fresh = await box.frames.next('turn.start');
     expect(fresh.spec.sessionId).toBeNull();
     expect(await conversationsOf(w.t.db, task.id)).toHaveLength(3);
+  });
+});
+
+describe('a step’s own prompt', () => {
+  it('is Most Wanted’s turn, still naming the person whose move started it; a person’s reply stays theirs', async () => {
+    const s = await runScene(w);
+    const task = await makeTask(w, s.c, s.c.owner, {
+      flowId: s.flow.id,
+      stepId: stepOf(s.flow, 'Develop').id,
+    });
+    const start = await s.runner.frames.next('turn.start');
+    finish(s.runner, start, 'Round one.');
+    await stepStateIs(w.t.db, task.id, 'ended_without_handoff');
+    const [conversation] = await conversationsOf(w.t.db, task.id);
+    expect(await turnRow(w.t.db, start.turnId)).toMatchObject({
+      system: true,
+      createdBy: s.c.owner.principalId,
+    });
+    const reply = await sendPrompt(
+      w,
+      { company: s.c, chat: conversation as never },
+      'Use the staging database',
+    );
+    expect(reply.status).toBe(202);
+    const replied = await s.runner.frames.next('turn.start');
+    expect(await turnRow(w.t.db, replied.turnId)).toMatchObject({
+      system: false,
+      createdBy: s.c.owner.principalId,
+    });
   });
 });
