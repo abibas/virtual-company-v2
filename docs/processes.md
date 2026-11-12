@@ -766,7 +766,8 @@ off task conversations). The latest team chat of the flow with that agent goes o
 agent's harness and machine unchanged); otherwise a new one is made, titled `<flow>: team` (cut to a chat title's 80),
 created by the agent and audited as the system. It is one of the Lead's own chats: it shows in its chat list (with a bell),
 gets the Lead's board tools and its "Leading your team" section as any of its chats does. Ihor's ad-hoc chats with the
-Lead are never woken.
+Lead are never woken. Since the team room ("The team room" below) every agent of the flow has such a chat, its room
+conversation, and the room's feed shows each wake-up as Most Wanted's notice and the Lead's reply as the Lead's.
 
 **Delivery**: the message is sent as a turn **Most Wanted queued** (`chat_turns.system`, its `created_by` the agent),
 "after this turn" (the existing queue, docs/harness.md "Delivery while a turn runs"): it starts at once while nothing runs
@@ -917,3 +918,136 @@ An agent's question is answered on its **Inbox card** (Attention), and a notice 
 Tests: `apps/server/test/modules/inbox/routes/answers.test.ts` (the item's questions, the card's answers taken and the
 item gone, a second answer refused `question_closed`), `apps/server/test/modules/notifications/service/questions.test.ts`
 (who gets it, never the agent, tenancy, once, the words and the path, a long question clipped).
+
+## The team room (2026-11-12)
+
+Ihor: "Why in the team chat, others are not contributing, i thought that they should speak all of them here.. just say
+when finished etc. So there is a real teamchat. imagine that i'm here and Added collegue. So we are 2 humans 5 agents."
+A flow's team chat is now a room: one feed per flow where the team's people and agents all speak, each message under
+its author's face. He chose (a) everyone may chime in: a person's message reaches every agent of the team; (b) a line at
+each step end: an agent's own summary when it hands on, passes, sends back or blocks; (c) the team's people and the
+company's admins and owners write, other members read.
+
+### The data: a feed per flow, the agents' turns in their own room conversations
+
+**The choice: a `room_messages` table per flow, not more columns on chats** (migration `0031_team_room`). The room has
+messages that are no turn at all (a step-end line, a notice, a person's message that asks five agents), and five agents
+answering one message would be five chats' turns; a table of its own keeps one ordered feed, and the turns stay plain
+chat turns. Each agent of the room keeps **one room conversation per flow**: its chat of the flow (`chats.flow_id`, the
+S6c team chat, now one per agent, not only the Lead's), Keep context, in its own chat list. The Lead's is its existing
+team chat, so its wake-ups and check-ins go on as before.
+
+| Column | What it holds |
+| --- | --- |
+| `flow_id` | the room (a composite key to `flows`) |
+| `kind` | `message` (a person's), `step_end` (an agent's line when its step ended), `reply` (an agent's reply from its room conversation: to people's messages, and the Lead's to its wake-ups and check-ins), `notice` (Most Wanted's: a wake-up or a check-in with its turn, agents not asked, a turn that failed) |
+| `author_principal_id` | a person or an agent; null only for a notice (CHECK) |
+| `body` | the text, 1 to 20 000; a step-end line's text is "T-2 · Develop → Code review: three scripts and their logs" |
+| `task_id` | the task of a step-end line (required for one, CHECK) |
+| `details` | a step end's `{action, from, to, round, words}`; a person's message's `{to}` (the agents it named with "@", empty for all); a reply's `{replyTo}`; a notice's `{about}` (`wake`, `check_in`, `not_asked`, `failed`) |
+| `asked` | a person's message: the agents' turns it began (the cap counts these); null for any other kind |
+| `chat_id`, `turn_id` | the room conversation and the turn a reply (or a wake-up's notice) belongs to; plain ids, a waiting turn may be discarded |
+| `created_at` | the app's clock; the feed is read by it, then by id |
+
+`chat_turns.room_message_id` (a composite key to `room_messages`, only on a turn Most Wanted queued, CHECK) names the
+message a **room turn** answers, so a room turn is told apart from a wake-up. `flows.room_max_per_hour` (1 to 200,
+default 30) is the room's cap. The migration copies each flow's team chat so far into its room: every message turn's
+prompt by its writer (a wake-up or check-in as Most Wanted's notice), and each reply that ended done by the chat's agent,
+at their times.
+
+### Who is in it, who writes (`rules/room.ts`)
+
+- **Agents:** the Lead when it is an agent, then every step's agent in the steps' order (on the chart, not archived).
+- **People:** the Lead's people (the Lead when a person, and every person above it: `peopleAtOrAbove`, so the Lead's
+  manager), every person placed under the Lead on the chart, and every step's person.
+- **Who writes:** those people with the member role or more, and the company's admins and owners (403 `not_in_team`
+  otherwise). Everyone of the company reads.
+
+### Step-end lines (no turn, no tokens, nobody woken)
+
+When a step agent's decision is applied at its turn's end (`service/decision.ts`), the agent posts one line in its flow's
+room, in the move's own transaction: handed on (`Develop → Code review`), passed (`Code review passed → QA`), approved
+(`Approve approved → Done`), sent back (`QA sent back → Develop`), sent back past the limit (`QA escalated → Lead`) or
+blocked (`Develop · blocked`); and a turn that ended done without a move (`Develop · no hand-off`, the hook). The words
+are the agent's own, on one line and cut to 280 characters: a send-back's or a block's reason, else the decision's
+summary, findings or note, else the turn's last reply. A turn a person stopped, a failed turn and a person's move by hand
+post nothing.
+
+### A person writes (`service/room/say.ts`)
+
+1. The message is stored, then the agents it asks: those it names with "@Name" or "@slug" (any case, whole words), else
+   every agent of the room.
+2. **The cap:** each agent asked is one answer; when the room's answers in the last hour plus these would pass the
+   flow's cap (30 by default, set on the Flow tab), nobody is asked and a notice says so ("Not asked: Vega, Developer.
+   The room is at its 30 answers this hour."). All or nobody, so a message never reaches only some of its agents.
+3. Each agent gets a turn in its room conversation through the chats module's `TeamChats.say`: a turn Most Wanted queues
+   (`system`, its sender the agent, as a wake-up's), naming the message, delivered after any turn there. So the Lead's
+   room turn waits behind its running or waiting wake-up and is never joined into it (nor a wake-up into it); while the
+   agent's own room turn still waits, a new message joins it (its prompt written again, its message the new one) and
+   counts no new answer.
+4. The prompt (`roomPrompt` of `@mwc/shared/flows`) names the room, the agent (the Lead as such), the team's agents and
+   people, the room's messages since the agent's last turn there (at most 30, each on a line of up to 400 characters),
+   the new message, and: "Reply only if you have something useful for the team. Otherwise answer exactly
+   NOTHING_TO_ADD. Keep it short: a line or two. Your reply is posted in the room under your name."
+5. **The machine:** room chatter is a message (`trigger: 'message'`), so a stopped machine starts only when its policy
+   starts it for a message, and the turn waits for it; otherwise the agent is not asked. Slot waits are any turn's.
+6. Agents a turn could not be queued for (paused, no placement, a stopped machine) are named in one notice ("Developer
+   was not asked: Airia devbox is stopped").
+
+**Replies** (`service/room/ended.ts`): every turn Most Wanted queued tells the tasks module's hook its end
+(`TaskTurnHook.systemEnded`, from the chats module's live turns). In a room conversation, a reply that ended done goes
+into the room under the agent's face, unless it is **silent**: empty, or `NOTHING_TO_ADD` alone (any case, quoted or with
+a full stop), which posts nothing; the turn stays in the agent's own chat. A failed one posts a notice ("Developer could
+not answer: The harness did not start on Studio Mac (ENOENT)"); a stopped one posts nothing. **No loops:** nothing an
+agent posts (a reply, a step-end line) asks anyone; only a person's message does.
+
+**The Lead's wake-ups and check-ins** keep working as S6c built them. Each one told posts its message in the room as Most
+Wanted's notice with its turn (`service/wake/deliver.ts`, `service/wake/check-in.ts`), and the Lead's reply comes in as
+the Lead's.
+
+### Two fixes the faces work found
+
+- **A person's words inside a wake-up.** A wake-up joined only "a waiting turn Most Wanted queued"; now it joins only a
+  waiting wake-up (no room message), and a person's message in the room is its own message and its own room turn, queued
+  behind the Lead's turn, never inside a notice.
+- **A step's prompt saved as a person's.** A task step's own prompts ("# T-12 · …", "Task T-12 is back at your step …",
+  "Continue task T-12 …") are Most Wanted's turns now (`system`), still naming the person whose move started them as the
+  sender (their principal on the credential's use); the migration marks the old ones by those openings. A person's reply
+  in a task's conversation stays theirs.
+
+### The API (`/api/companies/{companyId}/flows/{flowId}/…`)
+
+| Route | Who | |
+| --- | --- | --- |
+| `GET room?before&limit` | viewer+ | `{flow, members: {agents, people}, mayWrite, messages, nextBefore, replying, cap: {maxPerHour, askedLastHour}}`: the latest 100 (at most 200) oldest first, each with its `author` (null for Most Wanted), `task` and `step` (a step-end line's), `to`, `asked`, `chatId`, `turnId`; `nextBefore` pages back; `replying` the agents whose room turn waits or runs. Another company's flow is the same 404 as none |
+| `POST room/messages {body}` | the team's people, admins and owners (member+) | 201 with the room; 403 `not_in_team`, 404, 400 (1 to 4 000 characters) |
+| `PUT room {maxPerHour}` | the Lead's people, admins and owners | 200 with the room; 403 `not_lead`, 404, 400 (1 to 200); audited on the flow |
+
+### Web (`features/room/`, `api/room.ts`)
+
+- **Where:** the rail's Team chat (a Lead's, `LiveDockedChats`) and the team page's **Team chat** tab
+  (`/:slug/flows/<lead>/chat`, beside Board and Flow), whose card fills the window to its bottom; the rail's "Open full
+  chat" opens that tab, and so does the Flow tab's wake-ups card.
+- **The feed** (`RoomView`, `RoomItem`): every author through `MessageAuthor`: people's avatars, agents' icons, Most
+  Wanted's mark. A person's message is a bubble (the reader's own on the right), an agent's reply Markdown, a step-end
+  line one compact row (the face, the agent, the task's chip linking to the task, the move, the words), a notice its
+  headline with More. It follows the latest while the reader is at the bottom, read again every 4 seconds while visible.
+- **Above it** the room's members as faces (agents, then people), named on hover; **under it** the agents replying now.
+- **The composer** (`RoomComposer`): Enter sends; "@" offers the room's agents (arrows, Enter or Tab, Escape). Those who
+  may not write see one line instead: "Only the team’s people and admins write here."
+- **The Flow tab** (those who lead the team): "Team chat · At most N answers an hour", with the last hour's count.
+- The gallery draws the room on samples (`pages/design/team-chat-sample.ts`): the rail's Team chat and the team page's
+  `&tab=chat`.
+
+### Tests
+
+`packages/shared/test/flows/room.test.ts` (silence, step-end words, "@" names, the prompt);
+`packages/db/test/schema/room-messages.test.ts` (the CHECKs and keys, a room turn's message, the cap) and
+`room-messages-backfill.test.ts` (the team chats copied, step prompts marked); `apps/server/test/modules/tasks/rules/room.test.ts`;
+`service/room/say.test.ts` (every agent asked in its own conversation, replies posted and silence not, no loop, "@" only,
+the cap and the next hour, a stopped machine's policy, a paused agent); `service/room/post.test.ts` (each decision's line,
+a turn ended without a move, nothing for a stop, a failure or a person's move); `service/room/ended.test.ts` (a wake-up's
+notice and the Lead's reply, silence, a stop and a failure, a person's message kept apart from a waiting wake-up, a
+check-in's notice); `routes/room.test.ts` (who reads and writes, the cap and its audit, pages, tenancy);
+`apps/server/test/modules/chats/service/tasks.test.ts` (a step's prompt as Most Wanted's). All on PGlite with the fake
+runner.

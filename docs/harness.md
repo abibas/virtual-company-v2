@@ -924,7 +924,12 @@ Now (into the running turn), After this turn (queued) or by Interrupt. The serve
   turn sent with `after` by the system, not a person: `chat_turns.system` (migration `0025_lead_wakes`), its `created_by`
   the agent itself (the credential's use names it too), shown as Most Wanted's in the thread and the waiting list. It goes
   to the flow's **team chat** (`chats.flow_id`, one of the Lead's own chats); a wake-up still waiting there takes in the
-  next one instead of queueing another.
+  next one instead of queueing another. Since the team room (docs/processes.md "The team room"): a person's message in a
+  flow's room queues such a turn in each agent's own chat of the flow (`TeamChats.say`), naming the message
+  (`chat_turns.room_message_id`, migration `0031_team_room`), delivered `after`; a wake-up never joins a room turn, and a
+  room turn joins only the agent's own room turn still waiting. A task step's own prompt is Most Wanted's too
+  (`system`), its `created_by` the person whose move started it. Every such turn tells the tasks module's hook its end
+  (`TaskTurnHook.systemEnded`), which posts a room conversation's reply in the room unless it is silent.
 - **The web** (`apps/web/src/features/chats/delivery/`): while a turn runs the composer shows "The agent is working —
   send: Now · After this turn · Interrupt" (Now only where it works; the last choice remembered in the browser,
   `mwc.chat.delivery`), Stop beside Send, and the waiting messages above the box in start order, each saying what
@@ -1124,7 +1129,8 @@ checks and refusals, the credential's use, the standing instructions, the stream
 
 - **Who starts it.** The tasks module, once a move started the task at an agent's step (an entry into a step that starts
   by itself, or Start), calls the chats module's `taskTurns.start` (`modules/chats/service/tasks.ts`) as the person who
-  made the move: it finds the step's latest conversation of that agent and goes on in it when it can (not archived, the
+  made the move (the turn is Most Wanted's, `system`, since the team room: the app writes the prompt): it finds the step's
+  latest conversation of that agent and goes on in it when it can (not archived, the
   same harness and machine, and Keep or the same round), else begins one; the prompt is the full one for a new
   conversation and the delta for one that has a session (`stepPrompt` of `@mwc/shared/flows`). A refusal comes back to
   the tasks module as a `Refusal`, which blocks the task with its words. The two modules never import each other's code:

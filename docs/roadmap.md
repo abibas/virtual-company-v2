@@ -600,6 +600,18 @@ collegue. So we are 2 humans 5 agents." He chose:
      - agents' own posts never trigger other agents, so there are no loops;
      - the turns wait for free machine slots;
      - a per-room cap on answers an hour.
+   - **Built 2026-11-12** (branch `team-room`; docs/processes.md "The team room"; waiting for his live test):
+     - `room_messages` per flow (a person's message, a step-end line, an agent's reply, Most Wanted's notice), each agent's
+       room conversation its chat of the flow, `chat_turns.room_message_id` and `flows.room_max_per_hour`, migration
+       `0031_team_room` (the team chats so far copied into their rooms, step prompts marked Most Wanted's).
+     - Step-end lines on every applied decision and a turn ended without a move; wake-ups and check-ins as notices with
+       the Lead's replies; a person's message asking every agent (or the "@" named), silence (`NOTHING_TO_ADD`) posting
+       nothing, the cap (30 an hour by default, all or nobody), message-trigger machine rules, no loops.
+     - Writers: the Lead's people, those under the Lead and the steps' people (member and up), admins and owners.
+     - Web: the rail's Team chat and the team page's Team chat tab with faces, step-end rows, @ completion, a read-only
+       line; the room's cap on the Flow tab.
+     - The faces work's two oddities fixed: a person's words never go into a wake-up's turn; step prompts are Most
+       Wanted's.
 
 ### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
