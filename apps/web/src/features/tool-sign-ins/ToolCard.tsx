@@ -74,6 +74,45 @@ function useCheck(check: () => Promise<unknown>) {
   return { busy, error, run };
 }
 
+/** Check again (spinning while it runs), Sign in again (blue when it needs it) and Remove, confirmed in place. */
+function Actions({
+  tool,
+  checking,
+  signInAgain,
+  remove,
+}: Pick<ToolCardProps, 'tool' | 'signInAgain' | 'remove'> & {
+  readonly checking: ReturnType<typeof useCheck>;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <Button
+        size="sm"
+        tone="quiet"
+        icon={RefreshCw}
+        disabled={checking.busy}
+        onClick={checking.run}
+        className={cx(checking.busy && 'motion-safe:[&_svg]:animate-spin')}
+      >
+        Check again
+      </Button>
+      <Button
+        size="sm"
+        tone={tool.status === 'needs_sign_in' ? 'primary' : 'quiet'}
+        icon={LogIn}
+        onClick={signInAgain}
+      >
+        Sign in again
+      </Button>
+      <ConfirmInline
+        label="Remove"
+        question={`Remove ${tool.label}? Its secret is deleted.`}
+        confirmLabel="Remove"
+        onConfirm={remove}
+      />
+    </div>
+  );
+}
+
 /**
  * One tool sign-in on the Subscriptions page: its logo and kind, its status, its name (renamed in place), who it acts as,
  * its scopes or products, its last check; Check again, Sign in again and Remove.
@@ -86,7 +125,6 @@ export function ToolCard({ tool, rename, remove, check, signInAgain, highlighted
   const checking = useCheck(check);
   const account = toolAccount(tool);
   const site = toolSite(tool);
-  const needsSignIn = tool.status === 'needs_sign_in';
   return (
     <Card
       ref={card}
@@ -119,27 +157,7 @@ export function ToolCard({ tool, rename, remove, check, signInAgain, highlighted
       )}
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <Checked at={tool.checkedAt} />
-        <div className="flex flex-wrap items-center gap-1">
-          <Button
-            size="sm"
-            tone="quiet"
-            icon={RefreshCw}
-            disabled={checking.busy}
-            onClick={checking.run}
-            className={cx(checking.busy && 'motion-safe:[&_svg]:animate-spin')}
-          >
-            Check again
-          </Button>
-          <Button size="sm" tone={needsSignIn ? 'primary' : 'quiet'} icon={LogIn} onClick={signInAgain}>
-            Sign in again
-          </Button>
-          <ConfirmInline
-            label="Remove"
-            question={`Remove ${tool.label}? Its secret is deleted.`}
-            confirmLabel="Remove"
-            onConfirm={remove}
-          />
-        </div>
+        <Actions tool={tool} checking={checking} signInAgain={signInAgain} remove={remove} />
       </footer>
     </Card>
   );

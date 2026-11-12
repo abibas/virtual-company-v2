@@ -198,3 +198,14 @@ export function useSignIn(onDone: (credentialId: string) => void): SignInControl
   };
   return { phase, code: phase.kind === 'live' ? code.code : NO_CODE, start, sendCode: code.send, stop };
 }
+
+/** A card just added or signed in to, ringed for a few seconds: its id, and how to set it. */
+export function useHighlight(): readonly [string | undefined, (id: string | undefined) => void] {
+  const [highlight, setHighlight] = useState<string>();
+  useEffect(() => {
+    if (!highlight) return;
+    const timer = setTimeout(() => setHighlight(undefined), 4000);
+    return () => clearTimeout(timer);
+  }, [highlight]);
+  return [highlight, setHighlight];
+}

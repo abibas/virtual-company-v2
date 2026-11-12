@@ -47,11 +47,10 @@ interface ToolFormProps {
   readonly onBack: () => void;
 }
 
-/**
- * Paste a GitHub token, or add Atlassian: the server checks it with GitHub or Atlassian before it stores it, and a
- * refusal shows here in plain words. The token goes to the server once and is cleared from the page.
- */
-export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
+type Change = (key: keyof Values) => (event: { target: { value: string } }) => void;
+
+/** The form's values and its save: the token goes to the server once, then is cleared from the page. */
+function useToolForm({ kind, renew, onAdded }: Omit<ToolFormProps, 'onBack'>) {
   const api = useApi();
   const [values, setValues] = useState<Values>({
     label: '',
@@ -61,8 +60,7 @@ export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const set = (key: keyof Values) => (event: { target: { value: string } }) =>
-    setValues((current) => ({ ...current, [key]: event.target.value }));
+  const set: Change = (key) => (event) => setValues((current) => ({ ...current, [key]: event.target.value }));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -77,6 +75,41 @@ export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
       setBusy(false);
     }
   };
+  return { values, set, busy, error, submit };
+}
+
+/** Atlassian's site and the account's email. */
+function AtlassianFields({ values, set }: { readonly values: Values; readonly set: Change }) {
+  return (
+    <>
+      <TextField
+        label="Site"
+        value={values.site}
+        onChange={set('site')}
+        required
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="your-site.atlassian.net"
+      />
+      <TextField
+        label="Email"
+        type="email"
+        value={values.email}
+        onChange={set('email')}
+        required
+        autoComplete="email"
+      />
+    </>
+  );
+}
+
+/**
+ * Paste a GitHub token, or add Atlassian: the server checks it with GitHub or Atlassian before it stores it, and a
+ * refusal shows here in plain words.
+ */
+export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
+  const { values, set, busy, error, submit } = useToolForm({ kind, renew, onAdded });
+  const github = kind === 'github_token';
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       {!renew && (
@@ -85,38 +118,18 @@ export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
           value={values.label}
           onChange={set('label')}
           maxLength={CREDENTIAL_LABEL.max}
-          placeholder={kind === 'github_token' ? 'GitHub · your login' : 'Atlassian · your site'}
+          placeholder={github ? 'GitHub · your login' : 'Atlassian · your site'}
         />
       )}
-      {kind === 'atlassian_api_token' && (
-        <>
-          <TextField
-            label="Site"
-            value={values.site}
-            onChange={set('site')}
-            required
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="your-site.atlassian.net"
-          />
-          <TextField
-            label="Email"
-            type="email"
-            value={values.email}
-            onChange={set('email')}
-            required
-            autoComplete="email"
-          />
-        </>
-      )}
+      {!github && <AtlassianFields values={values} set={set} />}
       <SecretField
-        label={kind === 'github_token' ? 'Token' : 'API token'}
+        label={github ? 'Token' : 'API token'}
         value={values.token}
         onChange={set('token')}
         required
-        hint={kind === 'github_token' ? 'Classic (ghp_) or fine-grained (github_pat_).' : undefined}
+        hint={github ? 'Classic (ghp_) or fine-grained (github_pat_).' : undefined}
       />
-      {kind === 'atlassian_api_token' && (
+      {!github && (
         <ButtonLink
           href={ATLASSIAN_TOKEN_PAGE}
           newTab

@@ -1,13 +1,10 @@
-import { isToolKind } from '@mwc/shared/credentials';
 import { newId } from '@mwc/shared/ids';
 import {
   LoginHelperError,
   type LoginSandbox,
   type SandboxExit,
 } from '../../../../platform/processes/login-helper/port.ts';
-import type { LoginResult } from '../../rules/login-files.ts';
 import {
-  accountChanged,
   exitEnding,
   finishesOnExit,
   isActive,
@@ -17,12 +14,9 @@ import {
   takesCode,
 } from '../../rules/sign-in.ts';
 import type { SignInView } from '../../schemas/sign-in.ts';
-import type { FirstCheck } from '../first-check.ts';
 import type { SessionContext, SessionOwner } from './context.ts';
 import type { SignInFlow } from './flows.ts';
-
-/** What a sign-in stores: a new subscription (with the name given), or a login renewing the caller's own one. */
-export type SignInTarget = { readonly label?: string | undefined } | { readonly renew: string };
+import { type SignInTarget, storeLogin } from './store.ts';
 
 /** The most output kept to read the screen from: the address and the prompts come first. */
 const SCREEN_MAX = 64 * 1024;
@@ -179,43 +173,17 @@ export class SignInSession {
     try {
       const outcome = await this.#flow.result(this.#sandbox as LoginSandbox);
       if (!outcome.ok) return this.#end('failed', outcome.message, 'no_login');
-      const checked = this.#checked(outcome.result);
-      if ('renew' in this.#target)
-        return await this.#renew(this.#target.renew, { ...outcome.result, ...checked });
-      const { label, ...login } = outcome.result;
-      const stored = await this.#ctx.secrets.storeCredential({
-        ...login,
-        ...checked,
-        label: this.#target.label ?? label,
-        ownerUserId: this.owner.userId,
-        requestId: this.owner.requestId,
-      });
-      this.#credentialId = stored.id;
-      this.#end('done', null, 'stored');
+      const stored = await storeLogin(this.#ctx, this.owner, this.#target, outcome.result);
+      if (!stored.ok) return this.#end('failed', stored.message, stored.reason);
+      this.#credentialId = stored.credentialId;
+      this.#accountChanged = stored.accountChanged;
+      this.#end('done', null, stored.reason);
     } catch (error) {
       // The error's name only: a driver's message can quote the row.
       this.#end('failed', SIGN_IN_ENDINGS.notSaved, `store_failed ${(error as Error).name}`);
     } finally {
       this.#storing = false;
     }
-  }
-
-  /**
-   * A tool sign-in's first check (S7.1a): GitHub's CLI has just asked GitHub who signed in, now. The server opened no
-   * secret, so no use is recorded.
-   */
-  #checked(login: LoginResult): { readonly checked?: FirstCheck } {
-    return isToolKind(login.kind) ? { checked: { at: this.#ctx.clock(), used: false } } : {};
-  }
-
-  /** Sign in again: the login replaces the secret of the owner's subscription in place; gone or revoked, it failed. */
-  async #renew(credentialId: string, login: LoginResult & { readonly checked?: FirstCheck }): Promise<void> {
-    const { userId, requestId } = this.owner;
-    const renewed = await this.#ctx.secrets.renewCredentialLogin(credentialId, userId, login, requestId);
-    if (!renewed.ok) return this.#end('failed', SIGN_IN_ENDINGS.gone, renewed.code);
-    this.#credentialId = renewed.credential.id;
-    this.#accountChanged = accountChanged(renewed.previousEmail, renewed.credential.accountEmail);
-    this.#end('done', null, 'renewed');
   }
 
   #waitFor(ms: number, message: string): void {

@@ -1,6 +1,6 @@
 import { isToolKind } from '@mwc/shared/credentials';
 import { Plus, RefreshCw, Sparkles } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
 import {
   type SubscriptionCalls,
@@ -20,6 +20,7 @@ import { ToolsSection } from '../tool-sign-ins/ToolsSection.tsx';
 import { AddSubscriptionSheet, useAddSubscription } from './AddSubscriptionSheet.tsx';
 import { useNow } from './limits.ts';
 import { SubscriptionCard } from './SubscriptionCard.tsx';
+import { useHighlight } from './sign-in.ts';
 
 const SKELETON = (
   <div className="grid gap-4 md:grid-cols-2">
@@ -144,12 +145,7 @@ export function SubscriptionsTab({ header }: { readonly header?: TabHeader }) {
     subscriptions.reload();
     limits.reload();
   };
-  const [highlight, setHighlight] = useState<string>();
-  useEffect(() => {
-    if (!highlight) return;
-    const timer = setTimeout(() => setHighlight(undefined), 4000);
-    return () => clearTimeout(timer);
-  }, [highlight]);
+  const [highlight, setHighlight] = useHighlight();
   const adding = useAddSubscription((credentialId) => {
     changed();
     setHighlight(credentialId);

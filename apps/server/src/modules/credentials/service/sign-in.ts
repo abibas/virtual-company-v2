@@ -17,7 +17,8 @@ import type { Caller } from '../service.ts';
 import { credentialSecrets, type SecretDeps } from './secrets.ts';
 import { type SessionContext, type SignInTimers, SYSTEM_SIGN_IN_TIMERS } from './sign-in/context.ts';
 import { SIGN_IN_FLOWS } from './sign-in/flows.ts';
-import { SignInSession, type SignInTarget } from './sign-in/session.ts';
+import { SignInSession } from './sign-in/session.ts';
+import type { SignInTarget } from './sign-in/store.ts';
 
 /** What sign-in needs: the store's deps, the logger, the configured helper (none: 503) and, for tests, its timers. */
 export interface SignInDeps extends SecretDeps {

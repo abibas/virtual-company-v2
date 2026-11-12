@@ -1,12 +1,13 @@
 import { isToolKind } from '@mwc/shared/credentials';
 import { Plus, Wrench } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useApi } from '../../api/context.ts';
 import { subscriptionCalls } from '../../api/subscriptions.ts';
 import type { Subscription } from '../../api/types.ts';
 import { Button } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
+import { useHighlight } from '../subscriptions/sign-in.ts';
 import { type AddTool, AddToolSheet, useAddTool } from './AddToolSheet.tsx';
 import { ToolCard } from './ToolCard.tsx';
 import { type ToolSignIn, toolSite } from './tools.ts';
@@ -19,17 +20,6 @@ function signInAgain(adding: AddTool, tool: ToolSignIn): void {
     const renew = { credentialId: tool.id, site: toolSite(tool), email: tool.accountEmail ?? undefined };
     adding.form('atlassian_api_token', renew);
   }
-}
-
-/** A sign-in just added or renewed, ringed for a few seconds. */
-function useHighlight() {
-  const [highlight, setHighlight] = useState<string>();
-  useEffect(() => {
-    if (!highlight) return;
-    const timer = setTimeout(() => setHighlight(undefined), 4000);
-    return () => clearTimeout(timer);
-  }, [highlight]);
-  return [highlight, setHighlight] as const;
 }
 
 /**

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { credentialSecrets } from '../../../../../src/modules/credentials/index.ts';
 import { TOOL_CHECK_EVERY_MS, TOOL_RETRY_MS } from '../../../../../src/modules/credentials/rules/tools.ts';
 import {
+  checkStoredTool,
   recordToolCheck,
   type ToolDeps,
 } from '../../../../../src/modules/credentials/service/tools/check.ts';
@@ -16,7 +17,7 @@ import {
 } from '../../../../../src/modules/credentials/service/tools/job.ts';
 import { ephemeralKeyring } from '../../../../../src/platform/secrets/keyring.ts';
 import { addUser, type LinkedUser } from '../../../../fixtures/companies/companies.ts';
-import { FakeProvider, usesOf } from '../../../../fixtures/credentials/providers.ts';
+import { FakeProvider, json, usesOf } from '../../../../fixtures/credentials/providers.ts';
 import {
   ATLASSIAN_TOKEN,
   auditOfCredential,
@@ -179,5 +180,41 @@ describe('recordToolCheck', () => {
     expect(
       await recordToolCheck(deps().toolDeps, view.id, ihor.userId, outcome, { kind: 'system' }),
     ).toBeUndefined();
+  });
+});
+
+describe('a sign-in removed while it is checked', () => {
+  it('is skipped by the job once its provider has answered, and checks nothing when it is gone before', async () => {
+    const view = await github('Going');
+    provider.always(GITHUB_USER, async (call) => {
+      await rawDb(w.t.db).delete(credentials).where(eq(credentials.id, view.id));
+      return json(200, { login: 'gone' })(call);
+    });
+    expect(await toolCheckJob(deps().toolDeps)()).toEqual({
+      checked: 0,
+      active: 0,
+      needsSignIn: 0,
+      failed: 0,
+    });
+    const stale = { ...(await github('Stale')) };
+    const [row] = await rawDb(w.t.db).select().from(credentials).where(eq(credentials.id, stale.id));
+    await rawDb(w.t.db).delete(credentials).where(eq(credentials.id, stale.id));
+    provider.reset();
+    expect(await checkStoredTool(deps().toolDeps, row as never, { kind: 'system' })).toBeUndefined();
+    expect(provider.calls).toEqual([]);
+  });
+
+  it('names a failure that is not an Error as unknown', async () => {
+    await github('Odd');
+    const odd = {
+      open: () => {
+        throw 'not an error';
+      },
+    };
+    const { toolDeps, lines } = deps({ keyring: odd as unknown as ToolDeps['keyring'] });
+    expect(await toolCheckJob(toolDeps)()).toMatchObject({ failed: 1 });
+    expect(lines.find((line) => line.msg === 'tool check failed unexpectedly')).toMatchObject({
+      error: 'unknown',
+    });
   });
 });
