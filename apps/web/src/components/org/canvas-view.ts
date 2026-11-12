@@ -19,6 +19,8 @@ export const ZOOM = { min: 0.3, max: 1.75, step: 1.2 } as const;
 
 /** The room kept around a fitted chart, in screen pixels. */
 const PAD = 32;
+/** The column at the canvas's right edge that the zoom buttons take, kept clear by a fit. */
+const CONTROLS = 56;
 
 export const clampZoom = (k: number): number => Math.min(ZOOM.max, Math.max(ZOOM.min, k));
 
@@ -31,11 +33,13 @@ export function zoomAbout(view: CanvasView, k: number, px: number, py: number): 
 
 /**
  * The view that shows the whole chart (`width` × `height`) in the viewport (`vw` × `vh`): never zoomed in past 1,
- * centred across, and from the top down (a short chart does not float in the middle of a tall canvas).
+ * centred across the room left of the zoom buttons, and from the top down (a short chart does not float in the middle
+ * of a tall canvas).
  */
 export function fitView(width: number, height: number, vw: number, vh: number): CanvasView {
-  const k = clampZoom(Math.min((vw - 2 * PAD) / width, (vh - 2 * PAD) / height, 1));
-  return { k, x: (vw - width * k) / 2, y: Math.min(Math.max(PAD, (vh - height * k) / 2), 2 * PAD + 24) };
+  const room = vw - CONTROLS;
+  const k = clampZoom(Math.min((room - 2 * PAD) / width, (vh - 2 * PAD) / height, 1));
+  return { k, x: (room - width * k) / 2, y: Math.min(Math.max(PAD, (vh - height * k) / 2), 2 * PAD + 24) };
 }
 
 /** Below this zoom the cards cannot be read; a first view is never smaller, and starts at the company on top. */
