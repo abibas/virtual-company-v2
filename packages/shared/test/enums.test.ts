@@ -30,6 +30,7 @@ import {
   PlacementMode,
   PowerEventAction,
   PrincipalKind,
+  ToolCheckError,
   UserStatus,
 } from '../src/enums.ts';
 import * as identity from '../src/identity.ts';
@@ -63,6 +64,17 @@ describe('enums', () => {
       'anthropic_api_key',
       'openai_api_key',
       'gateway',
+      'github_oauth',
+      'github_token',
+      'atlassian_api_token',
+    ]);
+    expect(ToolCheckError.options).toEqual([
+      'provider_unavailable',
+      'rate_limited',
+      'refused',
+      'invalid_response',
+      'no_products',
+      'check_failed',
     ]);
     expect(CredentialStatus.options).toEqual(['active', 'needs_sign_in', 'revoked']);
     expect(MachineKind.options).toEqual(['laptop', 'vm', 'container']);

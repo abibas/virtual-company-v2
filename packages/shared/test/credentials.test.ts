@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACCESS_PROFILE_NAME,
+  ATLASSIAN_SITE,
+  ATLASSIAN_TOKEN_PAGE,
+  atlassianSite,
   CREDENTIAL_LABEL,
   CREDENTIAL_PURPOSE,
   DEFAULT_GATEWAY_PATHS,
@@ -10,10 +13,12 @@ import {
   GATEWAY_KINDS,
   GATEWAY_PATH_MAX,
   GATEWAY_ROUTES,
+  GITHUB_TOKEN_PREFIXES,
   gatewayAddressOf,
   gatewayPathsOf,
   gatewayRouteOf,
   HARNESS_PROVIDER,
+  isToolKind,
   joinGatewayPath,
   PASTED_CREDENTIAL_KINDS,
   PROFILE_PROVIDERS,
@@ -21,6 +26,9 @@ import {
   profileFitsHarness,
   SECRET_MAX,
   SECRET_PREFIXES,
+  TOOL_CREDENTIAL_KINDS,
+  TOOL_PROVIDER_OF,
+  TOOL_PROVIDERS,
 } from '../src/credentials.ts';
 import { CredentialKind, Harness, ProfileProvider } from '../src/enums.ts';
 
@@ -40,7 +48,7 @@ describe('the credential store contract', () => {
       'gateway',
     ]);
     const pasted: readonly string[] = PASTED_CREDENTIAL_KINDS;
-    const signedIn = CredentialKind.options.filter((kind) => !pasted.includes(kind));
+    const signedIn = CredentialKind.options.filter((kind) => !pasted.includes(kind) && !isToolKind(kind));
     expect(signedIn).toEqual(['claude_oauth', 'codex_oauth']);
   });
 
@@ -64,7 +72,7 @@ describe('the credential store contract', () => {
         ...PROFILE_PROVIDERS.filter((provider) => fitsProvider(provider, kind)),
         fitsGateway(kind),
       ];
-      expect(fits.filter(Boolean), kind).toHaveLength(1);
+      expect(fits.filter(Boolean), kind).toHaveLength(isToolKind(kind) ? 0 : 1);
     }
     expect(GATEWAY_KINDS).toEqual(['gateway']);
     expect(fitsProvider('claude', 'claude_oauth')).toBe(true);
@@ -161,5 +169,49 @@ describe('a universal gateway', () => {
     expect(gatewayAddressOf({}, 'claude')).toBeUndefined();
     expect(gatewayAddressOf({ baseUrl: ' ' }, 'claude')).toBeUndefined();
     expect(gatewayAddressOf({ baseUrl: 8300 }, 'claude')).toBeUndefined();
+  });
+});
+
+describe('the tool sign-ins', () => {
+  it('are GitHub’s two and Atlassian’s, each for one tool, and never an AI profile’s', () => {
+    expect(TOOL_CREDENTIAL_KINDS).toEqual(['github_oauth', 'github_token', 'atlassian_api_token']);
+    expect(TOOL_PROVIDERS).toEqual(['github', 'atlassian']);
+    expect(TOOL_PROVIDER_OF).toEqual({
+      github_oauth: 'github',
+      github_token: 'github',
+      atlassian_api_token: 'atlassian',
+    });
+    expect(CredentialKind.options.filter(isToolKind)).toEqual([...TOOL_CREDENTIAL_KINDS]);
+    for (const kind of TOOL_CREDENTIAL_KINDS) {
+      expect(PROFILE_PROVIDERS.some((provider) => fitsProvider(provider, kind))).toBe(false);
+      expect(fitsGateway(kind)).toBe(false);
+      expect(PASTED_CREDENTIAL_KINDS as readonly string[]).not.toContain(kind);
+    }
+    expect(GITHUB_TOKEN_PREFIXES).toEqual(['ghp_', 'github_pat_']);
+    expect(ATLASSIAN_TOKEN_PAGE).toBe('https://id.atlassian.com/manage-profile/security/api-tokens');
+  });
+
+  it.each([
+    ['airia', 'airia.atlassian.net'],
+    ['airia.atlassian.net', 'airia.atlassian.net'],
+    ['  https://Airia.Atlassian.net/jira/software/projects?x=1  ', 'airia.atlassian.net'],
+    ['http://my-team.atlassian.net/', 'my-team.atlassian.net'],
+    ['airia.atlassian.net.', 'airia.atlassian.net'],
+  ])('reads the site %j as %s', (input, site) => {
+    expect(atlassianSite(input)).toBe(site);
+    expect(ATLASSIAN_SITE.test(site)).toBe(true);
+  });
+
+  it.each([
+    '',
+    '   ',
+    'airia.example.com',
+    'evil.com/airia.atlassian.net',
+    '-airia.atlassian.net',
+    'air ia',
+    'airia.atlassian.net.evil.com',
+    `${'a'.repeat(64)}.atlassian.net`,
+  ])('refuses %j as a site', (input) => {
+    expect(atlassianSite(input)).toBeUndefined();
   });
 });

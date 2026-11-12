@@ -3,6 +3,7 @@ import {
   claudeLogin,
   codexLogin,
   defaultLabel,
+  githubLogin,
   jwtClaims,
 } from '../../../../src/modules/credentials/rules/login-files.ts';
 import {
@@ -11,6 +12,8 @@ import {
   CLAUDE_CREDENTIALS,
   CODEX_AUTH,
   fakeJwt,
+  GITHUB_RUNS,
+  GITHUB_USER_INCLUDED,
 } from '../../../fixtures/credentials/sign-in/cli.ts';
 
 const json = (value: unknown) => JSON.stringify(value);
@@ -126,5 +129,41 @@ describe('defaultLabel', () => {
     const long = defaultLabel('Claude', `${'x'.repeat(90)}@example.test`);
     expect(long).toHaveLength(80);
     expect(long.endsWith('…')).toBe(true);
+  });
+});
+
+describe('githubLogin', () => {
+  const token = GITHUB_RUNS['gh auth token --hostname github.com'].stdout;
+
+  it('keeps the token, names it by the login, with the account, its public email and the scopes', () => {
+    expect(githubLogin({ token, user: GITHUB_USER_INCLUDED })).toEqual({
+      ok: true,
+      result: {
+        kind: 'github_oauth',
+        secret: { token: token.trim() },
+        accountEmail: 'ihor@example.test',
+        accountMeta: {
+          host: 'github.com',
+          login: 'ihor-fake',
+          name: 'Ihor',
+          scopes: ['gist', 'read:org', 'repo', 'workflow'],
+        },
+        label: 'GitHub · ihor-fake',
+      },
+    });
+  });
+
+  it('fails in plain words without a token, or without the account', () => {
+    const noLogin = { ok: false, message: 'GitHub finished without saving a login. Start again.' };
+    expect(githubLogin({ token: undefined, user: GITHUB_USER_INCLUDED })).toEqual(noLogin);
+    expect(githubLogin({ token: '  \n', user: GITHUB_USER_INCLUDED })).toEqual(noLogin);
+    expect(githubLogin({ token: 'two words', user: GITHUB_USER_INCLUDED })).toEqual(noLogin);
+    const noAccount = { ok: false, message: 'GitHub did not say which account signed in. Start again.' };
+    expect(githubLogin({ token, user: undefined })).toEqual(noAccount);
+    expect(
+      githubLogin({ token, user: 'HTTP/2.0 401 Unauthorized\r\n\r\n{"message":"Bad credentials"}' }),
+    ).toEqual(noAccount);
+    expect(githubLogin({ token, user: 'HTTP/2.0 200 OK\r\n\r\nnot json' })).toEqual(noAccount);
+    expect(githubLogin({ token, user: 'HTTP/2.0 200 OK\r\n\r\n{"id":1}' })).toEqual(noAccount);
   });
 });

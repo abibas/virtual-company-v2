@@ -5,6 +5,7 @@ import {
   codexScreen,
   exitEnding,
   finishesOnExit,
+  githubScreen,
   isActive,
   plainText,
   renewalRefusal,
@@ -20,6 +21,9 @@ import {
   CODEX_DEVICE_URL,
   CODEX_OUTPUT,
   CODEX_USER_CODE,
+  GITHUB_DEVICE_URL,
+  GITHUB_OUTPUT,
+  GITHUB_USER_CODE,
 } from '../../../fixtures/credentials/sign-in/cli.ts';
 
 const ESC = '\u001b';
@@ -40,11 +44,16 @@ describe('the states', () => {
       'waiting_for_code',
     ]);
     expect(SIGN_IN_STATES.filter((state) => takesCode('openai', state))).toEqual([]);
+    expect(SIGN_IN_STATES.filter((state) => takesCode('github', state))).toEqual([]);
   });
 
   it("finish on a clean exit after Claude's code, or while OpenAI's code is shown", () => {
     expect(SIGN_IN_STATES.filter((state) => finishesOnExit('claude', state))).toEqual(['completing']);
     expect(SIGN_IN_STATES.filter((state) => finishesOnExit('openai', state))).toEqual([
+      'waiting_for_user',
+      'completing',
+    ]);
+    expect(SIGN_IN_STATES.filter((state) => finishesOnExit('github', state))).toEqual([
       'waiting_for_user',
       'completing',
     ]);
@@ -121,6 +130,26 @@ describe('codexScreen', () => {
   });
 });
 
+describe('githubScreen', () => {
+  it("finds GitHub's device page and the one-time code once both are on the screen", () => {
+    expect(githubScreen(GITHUB_OUTPUT.notice + GITHUB_OUTPUT.code)).toBeUndefined();
+    expect(githubScreen(GITHUB_OUTPUT.notice + GITHUB_OUTPUT.code + GITHUB_OUTPUT.address)).toEqual({
+      url: GITHUB_DEVICE_URL,
+      userCode: GITHUB_USER_CODE,
+      asksForCode: false,
+    });
+  });
+
+  it('reads it through colours too, and refuses another host or path', () => {
+    const coloured = `${ESC}[0;33m!${ESC}[0m First copy your one-time code: ${ESC}[1m${GITHUB_USER_CODE}${ESC}[0m\n`;
+    expect(githubScreen(coloured + GITHUB_OUTPUT.address)).toMatchObject({ userCode: GITHUB_USER_CODE });
+    const code = GITHUB_OUTPUT.code;
+    expect(githubScreen(`${code}Open this URL: https://github.evil.example/login/device\n`)).toBeUndefined();
+    expect(githubScreen(`${code}Open this URL: https://github.com/login/oauth\n`)).toBeUndefined();
+    expect(githubScreen(`one-time code: lower-case\n${GITHUB_OUTPUT.address}`)).toBeUndefined();
+  });
+});
+
 describe('signing in again', () => {
   it("renews only the caller's own subscription of the provider's kind that is not revoked", () => {
     expect(renewalRefusal('claude', { kind: 'claude_oauth', status: 'needs_sign_in' })).toBeUndefined();
@@ -133,6 +162,12 @@ describe('signing in again', () => {
     });
     expect(renewalRefusal('openai', { kind: 'claude_setup_token', status: 'active' })).toMatchObject({
       code: 'sign_in_kind_mismatch',
+    });
+    expect(renewalRefusal('github', { kind: 'github_oauth', status: 'needs_sign_in' })).toBeUndefined();
+    expect(renewalRefusal('github', { kind: 'github_token', status: 'active' })).toMatchObject({
+      status: 422,
+      code: 'sign_in_kind_mismatch',
+      message: 'Sign in with GitHub signs in again only to a sign-in it added',
     });
     expect(renewalRefusal('openai', { kind: 'codex_oauth', status: 'revoked' })).toMatchObject({
       status: 422,
