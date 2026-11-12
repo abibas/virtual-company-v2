@@ -4,6 +4,7 @@ import { CARRIED_ON } from '../../../../src/modules/tasks/rules/runs.ts';
 import { seedTurns } from '../../../fixtures/chats/history.ts';
 import {
   ANSWER,
+  beginChat,
   type ChatsWorld,
   chatsWorld,
   ended,
@@ -13,6 +14,7 @@ import {
   type Scene,
   scene,
   sendEvents,
+  sendPrompt,
   startedTurn,
   turnRow,
 } from '../../../fixtures/chats/world.ts';
@@ -88,6 +90,19 @@ describe('a chat turn its runner comes back with after the grace', () => {
     await seedTurns(w, s, ['message'], 2);
     expect(await comeBackWith(runner, start.turnId)).toEqual([{ turnId: start.turnId, lastSeq: null }]);
     expect(await turnRow(w.t.db, start.turnId)).toMatchObject({ status: 'failed' });
+  });
+
+  it('counts as running for its machine’s slots once taken back', async () => {
+    const s: Scene = await scene(w, { caps: { ...KEEPS, slots: 1 } });
+    const runner = s.runner as FakeRunner;
+    const start = await startedTurn(w, s);
+    await awayTooLong(runner, start.turnId);
+    await comeBackWith(runner, start.turnId);
+    const other = await beginChat(w, s.company, s.agentId);
+    const res = await sendPrompt(w, { company: s.company, chat: other }, 'Meanwhile');
+    expect(res.body).toMatchObject({ status: 'queued', machineWait: 'slots' });
+    endTurn(runner, start.turnId);
+    expect((await runner.frames.next('turn.start')).turnId).toBe((res.body as { id: string }).id);
   });
 
   it('stays failed when it ended any other way', async () => {

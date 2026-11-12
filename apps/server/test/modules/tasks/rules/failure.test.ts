@@ -20,6 +20,12 @@ describe('why a step’s turn failed, in words', () => {
       "The turn's process on Airia devbox ended without its result",
     );
     expect(failureWords('machine_disconnected', box)).toBe('Airia devbox disconnected during the turn');
+    expect(
+      failureWords(
+        'machine_disconnected: Airia devbox was unreachable for 30 minutes: the turn stopped.',
+        box,
+      ),
+    ).toBe('Airia devbox was unreachable for 30 minutes: the turn stopped.');
     expect(failureWords('server_restarted', box)).toBe('The server restarted during the turn');
     expect(failureWords('machine_offline', box)).toBe('Airia devbox went offline before the turn started');
   });
