@@ -38,7 +38,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
 │   │   │   │   ├── chats/          chats with an agent: turns, events, stream, terminal (built) S5.1b
 │   │   │   │   ├── speech/         dictation: POST /api/me/speech/transcribe (built) S5.2
-│   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); step runs, artifacts (built S5.3b); agents' tools, decisions (built S6a); the Lead's wake-ups (built S6c)
+│   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); step runs, artifacts (built S5.3b); agents' tools, decisions (built S6a); the Lead's wake-ups (built S6c); the team room (built 2026-11-12)
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          what needs a person, computed live (built S6b); permissions S6
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
