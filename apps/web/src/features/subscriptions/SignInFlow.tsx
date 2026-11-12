@@ -66,7 +66,7 @@ function CodeForm({ control, ready }: { readonly control: SignInControl; readonl
   );
 }
 
-/** OpenAI's one-time code, big, with a copy button: the person types it in on OpenAI's page. */
+/** OpenAI's or GitHub's one-time code, big, with a copy button: the person types it in on the provider's page. */
 function DeviceCode({ code }: { readonly code: string }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
@@ -86,7 +86,7 @@ function ApproveDetail({ signIn, control }: { readonly signIn: SignIn; readonly 
           Open {name} sign-in
         </ButtonLink>
       )}
-      {signIn.provider === 'openai' && signIn.userCode && <DeviceCode code={signIn.userCode} />}
+      {signIn.provider !== 'claude' && signIn.userCode && <DeviceCode code={signIn.userCode} />}
       {signIn.provider === 'openai' && (
         <p className="mt-3 text-xs text-dim">
           The app notices when you are done. If OpenAI says device code sign-in is off, turn it on in
@@ -127,7 +127,11 @@ function stepsFor(provider: SignInProvider, phase: SignInPhase, control: SignInC
       state: approve,
       detail: approveDetail,
     },
-    { key: 'store', label: 'Store your login, encrypted', state: store },
+    {
+      key: 'store',
+      label: provider === 'github' ? 'Store your sign-in, encrypted' : 'Store your login, encrypted',
+      state: store,
+    },
   ];
 }
 
@@ -139,6 +143,13 @@ function DoneNotice({
   readonly live: Extract<SignInPhase, { kind: 'live' }>;
   readonly again: boolean;
 }) {
+  if (live.signIn.provider === 'github') {
+    return (
+      <Notice tone="success" title={again ? 'Signed in again' : 'Signed in'}>
+        {live.email ? `Signed in as ${live.email}.` : 'Your GitHub sign-in is stored.'}
+      </Notice>
+    );
+  }
   if (!again) {
     return (
       <Notice tone="success" title="Signed in">

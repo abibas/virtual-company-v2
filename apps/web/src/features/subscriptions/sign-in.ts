@@ -3,7 +3,7 @@ import { useApi } from '../../api/context.ts';
 import { friendlyMessage, isApiError } from '../../api/errors.ts';
 import { isTransient, nextOutage, type Outage } from '../../api/retry.ts';
 import { type SubscriptionCalls, subscriptionCalls } from '../../api/subscriptions.ts';
-import type { SignIn, SignInProvider } from '../../api/types.ts';
+import type { SignIn, SignInProvider, Subscription } from '../../api/types.ts';
 
 /** The server's sign-in is polled this often while it runs (docs/subscriptions.md). */
 const POLL_MS = 2000;
@@ -83,6 +83,12 @@ function usePoll(signIn: SignIn | undefined, calls: SubscriptionCalls, follow: F
   }, [signIn, calls, follow, generation]);
 }
 
+/** Who a sign-in signed in as: GitHub's login, else its email. */
+function accountOf(signedIn: Subscription | undefined): string | null {
+  const login = signedIn?.accountMeta.login;
+  return typeof login === 'string' ? login : (signedIn?.accountEmail ?? null);
+}
+
 /** Once a sign-in is done: tells the page, and looks up the new subscription's account for "Signed in as". */
 function useDone(
   credentialId: string | null,
@@ -98,8 +104,7 @@ function useDone(
     tell.current.onDone(credentialId);
     calls.list().then(
       ({ subscriptions }) => {
-        if (current)
-          tell.current.onEmail(subscriptions.find((s) => s.id === credentialId)?.accountEmail ?? null);
+        if (current) tell.current.onEmail(accountOf(subscriptions.find((s) => s.id === credentialId)));
       },
       () => undefined,
     );

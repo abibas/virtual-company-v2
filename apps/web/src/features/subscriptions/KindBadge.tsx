@@ -2,12 +2,12 @@ import { Waypoints } from 'lucide-react';
 import type { SignInProvider, Subscription, SubscriptionKind } from '../../api/types.ts';
 import { Badge, type Tone } from '../../components/ui/Badge.tsx';
 import type { IconComponent } from '../../components/ui/icon.ts';
-import { ClaudeMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
+import { AtlassianMark, ClaudeMark, GitHubMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
 
 /**
  * What each kind of subscription is called and looks like: Anthropic's kinds in violet, OpenAI's in teal, gateways
  * neutral, each provider's kinds with its logo; the logins and the setup-token have plan limits, keys and gateways
- * are pay as you go.
+ * are pay as you go. The tool sign-ins (GitHub, Atlassian) have no limits.
  */
 interface KindStyle {
   readonly label: string;
@@ -38,6 +38,9 @@ const KINDS: Readonly<Record<SubscriptionKind, KindStyle>> = {
   },
   openai_api_key: { label: 'OpenAI API key', tone: 'teal', icon: OpenAIMark, limited: false },
   gateway: { label: 'Gateway', tone: 'neutral', icon: Waypoints, limited: false },
+  github_oauth: { label: 'GitHub', tone: 'neutral', icon: GitHubMark, limited: false, signIn: 'github' },
+  github_token: { label: 'GitHub token', tone: 'neutral', icon: GitHubMark, limited: false },
+  atlassian_api_token: { label: 'Atlassian', tone: 'blue', icon: AtlassianMark, limited: false },
 };
 
 /** The kind as people read it ("Claude subscription"). */
@@ -56,6 +59,7 @@ export const signInOf = (kind: SubscriptionKind): SignInProvider | undefined => 
 export const PROVIDER_NAMES: Readonly<Record<SignInProvider, string>> = {
   claude: 'Anthropic',
   openai: 'OpenAI',
+  github: 'GitHub',
 };
 
 const text = (value: unknown): string | undefined =>

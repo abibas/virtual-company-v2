@@ -19,6 +19,13 @@ export { IconTile } from './IconTile.tsx';
 export type { IconComponent } from './icon.ts';
 export { Notice, type NoticeTone } from './Notice.tsx';
 export { Panel } from './Panel.tsx';
-export { ClaudeMark, type LogoProvider, OpenAIMark, ProviderLogo } from './ProviderLogo.tsx';
+export {
+  AtlassianMark,
+  ClaudeMark,
+  GitHubMark,
+  type LogoProvider,
+  OpenAIMark,
+  ProviderLogo,
+} from './ProviderLogo.tsx';
 export { Skeleton, SkeletonRow, SkeletonRows, SkeletonText } from './Skeleton.tsx';
 export { Tooltip, type TooltipSide } from './Tooltip.tsx';

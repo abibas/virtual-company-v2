@@ -9,6 +9,7 @@ import type {
   LimitsList,
   NewAccessProfile,
   NewSubscription,
+  NewToolSignIn,
   SignInProvider,
   Subscription,
 } from './types.ts';
@@ -128,7 +129,7 @@ export function useAccessProfiles(): Loaded<{ readonly profiles: readonly Access
   return useLoad('access-profiles', () => call(api.api.me['access-profiles'].$get()));
 }
 
-/** The person's changes to their subscriptions: add a pasted one, rename, remove, and the two sign-ins. */
+/** The person's changes to their subscriptions: add a pasted one, rename, remove, the sign-ins and the tool sign-ins. */
 export function subscriptionCalls(api: Api) {
   const subscriptions = api.api.me.subscriptions;
   const one = subscriptions[':credentialId'];
@@ -146,6 +147,10 @@ export function subscriptionCalls(api: Api) {
     sendCode: (signInId: string, code: string) =>
       call(signIn[':signInId'].code.$post({ param: { signInId }, json: { code } })),
     cancelSignIn: (signInId: string) => call(signIn[':signInId'].$delete({ param: { signInId } })),
+    /** Adds a GitHub token or an Atlassian sign-in once its provider accepts it; with `credentialId`, renews that one. */
+    addTool: (body: NewToolSignIn) => call(subscriptions.tools.$post({ json: body })),
+    /** Check again: asks GitHub or Atlassian now. */
+    checkTool: (credentialId: string) => call(one.check.$post({ param: { credentialId } })),
   };
 }
 

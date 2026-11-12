@@ -101,7 +101,11 @@ const PASTES: readonly (Choice & { readonly kind: Exclude<PastedCredentialKind, 
   { kind: 'openai_api_key', title: 'OpenAI API key', subtitle: 'Pay as you go' },
 ];
 
-const SIGN_IN_NAMES: Readonly<Record<SignInProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
+const SIGN_IN_NAMES: Readonly<Record<SignInProvider, string>> = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  github: 'GitHub',
+};
 
 /** One group of choices under its small heading. */
 function ChoiceGroup({ heading, children }: { readonly heading: string; readonly children: ReactNode }) {

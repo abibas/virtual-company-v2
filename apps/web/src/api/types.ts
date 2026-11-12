@@ -59,6 +59,8 @@ export type SubscriptionLimits = LimitsList['limits'][number];
 export type LimitWindow = SubscriptionLimits['windows'][number];
 export type SignIn = InferResponseType<SubscriptionRoutes['sign-in'][':signInId']['$get'], 200>;
 export type SignInProvider = SignIn['provider'];
+/** `POST /api/me/subscriptions/tools`: a pasted GitHub token, or an Atlassian site, email and API token. */
+export type NewToolSignIn = InferRequestType<SubscriptionRoutes['tools']['$post']>['json'];
 export type AccessProfile = InferResponseType<ProfileRoutes['$get'], 200>['profiles'][number];
 export type NewAccessProfile = InferRequestType<ProfileRoutes['$post']>['json'];
 export type AccessProfileChanges = InferRequestType<ProfileRoutes[':profileId']['$patch']>['json'];

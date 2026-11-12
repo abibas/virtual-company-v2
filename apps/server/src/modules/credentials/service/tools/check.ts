@@ -2,8 +2,8 @@ import { type Credential, diffFields, owned } from '@mwc/db';
 import type { ToolCredentialKind } from '@mwc/shared/credentials';
 import type { Logger } from 'pino';
 import { credentialsRepo } from '../../repo.ts';
-import { credentialView } from '../../rules.ts';
 import type { ToolOutcome } from '../../rules/tools.ts';
+import { credentialView } from '../../rules.ts';
 import type { SecretOf } from '../../schemas/secrets.ts';
 import type { SubscriptionView } from '../../schemas.ts';
 import { TOOL_CHECK } from '../first-check.ts';
@@ -58,7 +58,8 @@ function afterCheck(outcome: ToolOutcome, at: Date) {
     const { accountEmail, accountMeta } = outcome;
     return { status: 'active' as const, accountEmail, accountMeta, checkedAt: at, checkError: null };
   }
-  if (outcome.code === 'needs_sign_in') return { status: 'needs_sign_in' as const, checkedAt: at, checkError: null };
+  if (outcome.code === 'needs_sign_in')
+    return { status: 'needs_sign_in' as const, checkedAt: at, checkError: null };
   return { checkedAt: at, checkError: outcome.code };
 }
 
@@ -106,7 +107,10 @@ async function outcomeOf(deps: ToolDeps, row: Credential): Promise<ToolOutcome |
     return await checkTool(deps.providerFetch, used as ToolSecret);
   } catch (error) {
     const name = error instanceof Error ? error.name : 'unknown';
-    deps.logger.error({ credentialId: row.id, kind: row.kind, error: name }, 'tool check failed unexpectedly');
+    deps.logger.error(
+      { credentialId: row.id, kind: row.kind, error: name },
+      'tool check failed unexpectedly',
+    );
     return { ok: false, code: 'check_failed' };
   }
 }
@@ -122,6 +126,7 @@ export async function checkStoredTool(
 ): Promise<SubscriptionView | undefined> {
   const outcome = await outcomeOf(deps, row);
   if (outcome === 'gone') return undefined;
-  if (!outcome.ok) deps.logger.warn({ credentialId: row.id, kind: row.kind, code: outcome.code }, 'tool check failed');
+  if (!outcome.ok)
+    deps.logger.warn({ credentialId: row.id, kind: row.kind, code: outcome.code }, 'tool check failed');
   return recordToolCheck(deps, row.id, row.ownerUserId, outcome, actor);
 }

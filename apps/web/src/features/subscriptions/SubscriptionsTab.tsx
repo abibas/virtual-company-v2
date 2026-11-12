@@ -1,3 +1,4 @@
+import { isToolKind } from '@mwc/shared/credentials';
 import { Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../../api/context.ts';
@@ -168,7 +169,7 @@ export function SubscriptionsTab({ header }: { readonly header?: TabHeader }) {
       <LoadState loaded={subscriptions} label="Loading your subscriptions…" skeleton={SKELETON}>
         {(data) => (
           <SubscriptionList
-            list={data.subscriptions.filter((subscription) => subscription.kind !== 'gateway')}
+            list={data.subscriptions.filter((s) => s.kind !== 'gateway' && !isToolKind(s.kind))}
             limits={limits.data}
             now={now}
             calls={calls}

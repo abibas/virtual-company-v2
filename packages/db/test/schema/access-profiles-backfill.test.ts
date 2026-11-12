@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import type { CredentialKind, Harness } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { and, eq, sql } from 'drizzle-orm';
@@ -11,7 +10,6 @@ import {
   agents,
   auditLog,
   chats,
-  credentials,
   memberships,
 } from '../../src/schema/index.ts';
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
@@ -19,10 +17,10 @@ import { journal, migrateUpTo } from '../fixtures/migrations.ts';
 import {
   insertAgentBefore0017,
   insertCompany,
+  insertCredentialBefore0029,
   insertMachine,
   insertPrincipal,
   insertUser,
-  unique,
 } from '../fixtures/rows.ts';
 
 /**
@@ -46,21 +44,9 @@ beforeAll(async () => {
 });
 afterAll(() => testDb.close());
 
-/** One of the owner's sealed credentials of `kind` (random bytes stand in for a seal). */
+/** One of the owner's sealed credentials of `kind`, with the columns `credentials` had at `0014`. */
 async function credential(ownerUserId: string, kind: CredentialKind): Promise<string> {
-  const [row] = await handle.db
-    .insert(credentials)
-    .values({
-      ownerUserId,
-      kind,
-      label: unique(kind),
-      keyVersion: 1,
-      iv: new Uint8Array(randomBytes(12)),
-      authTag: new Uint8Array(randomBytes(16)),
-      ciphertext: new Uint8Array(randomBytes(24)),
-    })
-    .returning();
-  return row?.id as string;
+  return (await insertCredentialBefore0029(handle, ownerUserId, kind)).id;
 }
 
 interface Slots {

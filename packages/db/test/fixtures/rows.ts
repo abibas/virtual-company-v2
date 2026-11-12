@@ -174,6 +174,26 @@ export async function insertAgentBefore0017(
   return one(row ? [row] : []);
 }
 
+/**
+ * A sealed credential written with the columns `credentials` had before migration `0029_tool_sign_ins` (no last check),
+ * for a data-step test seeded at an older migration; random bytes stand in for a seal.
+ */
+export async function insertCredentialBefore0029(
+  handle: RawDbHandle,
+  ownerUserId: string,
+  kind: string,
+  accountMeta: Record<string, unknown> = {},
+): Promise<{ id: string }> {
+  const [row] = await queryRows<{ id: string }>(
+    handle,
+    sql`insert into credentials (id, owner_user_id, kind, label, account_meta, key_version, iv, auth_tag, ciphertext)
+        values (${newId()}, ${ownerUserId}, ${kind}, ${unique(kind)}, ${JSON.stringify(accountMeta)}::jsonb, 1,
+                ${randomBytes(12)}, ${randomBytes(16)}, ${randomBytes(24)})
+        returning id`,
+  );
+  return one(row ? [row] : []);
+}
+
 /** A machine in a company (a laptop with no provider, offline), its name unique unless given. */
 export async function insertMachine(
   handle: RawDbHandle,

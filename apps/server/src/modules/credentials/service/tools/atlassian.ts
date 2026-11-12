@@ -2,8 +2,8 @@ import { atlassianAccount, atlassianMeta } from '../../rules/tool-accounts.ts';
 import { type ToolFailure, type ToolOutcome, toolFailureOf } from '../../rules/tools.ts';
 import type { SecretOf } from '../../schemas/secrets.ts';
 import { discard, type ProviderFetch } from '../usage/http.ts';
-import { answerOf, failed } from './http.ts';
 import { TOOL_USER_AGENT } from './github.ts';
+import { answerOf, failed } from './http.ts';
 
 /**
  * Atlassian's check of a site, an account email and an API token (S7.1a): Jira's `GET /rest/api/3/myself` and

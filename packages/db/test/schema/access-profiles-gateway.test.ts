@@ -1,13 +1,11 @@
-import { randomBytes } from 'node:crypto';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
-import { credentials } from '../../src/schema/index.ts';
 import { createTestDb, pgError, type TestDb, testDbKind } from '../../src/testing.ts';
 import { migrateUpTo } from '../fixtures/migrations.ts';
-import { insertUser, unique } from '../fixtures/rows.ts';
+import { insertCredentialBefore0029, insertUser, unique } from '../fixtures/rows.ts';
 
 /**
  * Migration `0016_gateway_provider`: gateways get a provider (`accountMeta.provider`, `anthropic` or `openai`) and an
@@ -26,20 +24,8 @@ beforeAll(async () => {
   handle = testDb.handle;
   await migrateUpTo(handle, '0015_profile_provider');
   ownerId = (await insertUser(handle)).id;
-  const [gateway] = await handle.db
-    .insert(credentials)
-    .values({
-      ownerUserId: ownerId,
-      kind: 'gateway',
-      label: unique('gateway'),
-      accountMeta: { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', provider: 'openai' },
-      keyVersion: 1,
-      iv: new Uint8Array(randomBytes(12)),
-      authTag: new Uint8Array(randomBytes(16)),
-      ciphertext: new Uint8Array(randomBytes(24)),
-    })
-    .returning();
-  gatewayId = gateway?.id as string;
+  const meta = { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', provider: 'openai' };
+  gatewayId = (await insertCredentialBefore0029(handle, ownerId, 'gateway', meta)).id;
 });
 afterAll(() => testDb.close());
 
