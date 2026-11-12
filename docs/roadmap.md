@@ -578,15 +578,63 @@ running for the slots. A step's failure is stored in words naming the
 machine (a bare code read back in words). "Check in every" on the Flow tab. Merging needs the dev API restarted
 (migrations 0027 and 0028 run on start) and the web reloaded; the runner is unchanged.
 
-### S7 — work model from v1 (one ticket each, behind the same tests discipline)
+### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
-GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.
+Reshaped on 2026-11-12 with Ihor ("GitHub LOGIN and Confluence Login. I do wanna have SIMILAR profile to push data as
+we are doing with the Profiles for OpenAI and Claude. MAKE it as a next step of the plan!!! Important!!"). Done before
+it, outside the stage plan: review flows (S5.3, S6), agent chats per agent (S5.1), the devbox's power schedule (S4).
+Each item names the v1 behaviour it replaces and ships with integration tests.
+
+1. **S7.1 Tool sign-ins and tool profiles: GitHub and Atlassian (Jira and Confluence)**, first, Ihor's priority. The
+   same shape as the AI subscriptions and profiles (S3, docs/subscriptions.md):
+   - **Sign-ins in the personal store** (Subscriptions page, a Tools part):
+     - **Sign in with GitHub:** GitHub CLI's own device sign-in (`gh auth login --web`) in the sign-in helper's
+       throwaway sandbox, as v1 did, with no app to register. A pasted fine-grained token is the alternative. Kinds
+       `github_oauth` and `github_token`.
+     - **Add Atlassian:** the site (`<name>.atlassian.net`), the account email and an Atlassian API token, which serve
+       both Jira and Confluence (`atlassian_api_token`). An Atlassian OAuth 2.0 (3LO) app is the later upgrade, once
+       there is a public address for its callback.
+     - Each sign-in is encrypted like the AI logins, write-only, managed only in a Clerk session, and audited. The
+       card shows the account it acts as, its scopes or sites, and a check that it still works.
+   - **Tool profiles in Access profiles**, one provider each, as Claude and OpenAI:
+     - **A GitHub profile:** one GitHub sign-in, the repositories it may touch (all, or a list), and what it may do:
+       read, push branches, open pull requests. It never merges, deletes, force-pushes, or pushes to the default
+       branch.
+     - **An Atlassian profile:** one Atlassian sign-in, Jira read, Jira changes (comment, transition, create), and
+       Confluence read or write, in chosen spaces. It never deletes or archives.
+     - The owner gives profiles to agents on the agent form, next to the AI profile ("GitHub", "Atlassian", none by
+       default), only in companies they administer. The agent's page and its briefing say what it may do there and
+       as whom.
+   - **How a turn uses them:** the secrets stay on the server where they can.
+     - **Atlassian:** server-side tools in the agents' `mwc` tools: `jira_search`, `jira_issue`, `jira_comment`,
+       `jira_transition`, `jira_create`, `confluence_search`, `confluence_page`, `confluence_create_page` and
+       `confluence_update_page`. The server checks the profile's rights on each call and shows every write in the turn
+       and the task's log. The token never reaches the machine.
+     - **GitHub:** git and `gh` need it on the machine. The runner gets it for one turn only: `GH_TOKEN` in that
+       turn's process, plus a git credential helper that asks the runner, so it is never written to disk. It is
+       refused for any repository outside the profile.
+   - Tests: the kinds and their checks with fake providers, the profiles' rules, each tool's permission check, the
+     runner's per-turn handover with a fake `gh`. Ihor's first real sign-ins are the live check.
+2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
+   default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
+   and rounds, and cleaned up after Done.
+3. **S7.3 Pull requests:** the coder pushes its branch and the flow goes on. After the last check the coder opens the
+   PR with its GitHub profile, a Pull request step on the flow, as v1. A PR watch reads it read-only (checks, comments,
+   conflicts) and hands findings back to the coder. A merge moves the task to Done.
+4. **S7.4 Jira intake:** a flow's Jira sources (parents' children, labels, single tickets) read through an Atlassian
+   profile, with live status. **Take** puts a ticket in Queued as a task linked to it. Optionally, a merged PR moves
+   its ticket to Done in Jira.
+5. **S7.5 Work in progress:** an in-progress limit per flow (v1 used 5) and auto-start from Queued under it (off by
+   default).
+6. **S7.6 Confluence as a place for results:** a step can publish its artifacts or a summary to a Confluence page in
+   the profile's space, and the task links to it.
+7. Sprints tied to releases (v1's Sprints page), and AI gateway routing per machine.
 
 Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
 ### S8 — cloud deployment
 
-Hardened compose for a VM (TLS via a reverse proxy, backups with `pg_dump` and restore drill, log rotation), then k8s manifests (migrate Job, server Deployment + Ingress, runner pool), secrets through the platform's secret store, a staging instance, runbooks, and the runner's signed self-update (moved from S4: download, verify sha256 + Ed25519, flip `current`, exit 75 when idle, drain). Done when a staging stack on a cloud VM runs the S5 demo with a container runner and a laptop runner at the same time.
+Hardened compose for a VM (TLS via a reverse proxy, backups with `pg_dump` and restore drill, log rotation), then k8s manifests (migrate Job, server Deployment + Ingress, runner pool), secrets through the platform's secret store, a staging instance, runbooks, and the runner's signed self-update (moved from S4: download, verify sha256 + Ed25519, flip `current`, exit 75 when idle, drain). Email delivery over SMTP (S2.9 built the outbox only). Done when a staging stack on a cloud VM runs the S5 demo with a container runner and a laptop runner at the same time.
 
 Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
 
