@@ -1,7 +1,7 @@
 import { useClerk } from '@clerk/react';
 import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { usePendingLogo } from '../api/images/pending-logo.ts';
 import { useAgentList } from '../api/org.ts';
-import { usePendingLogo } from '../api/pending-logo.ts';
 import { shellUser } from '../components/auth/AccountMenu.tsx';
 import { LoadingBlock } from '../components/data/LoadState.tsx';
 import { AppShell } from '../components/layout/AppShell.tsx';

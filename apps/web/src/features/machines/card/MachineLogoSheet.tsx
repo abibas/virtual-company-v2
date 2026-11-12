@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApi } from '../../../api/context.ts';
 import { friendlyMessage } from '../../../api/errors.ts';
-import { removeMachineLogo, uploadMachineLogo, useMachineLogo } from '../../../api/machine-logo.ts';
+import { removeMachineLogo, uploadMachineLogo, useMachineLogo } from '../../../api/images/machine-logo.ts';
 import { LogoPicker } from '../../../components/forms/image/LogoPicker.tsx';
 import { type PreparedLogo, releaseLogo } from '../../../components/forms/image/logo-file.ts';
 import { Sheet } from '../../../components/layout/Drawer.tsx';

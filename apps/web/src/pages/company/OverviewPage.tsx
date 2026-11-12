@@ -1,8 +1,8 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { Mail, Plus, Users } from 'lucide-react';
-import { useCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { call } from '../../api/errors.ts';
+import { useCompanyLogo } from '../../api/images/company-logo.ts';
 import { type Loaded, useLoad } from '../../api/use-load.ts';
 import { useCompany } from '../../app/company.ts';
 import { companyPath } from '../../app/nav.ts';

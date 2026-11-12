@@ -1,7 +1,7 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { useState } from 'react';
-import { useCompanyLogo } from '../../api/company-logo.ts';
 import { useFlows } from '../../api/flows.ts';
+import { useCompanyLogo } from '../../api/images/company-logo.ts';
 import { useAgentList, useOrgChart } from '../../api/org.ts';
 import type { AgentFilter } from '../../api/types.ts';
 import { useCompany } from '../../app/company.ts';

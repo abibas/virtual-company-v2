@@ -1,7 +1,7 @@
 import type { AgentIconView } from '@mwc/shared/agent-icons';
 import type { AgentStatus } from '@mwc/shared/enums';
 import { type CSSProperties, useContext, useState } from 'react';
-import { useAgentIconImage } from '../../api/agent-icon.ts';
+import { useAgentIconImage } from '../../api/images/agent-icon.ts';
 import { CompanyContext } from '../../app/company.ts';
 import { cx } from '../cx.ts';
 import { Avatar, type AvatarSize } from '../ui/Avatar.tsx';

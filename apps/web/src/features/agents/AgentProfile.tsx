@@ -1,8 +1,8 @@
 import { ArrowLeft, Save } from 'lucide-react';
 import { type FormEvent, useMemo, useState } from 'react';
-import { type AgentIconCalls, agentIconCalls } from '../../api/agent-icon.ts';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
+import { type AgentIconCalls, agentIconCalls } from '../../api/images/agent-icon.ts';
 import {
   type OrgCalls,
   orgCalls,

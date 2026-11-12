@@ -1,9 +1,9 @@
 import { ArrowRight } from 'lucide-react';
 import { type FormEvent, type ReactNode, type RefObject, useRef, useState } from 'react';
-import { uploadCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { call, friendlyMessage } from '../../api/errors.ts';
-import { rememberPendingLogo } from '../../api/pending-logo.ts';
+import { uploadCompanyLogo } from '../../api/images/company-logo.ts';
+import { rememberPendingLogo } from '../../api/images/pending-logo.ts';
 import type { Company } from '../../api/types.ts';
 import { cx } from '../../components/cx.ts';
 import { TextField } from '../../components/forms/Field.tsx';

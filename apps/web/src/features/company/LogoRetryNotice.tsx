@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { uploadCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
-import { clearPendingLogo, type PendingLogo } from '../../api/pending-logo.ts';
+import { uploadCompanyLogo } from '../../api/images/company-logo.ts';
+import { clearPendingLogo, type PendingLogo } from '../../api/images/pending-logo.ts';
 import { Button } from '../../components/ui/Button.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
 

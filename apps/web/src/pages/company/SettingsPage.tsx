@@ -1,6 +1,6 @@
 import { roleAtLeast } from '@mwc/shared/roles';
-import { removeCompanyLogo, uploadCompanyLogo, useCompanyLogo } from '../../api/company-logo.ts';
 import { useApi } from '../../api/context.ts';
+import { removeCompanyLogo, uploadCompanyLogo, useCompanyLogo } from '../../api/images/company-logo.ts';
 import type { Membership } from '../../api/types.ts';
 import { useCompany } from '../../app/company.ts';
 import { companyPath } from '../../app/nav.ts';

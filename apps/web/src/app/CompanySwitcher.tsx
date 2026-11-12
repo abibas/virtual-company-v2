@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useCompanyLogo } from '../api/company-logo.ts';
+import { useCompanyLogo } from '../api/images/company-logo.ts';
 import type { Membership } from '../api/types.ts';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../components/forms/Menu.tsx';
 import { CompanyBadge } from '../components/layout/Rail.tsx';

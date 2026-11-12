@@ -1,8 +1,8 @@
 import { ArrowLeft, UserPlus } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
-import { agentIconCalls } from '../../api/agent-icon.ts';
 import { useApi } from '../../api/context.ts';
 import { friendlyMessage } from '../../api/errors.ts';
+import { agentIconCalls } from '../../api/images/agent-icon.ts';
 import { orgCalls, placementCalls } from '../../api/org.ts';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, ChartNode, OrgChart } from '../../api/types.ts';

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { listenerSet } from './store.ts';
 
 /**
  * A logo picked on the create-company page whose upload failed after the company was made. The company exists and
@@ -11,18 +12,7 @@ export interface PendingLogo {
 }
 
 const pending = new Map<string, PendingLogo>();
-const listeners = new Set<() => void>();
-
-function notify() {
-  for (const listener of listeners) listener();
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
+const { notify, subscribe } = listenerSet();
 
 /** Keeps the bytes and why they were refused, for the company's page to try again. */
 export function rememberPendingLogo(companyId: string, blob: Blob, error: unknown): void {

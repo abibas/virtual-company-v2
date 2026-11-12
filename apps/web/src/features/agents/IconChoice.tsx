@@ -1,6 +1,6 @@
 import { AGENT_FACE, agentFace } from '@mwc/shared/org';
 import { ImageIcon, Smile, SmilePlus } from 'lucide-react';
-import { useAgentIconImage } from '../../api/agent-icon.ts';
+import { useAgentIconImage } from '../../api/images/agent-icon.ts';
 import type { AgentDetail, AgentIconView } from '../../api/types.ts';
 import { useCompany } from '../../app/company.ts';
 import { AgentIcon } from '../../components/feed/AgentIcon.tsx';

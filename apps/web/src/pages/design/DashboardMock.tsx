@@ -1,5 +1,5 @@
 import { Mail, Plus, Users } from 'lucide-react';
-import { useCompanyLogo } from '../../api/company-logo.ts';
+import { useCompanyLogo } from '../../api/images/company-logo.ts';
 import { useLocation } from '../../app/router.tsx';
 import { StatTile } from '../../components/data/StatTile.tsx';
 import { Button } from '../../components/ui/Button.tsx';

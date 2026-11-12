@@ -1,5 +1,5 @@
 import { isAgentEmoji } from '@mwc/shared/agent-icons';
-import type { AgentIconCalls } from '../../api/agent-icon.ts';
+import type { AgentIconCalls } from '../../api/images/agent-icon.ts';
 import type { AgentDetail, AgentIconChoice } from '../../api/types.ts';
 import type { PreparedLogo } from '../../components/forms/image/logo-file.ts';
 

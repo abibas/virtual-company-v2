@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo } from 'react';
-import { primeCompanyLogo } from '../../api/company-logo.ts';
+import { primeCompanyLogo } from '../../api/images/company-logo.ts';
 import { CompanySwitcher } from '../../app/CompanySwitcher.tsx';
 import { companyNav } from '../../app/nav.ts';
 import { useLocation } from '../../app/router.tsx';
