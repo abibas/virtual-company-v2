@@ -2,7 +2,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { RUNNER_FRAME_MAX_BYTES, RUNNER_SUBPROTOCOL } from '@mwc/shared/runner-protocol';
 import { Hono } from 'hono';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   createSocketServer,
   SOCKET_PROTOCOLS,
@@ -10,6 +10,13 @@ import {
   upgradeSocket,
 } from '../../../src/platform/realtime/sockets.ts';
 import { eventually, listen, rawClient } from '../../fixtures/platform/realtime.ts';
+
+/**
+ * The keep-alive's interval runs on Vitest's fake timers (only `setInterval` and `clearInterval`; the sockets and
+ * `eventually` keep real time), so a ping goes out only when a test advances the clock: a slow, loaded machine cannot
+ * miss a pong between two pings, and the other tests' sockets are never pinged.
+ */
+const PING_MS = 40;
 
 /** What the test route's sockets did: the links it was given, the frames it read, how each closed. */
 const links: SocketLink[] = [];
@@ -19,6 +26,7 @@ let server: Server;
 let url: string;
 
 beforeAll(async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
   const app = new Hono().get(
     '/ws',
     upgradeSocket(
@@ -37,7 +45,7 @@ beforeAll(async () => {
           },
         };
       },
-      { pingMs: 40 },
+      { pingMs: PING_MS },
     ),
   );
   server = await listen(app.fetch);
@@ -46,6 +54,7 @@ beforeAll(async () => {
 afterAll(async () => {
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
+  vi.useRealTimers();
 });
 
 describe('createSocketServer', () => {
@@ -86,9 +95,17 @@ describe('upgradeSocket', () => {
 
   it('pings every socket, and cuts one that leaves a ping unanswered', async () => {
     let pings = 0;
+    const opened = links.length;
     const answering = await rawClient(url);
     answering.socket.on('ping', () => pings++);
     const deaf = await rawClient(url, { autoPong: false });
+    await eventually('the server opened both sockets', () => links.length === opened + 2);
+    vi.advanceTimersByTime(PING_MS);
+    await eventually('the answering socket was pinged', () => pings === 1);
+    // Its pong went out before this frame on the same stream, so the server read the pong before it echoes.
+    answering.socket.send('after the ping');
+    await eventually('the echo came back', () => answering.received.includes('echo:after the ping'));
+    vi.advanceTimersByTime(PING_MS);
     expect(await deaf.closed).toBe(1006);
     expect(pings).toBeGreaterThan(0);
     expect(answering.socket.readyState).toBe(answering.socket.OPEN);
