@@ -28,6 +28,23 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-12: S6c's Lead wake-ups: a background tick that needs the app's live runtime
+
+- **What happened:** the wake-up tick must start chat turns, which only the process holding the runners' sockets and the
+  chats' live turns can do, so it could not be a jobs-loop job (`moduleJobs` is composed before `createApp` and has no
+  chats runtime). It went to the tasks module as `service/wake/tick.ts` (`leadWakes`, 99 lines), started by `createApp`
+  when MWC_JOBS is on or a test passes `AppDeps.leadWakeTimers`; its cross-company reads are `tasks/repo/wakes-due.ts`
+  (Biome's raw-access exemption, like `notifications/repo/delivery.ts`). `tasks/service/` went 16 → 17 entries (`wake/`:
+  `record.ts`, `message.ts`, `deliver.ts`, `tick.ts`, `settings.ts`, all under 160 lines); the chats module's side is
+  `chats/service/team.ts` behind a `TeamChats` port the tasks module calls (passed by `app.ts`). The test helper went to a
+  top-level `test/fixtures/wakes.ts`, beside `runs.ts` and `tools.ts`.
+- **Where:** the `lead-wake` branch.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a periodic job that needs the app's live runtime (the runner hub's sockets, live
+  turns) → its module's `service/<area>/tick.ts`, started by `createApp` behind MWC_JOBS, its timers injectable"; at the
+  S6 review, group the server's top-level test fixtures by module (`fixtures/tasks/{team,runs,tools,wakes}.ts`).
+- **Status:** `open`.
+
 ### 2026-11-11: S6a's agents' tools: a contract that needs the area's limits, and the tasks service folder
 
 - **What happened:** the tools' inputs (`packages/shared/src/flows/tools.ts`) need the task limits that lived in the

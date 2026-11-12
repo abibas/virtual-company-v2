@@ -64,7 +64,8 @@ The last step's approval, or its pass, moves the task to Done.
 - **It answers** the team's questions and brings to a person only what needs one.
 
 Since S6a an agent Lead does these moves with its board tools in its own chats ("Built in S6a"); people still do them on
-the board. It is told only through its nearest person's notifications for now (it reads the board when it is asked).
+the board. Since S6c it is told by itself: its team's events wake it with a short message in its team chat ("Built: the
+Lead wakes up"); a person Lead hears through notifications, as before.
 
 ## Artifacts
 
@@ -107,7 +108,7 @@ step state and how many artifacts it has.
 | S5.3a | Flows and tasks: the data, the rules, the API, the flow editor, the team's board, the task page, `mwc task`; people move tasks by hand |
 | S5.3b | Steps run: entering a step starts its assignee's run, one conversation per task and step (Keep or Fresh), artifacts collected |
 | S5.4 | Runs survive a runner or server restart (journal, re-attach, Stop) |
-| S6 | Agents' tools (S6a, built: the step's moves as `task_hand_on`, `task_pass`, `task_approve`, `task_send_back`, and `task_read`, `task_attach`, `task_blocked`; the Lead's board tools); `ask_user` was built in S5.2; the Inbox (S6b, built: "Built in S6b") |
+| S6 | Agents' tools (S6a, built: the step's moves as `task_hand_on`, `task_pass`, `task_approve`, `task_send_back`, and `task_read`, `task_attach`, `task_blocked`; the Lead's board tools); `ask_user` was built in S5.2; the Inbox (S6b, built: "Built in S6b"); the Lead wakes up by itself and questions are answered from the Inbox (S6c, built: "Built: the Lead wakes up", "Inbox answers") |
 | Check | Ihor's DEVBOX team takes one real ticket from the Lead to the end |
 | Later | "Assembly line", an animated view of the steps with each step clickable (Ihor's reference: buildindex.dev's assembly template), built once everything above is approved and working; a Fable 5.2 subagent builds it |
 
@@ -537,8 +538,8 @@ The tasks module writes both variants and the chats module picks by the agent's 
 
 ### What is not built
 
-The Lead hears nothing by itself yet (no notice to an agent, no turn started for it); it reads the board when it is
-asked in its chat. A person's reply in a task conversation gets the step's tools too, and a decision it records counts
+The Lead heard nothing by itself (S6c built that: "Built: the Lead wakes up"); it read the board when it was asked in its
+chat. A person's reply in a task conversation gets the step's tools too, and a decision it records counts
 the same way. Approving a tool mid-turn (the permission round trip) is the rest of S6; the Inbox is S6b, below.
 
 ## Built in S6b (2026-11-11)
@@ -645,5 +646,179 @@ API in-process, and the table.
 ### Not built
 
 The live wait of S6's plan (an `attention_items` table, a question answered within 90 s reaching the waiting process,
-`mwc inbox watch`, the MCP's `inbox_list` / `inbox_answer`): questions are answered on the chat's card as in S5.2. No
-notice is written for a new question, and Answer is not inline on the card (Open goes to the chat's question card).
+`mwc inbox watch`, the MCP's `inbox_list` / `inbox_answer`): questions are answered on the chat's card as in S5.2. S6c
+added the notice for a new question and the answer inline on the card ("Inbox answers").
+
+## Built: the Lead wakes up (S6c, 2026-11-12)
+
+When a flow's Lead is an agent, its team's events wake it by themselves: a short message in **its team chat**, queued as a
+turn by Most Wanted (not by a person), that says what happened and the decision expected with the tools that make it.
+Ihor's ask: the Lead acts without being talked to. A person Lead is never woken (people hear through notifications), and
+the step agents' and people's paths are unchanged.
+
+### The events (`lead_wake_events`, migration `0025_lead_wakes`)
+
+Each event is a row written **in the transaction that made it**, only when the flow's Lead is an agent on the chart and
+the flow's settings wake it for that kind (`service/wake/record.ts`):
+
+| Kind | Made by | Step and reason kept |
+| --- | --- | --- |
+| `escalated` | a move over a step's send-back limit (a person's send-back, or a step agent's decision) (`applyMove`) | the step it escalated from; the escalation's reason |
+| `blocked` | a step's run that could not start or failed, or a step agent's `task_blocked` (`applyStepChange`) | the step; the block's reason |
+| `turn_ended` | a step's turn that ended and nobody moved the task, or a decision the task no longer allowed (`applyStepChange`) | the step; why, when said |
+| `done` (off by default) | the last step's approval or pass (`applyMove`) | — |
+| `signoff_waiting` (off by default) | the tick: an active task at a person's Sign-off (`needs_person`) unchanged for the flow's hours, once per wait | the step |
+
+A turn a **person stopped** wakes nobody (`StepChange.quiet`): a Stop is a person taking over. The row keeps the step's
+name as it was and the reason clipped to 300 characters (`LEAD_WAKE_REASON_MAX`), one line.
+
+| Column | What it holds |
+| --- | --- |
+| `flow_id`, `task_id` | composite keys to `flows` and `tasks` |
+| `kind` | `LeadWakeKind` (`escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting`) |
+| `step_name`, `reason` | as above (1–60; at most 300) |
+| `outcome` | `LeadWakeOutcome`: `pending` until the tick tells it, then `woke` (told in a turn), `capped` (over a cap), `unreachable` (the Lead could not run), `dropped` (the task moved on first, or the Lead is no agent now) |
+| `seen_at` | when the tick first saw it, by the server's clock: the window starts at a flow's oldest |
+| `delivered_at`, `chat_id`, `turn_id`, `detail` | when it was told, held or let go; the team chat and the turn (`woke`; `turn_id` a plain id, since a person may discard the waiting turn); why it was not told (the refusal's words, the cap, "The task moved on first") |
+
+CHECKs hold `pending` ⇔ no `delivered_at`, `woke` ⇔ a turn (and a turn ⇔ a chat). Indexed for the tick's pending scan
+(partial, `outcome = 'pending'`), a flow's caps (`company_id, flow_id, delivered_at`) and a task's latest (`company_id,
+task_id, id`).
+
+### The settings, on the flow
+
+Eight columns on `flows` (migration `0025_lead_wakes`), defaults `LEAD_WAKE_DEFAULTS` of `@mwc/shared/flows`, bounds
+`LEAD_WAKE` (CHECKs):
+
+| Setting | Column | Default | Bounds |
+| --- | --- | --- | --- |
+| Escalated, Blocked, Turn ended | `wake_escalated`, `wake_blocked`, `wake_turn_ended` | on | |
+| Done (a digest) | `wake_done` | off | |
+| A sign-off waits over N hours | `wake_signoff_hours` | null (off) | 1–168 |
+| The quiet window | `wake_window_seconds` | 60 | 0–600 |
+| Wake-ups per hour, per day | `wake_max_per_hour`, `wake_max_per_day` | 6, 40 | 1–60, 1–500 |
+
+| Route | Who | |
+| --- | --- | --- |
+| `GET /api/companies/{companyId}/flows/{flowId}/lead-wakes` | viewer+ | the settings, `leadIsAgent`, `chat` (the team chat it was last woken in, with its agent), `last` (the last wake-up told or held: outcome, when, why) and `counts` (wake-ups in the last hour and day, events waiting) |
+| `PUT` the same, all eight settings | the Lead's people, admins and owners | 403 `not_lead`, 404 `flow_not_found` (another company's too), 400 out of bounds; audited field by field on the flow (`update`); unchanged settings write nothing |
+
+### The tick (`service/wake/tick.ts`)
+
+Every 5 seconds (`WAKE_TICK_MS`), in the server process that holds the runners' sockets and the chats' live turns (so it
+is the app's, made by `createApp`, not the jobs loop's): it writes the sign-off waits, stamps the new pending events with
+its clock (`seen_at`), then delivers each flow whose **quiet window** has passed since its oldest seen event, 20 flows a
+tick at most (`deliverFlow`, `service/wake/deliver.ts`). It runs when the server runs its background work (MWC_JOBS, on
+by default outside tests), one tick at a time, logs a failed tick and tries again; it stops with the server. Its
+cross-company reads are `repo/wakes-due.ts`, in Biome's raw-access exemption; each flow is read, told and marked through
+its company's tenant. Tests pass timers they fire by hand (`AppDeps.leadWakeTimers`).
+
+**Delivering a flow**, outside any transaction:
+1. The Lead is no agent on the chart now: every pending event is `dropped`.
+2. An event whose task is no longer what it said (a person handled it within the window: no longer escalated, blocked,
+   ended, waiting for the sign-off) is `dropped` ("The task moved on first").
+3. **The caps**: the Lead's wake-ups (turns) in the last hour and day; at the flow's cap the events are `capped` ("Over the
+   flow's wake-ups for this hour" / "for today").
+4. Otherwise the message (below) goes to the team chat through the chats module (`TeamChats.wake`); a refusal holds the
+   events `unreachable` with its words; else they are `woke` with the chat and the turn.
+5. **The Lead's nearest person** (at or above it on the chart) is told when the events are held (`lead_not_woken`,
+   docs/notifications.md), **once**: only the first time for that outcome since the Lead was last told (the flow's
+   previous told-or-held outcome differs). So a broken loop that hits the cap, or a Lead without a machine, tells them
+   once until a wake-up gets through again.
+
+A process killed between the turn's start and the events' mark tells them again at the next tick (a second wake-up).
+
+### The team chat (the chats module, `service/team.ts`)
+
+**One chat per flow for the Lead**: a chat whose `flow_id` names the flow (migration `0025_lead_wakes`; a CHECK keeps it
+off task conversations). The latest team chat of the flow with that agent goes on while it can (not archived, the
+agent's harness and machine unchanged); otherwise a new one is made, titled `<flow>: team` (cut to a chat title's 80),
+created by the agent and audited as the system. It is one of the Lead's own chats: it shows in its chat list (with a bell),
+gets the Lead's board tools and its "Leading your team" section as any of its chats does. Ihor's ad-hoc chats with the
+Lead are never woken.
+
+**Delivery**: the message is sent as a turn **Most Wanted queued** (`chat_turns.system`, its `created_by` the agent),
+"after this turn" (the existing queue, docs/harness.md "Delivery while a turn runs"): it starts at once while nothing runs
+there, else it waits behind the running turn; while a wake-up of its own still waits, a new message joins it (the prompts
+one after the other, within a prompt's 20 000 characters) instead of queueing another. Every check of a turn holds (the
+placement, the runner, the profile, the CLI); a paused Lead is not woken (`agent_paused`, "The agent is paused: resume it
+to wake it"); a refusal comes back in words. A wake that waits behind a running turn and is refused when the queue starts
+it fails in the chat as any waiting message does (the event says `woke`).
+
+### The message (`leadWakeMessage` of `@mwc/shared/flows`, pure and tested)
+
+A headline, then per task that needs a decision two lines (what happened, the decision with its tools), the done tasks as
+one digest line, at most 10 tasks (the rest counted, for `team_board`), a task's repeated event of one kind told once,
+titles clipped to 80 and reasons to 300:
+
+```
+Most Wanted · DEVBOX delivery: 1 task needs your decision.
+
+- T-12 “Fix the login” was escalated to you from Code review: Code review sent it back 3 times already, its limit; this time: the Safari tests still fail
+  Decide: task_retry / task_route / task_cancel, or ask Ihor Herasko (ask_user_question).
+
+Act with your tools now; team_board shows the whole board. Keep your reply to a line or two.
+```
+
+```
+Most Wanted · DEVBOX delivery: 1 task needs your decision.
+
+- T-14 “Add SSO”: its turn ended at Develop without a hand-off
+  Decide: task_show, then task_start / task_route / task_cancel, or ask Ihor Herasko (ask_user_question).
+
+Act with your tools now; team_board shows the whole board. Keep your reply to a line or two.
+```
+
+A block reads `- T-15 “…” is blocked at QA: <reason>` / `Decide: fix the cause, then task_start; or task_route /
+task_cancel, or ask …`; a sign-off's wait `- T-16 “Ship it” has waited 26 h for Ihor's sign-off at Approve` / `Decide:
+remind them (ask_user_question), or leave it.`; done tasks `- Done: T-3 “Docs”, T-4 “Logo”.` The person named is the
+Lead's nearest person ("a person" when there is none).
+
+### Web
+
+- **The Flow tab** (`/:slug/flows/<lead>/flow`, view and edit) gets **Lead wakes up on** for those who lead the team when
+  the Lead is an agent: switches for Escalated, Blocked, Turn ended without a hand-off and Done (a digest), "A sign-off
+  waits over N hours", "Events within N seconds go as one message", "At most N an hour and N a day", Save and Discard,
+  and one line on the last wake-up ("Woke it 5 min ago · 2 this hour, 3 today", "Held …: Over the flow's wake-ups for
+  this hour", "Could not wake it …: <why>") with a link to the team chat (`features/flows/wakes/`: `LeadWakes.tsx`,
+  `LiveLeadWakes.tsx`, `words.ts`; `api/flows.ts` `useLeadWakes`, `putLeadWakes`).
+- **The board**: an open card says **Lead notified** (a bell, its time on hover) when its agent Lead was told of it as it
+  stands (`leadNotifiedAt`: the task's latest wake event was told and nothing happened to the task since it was written).
+- **The chat**: a turn Most Wanted queued shows "Most Wanted" above a neutral bubble, and its waiting message says
+  "Most Wanted · Queued…"; the chat list marks a team chat with a bell.
+
+### Tests
+
+`packages/shared/test/flows/wake.test.ts` (the message: each kind, the digest, clipping, one per task and kind, ten
+listed); `packages/db/test/schema/lead-wakes.test.ts` (the settings' and the events' CHECKs, keys, the team chat's and
+the system turn's columns); `apps/server/test/modules/tasks/rules/wake.test.ts` (the pure rules);
+`service/wake/deliver.test.ts` (an escalation in a new team chat as Most Wanted's turn, never Ihor's ad-hoc chat, the
+board's mark and the settings' view; a block and an ended turn in one message; done as a digest only when asked; a person
+Lead never woken; an event let go when its task moved on); `service/wake/tick.test.ts` (the window from the first event
+seen; queued behind the Lead's running turn and a later one joined into the waiting turn, then run; the hour's and the
+day's caps telling the nearest person once; a Lead without a placement, told once; a sign-off waiting past the hours,
+once; the loop's failed tick and stop); `routes/wakes.test.ts` (the defaults, who may change them, the audit, the bounds,
+tenancy, a person Lead); `apps/server/test/modules/chats/service/team.test.ts` (the title, an archived team chat replaced,
+a paused Lead). All on PGlite with the fake runner; no real CLI.
+
+## Inbox answers (S6c, 2026-11-12)
+
+An agent's question is answered on its **Inbox card** (Attention), and a notice tells the people who may answer it.
+
+- **The item** carries the questions with their options (`question.questions` of `GET …/inbox` and `GET /api/me/inbox`,
+  the `question` event's own `AskQuestions`).
+- **The card** (`features/inbox/InboxQuestion.tsx`) reuses the chat card's form (`QuestionForm`, `compact`: without the
+  headers' steps): one question a page with "1 of N" and the arrows for 2 or more, single or multiple choice, the "Other"
+  box, Send. It posts to the chat's own `POST /api/companies/{companyId}/chats/{chatId}/answers` in the item's company
+  (`chatCalls(…).answer`), remembers what it sent (the chat's receipt shows it), and reads the inbox again; the item goes
+  once the answer's turn starts. A refusal shows its words under the form: `question_closed` (answered elsewhere, or the
+  chat moved on), `turn_running`, a machine or profile refusal. Open still goes to the chat. The gallery draws it on the
+  samples.
+- **The notice**: when an agent's `question` event is stored (a frame sent again is told once), the company's active
+  admins and owners, as the answers route allows, get `agent_question` ("SLOP BOX asks: “Which database should the
+  service use?”", the first question clipped to 200), pointing at `chats/<agentId>?chat=<chatId>`; never the agent,
+  nobody below admin, nobody of another company (docs/notifications.md).
+
+Tests: `apps/server/test/modules/inbox/routes/answers.test.ts` (the item's questions, the card's answers taken and the
+item gone, a second answer refused `question_closed`), `apps/server/test/modules/notifications/service/questions.test.ts`
+(who gets it, never the agent, tenancy, once, the words and the path, a long question clipped).

@@ -28,6 +28,8 @@ a reconcile, a first sign-in) has no actor, so nobody is left out.
 | A task done | `tasks/service/apply.ts` | its creator and the nearest person at or above the Lead | `task_done` | T-12 “Fix the login” is done |
 | A step's turn ended and nobody moved the task (S5.3b) | `tasks/service/runs.ts` | the nearest person at or above the Lead, and the step's assignee when a person | `task_turn_ended` | Developer ended its turn on T-12 “Fix the login” at Develop; nobody has moved it on yet |
 | A step's turn could not start, or failed (S5.3b) | `tasks/service/runs.ts` | the same | `task_blocked` | T-12 “Fix the login” is blocked at Develop: Developer's turn could not start or failed |
+| An agent asks a question (S6c: its `question` event stored; a frame sent again is told once) | `chats/service/ask-notice.ts`, calling `noticeAgentQuestion` | the company's active admins and owners (who may answer it) | `agent_question` | SLOP BOX asks: “Which database should the service use?” |
+| A flow's agent Lead was not woken (S6c: over its flow's cap, or it could not run), once per reason until a wake-up gets through | `tasks/service/wake/deliver.ts` | the nearest person at or above the Lead | `lead_not_woken` | DEVBOX Coordinator was not woken for its team's tasks: it had all its wake-ups for this hour / for today; … could not be woken for its team's tasks: The agent has no placement: choose where it runs first |
 
 An agent moved between managers tells both managers; a move of an agent under an agent, or a pause of an agent whose
 manager is an agent, tells nobody. A restore from the archive reports to the one who restored it, so nobody else hears
@@ -46,8 +48,10 @@ Migration `0020_notifications` (generated after `main`'s `0019_agent_icons`; see
 
 - `notifications` (tenant): `recipient_principal_id` (a composite key to `principals`), `kind` (`NotificationKind`),
   `payload` jsonb (principal ids: `about`, `from`, `to`, and `role`, `previousRole`; a task's notice also `task`, its
-  id, whose key and title are read when it is shown, and `step`, the step's name then (S5.3a); names are read when it is shown, so
-  a renamed person reads with their new name), `actor_principal_id` (null: the system), `created_at`, `read_at`, and
+  id, whose key and title are read when it is shown, and `step`, the step's name then (S5.3a); an agent's question (S6c)
+  `agent` and `chat` (its page, `chats/<agent>?chat=<chat>`) and `detail` (the first question, clipped to 200); a Lead not
+  woken `reason` (`hour_cap`, `day_cap`, `unreachable`) and `detail` (the refusal's words), pointing at the team's board
+  `flows/<lead>`; names are read when it is shown, so a renamed person reads with their new name), `actor_principal_id` (null: the system), `created_at`, `read_at`, and
   the email's state: `email_status` (`pending`, `sent`, `failed`, `skipped`), `email_queued_at` (when the jobs loop
   first saw it, by its clock), `email_next_at` (not before this after a failed try), `email_attempts`, `emailed_at`,
   `email_error` (why it failed or was skipped). Indexed for a person's page (`company_id, recipient, id`), their unread
@@ -121,6 +125,8 @@ web yet. Below 80rem the top bar's one inbox button opens both tabs in a drawer.
 
 ## Merging
 
+- S6c's kinds (`agent_question`, `lead_not_woken`) rebuild `notifications_kind_check` in migration `0025_lead_wakes`
+  (generated, no `-- custom:` part); a migration that lands on `main` first means regenerating it, as below.
 - The migration is `0020_notifications`, generated on top of `0019_agent_icons`; it has no `-- custom:` part. If another
   migration (the org chart's invitation manager) lands on `main` first, regenerate rather than hand-edit: drop
   `0020_notifications.sql`, `meta/0020_snapshot.json` and its journal entry, then `pnpm --filter @mwc/db exec

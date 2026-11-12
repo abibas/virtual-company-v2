@@ -790,7 +790,9 @@ prompt. The same bridge is where S6's tool approvals will ride.
   descriptions and keys 1–9, a filter over 6 options, an "Other" box, Skip, Next and "Send answer"; Left and Right turn
   pages; drafts kept while the page lives); answered: "You answered" with each header's picks; superseded: "answered in
   a message". The tool's own call shows no tool row, and the turn that carried the answers shows no prompt bubble. The
-  composer stays open: a message instead answers in words.
+  composer stays open: a message instead answers in words. Since S6c the company's admins and owners get a notice when a
+  question is stored (`agent_question`, docs/notifications.md), and the Inbox's card answers it in place with the same
+  form (docs/processes.md "Inbox answers").
 
 ## Agents' tools
 
@@ -880,6 +882,11 @@ Now (into the running turn), After this turn (queued) or by Interrupt. The serve
   closes once every message written was taken and the parser is settled, so the process ends as before; while one
   still waits, it stays open until the harness prints nothing for `INPUT_QUIET_MS` (30 s). A stop, the end, a turn that
   takes no input (Codex) or a closed stdin drop `turn.input` (logged), and the server starts the message next.
+- **Turns Most Wanted queues** (S6c, docs/processes.md "Built: the Lead wakes up"): a flow's Lead wake-up is a message
+  turn sent with `after` by the system, not a person: `chat_turns.system` (migration `0025_lead_wakes`), its `created_by`
+  the agent itself (the credential's use names it too), shown as Most Wanted's in the thread and the waiting list. It goes
+  to the flow's **team chat** (`chats.flow_id`, one of the Lead's own chats); a wake-up still waiting there takes in the
+  next one instead of queueing another.
 - **The web** (`apps/web/src/features/chats/delivery/`): while a turn runs the composer shows "The agent is working —
   send: Now · After this turn · Interrupt" (Now only where it works; the last choice remembered in the browser,
   `mwc.chat.delivery`), Stop beside Send, and the waiting messages above the box in start order, each saying what

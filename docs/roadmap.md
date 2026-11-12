@@ -494,6 +494,22 @@ left rail's muted Inbox item is gone. `mwc inbox list|count [--all]`, `mwc inbox
 wait (`attention_items`, answers reaching a waiting process, `mwc inbox watch|answer`, the MCP's inbox tools). Merging
 needs the dev API restarted (new routes; no migration) and the web reloaded.
 
+**S6c, the Lead wakes up by itself, and Inbox answers: built 2026-11-12 on the `lead-wake` branch, not merged yet**
+(docs/processes.md "Built: the Lead wakes up" and "Inbox answers", docs/notifications.md, docs/harness.md "Delivery while a
+turn runs"). When a flow's Lead is an agent, a task escalated, blocked, a turn ended without a hand-off (on by default),
+done (a digest) and a sign-off waiting past N hours (off by default) are written as `lead_wake_events` in the transaction
+that made them (migration `0025_lead_wakes`, also the flows' eight `wake_*` settings, `chats.flow_id` and
+`chat_turns.system`); a tick in the app's process (every 5 s with MWC_JOBS) tells a flow's events once its quiet window
+(60 s) passed, as one short message (`leadWakeMessage` of `@mwc/shared/flows`: the task, the step, the reason, the decision
+with its tools) queued "after this turn" by Most Wanted in the flow's team chat with its Lead (made on first use, "<flow>:
+team"; a waiting wake-up takes in the next). Events a person handled meanwhile are let go; past the caps (6 an hour, 40 a
+day) or when the Lead cannot run (no placement, no runner, no profile, paused) the Lead's nearest person is told once
+(`lead_not_woken`). `GET|PUT …/flows/{flowId}/lead-wakes` (the Lead's people and admins change them); the Flow tab's "Lead
+wakes up on"; the board's "Lead notified"; Most Wanted's turns marked in the chat. Agents' questions: the inbox item carries
+them, the card answers in place through the chat's answers route, and admins and owners get `agent_question`. Tests with
+the fake runner only. Merging needs the dev API restarted (the migration runs on start) and the web reloaded; the runner is
+unchanged.
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.

@@ -38,7 +38,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── machines/       enrollment, runner hub, power, stats, placements S4
 │   │   │   │   ├── chats/          chats with an agent: turns, events, stream, terminal (built) S5.1b
 │   │   │   │   ├── speech/         dictation: POST /api/me/speech/transcribe (built) S5.2
-│   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); step runs, artifacts (built S5.3b); agents' tools, decisions (built S6a)
+│   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); step runs, artifacts (built S5.3b); agents' tools, decisions (built S6a); the Lead's wake-ups (built S6c)
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          what needs a person, computed live (built S6b); permissions S6
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
@@ -318,7 +318,10 @@ reads the profile a turn runs on the same way and opens its subscriptions throug
 (`credentialsForHarness`). Its one raw access is `modules/chats/repo/reaper.ts` (in the Biome exemption, as the
 machines' `repo/upkeep.ts`): at the server's start it fails every company's turns a stopped server left running. The
 notifications module's (S2.9) is `modules/notifications/repo/delivery.ts`, in the same exemption: the jobs loop finds the
-people whose email is due in any company, then reads and marks each batch through that company's tenant.
+people whose email is due in any company, then reads and marks each batch through that company's tenant. The tasks
+module's (S6c) is `modules/tasks/repo/wakes-due.ts`, in the same exemption: the Lead wake-up tick stamps the new wake
+events and finds the flows whose window passed (and the sign-offs waiting too long) in any company, then reads, tells and
+marks each flow's events through that company's tenant.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the
