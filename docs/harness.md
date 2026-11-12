@@ -498,7 +498,7 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    80 characters), its sink is put in place, and `turn.start {turnId, spec}` goes to the runner. The answer is 202 with
    the turn.
 6. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
-   what it cannot run: `unsupported` (no such CLI, even after searching again, or no way to start processes), `busy` (all `slots` live), `home_missing`
+   what it cannot run: `unsupported` (no such CLI, even after searching again, or no way to start processes), `busy` (all `slots` live; the server lets the turn wait for a free slot instead, "Waiting for a free slot"), `home_missing`
    (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
    `runner_stopping`. Otherwise it makes the turn's run folder and starts the turn's **keeper** (`node runner.mjs keep`,
    detached: its own session and process group; "Surviving restarts" below), which starts the driver's command with no
@@ -904,7 +904,8 @@ Now (into the running turn), After this turn (queued) or by Interrupt. The serve
   Now and Interrupt first, then After, each oldest first) starts as a prompt does, as the person who sent it (the
   checks, a `credential_uses` row, the runner), resuming the chat's session. One the checks refuse fails with the
   refusal's words ("The agent's machine has no connected runner") and the next is tried, except while a turn of the
-  chat waits for its stopped machine: the queue then waits for the machine's runner ("When the machine is stopped"). A turn that starts after a
+  chat waits for its stopped machine: the queue then waits for the machine's runner ("When the machine is stopped"); while
+  every slot of the machine is taken, the next turn waits for a free slot ("Waiting for a free slot"). A turn that starts after a
   later one (it was overtaken) takes the next number after the chat's last, so the turns that started are numbered in
   start order and `Last-Event-ID` still reads them in order. One chat's starts run one at a time in the server process;
   a start that loses to another (the index) leaves the chat to it. At the server's start the queued turns fail with
@@ -982,6 +983,39 @@ it is up). The chats module's side is `service/machine-wait.ts`, `rules/machine.
   becomes the running turn when it starts. `machine_stopped` shows "Airia devbox is stopped." and **Start Airia devbox ·
   $0.54/h and send** above the box for those who may start it (`delivery/StartAndSend.tsx`), which sends the kept text
   again with `startMachine`. A task's conversation waiting for its machine says "Starting machine" on the task page.
+
+## Waiting for a free slot
+
+Built 2026-11-12 (on T-2 the DEVBOX Lead's two turns filled Airia devbox's 2 slots; the Developer's turn was refused
+`busy` and its task blocked with the reason "busy"). The chats module's side is `service/slot-wait.ts`, `repo/slots.ts`,
+`service/live-slot.ts` and `rules/machine.ts`; the waits' timers are the machine waits' (`machine-wait.ts`).
+
+- **When every slot of a turn's machine is taken** (the turns running on it, in any chat, against the slots its runner's
+  hello says, else its row's), a prompt (`POST …/turns`), a task's step, a Lead's wake-up or check-in, and a waiting
+  message the queue would start all wait instead of going to the runner: the turn is `queued`, delivered `after`, with
+  `machine_wait = 'slots'` and `machine_wait_at` (migration `0028_chat_slot_waits`; `machineWait` on the turn,
+  `stopped` for a machine that starts, "When the machine is stopped"). Every other check holds first (refusals in words).
+  A Compact or an answer does not wait: 409 `machine_busy` ("Airia devbox has no free slot (2 of 2 in use): try again
+  when a turn there ends").
+- **Who goes first.** A turn may take a slot when the live turns and the chats waiting longer than its own leave one
+  (`slotFree`): the chat waiting longest first, a new message of a free chat behind every chat that waits. When any
+  turn on the machine ends, after its own chat's queue, the chats waiting there start in that order while slots are free
+  (`slotWaits.freed`).
+- **The runner still says `busy`** (the server counted fewer turns than it runs): the turn goes back to waiting the same
+  way, since when it first waited for a slot, and starts when a turn there ends; no end is told to a task or the queue.
+- **A turn taken back late** ("Surviving restarts": its runner came back with a turn the server had failed) runs again,
+  so it counts as running for the slots from then on; a waiting turn its failure let start meanwhile is refused `busy`
+  by the runner if the machine is full, and waits again.
+- **It fails** 30 minutes after it began waiting (`SLOT_WAIT_MS`: "Airia devbox had no free slot for 30 minutes (2 of 2
+  in use)"); **Stop** ends it `stopped`; at the server's start it fails with the other waiting turns.
+- **A task's step** stays `working` while its turn waits (the turn counts as the step's running turn: a move needs
+  `force`); the task page's conversation says "Waiting for a free slot on Airia devbox" (`lastTurn.machineWait`, the
+  conversation's `machine`). A step's failure is kept in words naming the machine ("The harness did not start on Airia
+  devbox (ENOENT)"; a disconnection keeps its own words, "Airia devbox was unreachable for 30 minutes: the turn
+  stopped."; `rules/failure.ts` of the tasks module, also when a turn taken back late undoes the block), and a bare code
+  stored before is read back in words on the task page, the board, the Inbox and in a Lead's check-in.
+- **The web**: the chat's waiting line says "Waiting for a free slot on Airia devbox 1:10" with Cancel
+  (`thread/status/MachineWait.tsx`).
 
 ## Compact and Clear
 
@@ -1122,6 +1156,8 @@ checks and refusals, the credential's use, the standing instructions, the stream
 - **A stopped machine** ("When the machine is stopped"): a step's turn starts the agent's machine when its policy starts
   it for work, and waits for it with the task `working`; otherwise the task is blocked in words ("Airia devbox is
   stopped: start it on the Machines page, then retry").
+- **A full machine** ("Waiting for a free slot"): a step's turn waits for a free slot with the task `working`, never
+  blocked "busy"; after 30 minutes the task is blocked in words.
 - **A dropped link or a restart** (S5.4, "Surviving restarts"). A task's turn is a chat turn: it waits the grace for
   its runner and goes on when the runner comes back, so its task stays `working` (no false `blocked`). Only a turn that
   finally fails ends through its sink (`machine_disconnected` when the grace after a dropped link runs out,

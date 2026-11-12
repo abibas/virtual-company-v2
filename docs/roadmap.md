@@ -560,6 +560,24 @@ and the backoff stops at 30 s; a waiting tunnel starts at once when its box turn
 bundle carries the tunnel rules for a runner that holds tunnels once rebuilt; This Mac's server holds them in
 development). Merging needs the dev API restarted and the web reloaded.
 
+**The Lead checks in and never waits; a turn waits for a free slot: built 2026-11-12 on the `lead-checkins` branch, not
+merged yet** (docs/processes.md "Check-ins", docs/harness.md "Waiting for a free slot"). On T-2 the DEVBOX Lead polled
+`task_show` inside its turn for 10 minutes, edited the Developer's results itself, and its two turns filled the devbox's 2
+slots, so the Developer's turn was refused `busy` and the task blocked with the reason "busy". Ihor: "why don't we have
+BACKGROUND check things by PM? each 3-5 min etc?". The Lead's standing section and every wake-up now say: never wait or
+poll inside a turn, end it, Most Wanted wakes you (events and check-ins); never edit a step's files or artifacts. A flow
+checks in with its agent Lead every N minutes while it has active or escalated tasks (`flows.wake_check_in_minutes`,
+migration `0027_lead_check_ins`: off, 3, 5, 10, 15 or 30, default 5, existing flows too): a digest of the open tasks (step,
+state, how long, whether a turn is on it; the stuck first) in its team chat, skipped while the Lead has a turn or the
+flow's events wait, and when nothing changed and nothing is stuck; never starting a stopped machine; counted in the caps,
+whose defaults rose to 12 an hour and 150 a day (flows still at 6 and 40 moved, audited). A turn whose machine has every
+slot taken waits `queued` (`chat_turns.machine_wait = 'slots'`, migration `0028_chat_slot_waits`) and starts when a turn
+there ends, the chat waiting longest first; a runner's `busy` puts it back to waiting; it fails after 30 minutes in words;
+the task stays `working` ("Waiting for a free slot on Airia devbox"); a turn taken back late (durable-link) counts as
+running for the slots. A step's failure is stored in words naming the
+machine (a bare code read back in words). "Check in every" on the Flow tab. Merging needs the dev API restarted
+(migrations 0027 and 0028 run on start) and the web reloaded; the runner is unchanged.
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.

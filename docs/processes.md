@@ -65,7 +65,9 @@ The last step's approval, or its pass, moves the task to Done.
 
 Since S6a an agent Lead does these moves with its board tools in its own chats ("Built in S6a"); people still do them on
 the board. Since S6c it is told by itself: its team's events wake it with a short message in its team chat ("Built: the
-Lead wakes up"); a person Lead hears through notifications, as before.
+Lead wakes up"); a person Lead hears through notifications, as before. Since 2026-11-12 it is also checked in with every
+few minutes while its flow has work ("Check-ins"), and it **never waits inside a turn**: it acts, reports in a line and
+ends its turn, and never does a step's work (edits its files or artifacts) itself.
 
 ## Artifacts
 
@@ -518,7 +520,15 @@ You lead the flow "DEVBOX delivery". Your tools act at once, as you: team_board,
 description?, priority?, step?}, task_route {key, step}, task_start {key}, task_retry {key} and task_cancel {key,
 reason}. Each step's agent moves its own task when its turn ends; you distribute the work, unblock it, and decide on
 escalations.
+
+- Never wait or poll for a step's agent inside your turn. Once you have created, started or routed tasks, report in a
+  line and end your turn: Most Wanted wakes you in your team chat when a task needs you, and at regular check-ins.
+- Never edit a step's files or artifacts: that is its agent's work. Say what is wrong, then route the task back
+  (task_route) or start the step again (task_start).
 ```
+
+(The two rules came on 2026-11-12, after the DEVBOX Lead polled `task_show` for ten minutes inside the turn that made
+T-2, and edited the Developer's `results.md` itself.)
 
 (`STANDING_INSTRUCTIONS_MAX` grew by `STANDING_SECTION_MAX`, 2 000; a section that would not fit is left out.)
 
@@ -707,8 +717,8 @@ task_id, id`).
 
 ### The settings, on the flow
 
-Eight columns on `flows` (migration `0025_lead_wakes`), defaults `LEAD_WAKE_DEFAULTS` of `@mwc/shared/flows`, bounds
-`LEAD_WAKE` (CHECKs):
+Eight columns on `flows` (migration `0025_lead_wakes`; a ninth, the check-ins', in `0027_lead_check_ins`), defaults
+`LEAD_WAKE_DEFAULTS` of `@mwc/shared/flows`, bounds `LEAD_WAKE` (CHECKs):
 
 | Setting | Column | Default | Bounds |
 | --- | --- | --- | --- |
@@ -716,12 +726,13 @@ Eight columns on `flows` (migration `0025_lead_wakes`), defaults `LEAD_WAKE_DEFA
 | Done (a digest) | `wake_done` | off | |
 | A sign-off waits over N hours | `wake_signoff_hours` | null (off) | 1–168 |
 | The quiet window | `wake_window_seconds` | 60 | 0–600 |
-| Wake-ups per hour, per day | `wake_max_per_hour`, `wake_max_per_day` | 6, 40 | 1–60, 1–500 |
+| Wake-ups per hour, per day | `wake_max_per_hour`, `wake_max_per_day` | 12, 150 (6, 40 before the check-ins) | 1–60, 1–500 |
+| Check in every N minutes ("Check-ins") | `wake_check_in_minutes` | 5 | null (off) or 3–60 |
 
 | Route | Who | |
 | --- | --- | --- |
 | `GET /api/companies/{companyId}/flows/{flowId}/lead-wakes` | viewer+ | the settings, `leadIsAgent`, `chat` (the team chat it was last woken in, with its agent), `last` (the last wake-up told or held: outcome, when, why) and `counts` (wake-ups in the last hour and day, events waiting) |
-| `PUT` the same, all eight settings | the Lead's people, admins and owners | 403 `not_lead`, 404 `flow_not_found` (another company's too), 400 out of bounds; audited field by field on the flow (`update`); unchanged settings write nothing |
+| `PUT` the same, all nine settings | the Lead's people, admins and owners | 403 `not_lead`, 404 `flow_not_found` (another company's too), 400 out of bounds; audited field by field on the flow (`update`); unchanged settings write nothing |
 
 ### The tick (`service/wake/tick.ts`)
 
@@ -777,7 +788,7 @@ Most Wanted · DEVBOX delivery: 1 task needs your decision.
 - T-12 “Fix the login” was escalated to you from Code review: Code review sent it back 3 times already, its limit; this time: the Safari tests still fail
   Decide: task_retry / task_route / task_cancel, or ask Ihor Herasko (ask_user_question).
 
-Act with your tools now; team_board shows the whole board. Keep your reply to a line or two.
+Act with your tools now, then end your turn: never wait for a step’s agent, Most Wanted wakes you again. team_board shows the whole board. Keep your reply to a line or two.
 ```
 
 ```
@@ -786,7 +797,7 @@ Most Wanted · DEVBOX delivery: 1 task needs your decision.
 - T-14 “Add SSO”: its turn ended at Develop without a hand-off
   Decide: task_show, then task_start / task_route / task_cancel, or ask Ihor Herasko (ask_user_question).
 
-Act with your tools now; team_board shows the whole board. Keep your reply to a line or two.
+Act with your tools now, then end your turn: never wait for a step’s agent, Most Wanted wakes you again. team_board shows the whole board. Keep your reply to a line or two.
 ```
 
 A block reads `- T-15 “…” is blocked at QA: <reason>` / `Decide: fix the cause, then task_start; or task_route /
@@ -820,6 +831,70 @@ day's caps telling the nearest person once; a Lead without a placement, told onc
 once; the loop's failed tick and stop); `routes/wakes.test.ts` (the defaults, who may change them, the audit, the bounds,
 tenancy, a person Lead); `apps/server/test/modules/chats/service/team.test.ts` (the title, an archived team chat replaced,
 a paused Lead). All on PGlite with the fake runner; no real CLI.
+
+## Check-ins (2026-11-12)
+
+Ihor, after T-2 (the Lead sat in one turn polling `task_show`, then did the Developer's work): "why don't we have
+BACKGROUND check things by PM? each 3-5 min etc? I believe it should not just sit and wait right?????". So the Lead never
+waits inside a turn (its section, every wake-up's closing line, "The Lead's tools" above), and Most Wanted checks in with
+it instead: every N minutes while its flow has **active or escalated** tasks, a short digest of the board in its **team
+chat**, as a turn Most Wanted queues, the same path as an event's wake-up.
+
+### When (`service/wake/check-in.ts`, rules `rules/check-in.ts`)
+
+The wake-up tick (every 5 s) looks at each flow whose check-ins are on, whose Lead is an agent and which has active or
+escalated tasks (`checkInFlows` of `repo/wakes-due.ts`, 50 a tick, the longest since its Lead's last wake-up first). A
+check-in is **due** N minutes after the later of the Lead's last wake-up (an event's or a check-in, told) and the last
+time the tick looked at the flow for one; the first time the tick sees the flow with work starts that clock (memory only:
+a restart starts it again, and a flow without work is forgotten). A due check-in is looked at once, then **skipped** when:
+
+- the Lead has a turn running or waiting in any of its chats (`lead_busy`);
+- the flow's events wait for their quiet window (`pending`): their wake-up comes first, and the next check-in N minutes
+  after it;
+- nothing changed since the Lead was last told (no history row of the flow's tasks after its latest told wake-up row,
+  by the database's clock) **and** nothing is stuck (`quiet`). A task is **stuck** when it is blocked, or marked working
+  with no turn running or waiting on it: a stuck task always gets its check-in.
+
+It is never sent to a stopped machine: the check-in asks the team chat not to start one (`startMachine: false`), and a
+machine that is off skips it (no row). Otherwise it counts toward the flow's caps (held `capped` past one, the nearest
+person told once) and a Lead that cannot run (no placement, no profile, paused) is held `unreachable`, as an event's
+wake-up is. Each check-in told or held is a `lead_wake_events` row of kind `check_in` with no task (`task_id` null only
+for it, CHECK `lead_wake_events_task_check`), written as it is told, never pending.
+
+**The caps** rose with it: a check-in every 5 minutes is twelve an hour, so the defaults are 12 an hour and 150 a day (a
+working day of check-ins and some events). Migration `0027_lead_check_ins` moved every flow still at the old defaults
+(6, 40) to them, audited as the system (`migration:0027_lead_check_ins`); every existing flow checks in every 5 minutes.
+
+### The message (`leadCheckInMessage` of `@mwc/shared/flows`, `flows/check-in.ts`, pure and tested)
+
+```
+Most Wanted · DEVBOX delivery: check-in, 3 open tasks (1 stuck).
+
+- T-2 “Run the test task” · Develop · blocked 12 min: Airia devbox had no free slot for 30 minutes (2 of 2 in use)
+- T-3 “Fix the login” · Code review · working 4 min · turn live
+- T-4 “Ship it” · QA · escalated 2 h 5 min: QA sent it back 3 times already, its limit
+
+Act only where a task needs you, then end your turn: never wait for a step’s agent, Most Wanted checks in again. task_show and team_board have more. If all is on track, reply “On track”.
+```
+
+Per task: its key and title, its step, its step state and how long it has been so (since its latest history row), the
+turn on it while it works (`turn live`, `turn waiting to start`: behind another, for a free slot or for its machine; `no
+turn (stuck)`), and a block's or an escalation's reason (a bare code in words). The stuck ones first, ten at most, the
+rest counted.
+
+### Web
+
+The Flow tab's "Lead wakes up on" has **Check in every** (Off, 3, 5, 10, 15, 30 min), a label only, with the other
+settings and their Save.
+
+### Tests
+
+`packages/shared/test/flows/check-in.test.ts` (the digest, stuck, durations); `packages/db/test/schema/lead-wakes.test.ts`
+(the column's bounds, a check-in of no task); `packages/db/test/schema/flows-backfill.test.ts` (the caps moved, audited);
+`apps/server/test/modules/tasks/rules/check-in.test.ts` (due, skips, a task's line);
+`apps/server/test/modules/tasks/service/wake/check-in.test.ts` (the digest as Most Wanted's turn after 5 minutes; skipped
+while the Lead has a turn and when nothing changed; a stuck task every time, then capped with the person told; after an
+event's wake-up; a stopped machine, a Lead that cannot run, check-ins off). All on PGlite with the fake runner.
 
 ## Inbox answers (S6c, 2026-11-12)
 
