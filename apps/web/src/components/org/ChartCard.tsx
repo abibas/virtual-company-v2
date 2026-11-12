@@ -120,6 +120,17 @@ function Facts({
   );
 }
 
+/** The card's top edge: its bar in the person's or agent's colour, or a highlighted card's chips in its place. */
+function CardTop({ agent, accent }: { readonly agent: boolean; readonly accent: CardAccent | undefined }) {
+  if (accent) return <div className="absolute inset-x-3 -top-2.5 z-10 flex min-w-0 gap-1">{accent.tags}</div>;
+  return (
+    <span
+      aria-hidden="true"
+      className={cx('absolute inset-x-4 top-0 h-[3px] rounded-b-full', agent ? 'bg-teal' : 'bg-blue')}
+    />
+  );
+}
+
 export interface ChartCardProps {
   readonly node: ChartNode;
   readonly you: boolean;
@@ -174,15 +185,7 @@ export function ChartCard({
         drop && DROP_LOOK[drop],
       )}
     >
-      {/* A highlighted card's chips take the place of its top bar. */}
-      {accent ? (
-        <div className="absolute inset-x-3 -top-2.5 z-10 flex min-w-0 gap-1">{accent.tags}</div>
-      ) : (
-        <span
-          aria-hidden="true"
-          className={cx('absolute inset-x-4 top-0 h-[3px] rounded-b-full', agent ? 'bg-teal' : 'bg-blue')}
-        />
-      )}
+      <CardTop agent={agent} accent={accent} />
       <div className="flex min-w-0 items-start gap-2.5">
         <Face node={node} />
         <div className="min-w-0 flex-1 pt-0.5">

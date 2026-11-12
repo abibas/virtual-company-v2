@@ -18,6 +18,7 @@ import { type ChartAbilities, ChartMenuItems } from './ChartMenuItems.tsx';
 import { ChartSheet } from './ChartSheets.tsx';
 import type { DropPlan } from './drop-targets.ts';
 import type { FlowFocus } from './flow/flow-focus.ts';
+import { useFlowFocus } from './flow/use-flow-focus.ts';
 import { MoveToast } from './MoveToast.tsx';
 import { type Board, useBoard } from './use-board.ts';
 
@@ -79,6 +80,7 @@ function dragHint(chart: OrgChart, plan: DropPlan, over: string | undefined) {
 function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board: Board }) {
   const { chart, layout, drag } = board;
   const { abilities } = props;
+  const focused = useFlowFocus(props.focus, layout, board.canvas, chart !== undefined);
   const buttons = (target: string, node: ChartNode | undefined) => (
     <CardButtons
       target={target}
@@ -120,7 +122,7 @@ function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board:
                 grab={drag.grab}
                 buttons={buttons}
                 agentHref={(node) => board.actions.agentHref(node.agent)}
-                focus={board.focused}
+                focus={focused}
               />
             </ChartCanvas>
           )
