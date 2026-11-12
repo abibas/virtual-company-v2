@@ -1,8 +1,8 @@
 import type { TenantDb } from '@mwc/db';
 import {
-  AGENT_TOOL_INPUTS,
   AgentTool,
   type AttachInput,
+  checkToolInput,
   isDecisionTool,
   LEAD_TOOLS,
   leadSection,
@@ -26,18 +26,6 @@ import { attachTo, readTask } from './step-tools.ts';
 
 type LeadTool = (typeof LEAD_TOOLS)[number];
 const isLeadTool = (tool: AgentTool): tool is LeadTool => (LEAD_TOOLS as readonly string[]).includes(tool);
-
-/** What the issues of a bad input say, one per line, with where. */
-function issuesText(
-  tool: string,
-  issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[],
-) {
-  const lines = issues.slice(0, 10).map((issue) => {
-    const where = issue.path.map(String).join('.');
-    return where === '' ? issue.message : `${where}: ${issue.message}`;
-  });
-  return `${tool} did nothing; fix its input and call it again:\n${lines.join('\n')}`;
-}
 
 /** The tools a turn of this chat gets (see above). */
 export async function toolsFor(
@@ -76,14 +64,15 @@ export async function callTool(
     };
   if (!lead && turn.task === undefined)
     return { ok: false, text: `${tool} works only in a task step's turn.` };
-  const input = AGENT_TOOL_INPUTS[tool].safeParse(call.input);
-  if (!input.success) return { ok: false, text: issuesText(tool, input.error.issues) };
-  if (isLeadTool(tool)) return leadTool(deps, repo, t, turn, { tool, input: input.data, now });
+  const checked = checkToolInput(tool, call.input);
+  if (!checked.ok) return { ok: false, text: checked.error };
+  const input = checked.input;
+  if (isLeadTool(tool)) return leadTool(deps, repo, t, turn, { tool, input, now });
   const step = turn.task as TaskTurnContext;
   if (isDecisionTool(tool)) {
-    const decision = decisionInput(tool, input.data as Parameters<typeof decisionInput>[1]);
+    const decision = decisionInput(tool, input as Parameters<typeof decisionInput>[1]);
     return recordDecision(deps, repo, t, step, { tool, decision, now });
   }
-  if (tool === 'task_attach') return attachTo(repo, t, step, input.data as AttachInput, call.file);
+  if (tool === 'task_attach') return attachTo(repo, t, step, input as AttachInput, call.file);
   return readTask(deps, repo, t, step);
 }

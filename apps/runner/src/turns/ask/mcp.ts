@@ -1,6 +1,6 @@
-import type { AgentTool } from '@mwc/shared/flows';
+import { type AgentTool, checkToolInput, type InputIssue, issueLines } from '@mwc/shared/flows';
 import { ASK_TOOL, AskInput, type AskQuestions } from '@mwc/shared/harness';
-import { agentToolDefinition, checkToolInput } from './agent-tools.ts';
+import { agentToolDefinition } from './agent-tools.ts';
 import { ASK_TOOL_DEFINITION, type AskReply, MCP_SERVER_NAME } from './tool.ts';
 
 /**
@@ -47,14 +47,9 @@ const toolText = (text: string, isError = false) => ({
   ...(isError ? { isError: true } : {}),
 });
 
-/** What a bad input's issues say, one per line, with where (`questions.0.options`). */
-function issuesText(issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[]) {
-  const lines = issues.slice(0, 10).map((issue) => {
-    const where = issue.path.map(String).join('.');
-    return where === '' ? issue.message : `${where}: ${issue.message}`;
-  });
-  return `The questions were not shown; fix them and call ${ASK_TOOL} again:\n${lines.join('\n')}`;
-}
+/** What a bad question input's issues say, one per line, with where (`questions.0.options`). */
+const issuesText = (issues: readonly InputIssue[]) =>
+  `The questions were not shown; fix them and call ${ASK_TOOL} again:\n${issueLines(issues)}`;
 
 /** A relay's answer as the tool's result: its text, or its error (a thrown one too) as a tool error. */
 async function relayed(relay: () => Promise<AskReply>) {
