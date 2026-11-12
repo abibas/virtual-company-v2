@@ -16,7 +16,7 @@ import { sampleChat, sampleCwd, sampleTurns } from './conversation-sample.ts';
 const NODES = nodesById(SAMPLE_CHART.nodes);
 
 /** Nothing before the sample turns: no older page, no conversation before a Clear. */
-const NO_EARLIER: ChatEarlierLive = {
+export const NO_EARLIER: ChatEarlierLive = {
   conversations: [],
   more: false,
   left: 0,
@@ -26,7 +26,7 @@ const NO_EARLIER: ChatEarlierLive = {
 };
 
 /** The server's configuration as the composer reads it (no dictation on the samples). */
-const SAMPLE_CONFIG: PublicConfig = {
+export const SAMPLE_CONFIG: PublicConfig = {
   identity: 'none',
   webOrigin: 'http://localhost:9951',
   apiUrl: 'http://localhost:9950',

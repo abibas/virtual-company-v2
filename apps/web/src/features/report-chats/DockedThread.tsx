@@ -1,0 +1,95 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { chatCalls } from '../../api/chats.ts';
+import { useApi } from '../../api/context.ts';
+import type { AgentPlacement } from '../../api/types.ts';
+import { useEarlierConversations } from '../../api/use-chat-earlier.ts';
+import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
+import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
+import { Composer } from '../chats/Composer.tsx';
+import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
+import { asking, chatActions, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
+import { ChatThread } from '../chats/thread/ChatThread.tsx';
+import { useMarkSeen } from './seen.ts';
+
+/** Calls `onChange` when the chat's running turn changes (one starts or ends): the rail's dots read again. */
+function useRunningChange(runningId: string | undefined, onChange: () => void) {
+  const seen = useRef(runningId);
+  const latest = useRef(onChange);
+  latest.current = onChange;
+  useEffect(() => {
+    if (seen.current !== runningId) latest.current();
+    seen.current = runningId;
+  }, [runningId]);
+}
+
+/** Before the chat's detail came: loading, or the failure with Retry. */
+function Opening({ detail }: { readonly detail: ChatLive['detail'] }) {
+  return (
+    <div className="flex flex-1 flex-col justify-center p-3">
+      {detail.error !== undefined ? (
+        <ErrorBlock error={detail.error} onRetry={detail.reload} />
+      ) : (
+        <LoadingBlock label="Opening the chat…" />
+      )}
+    </div>
+  );
+}
+
+/**
+ * A chat in the right rail, live: the chat page's thread (the stream, tool calls, subagents, questions, copy) and its
+ * composer (delivery while the agent works, Stop, the waiting messages), narrow and without the context meter. Its
+ * replies count as seen as they show (`useMarkSeen`).
+ */
+export function DockedThread({
+  companyId,
+  chatId,
+  agentName,
+  admin,
+  placement,
+  onChanged,
+}: {
+  readonly companyId: string;
+  readonly chatId: string;
+  readonly agentName: string;
+  readonly admin: boolean;
+  readonly placement: AgentPlacement | undefined;
+  /** A message was sent, or a turn started or ended. */
+  readonly onChanged: () => void;
+}) {
+  const api = useApi();
+  const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
+  const live = useChatLive(companyId, chatId);
+  const folds = useEarlierConversations(calls, chatId);
+  useMarkSeen(chatId, live.turns);
+  useRunningChange(live.turns.find((turn) => turn.status === 'running')?.id, onChanged);
+  const chat = live.chat;
+  if (chat === undefined) return <Opening detail={live.detail} />;
+  const actions = chatActions(calls, live, chat, onChanged);
+  const view = queueView(live, chat);
+  const closed = closedWhy(chat, admin, placement);
+  return (
+    <>
+      <ChatThread
+        dense
+        turns={view.thread}
+        agentName={agentName}
+        chatInit={live.detail.data?.init ?? undefined}
+        answering={{ answer: actions.answer, closed }}
+        history={{ live: live.earlier, folds }}
+      />
+      <Composer
+        dense
+        running={view.running !== undefined}
+        choices={view.choices}
+        disabled={closed}
+        placeholder={asking(view.thread) ? 'Answer above, or write here' : `Message ${agentName}`}
+        onSend={async (prompt, delivery) => {
+          await actions.send(prompt, delivery);
+          onChanged();
+        }}
+        onStop={actions.stop}
+        queue={<QueuedMessages queue={view.queue} actions={queueActions(calls, live, chat, view.running)} />}
+      />
+    </>
+  );
+}

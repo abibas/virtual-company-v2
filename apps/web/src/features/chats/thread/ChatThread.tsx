@@ -61,6 +61,8 @@ export interface ChatThreadProps {
   readonly branching?: Branching | undefined;
   /** A line at the thread's top (a branch's "Branched from"). */
   readonly lead?: ReactNode;
+  /** Narrow (the right rail's docked chat): tighter margins. */
+  readonly dense?: boolean;
 }
 
 /** How the replies branch: the chat's harness (how far it forks) and the action on a turn. */
@@ -119,6 +121,7 @@ export function ChatThread({
   history,
   branching,
   lead,
+  dense = false,
 }: ChatThreadProps) {
   const current = currentOf(turns);
   const streaming = current.some((turn) => turn.status === 'running');
@@ -136,7 +139,10 @@ export function ChatThread({
         ref={follow.box}
         onScroll={follow.onScroll}
         aria-busy={streaming || undefined}
-        className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-4 select-text [overflow-anchor:none] md:px-8"
+        className={cx(
+          'scroll-quiet min-h-0 flex-1 overflow-y-auto select-text [overflow-anchor:none]',
+          dense ? 'px-2 pt-4 pb-3' : 'px-4 pt-6 pb-4 md:px-8',
+        )}
       >
         {lead && <div className={cx(THREAD_WIDTH, 'mb-6')}>{lead}</div>}
         {empty ? (
@@ -144,9 +150,9 @@ export function ChatThread({
             Write to {agentName} below. It answers from its folder on its machine, with its own tools.
           </EmptyState>
         ) : (
-          <div className={cx(THREAD_WIDTH, 'grid gap-8')}>
+          <div className={cx(THREAD_WIDTH, 'grid', dense ? 'gap-6' : 'gap-8')}>
             <Above history={history} root={follow.box} onLoadOlder={loadOlder} agentName={agentName} />
-            <ol ref={follow.content} className="grid gap-8">
+            <ol ref={follow.content} className={cx('grid', dense ? 'gap-6' : 'gap-8')}>
               {current.map((turn, index) => (
                 <TurnView
                   key={turn.id}

@@ -1057,6 +1057,57 @@ checks and refusals, the credential's use, the standing instructions, the stream
   server's start, a waiting message of a task's conversation where nothing runs fails (`app.ts`'s `reapTurns`) and is
   reported to the hook the same way.
 
+## Your direct reports in the rail
+
+Built 2026-11-12 (Ihor's ask: "a chat to PM … in shortcuts for me … chats with my direct reports"). The chats he has all
+the time sit in the right rail of every company page, beside the Inbox (docs/processes.md "Built in S6b").
+
+- **Who shows.** The viewer's direct reports who are agents: the principals whose place on the chart reports to the
+  viewer, not archived (paused ones stay, muted), the Leads (an agent that leads a flow) first, then by name. People who
+  report to the viewer are left out: there are no chats with people. Viewers (the role) read no chats, so they see none;
+  nobody with no direct reports who are agents sees the strip's group or the Chats tab.
+- **The main chat.** An agent's main chat with the viewer is the latest chat the viewer began with it (by `updated_at`,
+  which each sent message moves, as the agent's chat list orders them), not archived, neither a task's conversation
+  (`task_id`) nor a flow's team chat (`flow_id`). Another person's chat with the same agent is theirs. None: the first
+  message from the rail begins one (`POST …/agents/{agentId}/chats`, then the message), as New chat does.
+- **The read.** `GET /api/companies/{companyId}/me/report-chats` (member and above; the chats module,
+  `routes/reports.ts`, `service/reports.ts`, its reads in `repo/reports.ts` and the pure parts in `rules/reports.ts`):
+  per agent its `agent` (id, principal, name, slug, role, status), `team` (the flow it leads with its latest team chat,
+  or null), `chat` (the main chat's id, title, `updatedAt`, or null), `lastTurn` (status and when it last changed),
+  `working` (a turn runs), `question` (the last turn's question is open: the chats' own `openQuestion`), `replyAt` (the end
+  of its latest message turn that is done) and `messageAt` (the viewer's latest message in it, not one Most Wanted
+  queued). Six reads whatever the number of reports; nothing is written, and everything else goes through the chats' own
+  routes. Another company's id is the same 404 as none.
+- **Seen.** A reply is unseen while it ended after both the viewer's last message in the chat and what this browser has
+  seen of that chat: the end of the latest reply shown in the rail or on the chat page, kept per chat in this browser
+  (`mwc.railChats.seen`, shared between its tabs; `features/report-chats/seen.ts`). This browser's first look
+  (`mwc.railChats.since`) counts as seen, so old replies do not light up; there is no table.
+- **The strip** (the rail collapsed): under the inbox and the bell, the reports' icons, at most six (five and "+N", which
+  opens the Chats view), each with a small dot: amber for a question waiting, green pulsing while a turn runs, blue for a
+  reply not seen, none otherwise; the tooltip is the name and role (and the dot's words). A click opens the rail on Chats
+  with that agent.
+- **The Chats view**, a third tab beside Attention and Notifications (with three tabs the others show their icon and count
+  only; its count, blue, is the chats with a question or an unseen reply): a header with the open agent's face, name and
+  role, New chat (admins and owners) and Open full chat (the chat page with this chat), the switcher (every report's
+  icon with its dot) and, for a Lead, With you / Team chat (its flow's team chat, where Most Wanted wakes it; "No team chat
+  yet" before the first wake-up). Under it the chat page's thread and composer, narrow (`dense`): the stream, tool
+  calls, subagents, questions and their answers, copy, delivery while the agent works, Stop and the waiting messages,
+  without the context meter. The agent open last is remembered per company in this browser
+  (`mwc.railChats.agent.<companyId>`). The list is read every 15 seconds while the page is visible, when the tab comes
+  back, after a message and when the open chat's turn starts or ends.
+- **Narrow screens.** Under 80rem the rail is the top bar's drawer; the same Chats tab works there (no strip).
+
+The parts: `apps/web/src/api/report-chats.ts` (`useReportChats`), `features/report-chats/` (`use-report-rail.tsx`, the
+rail's props, called by the inbox's `useCompanyRail`; `ReportStrip`, `ReportFace`, `DockedChats`, `LiveDockedChats`,
+`DockedThread`, `DraftChat`, `standing.ts`, `seen.ts`), the layout's `chats`, `chatsCount` and `strip` props
+(`RightRail`, `RailViews`, `RailStrip`), and `dense` on `ChatThread` and `Composer`. The gallery draws it on samples
+(`pages/design/sample-rail-chats.tsx`; `?inbox=empty` without reports). Tests:
+`apps/server/test/modules/chats/routes/reports.test.ts` (who shows and in which order, never people, paused and archived
+agents; the main chat against an older one, an archived one, another person's, a task's conversation and a team chat;
+the standing turns, a running one and a queued one, a compact, a failed turn, another person's and a system message; an
+open and an answered question; a Lead's team chat, an archived one and another agent's; viewers refused, another
+company's 404, an empty list) and `rules/reports.test.ts`.
+
 ## Tests
 
 - Each connector's tests run every argument and environment combination and parse its fixtures, written from the

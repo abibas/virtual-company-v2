@@ -16,6 +16,7 @@ import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { cx } from '../../components/cx.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { Crumb } from '../../components/layout/Breadcrumbs.tsx';
+import { useMarkSeen } from '../report-chats/seen.ts';
 import { BranchedFrom } from './branch/BranchedFrom.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
@@ -78,7 +79,7 @@ export function asking(thread: readonly ChatTurnWithEvents[]): boolean {
 }
 
 /** Send (with its delivery while a turn runs), Stop, an answer and a profile change, each shown at once. */
-function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: () => void) {
+export function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: () => void) {
   const running = live.turns.find((turn) => turn.status === 'running');
   const first = live.turns.length === 0;
   return {
@@ -187,6 +188,8 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   const live = useChatLive(companyId, chatId);
   const folds = useEarlierConversations(calls, chatId);
   const [mode, setMode] = useState<ChatMode>('chat');
+  // The rail's dot for a direct report's chat clears once its reply shows here.
+  useMarkSeen(chatId, live.turns);
   const chat = live.chat;
   if (chat === undefined) return <Opening crumbs={rest.crumbs} detail={live.detail} />;
   const actions = chatActions(calls, live, chat, rest.onChanged);

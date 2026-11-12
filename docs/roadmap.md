@@ -516,6 +516,17 @@ them, the card answers in place through the chat's answers route, and admins and
 the fake runner only. Merging needs the dev API restarted (the migration runs on start) and the web reloaded; the runner is
 unchanged.
 
+**Direct reports' chats in the right rail: built 2026-11-12 on the `rail-chats` branch, not merged yet** (docs/harness.md
+"Your direct reports in the rail"). Ihor's ask: his chats with his direct reports (the PM first) as shortcuts in the right
+rail. `GET /api/companies/{companyId}/me/report-chats` (member and above, read only, no migration) lists the agents that
+report to the viewer, the Leads first, each with its main chat with the viewer (the latest they began with it, neither a
+task's conversation nor a team chat), whether a turn runs, an open question, its latest reply and the viewer's latest
+message, and a Lead's team chat. The collapsed strip shows their icons under the inbox and the bell with a state dot
+(question amber, working green pulsing, unseen reply blue; seen marks per browser), at most six with "+N"; the rail gets a
+third tab, Chats: the open agent's chat, compact (the chat page's thread and composer, `dense`), a switcher among the
+reports, With you / Team chat for a Lead, New chat and Open full chat; the first message begins a chat when there is none.
+The same tab works in the narrow drawer. Merging needs the dev API restarted (a new route) and the web reloaded.
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.

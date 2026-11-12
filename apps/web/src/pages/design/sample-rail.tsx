@@ -9,17 +9,19 @@ import { EmailSwitch } from '../../features/notifications/EmailSetting.tsx';
 import { MarkAllRead, NotificationsView } from '../../features/notifications/NotificationsView.tsx';
 import { SAMPLE_INBOX, SAMPLE_NOTICES, SAMPLE_TEAMS } from './inbox-sample.ts';
 import { SAMPLE_COMPANY } from './records.ts';
+import { useSampleRailChats } from './sample-rail-chats.tsx';
 
 /**
  * The right rail on sample data, for the gallery's mock pages: the inbox (Approve and Send back take the card away, as
  * the real move would), the notifications (opening one or Mark all read marks them read) and the dock (which makes a
- * sample key). `empty` starts with nothing in either view.
+ * sample key), and the chats with the direct reports (`useSampleRailChats`). `empty` starts with nothing in any view.
  */
 export function useSampleRail(empty: boolean): RightRailProps {
   const [items, setItems] = useState<readonly InboxItem[]>(empty ? [] : SAMPLE_INBOX);
   const [notices, setNotices] = useState<readonly Notification[]>(empty ? [] : SAMPLE_NOTICES);
   const [made, setMade] = useState(30);
   const [email, setEmail] = useState(true);
+  const chats = useSampleRailChats(empty);
   const unread = notices.filter((n) => n.readAt === null).length;
   const read = (ids: readonly string[] | 'all') =>
     setNotices((all) =>
@@ -30,6 +32,7 @@ export function useSampleRail(empty: boolean): RightRailProps {
   const act = async (item: InboxItem, _move: InboxMove) =>
     setItems((all) => all.filter((i) => i.id !== item.id));
   return {
+    ...chats,
     attention: (
       <InboxView
         items={items}

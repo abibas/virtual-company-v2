@@ -93,6 +93,7 @@ export function Composer({
   onStop,
   queue,
   meter,
+  dense = false,
 }: {
   /** A turn of this chat runs: Stop beside Send. */
   readonly running: boolean;
@@ -107,6 +108,8 @@ export function Composer({
   readonly queue?: ReactNode;
   /** The context meter (S5.2), in the card's toolbar, and beside the reason when the box is closed. */
   readonly meter?: ReactNode;
+  /** Narrow (the right rail's docked chat): tighter margins, no keyboard hint. */
+  readonly dense?: boolean;
 }) {
   const [text, setText] = useState('');
   const [delivery, choose] = useDelivery();
@@ -120,7 +123,7 @@ export function Composer({
   };
   if (disabled)
     return (
-      <div className="px-4 pb-4 md:px-8">
+      <div className={dense ? 'px-1 pb-0.5' : 'px-4 pb-4 md:px-8'}>
         <div
           className={cx(
             THREAD_WIDTH,
@@ -134,7 +137,7 @@ export function Composer({
     );
   const shownError = error ?? stop.error;
   return (
-    <form onSubmit={send} className="px-4 pt-1 pb-4 md:px-8">
+    <form onSubmit={send} className={dense ? 'px-1 pt-1 pb-0.5' : 'px-4 pt-1 pb-4 md:px-8'}>
       <div className={cx(THREAD_WIDTH, 'grid gap-2')}>
         {queue}
         {shownError && (
@@ -157,10 +160,10 @@ export function Composer({
           <div className="flex min-h-12 items-center gap-1 py-1.5 pr-2 pl-2.5">
             <DictationButton value={text} onChange={setText} />
             <div className="min-w-0">{meter}</div>
-            <p className="ml-auto hidden pr-1.5 text-2xs text-faint xl:block">
+            <p className={cx('ml-auto hidden pr-1.5 text-2xs text-faint', !dense && 'xl:block')}>
               Enter sends · Shift+Enter for a new line
             </p>
-            <div className="ml-auto flex shrink-0 items-center gap-1.5 xl:ml-0">
+            <div className={cx('ml-auto flex shrink-0 items-center gap-1.5', !dense && 'xl:ml-0')}>
               {running && (
                 <RoundAction
                   label="Stop the agent"

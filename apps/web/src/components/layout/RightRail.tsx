@@ -8,7 +8,10 @@ import { type RailView, RailViews } from './RailViews.tsx';
 
 export type { RailView };
 
-/** What the right rail holds: the inbox (what needs the person) and the notifications, each a view of its own. */
+/**
+ * What the right rail holds: the inbox (what needs the person), the notifications and, when the person has direct
+ * reports who are agents, the chats with them, each a view of its own.
+ */
 export interface RightRailProps {
   /** The Attention view: what needs the person, across their companies. */
   readonly attention: ReactNode;
@@ -22,6 +25,12 @@ export interface RightRailProps {
   readonly notificationsScope?: string | undefined;
   /** Pinned at the foot of the Attention view (quick create); none also hides the strip's "+". */
   readonly dock?: ReactNode;
+  /** The Chats view: a chat with one of the person's direct reports; none hides its tab. */
+  readonly chats?: ReactNode;
+  /** The Chats tab's count (blue): the chats that wait for the person. */
+  readonly chatsCount?: number | undefined;
+  /** The collapsed strip's own group under the bell (the direct reports' faces), given the way to open a view. */
+  readonly strip?: ((open: (view: RailView) => void) => ReactNode) | undefined;
 }
 
 /**
@@ -151,7 +160,9 @@ export function RightRail({
           onOpen={openOn}
           onExpand={() => toggle(true)}
           {...(content.dock ? { onCompose } : {})}
-        />
+        >
+          {content.strip?.(openOn)}
+        </RailStrip>
       )}
     </aside>
   );

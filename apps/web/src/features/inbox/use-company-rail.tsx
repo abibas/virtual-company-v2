@@ -12,6 +12,7 @@ import type { RightRailProps } from '../../components/layout/RightRail.tsx';
 import { rememberSent } from '../chats/thread/question/use-question-draft.ts';
 import { EmailSetting } from '../notifications/EmailSetting.tsx';
 import { MarkAllRead, NotificationsView } from '../notifications/NotificationsView.tsx';
+import { useReportRail } from '../report-chats/use-report-rail.tsx';
 import type { InboxMove } from './InboxCard.tsx';
 import { InboxView } from './InboxView.tsx';
 import { LiveQuickTask } from './LiveQuickTask.tsx';
@@ -32,13 +33,14 @@ export interface RailViewer {
  * after a move made from it, a Sign-off's moves sent to the task's own company, an agent's question answered in place
  * through its chat's answers route, S6c), this company's notifications
  * (`useNotifications`, with Mark all read, Show older and the email switch) and, for members and up, the quick-create
- * dock. Answers the props `AppShell` takes for its rail.
+ * dock, and the chats with the person's direct reports (`useReportRail`). Answers the props `AppShell` takes for its rail.
  */
 export function useCompanyRail(viewer: RailViewer): RightRailProps {
   const api = useApi();
   const { companyId, slug } = viewer;
   const inbox = useInbox();
   const live = useNotifications(companyId);
+  const chats = useReportRail(viewer);
   const reloadInbox = inbox.reload;
   const act = useCallback(
     async (item: InboxItem, move: InboxMove) => {
@@ -70,6 +72,7 @@ export function useCompanyRail(viewer: RailViewer): RightRailProps {
     if (notice.readAt === null) void live.markRead([notice.id]).catch(() => undefined);
   };
   return {
+    ...chats,
     attention: (
       <InboxView
         items={inbox.data?.items}

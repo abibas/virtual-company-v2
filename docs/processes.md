@@ -613,6 +613,8 @@ The panel reads `GET /api/me/inbox`, since it says "Across all companies"; the C
 - **The top bar** has no bell: from 80rem nothing sits beside the person. Below 80rem one inbox button (both counts, red
   while something needs you) opens the same two tabs in a drawer, which closes when a card or a notice opens its page.
 - The left rail's muted "Inbox, coming in S6" item is gone.
+- Since 2026-11-12 a third tab, **Chats**, holds the viewer's chats with their direct reports who are agents, and the
+  strip shows their icons under the bell (docs/harness.md "Your direct reports in the rail").
 
 The parts: `apps/web/src/api/inbox.ts` (`useInbox`), `features/inbox/` (`InboxView`, `InboxCard`, `kinds.ts`,
 `QuickTask`, `LeadChips`, `LiveQuickTask`, `use-company-rail.tsx`: the rail's props for a company page),
