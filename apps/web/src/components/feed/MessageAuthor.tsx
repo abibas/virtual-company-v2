@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { formatTime } from '../data/format.ts';
 import { cx } from '../cx.ts';
+import { formatTime } from '../data/format.ts';
 import { BrandMark } from '../layout/Brand.tsx';
 import { Avatar } from '../ui/Avatar.tsx';
 import { AgentIcon, type AgentIconSubject } from './AgentIcon.tsx';
