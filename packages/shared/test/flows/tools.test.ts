@@ -91,6 +91,14 @@ describe('the Lead’s section', () => {
       /^## Leading your team \(from Most Wanted\)\n\nYou lead the flow "DEVBOX delivery"\./,
     );
     for (const tool of LEAD_TOOLS) expect(text).toContain(tool);
-    expect(text.length).toBeLessThan(700);
+    expect(text.length).toBeLessThan(1_200);
+  });
+
+  it('tells it never to wait inside a turn, nor to do a step’s work', () => {
+    const text = leadSection('DEVBOX delivery');
+    expect(text).toContain('Never wait or poll for a step’s agent inside your turn');
+    expect(text).toContain('end your turn: Most Wanted wakes you in your team chat when a task needs you');
+    expect(text).toContain('regular check-ins');
+    expect(text).toContain('Never edit a step’s files or artifacts');
   });
 });

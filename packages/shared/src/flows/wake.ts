@@ -100,6 +100,11 @@ function latestOnly(events: readonly LeadWakeItem[]): LeadWakeItem[] {
   return events.filter((item, index) => last.get(key(item)) === index);
 }
 
+/** How every wake-up ends: act now, then end the turn rather than wait (Most Wanted wakes the Lead again). */
+export const LEAD_WAKE_CLOSING =
+  'Act with your tools now, then end your turn: never wait for a step’s agent, Most Wanted wakes you again. ' +
+  'team_board shows the whole board. Keep your reply to a line or two.';
+
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** The first line: the flow, and what waits for the Lead. */
@@ -140,7 +145,7 @@ export function leadWakeMessage(input: LeadWakeInput): string {
     lines.push(`- And ${plural(hidden, 'more task', 'more tasks')}: read them with team_board.`);
   lines.push(
     '',
-    'Act with your tools now; team_board shows the whole board. Keep your reply to a line or two.',
+    LEAD_WAKE_CLOSING,
   );
   return lines.join('\n');
 }

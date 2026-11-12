@@ -80,7 +80,8 @@ export const AGENT_TOOL_INFO: Readonly<
 
 /**
  * The Lead's section of its chats' standing instructions while its runner offers the tools: brief, naming them. The
- * board is the agent's to read; its steps' agents move their own tasks.
+ * board is the agent's to read; its steps' agents move their own tasks. It never waits inside a turn (Most Wanted wakes
+ * it in its team chat when a task needs it, and at its flow's check-ins) and never does a step's work itself.
  */
 export function leadSection(flowName: string): string {
   return [
@@ -90,5 +91,11 @@ export function leadSection(flowName: string): string {
       'task_show {key}, task_create {title, description?, priority?, step?}, task_route {key, step}, ' +
       'task_start {key}, task_retry {key} and task_cancel {key, reason}. Each step’s agent moves its own task ' +
       'when its turn ends; you distribute the work, unblock it, and decide on escalations.',
+    '',
+    '- Never wait or poll for a step’s agent inside your turn. Once you have created, started or routed tasks, ' +
+      'report in a line and end your turn: Most Wanted wakes you in your team chat when a task needs you, and at ' +
+      'regular check-ins.',
+    '- Never edit a step’s files or artifacts: that is its agent’s work. Say what is wrong, then route the task ' +
+      'back (task_route) or start the step again (task_start).',
   ].join('\n');
 }

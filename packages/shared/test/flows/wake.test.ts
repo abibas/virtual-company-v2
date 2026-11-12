@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LeadWakeKind, LeadWakeOutcome } from '../../src/enums.ts';
 import {
   clipLine,
+  LEAD_WAKE_CLOSING,
   LEAD_WAKE_DEFAULTS,
   LEAD_WAKE_LISTED,
   LEAD_WAKE_REASON_MAX,
@@ -55,7 +56,7 @@ describe('leadWakeMessage', () => {
           'its limit; this time: the tests still fail',
         '  Decide: task_retry / task_route / task_cancel, or ask Ihor Herasko (ask_user_question).',
         '',
-        'Act with your tools now; team_board shows the whole board. Keep your reply to a line or two.',
+        LEAD_WAKE_CLOSING,
       ].join('\n'),
     );
   });
