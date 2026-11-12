@@ -145,6 +145,9 @@ function InboxExample() {
           failed={false}
           companyId={SAMPLE_COMPANY.id}
           onAct={async (item, move) => setSent(`${move.action} ${item.task?.key ?? item.title}`)}
+          onAnswer={async (_, answers) =>
+            setSent(`answered ${answers.map((a) => a.picked.join('+')).join(', ')}`)
+          }
         />
         <div className="flex flex-col gap-2">
           <QuickTask

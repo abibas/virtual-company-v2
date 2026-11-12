@@ -23,6 +23,7 @@ import {
   type PowerControl,
   type RunnerHub,
 } from '../../../src/modules/machines/index.ts';
+import type { Timers } from '../../../src/platform/jobs/runner.ts';
 import type { LocalDocker } from '../../../src/platform/processes/docker/local.ts';
 import type { LocalPower } from '../../../src/platform/processes/power/local.ts';
 import type { Keyring } from '../../../src/platform/secrets/keyring.ts';
@@ -66,6 +67,8 @@ export async function machinesWorld(
     readonly registryFetch?: typeof fetch;
     /** The Docker CLI the server rebuilds container runners with (else none: their command is shown). */
     readonly localDocker?: LocalDocker;
+    /** The Lead wake-up tick's timers (S6c), fired by hand; else the tick does not run. */
+    readonly leadWakeTimers?: Timers;
   } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
@@ -88,6 +91,7 @@ export async function machinesWorld(
     ...(options.providerFetch === undefined ? {} : { providerFetch: options.providerFetch }),
     ...(options.registryFetch === undefined ? {} : { registryFetch: options.registryFetch }),
     localDocker: options.localDocker,
+    ...(options.leadWakeTimers === undefined ? {} : { leadWakeTimers: options.leadWakeTimers }),
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

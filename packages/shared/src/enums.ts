@@ -206,7 +206,9 @@ export type ChatTurnDelivery = z.infer<typeof ChatTurnDelivery>;
  * (`manager_changed`); someone started or stopped reporting to them (`report_added`, `report_removed`); their role
  * changed; their membership was suspended, reactivated or removed; an agent reporting to them was paused, resumed or
  * archived; someone accepted their invitation; a task came to their step or needs their sign-off, was escalated to
- * their team's Lead, or is done (S5.3a).
+ * their team's Lead, or is done (S5.3a); a step's turn ended without a hand-off or is blocked (S5.3b); an agent asks a
+ * question they may answer (`agent_question`), or their team's Lead agent was not woken (`lead_not_woken`: its cap, or it
+ * could not run; S6c).
  */
 export const NotificationKind = z.enum([
   'manager_changed',
@@ -226,6 +228,8 @@ export const NotificationKind = z.enum([
   'task_done',
   'task_turn_ended',
   'task_blocked',
+  'agent_question',
+  'lead_not_woken',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 

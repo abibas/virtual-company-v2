@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { TaskAction, TaskPriority } from '@mwc/shared/enums';
+import { AskQuestions } from '@mwc/shared/harness';
 import { At, PrincipalRefSchema, StepRefSchema } from '../tasks/schemas.ts';
 
 // The inbox's shapes (S6b, docs/processes.md "Built in S6b"): what needs the caller now, computed live from the tasks
@@ -47,6 +48,8 @@ const InboxQuestionSchema = z
     chatTitle: z.string().nullable(),
     /** The task whose conversation asks, if it is one. */
     taskKey: z.string().nullable(),
+    /** The questions with their options (S6c), so the card answers in place (`POST …/chats/{chatId}/answers`). */
+    questions: AskQuestions,
   })
   .openapi('InboxQuestion');
 

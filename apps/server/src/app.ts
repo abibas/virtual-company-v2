@@ -21,7 +21,7 @@ import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from '.
 import { deliverEmails, membershipNoticeHook, notificationsRoutes } from './modules/notifications/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
 import { speechRoutes } from './modules/speech/index.ts';
-import { tasksRoutes, taskTurnHook } from './modules/tasks/index.ts';
+import { leadWakes, tasksRoutes, taskTurnHook } from './modules/tasks/index.ts';
 import { emailFromConfig } from './platform/email/select.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
 import { mountDocs } from './platform/http/docs.ts';
@@ -31,6 +31,7 @@ import { mountWeb } from './platform/http/web.ts';
 import { identityFromConfig } from './platform/identity.ts';
 import { outboxRegistry } from './platform/jobs/outbox-drain.ts';
 import type { ModuleJobs } from './platform/jobs/run.ts';
+import { SYSTEM_TIMERS } from './platform/jobs/runner.ts';
 import { localDockerFromConfig } from './platform/processes/docker/local.ts';
 import { loginHelperFromConfig } from './platform/processes/login-helper/select.ts';
 import type { LocalPower } from './platform/processes/power/local.ts';
@@ -76,8 +77,9 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * is the one passed in (`start.ts`: this server's own driver when MWC_LOCAL_POWER finds the airia CLI), else the runner
  * controllers'; `/api/config` says which (`localPower`). The chats (S5.1b) start their turns through the same hub and
  * share the machines' terminal tickets; the tasks (S5.3b) run their steps through the chats' runtime, whose task
- * conversations report back to the tasks module's hook. Dictation transcribes through the speech passed in (tests: a fake; undefined:
- * off), else this computer's whisper.cpp when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
+ * conversations report back to the tasks module's hook, and (S6c) wake their agent Leads in its team chats.
+ * Dictation transcribes through the speech passed in (tests: a fake; undefined: off), else this computer's whisper.cpp
+ * when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
  * Container runners are rebuilt with the Docker CLI passed in (tests: a fake; undefined: none), else the one
  * MWC_LOCAL_DOCKER finds.
  */
@@ -103,6 +105,7 @@ export function createApp(deps: AppOptions) {
   const hook = taskTurnHook({ ...server, steps: () => chats.taskTurns });
   const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook };
   const chats = chatsRuntime(chatsDeps);
+  startLeadWakes(server, chats.teamChats, deps.leadWakeTimers);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -136,6 +139,22 @@ export function createApp(deps: AppOptions) {
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);
   return routes;
+}
+
+/**
+ * The tick that wakes flows' agent Leads in their team chats (S6c), in this process since it holds the runners' sockets
+ * and the chats' live turns: started when the server runs its background work (MWC_JOBS) or a test passes its timers,
+ * stopped with the server.
+ */
+function startLeadWakes(
+  server: ServerDeps,
+  chats: ReturnType<typeof chatsRuntime>['teamChats'],
+  timers: AppDeps['leadWakeTimers'],
+) {
+  if (!server.config.MWC_JOBS && timers === undefined) return;
+  const wakes = leadWakes({ ...server, chats, timers: timers ?? SYSTEM_TIMERS });
+  wakes.start();
+  server.onShutdown?.(() => wakes.stop());
 }
 
 /** A hub of the app's own, closed with the server (its sockets told the server is going away, their writes done). */

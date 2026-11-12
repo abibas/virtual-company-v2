@@ -46,6 +46,7 @@ describe('POST agents/:agentId/chats', () => {
       branchedFromTurnId: null,
       forkPending: false,
       task: null,
+      flowId: null,
       createdBy: s.company.owner.principalId,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),

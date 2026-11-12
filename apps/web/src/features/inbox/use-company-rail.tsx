@@ -1,12 +1,15 @@
 import type { MembershipRole } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { useCallback, useMemo } from 'react';
+import { chatCalls } from '../../api/chats.ts';
 import { useApi } from '../../api/context.ts';
 import { flowCalls } from '../../api/flows.ts';
 import { type InboxItem, useInbox } from '../../api/inbox.ts';
 import { type Notification, useNotifications } from '../../api/notifications.ts';
+import type { QuestionAnswer } from '../../api/types.ts';
 import type { AgentRef } from '../../components/feed/kinds.ts';
 import type { RightRailProps } from '../../components/layout/RightRail.tsx';
+import { rememberSent } from '../chats/thread/question/use-question-draft.ts';
 import { EmailSetting } from '../notifications/EmailSetting.tsx';
 import { MarkAllRead, NotificationsView } from '../notifications/NotificationsView.tsx';
 import type { InboxMove } from './InboxCard.tsx';
@@ -26,7 +29,8 @@ export interface RailViewer {
 
 /**
  * The right rail of a company's pages (S6b), live: the inbox across the person's companies (`useInbox`, every 30 s and
- * after a move made from it, a Sign-off's moves sent to the task's own company), this company's notifications
+ * after a move made from it, a Sign-off's moves sent to the task's own company, an agent's question answered in place
+ * through its chat's answers route, S6c), this company's notifications
  * (`useNotifications`, with Mark all read, Show older and the email switch) and, for members and up, the quick-create
  * dock. Answers the props `AppShell` takes for its rail.
  */
@@ -47,6 +51,16 @@ export function useCompanyRail(viewer: RailViewer): RightRailProps {
     },
     [api, reloadInbox],
   );
+  const answer = useCallback(
+    async (item: InboxItem, answers: QuestionAnswer[]) => {
+      if (!item.question) return;
+      const { chatId, questionId } = item.question;
+      const turn = await chatCalls(api, item.company.id).answer(chatId, { questionId, answers });
+      rememberSent(questionId, turn.id, answers);
+      reloadInbox();
+    },
+    [api, reloadInbox],
+  );
   const unread = live.data?.unreadCount ?? 0;
   const notices = useMemo(
     () => [...(live.data?.notifications ?? []), ...live.older],
@@ -63,6 +77,7 @@ export function useCompanyRail(viewer: RailViewer): RightRailProps {
         failed={inbox.error !== undefined}
         companyId={companyId}
         onAct={act}
+        onAnswer={answer}
       />
     ),
     attentionCount: inbox.data?.count ?? 0,

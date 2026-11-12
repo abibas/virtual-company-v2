@@ -18,12 +18,21 @@ export interface AuditCaller {
   readonly requestId: string;
 }
 
-/** Logs a chat's change (`create`, `update`, `archive`, `branch`); `before` is null for a new chat. */
-export const auditChat = (t: TenantDb, caller: AuditCaller, row: Chat, action: string, before: Chat | null) =>
+/**
+ * Logs a chat's change (`create`, `update`, `archive`, `branch`); `before` is null for a new chat, `caller` null for one
+ * Most Wanted made itself (S6c: a flow's team chat).
+ */
+export const auditChat = (
+  t: TenantDb,
+  caller: AuditCaller | null,
+  row: Chat,
+  action: string,
+  before: Chat | null,
+) =>
   auditChanges(t, {
-    actorKind: 'user',
-    actorPrincipalId: caller.principalId,
-    requestId: caller.requestId,
+    actorKind: caller === null ? 'system' : 'user',
+    actorPrincipalId: caller?.principalId ?? null,
+    requestId: caller?.requestId ?? null,
     entityType: 'chat',
     entityId: row.id,
     action,

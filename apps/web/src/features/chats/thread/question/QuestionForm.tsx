@@ -25,6 +25,8 @@ interface FormProps {
   /** Why it cannot be sent yet (the agent is still finishing its turn). */
   readonly waiting: string | undefined;
   readonly onSend: (answers: QuestionAnswer[]) => Promise<void>;
+  /** Leaves out the headers' steps (the Inbox's card, S6c): "1 of N" and the arrows still turn the pages. */
+  readonly compact?: boolean;
 }
 
 /** The form's state from its draft, and what each control does. */
@@ -90,7 +92,9 @@ export function QuestionForm(props: FormProps) {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the keys only add shortcuts to the buttons inside.
     <div className="grid gap-3" onKeyDown={f.onKeyDown}>
-      <QuestionSteps questions={props.questions} drafts={f.draft.answers} page={page} onStep={f.goTo} />
+      {!props.compact && (
+        <QuestionSteps questions={props.questions} drafts={f.draft.answers} page={page} onStep={f.goTo} />
+      )}
       <QuestionHead question={question} page={page} count={f.count} onStep={f.goTo} />
       <QuestionOptions
         question={question}

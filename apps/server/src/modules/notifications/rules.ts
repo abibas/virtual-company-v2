@@ -22,7 +22,17 @@ export interface NoticePayload {
   readonly task?: string;
   /** The step a task's notice names, as it was called then. */
   readonly step?: string;
+  /** An agent's question (S6c): the agent's id and the chat it asks in, for its page. */
+  readonly agent?: string;
+  readonly chat?: string;
+  /** Why a Lead agent was not woken (S6c): its cap for the hour or the day, or it could not run. */
+  readonly reason?: LeadNotWokenReason;
+  /** Words kept as they were: the question asked (clipped), or the refusal that kept a Lead from running. */
+  readonly detail?: string;
 }
+
+/** Why a flow's Lead agent was not woken (S6c, `lead_not_woken`). */
+export type LeadNotWokenReason = 'hour_cap' | 'day_cap' | 'unreachable';
 
 /** One notification to write: its kind, who gets it, and what it says. */
 export interface Notice {

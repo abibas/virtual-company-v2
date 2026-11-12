@@ -9,7 +9,8 @@ import { boardCard, holderOf } from './views.ts';
 /**
  * A flow's board (`GET …/flows/{flowId}/board`, docs/processes.md): Queued, then a column per step in order, then Done
  * (the latest `done` closed, with the count of all) and Escalated. Each open column lists its cards the most urgent
- * first, then the oldest; a cancelled task is on no column.
+ * first, then the oldest; a cancelled task is on no column. An open card says when its agent Lead was told of it as it
+ * stands (S6c, `leadNotifiedAt`).
  */
 export async function boardOf(
   deps: { readonly db: DbHandle },
@@ -38,7 +39,12 @@ export async function boardOf(
     t,
     [...open, ...latest].map((task) => task.id),
   );
-  const card = (task: Task) => boardCard(task, byId, flow.leadPrincipalId, names, counts.get(task.id) ?? 0);
+  const told = await repo.wakes.toldOf(
+    t,
+    open.map((task) => task.id),
+  );
+  const card = (task: Task) =>
+    boardCard(task, byId, flow.leadPrincipalId, names, counts.get(task.id) ?? 0, told.get(task.id) ?? null);
   const column = (
     kind: BoardColumnView['kind'],
     title: string,

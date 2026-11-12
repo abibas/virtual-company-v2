@@ -112,6 +112,9 @@ const card = (
     assignee: holder ? ref(holder) : null,
     stepId: step,
     artifacts: round === null ? 0 : round + 1,
+    // The escalated and blocked samples show the "Lead notified" mark (S6c).
+    leadNotifiedAt:
+      state === 'blocked' || (state === null && round !== null) ? ago(Math.max(0, minutes - 1)) : null,
     updatedAt: ago(minutes),
   }) satisfies BoardCard;
 

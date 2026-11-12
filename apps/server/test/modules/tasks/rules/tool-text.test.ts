@@ -31,6 +31,7 @@ const card = (key: string, more: Partial<BoardView['columns'][number]['cards'][n
   assignee: null,
   stepId: null,
   artifacts: 0,
+  leadNotifiedAt: null,
   updatedAt: '2026-11-11T10:00:00.000Z',
   ...more,
 });

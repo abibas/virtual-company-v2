@@ -1,8 +1,18 @@
 import { FlowStepKind, StepOnReturn, StepStarts } from '@mwc/shared/enums';
-import { FLOW_NAME, SEND_BACK_LIMIT, STEP_NAME } from '@mwc/shared/flows';
+import { FLOW_NAME, LEAD_WAKE, LEAD_WAKE_DEFAULTS, SEND_BACK_LIMIT, STEP_NAME } from '@mwc/shared/flows';
 import { newId } from '@mwc/shared/ids';
 import { type SQL, sql } from 'drizzle-orm';
-import { type AnyPgColumn, check, index, integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  type AnyPgColumn,
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  text,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
 import { principals } from './principals.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
@@ -16,7 +26,9 @@ const within = (value: SQL | AnyPgColumn, range: { readonly min: number; readonl
 
 /**
  * A team's flow (S5.3a, docs/processes.md): its Lead, the manager on the chart whose team it is (a person or an agent;
- * one flow per Lead for now), and its name. Its steps are `flow_steps`, its tasks `tasks`.
+ * one flow per Lead for now), and its name. Its steps are `flow_steps`, its tasks `tasks`. Since S6c an agent Lead wakes
+ * up by itself in its team chat (`lead_wake_events`): which events wake it, the quiet window that coalesces them, and
+ * the caps on wake-ups per hour and per day (`wake_*`, defaults `LEAD_WAKE_DEFAULTS`).
  */
 export const flows = pgTable(
   'flows',
@@ -25,6 +37,21 @@ export const flows = pgTable(
     companyId: companyIdColumn(),
     leadPrincipalId: uuid('lead_principal_id').notNull(),
     name: text('name').notNull(),
+    /** Wake the Lead agent when a task is escalated to it (S6c). */
+    wakeEscalated: boolean('wake_escalated').notNull().default(LEAD_WAKE_DEFAULTS.escalated),
+    /** ... when a task is blocked at its step. */
+    wakeBlocked: boolean('wake_blocked').notNull().default(LEAD_WAKE_DEFAULTS.blocked),
+    /** ... when a step's turn ended without a hand-off. */
+    wakeTurnEnded: boolean('wake_turn_ended').notNull().default(LEAD_WAKE_DEFAULTS.turnEnded),
+    /** ... when a task is done (a digest). */
+    wakeDone: boolean('wake_done').notNull().default(LEAD_WAKE_DEFAULTS.done),
+    /** ... when a task has waited this many hours for a person's sign-off; null: never. */
+    wakeSignoffHours: integer('wake_signoff_hours'),
+    /** Events within this many seconds of the first go as one wake-up. */
+    wakeWindowSeconds: integer('wake_window_seconds').notNull().default(LEAD_WAKE.windowSeconds.default),
+    /** At most this many wake-ups an hour, and a day; past either, the Lead's nearest person is told instead. */
+    wakeMaxPerHour: integer('wake_max_per_hour').notNull().default(LEAD_WAKE.perHour.default),
+    wakeMaxPerDay: integer('wake_max_per_day').notNull().default(LEAD_WAKE.perDay.default),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -35,6 +62,13 @@ export const flows = pgTable(
     tenantForeignKey('flows_lead_fk', t.companyId, t.leadPrincipalId, principals),
     tenantForeignKey('flows_created_by_fk', t.companyId, t.createdBy, principals),
     check('flows_name_check', within(sql`char_length(${t.name})`, FLOW_NAME)),
+    check(
+      'flows_wake_signoff_hours_check',
+      sql`${t.wakeSignoffHours} is null or ${within(t.wakeSignoffHours, LEAD_WAKE.signoffHours)}`,
+    ),
+    check('flows_wake_window_check', within(t.wakeWindowSeconds, LEAD_WAKE.windowSeconds)),
+    check('flows_wake_per_hour_check', within(t.wakeMaxPerHour, LEAD_WAKE.perHour)),
+    check('flows_wake_per_day_check', within(t.wakeMaxPerDay, LEAD_WAKE.perDay)),
   ],
 );
 

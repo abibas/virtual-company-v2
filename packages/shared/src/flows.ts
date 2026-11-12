@@ -5,7 +5,8 @@ import type { FlowStepKind, PrincipalKind, StepOnReturn } from './enums.ts';
  * share, a task's key (`flows/keys.ts`), and a flow's written form, the text table people and agents read (the web,
  * `mwc flow show`, a step's prompt and, from S6, the agents' tools write the same text). The enums are `flows/enums.ts`,
  * re-exported by `@mwc/shared/enums`, and the limits are `flows/limits.ts`; a step's run (S5.3b) adds its prompt
- * (`flows/prompt.ts`) and its artifacts (`flows/artifacts.ts`), and S6a the agents' tools (`flows/tools.ts`).
+ * (`flows/prompt.ts`) and its artifacts (`flows/artifacts.ts`), S6a the agents' tools (`flows/tools.ts`) and S6c the
+ * Lead's wake-ups (`flows/wake.ts`).
  */
 
 export * from './flows/artifacts.ts';
@@ -14,6 +15,7 @@ export * from './flows/keys.ts';
 export * from './flows/limits.ts';
 export * from './flows/prompt.ts';
 export * from './flows/tools.ts';
+export * from './flows/wake.ts';
 
 /** One step as the written form reads it. */
 export interface WrittenStep {

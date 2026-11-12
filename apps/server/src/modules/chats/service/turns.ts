@@ -47,9 +47,13 @@ export interface TurnsDeps extends TargetDeps {
   readonly tasks?: TaskTurnHook | undefined;
 }
 
-/** Who starts or stops a turn: their principal. */
+/**
+ * Who starts or stops a turn: their principal; `system` when Most Wanted queues it itself (S6c: a Lead's wake-up, its
+ * principal the agent's own), so the turn shows as Most Wanted's.
+ */
 export interface TurnCaller {
   readonly principalId: string;
+  readonly system?: boolean | undefined;
 }
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
@@ -142,6 +146,7 @@ export async function startTurn(
       credentialId: target.credentialId,
       startedAt: now,
       createdBy: caller.principalId,
+      system: caller.system === true,
     },
     how,
   );

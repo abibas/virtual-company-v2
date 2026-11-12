@@ -23,6 +23,7 @@ export function chatView(row: Chat): ChatView {
       row.taskId === null || row.taskStepId === null || row.taskRound === null
         ? null
         : { taskId: row.taskId, stepId: row.taskStepId, round: row.taskRound },
+    flowId: row.flowId,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -39,6 +40,7 @@ export function turnView(row: ChatTurn): ChatTurnView {
     prompt: row.prompt,
     status: row.status,
     delivery: row.delivery,
+    system: row.system,
     profileId: row.profileId,
     credentialId: row.credentialId,
     startedAt: iso(row.startedAt),

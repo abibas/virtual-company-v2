@@ -5,14 +5,15 @@ import { artifactRoutes } from './routes/artifacts.ts';
 import { boardRoutes } from './routes/board.ts';
 import { flowRoutes } from './routes/flows.ts';
 import { taskRoutes } from './routes/tasks.ts';
+import { wakeRoutes } from './routes/wakes.ts';
 import type { RunDeps } from './service/runs.ts';
 import { tasksService } from './service.ts';
 
 /**
  * The tasks module's routes (S5.3a, docs/processes.md): a team's flow and its steps (`routes/flows.ts`), its written
  * form and board (`routes/board.ts`), its tasks (`routes/tasks.ts`), their moves (`routes/actions.ts`) and (S5.3b)
- * their artifacts (`routes/artifacts.ts`). With the chats module's `steps` (`app.ts`), a move that starts a task at an
- * agent's step runs it.
+ * their artifacts (`routes/artifacts.ts`), and (S6c) the Lead's wake-up settings (`routes/wakes.ts`). With the chats
+ * module's `steps` (`app.ts`), a move that starts a task at an agent's step runs it.
  */
 export function tasksRoutes(deps: ServerDeps & Pick<RunDeps, 'steps'>) {
   const tasks = tasksService(deps);
@@ -21,5 +22,6 @@ export function tasksRoutes(deps: ServerDeps & Pick<RunDeps, 'steps'>) {
     .route('/', boardRoutes(deps, tasks))
     .route('/', taskRoutes(deps, tasks))
     .route('/', actionRoutes(deps, tasks))
-    .route('/', artifactRoutes(deps, tasks));
+    .route('/', artifactRoutes(deps, tasks))
+    .route('/', wakeRoutes(deps, tasks));
 }

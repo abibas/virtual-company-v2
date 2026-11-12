@@ -9,6 +9,7 @@ import { Textarea } from '../../components/forms/Input.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { PRIORITY } from '../flows/words.ts';
+import { type InboxAnswer, InboxQuestion } from './InboxQuestion.tsx';
 import { INBOX_KIND } from './kinds.ts';
 
 /** A Sign-off's move from the inbox: approve it, or send it back with the reason. */
@@ -175,22 +176,28 @@ function useCardMove(item: InboxItem, onAct: (item: InboxItem, move: InboxMove) 
 /**
  * One item of the inbox, compact: its chip, key and age; its title (the task's, or the agent's question), which opens
  * it; where it is and who moved it, with Open; why it waits. A Sign-off the person may decide gets Approve and Send
- * back… in place (`onAct`, the task's actions route) instead of Open. A refusal shows its own words under the buttons.
+ * back… in place (`onAct`, the task's actions route) instead of Open; an agent's question gets its options and Send
+ * in place (`onAnswer`, the chat's answers route, S6c), Open still beside it. A refusal shows its own words under the
+ * buttons.
  */
 export function InboxCard({
   item,
   href,
   company,
   onAct,
+  onAnswer,
 }: {
   readonly item: InboxItem;
   readonly href: string;
   /** The item is in another company than the page's: its name shows. */
   readonly company: boolean;
   readonly onAct: (item: InboxItem, move: InboxMove) => Promise<void>;
+  /** Answers an agent's question in place (S6c); none: Open goes to the chat's card. */
+  readonly onAnswer?: InboxAnswer | undefined;
 }) {
   const move = useCardMove(item, onAct);
   const decides = item.kind === 'signoff' && item.actions.includes('approve');
+  const answers = item.kind === 'question' && item.actions.includes('answer') && onAnswer !== undefined;
   return (
     <article className="flex flex-col gap-1.5 rounded-xl bg-surface p-2.5 shadow-card ring-1 ring-line">
       <CardHead item={item} company={company} />
@@ -203,6 +210,7 @@ export function InboxCard({
       <CardMeta item={item} href={href} open={!decides} />
       {item.reason && <p className="line-clamp-2 text-xs text-ink-2">{item.reason}</p>}
       {decides && <SignOff sendsBack={item.actions.includes('send_back')} act={move} />}
+      {answers && <InboxQuestion item={item} onAnswer={onAnswer} />}
       {move.error && (
         <p role="alert" className="text-xs text-failed">
           {move.error}

@@ -1,6 +1,7 @@
 import { CircleAlert } from 'lucide-react';
 import { useMemo } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
+import { cx } from '../../../components/cx.ts';
 import { formatTime } from '../../../components/data/format.ts';
 import { BranchAction } from '../branch/BranchAction.tsx';
 import type { BranchState } from '../branch/branch-state.ts';
@@ -36,11 +37,28 @@ function FailedBox({ error }: { readonly error: string }) {
   );
 }
 
-/** The person's message: a softly tinted bubble on the right, its delivery note and its actions under it. */
-function PromptBubble({ prompt, note }: { readonly prompt: string; readonly note: string | undefined }) {
+/**
+ * The person's message: a softly tinted bubble on the right, its delivery note and its actions under it. One Most Wanted
+ * queued itself (S6c: a Lead's wake-up) says so above it, in a neutral bubble.
+ */
+function PromptBubble({
+  prompt,
+  note,
+  system,
+}: {
+  readonly prompt: string;
+  readonly note: string | undefined;
+  readonly system: boolean;
+}) {
   return (
     <div className="group/message grid justify-items-end gap-1">
-      <p className="max-w-[80%] rounded-2xl rounded-br-md bg-blue-soft px-4 py-2.5 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap text-ink">
+      {system && <span className="text-2xs font-semibold text-dim">Most Wanted</span>}
+      <p
+        className={cx(
+          'max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap text-ink',
+          system ? 'bg-surface-2 ring-1 ring-line ring-inset' : 'bg-blue-soft',
+        )}
+      >
         {prompt}
       </p>
       <div className="flex min-h-7 items-center gap-2">
@@ -157,7 +175,7 @@ export function TurnView({
   const note = turn.delivery ? STARTED_NOTE[turn.delivery] : undefined;
   return (
     <li className="grid gap-2">
-      {!place.answer && <PromptBubble prompt={turn.prompt} note={note} />}
+      {!place.answer && <PromptBubble prompt={turn.prompt} note={note} system={turn.system} />}
       <Reply turn={turn} model={model} agentName={agentName} runsOn={model.init ?? chatInit} place={place} />
     </li>
   );

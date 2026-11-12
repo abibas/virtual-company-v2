@@ -7,13 +7,17 @@ import type { Loaded } from '../../../api/use-load.ts';
 import { useCompany } from '../../../app/company.ts';
 import { useLocation } from '../../../app/router.tsx';
 import { ErrorBlock, LoadingBlock } from '../../../components/data/LoadState.tsx';
-import { nodeAddress } from '../../../features/flows/access.ts';
+import { leadsTeam, nodeAddress } from '../../../features/flows/access.ts';
 import { companyFlowLinks, type TeamTab } from '../../../features/flows/links.ts';
 import { TeamView, type TeamViewProps } from '../../../features/flows/team/TeamView.tsx';
+import { LiveLeadWakes } from '../../../features/flows/wakes/LiveLeadWakes.tsx';
 
 type Common = Omit<TeamViewProps, 'flow' | 'board' | 'text' | 'onBoardChanged'>;
 
-/** A team with its flow: the board (read again every 30 seconds while visible) and the written form. */
+/**
+ * A team with its flow: the board (read again every 30 seconds while visible), the written form and, for those who lead
+ * the team when the Lead is an agent, the Lead's wake-ups (S6c).
+ */
 function WithFlow({
   common,
   flow,
@@ -23,15 +27,20 @@ function WithFlow({
   readonly flow: Flow;
   readonly loaded: Loaded<Flow | null>;
 }) {
-  const companyId = useCompany().membership.companyId;
+  const { companyId, slug } = useCompany().membership;
   const board = useFlowBoard(companyId, flow.id);
   const text = useFlowText(companyId, flow.id, flow.updatedAt);
+  const wakes =
+    flow.lead.kind === 'agent' && leadsTeam(common.viewer, flow.lead.principalId) ? (
+      <LiveLeadWakes companyId={companyId} slug={slug} flow={flow} calls={common.calls} />
+    ) : undefined;
   return (
     <TeamView
       {...common}
       flow={flow}
       board={board}
       text={text}
+      wakes={wakes}
       onBoardChanged={() => {
         board.reload();
         loaded.reload();

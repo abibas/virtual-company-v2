@@ -72,7 +72,8 @@
         "apps/server/src/modules/identity/repo.ts",
         "apps/server/src/modules/identity/repo/**",
         "apps/server/src/modules/machines/repo/upkeep.ts",
-        "apps/server/src/modules/notifications/repo/delivery.ts"
+        "apps/server/src/modules/notifications/repo/delivery.ts",
+        "apps/server/src/modules/tasks/repo/wakes-due.ts"
       ],
       "linter": {
         "rules": {

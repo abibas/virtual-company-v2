@@ -32,6 +32,9 @@ export type NewTask = InferRequestType<TaskRoutes['$post']>['json'];
 export type TaskChanges = InferRequestType<TaskRoutes[':taskId']['$patch']>['json'];
 export type TaskMove = InferRequestType<TaskRoutes[':taskId']['actions']['$post']>['json'];
 export type TaskMoved = InferResponseType<TaskRoutes[':taskId']['actions']['$post'], 200>;
+/** S6c: a flow's Lead wake-ups (its settings, its last wake-up, its counts) and the settings a PUT sends. */
+export type LeadWakes = InferResponseType<FlowRoutes[':flowId']['lead-wakes']['$get'], 200>;
+export type LeadWakeSettings = InferRequestType<FlowRoutes[':flowId']['lead-wakes']['$put']>['json'];
 
 /** How often a board is read again while the page is visible. */
 export const BOARD_EVERY_MS = 30_000;
@@ -95,6 +98,14 @@ export function useFlowText(companyId: string, flowId: string, version: string):
   });
 }
 
+/** A flow's Lead wake-ups (S6c): which events wake its agent Lead, the window, the caps and how they went. */
+export function useLeadWakes(companyId: string, flowId: string): Loaded<LeadWakes> {
+  const api = useApi();
+  return useLoad(`lead-wakes:${companyId}:${flowId}`, () =>
+    call(company(api).flows[':flowId']['lead-wakes'].$get({ param: { companyId, flowId } })),
+  );
+}
+
 /** A task by its key (`T-12`) or id, with its history and the moves the caller may make. */
 export function useTask(companyId: string, taskId: string): Loaded<TaskDetail> {
   const api = useApi();
@@ -114,6 +125,8 @@ export function flowCalls(api: Api, companyId: string) {
       call(flows[':flowId'].$patch({ param: { companyId, flowId }, json: { name } })),
     putSteps: (flowId: string, steps: StepInput[]) =>
       call(flows[':flowId'].steps.$put({ param: { companyId, flowId }, json: { steps } })),
+    putLeadWakes: (flowId: string, settings: LeadWakeSettings) =>
+      call(flows[':flowId']['lead-wakes'].$put({ param: { companyId, flowId }, json: settings })),
     createTask: (task: NewTask) => call(tasks.$post({ param: { companyId }, json: task })),
     editTask: (taskId: string, changes: TaskChanges) =>
       call(tasks[':taskId'].$patch({ param: { companyId, taskId }, json: changes })),

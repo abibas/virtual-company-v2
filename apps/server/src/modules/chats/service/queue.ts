@@ -84,7 +84,15 @@ export async function sendMessage(
   if (waiting.length >= CHAT_QUEUE_MAX) return QUEUE_FULL;
   const turn = await t.transaction(async (tx) => {
     const seq = (await turnsRepo.lastSeq(tx, chat.id)) + 1;
-    const values = { id: newId(), chatId: chat.id, seq, prompt, delivery, createdBy: caller.principalId };
+    const values = {
+      id: newId(),
+      chatId: chat.id,
+      seq,
+      prompt,
+      delivery,
+      createdBy: caller.principalId,
+      system: caller.system === true,
+    };
     return turnsRepo.insert(tx, { ...values, status: 'queued' });
   });
   publish(deps, turn);

@@ -1,4 +1,4 @@
-import { Archive, GitBranch, MessageSquarePlus, MessagesSquare } from 'lucide-react';
+import { Archive, BellRing, GitBranch, MessageSquarePlus, MessagesSquare } from 'lucide-react';
 import { useState } from 'react';
 import type { Chat } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
@@ -24,12 +24,13 @@ export interface ChatListProps {
   readonly onArchive: (chatId: string) => Promise<void>;
 }
 
-/** A chat's title in the list, a branch's after a small branch icon. */
+/** A chat's title in the list, a branch's after a small branch icon, a flow's team chat (S6c) after a bell. */
 function ChatTitle({ chat, open }: { readonly chat: Chat; readonly open: boolean }) {
   return (
     <span
       className={cx('flex min-w-0 items-center gap-1 text-sm font-medium', open ? 'text-ink' : 'text-ink-2')}
     >
+      {chat.flowId && <BellRing size={12} aria-label="Team chat" className="shrink-0 text-blue" />}
       {chat.branchedFromChatId && (
         <GitBranch size={12} aria-label="Branched" className="shrink-0 text-faint" />
       )}

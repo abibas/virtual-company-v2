@@ -2,6 +2,7 @@ import type { InboxItem } from '../../api/inbox.ts';
 import { companyPath } from '../../app/nav.ts';
 import { SkeletonRow } from '../../components/ui/Skeleton.tsx';
 import { InboxCard, type InboxMove } from './InboxCard.tsx';
+import type { InboxAnswer } from './InboxQuestion.tsx';
 
 /**
  * The right rail's Attention view (S6b): what needs the person across their companies, the most urgent first (the
@@ -14,6 +15,7 @@ export function InboxView({
   failed,
   companyId,
   onAct,
+  onAnswer,
 }: {
   readonly items: readonly InboxItem[] | undefined;
   readonly loading: boolean;
@@ -22,6 +24,8 @@ export function InboxView({
   /** The page's company: items of another one name theirs. */
   readonly companyId: string;
   readonly onAct: (item: InboxItem, move: InboxMove) => Promise<void>;
+  /** Answers an agent's question in place (S6c). */
+  readonly onAnswer?: InboxAnswer | undefined;
 }) {
   if (items === undefined && loading) {
     return (
@@ -47,6 +51,7 @@ export function InboxView({
             href={companyPath(item.company.slug, item.link)}
             company={item.company.id !== companyId}
             onAct={onAct}
+            onAnswer={onAnswer}
           />
         </li>
       ))}

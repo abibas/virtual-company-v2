@@ -3,6 +3,7 @@ import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
 import type { Logger } from 'pino';
 import type { EmailSender } from './email/port.ts';
+import type { Timers } from './jobs/runner.ts';
 import type { JobsView } from './jobs/status.ts';
 import type { LocalDocker } from './processes/docker/local.ts';
 import type { LoginHelper } from './processes/login-helper/port.ts';
@@ -73,6 +74,12 @@ export interface AppDeps {
    * Omitted, the sender MWC_EMAIL names (`email/select.ts`): the development outbox, or none.
    */
   readonly email?: EmailSender | undefined;
+  /**
+   * The timers of the Lead wake-up tick (S6c, the tasks module's `leadWakes`); tests pass ones they fire by hand, which
+   * also start the tick. Omitted, Node's own, and the tick runs only when the server runs its background work
+   * (MWC_JOBS).
+   */
+  readonly leadWakeTimers?: Timers;
   /**
    * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
    * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.

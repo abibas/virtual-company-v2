@@ -89,3 +89,20 @@ export type TaskArtifactKind = z.infer<typeof TaskArtifactKind>;
 /** Why the runner left a file of the step's folder out (`turn.artifacts`, docs/runner-protocol.md "Artifacts"). */
 export const ArtifactSkipReason = z.enum(['too_large', 'binary', 'too_many', 'total_limit', 'unreadable']);
 export type ArtifactSkipReason = z.infer<typeof ArtifactSkipReason>;
+
+/**
+ * `lead_wake_events.kind` (S6c, docs/processes.md "Built: the Lead wakes up"): what wakes a flow's Lead agent in its team
+ * chat: a task escalated to it, blocked at its step, a step's turn that ended without a hand-off, a task done (a digest),
+ * or a task that has waited for a person's sign-off over the flow's hours.
+ */
+export const LeadWakeKind = z.enum(['escalated', 'blocked', 'turn_ended', 'done', 'signoff_waiting']);
+export type LeadWakeKind = z.infer<typeof LeadWakeKind>;
+
+/**
+ * `lead_wake_events.outcome` (S6c): waiting for its quiet window (`pending`), told to the Lead in a turn of its team chat
+ * (`woke`), held back by the flow's cap on wake-ups (`capped`), not told because the Lead could not run (`unreachable`: no
+ * placement, no runner, no profile, paused), or let go because the task moved on first or the Lead is no agent now
+ * (`dropped`).
+ */
+export const LeadWakeOutcome = z.enum(['pending', 'woke', 'capped', 'unreachable', 'dropped']);
+export type LeadWakeOutcome = z.infer<typeof LeadWakeOutcome>;

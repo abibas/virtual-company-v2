@@ -13,11 +13,13 @@ import type { ArtifactRow, TasksRepo } from '../repo.ts';
 import type { Transition } from '../rules/machine.ts';
 import { runNotices } from '../rules/notices.ts';
 import { arrivalOf, blocked, conversationTitle, previousEntryAt, type StepChange } from '../rules/runs.ts';
+import { changeWake } from '../rules/wake.ts';
 import { inOrder, roundsAt } from '../rules.ts';
 import { eventRow } from './apply.ts';
 import { AUDIT_IGNORED, type Caller } from './audit.ts';
 import { writtenFlow } from './flows.ts';
 import { rosterOf } from './team.ts';
+import { recordWake } from './wake/record.ts';
 
 /**
  * A step's run (S5.3b, docs/processes.md "Built in S5.3b"): once a move has started a task at an agent's step (a step
@@ -25,7 +27,8 @@ import { rosterOf } from './team.ts';
  * module) with the step's prompt (`stepPrompt` of `@mwc/shared/flows`), as the person whose move started it. A start
  * the chats refuse (no placement, no runner, no profile, …) blocks the task at the step with the refusal's words. Every
  * change a run makes to the task's step state is written here (`applyStepChange`), audited as the system's (or the
- * replier's) and told to the Lead's nearest person when it needs one.
+ * replier's) and told to the Lead's nearest person when it needs one; a block or a turn ended also wakes an agent Lead
+ * (S6c), unless a person stopped the turn.
  */
 
 export interface RunDeps {
@@ -187,6 +190,10 @@ export async function applyStepChange(
   });
   if (change.stepState === 'working') return;
   const kind = change.stepState === 'blocked' ? 'task_blocked' : 'task_turn_ended';
-  const leadPerson = (await rosterOf(tx)).leadPerson(flow.leadPrincipalId);
+  const roster = await rosterOf(tx);
+  const leadPerson = roster.leadPerson(flow.leadPrincipalId);
   await notify(tx, by?.principalId ?? null, runNotices({ taskId: task.id, leadPerson, step, kind }));
+  const reason = change.blockedReason ?? change.event.reason ?? null;
+  const wake = { flow, roster, taskId: task.id, kind: changeWake(change), step: step.name, reason };
+  await recordWake(repo, tx, wake);
 }

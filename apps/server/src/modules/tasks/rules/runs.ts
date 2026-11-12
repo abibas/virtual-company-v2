@@ -59,6 +59,8 @@ export interface StepChange {
   readonly stepState: TaskStepState;
   readonly blockedReason: string | null;
   readonly event: EventDraft;
+  /** True when it wakes nobody (S6c): a person stopped the turn, taking it over. */
+  readonly quiet?: boolean;
 }
 
 const reasonOf = (text: string) =>
@@ -92,11 +94,13 @@ export function turnEnded(
   if (end.status === 'failed') return blocked(task, step, end.error ?? 'The turn failed');
   if (!workingAt(task, step)) return undefined;
   const round = roundsAt(task.rounds, step.id).entries;
-  const reason = end.status === 'stopped' ? 'The turn was stopped' : undefined;
+  const stopped = end.status === 'stopped';
+  const reason = stopped ? 'The turn was stopped' : undefined;
   return {
     stepState: 'ended_without_handoff',
     blockedReason: null,
     event: { kind: 'turn_ended', system: true, to: step, round, reason },
+    ...(stopped ? { quiet: true } : {}),
   };
 }
 

@@ -41,7 +41,7 @@ const keyedByTurn = withCompany.filter((t) => KEYED_BY_TURN.includes(t.name));
 const keyedByAgent = withCompany.filter((t) => KEYED_BY_AGENT.includes(t.name));
 
 describe('the tenant conventions, on every tenant table', () => {
-  it('finds the S1, S2, S4 and S5 tenant tables', () => {
+  it('finds the S1, S2, S4, S5 and S6 tenant tables', () => {
     expect(tenantTables.map((t) => t.name).sort()).toEqual([
       'agent_placements',
       'agents',
@@ -52,6 +52,7 @@ describe('the tenant conventions, on every tenant table', () => {
       'flow_steps',
       'flows',
       'invitations',
+      'lead_wake_events',
       'machine_power_events',
       'machines',
       'memberships',
@@ -154,7 +155,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(52);
+    expect(composite).toBe(56);
   });
 });
 

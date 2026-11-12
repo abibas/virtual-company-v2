@@ -32,6 +32,8 @@ export const BoardCardSchema = z
     stepId: z.string().nullable(),
     /** How many artifacts it has (S5.3b; skipped files left out). */
     artifacts: z.number().int().min(0),
+    /** When its agent Lead was woken about it as it stands now (S6c); null when it was not, or it moved since. */
+    leadNotifiedAt: At.nullable(),
     updatedAt: At,
   })
   .openapi('BoardCard');

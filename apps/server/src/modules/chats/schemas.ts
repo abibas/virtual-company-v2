@@ -69,6 +69,10 @@ export const ChatSchema = z
           "A task's conversation at one of its steps (S5.3b): left out of the agent's chat list, opened from the task; " +
           'null for a chat begun with the agent',
       }),
+    flowId: z.string().nullable().openapi({
+      description:
+        "A flow's team chat with its Lead agent (S6c): the flow whose events wake the Lead here; null for any other chat",
+    }),
     createdBy: z.string().openapi({ description: 'The principal who began it' }),
     createdAt: dateTime,
     updatedAt: dateTime,
@@ -103,6 +107,10 @@ export const ChatTurnSchema = z
         'How a message sent while a turn ran was to reach the agent: `now` (into the running turn; it waits, ' +
         'unchangeable, until the turn takes it, then goes, else starts first), `after` (once the running turn ends) or ' +
         '`interrupt` (the running turn was stopped; it starts first). Null: it started at once',
+    }),
+    system: z.boolean().openapi({
+      description:
+        "Queued by Most Wanted itself, not by a person (S6c: a Lead's wake-up); `createdBy` is then the agent",
     }),
     profileId: z.string().nullable(),
     credentialId: z

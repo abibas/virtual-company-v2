@@ -67,6 +67,7 @@ describe('GET /api/companies/:companyId/inbox: questions', () => {
             count: 2,
             chatTitle: 'Set up the service',
             taskKey: null,
+            questions: [DATABASE, PARTS],
           },
           at: expect.any(String),
         },

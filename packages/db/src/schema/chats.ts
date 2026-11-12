@@ -19,6 +19,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
 import { accessProfiles } from './credentials.ts';
+import { flows } from './flows.ts';
 import { machines } from './machines.ts';
 import { agents } from './org.ts';
 import { principals } from './principals.ts';
@@ -33,7 +34,8 @@ import { users } from './users.ts';
  * sets it (`profile_set_by`), and it goes when the profile does. A branch (migration 0018) is a chat that continues
  * another's conversation from one of its replies: it names that chat and turn, and its first turn forks the session.
  * A task's conversation at a step (migration 0023, S5.3b) is a chat too: it names the task, the step and the round it
- * began in, and stays out of the agent's own chat list.
+ * began in, and stays out of the agent's own chat list. A flow's team chat (migration 0025, S6c) names the flow whose
+ * Lead it is with: the chat where Most Wanted wakes that Lead agent with its team's events.
  */
 
 const n = (value: number) => sql.raw(String(value));
@@ -72,6 +74,8 @@ export const chats = pgTable(
     taskStepId: uuid('task_step_id'),
     /** The round of the step the conversation began in. */
     taskRound: integer('task_round'),
+    /** A flow's team chat with its Lead agent (S6c): the flow; null for any other chat. */
+    flowId: uuid('flow_id'),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -85,6 +89,7 @@ export const chats = pgTable(
     tenantForeignKey('chats_machine_fk', t.companyId, t.machineId, machines),
     tenantForeignKey('chats_created_by_fk', t.companyId, t.createdBy, principals),
     tenantForeignKey('chats_task_fk', t.companyId, t.taskId, tasks),
+    tenantForeignKey('chats_flow_fk', t.companyId, t.flowId, flows),
     check('chats_harness_check', oneOf(t.harness, Harness.options)),
     check(
       'chats_title_check',
@@ -101,7 +106,9 @@ export const chats = pgTable(
     index('chats_agent_idx').on(t.companyId, t.agentId, t.updatedAt),
     index('chats_profile_idx').on(t.profileId),
     index('chats_branched_from_idx').on(t.companyId, t.branchedFromChatId),
+    check('chats_flow_check', sql`${t.flowId} is null or ${t.taskId} is null`),
     index('chats_task_idx').on(t.companyId, t.taskId, t.taskStepId, t.createdAt),
+    index('chats_flow_idx').on(t.companyId, t.flowId, t.createdAt),
   ],
 );
 
@@ -110,7 +117,8 @@ export const chats = pgTable(
  * (plain ids, kept after either goes, like `credential_uses`), its reply, error and token usage. At most one turn of a
  * chat runs at a time; others wait `queued` behind it (S5.2 step 6, migration 0014), each with how it was sent while the
  * agent worked (`delivery`). Its `kind` (S5.2): a person's prompt, the harness's own `/compact`, or a Clear, which runs
- * no process (always `done`, on no credential) and marks where the chat's next turn starts a new conversation.
+ * no process (always `done`, on no credential) and marks where the chat's next turn starts a new conversation. A turn
+ * Most Wanted queued itself (`system`, S6c: a Lead's wake-up) names the agent as its sender and shows as Most Wanted's.
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -124,6 +132,8 @@ export const chatTurns = pgTable(
     status: text('status').$type<ChatTurnStatus>().notNull().default('queued'),
     /** How a message sent while a turn ran was to reach the agent (S5.2 step 6); null for a turn that started at once. */
     delivery: text('delivery').$type<ChatTurnDelivery>(),
+    /** Queued by Most Wanted itself, not by a person (S6c: a Lead's wake-up); `created_by` is then the agent. */
+    system: boolean('system').notNull().default(false),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     startedAt: at('started_at'),

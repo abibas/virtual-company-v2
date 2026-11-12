@@ -79,6 +79,7 @@ export async function questionItems(
           count: open.questions.length,
           chatTitle: chat.title,
           taskKey: chat.taskNumber === null ? null : taskKey(chat.taskNumber),
+          questions: open.questions,
         },
         at: at.toISOString(),
       },

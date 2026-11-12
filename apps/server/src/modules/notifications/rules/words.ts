@@ -58,7 +58,17 @@ const WORDS: Readonly<Record<NotificationKind, Words>> = {
     `${n.name(p.about)} ended its turn on ${taskWords(p, n)}${p.step ? ` at ${p.step}` : ''}; nobody has moved it on yet`,
   task_blocked: (p, n) =>
     `${taskWords(p, n)} is blocked${p.step ? ` at ${p.step}` : ''}: ${n.name(p.about)}'s turn could not start or failed`,
+  agent_question: (p, n) => `${n.name(p.about)} asks: “${p.detail ?? 'a question'}”`,
+  lead_not_woken: (p, n) => leadNotWoken(n.name(p.about), p),
 };
+
+/** A Lead agent that was not woken, and why (S6c): its team's events wait for the person told. */
+function leadNotWoken(lead: string, p: NoticePayload): string {
+  if (p.reason === 'unreachable')
+    return `${lead} could not be woken for its team's tasks: ${p.detail ?? 'it cannot run now'}`;
+  const when = p.reason === 'day_cap' ? 'today' : 'this hour';
+  return `${lead} was not woken for its team's tasks: it had all its wake-ups for ${when}`;
+}
 
 /** The notice's sentence, from its recipient's side (no final period). */
 export function noticeText(
@@ -72,10 +82,18 @@ export function noticeText(
 
 /**
  * Where the notice points, as a path inside the company (`/<slug>/<path>`): a task's page (`tasks/T-12`), an agent's
- * page, the people, or the org chart; null after a removal or suspension, which leave the person without access.
+ * page, the chat an agent asks in, a team's board (`flows/<lead>`), the people, or the org chart; null after a removal
+ * or suspension, which leave the person without access.
  */
 export function noticePath(kind: NotificationKind, payload: NoticePayload, names: Names): string | null {
   if (kind === 'membership_removed' || kind === 'membership_suspended') return null;
+  if (kind === 'agent_question') {
+    return payload.agent && payload.chat ? `chats/${payload.agent}?chat=${payload.chat}` : 'structure/agents';
+  }
+  if (kind === 'lead_not_woken') {
+    const slug = names.agentSlug(payload.about);
+    return slug === undefined ? 'flows' : `flows/${slug}`;
+  }
   if (kind.startsWith('task_')) {
     const task = names.task(payload.task);
     return task === undefined ? 'tasks' : `tasks/${task.key}`;

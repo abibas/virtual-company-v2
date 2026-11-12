@@ -31,7 +31,14 @@ export function useSampleRail(empty: boolean): RightRailProps {
     setItems((all) => all.filter((i) => i.id !== item.id));
   return {
     attention: (
-      <InboxView items={items} loading={false} failed={false} companyId={SAMPLE_COMPANY.id} onAct={act} />
+      <InboxView
+        items={items}
+        loading={false}
+        failed={false}
+        companyId={SAMPLE_COMPANY.id}
+        onAct={act}
+        onAnswer={async (item) => setItems((all) => all.filter((i) => i.id !== item.id))}
+      />
     ),
     attentionCount: items.length,
     notifications: (

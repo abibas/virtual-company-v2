@@ -9,13 +9,14 @@ import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome, withEvent } from '../rules.ts';
+import { noticeQuestion } from './ask-notice.ts';
 import { type ChatBus, chatBus } from './bus.ts';
 import type { AgentToolTurn, TaskTurnContext, TaskTurnHook } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
 
 /**
  * The chats' live turns in this server process (S5.1b): each started turn's sink, which stores the runner's events in
- * order (a `session` event saves the chat's session id, and a branch's forked one ends its `fork_pending`; a question the agent asked is its `question` event, S5.2),
+ * order (a `session` event saves the chat's session id, and a branch's forked one ends its `fork_pending`; a question the agent asked is its `question` event, S5.2, told to the admins, S6c),
  * tells the chat's stream listeners, and on the turn's end closes its row (done, failed or stopped, with the reply and
  * the usage) and seals again a Codex login the process rewrote; and each live turn's channel, which a stop and the
  * person's message mid-turn go through (S5.2 step 6: the harness's `input` event for it removes the message's waiting
@@ -211,7 +212,9 @@ export function chatsLive(deps: LiveDeps) {
         question: ({ seq, questionId, questions }) =>
           void run(async () => {
             const event = { type: 'question', id: questionId, questions } as const;
+            const fresh = (await turnsRepo.lastEventSeq(t, turn.id)) < seq;
             outcome = await stored(l, t, turn, [{ seq, event }], outcome);
+            if (fresh) await noticeQuestion(t, turn.chatId, questions);
           }),
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),

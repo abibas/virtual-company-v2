@@ -183,6 +183,7 @@ export function boardCard(
   leadPrincipalId: string,
   names: Names,
   artifacts = 0,
+  leadNotifiedAt: Date | null = null,
 ): BoardCardView {
   const summary = taskSummary(task, steps, leadPrincipalId, names);
   return {
@@ -196,6 +197,7 @@ export function boardCard(
     assignee: summary.assignee,
     stepId: task.currentStepId,
     artifacts,
+    leadNotifiedAt: leadNotifiedAt?.toISOString() ?? null,
     updatedAt: summary.updatedAt,
   };
 }

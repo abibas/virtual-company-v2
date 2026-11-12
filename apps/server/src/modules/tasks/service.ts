@@ -4,6 +4,7 @@ import type { StepInput } from './rules/steps.ts';
 import { FLOW_NOT_FOUND, taskRef } from './rules.ts';
 import type { CreateFlow } from './schemas/flows.ts';
 import type { CreateTask, EditTask, TaskActionRequest, TaskListQuery } from './schemas/tasks.ts';
+import type { LeadWakeSettingsBody } from './schemas/wakes.ts';
 import { actOnTask } from './service/actions.ts';
 import { artifactFile, listArtifacts } from './service/artifacts.ts';
 import type { Caller } from './service/audit.ts';
@@ -19,6 +20,7 @@ import {
 } from './service/flows.ts';
 import type { RunDeps } from './service/runs.ts';
 import { createTask, editTask, getTask, listTasks } from './service/tasks.ts';
+import { leadWakesOf, putLeadWakes } from './service/wake/settings.ts';
 
 export { type Caller, callerOf } from './service/audit.ts';
 
@@ -29,7 +31,8 @@ export { type Caller, callerOf } from './service/audit.ts';
  * read the chart through the org module's (`service/team.ts`); changes run in one transaction under the flow's lock.
  * A move that starts a task at an agent's step runs it through the chats module's `steps` (S5.3b, `service/runs.ts`),
  * whose turns report back through `taskTurnHook` (`service/hook.ts`); the artifacts they leave are
- * `service/artifacts.ts`'s.
+ * `service/artifacts.ts`'s. Since S6c an agent Lead wakes up by itself (`service/wake/`): its settings here, the events
+ * written by the moves and the runs, and the tick that tells them (`leadWakes`, started by `createApp`).
  */
 export function tasksService(deps: RunDeps) {
   const repo = tasksRepo;
@@ -69,6 +72,9 @@ export function tasksService(deps: RunDeps) {
     artifacts: (t: TenantDb, ref: string) => listArtifacts(deps, repo, t, taskRef(ref)),
     artifact: (t: TenantDb, ref: string, artifactId: string) =>
       artifactFile(repo, t, taskRef(ref), artifactId),
+    leadWakes: (t: TenantDb, flowId: string, now: Date) => leadWakesOf(repo, t, flowId, now),
+    putLeadWakes: (t: TenantDb, caller: Caller, flowId: string, settings: LeadWakeSettingsBody, now: Date) =>
+      putLeadWakes(repo, t, caller, { flowId, settings, now }),
   };
 }
 

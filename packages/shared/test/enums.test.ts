@@ -73,7 +73,8 @@ describe('enums', () => {
     expect(ChatTurnStatus.options).toEqual(['queued', 'running', 'done', 'failed', 'stopped']);
     expect(ChatTurnKind.options).toEqual(['message', 'compact', 'clear']);
     expect(ChatTurnDelivery.options).toEqual(['now', 'after', 'interrupt']);
-    expect(NotificationKind.options).toHaveLength(17);
+    expect(NotificationKind.options).toHaveLength(19);
+    expect(NotificationKind.options.slice(-2)).toEqual(['agent_question', 'lead_not_woken']);
     expect(NotificationEmailStatus.options).toEqual(['pending', 'sent', 'failed', 'skipped']);
     expect(HoldSource.options).toEqual(['server', 'live_runs']);
     expect(PowerEventAction.options).toEqual([

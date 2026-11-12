@@ -24,6 +24,7 @@ import type { ChatView } from '../../../src/modules/chats/schemas.ts';
 import { credentialSecrets } from '../../../src/modules/credentials/index.ts';
 import type { SubscriptionView } from '../../../src/modules/credentials/schemas.ts';
 import type { HubOptions } from '../../../src/modules/machines/index.ts';
+import type { Timers } from '../../../src/platform/jobs/runner.ts';
 import { ephemeralKeyring, type Keyring } from '../../../src/platform/secrets/keyring.ts';
 import { FakeProvider } from '../credentials/providers.ts';
 import { enroll } from '../machines/machines.ts';
@@ -39,10 +40,13 @@ export interface ChatsWorld extends MachinesWorld {
   readonly provider: FakeProvider;
 }
 
-export async function chatsWorld(hubOptions: HubOptions = {}): Promise<ChatsWorld> {
+export async function chatsWorld(
+  hubOptions: HubOptions = {},
+  options: { readonly leadWakeTimers?: Timers } = {},
+): Promise<ChatsWorld> {
   const keyring = ephemeralKeyring();
   const provider = new FakeProvider();
-  const w = await machinesWorld(hubOptions, { keyring, providerFetch: provider.fetch });
+  const w = await machinesWorld(hubOptions, { keyring, providerFetch: provider.fetch, ...options });
   return { ...w, keyring, provider };
 }
 

@@ -1,6 +1,6 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { Pencil, Plus, Workflow } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import type { Board, Flow, FlowCalls } from '../../../api/flows.ts';
 import type { ChartNode, OrgChart } from '../../../api/types.ts';
 import type { Loaded } from '../../../api/use-load.ts';
@@ -40,9 +40,11 @@ export interface TeamViewProps {
   /** The flow was made or changed: read it (and its board) again. */
   readonly onFlowSaved: (flow: Flow) => void;
   readonly onBoardChanged: () => void;
+  /** The Flow tab's "Lead wakes up on" section (S6c), for those who lead the team; none hides it. */
+  readonly wakes?: ReactNode;
 }
 
-/** The Flow tab: the drawing and the written form, or the editor in their place. */
+/** The Flow tab: the drawing and the written form, or the editor in their place; then the Lead's wake-ups (S6c). */
 function FlowTab({
   props,
   flow,
@@ -55,17 +57,20 @@ function FlowTab({
   const { links, address } = props;
   if (props.editing && leadsTeam(props.viewer, flow.lead.principalId)) {
     return (
-      <FlowEditor
-        subject={{ kind: 'edit', flow }}
-        chart={props.chart}
-        calls={props.calls}
-        meUserId={props.viewer.userId}
-        onSaved={(saved) => {
-          navigate(links.team(address, 'flow'));
-          props.onFlowSaved(saved);
-        }}
-        onCancel={() => navigate(links.team(address, 'flow'))}
-      />
+      <div className="flex flex-col gap-4">
+        <FlowEditor
+          subject={{ kind: 'edit', flow }}
+          chart={props.chart}
+          calls={props.calls}
+          meUserId={props.viewer.userId}
+          onSaved={(saved) => {
+            navigate(links.team(address, 'flow'));
+            props.onFlowSaved(saved);
+          }}
+          onCancel={() => navigate(links.team(address, 'flow'))}
+        />
+        {props.wakes}
+      </div>
     );
   }
   return (
@@ -74,6 +79,7 @@ function FlowTab({
         <FlowDrawing steps={drawnSteps(flow)} nodes={nodes} />
       </Card>
       {props.text && <FlowText text={props.text} />}
+      {props.wakes}
     </div>
   );
 }

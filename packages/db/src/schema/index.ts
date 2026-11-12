@@ -7,6 +7,7 @@ export * from './company-logos.ts';
 export * from './credentials.ts';
 export * from './flows.ts';
 export * from './identity.ts';
+export * from './lead-wakes.ts';
 export * from './machine-logos.ts';
 export * from './machines.ts';
 export * from './members.ts';

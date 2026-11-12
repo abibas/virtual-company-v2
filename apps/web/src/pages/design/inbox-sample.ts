@@ -108,6 +108,27 @@ export const SAMPLE_INBOX: readonly InboxItem[] = [
       count: 2,
       chatTitle: 'T-15 · Develop · Nightly export',
       taskKey: 'T-15',
+      questions: [
+        {
+          question: 'Which database should the export service use?',
+          header: 'Database',
+          options: [
+            { label: 'PostgreSQL', description: 'The one the other services use' },
+            { label: 'SQLite', description: 'A file beside the service' },
+          ],
+          multiSelect: false,
+        },
+        {
+          question: 'Which formats come first?',
+          header: 'Formats',
+          options: [
+            { label: 'CSV', description: 'Opens in a spreadsheet' },
+            { label: 'JSON', description: 'For other services' },
+            { label: 'Parquet', description: 'For the data team' },
+          ],
+          multiSelect: true,
+        },
+      ],
     },
     at: ago(12),
   },

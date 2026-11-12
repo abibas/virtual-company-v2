@@ -1,4 +1,4 @@
-import { Files } from 'lucide-react';
+import { BellRing, Files } from 'lucide-react';
 import type { DragEvent } from 'react';
 import type { BoardCard } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
@@ -32,7 +32,8 @@ function StatePill({
 /**
  * A task on the board: its key, its priority (unless normal), its artifacts (a files icon and the count) and when it
  * last moved; its title; its step state (pulsing while a turn runs, why it is blocked on hover), its round from the
- * second on, and who has it. It opens the task's page, and the Lead's people drag it to a step.
+ * second on, "Lead notified" once its agent Lead was woken about it as it stands (S6c), and who has it. It opens the
+ * task's page, and the Lead's people drag it to a step.
  */
 export function TaskCard({
   card,
@@ -99,6 +100,15 @@ export function TaskCard({
           {state && <StatePill card={card} look={state} />}
           {card.round !== null && card.round > 1 && (
             <span className="text-2xs font-semibold text-dim">round {card.round}</span>
+          )}
+          {card.leadNotifiedAt && (
+            <span
+              title={`The Lead was told ${ago(card.leadNotifiedAt)} (${formatDateTime(card.leadNotifiedAt)})`}
+              className="inline-flex items-center gap-0.5 text-2xs font-semibold text-blue"
+            >
+              <BellRing size={11} aria-hidden="true" />
+              Lead notified
+            </span>
           )}
           {card.assignee && (
             <span title={card.assignee.name} className="ml-auto">

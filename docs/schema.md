@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 37. Migrations: 25, the last is `0024_task_decisions`.
+Tables: 38. Migrations: 26, the last is `0025_lead_wakes`.
 
 ```mermaid
 erDiagram
@@ -110,6 +110,7 @@ erDiagram
     text prompt "not null"
     text status "not null, default 'queued', queued|running|done|failed|stopped"
     text delivery "nullable, now|after|interrupt"
+    boolean system "not null, default false"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     timestamptz started_at "nullable"
@@ -136,6 +137,7 @@ erDiagram
     uuid task_id FK "nullable"
     uuid task_step_id "nullable"
     integer task_round "nullable"
+    uuid flow_id FK "nullable"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -222,6 +224,14 @@ erDiagram
     uuid company_id FK "not null"
     uuid lead_principal_id FK "not null"
     text name "not null"
+    boolean wake_escalated "not null, default true"
+    boolean wake_blocked "not null, default true"
+    boolean wake_turn_ended "not null, default true"
+    boolean wake_done "not null, default false"
+    integer wake_signoff_hours "nullable"
+    integer wake_window_seconds "not null, default 60"
+    integer wake_max_per_hour "not null, default 6"
+    integer wake_max_per_day "not null, default 40"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -282,6 +292,22 @@ erDiagram
     uuid accepted_by_user_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
+  }
+  lead_wake_events {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid flow_id FK "not null"
+    uuid task_id FK "not null"
+    text kind "not null, escalated|blocked|turn_ended|done|signoff_waiting"
+    text step_name "nullable"
+    text reason "nullable"
+    text outcome "not null, default 'pending', pending|woke|capped|unreachable|dropped"
+    timestamptz seen_at "nullable"
+    timestamptz delivered_at "nullable"
+    uuid chat_id FK "nullable"
+    uuid turn_id "nullable"
+    text detail "nullable"
+    timestamptz created_at "not null, default now()"
   }
   machine_logos {
     uuid company_id PK, FK "not null"
@@ -377,7 +403,7 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
     uuid recipient_principal_id FK "not null"
-    text kind "not null, manager_changed|report_added|report_removed|role_changed|membership_suspended|membership_reactivated|membership_removed|agent_paused|agent_resumed|agent_archived|invitation_accepted|task_at_step|task_signoff|task_escalated|task_done|task_turn_ended|task_blocked"
+    text kind "not null, manager_changed|report_added|report_removed|role_changed|membership_suspended|membership_reactivated|membership_removed|agent_paused|agent_resumed|agent_archived|invitation_accepted|task_at_step|task_signoff|task_escalated|task_done|task_turn_ended|task_blocked|agent_question|lead_not_woken"
     jsonb payload "not null, default '{}'"
     uuid actor_principal_id FK "nullable"
     timestamptz created_at "not null, default now()"
@@ -518,6 +544,7 @@ erDiagram
   chats }o--|| machines : "company_id, machine_id"
   chats }o--|| principals : "company_id, created_by"
   chats }o--o| tasks : "company_id, task_id"
+  chats }o--o| flows : "company_id, flow_id"
   companies }o--o| users : "created_by_user_id"
   company_logos |o--|| companies : "company_id"
   company_logos }o--o| principals : "company_id, updated_by_principal_id"
@@ -538,6 +565,10 @@ erDiagram
   invitations }o--o| users : "accepted_by_user_id"
   invitations }o--o| principals : "company_id, invited_by_principal_id"
   invitations }o--o| principals : "company_id, reports_to_principal_id"
+  lead_wake_events }o--|| companies : "company_id"
+  lead_wake_events }o--|| flows : "company_id, flow_id"
+  lead_wake_events }o--|| tasks : "company_id, task_id"
+  lead_wake_events }o--o| chats : "company_id, chat_id"
   machine_logos }o--|| companies : "company_id"
   machine_logos |o--|| machines : "company_id, machine_id"
   machine_logos }o--o| principals : "company_id, updated_by_principal_id"
@@ -819,6 +850,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `prompt` | `text` | no |  |  |  |
 | `status` | `text` | no | `'queued'` |  | `queued`, `running`, `done`, `failed`, `stopped` |
 | `delivery` | `text` | yes |  |  | `now`, `after`, `interrupt` |
+| `system` | `boolean` | no | `false` |  |  |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `started_at` | `timestamp with time zone` | yes |  |  |  |
@@ -868,6 +900,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `task_id` | `uuid` | yes |  | FK |  |
 | `task_step_id` | `uuid` | yes |  |  |  |
 | `task_round` | `integer` | yes |  |  |  |
+| `flow_id` | `uuid` | yes |  | FK |  |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -884,6 +917,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - (`company_id`, `machine_id`) → `machines` (`company_id`, `id`), on delete no action (`chats_machine_fk`)
   - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chats_created_by_fk`)
   - (`company_id`, `task_id`) → `tasks` (`company_id`, `id`), on delete no action (`chats_task_fk`)
+  - (`company_id`, `flow_id`) → `flows` (`company_id`, `id`), on delete no action (`chats_flow_fk`)
 - **Unique:**
   - `chats_company_id_id_unique` (`company_id`, `id`)
 - **Checks:**
@@ -894,11 +928,13 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chats_branch_check`: `"branched_from_turn_id" is null or "branched_from_chat_id" is not null`
   - `chats_fork_pending_check`: `not "fork_pending" or "session_id" is not null`
   - `chats_task_check`: `("task_id" is null) = ("task_step_id" is null) and ("task_id" is null) = ("task_round" is null) and ("task_round" is null or "task_round" >= 1)`
+  - `chats_flow_check`: `"flow_id" is null or "task_id" is null`
 - **Indexes:**
   - `chats_agent_idx` on (`company_id`, `agent_id`, `updated_at`)
   - `chats_profile_idx` on (`profile_id`)
   - `chats_branched_from_idx` on (`company_id`, `branched_from_chat_id`)
   - `chats_task_idx` on (`company_id`, `task_id`, `task_step_id`, `created_at`)
+  - `chats_flow_idx` on (`company_id`, `flow_id`, `created_at`)
 
 ### `companies`
 
@@ -1082,6 +1118,14 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `company_id` | `uuid` | no |  | FK |  |
 | `lead_principal_id` | `uuid` | no |  | FK |  |
 | `name` | `text` | no |  |  |  |
+| `wake_escalated` | `boolean` | no | `true` |  |  |
+| `wake_blocked` | `boolean` | no | `true` |  |  |
+| `wake_turn_ended` | `boolean` | no | `true` |  |  |
+| `wake_done` | `boolean` | no | `false` |  |  |
+| `wake_signoff_hours` | `integer` | yes |  |  |  |
+| `wake_window_seconds` | `integer` | no | `60` |  |  |
+| `wake_max_per_hour` | `integer` | no | `6` |  |  |
+| `wake_max_per_day` | `integer` | no | `40` |  |  |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1096,6 +1140,10 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `flows_lead_unique` (`company_id`, `lead_principal_id`)
 - **Checks:**
   - `flows_name_check`: `char_length("name") between 1 and 80`
+  - `flows_wake_signoff_hours_check`: `"wake_signoff_hours" is null or "wake_signoff_hours" between 1 and 168`
+  - `flows_wake_window_check`: `"wake_window_seconds" between 0 and 600`
+  - `flows_wake_per_hour_check`: `"wake_max_per_hour" between 1 and 60`
+  - `flows_wake_per_day_check`: `"wake_max_per_day" between 1 and 500`
 - **Indexes:** none
 
 ### `identity_events`
@@ -1221,6 +1269,46 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `invitations_status_check`: `status` is one of `pending`, `accepted`, `revoked`, `expired`, `failed`
 - **Indexes:**
   - `invitations_one_pending_per_email` on (`company_id`, `email_normalized`), unique, where `"status" = 'pending'`
+
+### `lead_wake_events`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `flow_id` | `uuid` | no |  | FK |  |
+| `task_id` | `uuid` | no |  | FK |  |
+| `kind` | `text` | no |  |  | `escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting` |
+| `step_name` | `text` | yes |  |  |  |
+| `reason` | `text` | yes |  |  |  |
+| `outcome` | `text` | no | `'pending'` |  | `pending`, `woke`, `capped`, `unreachable`, `dropped` |
+| `seen_at` | `timestamp with time zone` | yes |  |  |  |
+| `delivered_at` | `timestamp with time zone` | yes |  |  |  |
+| `chat_id` | `uuid` | yes |  | FK |  |
+| `turn_id` | `uuid` | yes |  |  |  |
+| `detail` | `text` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`lead_wake_events_company_id_companies_id_fk`)
+  - (`company_id`, `flow_id`) → `flows` (`company_id`, `id`), on delete no action (`lead_wake_events_flow_fk`)
+  - (`company_id`, `task_id`) → `tasks` (`company_id`, `id`), on delete no action (`lead_wake_events_task_fk`)
+  - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`lead_wake_events_chat_fk`)
+- **Unique:**
+  - `lead_wake_events_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `lead_wake_events_kind_check`: `kind` is one of `escalated`, `blocked`, `turn_ended`, `done`, `signoff_waiting`
+  - `lead_wake_events_outcome_check`: `outcome` is one of `pending`, `woke`, `capped`, `unreachable`, `dropped`
+  - `lead_wake_events_step_name_check`: `char_length("step_name") between 1 and 60`
+  - `lead_wake_events_reason_check`: `char_length("reason") <= 300`
+  - `lead_wake_events_detail_check`: `char_length("detail") between 1 and 2000`
+  - `lead_wake_events_delivered_check`: `("outcome" = 'pending') = ("delivered_at" is null)`
+  - `lead_wake_events_woke_check`: `("outcome" = 'woke') = ("turn_id" is not null) and ("turn_id" is null) = ("chat_id" is null)`
+- **Indexes:**
+  - `lead_wake_events_pending_idx` on (`seen_at`), where `"outcome" = 'pending'`
+  - `lead_wake_events_flow_idx` on (`company_id`, `flow_id`, `delivered_at`)
+  - `lead_wake_events_task_idx` on (`company_id`, `task_id`, `id`)
 
 ### `machine_logos`
 
@@ -1434,7 +1522,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `company_id` | `uuid` | no |  | FK |  |
 | `recipient_principal_id` | `uuid` | no |  | FK |  |
-| `kind` | `text` | no |  |  | `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`, `task_at_step`, `task_signoff`, `task_escalated`, `task_done`, `task_turn_ended`, `task_blocked` |
+| `kind` | `text` | no |  |  | `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`, `task_at_step`, `task_signoff`, `task_escalated`, `task_done`, `task_turn_ended`, `task_blocked`, `agent_question`, `lead_not_woken` |
 | `payload` | `jsonb` | no | `'{}'` |  |  |
 | `actor_principal_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1454,7 +1542,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Unique:**
   - `notifications_company_id_id_unique` (`company_id`, `id`)
 - **Checks:**
-  - `notifications_kind_check`: `kind` is one of `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`, `task_at_step`, `task_signoff`, `task_escalated`, `task_done`, `task_turn_ended`, `task_blocked`
+  - `notifications_kind_check`: `kind` is one of `manager_changed`, `report_added`, `report_removed`, `role_changed`, `membership_suspended`, `membership_reactivated`, `membership_removed`, `agent_paused`, `agent_resumed`, `agent_archived`, `invitation_accepted`, `task_at_step`, `task_signoff`, `task_escalated`, `task_done`, `task_turn_ended`, `task_blocked`, `agent_question`, `lead_not_woken`
   - `notifications_email_status_check`: `email_status` is one of `pending`, `sent`, `failed`, `skipped`
   - `notifications_payload_check`: `jsonb_typeof("payload") = 'object'`
   - `notifications_email_attempts_check`: `"email_attempts" >= 0`

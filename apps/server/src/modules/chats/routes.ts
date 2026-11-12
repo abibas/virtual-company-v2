@@ -18,6 +18,7 @@ import { chatQueue } from './service/drain.ts';
 import { chatsLive } from './service/live.ts';
 import type { TaskTurnHook } from './service/task-hook.ts';
 import { taskTurns } from './service/tasks.ts';
+import { teamChats } from './service/team.ts';
 
 /**
  * What the chats need beyond the server's deps: the runner hub, the terminal tickets, the master keyring and (S5.3b)
@@ -36,7 +37,8 @@ export interface ChatsDeps extends ServerDeps {
  * of this process (their sinks, their stops, the stream's listeners), the queue that starts the next waiting turn when
  * one ends, and (S5.3b) the way the tasks module runs a step (`taskTurns`). Since S5.4 it takes back the turns a
  * stopped server left running as their runners say hello with them (the hub's adopter), and once the grace after its
- * start is over ends those no runner took back (`server_restarted`).
+ * start is over ends those no runner took back (`server_restarted`). Since S6c it wakes a flow's Lead agent in its team
+ * chat for the tasks module (`teamChats`).
  */
 export function chatsRuntime(deps: ChatsDeps) {
   const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
@@ -54,7 +56,7 @@ export function chatsRuntime(deps: ChatsDeps) {
   );
   sweep.unref();
   deps.onShutdown?.(async () => clearTimeout(sweep));
-  return { turns, queue, live, taskTurns: taskTurns(turns) };
+  return { turns, queue, live, taskTurns: taskTurns(turns), teamChats: teamChats({ ...turns, queue }) };
 }
 
 export type ChatsRuntime = ReturnType<typeof chatsRuntime>;

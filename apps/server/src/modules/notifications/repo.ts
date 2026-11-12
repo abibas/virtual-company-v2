@@ -110,6 +110,16 @@ export function notificationsRepo() {
       });
     },
 
+    /** Who may answer an agent's question here (S6c): the active admins and owners, as the answers route allows. */
+    async answerers(t: TenantDb): Promise<string[]> {
+      const rows = await t.selectFields(
+        memberships,
+        { principalId: memberships.principalId },
+        and(eq(memberships.status, 'active'), inArray(memberships.role, ['owner', 'admin'])),
+      );
+      return rows.map((row) => row.principalId);
+    },
+
     /** The memberships of these principals: whose person they are, and how they stand. */
     members(t: TenantDb, ids: readonly string[]) {
       if (ids.length === 0) return Promise.resolve([]);

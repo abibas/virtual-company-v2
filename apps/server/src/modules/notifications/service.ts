@@ -79,6 +79,38 @@ export const membershipNoticeHook = {
   },
 };
 
+/** What an agent's question notice quotes of the first question. */
+export const QUESTION_QUOTE_MAX = 200;
+
+/**
+ * An agent asked a question (S6c): every person who may answer it (the company's active admins and owners, as `POST
+ * …/chats/{chatId}/answers` allows) hears of it, never the agent; it points at the chat. Written by the system.
+ */
+export async function noticeAgentQuestion(
+  t: TenantDb,
+  question: {
+    readonly agentPrincipalId: string;
+    readonly agentId: string;
+    readonly chatId: string;
+    readonly text: string;
+  },
+): Promise<number> {
+  const line = question.text.replace(/\s+/g, ' ').trim();
+  const detail = line.length <= QUESTION_QUOTE_MAX ? line : `${line.slice(0, QUESTION_QUOTE_MAX - 1)}…`;
+  const payload = {
+    about: question.agentPrincipalId,
+    agent: question.agentId,
+    chat: question.chatId,
+    detail,
+  };
+  const recipients = await repo.answerers(t);
+  return notify(
+    t,
+    null,
+    recipients.map((recipient) => ({ kind: 'agent_question' as const, recipient, payload })),
+  );
+}
+
 /** Notifications per page, unless asked for fewer. */
 export const PAGE_SIZE = 20;
 

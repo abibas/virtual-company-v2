@@ -3,9 +3,11 @@ import { notify } from '../../notifications/service.ts';
 import type { TasksRepo } from '../repo.ts';
 import type { EventDraft, Transition } from '../rules/machine.ts';
 import { moveNotices } from '../rules/notices.ts';
+import { moveWake } from '../rules/wake.ts';
 import type { StepRule } from '../rules.ts';
 import { audit, type Caller } from './audit.ts';
 import type { Roster } from './team.ts';
+import { recordWake } from './wake/record.ts';
 
 /** A history row of a task, by `caller` unless it happened by itself (a system row, or no caller). */
 export function eventRow(taskId: string, caller: Pick<Caller, 'principalId'> | null, event: EventDraft) {
@@ -26,7 +28,8 @@ export function eventRow(taskId: string, caller: Pick<Caller, 'principalId'> | n
 /**
  * Writes a move the rules made (`move`) in the caller's transaction, under the flow's and the task's locks: the task's
  * new state, its history rows, the audit rows of what changed, and the notices to the people it concerns (the person
- * it came to, the Lead's nearest person on an escalation, its creator and that person when done).
+ * it came to, the Lead's nearest person on an escalation, its creator and that person when done), and the event that
+ * wakes an agent Lead (S6c: escalated, done).
  */
 export async function applyMove(
   repo: TasksRepo,
@@ -78,5 +81,13 @@ export async function applyMove(
     from: move.from,
   });
   await notify(tx, caller.principalId, notices);
+  await recordWake(repo, tx, {
+    flow,
+    roster: move.roster,
+    taskId: task.id,
+    kind: moveWake(transition.outcome),
+    step: transition.outcome === 'escalated' ? (move.from?.name ?? null) : null,
+    reason: next.escalationReason,
+  });
   return after;
 }

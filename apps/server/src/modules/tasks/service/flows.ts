@@ -109,7 +109,7 @@ export async function createFlow(
 }
 
 /** Locks the flow and checks the caller leads its team: the flow, its steps now and the roster; or the refusal. */
-async function lockedForLead(repo: TasksRepo, tx: TenantDb, caller: Caller, flowId: string) {
+export async function lockedForLead(repo: TasksRepo, tx: TenantDb, caller: Caller, flowId: string) {
   const flow = await repo.flows.lock(tx, flowId);
   if (flow === undefined) return FLOW_NOT_FOUND;
   const roster = await rosterOf(tx);
