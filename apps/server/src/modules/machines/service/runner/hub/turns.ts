@@ -1,23 +1,33 @@
-import type { TurnSpec } from '@mwc/shared/harness';
-import {
-  encodeFrame,
-  type HeldTurn,
-  type ResumedTurn,
-  type ServerFrame,
-  TURN_REATTACH_GRACE_MS,
-  type TurnArtifacts,
-  type TurnEnd,
-  type TurnEventItem,
-  type TurnQuestion,
-  type TurnRunnerFrame,
-} from '@mwc/shared/runner-protocol';
+import { type HeldTurn, TURN_REATTACH_GRACE_MS, type TurnRunnerFrame } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
 import type { RunnerConnection } from '../connection.ts';
-import { type ArtifactAssembler, artifactAssembler, type CollectedArtifact } from './artifacts.ts';
-import { type TurnToolCall, type TurnToolReply, toolCalls } from './tools.ts';
+import { type ArtifactAssembler, artifactAssembler } from './artifacts.ts';
+import { toolCalls } from './tools.ts';
+import { resume } from './turn-resume.ts';
+import {
+  type Binding,
+  endingOf,
+  sendFrame as send,
+  TURN_DISCONNECTED,
+  type TurnAdopter,
+  type TurnChannel,
+  type TurnEnding,
+  type TurnRequest,
+  type TurnSink,
+} from './turn-types.ts';
 
 export type { CollectedArtifact } from './artifacts.ts';
 export type { TurnToolCall, TurnToolReply } from './tools.ts';
+export {
+  TURN_DISCONNECTED,
+  type TurnAdopter,
+  type TurnAsked,
+  type TurnChannel,
+  type TurnCollected,
+  type TurnEnding,
+  type TurnRequest,
+  type TurnSink,
+} from './turn-types.ts';
 
 /**
  * The hub's chat turns (S5.1b, docs/runner-protocol.md "Chat turns"; S5.4, "Surviving restarts"): each turn by its id,
@@ -30,83 +40,9 @@ export type { TurnToolCall, TurnToolReply } from './tools.ts';
  * of an older runner's connection end the turn (`machine_disconnected`). A stop asked while detached goes once the
  * turn is bound again. Once a sink recorded a turn's end, the runner hears `turn.ack`. A task step's collected files
  * (S5.3b) are put together here (`artifacts.ts`) and handed to the sink whole, with what the runner left out. An agent's
- * tool call (S6a, `tools.ts`) goes to the sink and its answer back to the runner.
+ * tool call (S6a, `tools.ts`) goes to the sink and its answer back to the runner. The contracts are `turn-types.ts`'s,
+ * taking turns back on a hello `turn-resume.ts`'s.
  */
-
-/** A turn to start: the server's id and the spec with its credential. */
-export interface TurnRequest {
-  readonly turnId: string;
-  readonly spec: TurnSpec;
-}
-
-/** How a turn ended: `turn.end` without its type and turn id. */
-export type TurnEnding = Omit<TurnEnd, 'type' | 'turnId'>;
-
-/** A question the agent asked (S5.2): `turn.question` without its type and turn id. */
-export type TurnAsked = Omit<TurnQuestion, 'type' | 'turnId'>;
-
-/** What the runner collected and left out of a task step's outputs (S5.3b): `turn.artifacts` without its type. */
-export type TurnCollected = Omit<TurnArtifacts, 'type' | 'turnId'>;
-
-/** Where a turn's frames go, in the order the runner sent them. */
-export interface TurnSink {
-  events(items: readonly TurnEventItem[]): void;
-  /** The agent asked the person, between the events numbered before and after `seq`. */
-  question(asked: TurnAsked): void;
-  /** A collected file, put together and checked (S5.3b); before the end. */
-  artifact?(file: CollectedArtifact): void;
-  /** What the runner collected and left out (S5.3b); after the last file, before the end. */
-  artifacts?(collected: TurnCollected): void;
-  /** An agent's tool call (S6a): the answer the tool returns. */
-  tool?(call: TurnToolCall): Promise<TurnToolReply>;
-  /** The end; nothing follows it. Resolves once it is recorded (then the runner hears `turn.ack`). */
-  end(ending: TurnEnding): void | Promise<void>;
-  /** The highest event number stored so far, once what came before is stored (S5.4). */
-  lastSeq?(): Promise<number>;
-  /** Its runner went away (true: it waits for it) or came back with it (false) (S5.4). */
-  detached?(away: boolean): void;
-  /** A turn taken back after a server restart: its channel, for a stop or a message. */
-  adopted?(channel: TurnChannel): void;
-}
-
-/** One started turn, as its starter drives it. Nothing is sent once it ended. */
-export interface TurnChannel {
-  readonly turnId: string;
-  /** Gives it the person's message (`turn.input`, S5.2 step 6); its echo comes back as an `input` event, or nothing. */
-  input(inputId: string, text: string): void;
-  /** Asks the runner to stop it (`turn.stop`); its `turn.end` follows (while detached, once its runner is back). */
-  stop(): void;
-}
-
-/** Builds the sink of a running turn this process does not hold (after a restart); undefined when there is none. */
-export type TurnAdopter = (
-  runner: { readonly companyId: string; readonly machineId: string },
-  turnId: string,
-) => Promise<TurnSink | undefined>;
-
-/** The end of a turn whose runner went away for good. */
-export const TURN_DISCONNECTED: TurnEnding = { ok: false, exitCode: null, error: 'machine_disconnected' };
-
-/** What a `turn.end` says, without its unknown fields. */
-function endingOf(frame: TurnEnd): TurnEnding {
-  return {
-    ok: frame.ok,
-    exitCode: frame.exitCode,
-    ...(frame.error === undefined ? {} : { error: frame.error }),
-    ...(frame.authJson === undefined ? {} : { authJson: frame.authJson }),
-  };
-}
-
-interface Binding {
-  readonly turnId: string;
-  readonly machineId: string;
-  readonly sink: TurnSink;
-  connection: RunnerConnection | undefined;
-  grace: ReturnType<typeof setTimeout> | undefined;
-  stopWanted: boolean;
-}
-
-const send = (connection: RunnerConnection, frame: ServerFrame) => connection.link.send(encodeFrame(frame));
 
 export function turnBoard(options: { readonly graceMs?: number; readonly logger?: Logger } = {}) {
   const { logger } = options;
@@ -155,33 +91,6 @@ export function turnBoard(options: { readonly graceMs?: number; readonly logger?
         else if (live) live.stopWanted = true;
       },
     };
-  };
-  /** Binds a turn to a connection that took it back: its grace ends, its sink hears it is back. */
-  const bind = (binding: Binding, connection: RunnerConnection) => {
-    clearTimeout(binding.grace);
-    binding.grace = undefined;
-    binding.connection = connection;
-    binding.sink.detached?.(false);
-  };
-  /** The sink of a turn a restarted server takes back, asked of the chats module. */
-  const adoptOne = async (connection: RunnerConnection, turnId: string): Promise<Binding | undefined> => {
-    const runner = { companyId: connection.runner.companyId, machineId: connection.machineId };
-    const sink = await adopter?.(runner, turnId).catch((error: unknown) => {
-      logger?.error({ err: error, turnId }, 'could not take back a turn');
-      return undefined;
-    });
-    if (sink === undefined || bindings.has(turnId)) return undefined;
-    const binding: Binding = {
-      turnId,
-      machineId: connection.machineId,
-      sink,
-      connection,
-      grace: undefined,
-      stopWanted: false,
-    };
-    bindings.set(turnId, binding);
-    sink.adopted?.(channelOf(binding));
-    return binding;
   };
   return {
     /** Starts a turn on the connection (`turn.start`); its frames go to `sink` until it ends. */
@@ -240,42 +149,9 @@ export function turnBoard(options: { readonly graceMs?: number; readonly logger?
         binding.grace.unref?.();
       }
     },
-    /**
-     * A runner's hello (S5.4): each turn it holds is bound to its connection (taken back from the chats module when this
-     * process has none) and `turn.resume` says where to resume, null for a turn the server no longer has; a waiting
-     * turn of its machine it does not hold ends; a stop asked meanwhile goes now.
-     */
-    async resume(connection: RunnerConnection, held: readonly HeldTurn[]): Promise<void> {
-      const named = new Set(held.map((turn) => turn.turnId));
-      for (const binding of [...bindings.values()]) {
-        const waiting = binding.machineId === connection.machineId && binding.connection === undefined;
-        if (waiting && !named.has(binding.turnId)) end(binding, TURN_DISCONNECTED);
-      }
-      if (held.length === 0) return;
-      const turns: ResumedTurn[] = [];
-      const bound: Binding[] = [];
-      for (const { turnId } of held) {
-        const known = bindings.get(turnId);
-        const binding =
-          known === undefined
-            ? await adoptOne(connection, turnId)
-            : known.machineId === connection.machineId
-              ? known
-              : undefined;
-        if (binding === undefined) {
-          turns.push({ turnId, lastSeq: null });
-          continue;
-        }
-        bind(binding, connection);
-        bound.push(binding);
-        turns.push({ turnId, lastSeq: (await binding.sink.lastSeq?.()) ?? 0 });
-      }
-      send(connection, { type: 'turn.resume', turns });
-      for (const binding of bound) {
-        if (!binding.stopWanted || bindings.get(binding.turnId) !== binding) continue;
-        binding.stopWanted = false;
-        send(connection, { type: 'turn.stop', turnId: binding.turnId });
-      }
+    /** A runner's hello (S5.4): the turns it holds are taken back (`turn-resume.ts`). */
+    resume(connection: RunnerConnection, held: readonly HeldTurn[]): Promise<void> {
+      return resume({ bindings, end, channelOf, adopter: () => adopter, logger }, connection, held);
     },
     /** Who builds the sink of a turn a restarted server takes back (the chats module). */
     adopt(next: TurnAdopter): void {

@@ -636,7 +636,7 @@ and for an ended turn sends its task step's files and `turn.end`. `lastSeq: null
 (it failed it after the grace, or never heard of it): the runner stops it by the ladder, sends nothing, and removes its
 folder. A server older than this (no `server.hello.resume`) gets the same: it failed those turns already.
 
-**The server** (`modules/machines/service/runner/hub/turns.ts`, `modules/chats/service/live.ts`, `service/adopt.ts`):
+**The server** (`modules/machines/service/runner/hub/turns.ts` and `hub/turn-resume.ts`, `modules/chats/service/live.ts`, `service/adopt.ts`):
 
 - When the link of a runner that keeps turns (`caps.reattach`) drops, its turns stay `running` and become **detached**
   (the stream sends the turn with `detached: true`, the chat's detail says it, the web's working pill reads
