@@ -1,4 +1,5 @@
 import { type Credential, owned } from '@mwc/db';
+import { isToolKind } from '@mwc/shared/credentials';
 import type { Logger } from 'pino';
 import { credentialsRepo } from '../repo.ts';
 import {
@@ -163,15 +164,17 @@ export function limitsService(deps: LimitsDeps) {
   const repo = credentialsRepo();
   const l: Limits = { deps, secrets: credentialSecrets(deps), inFlight: new Map() };
   return {
-    /** The caller's subscriptions, oldest first, each with its limits (see above). */
+    /** The caller's AI subscriptions, oldest first, each with its limits (see above); tool sign-ins have none. */
     async list(caller: Caller, refresh: boolean): Promise<SubscriptionLimits[]> {
       const rows = await repo.list(owned(deps.db, caller.userId));
       return Promise.all(
-        rows.map(async (row) => {
-          const source = usageSourceOf(row.kind);
-          if (source === 'none') return noLimits(row);
-          return limitsView(row, source, await entryFor(l, row, source, caller, refresh));
-        }),
+        rows
+          .filter((row) => !isToolKind(row.kind))
+          .map(async (row) => {
+            const source = usageSourceOf(row.kind);
+            if (source === 'none') return noLimits(row);
+            return limitsView(row, source, await entryFor(l, row, source, caller, refresh));
+          }),
       );
     },
   };

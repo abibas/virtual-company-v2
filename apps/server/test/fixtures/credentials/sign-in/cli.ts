@@ -1,7 +1,7 @@
 /**
  * Made-up output and files of the official CLIs' logins, shaped like what the pinned versions print and write
- * (claude-code 2.1.308 `claude auth login --claudeai`, codex 0.163.0 `codex login --device-auth`): terminal codes,
- * OSC 8 hyperlinks and carriage returns included. Every token, code and id here is fake; `SECRETS` lists the values
+ * (claude-code 2.1.308 `claude auth login --claudeai`, codex 0.163.0 `codex login --device-auth`, gh 2.103.3
+ * `gh auth login --web` with no terminal): terminal codes, OSC 8 hyperlinks and carriage returns included. Every token, code and id here is fake; `SECRETS` lists the values
  * no response, row or log line may ever contain.
  */
 
@@ -109,6 +109,31 @@ export const CLAUDE_FILES = {
 };
 export const CODEX_FILES = { '.codex/auth.json': JSON.stringify(CODEX_AUTH) };
 
+export const GITHUB_DEVICE_URL = 'https://github.com/login/device';
+export const GITHUB_USER_CODE = 'FA1E-C0DE';
+const GITHUB_TOKEN = 'gho_FAKEgithubTOKENneverSHOWN0123456789';
+
+/** What `gh auth login --web` (gh 2.103.3) prints with no terminal: plain lines on its error stream. */
+export const GITHUB_OUTPUT = {
+  notice: '\n',
+  code: `! First copy your one-time code: ${GITHUB_USER_CODE}\n`,
+  address: `Open this URL to continue in your web browser: ${GITHUB_DEVICE_URL}\n`,
+  success:
+    '✓ Authentication complete.\n- gh config set -h github.com git_protocol https\n✓ Configured git protocol\n' +
+    '! Authentication credentials saved in plain text\n✓ Logged in as ihor-fake\n',
+} as const;
+
+/** What `gh api user --include` prints: the status line, the headers (scopes among them), a blank line, the user. */
+export const GITHUB_USER_INCLUDED =
+  'HTTP/2.0 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nX-Oauth-Scopes: gist, read:org, repo, workflow\r\n' +
+  '\r\n{"login":"ihor-fake","id":1,"name":"Ihor","email":"ihor@example.test"}';
+
+/** The commands GitHub's flow runs once signed in, with what they print. */
+export const GITHUB_RUNS = {
+  'gh auth token --hostname github.com': { code: 0, stdout: `${GITHUB_TOKEN}\n` },
+  'gh api user --include': { code: 0, stdout: GITHUB_USER_INCLUDED },
+};
+
 /** Values that never leave the server: tokens, the pasted code, the id_token. */
 export const SECRETS = [
   CLAUDE_ACCESS,
@@ -117,4 +142,5 @@ export const SECRETS = [
   CODEX_REFRESH,
   CODEX_ID_TOKEN,
   CLAUDE_CODE,
+  GITHUB_TOKEN,
 ];

@@ -4,7 +4,12 @@ import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
 import { chatsRoutes, chatsRuntime, reapTurns as reapChatTurns } from './modules/chats/index.ts';
 import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
-import { credentialsRoutes, signInRoutes } from './modules/credentials/index.ts';
+import {
+  credentialsRoutes,
+  providerFetchFor,
+  signInRoutes,
+  toolCheckJob,
+} from './modules/credentials/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { inboxRoutes } from './modules/inbox/index.ts';
@@ -212,7 +217,9 @@ export function withMemberChart(deps: ServerDeps) {
  * scheduler), their outbox handlers in one registry (companies: create_org,
  * delete_org; members: update_role, remove_member; invitations: invite, revoke_invite), the retry of webhook events and
  * the company reconcile (identity), both with the org chart a membership that starts or ends moves its person on, and
- * the notification emails (S2.9) through the sender passed in (tests) or the one MWC_EMAIL names. The modules export them and only this file composes them, so no
+ * the notification emails (S2.9) through the sender passed in (tests) or the one MWC_EMAIL names, and the tool sign-ins'
+ * daily check (S7.1a) with the keyring passed in (`platform/start.ts`: the app's) and the provider client. The modules
+ * export them and only this file composes them, so no
  * module imports the loop and the loop imports no module.
  */
 export function moduleJobs(
@@ -221,8 +228,11 @@ export function moduleJobs(
   const identity = withMemberChart(deps);
   const email =
     'email' in deps ? deps.email : emailFromConfig(deps.config, deps.logger, { clock: deps.clock });
+  const keyring = deps.keyring ?? envKeyring(deps.config) ?? ephemeralKeyring();
+  const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
   return {
     machines: machineUpkeep(deps),
+    toolChecks: toolCheckJob({ ...deps, keyring, providerFetch }),
     outboxHandlers: outboxRegistry(
       companyOutboxHandlers(deps),
       memberOutboxHandlers(deps),

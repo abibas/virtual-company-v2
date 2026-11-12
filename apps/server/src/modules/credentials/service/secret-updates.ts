@@ -11,6 +11,7 @@ import {
 } from '../rules.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
+import { type FirstCheck, firstCheckColumns, recordFirstCheck } from './first-check.ts';
 import type { SecretDeps } from './secrets.ts';
 
 /**
@@ -97,10 +98,11 @@ export async function setCredentialStatus(
   });
 }
 
-/** A finished login for Sign in again: its secret and the account it signed in to. */
+/** A finished login for Sign in again: its secret and the account it signed in to (and a tool sign-in's check). */
 export type RenewedLogin = KindSecret & {
   readonly accountEmail: string | null;
   readonly accountMeta: AccountMeta;
+  readonly checked?: FirstCheck;
 };
 
 const accountOf = (row: Credential) => ({
@@ -141,7 +143,9 @@ export async function renewCredentialLogin(
       accountEmail: login.accountEmail,
       accountMeta: login.accountMeta,
       updatedAt: deps.clock(),
+      ...firstCheckColumns(login.checked),
     })) as Credential;
+    await recordFirstCheck(repo, tx, row.id, login.checked);
     const entry = { actorKind: 'user', requestId, entityType: 'credential', entityId: row.id } as const;
     await repo.audit(tx, {
       ...entry,

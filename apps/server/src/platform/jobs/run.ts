@@ -6,11 +6,11 @@ import { drainOutbox, type OutboxDrain } from './outbox-drain.ts';
 import { type ReconcileRound, reconcileRound } from './reconcile.ts';
 
 /**
- * One tick of the jobs loop: the machines' upkeep and the notification emails, then the identity outbox, the retry of webhook events and the
- * periodic reconcile, each on its own, so one that fails (logged) never keeps the others from running and never reaches
- * the caller. The work comes from the modules (`ModuleJobs`, composed by `moduleJobs` in app.ts), so the platform imports
- * no module. The last three call the identity provider: with none (MWC_IDENTITY=none) they idle, and the outbox rows
- * wait, untouched; the machines' upkeep and the notification emails run either way.
+ * One tick of the jobs loop: the machines' upkeep, the notification emails and the tool sign-ins' daily check, then the
+ * identity outbox, the retry of webhook events and the periodic reconcile, each on its own, so one that fails (logged)
+ * never keeps the others from running and never reaches the caller. The work comes from the modules (`ModuleJobs`,
+ * composed by `moduleJobs` in app.ts), so the platform imports no module. The last three call the identity provider:
+ * with none (MWC_IDENTITY=none) they idle, and the outbox rows wait, untouched; the first three run either way.
  */
 
 /** A webhook retry pass's counts (the identity module's `retryIdentityEvents`). */
@@ -46,12 +46,22 @@ export interface NotificationEmails {
   readonly waiting: number;
 }
 
+/** A pass of the tool sign-ins' daily check (the credentials module's `toolCheckJob`). */
+export interface ToolSignInChecks {
+  readonly checked: number;
+  readonly active: number;
+  readonly needsSignIn: number;
+  readonly failed: number;
+}
+
 /** What the jobs loop runs from the modules. */
 export interface ModuleJobs {
   /** One pass of the notification emails: each person's batch of a quiet minute, retried with the backoff. */
   notifications(): Promise<NotificationEmails>;
   /** The offline sweep, the hourly prune of machine samples and the power scheduler's step each minute. */
   machines(): Promise<MachineUpkeep>;
+  /** The tool sign-ins due for their daily check, checked with GitHub or Atlassian; null between two passes. */
+  toolChecks(): Promise<ToolSignInChecks | null>;
   /** One registry of every op's outbox handler (`outboxRegistry` of the modules' handler maps). */
   readonly outboxHandlers: OutboxHandlers;
   /** Retries the due webhook inbox events. */
@@ -71,14 +81,15 @@ export interface JobsDeps {
   readonly reconcileIntervalMs: number;
 }
 
-export type JobName = 'machines' | 'notifications' | 'outbox' | 'events' | 'reconcile';
+export type JobName = 'machines' | 'notifications' | 'tools' | 'outbox' | 'events' | 'reconcile';
 
 /** What one tick did, job by job; a job that failed has no entry and is named in `failed`. */
 export interface JobsTick {
-  /** No identity provider: only the machines' upkeep and the notification emails ran. */
+  /** No identity provider: only the machines' upkeep, the notification emails and the tool checks ran. */
   readonly idle: boolean;
   readonly machines?: MachineUpkeep;
   readonly notifications?: NotificationEmails;
+  readonly tools?: ToolSignInChecks | null;
   readonly outbox?: OutboxDrain;
   readonly events?: EventRetry;
   readonly reconcile?: ReconcileRound;
@@ -102,11 +113,12 @@ export async function runJobsOnce(deps: JobsDeps): Promise<JobsTick> {
   }
   const machines = await attempt('machines', () => deps.work.machines());
   const notifications = await attempt('notifications', () => deps.work.notifications());
-  if (deps.identity === undefined) return { idle: true, ...machines, ...notifications, failed };
+  const tools = await attempt('tools', () => deps.work.toolChecks());
+  if (deps.identity === undefined) return { idle: true, ...machines, ...notifications, ...tools, failed };
   const outbox = await attempt('outbox', () => drainOutbox(deps, deps.work.outboxHandlers));
   const events = await attempt('events', () => deps.work.retryEvents());
   const reconcile = await attempt('reconcile', () =>
     reconcileRound({ ...deps, intervalMs: deps.reconcileIntervalMs, reconcile: deps.work.reconcileCompany }),
   );
-  return { idle: false, ...machines, ...notifications, ...outbox, ...events, ...reconcile, failed };
+  return { idle: false, ...machines, ...notifications, ...tools, ...outbox, ...events, ...reconcile, failed };
 }

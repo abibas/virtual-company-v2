@@ -11,6 +11,11 @@ import { settle } from '../../../fixtures/credentials/sign-in/helper.ts';
 
 const parts = (files: Record<string, string> = {}) => ({
   readFile: vi.fn(async (path: string) => files[path]),
+  run: vi.fn(async (argv: readonly string[]) => ({
+    code: 0,
+    stdout: `ran ${argv.join(' ')}`,
+    error: 'dropped',
+  })),
   dispose: vi.fn(async () => {}),
   notFound: 'The tool is missing',
 });
@@ -82,6 +87,14 @@ describe('childSandbox', () => {
     expect(p.readFile).toHaveBeenCalledTimes(2);
   });
 
+  it('runs a short command through its parts, giving its exit code and output only', async () => {
+    const p = parts();
+    const sandbox = sandboxOf(new FakeChild(), p);
+    expect(await sandbox.run(['gh', 'auth', 'token'])).toEqual({ code: 0, stdout: 'ran gh auth token' });
+    expect(p.run).toHaveBeenCalledWith(['gh', 'auth', 'token']);
+    await expect(sandbox.run([])).rejects.toThrow(RangeError);
+  });
+
   it('kills a running CLI with SIGKILL and disposes of the sandbox once, however often it is called', async () => {
     const child = new FakeChild();
     const p = parts();
@@ -118,6 +131,19 @@ describe('runCommand', () => {
     expect(calls[0]?.options).toEqual({ stdio: 'pipe' });
     expect(calls[0]?.child.input.join('')).toBe('FROM node');
     expect(calls[0]?.child.stdinEnded).toBe(true);
+  });
+
+  it('runs in the folder and with the whole environment it is given', async () => {
+    const { spawn, calls } = fakeSpawn((call) => call.child.answer('gho_x\n', 0));
+    const env = { HOME: '/tmp/home', PATH: '/usr/bin' };
+    const result = await runCommand(spawn, 'gh', ['auth', 'token'], {
+      cwd: '/tmp/home',
+      env,
+      timeoutMs: 1000,
+      notFound: 'no gh',
+    });
+    expect(result).toEqual({ code: 0, stdout: 'gho_x\n' });
+    expect(calls[0]?.options).toEqual({ stdio: 'pipe', cwd: '/tmp/home', env });
   });
 
   it('says plainly when the program is missing', async () => {

@@ -33,6 +33,10 @@ describe('sandboxEnv', () => {
       DISABLE_TELEMETRY: '1',
       DISABLE_ERROR_REPORTING: '1',
       NO_UPDATE_NOTIFIER: '1',
+      GH_PROMPT_DISABLED: '1',
+      GH_NO_UPDATE_NOTIFIER: '1',
+      GH_TELEMETRY: 'false',
+      GH_SPINNER_DISABLED: '1',
     });
   });
 });
@@ -50,6 +54,23 @@ describe('localLoginHelper', () => {
       cwd: HOME,
       env: sandboxEnv(HOME, '/usr/local/bin:/usr/bin:/bin'),
       stdio: 'pipe',
+    });
+  });
+
+  it('runs a login that must not prompt with plain pipes, and short commands in the same home and environment', async () => {
+    const w = localWorld();
+    const sandbox = await w.helper.start({ argv: ['gh', 'auth', 'login', '--web'], tty: false });
+    expect(w.calls[0]?.command).toBe('gh');
+    expect(w.calls[0]?.args).toEqual(['auth', 'login', '--web']);
+    const ran = sandbox.run(['gh', 'auth', 'token', '--hostname', 'github.com']);
+    w.calls[1]?.child.answer('gho_FAKE\n', 0);
+    expect(await ran).toEqual({ code: 0, stdout: 'gho_FAKE\n' });
+    expect(w.calls[1]?.command).toBe('gh');
+    expect(w.calls[1]?.args).toEqual(['auth', 'token', '--hostname', 'github.com']);
+    expect(w.calls[1]?.options).toEqual({
+      stdio: 'pipe',
+      cwd: HOME,
+      env: sandboxEnv(HOME, '/usr/local/bin:/usr/bin:/bin'),
     });
   });
 
@@ -82,7 +103,7 @@ describe('localLoginHelper', () => {
     w.calls[0]?.child.failToStart();
     expect(await exit).toEqual({
       code: null,
-      error: 'The sign-in tools (script, claude, codex) are not installed on this server.',
+      error: 'The sign-in tools (script, claude, codex, gh) are not installed on this server.',
     });
   });
 });

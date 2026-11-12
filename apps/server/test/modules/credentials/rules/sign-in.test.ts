@@ -129,7 +129,7 @@ describe('signing in again', () => {
     expect(renewalRefusal('claude', { kind: 'codex_oauth', status: 'active' })).toMatchObject({
       status: 422,
       code: 'sign_in_kind_mismatch',
-      message: 'Sign in with Claude signs in again only to a subscription it added',
+      message: 'Sign in with Claude signs in again only to a sign-in it added',
     });
     expect(renewalRefusal('openai', { kind: 'claude_setup_token', status: 'active' })).toMatchObject({
       code: 'sign_in_kind_mismatch',

@@ -1,5 +1,5 @@
 import { ACCESS_PROFILE_NAME, CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus, Effort, ProfileProvider } from '@mwc/shared/enums';
+import { CredentialKind, CredentialStatus, Effort, ProfileProvider, ToolCheckError } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { MODEL_ID_MAX } from '@mwc/shared/models';
 import { sql } from 'drizzle-orm';
@@ -27,9 +27,9 @@ const lengthWithin = (column: AnyPgColumn, range: { readonly min: number; readon
   sql`char_length(${column}) between ${n(range.min)} and ${n(range.max)}`;
 
 /**
- * Personal credentials (S3.1, docs/subscriptions.md): a person's subscriptions, API keys and gateways. A personal
- * table, owned by a user and never by a company, so it has no `company_id`; code reaches it only through
- * `owned(db, userId)` of `@mwc/db`, which scopes every statement to its owner.
+ * Personal credentials (S3.1, docs/subscriptions.md): a person's subscriptions, API keys and gateways, and since S7.1a
+ * their tool sign-ins (GitHub, Atlassian). A personal table, owned by a user and never by a company, so it has no
+ * `company_id`; code reaches it only through `owned(db, userId)` of `@mwc/db`, which scopes every statement to its owner.
  *
  * The secret is sealed by the server with AES-256-GCM (`key_version` names the master key, `iv` is 12 random bytes per
  * seal, `auth_tag` 16 bytes) and the additional data `credential|<id>|<owner_user_id>|<kind>`, so a row copied onto
@@ -59,6 +59,13 @@ export const credentials = pgTable(
     updatedAt: updatedAt(),
     /** The last time the server opened the secret (a usage check, later a run). */
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    /**
+     * A tool sign-in's last check with its provider (S7.1a: when it was added or signed in again, Check again, and the
+     * daily check); null for the AI kinds, whose limits checks live in the server's memory.
+     */
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+    /** Why that check did not finish (`ToolCheckError`); null when it worked or set the sign-in `needs_sign_in`. */
+    checkError: text('check_error').$type<ToolCheckError>(),
   },
   (t) => [
     check('credentials_kind_check', oneOf(t.kind, CredentialKind.options)),
@@ -68,6 +75,7 @@ export const credentials = pgTable(
     check('credentials_iv_check', sql`octet_length(${t.iv}) = 12`),
     check('credentials_auth_tag_check', sql`octet_length(${t.authTag}) = 16`),
     check('credentials_account_meta_check', sql`jsonb_typeof(${t.accountMeta}) = 'object'`),
+    check('credentials_check_error_check', oneOf(t.checkError, ToolCheckError.options)),
     index('credentials_owner_idx').on(t.ownerUserId, t.createdAt),
   ],
 );
@@ -85,7 +93,7 @@ export const credentialUses = pgTable(
     ownerUserId: uuid('owner_user_id')
       .notNull()
       .references(() => users.id),
-    /** What opened it: `usage_check`, `chat_turn`, `chat_terminal`. */
+    /** What opened it: `usage_check`, `chat_turn`, `chat_terminal`, `tool_check`. */
     purpose: text('purpose').notNull(),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
     /** The company a chat's use was for; null for the owner's own (a usage check). */

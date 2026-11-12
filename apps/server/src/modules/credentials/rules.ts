@@ -1,6 +1,7 @@
 import type { Credential } from '@mwc/db';
-import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
+import { CREDENTIAL_LABEL, CREDENTIAL_PURPOSE, isToolKind } from '@mwc/shared/credentials';
 import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
+import { toolCheckMessage } from './rules/tools.ts';
 import type { KindSecret } from './schemas/secrets.ts';
 import type { AccountMeta, AddSubscription, SubscriptionView, UpdateSubscription } from './schemas.ts';
 
@@ -82,7 +83,10 @@ export function updatedGatewayMeta(before: AccountMeta, change: UpdateSubscripti
 export const changesGateway = (change: UpdateSubscription): boolean =>
   change.baseUrl !== undefined || change.paths !== undefined;
 
-/** A credential as the API shows it: metadata only (a gateway's address and paths), never its secret or sealed columns. */
+/**
+ * A credential as the API shows it: metadata only (a gateway's address and paths, a tool sign-in's account and last
+ * check), never its secret or sealed columns.
+ */
 export function credentialView(row: Credential): SubscriptionView {
   return {
     id: row.id,
@@ -94,6 +98,11 @@ export function credentialView(row: Credential): SubscriptionView {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    checkedAt: row.checkedAt?.toISOString() ?? null,
+    checkError:
+      row.checkError !== null && isToolKind(row.kind)
+        ? { code: row.checkError, message: toolCheckMessage(row.kind, row.checkError) }
+        : null,
   };
 }
 

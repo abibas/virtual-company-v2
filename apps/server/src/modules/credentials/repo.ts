@@ -73,6 +73,11 @@ function recordUse(
   });
 }
 
+/** Records a use in a transaction the caller holds (the first check of a sign-in being stored or renewed). */
+async function insertUse(o: OwnedDb, credentialId: string, purpose: string, at: Date): Promise<void> {
+  await o.insert(credentialUses, { credentialId, purpose, at });
+}
+
 export function credentialsRepo() {
   return {
     list,
@@ -81,6 +86,7 @@ export function credentialsRepo() {
     update,
     remove,
     recordUse,
+    insertUse,
     audit: (o: OwnedDb, entry: OwnedAuditEntry) => o.audit(entry),
   };
 }

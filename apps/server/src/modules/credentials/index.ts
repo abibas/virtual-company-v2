@@ -1,5 +1,6 @@
-// The credentials module: people's own subscriptions, API keys and gateways, sealed under the master key (S3.1), and
-// Sign in with Claude and with OpenAI (S3.2). createApp mounts its routers; the steps after it use the internal
+// The credentials module: people's own subscriptions, API keys and gateways, sealed under the master key (S3.1),
+// Sign in with Claude and with OpenAI (S3.2), and the tool sign-ins (S7.1a: GitHub, Atlassian) with their daily check
+// for the jobs loop (toolCheckJob). createApp mounts its routers; the steps after it use the internal
 // service (storeCredential, useCredentialSecret), and the chats module opens subscriptions for its turns and terminals
 // (credentialsForHarness, S5.1b).
 
@@ -19,4 +20,5 @@ export {
   type StoreCredentialInput,
   type UsedCredential,
 } from './service/secrets.ts';
+export { type ToolChecks, toolCheckJob } from './service/tools/job.ts';
 export { providerFetchFor } from './service/usage/http.ts';

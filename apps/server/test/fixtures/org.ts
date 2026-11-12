@@ -286,6 +286,13 @@ const SECRETS: Readonly<Record<CredentialKind, unknown>> = {
   anthropic_api_key: { apiKey: 'sk-ant-api03-ANTHROPICkeyNEVERshown_abcdef' },
   openai_api_key: { apiKey: 'sk-proj-OPENAIkeyNEVERshown_ghijkl' },
   gateway: { headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' } },
+  github_oauth: { token: 'gho_GHLOGINtokenNEVERshown' },
+  github_token: { token: 'ghp_GHPASTEDtokenNEVERshown' },
+  atlassian_api_token: {
+    site: 'airia.atlassian.net',
+    email: 'ihor@example.com',
+    token: 'ATATT3ATLASSIANtokenNEVERshown',
+  },
 };
 
 /** Asserts a body (or rows) carry no secret of the subscriptions these helpers seal. */
@@ -298,6 +305,9 @@ export function noSecret(value: unknown): void {
     'ANTHROPICkey',
     'OPENAIkey',
     'HEADERvalue',
+    'GHLOGINtoken',
+    'GHPASTEDtoken',
+    'ATLASSIANtoken',
   ]) {
     expect(text).not.toContain(secret);
   }

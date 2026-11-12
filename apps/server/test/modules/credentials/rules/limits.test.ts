@@ -29,6 +29,9 @@ describe('usageSourceOf', () => {
       anthropic_api_key: 'none',
       openai_api_key: 'none',
       gateway: 'none',
+      github_oauth: 'none',
+      github_token: 'none',
+      atlassian_api_token: 'none',
     });
   });
 });

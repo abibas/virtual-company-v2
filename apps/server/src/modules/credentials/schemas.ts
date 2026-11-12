@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { CREDENTIAL_LABEL, DEFAULT_GATEWAY_PATHS, GATEWAY_PATH_MAX } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
+import { CredentialKind, CredentialStatus, ToolCheckError } from '@mwc/shared/enums';
 import { AnthropicApiKey, GatewayHeaders, OpenAiApiKey, SetupToken } from './schemas/secrets.ts';
 
 /**
@@ -42,6 +42,14 @@ export const SubscriptionSchema = z
       .string()
       .nullable()
       .openapi({ format: 'date-time', description: 'The last time the server opened the secret' }),
+    checkedAt: z.string().nullable().openapi({
+      format: 'date-time',
+      description: "A tool sign-in's last check with its provider; null for the AI kinds",
+    }),
+    checkError: z
+      .object({ code: ToolCheckError, message: z.string() })
+      .nullable()
+      .openapi({ description: 'Why that check did not finish, in plain words; null when it worked' }),
   })
   .openapi('Subscription');
 

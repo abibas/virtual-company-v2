@@ -62,6 +62,8 @@ describe('credentials', () => {
       status: 'active',
       keyVersion: 1,
       lastUsedAt: null,
+      checkedAt: null,
+      checkError: null,
     });
     expect(row?.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Uint8Array(row?.ciphertext ?? [])).toEqual(values.ciphertext);
@@ -76,6 +78,9 @@ describe('credentials', () => {
       'anthropic_api_key',
       'openai_api_key',
       'gateway',
+      'github_oauth',
+      'github_token',
+      'atlassian_api_token',
     ] as const) {
       await insert({ kind });
     }
@@ -89,8 +94,24 @@ describe('credentials', () => {
     expect((await insert({ label: 'y' }))[0]?.label).toBe('y');
   });
 
+  it("keeps a tool sign-in's last check: when, and why it did not finish", async () => {
+    const checkedAt = new Date('2026-11-12T09:00:00.000Z');
+    for (const checkError of [
+      'provider_unavailable',
+      'rate_limited',
+      'refused',
+      'invalid_response',
+      'no_products',
+      'check_failed',
+    ] as const) {
+      const [row] = await insert({ kind: 'atlassian_api_token', checkedAt, checkError });
+      expect(row).toMatchObject({ checkedAt, checkError });
+    }
+  });
+
   it.each([
     ['an unknown kind', { kind: 'password' as never }, 'credentials_kind_check'],
+    ['an unknown check error', { checkError: 'timeout' as never }, 'credentials_check_error_check'],
     ['an unknown status', { status: 'expired' as never }, 'credentials_status_check'],
     ['an empty label', { label: '' }, 'credentials_label_check'],
     ['a label over 80 characters', { label: 'x'.repeat(81) }, 'credentials_label_check'],

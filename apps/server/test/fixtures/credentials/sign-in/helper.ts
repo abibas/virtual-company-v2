@@ -9,17 +9,21 @@ import {
   LoginHelperError,
   type LoginSandbox,
   type SandboxExit,
+  type SandboxRun,
 } from '../../../../src/platform/processes/login-helper/port.ts';
-import { CLAUDE_FILES, CLAUDE_OUTPUT, CODEX_FILES, CODEX_OUTPUT } from './cli.ts';
+import { CLAUDE_FILES, CLAUDE_OUTPUT, CODEX_FILES, CODEX_OUTPUT, GITHUB_OUTPUT, GITHUB_RUNS } from './cli.ts';
 
 /** A sandbox a test drives: it emits output and exits when told, and records what was typed and read. */
 export class FakeSandbox implements LoginSandbox {
   readonly written: string[] = [];
   readonly reads: string[] = [];
+  /** The commands run in it, each as one line. */
+  readonly ran: string[] = [];
   kills = 0;
   #output: ((chunk: string) => void)[] = [];
   #exit: ((exit: SandboxExit) => void)[] = [];
   #files: Record<string, string>;
+  #runs: Record<string, SandboxRun>;
   #onWrite: ((sandbox: FakeSandbox, input: string) => void) | undefined;
   /** Holds every file read until it settles: a test's way to catch a sign-in while it stores. */
   hold: Promise<void> | undefined;
@@ -27,9 +31,20 @@ export class FakeSandbox implements LoginSandbox {
   killHold: Promise<void> | undefined;
   removed = false;
 
-  constructor(files: Record<string, string>, onWrite?: (sandbox: FakeSandbox, input: string) => void) {
+  constructor(
+    files: Record<string, string>,
+    onWrite?: (sandbox: FakeSandbox, input: string) => void,
+    runs: Record<string, SandboxRun> = {},
+  ) {
     this.#files = { ...files };
     this.#onWrite = onWrite;
+    this.#runs = { ...runs };
+  }
+
+  /** What a command (its argv joined by spaces) answers; one with no answer fails with code 1 and nothing printed. */
+  setRun(command: string, run: SandboxRun | undefined): void {
+    if (run === undefined) delete this.#runs[command];
+    else this.#runs[command] = run;
   }
 
   emit(...chunks: string[]): void {
@@ -65,6 +80,13 @@ export class FakeSandbox implements LoginSandbox {
     return this.#files[path];
   }
 
+  async run(argv: readonly string[]): Promise<SandboxRun> {
+    const command = argv.join(' ');
+    this.ran.push(command);
+    await this.hold;
+    return this.#runs[command] ?? { code: 1, stdout: '' };
+  }
+
   async kill(): Promise<void> {
     this.kills += 1;
     await this.killHold;
@@ -76,6 +98,8 @@ export class FakeSandbox implements LoginSandbox {
 export interface SandboxScript {
   readonly output?: readonly string[];
   readonly files?: Record<string, string>;
+  /** What each command run in it answers, by its argv joined by spaces. */
+  readonly runs?: Record<string, SandboxRun>;
   readonly onWrite?: (sandbox: FakeSandbox, input: string) => void;
 }
 
@@ -92,6 +116,15 @@ export const claudeScript = (answer: 'accept' | 'refuse' | 'silent' = 'accept'):
       sandbox.exit(1);
     }
   },
+});
+
+/**
+ * GitHub's device login, with no terminal: the one-time code and the address; the test ends it (`sandbox.exit(0)` once
+ * approved), and `gh auth token` and `gh api user --include` then answer.
+ */
+export const githubScript = (): SandboxScript => ({
+  output: [GITHUB_OUTPUT.notice, GITHUB_OUTPUT.code, GITHUB_OUTPUT.address],
+  runs: GITHUB_RUNS,
 });
 
 /** OpenAI's device login: the address and the one-time code; the test ends it (`sandbox.exit(0)` once approved). */
@@ -128,7 +161,7 @@ export class FakeLoginHelper implements LoginHelper {
     const failure = this.failNext;
     this.failNext = undefined;
     if (failure !== undefined) throw failure;
-    const sandbox = new FakeSandbox(this.script.files ?? {}, this.script.onWrite);
+    const sandbox = new FakeSandbox(this.script.files ?? {}, this.script.onWrite, this.script.runs);
     this.sandboxes.push(sandbox);
     const output = this.script.output ?? [];
     setImmediate(() => sandbox.emit(...output));

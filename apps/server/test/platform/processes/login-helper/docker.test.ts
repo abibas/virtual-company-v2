@@ -8,6 +8,7 @@ import {
   readLoginDockerfile,
   SANDBOX_HOME,
   SANDBOX_LIFETIME_S,
+  sandboxCommandArgs,
   sandboxExecArgs,
   sandboxReadArgs,
   sandboxRemoveArgs,
@@ -71,11 +72,28 @@ describe('the docker arguments', () => {
     expect(sandboxRemoveArgs('box')).toEqual(['rm', '--force', 'box']);
   });
 
-  it('reads the real Dockerfile: node 24 slim and the two CLIs at exact versions', async () => {
+  it('runs a login that must not prompt with plain pipes, and a short command with docker exec and no terminal', () => {
+    const argv = ['gh', 'auth', 'login', '--web'];
+    expect(sandboxExecArgs('box', argv, false)).toEqual(['exec', '--interactive', 'box', ...argv]);
+    expect(sandboxCommandArgs('box', ['gh', 'auth', 'token'])).toEqual([
+      'exec',
+      'box',
+      'gh',
+      'auth',
+      'token',
+    ]);
+  });
+
+  it('reads the real Dockerfile: node 24 slim, the AI CLIs and the GitHub CLI at exact versions, no prompts', async () => {
     const text = await readLoginDockerfile();
     expect(text).toMatch(/^FROM node:24\.\d+\.\d+-slim$/m);
     expect(text).toMatch(/@anthropic-ai\/claude-code@\d+\.\d+\.\d+\s/);
     expect(text).toMatch(/@openai\/codex@\d+\.\d+\.\d+\s/);
+    expect(text).toMatch(/releases\/download\/v(\d+\.\d+\.\d+)\/gh_\1_linux_\$\{arch\}\.tar\.gz/);
+    expect(text).toMatch(/sha256sum --check --strict/);
+    for (const line of ['GH_PROMPT_DISABLED=1', 'GH_TELEMETRY=false', 'GH_NO_UPDATE_NOTIFIER=1']) {
+      expect(text).toContain(line);
+    }
     expect(text).toMatch(/^USER node$/m);
   });
 });
@@ -161,6 +179,22 @@ describe('dockerLoginHelper', () => {
     const missing = dockerWorld({ 'exec mwc-login-test-1': { code: 1 } });
     const empty = await missing.helper.start({ argv: ARGV });
     expect(await empty.readFile('.claude.json')).toBeUndefined();
+  });
+
+  it('runs a command of the CLI in the sandbox with docker exec, giving its exit code and output', async () => {
+    const w = dockerWorld({ 'exec mwc-login-test-1': { stdout: 'gho_FAKE\n' } });
+    const sandbox = await w.helper.start({ argv: ['gh', 'auth', 'login', '--web'], tty: false });
+    expect(w.calls[2]?.args).toEqual([
+      'exec',
+      '--interactive',
+      'mwc-login-test-1',
+      'gh',
+      'auth',
+      'login',
+      '--web',
+    ]);
+    expect(await sandbox.run(['gh', 'auth', 'token'])).toEqual({ code: 0, stdout: 'gho_FAKE\n' });
+    expect(w.calls.at(-1)?.args).toEqual(sandboxCommandArgs('mwc-login-test-1', ['gh', 'auth', 'token']));
   });
 
   it('kills the login and removes the container with docker rm --force', async () => {

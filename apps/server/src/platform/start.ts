@@ -125,7 +125,7 @@ function compose(server: ServerDeps, deps: StartDeps, keyring: Keyring, local: L
   const onShutdown = (stop: () => Promise<void>) => void stops.push(stop);
   const machines = machinesRuntime({ ...server, onShutdown }, local);
   const jobs = jobsRunner(
-    { ...server, hub: machines.runnerHub, control: machines.powerControl },
+    { ...server, keyring, hub: machines.runnerHub, control: machines.powerControl },
     deps.timers,
   );
   const loginHelper = deps.loginHelper(server.config, server.logger);

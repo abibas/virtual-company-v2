@@ -6,6 +6,7 @@ import { errorJson, errorResponse } from '../../platform/http/errors.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import type { Keyring } from '../../platform/secrets/keyring.ts';
 import { accessProfileRoutes } from './routes/profiles.ts';
+import { toolRoutes } from './routes/tools.ts';
 import { wantsRefresh } from './rules/limits.ts';
 import { LimitsQuerySchema, SubscriptionLimitsListSchema } from './schemas/limits.ts';
 import {
@@ -21,7 +22,8 @@ import { providerFetchFor } from './service/usage/http.ts';
 import { credentialsService } from './service.ts';
 
 /**
- * `/api/me/subscriptions`: the caller's own subscriptions, API keys and gateways (docs/subscriptions.md). Write-only:
+ * `/api/me/subscriptions`: the caller's own subscriptions, API keys and gateways, and their tool sign-ins (GitHub,
+ * Atlassian; added and checked by `routes/tools.ts`) (docs/subscriptions.md). Write-only:
  * a secret goes in once and never comes back out, not even to its owner. Personal, never a company's, and managed
  * only signed in to the web app: an API key is refused (403 `session_required`).
  */
@@ -102,9 +104,10 @@ const limitsRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'get',
-    summary: "Your subscriptions' live 5-hour and weekly limits",
+    summary: "Your AI subscriptions' live 5-hour and weekly limits",
     description:
-      'For each of your subscriptions, its windows from the provider: a Claude login from `GET ' +
+      'For each of your AI subscriptions (tool sign-ins have no limits and are left out), its windows from the ' +
+      'provider: a Claude login from `GET ' +
       'api.anthropic.com/api/oauth/usage`, an OpenAI login from `GET chatgpt.com/backend-api/wham/usage` (both ' +
       'refreshing an expired token and storing it sealed again), a setup-token from the ' +
       '`anthropic-ratelimit-unified-*` headers of a one-token Messages request; API keys and gateways have none ' +
@@ -161,5 +164,6 @@ export function credentialsRoutes(
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.body(null, 204);
     })
-    .route('/', accessProfileRoutes(deps));
+    .route('/', accessProfileRoutes(deps))
+    .route('/', toolRoutes(deps));
 }

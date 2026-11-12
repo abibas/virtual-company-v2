@@ -6,10 +6,12 @@ import {
   type KindSecret,
 } from '../schemas/secrets.ts';
 import type { AccountMeta } from '../schemas.ts';
+import { githubAccount, githubMeta, includedAnswer } from './tool-accounts.ts';
 
 /**
- * What a finished CLI login leaves in its sandbox's home, made into what the store keeps (S3.2): the secret (the
- * login's files, as the CLI wrote them), the account's email and its non-secret details, and a default name. Pure: the
+ * What a finished CLI login leaves in its sandbox's home, made into what the store keeps (S3.2; GitHub's, S7.1a, from
+ * what its CLI prints): the secret (the login's files, as the CLI wrote them), the account's email and its non-secret
+ * details, and a default name. Pure: the
  * files come in as text. A file that is missing, not JSON or not the CLI's shape is a failed sign-in, said in plain
  * words: never the parser's message, which can quote the file.
  */
@@ -44,7 +46,7 @@ function parseJson(text: string | undefined): unknown {
   }
 }
 
-/** "Claude · ihor@example.com", cut to fit a name; just the provider's name without an email. */
+/** "Claude · ihor@example.com", cut to fit a name; just the provider's name without an email (or another detail). */
 export function defaultLabel(provider: string, email: string | null): string {
   const label = email === null ? provider : `${provider} · ${email}`;
   return label.length <= CREDENTIAL_LABEL.max ? label : `${label.slice(0, CREDENTIAL_LABEL.max - 1)}…`;
@@ -126,6 +128,39 @@ export function codexLogin(files: { readonly auth: string | undefined }): LoginO
       accountEmail,
       accountMeta: present({ planType: stringOrUndefined(openai?.chatgpt_plan_type) }),
       label: defaultLabel('OpenAI', accountEmail),
+    },
+  };
+}
+
+/** What the GitHub CLI prints after its sign-in: `gh auth token`, and `gh api user --include`. */
+export interface GitHubOutputs {
+  readonly token: string | undefined;
+  readonly user: string | undefined;
+}
+
+/**
+ * GitHub's login (S7.1a): the token `gh auth token` prints, and the account and scopes of `gh api user --include` (its
+ * status line, headers with `X-OAuth-Scopes`, then the user). The login names the sign-in ("GitHub · <login>") and its
+ * public email, if any, is the account's.
+ */
+export function githubLogin(outputs: GitHubOutputs): LoginOutcome {
+  const token = outputs.token?.trim();
+  if (!token || /\s/.test(token)) return failed('GitHub finished without saving a login. Start again.');
+  const answer = includedAnswer(outputs.user ?? '');
+  const body = answer?.status === 200 ? parseJson(answer.body) : undefined;
+  const account =
+    typeof body === 'object' && body !== null
+      ? githubAccount(body as Record<string, unknown>, answer?.headers.get('x-oauth-scopes'))
+      : undefined;
+  if (account === undefined) return failed('GitHub did not say which account signed in. Start again.');
+  return {
+    ok: true,
+    result: {
+      kind: 'github_oauth',
+      secret: { token },
+      accountEmail: account.email,
+      accountMeta: githubMeta(account),
+      label: defaultLabel('GitHub', account.login),
     },
   };
 }

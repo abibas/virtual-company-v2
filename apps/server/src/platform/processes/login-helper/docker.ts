@@ -35,6 +35,9 @@ export const LOGIN_DOCKERFILE = new URL('../../../../../../deploy/Dockerfile.log
 /** The sign-in image's Dockerfile, as text. */
 export const readLoginDockerfile = (): Promise<string> => readFile(LOGIN_DOCKERFILE, 'utf8');
 
+/** How long a short command in a sandbox (`gh api user`) may take. */
+export const SANDBOX_RUN_TIMEOUT_MS = 30_000;
+
 /** The label every sandbox carries, so the sweep finds sign-in sandboxes and never another container. */
 export const SANDBOX_LABEL = 'mwc.login-helper=1';
 
@@ -84,9 +87,14 @@ export function sandboxRunArgs(image: string, name: string, instance: string): s
   ];
 }
 
-/** `docker exec` of the login in the sandbox, its input a pipe, behind `script`'s pseudo-terminal. */
-export function sandboxExecArgs(name: string, argv: readonly string[]): string[] {
-  return ['exec', '--interactive', name, ...ttyArgv(argv)];
+/** `docker exec` of the login in the sandbox, its input a pipe, behind `script`'s pseudo-terminal unless not `tty`. */
+export function sandboxExecArgs(name: string, argv: readonly string[], tty = true): string[] {
+  return ['exec', '--interactive', name, ...(tty ? ttyArgv(argv) : argv)];
+}
+
+/** `docker exec` of a short command in the sandbox, with no terminal and no input. */
+export function sandboxCommandArgs(name: string, argv: readonly string[]): string[] {
+  return ['exec', name, ...argv];
 }
 
 /** `docker exec` that prints one file of the sandbox's home (a path `homePath` checked). */
@@ -184,12 +192,13 @@ export function dockerLoginHelper(deps: DockerHelperDeps): LoginHelper {
           started.error ?? 'The sign-in sandbox did not start. Check that Docker is running.',
         );
       }
-      const child = deps.spawn('docker', sandboxExecArgs(name, command.argv), { stdio: 'pipe' });
+      const child = deps.spawn('docker', sandboxExecArgs(name, command.argv, command.tty), { stdio: 'pipe' });
       return childSandbox(child, {
         readFile: async (path) => {
           const read = await docker(sandboxReadArgs(name, path), { timeoutMs: 15_000 });
           return read.code === 0 ? read.stdout : undefined;
         },
+        run: (argv) => docker(sandboxCommandArgs(name, argv), { timeoutMs: SANDBOX_RUN_TIMEOUT_MS }),
         dispose: async () => {
           await docker(sandboxRemoveArgs(name), { timeoutMs: 30_000 });
         },

@@ -71,6 +71,8 @@ describe('POST /api/me/subscriptions', () => {
       createdAt: view.createdAt,
       updatedAt: view.updatedAt,
       lastUsedAt: null,
+      checkedAt: null,
+      checkError: null,
     });
     noSecret(res.body);
     const [row] = await rawDb(w.t.db).select().from(credentials).where(eq(credentials.id, view.id));
@@ -221,6 +223,8 @@ describe('GET /api/me/subscriptions', () => {
       [
         'accountEmail',
         'accountMeta',
+        'checkError',
+        'checkedAt',
         'createdAt',
         'id',
         'kind',

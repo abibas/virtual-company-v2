@@ -28,6 +28,7 @@ const NO_EVENTS: EventRetry = { claimed: 0, processed: 0, failed: 0, givenUp: 0 
 const NO_UPKEEP: MachineUpkeep = { offline: 0, pruned: null, power: null };
 const machines = async () => NO_UPKEEP;
 const notifications = async () => ({ queued: 0, sent: 0, skipped: 0, retry: 0, failed: 0, waiting: 0 });
+const toolChecks = async () => null;
 
 /** A lock that is free and stays held, until a test says otherwise. */
 const stubLock = () =>
@@ -46,6 +47,7 @@ function newRunner(overrides: Partial<JobsRunnerDeps> = {}) {
   const work = {
     machines,
     notifications,
+    toolChecks,
     outboxHandlers: {},
     retryEvents,
     reconcileCompany: vi.fn(async () => {}),
@@ -86,6 +88,7 @@ describe('createJobsRunner', () => {
       work: {
         machines,
         notifications,
+        toolChecks,
         outboxHandlers: {},
         retryEvents: slow,
         reconcileCompany: async () => {},
@@ -191,6 +194,7 @@ describe('stopping the jobs runner', () => {
       work: {
         machines,
         notifications,
+        toolChecks,
         outboxHandlers: {},
         retryEvents: slow,
         reconcileCompany: async () => {},
@@ -223,6 +227,7 @@ describe('stopping the jobs runner', () => {
       work: {
         machines,
         notifications,
+        toolChecks,
         outboxHandlers: {},
         retryEvents: hang,
         reconcileCompany: async () => {},

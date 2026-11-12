@@ -1,20 +1,24 @@
 import type { CredentialKind, CredentialStatus } from '@mwc/shared/enums';
 
 /**
- * Sign in with Claude and Sign in with OpenAI, as pure rules (S3.2, docs/subscriptions.md): the states of a sign-in,
- * its limits and refusals, and what the official CLIs' screens show the person: the provider's sign-in address, and
- * OpenAI's one-time code. The CLIs' output is read as the raw stream with its terminal codes taken out; an address
+ * Sign in with Claude, OpenAI (S3.2, docs/subscriptions.md) and GitHub (S7.1a), as pure rules: the states of a
+ * sign-in, its limits and refusals, and what the official CLIs' screens show the person: the provider's sign-in address,
+ * and OpenAI's or GitHub's one-time code. The CLIs' output is read as the raw stream with its terminal codes taken out; an address
  * is passed on only when it is https on the provider's own sign-in host and path.
  */
 
-export const SIGN_IN_PROVIDERS = ['claude', 'openai'] as const;
+export const SIGN_IN_PROVIDERS = ['claude', 'openai', 'github'] as const;
 export type SignInProvider = (typeof SIGN_IN_PROVIDERS)[number];
 
-/** The kind of subscription each sign-in stores, and the only kind it signs in to again. */
+/** The kind of subscription (or tool sign-in, for GitHub) each sign-in stores, and the only kind it signs in to again. */
 export const SIGN_IN_KINDS = {
   claude: 'claude_oauth',
   openai: 'codex_oauth',
+  github: 'github_oauth',
 } as const satisfies Record<SignInProvider, CredentialKind>;
+
+/** The sign-ins with a device code: the person types the code shown here on the provider's page, and the CLI notices. */
+const DEVICE_SIGN_INS: ReadonlySet<SignInProvider> = new Set(['openai', 'github']);
 
 /**
  * `starting` (the sandbox and the CLI start), `waiting_for_user` (the address, with OpenAI's code, is shown: the
@@ -47,9 +51,9 @@ export const isActive = (state: SignInState): boolean => ACTIVE.has(state);
 export const takesCode = (provider: SignInProvider, state: SignInState): boolean =>
   provider === 'claude' && (state === 'waiting_for_user' || state === 'waiting_for_code');
 
-/** The CLI stopped with success where a login is finished: after Claude's code, or once OpenAI's code is shown. */
+/** The CLI stopped with success where a login is finished: after Claude's code, or once a device code is shown. */
 export const finishesOnExit = (provider: SignInProvider, state: SignInState): boolean =>
-  state === 'completing' || (provider === 'openai' && state === 'waiting_for_user');
+  state === 'completing' || (DEVICE_SIGN_INS.has(provider) && state === 'waiting_for_user');
 
 /** How long a sign-in lives, how long the CLI has to show its address, and to finish after Claude's code. */
 export const SIGN_IN_LIMITS = { ttlMs: 10 * 60_000, addressWaitMs: 90_000, codeWaitMs: 60_000 } as const;
@@ -59,7 +63,11 @@ export type SignInLimits = { readonly [K in keyof typeof SIGN_IN_LIMITS]: number
 export const SIGN_IN_CODE = /^[A-Za-z0-9_.~#-]{10,1000}$/;
 
 /** The provider's name in what the person reads. */
-export const PROVIDER_NAMES: Record<SignInProvider, string> = { claude: 'Claude', openai: 'OpenAI' };
+export const PROVIDER_NAMES: Record<SignInProvider, string> = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  github: 'GitHub',
+};
 
 /** Why a sign-in ended without a subscription, in plain words. */
 export const SIGN_IN_ENDINGS = {
@@ -132,7 +140,7 @@ export function renewalRefusal(
     return { ok: false, status: 404, code: 'credential_not_found', message: 'No such subscription of yours' };
   const name = PROVIDER_NAMES[provider];
   if (credential.kind !== SIGN_IN_KINDS[provider]) {
-    const message = `Sign in with ${name} signs in again only to a subscription it added`;
+    const message = `Sign in with ${name} signs in again only to a sign-in it added`;
     return { ok: false, status: 422, code: 'sign_in_kind_mismatch', message };
   }
   if (credential.status === 'revoked')
@@ -213,4 +221,18 @@ export function codexScreen(output: string): Shown | undefined {
   const after = text.slice(Math.max(0, text.search(/one-time code/i)));
   const code = after.match(DEVICE_CODE)?.[1];
   return code === undefined ? undefined : { url, userCode: code, asksForCode: false };
+}
+
+const GITHUB_HOSTS: ReadonlySet<string> = new Set(['github.com']);
+/** GitHub's one-time code, as `8F43-6C9A`. */
+const GITHUB_CODE = /one-time code: ([A-Z0-9]{4}-[A-Z0-9]{4})\b/;
+
+/**
+ * `gh auth login --web` with no terminal: "! First copy your one-time code: XXXX-XXXX", then "Open this URL to continue
+ * in your web browser: https://github.com/login/device", and it waits until the person has entered the code there.
+ */
+export function githubScreen(output: string): Shown | undefined {
+  const url = firstAddress(output, GITHUB_HOSTS, (path) => path === '/login/device');
+  const code = GITHUB_CODE.exec(plainText(output))?.[1];
+  return url === undefined || code === undefined ? undefined : { url, userCode: code, asksForCode: false };
 }

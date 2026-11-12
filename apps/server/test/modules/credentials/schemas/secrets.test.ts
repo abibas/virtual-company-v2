@@ -6,10 +6,13 @@ describe('the secret shapes', () => {
   it('has one shape per kind', () => {
     expect(Object.keys(SECRET_SCHEMAS).sort()).toEqual([
       'anthropic_api_key',
+      'atlassian_api_token',
       'claude_oauth',
       'claude_setup_token',
       'codex_oauth',
       'gateway',
+      'github_oauth',
+      'github_token',
       'openai_api_key',
     ]);
   });

@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 38. Migrations: 29, the last is `0028_chat_slot_waits`.
+Tables: 38. Migrations: 30, the last is `0029_tool_sign_ins`.
 
 ```mermaid
 erDiagram
@@ -183,7 +183,7 @@ erDiagram
   credentials {
     uuid id PK "not null, default newId() (app-side)"
     uuid owner_user_id FK "not null"
-    text kind "not null, claude_oauth|claude_setup_token|codex_oauth|anthropic_api_key|openai_api_key|gateway"
+    text kind "not null, claude_oauth|claude_setup_token|codex_oauth|anthropic_api_key|openai_api_key|gateway|github_oauth|github_token|atlassian_api_token"
     text label "not null"
     text account_email "nullable"
     jsonb account_meta "not null, default '{}'"
@@ -195,6 +195,8 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
     timestamptz last_used_at "nullable"
+    timestamptz checked_at "nullable"
+    text check_error "nullable, provider_unavailable|rate_limited|refused|invalid_response|no_products|check_failed"
   }
   enrollment_tokens {
     uuid id PK "not null, default newId() (app-side)"
@@ -1025,7 +1027,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | ------ | ---- | -------- | ------- | --- | -------------- |
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `owner_user_id` | `uuid` | no |  | FK |  |
-| `kind` | `text` | no |  |  | `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway` |
+| `kind` | `text` | no |  |  | `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`, `github_oauth`, `github_token`, `atlassian_api_token` |
 | `label` | `text` | no |  |  |  |
 | `account_email` | `text` | yes |  |  |  |
 | `account_meta` | `jsonb` | no | `'{}'` |  |  |
@@ -1037,19 +1039,22 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `last_used_at` | `timestamp with time zone` | yes |  |  |  |
+| `checked_at` | `timestamp with time zone` | yes |  |  |  |
+| `check_error` | `text` | yes |  |  | `provider_unavailable`, `rate_limited`, `refused`, `invalid_response`, `no_products`, `check_failed` |
 
 - **Primary key:** `id`
 - **Foreign keys:**
   - `owner_user_id` → `users` (`id`), on delete no action (`credentials_owner_user_id_users_id_fk`)
 - **Unique:** none
 - **Checks:**
-  - `credentials_kind_check`: `kind` is one of `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`
+  - `credentials_kind_check`: `kind` is one of `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`, `github_oauth`, `github_token`, `atlassian_api_token`
   - `credentials_status_check`: `status` is one of `active`, `needs_sign_in`, `revoked`
   - `credentials_label_check`: `char_length("label") between 1 and 80`
   - `credentials_key_version_check`: `"key_version" >= 1`
   - `credentials_iv_check`: `octet_length("iv") = 12`
   - `credentials_auth_tag_check`: `octet_length("auth_tag") = 16`
   - `credentials_account_meta_check`: `jsonb_typeof("account_meta") = 'object'`
+  - `credentials_check_error_check`: `check_error` is one of `provider_unavailable`, `rate_limited`, `refused`, `invalid_response`, `no_products`, `check_failed`
 - **Indexes:**
   - `credentials_owner_idx` on (`owner_user_id`, `created_at`)
 

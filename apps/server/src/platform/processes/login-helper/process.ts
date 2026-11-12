@@ -11,9 +11,13 @@ import { homePath, type LoginSandbox, type SandboxExit } from './port.ts';
 /** `spawn` of `node:child_process`, as the helpers call it. */
 export type Spawn = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
 
-/** What a sandbox does besides its process: read a file of its home, and delete itself once the process is stopped. */
+/**
+ * What a sandbox does besides its process: read a file of its home, run a short command in it, and delete itself once
+ * the process is stopped.
+ */
 export interface SandboxParts {
   readFile(path: string): Promise<string | undefined>;
+  run(argv: readonly string[]): Promise<CommandResult>;
   dispose(): Promise<void>;
   /** Said when the program could not be found (spawn's ENOENT): which tool is missing. */
   readonly notFound: string;
@@ -72,6 +76,11 @@ export function childSandbox(child: ChildProcess, parts: SandboxParts): LoginSan
       if (exited === undefined && child.stdin?.writable) child.stdin.write(input);
     },
     readFile: (path) => parts.readFile(homePath(path)),
+    async run(argv) {
+      if (argv.length === 0) throw new RangeError('A sandbox command names its program');
+      const { code, stdout } = await parts.run(argv);
+      return { code, stdout };
+    },
     kill() {
       killed ??= (async () => {
         if (exited === undefined) child.kill('SIGKILL');
@@ -93,6 +102,9 @@ export interface CommandResult {
 export interface CommandOptions {
   /** Written to its standard input, which is then closed. */
   readonly input?: string;
+  /** Its working folder and whole environment (the local helper's sandbox home); else the server's. */
+  readonly cwd?: string;
+  readonly env?: Readonly<Record<string, string>>;
   /** Stopped (SIGKILL) after this long; the result's code is then null. */
   readonly timeoutMs: number;
   /** Said when the program is missing. */
@@ -110,7 +122,8 @@ export function runCommand(
   options: CommandOptions,
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: 'pipe' });
+    const place = options.cwd === undefined ? {} : { cwd: options.cwd };
+    const child = spawn(command, args, { stdio: 'pipe', ...place, ...(options.env && { env: options.env }) });
     let stdout = '';
     let done = false;
     const finish = (result: CommandResult) => {

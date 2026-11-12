@@ -1,19 +1,33 @@
-import { claudeLogin, codexLogin, LOGIN_FILES, type LoginOutcome } from '../../rules/login-files.ts';
-import { claudeScreen, codexScreen, type Shown, type SignInProvider } from '../../rules/sign-in.ts';
+import type { LoginSandbox } from '../../../../platform/processes/login-helper/port.ts';
+import {
+  claudeLogin,
+  codexLogin,
+  githubLogin,
+  LOGIN_FILES,
+  type LoginOutcome,
+} from '../../rules/login-files.ts';
+import {
+  claudeScreen,
+  codexScreen,
+  githubScreen,
+  type Shown,
+  type SignInProvider,
+} from '../../rules/sign-in.ts';
 
-/** The sandbox's files, as a flow reads them (`LoginSandbox.readFile`). */
-export interface LoginFiles {
-  readFile(path: string): Promise<string | undefined>;
-}
+/** What a flow reads from the sandbox once its login has finished: its files, and short commands of its CLI. */
+export type LoginFiles = Pick<LoginSandbox, 'readFile' | 'run'>;
 
 /**
- * The two logins (S3.2): which official CLI command runs, how its screen is read, and which files make the stored
- * subscription. Checked against the pinned CLIs (deploy/Dockerfile.login) up to the address they print.
+ * The logins (S3.2, GitHub's S7.1a): which official CLI command runs, how its screen is read, and which files (or, for
+ * GitHub, which of its commands) make the stored sign-in. Checked against the pinned CLIs (deploy/Dockerfile.login) up
+ * to the address they print.
  */
 export interface SignInFlow {
   readonly provider: SignInProvider;
   /** The full login of the CLI: never typed in by a person. */
   readonly argv: readonly string[];
+  /** Behind a pseudo-terminal (the default), or with plain pipes (`false`). */
+  readonly tty?: boolean;
   /** What the screen shows so far, once the address is on it. */
   read(output: string): Shown | undefined;
   /** Reads the finished login's files from the sandbox and makes what is stored. */
@@ -51,4 +65,42 @@ const openai: SignInFlow = {
   },
 };
 
-export const SIGN_IN_FLOWS: Record<SignInProvider, SignInFlow> = { claude, openai };
+/** What a finished GitHub login's commands printed, or undefined when one failed. */
+async function printed(sandbox: LoginFiles, argv: readonly string[]): Promise<string | undefined> {
+  const run = await sandbox.run(argv);
+  return run.code === 0 ? run.stdout : undefined;
+}
+
+/**
+ * The GitHub CLI's device sign-in (S7.1a), as a person signs in `gh` on their own computer: `gh auth login --hostname
+ * github.com --git-protocol https --web`, with `--scopes workflow` (what an interactive https login adds when it sets
+ * up git's credentials, so pushes that change workflows work) and `--insecure-storage` (the sandbox has no keyring: the
+ * token goes to its throwaway home). With no terminal it never prompts: it prints the one-time code and
+ * github.com/login/device, and exits once the person has entered the code there. Then `gh auth token` gives the token
+ * and `gh api user --include` the account and scopes.
+ */
+const github: SignInFlow = {
+  provider: 'github',
+  argv: [
+    'gh',
+    'auth',
+    'login',
+    '--hostname',
+    'github.com',
+    '--git-protocol',
+    'https',
+    '--web',
+    '--scopes',
+    'workflow',
+    '--insecure-storage',
+  ],
+  tty: false,
+  read: githubScreen,
+  async result(sandbox) {
+    const token = await printed(sandbox, ['gh', 'auth', 'token', '--hostname', 'github.com']);
+    const user = await printed(sandbox, ['gh', 'api', 'user', '--include']);
+    return githubLogin({ token, user });
+  },
+};
+
+export const SIGN_IN_FLOWS: Record<SignInProvider, SignInFlow> = { claude, openai, github };

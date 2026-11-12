@@ -69,6 +69,7 @@
     {
       "includes": [
         "apps/server/src/modules/chats/repo/reaper.ts",
+        "apps/server/src/modules/credentials/repo/checks-due.ts",
         "apps/server/src/modules/identity/repo.ts",
         "apps/server/src/modules/identity/repo/**",
         "apps/server/src/modules/machines/repo/upkeep.ts",

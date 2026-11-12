@@ -116,8 +116,10 @@ export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
 export type Effort = z.infer<typeof Effort>;
 
 /**
- * `credentials.kind`: what a person's subscription is (docs/subscriptions.md). The two logins are written by the sign-in
- * helper (S3.2); the other four are pasted.
+ * `credentials.kind`: what a person's subscription or tool sign-in is (docs/subscriptions.md). The AI logins are written
+ * by the sign-in helper (S3.2); the other AI kinds are pasted. The tool sign-ins (S7.1a): `github_oauth` (Sign in with
+ * GitHub, the GitHub CLI's device sign-in in the helper), `github_token` (a pasted personal access token) and
+ * `atlassian_api_token` (a site, an account email and an API token, for Jira and Confluence).
  */
 export const CredentialKind = z.enum([
   'claude_oauth',
@@ -126,8 +128,26 @@ export const CredentialKind = z.enum([
   'anthropic_api_key',
   'openai_api_key',
   'gateway',
+  'github_oauth',
+  'github_token',
+  'atlassian_api_token',
 ]);
 export type CredentialKind = z.infer<typeof CredentialKind>;
+
+/**
+ * `credentials.check_error`: why a tool sign-in's last check with its provider did not finish (S7.1a): the provider did
+ * not answer, rate limited it, refused it (403), answered something not understood, no Atlassian product answered on the
+ * site, or a bug. A 401 is no error: it sets the sign-in `needs_sign_in`.
+ */
+export const ToolCheckError = z.enum([
+  'provider_unavailable',
+  'rate_limited',
+  'refused',
+  'invalid_response',
+  'no_products',
+  'check_failed',
+]);
+export type ToolCheckError = z.infer<typeof ToolCheckError>;
 
 /** `credentials.status`: usable, its login has to be signed in again, or revoked at the provider. */
 export const CredentialStatus = z.enum(['active', 'needs_sign_in', 'revoked']);

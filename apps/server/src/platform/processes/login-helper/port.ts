@@ -2,8 +2,9 @@ import type { LoginHelperMode } from '@mwc/shared/config';
 
 /**
  * The sign-in helper's port (docs/subscriptions.md, "The sign-in helper"): it runs one official CLI login (Claude
- * Code's, Codex's) in an isolated sandbox that is thrown away afterwards, and lets the credentials module talk to it:
- * the CLI's output as it comes, typing into its terminal, reading the files it leaves in its home, and killing it. A
+ * Code's, Codex's, the GitHub CLI's) in an isolated sandbox that is thrown away afterwards, and lets the credentials
+ * module talk to it: the CLI's output as it comes, typing into its terminal, reading the files it leaves in its home,
+ * running a short command of the CLI once the login has finished, and killing it. A
  * sandbox gets no mounts and no credentials from the host: its home starts empty. `docker.ts` and `local.ts` are the
  * two helpers, `select.ts` picks one from MWC_LOGIN_HELPER, and tests use a fake that replays scripted output.
  */
@@ -25,13 +26,29 @@ export interface LoginSandbox {
   write(input: string): void;
   /** A file under the sandbox's home (`.claude/.credentials.json`), as text; undefined when it is not there. */
   readFile(path: string): Promise<string | undefined>;
+  /**
+   * Runs a short command of the login's CLI in the sandbox once the login has finished (`gh auth token`), to its end,
+   * with no terminal. Its output can be a secret: never log it.
+   */
+  run(argv: readonly string[]): Promise<SandboxRun>;
   /** Stops the CLI and deletes the sandbox with everything in it. Calling it again returns the same promise. */
   kill(): Promise<void>;
+}
+
+/** A command run in a sandbox to its end: its exit code (null when it did not run or was stopped) and its output. */
+export interface SandboxRun {
+  readonly code: number | null;
+  readonly stdout: string;
 }
 
 /** The login to run: the CLI and its arguments, never typed in by a person. */
 export interface LoginCommand {
   readonly argv: readonly string[];
+  /**
+   * Behind a pseudo-terminal (`script`, the default: the AI CLIs need one), or with plain pipes (`false`: the GitHub CLI,
+   * which then never prompts and prints its device code and address as plain lines).
+   */
+  readonly tty?: boolean;
 }
 
 /** Starts sandboxes: a throwaway container (`docker`) or a private temporary folder (`local`). */

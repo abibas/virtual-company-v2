@@ -1,3 +1,4 @@
+import { isToolKind } from '@mwc/shared/credentials';
 import { newId } from '@mwc/shared/ids';
 import {
   LoginHelperError,
@@ -16,6 +17,7 @@ import {
   takesCode,
 } from '../../rules/sign-in.ts';
 import type { SignInView } from '../../schemas/sign-in.ts';
+import type { FirstCheck } from '../first-check.ts';
 import type { SessionContext, SessionOwner } from './context.ts';
 import type { SignInFlow } from './flows.ts';
 
@@ -125,7 +127,8 @@ export class SignInSession {
   async #launch(): Promise<void> {
     let sandbox: LoginSandbox;
     try {
-      sandbox = await this.#ctx.helper.start({ argv: this.#flow.argv });
+      const { argv, tty } = this.#flow;
+      sandbox = await this.#ctx.helper.start(tty === undefined ? { argv } : { argv, tty });
     } catch (error) {
       if (!(error instanceof LoginHelperError)) {
         this.#ctx.logger.error({ signInId: this.id, err: error }, 'the sign-in helper failed');
@@ -176,10 +179,13 @@ export class SignInSession {
     try {
       const outcome = await this.#flow.result(this.#sandbox as LoginSandbox);
       if (!outcome.ok) return this.#end('failed', outcome.message, 'no_login');
-      if ('renew' in this.#target) return await this.#renew(this.#target.renew, outcome.result);
+      const checked = this.#checked(outcome.result);
+      if ('renew' in this.#target)
+        return await this.#renew(this.#target.renew, { ...outcome.result, ...checked });
       const { label, ...login } = outcome.result;
       const stored = await this.#ctx.secrets.storeCredential({
         ...login,
+        ...checked,
         label: this.#target.label ?? label,
         ownerUserId: this.owner.userId,
         requestId: this.owner.requestId,
@@ -194,8 +200,16 @@ export class SignInSession {
     }
   }
 
+  /**
+   * A tool sign-in's first check (S7.1a): GitHub's CLI has just asked GitHub who signed in, now. The server opened no
+   * secret, so no use is recorded.
+   */
+  #checked(login: LoginResult): { readonly checked?: FirstCheck } {
+    return isToolKind(login.kind) ? { checked: { at: this.#ctx.clock(), used: false } } : {};
+  }
+
   /** Sign in again: the login replaces the secret of the owner's subscription in place; gone or revoked, it failed. */
-  async #renew(credentialId: string, login: LoginResult): Promise<void> {
+  async #renew(credentialId: string, login: LoginResult & { readonly checked?: FirstCheck }): Promise<void> {
     const { userId, requestId } = this.owner;
     const renewed = await this.#ctx.secrets.renewCredentialLogin(credentialId, userId, login, requestId);
     if (!renewed.ok) return this.#end('failed', SIGN_IN_ENDINGS.gone, renewed.code);

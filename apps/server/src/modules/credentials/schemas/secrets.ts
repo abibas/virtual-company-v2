@@ -1,10 +1,17 @@
-import { GATEWAY_HEADERS, SECRET_MAX, SECRET_PREFIXES } from '@mwc/shared/credentials';
+import {
+  ATLASSIAN_SITE,
+  GATEWAY_HEADERS,
+  GITHUB_TOKEN_PREFIXES,
+  SECRET_MAX,
+  SECRET_PREFIXES,
+} from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import { z } from 'zod';
 
 /**
- * The shapes of the secrets the server seals, one per kind (S3.1, docs/subscriptions.md). They are the server's
- * alone: never in `@mwc/shared`, never imported by the web, never in a response. A sealed value is checked against
+ * The shapes of the secrets the server seals, one per kind (S3.1, docs/subscriptions.md; the tool sign-ins' since
+ * S7.1a). They are the server's alone: never in `@mwc/shared`, never imported by the web, never in a response. A
+ * sealed value is checked against
  * its kind's shape when it is stored and again when it is opened. The two logins (written by the sign-in helper,
  * S3.2, and refreshed by the limits checks, S3.3) are typed permissively: the fields named are the ones known today,
  * all optional, and anything else the CLI writes is kept as it is.
@@ -100,6 +107,36 @@ export const CodexAuthFile = z.looseObject({
 /** An OpenAI login: Codex's `auth.json`. */
 export const CodexOauthSecret = z.looseObject({ auth: CodexAuthFile });
 
+/** A token or key of one word, at most SECRET_MAX characters, with no prefix asked of it. */
+const oneWord = (what: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${what} is required`)
+    .max(SECRET_MAX, `${what} is at most ${SECRET_MAX} characters`)
+    .regex(/^\S+$/, `${what} has no spaces in it`);
+
+/** A pasted GitHub personal access token: classic (`ghp_`) or fine-grained (`github_pat_`), letters, digits and `_`. */
+export const GitHubToken = oneWord('A GitHub token')
+  .regex(/^[A-Za-z0-9_]+$/, 'A GitHub token is letters, digits and _ only')
+  .refine(
+    (token) => GITHUB_TOKEN_PREFIXES.some((prefix) => token.startsWith(prefix)),
+    `A GitHub token starts with ${GITHUB_TOKEN_PREFIXES.join(' or ')}`,
+  );
+
+/** An Atlassian API token (newer ones start with `ATATT`; older ones have no prefix). */
+export const AtlassianToken = oneWord('An Atlassian API token');
+
+/** The GitHub CLI's OAuth token, as `gh auth token` prints it after its device sign-in. */
+export const GitHubOauthSecret = z.object({ token: oneWord('A GitHub token') });
+export const GitHubTokenSecret = z.object({ token: GitHubToken });
+/** Everything a call to Jira or Confluence needs: the site's host, the account's email and its API token. */
+export const AtlassianSecret = z.object({
+  site: z.string().regex(ATLASSIAN_SITE),
+  email: z.email(),
+  token: AtlassianToken,
+});
+
 /** Each kind's secret shape. */
 export const SECRET_SCHEMAS = {
   claude_oauth: ClaudeOauthSecret,
@@ -108,6 +145,9 @@ export const SECRET_SCHEMAS = {
   anthropic_api_key: AnthropicKeySecret,
   openai_api_key: OpenAiKeySecret,
   gateway: GatewaySecret,
+  github_oauth: GitHubOauthSecret,
+  github_token: GitHubTokenSecret,
+  atlassian_api_token: AtlassianSecret,
 } as const satisfies Record<CredentialKind, z.ZodType>;
 
 /** The secret of one kind. */

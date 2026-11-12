@@ -10,9 +10,9 @@ import { SignInCodeSchema, SignInParamsSchema, SignInSchema, StartSignInSchema }
 import { type SignInDeps, signInService } from '../service/sign-in.ts';
 
 /**
- * `/api/me/subscriptions/sign-in`: Sign in with Claude and Sign in with OpenAI (S3.2, docs/subscriptions.md). The
- * official CLI's login runs in a throwaway sandbox; the web polls the sign-in every 2 seconds for the provider's
- * address (and OpenAI's code), sends back the code Claude's page shows, and gets the stored subscription's id. Personal
+ * `/api/me/subscriptions/sign-in`: Sign in with Claude and Sign in with OpenAI (S3.2, docs/subscriptions.md), and Sign
+ * in with GitHub (S7.1a). The official CLI's login runs in a throwaway sandbox; the web polls the sign-in every 2
+ * seconds for the provider's address (and OpenAI's or GitHub's code), sends back the code Claude's page shows, and gets the stored subscription's id. Personal
  * and session-only, like the rest of `/api/me/subscriptions`: an API key is refused (403 `session_required`).
  */
 
@@ -31,10 +31,10 @@ const startRoute = (deps: AuthDeps) => {
   return createRoute({
     ...base,
     method: 'post',
-    summary: 'Start Sign in with Claude or Sign in with OpenAI',
+    summary: 'Start Sign in with Claude, with OpenAI or with GitHub',
     description:
       "Starts the provider's official CLI login in a throwaway sandbox and answers at once, `starting`. Poll the " +
-      "sign-in for the address to open (and OpenAI's one-time code). It ends within 10 minutes. With " +
+      "sign-in for the address to open (and OpenAI's or GitHub's one-time code). It ends within 10 minutes. With " +
       "`credentialId` it signs in again: the login replaces that subscription's secret in place, keeping its id, " +
       'name and access profiles.',
     request: { body: jsonBody(StartSignInSchema) },
@@ -48,7 +48,7 @@ const startRoute = (deps: AuthDeps) => {
       409: errorResponse('You are already signing in (`sign_in_active`): finish or cancel it first'),
       422: errorResponse(
         "`credentialId` is another provider's kind (`sign_in_kind_mismatch`: Claude signs in again to " +
-          '`claude_oauth`, OpenAI to `codex_oauth`) or revoked (`credential_revoked`)',
+          '`claude_oauth`, OpenAI to `codex_oauth`, GitHub to `github_oauth`) or revoked (`credential_revoked`)',
       ),
       503: errorResponse(
         'Sign-in is off on this server (`identity_not_configured`), or signing in with a subscription is ' +

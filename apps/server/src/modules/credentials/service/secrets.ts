@@ -15,6 +15,7 @@ import {
 } from '../rules.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
+import { type FirstCheck, firstCheckColumns, recordFirstCheck } from './first-check.ts';
 import {
   type AnySecret,
   type RenewedLogin,
@@ -56,6 +57,8 @@ export type StoreCredentialInput = KindSecret & {
   /** Non-secret details only: plan, organization, scopes, a gateway's address and its own paths. */
   readonly accountMeta?: AccountMeta;
   readonly requestId?: string | null;
+  /** A tool sign-in checked with its provider just before (`FirstCheck`). */
+  readonly checked?: FirstCheck;
 };
 
 /** An opened secret with the credential it belongs to, narrowed by `kind`; or why it was not opened. */
@@ -92,6 +95,7 @@ async function storeCredential(
       iv: sealed.iv,
       authTag: sealed.tag,
       ciphertext: sealed.ciphertext,
+      ...firstCheckColumns(input.checked),
     });
     await repo.audit(tx, {
       actorKind: 'user',
@@ -101,6 +105,7 @@ async function storeCredential(
       action: 'create',
       changes: diffFields(null, audited(row)),
     });
+    await recordFirstCheck(repo, tx, row.id, input.checked);
     return credentialView(row);
   });
 }

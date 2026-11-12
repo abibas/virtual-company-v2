@@ -204,6 +204,13 @@
       "when": 1794501181563,
       "tag": "0028_chat_slot_waits",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794511031344,
+      "tag": "0029_tool_sign_ins",
+      "breakpoints": true
     }
   ]
 }

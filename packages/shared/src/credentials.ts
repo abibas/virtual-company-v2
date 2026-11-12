@@ -12,7 +12,10 @@ export const CREDENTIAL_LABEL = { min: 1, max: 80 } as const;
 /** What used a secret on the server ("usage_check", later "run"): 1 to 80 characters (`credential_uses_purpose_check`). */
 export const CREDENTIAL_PURPOSE = { min: 1, max: 80 } as const;
 
-/** The kinds added by pasting a secret; the two logins (`claude_oauth`, `codex_oauth`) come from the sign-in helper. */
+/**
+ * The kinds added by pasting a secret, with no call to the provider; the two AI logins (`claude_oauth`, `codex_oauth`)
+ * come from the sign-in helper, and the tool sign-ins (`TOOL_CREDENTIAL_KINDS`) are checked with their provider first.
+ */
 export const PASTED_CREDENTIAL_KINDS = [
   'claude_setup_token',
   'anthropic_api_key',
@@ -30,6 +33,60 @@ export const SECRET_PREFIXES = {
 
 /** The longest pasted token or API key taken, in characters. */
 export const SECRET_MAX = 4096;
+
+/**
+ * The tool sign-ins (S7.1a, docs/subscriptions.md "Tool sign-ins"): Sign in with GitHub (the GitHub CLI's device
+ * sign-in), a pasted GitHub token, and an Atlassian site with its API token (Jira and Confluence). They live in the same
+ * personal store as the AI subscriptions, but never power an AI turn, never go in an AI access profile and have no plan
+ * limits.
+ */
+export const TOOL_CREDENTIAL_KINDS = [
+  'github_oauth',
+  'github_token',
+  'atlassian_api_token',
+] as const satisfies readonly CredentialKind[];
+export type ToolCredentialKind = (typeof TOOL_CREDENTIAL_KINDS)[number];
+
+/** The tools they sign in to, in the order the page shows them. */
+export const TOOL_PROVIDERS = ['github', 'atlassian'] as const;
+export type ToolProvider = (typeof TOOL_PROVIDERS)[number];
+
+/** The tool each tool sign-in is for. */
+export const TOOL_PROVIDER_OF = {
+  github_oauth: 'github',
+  github_token: 'github',
+  atlassian_api_token: 'atlassian',
+} as const satisfies Record<ToolCredentialKind, ToolProvider>;
+
+/** True for a tool sign-in, false for an AI subscription, key or gateway. */
+export function isToolKind(kind: CredentialKind): kind is ToolCredentialKind {
+  return (TOOL_CREDENTIAL_KINDS as readonly CredentialKind[]).includes(kind);
+}
+
+/** How a pasted GitHub token starts: a classic personal access token `ghp_`, a fine-grained one `github_pat_`. */
+export const GITHUB_TOKEN_PREFIXES = ['ghp_', 'github_pat_'] as const;
+
+/** An Atlassian Cloud site, as stored: its host, `<name>.atlassian.net`. */
+export const ATLASSIAN_SITE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.atlassian\.net$/;
+
+/**
+ * A site as typed (`https://Airia.atlassian.net/jira/`, `airia.atlassian.net`, or just `airia`) as its host
+ * (`airia.atlassian.net`); undefined when it is not an Atlassian Cloud site.
+ */
+export function atlassianSite(input: string): string | undefined {
+  const host = (
+    input
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .split(/[/?#]/)[0] ?? ''
+  ).replace(/\.$/, '');
+  const full = host !== '' && !host.includes('.') ? `${host}.atlassian.net` : host;
+  return ATLASSIAN_SITE.test(full) ? full : undefined;
+}
+
+/** Where a person makes an Atlassian API token. */
+export const ATLASSIAN_TOKEN_PAGE = 'https://id.atlassian.com/manage-profile/security/api-tokens';
 
 /** How many headers a gateway sends with each request: none (a local proxy needs none) to 20. */
 export const GATEWAY_HEADERS = { min: 0, max: 20 } as const;

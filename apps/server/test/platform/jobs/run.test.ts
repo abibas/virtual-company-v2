@@ -29,6 +29,7 @@ afterAll(() => w.t.close());
 const tick = (deps: JobsDeps = w.jobs) => runJobsOnce(deps);
 const NOTHING = { claimed: 0, done: 0, retry: 0, failed: 0, skipped: 0 };
 const NO_EMAILS = { queued: 0, sent: 0, skipped: 0, retry: 0, failed: 0, waiting: 0 };
+const NO_TOOL_CHECKS = { checked: 0, active: 0, needsSignIn: 0, failed: 0 };
 
 /** A company created through the API by a new person, who then invites each email as a member. */
 async function companyInviting(name: string, ...emails: string[]) {
@@ -179,6 +180,10 @@ describe('runJobsOnce', () => {
         order.push('notifications');
         return NO_EMAILS;
       }),
+      toolChecks: vi.fn(async () => {
+        order.push('tools');
+        return NO_TOOL_CHECKS;
+      }),
       outboxHandlers: {},
       retryEvents: vi.fn(async () => {
         order.push('events');
@@ -194,19 +199,20 @@ describe('runJobsOnce', () => {
     await rawDb(w.t.db).update(companies).set({ reconciledAt: w.clock() });
   });
 
-  it('runs the machines upkeep, the notification emails, the outbox, then the event retry, then the reconcile', async () => {
+  it('runs the machines upkeep, the notification emails, the tool checks, the outbox, then the event retry, then the reconcile', async () => {
     const { deps, order } = stubbed();
     const tally = await tick(deps);
     expect(tally).toEqual({
       idle: false,
       machines: { offline: 0, pruned: 0, power: null },
       notifications: NO_EMAILS,
+      tools: NO_TOOL_CHECKS,
       outbox: NOTHING,
       events: { claimed: 0, processed: 0, failed: 0, givenUp: 0 },
       reconcile: { due: 0, reconciled: 0, failed: 0, skipped: 0 },
       failed: [],
     });
-    expect(order).toEqual(['machines', 'notifications', 'events']);
+    expect(order).toEqual(['machines', 'notifications', 'tools', 'events']);
   });
 
   it('logs a job that fails and still runs the others', async () => {
@@ -226,7 +232,7 @@ describe('runJobsOnce', () => {
     expect(line).toMatchObject({ level: LEVEL.error, job: 'events', err: { message: 'inbox unreadable' } });
   });
 
-  it('idles without an identity provider but for the machines and the emails: the outbox rows wait, untouched, and nothing is logged', async () => {
+  it('idles without an identity provider but for the machines, the emails and the tool checks: the outbox rows wait, untouched, and nothing is logged', async () => {
     const { company } = await companyInviting('Idle Co', 'waits@idle.test');
     const { deps } = stubbed();
     const before = w.t.logs.length;
@@ -234,6 +240,7 @@ describe('runJobsOnce', () => {
       idle: true,
       machines: { offline: 0, pruned: 0, power: null },
       notifications: NO_EMAILS,
+      tools: NO_TOOL_CHECKS,
       failed: [],
     });
     expect(deps.work.retryEvents).not.toHaveBeenCalled();
