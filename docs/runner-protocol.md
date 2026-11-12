@@ -107,7 +107,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `runner.drain` | `cmdId` | no new runs until the runner restarts; live runs go on |
 | `machine.hold` | `cmdId`, `until` (ms\|null) | null releases the server's hold |
 | `power.command` | `cmdId`, `target{provider airia_devbox, ref{instance, zone, size?}}`, `action start\|stop\|status\|set_timezone`, `args?{timezone?}` | to a power controller; `set_timezone` needs `args.timezone` (IANA) |
-| `tunnel.set` | `tunnels[≤ 64]{machineId, target{provider airia_devbox, ref}, remotePort, localPort}` (ports 1–65535, one tunnel per machine) | to a power controller: the full set of tunnels it should hold now (an empty one stops them all); not a command (no `cmdId`, no answer) |
+| `tunnel.set` | `tunnels[≤ 64]{machineId, target{provider airia_devbox, ref}, remotePort, localPort, running?}` (ports 1–65535, one tunnel per machine; `running`, 2026-11-12: the box's last power reading says it runs, so the holder retries within 30 s and clears the box's port before each retry after a forward failure; left out by an older server, ignored by an older runner) | to a power controller: the full set of tunnels it should hold now (an empty one stops them all); not a command (no `cmdId`, no answer) |
 | `terminal.open` | `sessionId` (the server's UUID), `cols` 2–500, `rows` 1–300, `harness?` (a `TerminalSpec`, S5.1b) | start a login shell in a new PTY, or with `harness` the harness's TUI on a chat's conversation; answered by `terminal.opened` or, refused, by `terminal.exit` |
 | `terminal.input` | `sessionId`, `data` (base64 of 1 byte to 64 KB) | typed or pasted bytes |
 | `terminal.resize` | `sessionId`, `cols`, `rows` | |
@@ -120,7 +120,7 @@ Nothing lives only in memory on the server: after its restart every runner recon
 | `tools.check` | `cmdId` | look for the CLIs again and ask each one found its version; answered by `runner.caps`, then `tools.result` |
 | `tools.install` | `cmdId`, `tool` (`claude` \| `codex`), `version` (an exact version: the server's pin) | install it with npm into `~/.local`; answered by `tools.output` lines, `runner.caps` and `tools.result` ("Tools" below) |
 | `turn.stop` | `turnId` | stop it: SIGINT to its process group, SIGTERM 10 s later, SIGKILL 20 s after the SIGINT; its `turn.end` says `stopped` |
-| `turn.resume` | `turns[≤ 256]{turnId, lastSeq}` (`lastSeq` the highest event number the server stored for the turn, or null: it has no such live turn) | once after `server.hello`, answering a hello that named turns (S5.4, "Chat turns" below): the runner resends the events after `lastSeq` and goes on; null: it stops that turn and forgets it |
+| `turn.resume` | `turns[≤ 256]{turnId, lastSeq}` (`lastSeq` the highest event number the server stored for the turn, or null: it has no such live turn; since 2026-11-12 a turn it had failed because its runner was away counts as live again when it takes it back) | once after `server.hello`, answering a hello that named turns (S5.4, "Chat turns" below): the runner resends the events after `lastSeq` and goes on; null: it stops that turn and forgets it |
 | `turn.ack` | `turnId` | the server recorded the turn's end (S5.4); the runner removes the turn's run folder |
 | `turn.tool.result` | `turnId`, `callId` (the `turn.tool`'s), `ok`, `text` (1–50 000 characters: what happened, or why not) | the answer to a `turn.tool` (S6a), which the tool returns to the agent (`ok: false` as a tool error); one for no waiting call is dropped (logged) |
 
@@ -181,14 +181,16 @@ limit alone.
   `127.0.0.1:remotePort` leads to the controller's `127.0.0.1:localPort`. It sends the set when the controller says
   hello, after a devbox enrolls (its controller saved when exactly one connected runner of the company can power it),
   when a box's controller, removal or stored power status changes, and at every scheduler step as a safety net, but
-  only when it differs from the set last sent on that connection. The runner reconciles each set: it starts the
-  missing tunnels, stops the extra ones and restarts one whose target or ports changed (after the old one ended). The
-  devbox's tunnel is `gcloud compute ssh <instance> --project airia-devbox --zone <zone> --tunnel-through-iap --quiet
-  --strict-host-key-checking=no -- -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3
-  -o BatchMode=yes -R 127.0.0.1:<remotePort>:127.0.0.1:<localPort>` (gcloud by its full path; never `airia devbox ssh`,
-  which starts a stopped box). It is started `detached` and stopped as a process group, SIGTERM then SIGKILL after 5 s,
-  when it leaves the set and when the runner stops; one that ends while wanted starts again after 5 s, doubling to
-  5 minutes, from 5 s again after one that stayed up 60 s. A runner without power, or one that cannot start processes,
+  only when it differs from the set last sent on that connection (whether a box reads `running` counts). The runner
+  reconciles each set: it starts the missing tunnels, stops the extra ones and restarts one whose target or ports
+  changed (after the old one ended); a change of `running` alone restarts nothing. The devbox's tunnel is `gcloud compute
+  ssh <instance> --project airia-devbox --zone <zone> --tunnel-through-iap --quiet --strict-host-key-checking=no -- -N
+  -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=30 -o BatchMode=yes
+  -R 127.0.0.1:<remotePort>:127.0.0.1:<localPort>` (gcloud by its full path; never `airia devbox ssh`, which starts a
+  stopped box). It is started `detached` and stopped as a process group, SIGTERM then SIGKILL after 5 s, when it leaves
+  the set and when the runner stops; one that ends while wanted starts again after 5 s, doubling to 5 minutes (30 s while
+  its box reads `running`), from 5 s again after one that stayed up 60 s; the box's port is cleared first after a forward
+  failure or the end of a tunnel that was up (docs/machines.md, "Tunnel recovery"). A runner without power, or one that cannot start processes,
   ignores `tunnel.set`. The server keeps the latest `tunnel.state` of each box in memory only (not the database) and
   shows it on the machine in `GET machines` as `tunnel{state, error, since}` when its saved controller reported it,
   null otherwise. When the server drives the airia CLI itself (MWC_LOCAL_POWER, `docs/machines.md`) it holds the
@@ -271,12 +273,15 @@ environment values or `auth.json`.
   its log (`turn.events`, and a question as `turn.question` again; the server stores each event once, by `(turn, seq)`)
   and goes on live, and for a turn whose process ended sends its files and `turn.end` again; `lastSeq: null` (the server
   failed the turn, or never had it) makes the runner stop it by the ladder, send nothing, and remove its folder. The server
-  keeps a turn whose runner says `caps.reattach` `running` and detached for its grace (`MWC_TURN_GRACE_SECONDS`, 180 s)
-  after the link drops, and at its own start waits the same grace for the turns left running; a hello of the machine that
-  does not name a waiting turn ends it at once, the grace running out too (`machine_disconnected`, `server_restarted`). A
-  `turn.stop` asked meanwhile goes right after `turn.resume`. A runner without `caps.reattach` ended its processes with
-  the link, so its turns fail at once, as before; a server without `server.hello.resume` sends no `turn.resume`, and the
-  runner stops the turns it holds. `turn.ack` follows each recorded end; without it (an older server) the folder goes
+  keeps a turn whose runner says `caps.reattach` `running` and detached for its grace (`MWC_TURN_GRACE_SECONDS`, 30
+  minutes since 2026-11-12, 180 s before) after the link drops, and at its own start waits the same grace for the turns
+  left running; a hello of the machine that does not name a waiting turn ends it at once, the grace running out too
+  (`machine_disconnected: <words naming the machine>`, `server_restarted`). Since 2026-11-12 a hello that names a turn
+  the server so failed may still get a number in `turn.resume`: the server took it back (nothing else started in its
+  chat, its task did not move), and the runner goes on with it as with any turn; the frames are unchanged. A stop asked
+  while the turn is detached ends it at once on the server (`stopped`), so the runner coming back with it hears `null`.
+  A runner without `caps.reattach` ended its processes with the link, so its turns fail at once, as before; a server
+  without `server.hello.resume` sends no `turn.resume`, and the runner stops the turns it holds. `turn.ack` follows each recorded end; without it (an older server) the folder goes
   after 24 hours. Live turns count for the runner's own hold (`hold.state` source `live_runs`); they no longer make
   `runner.update` answer `busy`.
 
@@ -402,7 +407,7 @@ newer one passes through). The server sends `tools.check` and `tools.install` on
 | `TERMINAL_SESSIONS_MAX`, `TERMINAL_IDLE_MS`, `TERMINAL_TICKET_TTL_MS` | 4 terminals per machine, 60 minutes without input, 60 s for a browser ticket |
 | `TURN_EVENTS_BATCH_MS`, `TURN_EVENTS_BATCH_BYTES` | a turn's events sent 100 ms after the first of a batch, or at once from 32 KB (or 100 events) |
 | `TURN_STOP_TERM_MS`, `TURN_STOP_KILL_MS` | SIGTERM 10 s and SIGKILL 20 s after a stopped turn's SIGINT |
-| `HELD_TURNS_MAX`, `TURN_REATTACH_GRACE_MS` | 256 turns in one hello or `turn.resume`; a turn whose runner went away waits 180 s for it (the server's `MWC_TURN_GRACE_SECONDS`) |
+| `HELD_TURNS_MAX`, `TURN_REATTACH_GRACE_MS` | 256 turns in one hello or `turn.resume`; a turn whose runner went away waits 30 minutes for it (the server's `MWC_TURN_GRACE_SECONDS`; 180 s before 2026-11-12) |
 | the runner's turns (`apps/runner/src/turns/`) | the journal read every 100 ms; a keeper alone 10 minutes closes the harness's stdin; 2 s for a keeper's greeting; an ended turn's folder kept 24 h without `turn.ack` |
 | `TURN_TOOLS_MAX`, `TOOL_RESULT_MAX` (`@mwc/shared/flows`), the runner's waits | 32 tools a turn names, 50 000 characters of a `turn.tool.result`; the runner waits 55 s for it, the MCP server 60 s for the runner |
 | `ARTIFACT_LIMITS` (`@mwc/shared/flows`), `ARTIFACT_PARTS_MAX` | a task step's turn collects 20 files of at most 2 MB, 10 MB together, 50 skipped listed, names of 255 characters, sent in parts of 128 KB (16 at most per file) |

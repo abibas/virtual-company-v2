@@ -529,9 +529,11 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    `done`, `failed` (the runner's reason first, else the result's error) or `stopped`, with the result's text and the
    usage. Since S5.4 a turn outlives its runner's link and the server: a runner that keeps turns (`caps.reattach`) and
    whose link drops leaves them running and the server keeps them `running` and detached for the grace
-   (`MWC_TURN_GRACE_SECONDS`, 180 s); the runner's next hello takes them back, and at the server's start the turns left
-   running wait the same grace for their runner. Only when the grace runs out do they fail (`machine_disconnected`,
-   `server_restarted`); an older runner's dropped link fails them at once, as before ("Surviving restarts").
+   (`MWC_TURN_GRACE_SECONDS`, 30 minutes since 2026-11-12); the runner's next hello takes them back, and at the server's
+   start the turns left running wait the same grace for their runner. Only when the grace runs out do they fail
+   (`machine_disconnected: <the machine> was unreachable for 30 minutes: the turn stopped.`, `server_restarted`), and a
+   runner that comes back later still gets them back while nothing else ran in their chat; an older runner's dropped link
+   fails them at once, as before ("Surviving restarts").
 9. **The stream** (`GET …/chats/{chatId}/stream`, members and above): Server-Sent Events over an authenticated GET
    (the web reads it with `fetch` and its Bearer header): `turn` (`{turn}`) on a start and each status change, `event`
    (`{turnId, turnSeq, seq, event, at}`, its `id:` `<turnSeq>.<seq>`), a `: heartbeat` comment every 20 s;
@@ -575,6 +577,14 @@ recover). A running turn survives `kill -9` of its runner (the harness keeps run
 back), a server restart (the runner keeps the turn going and the restarted server takes it back), and a dropped link that
 comes back. Events missed meanwhile are delivered once, never twice; Stop works on a turn taken back; a turn whose process
 really died ends honestly. Task step turns and chat turns behave the same, and so does the task state.
+
+**Link drops** (2026-11-12, after a blip of This Mac's network kept the devbox's tunnel down for 8 minutes: the 180 s
+grace then failed two turns the runner kept alive, and its hello stopped them). A real network outage is now survived
+too: the grace is 30 minutes; a turn that still fails names its machine and how long; a runner that comes back even
+later gets its turn back while nothing else ran in its chat (a late re-attach, below); and the box's tunnel comes back
+within about 30 s of the network (docs/machines.md, "The standing tunnel"). The runner needed no change: it keeps a turn,
+its process and its numbered events however long its link is down (only `KEEPER_ORPHAN_MS` closes stdin, when no runner
+at all is on the keeper's line for 10 minutes), and reconnects every 60 s at most.
 
 **The run folder** (`apps/runner/src/turns/runs/folder.ts`): `<runner state>/runs/<first 12 hex of sha256(turn id)>/`,
 made 0700 when the turn starts, and removed when the server acknowledges its end (`turn.ack`), when the server no
@@ -640,14 +650,34 @@ folder. A server older than this (no `server.hello.resume`) gets the same: it fa
 **The server** (`modules/machines/service/runner/hub/turns.ts` and `hub/turn-resume.ts`, `modules/chats/service/live.ts`, `service/adopt.ts`):
 
 - When the link of a runner that keeps turns (`caps.reattach`) drops, its turns stay `running` and become **detached**
-  (the stream sends the turn with `detached: true`, the chat's detail says it, the web's working pill reads
-  "Reconnecting…") for the grace, `MWC_TURN_GRACE_SECONDS` (180 s by default, 1 to 3600). An older runner's dropped link
-  fails them at once (`machine_disconnected`), since it ended their processes with the link.
+  (the stream sends the turn with `detached: true` and `detachedAt`, the chat's detail says both, the web's working pill
+  reads "Reconnecting to Airia devbox… 2:14", the open chat's machine and how long it has been away, and a task's
+  conversation reads "Reconnecting" while the task stays worked on) for the grace, `MWC_TURN_GRACE_SECONDS` (1800 s, 30
+  minutes, by default since 2026-11-12, 180 s before; 1 to 86 400; one default for every machine: a runner that comes
+  back without a turn ends it at once and Stop ends a detached turn at once, so a long wait costs nothing when the
+  runner is gone for good). An older runner's dropped link fails them at once, since it ended their processes with the
+  link.
 - A hello naming a turn re-binds it to the new connection (its grace ends, the stream says `detached: false`) and the
   answer is the turn's highest stored event (`turnsRepo.lastEventSeq`, read on the turn's own write queue, after what came
   before is stored). Events are stored `ON CONFLICT DO NOTHING` on `(turn, seq)`, so a resend stores nothing twice.
-- A detached turn of the machine that the hello does not name ends at once (`machine_disconnected`): the runner no longer
-  has it. The grace running out ends it the same way, and the task hook blocks its task once.
+- A detached turn of the machine that the hello does not name ends at once: the runner no longer has it. The grace
+  running out ends it too, and the task hook blocks its task once. Since 2026-11-12 the error names the machine
+  (`awayError`, the machine's name read by the hub): `machine_disconnected: Airia devbox was unreachable for 30 minutes:
+  the turn stopped.`, `machine_disconnected: Airia devbox came back without this turn: it stopped there while the link
+  was down.`, or for an older runner `machine_disconnected: Airia devbox disconnected, and its runner is too old to keep a
+  turn across a dropped link: …`. The web and the blocked task show the words after the code (`disconnectedWords` of
+  `@mwc/shared/chats`); a bare `machine_disconnected` from before reads "The agent's machine was unreachable for too
+  long: the turn stopped."
+- **A late re-attach** (2026-11-12, `chats/service/reclaim.ts`, the safety net under the grace): a hello that names a
+  turn the server already failed because its runner was away (`machine_disconnected…` or `server_restarted`) takes it
+  back when no later turn of its chat ever started (`startedAt`): its row is `running` again (no error, no end) and it
+  goes on as any turn taken back (`turn.resume` with its last stored event, its end recorded normally). A task step's
+  turn is taken back only when the task is still active at that step, blocked with that failure's words, and nothing
+  but an edit happened to it since (its latest history row is that block); the tasks module's hook
+  (`TaskTurnHook.reattached`) then sets it working again with a system `started` row ("The machine came back with the
+  turn; it goes on"), waking nobody (a Lead's wake-up for the block, not told yet, is dropped as stale). Otherwise the
+  turn stays failed (its row put back as it was) and the runner hears `lastSeq: null`, stops it and forgets it, as
+  before.
 - At the server's start (`reapTurns`, before it listens), only the waiting turns of chats where nothing runs fail
   (`server_restarted`); running turns stay. A hello naming one that no sink of this process holds is taken back
   (`turnAdopter`): the turn's row (running, of a chat on that runner's machine), the credential it runs on (whose, of which
@@ -655,8 +685,9 @@ folder. A server older than this (no `server.hello.resume`) gets the same: it fa
   make its sink. Once the grace after the start is over (`failLeftTurns`), each running turn the stopped server left that
   no runner took back ends through such a sink with `server_restarted`: its task is blocked once and the chat's waiting
   messages start, as after any turn's end.
-- **Stop while detached** is accepted (202): it goes as `turn.stop` right after `turn.resume` once the runner is back, or,
-  when the grace runs out first, the turn ends `stopped`.
+- **Stop while detached** is accepted (202) and, since 2026-11-12, ends the turn at once (`stopped`; until then it waited
+  for the runner or the grace, which a 30-minute grace made too long); a runner that comes back with it hears `lastSeq:
+  null` and stops it by the ladder.
 - **One live turn per chat** holds while a turn is detached: it is still `running`, so a prompt is refused
   (`turn_running`) or queued, and the queue starts nothing until the turn ended.
 - `turn.ack {turnId}` goes to a runner that keeps turns once the sink recorded the turn's end.
@@ -684,8 +715,11 @@ back mid-turn with the events continuing once, the end while the runner was away
 ladder on a taken-back turn, a live stranger holding the recorded pid never signalled, Claude Code's input mode across a
 take-back, and the chaos test, a runner process killed with SIGKILL mid-turn (`test/fixtures/turn-host.ts`). The server's
 side on PGlite with `FakeRunner` (`test/modules/chats/service/survive.test.ts`): detached and resumed with the events
-after the stored ones, a hello leaving a turn out, an unknown held turn, Stop while detached (back, and the grace running
-out), the queue, a restarted server taking a turn back, the grace failing a task's turn once, and the left-turn sweep.
+after the stored ones, a hello leaving a turn out, an unknown held turn, Stop while detached (ended at once, the runner
+told when back), the queue, a restarted server taking a turn back, the grace failing a task's turn once in words, and the
+left-turn sweep; the late re-attach (`reclaim.test.ts`): a chat turn resumed after the grace, one refused after another
+turn started, one that ended otherwise, a task step's turn carrying its task on, and one refused after the task moved;
+the hub's words and the immediate stop (`hub/turns.test.ts`), and the rules (`carriedOn`, `awayError`).
 
 ## Standing instructions
 

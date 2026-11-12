@@ -312,7 +312,10 @@ through a reverse SSH forward, and no public URL is needed:
   one long-lived
   `gcloud compute ssh <box> --project airia-devbox --zone <zone> --tunnel-through-iap --quiet
   --strict-host-key-checking=no -- -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3
-  -o BatchMode=yes -R 127.0.0.1:<port>:127.0.0.1:<port>` per box, with gcloud's full path. Plain `gcloud compute ssh`
+  -o ConnectTimeout=30 -o BatchMode=yes -R 127.0.0.1:<port>:127.0.0.1:<port>` per box, with gcloud's full path
+  (`ConnectTimeout` since 2026-11-12: a handshake that hangs on a flaky link is given up after 30 s, the banner exchange
+  through gcloud's IAP proxy command included; no `TCPKeepAlive`, which never reaches the link since ssh talks to the
+  IAP helper over a pipe, and `ServerAliveInterval` already notices a dead link within 45 s). Plain `gcloud compute ssh`
   never starts a stopped box (`airia devbox ssh` and `ssh devbox` would), so the tunnel is wanted only while the box's
   last known power status is running, starting or not known yet; a stopped or missing box's tunnel is stopped. It runs
   in its own process group (gcloud starts ssh and an IAP helper) and is stopped as one: SIGTERM, then SIGKILL after
@@ -326,6 +329,23 @@ through a reverse SSH forward, and no public URL is needed:
   a failed try, so never one of its own live tunnels) and try again after 2 s; at most once in 5 minutes per tunnel,
   after which the backoff applies (`power: cleared a stale holder of the box's port` in the log). Without the server's own driver, This Mac's
   runner must be installed (and connected) first, since it keeps the box linked.
+- **Tunnel recovery** (2026-11-12, `@mwc/machines-core` `tunnels/recover.ts`). A blip of This Mac's network kept the box's
+  tunnel down for 8 minutes: each half-made session left a new stale holder of the box's port, the clearing ran once in
+  5 minutes, and the backoff grew to 160 s. Now the wanted set says whether the box's last power reading is running
+  (`TunnelSpec.running`, sent to a runner holder in `tunnel.set` too; a failed reading keeps the last status, so an
+  outage does not change it), and:
+  - a tunnel that had been up (alive 10 s) clears the box's port before its next try, since its own session is the one
+    now left behind, not only after a forward failure (`power: a tunnel that was up ended; clearing the machine's port
+    first`);
+  - while the box reads running, the clearing runs before every try that follows a forward failure, at most once in
+    20 s (`TUNNEL_CLEAR_COOLDOWN_MS`): a try within the cool-down waits for the rest of it, then clears, then tries 2 s
+    later; otherwise (starting, or not known) it stays once in 5 minutes;
+  - while the box reads running the backoff is 5, 10, 20, then 30 s at most (`TUNNEL_RETRY_RUNNING_MAX_MS`); 5 minutes
+    otherwise;
+  - a tunnel waiting out its backoff starts at once when its box turns running (`power: the machine runs; starting its
+    tunnel now`).
+  So the box is linked again within about 30 s of the network coming back, and its runner reconnects within its own
+  60 s backoff; its turns wait 30 minutes for it (docs/harness.md, "Surviving restarts").
 - **When the Mac sleeps.** The dev server lives on the Mac anyway, so nothing is lost: while the Mac sleeps there is
   no server to reach; the box's runs keep going (their journals are on the box), its runner reconnects with its usual
   backoff, and the tunnel comes back with the Mac.

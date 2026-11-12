@@ -355,13 +355,18 @@ conversation, which continues it. A turn that ends after the task moved on, or w
 conversations runs, changes nothing on the task.
 
 **Across restarts** (S5.4, docs/harness.md "Surviving restarts"): a step's turn survives its runner's dropped link, the
-runner's restart and the server's restart. While its runner is away the turn stays `running` (detached, "Reconnecting…"
-in its thread) and the task stays `working`: nothing is blocked while the turn may still come back. When the runner comes
-back with it, the turn goes on and ends as usual. Only a turn that finally fails blocks the task, once: the grace after a
-dropped link runs out (`machine_disconnected`), a turn a stopped server left running that no runner took back within the
-grace after the start (`server_restarted`), or a process that died while no runner watched it (`process_lost`). A
-person's reply that waited in the conversation of a step whose turn ended as a server stopped fails at the next start
-(`server_restarted`) and blocks the task the same way.
+runner's restart and the server's restart. While its runner is away the turn stays `running` (detached, "Reconnecting to
+Airia devbox… 2:14" in its thread, "Reconnecting" in the task's list of conversations) and the task stays `working`:
+nothing is blocked while the turn may still come back. When the runner comes back with it, the turn goes on and ends as
+usual. Only a turn that finally fails blocks the task, once: the grace after a dropped link (30 minutes since 2026-11-12)
+runs out (blocked with the words "Airia devbox was unreachable for 30 minutes: the turn stopped."), a turn a stopped
+server left running that no runner took back within the grace after the start (`server_restarted`), or a process that
+died while no runner watched it (`process_lost`). Since 2026-11-12 a runner that comes back even later with a turn failed
+by the grace (or `server_restarted`) gets it back when the task is still blocked by that failure at that step and nothing
+happened to it since (an edit aside): the task works at the step again (a system `started` row, "The machine came back
+with the turn; it goes on"), nobody is woken, and the turn ends as usual. A person's reply that waited in the
+conversation of a step whose turn ended as a server stopped fails at the next start (`server_restarted`) and blocks the
+task the same way.
 
 **Moving a task while its turn runs** is refused (409 `step_running`, after the caller's own checks) unless the move
 says `force: true` (`mwc task move … --force`), which stops the turn (`turn.stop`) once the move is written; its end then

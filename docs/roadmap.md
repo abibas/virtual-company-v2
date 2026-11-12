@@ -539,6 +539,27 @@ minutes passed); Stop ends it. Switch off: `machine_stopped` with the machine (t
 in words. The chat shows "Starting Airia devbox… 0:42" until it runs; the Machines page's two switches lose "from S5".
 Merging needs the dev API restarted (migration 0026 runs on start) and the web reloaded; the runner is unchanged.
 
+**Turns survive a network outage, and the devbox's tunnel comes back fast: built 2026-11-12 on the `durable-link`
+branch, not merged yet** (docs/harness.md "Surviving restarts", docs/machines.md "The standing tunnel",
+docs/runner-protocol.md "Chat turns"). A blip of This Mac's network at 18:10 kept the devbox's tunnel down for 8 minutes
+(every retry hit the box's stale port holder, cleared only once in 5 minutes, while the backoff grew to 160 s), the
+180 s grace failed the Lead's chat turn and QA's step turn ("The machine disconnected during the turn.", T-2 blocked)
+although the runner kept both alive, and the runner's hello at 18:19 got `lastSeq: null`, so it stopped them. Turns: the
+grace is 30 minutes for every machine (`MWC_TURN_GRACE_SECONDS`, now up to 86 400; one default rather than per kind,
+since a runner that comes back without a turn ends it at once and Stop now ends a detached turn at once); a turn that
+does fail says `machine_disconnected: Airia devbox was unreachable for 30 minutes: the turn stopped.` (or came back
+without the turn, or a runner too old to keep it), and a blocked task shows those words; a hello naming a turn the
+server failed because its runner was away (`machine_disconnected`, `server_restarted`) takes it back while nothing else
+started in its chat, and a task blocked only by that failure and unmoved carries on at its step (`started`, "The machine
+came back with the turn; it goes on"); else the runner hears `lastSeq: null` as before. The chat's pill reads
+"Reconnecting to Airia devbox… 2:14" (`detachedAt` on the turn), a task's conversation "Reconnecting". Tunnel: the spec
+says whether the box reads running (`TunnelSpec.running`); a tunnel that was up clears the box's port before its next
+try; while the box reads running the port is cleared before every try after a forward failure (at most once in 20 s)
+and the backoff stops at 30 s; a waiting tunnel starts at once when its box turns running; ssh gets `ConnectTimeout=30`
+(not `TCPKeepAlive`: ssh talks to gcloud's IAP helper over a pipe). No migration; the runner's code is unchanged (its
+bundle carries the tunnel rules for a runner that holds tunnels once rebuilt; This Mac's server holds them in
+development). Merging needs the dev API restarted and the web reloaded.
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.
