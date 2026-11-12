@@ -114,3 +114,26 @@ export type LeadWakeKind = z.infer<typeof LeadWakeKind>;
  */
 export const LeadWakeOutcome = z.enum(['pending', 'woke', 'capped', 'unreachable', 'dropped']);
 export type LeadWakeOutcome = z.infer<typeof LeadWakeOutcome>;
+
+/**
+ * `room_messages.kind` (the team room, docs/processes.md "The team room"): a person's message, an agent's one line when
+ * its step ends, an agent's reply in the room (to people's messages, and the Lead's to its wake-ups and check-ins), and
+ * Most Wanted's own notices (a wake-up, a check-in, agents not asked).
+ */
+export const RoomMessageKind = z.enum(['message', 'step_end', 'reply', 'notice']);
+export type RoomMessageKind = z.infer<typeof RoomMessageKind>;
+
+/**
+ * What a step-end line says the step's agent did (`room_messages.details.action`): its decision applied (handed on,
+ * passed, approved, sent back, sent back over the limit and so escalated, blocked), or its turn ended without one.
+ */
+export const StepEndAction = z.enum([
+  'hand_on',
+  'pass',
+  'approve',
+  'send_back',
+  'escalated',
+  'blocked',
+  'turn_ended',
+]);
+export type StepEndAction = z.infer<typeof StepEndAction>;

@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 38. Migrations: 31, the last is `0030_tool_profiles`.
+Tables: 39. Migrations: 32, the last is `0031_team_room`.
 
 ```mermaid
 erDiagram
@@ -116,6 +116,7 @@ erDiagram
     boolean system "not null, default false"
     timestamptz machine_wait_at "nullable"
     text machine_wait "nullable, stopped|slots"
+    uuid room_message_id FK "nullable"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     timestamptz started_at "nullable"
@@ -240,6 +241,7 @@ erDiagram
     integer wake_max_per_hour "not null, default 12"
     integer wake_max_per_day "not null, default 150"
     integer wake_check_in_minutes "nullable, default 5"
+    integer room_max_per_hour "not null, default 30"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -438,6 +440,20 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  room_messages {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid flow_id FK "not null"
+    text kind "not null, message|step_end|reply|notice"
+    uuid author_principal_id FK "nullable"
+    text body "not null"
+    uuid task_id FK "nullable"
+    jsonb details "not null, default '{}'"
+    integer asked "nullable"
+    uuid chat_id "nullable"
+    uuid turn_id "nullable"
+    timestamptz created_at "not null, default now()"
+  }
   runner_sessions {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
@@ -545,6 +561,7 @@ erDiagram
   chat_turns }o--|| companies : "company_id"
   chat_turns |o--|| chats : "company_id, chat_id"
   chat_turns }o--|| principals : "company_id, created_by"
+  chat_turns }o--o| room_messages : "company_id, room_message_id"
   chats }o--|| companies : "company_id"
   chats }o--o| access_profiles : "profile_id"
   chats }o--o| users : "profile_set_by"
@@ -606,6 +623,10 @@ erDiagram
   org_positions |o--|| principals : "company_id, principal_id"
   org_positions }o--o| principals : "company_id, reports_to_principal_id"
   principals }o--|| companies : "company_id"
+  room_messages }o--|| companies : "company_id"
+  room_messages }o--|| flows : "company_id, flow_id"
+  room_messages }o--o| principals : "company_id, author_principal_id"
+  room_messages }o--o| tasks : "company_id, task_id"
   runner_sessions }o--|| companies : "company_id"
   runner_sessions }o--|| machines : "company_id, machine_id"
   task_artifacts }o--|| companies : "company_id"
@@ -873,6 +894,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `system` | `boolean` | no | `false` |  |  |
 | `machine_wait_at` | `timestamp with time zone` | yes |  |  |  |
 | `machine_wait` | `text` | yes |  |  | `stopped`, `slots` |
+| `room_message_id` | `uuid` | yes |  | FK |  |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `started_at` | `timestamp with time zone` | yes |  |  |  |
@@ -888,10 +910,12 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `company_id` → `companies` (`id`), on delete no action (`chat_turns_company_id_companies_id_fk`)
   - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`chat_turns_chat_fk`)
   - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chat_turns_created_by_fk`)
+  - (`company_id`, `room_message_id`) → `room_messages` (`company_id`, `id`), on delete no action (`chat_turns_room_message_fk`)
 - **Unique:**
   - `chat_turns_company_id_id_unique` (`company_id`, `id`)
   - `chat_turns_chat_seq_unique` (`company_id`, `chat_id`, `seq`)
 - **Checks:**
+  - `chat_turns_room_message_check`: `"room_message_id" is null or "system"`
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
   - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
   - `chat_turns_delivery_check`: `delivery` is one of `now`, `after`, `interrupt`
@@ -1154,6 +1178,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `wake_max_per_hour` | `integer` | no | `12` |  |  |
 | `wake_max_per_day` | `integer` | no | `150` |  |  |
 | `wake_check_in_minutes` | `integer` | yes | `5` |  |  |
+| `room_max_per_hour` | `integer` | no | `30` |  |  |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -1172,6 +1197,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `flows_wake_window_check`: `"wake_window_seconds" between 0 and 600`
   - `flows_wake_per_hour_check`: `"wake_max_per_hour" between 1 and 60`
   - `flows_wake_per_day_check`: `"wake_max_per_day" between 1 and 500`
+  - `flows_room_per_hour_check`: `"room_max_per_hour" between 1 and 200`
   - `flows_wake_check_in_check`: `"wake_check_in_minutes" is null or "wake_check_in_minutes" between 3 and 60`
 - **Indexes:** none
 
@@ -1622,6 +1648,42 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `principals_kind_check`: `kind` is one of `person`, `agent`
 - **Indexes:** none
+
+### `room_messages`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `flow_id` | `uuid` | no |  | FK |  |
+| `kind` | `text` | no |  |  | `message`, `step_end`, `reply`, `notice` |
+| `author_principal_id` | `uuid` | yes |  | FK |  |
+| `body` | `text` | no |  |  |  |
+| `task_id` | `uuid` | yes |  | FK |  |
+| `details` | `jsonb` | no | `'{}'` |  |  |
+| `asked` | `integer` | yes |  |  |  |
+| `chat_id` | `uuid` | yes |  |  |  |
+| `turn_id` | `uuid` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`room_messages_company_id_companies_id_fk`)
+  - (`company_id`, `flow_id`) → `flows` (`company_id`, `id`), on delete no action (`room_messages_flow_fk`)
+  - (`company_id`, `author_principal_id`) → `principals` (`company_id`, `id`), on delete no action (`room_messages_author_fk`)
+  - (`company_id`, `task_id`) → `tasks` (`company_id`, `id`), on delete no action (`room_messages_task_fk`)
+- **Unique:**
+  - `room_messages_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `room_messages_kind_check`: `kind` is one of `message`, `step_end`, `reply`, `notice`
+  - `room_messages_author_check`: `("kind" = 'notice') = ("author_principal_id" is null)`
+  - `room_messages_body_check`: `char_length("body") between 1 and 20000`
+  - `room_messages_step_end_check`: `"kind" <> 'step_end' or "task_id" is not null`
+  - `room_messages_asked_check`: `"asked" is null or ("kind" = 'message' and "asked" >= 0)`
+  - `room_messages_details_check`: `jsonb_typeof("details") = 'object'`
+  - `room_messages_turn_check`: `"turn_id" is null or "chat_id" is not null`
+- **Indexes:**
+  - `room_messages_flow_idx` on (`company_id`, `flow_id`, `created_at`, `id`)
 
 ### `runner_sessions`
 

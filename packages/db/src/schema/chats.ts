@@ -23,6 +23,7 @@ import { flows } from './flows.ts';
 import { machines } from './machines.ts';
 import { agents } from './org.ts';
 import { principals } from './principals.ts';
+import { roomMessages } from './room-messages.ts';
 import { tasks } from './tasks.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
 import { users } from './users.ts';
@@ -122,7 +123,8 @@ export const chats = pgTable(
  * A turn for an agent whose machine was stopped waits `queued` while the machine starts (`machine_wait_at`, migration
  * 0026): it starts once the machine's runner connects, and fails when the start fails or takes too long. Since 0028 a
  * turn also waits so while every slot of its machine is taken (`machine_wait` says which: `stopped` or `slots`), and
- * starts when a turn on that machine ends.
+ * starts when a turn on that machine ends. A turn Most Wanted queued in an agent's room conversation (a flow's chat) for
+ * a person's message in the team room names that message (`room_message_id`, docs/processes.md "The team room").
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -142,6 +144,8 @@ export const chatTurns = pgTable(
     machineWaitAt: at('machine_wait_at'),
     /** What it waits for: the machine to start (`stopped`), or a free slot (`slots`). */
     machineWait: text('machine_wait').$type<MachineWait>(),
+    /** The team room's message a room turn answers (a system turn); null for any other turn. */
+    roomMessageId: uuid('room_message_id'),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     startedAt: at('started_at'),
@@ -159,6 +163,8 @@ export const chatTurns = pgTable(
     unique('chat_turns_chat_seq_unique').on(t.companyId, t.chatId, t.seq),
     tenantForeignKey('chat_turns_chat_fk', t.companyId, t.chatId, chats),
     tenantForeignKey('chat_turns_created_by_fk', t.companyId, t.createdBy, principals),
+    tenantForeignKey('chat_turns_room_message_fk', t.companyId, t.roomMessageId, roomMessages),
+    check('chat_turns_room_message_check', sql`${t.roomMessageId} is null or ${t.system}`),
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
     check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),
     check('chat_turns_delivery_check', oneOf(t.delivery, ChatTurnDelivery.options)),

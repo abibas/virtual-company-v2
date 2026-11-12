@@ -16,6 +16,7 @@ export * from './flows/enums.ts';
 export * from './flows/keys.ts';
 export * from './flows/limits.ts';
 export * from './flows/prompt.ts';
+export * from './flows/room.ts';
 export * from './flows/tool-input.ts';
 export * from './flows/tool-words.ts';
 export * from './flows/tools.ts';
