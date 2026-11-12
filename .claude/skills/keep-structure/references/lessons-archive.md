@@ -2,6 +2,21 @@
 
 Settled lessons, moved out of [lessons.md](lessons.md) so agents do not read them before every change. Their outcomes are in SKILL.md's placement table, the module template and `packages/cli/src/structure/rules.ts`. Read an entry here only to learn why a rule is the way it is. Newest first.
 
+### 2026-11-10: Agent icons grow three folders already over their limit
+
+- **What happened:** an agent's icon (face, emoji or image) added `apps/web/src/api/agent-icon.ts` (the object-URL
+  cache of the images, as `machine-logo.ts`; `api/` 21 → 22 entries, `big-folder`), `packages/shared/src/agent-icons.ts`
+  (the emoji check both sides use; 21 → 22) and `features/agents/IconChoice.tsx` with `icon-draft.ts` (14 → 16). The
+  shared `AgentIcon` went to `components/feed/` beside `AgentFace`, `EmojiPicker` to `components/forms/`. The org
+  module's icon parts follow its existing split (`routes/`, `service/`, `repo/`, `rules/`, `schemas/icons.ts`).
+  `HireAgent.tsx` stays at 240 lines: the new agent's icon is saved by `saveNewIcon` in `icon-draft.ts`.
+- **Where:** the agent-icons commit.
+- **What was done:** as above.
+- **Suggested change:** at the S5 review, group the web's image caches (`company-logo.ts`, `machine-logo.ts`,
+  `agent-icon.ts`, `pending-logo.ts`) under `api/images/`, one generic versioned store instead of three copies.
+- **Status:** `adopted` (2026-11-12, S5/S6 review 3, 9a051d6: one versioned object-URL store, `api/images/store.ts`,
+  with `useVersionedImage`; the four files are thin hooks in `api/images/`; `api/` from 26 entries to 23).
+
 ### 2026-11-09: Update runner grows four big folders while splitting five near-limit files
 
 - **What happened:** the runner's self-update needed its own `apps/runner/src/update/` (4 files), and the near-limit

@@ -40,7 +40,9 @@ Newest first, one entry per lesson:
 - **What was done:** as above.
 - **Suggested change:** a placement line "an area's limits that its contract parts share → `<area>/limits.ts`, never the
   barrel"; at the S6 review, group the tasks module's agent-facing services as `service/tools/` (decision, lead, step).
-- **Status:** `open`.
+- **Status:** the hub part `adopted` (2026-11-12, S5/S6 review 1, 1f396f4: `hub/turns.ts` 291 → 167 lines with
+  `hub/turn-types.ts` and `hub/turn-resume.ts`, `hub.ts` 289 → 167 with `hub/types.ts`); the limits line and the tasks
+  module's `service/tools/` still `open` (that module waits for the `lead-wake` branch).
 
 ### 2026-11-11: S5.3b's step runs: two modules that drive each other, and a test helper for a cross-module world
 
@@ -116,20 +118,6 @@ Newest first, one entry per lesson:
   for triggers inside a transformed layer.
 - **Status:** `open`.
 
-### 2026-11-10: Agent icons grow three folders already over their limit
-
-- **What happened:** an agent's icon (face, emoji or image) added `apps/web/src/api/agent-icon.ts` (the object-URL
-  cache of the images, as `machine-logo.ts`; `api/` 21 → 22 entries, `big-folder`), `packages/shared/src/agent-icons.ts`
-  (the emoji check both sides use; 21 → 22) and `features/agents/IconChoice.tsx` with `icon-draft.ts` (14 → 16). The
-  shared `AgentIcon` went to `components/feed/` beside `AgentFace`, `EmojiPicker` to `components/forms/`. The org
-  module's icon parts follow its existing split (`routes/`, `service/`, `repo/`, `rules/`, `schemas/icons.ts`).
-  `HireAgent.tsx` stays at 240 lines: the new agent's icon is saved by `saveNewIcon` in `icon-draft.ts`.
-- **Where:** the agent-icons commit.
-- **What was done:** as above.
-- **Suggested change:** at the S5 review, group the web's image caches (`company-logo.ts`, `machine-logo.ts`,
-  `agent-icon.ts`, `pending-logo.ts`) under `api/images/`, one generic versioned store instead of three copies.
-- **Status:** `open`.
-
 ### 2026-11-10: Following Codex's session files while a turn runs, in a new `follow/` folder
 
 - **What happened:** multi-agent v2's subagents and every subagent's own steps come from Codex's session files, read
@@ -187,7 +175,8 @@ Newest first, one entry per lesson:
 - **What was done:** as above.
 - **Suggested change:** a runner row "the machine's CLIs: finding them, their versions, installing one → `tools/`"; at
   the S5 review, group the daemon's parts' wiring so `daemon.ts` stays well under its limit.
-- **Status:** `open`.
+- **Status:** the daemon part `adopted` (2026-11-12, S5/S6 review 2, 1418c26: `daemon.ts` 298 → 235 lines, its parts
+  made in `daemon/runner/parts.ts`, its caps by `capsOf` in `hello.ts`); the runner row still `open`.
 
 ### 2026-11-10: Access profiles of one provider, and a migration whose data step sits between two generated parts
 
@@ -304,3 +293,5 @@ count clearly grew. The review adds a row.
 | 2026-11-06 | S3.6, after the approved changes      | 2          | 9             | 0          | 3      | 5            | 19    |
 | 2026-11-09 | S4.8, before the review               | 3          | 12            | 11         | 8      | 4            | 38    |
 | 2026-11-09 | S4.8, after the approved changes      | 4          | 12            | 2          | 2      | 4            | 24    |
+| 2026-11-12 | S6, before the S5/S6 review           | 34         | 38            | 34         | 12     | –            | 118   |
+| 2026-11-12 | S6, after the approved changes        | 30         | 37            | 34         | 12     | –            | 113   |

@@ -449,6 +449,15 @@ Done when the demo below passes on the Mac and then on the devbox:
 3. Inbox UI + `mwc inbox list|answer|watch|count` + `@mwc/mcp` tools (`send_message`, `read_thread`, `task_status`, `inbox_list`, `inbox_answer`); a Claude Code status-line recipe for `mwc inbox count`.
 4. **Demo:** SLOP BOX placed on the Mac first (home folder with its CLAUDE.md and skills, its own `CLAUDE_CONFIG_DIR`, policy `bypass`, worktree root), then on the devbox (`mwc runner install` once over the existing IAP SSH, `systemd --user` + linger). Ihor's Claude Code sends a message through `@mwc/mcp`; SLOP BOX works, calls `ask_user`; the item appears in the inbox and in `mwc inbox watch`; he answers with `mwc inbox answer`; the run continues (live if within 90 s, otherwise as a resumed turn) and reports done; a `report_blocked` variant lands in the inbox as blocked. Recorded against the real CLI; replayed in Playwright with the fake `claude`.
 5. **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
+   **S5/S6 review: built 2026-11-12 on the `review-s6` branch, not merged yet** (one review for S5 and S6, before
+   `v0.6.0`; pure refactors, public import paths unchanged). (1) The runner hub's turn board split: its contracts in
+   `hub/turn-types.ts`, taking turns back in `hub/turn-resume.ts`, the hub's interfaces in `hub/types.ts` (`hub/turns.ts`
+   291 → 167 lines, `hub.ts` 289 → 167). (2) The files at 99%: the runner daemon's parts made in `daemon/runner/parts.ts`
+   and its caps by `capsOf` (`daemon.ts` 298 → 235), the runner's `turns.test.ts` split along its describes (468 → 196),
+   the config's modes in `shared/src/config/modes.ts` (`config.ts` 297 → 261). (3) The web's image caches share one
+   versioned store, `api/images/store.ts` (`api/` 26 → 23 entries). (4) The sockets test pings on a fake clock, so a
+   loaded machine cannot cut its sockets. The report went from 118 warnings to 113. Items 3 and 4 of the review (one
+   tool-input check; one names lookup across tasks, inbox and notifications) wait for the `lead-wake` branch.
 
 **S6a, agents move tasks themselves: built 2026-11-11 on the `task-tools` branch, not merged yet** (docs/processes.md
 "Built in S6a", docs/harness.md "Agents' tools", docs/runner-protocol.md "Chat turns"). Through the runner's MCP bridge
