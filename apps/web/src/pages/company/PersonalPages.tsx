@@ -17,22 +17,13 @@ const header =
  * keys) with their limits, and their tool sign-ins (GitHub, Atlassian); the same in every company of theirs.
  */
 export function SubscriptionsCompanyPage() {
-  return (
-    <SubscriptionsTab
-      header={header('Subscriptions')}
-    />
-  );
+  return <SubscriptionsTab header={header('Subscriptions')} />;
 }
 
 /** `/:slug/gateways`: the person's own AI gateways; `?add=1` (Add a gateway on a Claude profile) opens Add gateway. */
 export function GatewaysCompanyPage() {
   const { search } = useLocation();
-  return (
-    <GatewaysTab
-      addOnOpen={search.get('add') === '1'}
-      header={header('AI gateways')}
-    />
-  );
+  return <GatewaysTab addOnOpen={search.get('add') === '1'} header={header('AI gateways')} />;
 }
 
 /** What `?new=` asks of the profiles page: New profile for that provider, or at its provider choice. */
