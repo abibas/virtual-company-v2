@@ -1,22 +1,32 @@
 import { type ClientResponse, DetailedError, parseResponse } from 'hono/client';
 
 /**
- * A refusal or failure of an API call: the HTTP status (0 when the server was not reached), the error code, and the
- * command to run instead when the refusal names one (`update_unsupported`).
+ * A refusal or failure of an API call: the HTTP status (0 when the server was not reached), the error code, the
+ * command to run instead when the refusal names one (`update_unsupported`), and the error's other fields (a
+ * `machine_stopped`'s `machine`).
  */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly requestId: string | undefined;
   readonly command: string | undefined;
+  readonly details: Readonly<Record<string, unknown>>;
 
-  constructor(status: number, code: string, message: string, requestId?: string, command?: string) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    requestId?: string,
+    command?: string,
+    details: Readonly<Record<string, unknown>> = {},
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.requestId = requestId;
     this.command = command;
+    this.details = details;
   }
 }
 
@@ -26,6 +36,7 @@ interface ErrorBody {
     readonly message: string;
     readonly requestId?: string;
     readonly command?: unknown;
+    readonly [field: string]: unknown;
   };
 }
 
@@ -39,13 +50,14 @@ function toApiError(error: unknown): ApiError {
     const status = Number(error.statusCode ?? 0);
     const body: unknown = (error.detail as { data?: unknown } | undefined)?.data;
     if (isErrorBody(body)) {
-      const { code, message, requestId, command } = body.error;
+      const { code, message, requestId, command, ...details } = body.error;
       return new ApiError(
         status,
         code,
         message,
         requestId,
         typeof command === 'string' ? command : undefined,
+        details,
       );
     }
     return new ApiError(status, 'http_error', `The server answered ${status}`);

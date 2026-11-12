@@ -3,7 +3,6 @@ import { friendlyMessage } from '../../../api/errors.ts';
 import type { MachineKind, PowerPolicy } from '../../../api/types.ts';
 import { Input } from '../../../components/forms/Input.tsx';
 import { Switch } from '../../../components/forms/Switch.tsx';
-import { Badge } from '../../../components/ui/Badge.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
 import { KeepOnFields } from './KeepOnFields.tsx';
 
@@ -17,10 +16,8 @@ type Flag =
 interface FlagRow {
   readonly flag: Flag;
   readonly label: string;
-  /** Which machines it is for. */
-  readonly for: 'devbox' | 'laptop';
-  /** Shown read-only until the stage that uses it. */
-  readonly later?: string;
+  /** Which machines it is for: a devbox, a laptop, or one this server starts (a devbox, a container). */
+  readonly for: 'devbox' | 'laptop' | 'started';
 }
 
 /** The switches with the hours, then the ones after the hold. */
@@ -30,13 +27,8 @@ const WITH_HOURS: readonly FlagRow[] = [
 ];
 const AFTER_HOLD: readonly FlagRow[] = [
   { flag: 'keepMacAwake', label: 'Keep This Mac awake while agents work', for: 'laptop' },
-  {
-    flag: 'autoStartOnMessage',
-    label: 'Start when you message an agent on it',
-    for: 'devbox',
-    later: 'from S5',
-  },
-  { flag: 'autoStartOnWork', label: 'Start when an agent on it gets work', for: 'devbox', later: 'from S5' },
+  { flag: 'autoStartOnMessage', label: 'Start when you message an agent on it', for: 'started' },
+  { flag: 'autoStartOnWork', label: 'Start when an agent on it gets work', for: 'started' },
 ];
 
 interface Editing {
@@ -45,7 +37,7 @@ interface Editing {
   readonly disabled: boolean;
 }
 
-/** The switches of `rows` that fit this machine, a later one read-only with its note. */
+/** The switches of `rows` that fit this machine. */
 function FlagSwitches({
   rows,
   kind,
@@ -58,16 +50,20 @@ function FlagSwitches({
   readonly kind: MachineKind;
   readonly devbox: boolean;
 }) {
-  const fits = (row: FlagRow) => (row.for === 'devbox' ? devbox : kind === 'laptop');
+  const fits = (row: FlagRow) =>
+    row.for === 'devbox'
+      ? devbox
+      : row.for === 'started'
+        ? devbox || kind === 'container'
+        : kind === 'laptop';
   return rows.filter(fits).map((row) => (
     <span key={row.flag} className="flex flex-wrap items-center gap-2">
       <Switch
         label={row.label}
         checked={policy[row.flag]}
-        disabled={disabled || row.later !== undefined}
+        disabled={disabled}
         onChange={(on) => onChange({ [row.flag]: on })}
       />
-      {row.later && <Badge size="sm">{row.later}</Badge>}
     </span>
   ));
 }
@@ -142,8 +138,7 @@ export function PowerSettings({
     <section aria-label="Power settings" className="flex flex-col gap-3">
       {kind === 'container' && (
         <p className="text-xs text-dim">
-          A container is started and stopped with its Power buttons: the keep-on hours and the time after a
-          chat do not start or stop it yet, and its runner has nothing to keep awake.
+          The keep-on hours do not start or stop a container, and its runner has nothing to keep awake.
         </p>
       )}
       <KeepOnFields

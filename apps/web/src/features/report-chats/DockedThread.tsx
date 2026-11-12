@@ -7,8 +7,9 @@ import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import { Composer } from '../chats/Composer.tsx';
 import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
-import { asking, chatActions, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
+import { asking, chatActions, chatMachine, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
 import { ChatThread } from '../chats/thread/ChatThread.tsx';
+import { ChatMachineContext } from '../chats/thread/status/MachineWait.tsx';
 import { useMarkSeen } from './seen.ts';
 
 /** Calls `onChange` when the chat's running turn changes (one starts or ends): the rail's dots read again. */
@@ -68,7 +69,7 @@ export function DockedThread({
   const view = queueView(live, chat);
   const closed = closedWhy(chat, admin, placement);
   return (
-    <>
+    <ChatMachineContext.Provider value={chatMachine(calls, live, chat, companyId)}>
       <ChatThread
         dense
         turns={view.thread}
@@ -83,13 +84,13 @@ export function DockedThread({
         choices={view.choices}
         disabled={closed}
         placeholder={asking(view.thread) ? 'Answer above, or write here' : `Message ${agentName}`}
-        onSend={async (prompt, delivery) => {
-          await actions.send(prompt, delivery);
+        onSend={async (prompt, delivery, options) => {
+          await actions.send(prompt, delivery, options);
           onChanged();
         }}
         onStop={actions.stop}
         queue={<QueuedMessages queue={view.queue} actions={queueActions(calls, live, chat, view.running)} />}
       />
-    </>
+    </ChatMachineContext.Provider>
   );
 }

@@ -22,13 +22,14 @@ import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
 import { chatRuns } from './context/context-state.ts';
-import { AFTER_ONLY, deliveryChoices, splitQueue } from './delivery/delivery.ts';
+import { AFTER_ONLY, deliveryChoices, splitQueue, waitsForMachine } from './delivery/delivery.ts';
 import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx';
 import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
 import { ChatThread } from './thread/ChatThread.tsx';
 import { questionOf } from './thread/question/question-model.ts';
 import { rememberSent, sentAnswer } from './thread/question/use-question-draft.ts';
+import { type ChatMachine, ChatMachineContext } from './thread/status/MachineWait.tsx';
 
 export interface OpenChatProps {
   /** The path to the agent's chats, for the header. */
@@ -78,14 +79,21 @@ export function asking(thread: readonly ChatTurnWithEvents[]): boolean {
   return question !== undefined && !question.answered && sentAnswer(question.event.id) === undefined;
 }
 
-/** Send (with its delivery while a turn runs), Stop, an answer and a profile change, each shown at once. */
+/**
+ * Send (with its delivery while a turn runs, or with the stopped machine started for it), Stop, an answer and a profile
+ * change, each shown at once.
+ */
 export function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: () => void) {
   const running = live.turns.find((turn) => turn.status === 'running');
   const first = live.turns.length === 0;
   return {
     running,
-    send: async (prompt: string, delivery: ChatDelivery | undefined) => {
-      live.putTurn(await calls.send(chat.id, prompt, delivery));
+    send: async (
+      prompt: string,
+      delivery: ChatDelivery | undefined,
+      options: { readonly startMachine?: boolean } = {},
+    ) => {
+      live.putTurn(await calls.send(chat.id, prompt, delivery, options.startMachine === true));
       if (first) onChanged();
     },
     stop: async () => {
@@ -143,13 +151,25 @@ export function queueActions(
   return actions;
 }
 
-/** The thread's turns, the waiting messages in start order, the running turn and how a message may reach it now. */
+/**
+ * The thread's turns, the waiting messages in start order, the running turn and how a message may reach it now (after
+ * the turns that wait, the one waiting for the stopped machine too).
+ */
 export function queueView(live: ChatLive, chat: Chat) {
   const { thread, queue } = splitQueue(live.turns);
   const running = live.turns.find((turn) => turn.status === 'running');
-  const waiting = queue.length > 0 ? AFTER_ONLY : undefined;
+  const waiting = queue.length > 0 || live.turns.some(waitsForMachine) ? AFTER_ONLY : undefined;
   const choices = running ? deliveryChoices(chat.harness, running) : waiting;
   return { thread, queue, running, choices };
+}
+
+/** The chat's machine for the line of a turn waiting for it, whose Cancel stops that turn. */
+export function chatMachine(calls: ChatCalls, live: ChatLive, chat: Chat, companyId: string): ChatMachine {
+  return {
+    companyId,
+    machineId: chat.machineId,
+    cancel: async (turnId) => live.putTurn(await calls.stop(chat.id, turnId)),
+  };
 }
 
 /** The open chat's area in the page's frame (`CHAT_AREA`): the thread or the terminal; 80% of a narrow window. */
@@ -217,7 +237,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
         {mode === 'terminal' && owner ? (
           <ChatTerminal companyId={companyId} chat={chat} />
         ) : (
-          <>
+          <ChatMachineContext.Provider value={chatMachine(calls, live, chat, companyId)}>
             <ChatThread
               turns={thread}
               agentName={agent.name}
@@ -244,7 +264,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
                 />
               }
             />
-          </>
+          </ChatMachineContext.Provider>
         )}
       </div>
     </>

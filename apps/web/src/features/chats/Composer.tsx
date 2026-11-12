@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Button.tsx';
 import { iconButtonClass } from '../../components/ui/IconButton.tsx';
 import { DeliveryStrip } from './delivery/DeliveryStrip.tsx';
 import { type DeliveryChoice, offered, rememberDelivery, rememberedDelivery } from './delivery/delivery.ts';
+import { StartAndSend, startable } from './delivery/StartAndSend.tsx';
 import { DictationButton } from './dictation/DictationButton.tsx';
 import { THREAD_WIDTH } from './thread/ChatThread.tsx';
 import { useAction } from './use-action.ts';
@@ -82,7 +83,7 @@ function RoundAction({
  * (S5.2 step 6) it stays open with a strip above it that says how the message reaches the agent (Now, After this turn,
  * Interrupt; the last choice remembered in this browser), Stop beside Send, and the waiting messages above it. A
  * refusal (the machine offline, the runner too old, an empty slot) shows above it in plain words, and the text stays so
- * it can be sent again.
+ * it can be sent again; a stopped machine the person may start offers Start and send.
  */
 export function Composer({
   running,
@@ -102,7 +103,11 @@ export function Composer({
   /** Why nothing can be sent now (archived, not an admin), shown instead of the box. */
   readonly disabled: string | undefined;
   readonly placeholder: string;
-  readonly onSend: (prompt: string, delivery: ChatDelivery | undefined) => Promise<void>;
+  readonly onSend: (
+    prompt: string,
+    delivery: ChatDelivery | undefined,
+    options?: { readonly startMachine?: boolean },
+  ) => Promise<void>;
   readonly onStop: () => Promise<void>;
   /** The waiting messages (S5.2 step 6), above the box. */
   readonly queue?: ReactNode;
@@ -113,14 +118,15 @@ export function Composer({
 }) {
   const [text, setText] = useState('');
   const [delivery, choose] = useDelivery();
-  const { busy, error, run } = useAction();
+  const { busy, error, failure, run } = useAction();
   const stop = useAction();
   const ready = text.trim().length > 0 && !busy;
   const how = choices && offered(delivery, choices);
-  const send = (event?: FormEvent) => {
+  const send = (event?: FormEvent, options?: { readonly startMachine?: boolean }) => {
     event?.preventDefault();
-    if (ready) void run(() => onSend(text, how)).then((sent) => sent && setText(''));
+    if (ready) void run(() => onSend(text, how, options)).then((sent) => sent && setText(''));
   };
+  const stopped = startable(failure);
   if (disabled)
     return (
       <div className={dense ? 'px-1 pb-0.5' : 'px-4 pb-4 md:px-8'}>
@@ -140,10 +146,19 @@ export function Composer({
     <form onSubmit={send} className={dense ? 'px-1 pt-1 pb-0.5' : 'px-4 pt-1 pb-4 md:px-8'}>
       <div className={cx(THREAD_WIDTH, 'grid gap-2')}>
         {queue}
-        {shownError && (
-          <p role="alert" className="text-sm font-medium text-failed">
-            {shownError}
-          </p>
+        {stopped ? (
+          <StartAndSend
+            machine={stopped}
+            busy={busy}
+            disabled={!ready}
+            onStart={() => send(undefined, { startMachine: true })}
+          />
+        ) : (
+          shownError && (
+            <p role="alert" className="text-sm font-medium text-failed">
+              {shownError}
+            </p>
+          )
         )}
         {choices && running && how && <DeliveryStrip choices={choices} value={how} onChange={choose} />}
         <div className="rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-shadow ring-inset focus-within:ring-blue/60">

@@ -81,11 +81,15 @@ export const STARTED_NOTE: Readonly<Record<ChatDelivery, string | undefined>> = 
 /** What a message sent into the running turn says under it. */
 export const SENT_NOW_NOTE = 'Sent into the running turn';
 
-/** The chat's waiting messages in the order they start, and the others for the thread. */
+/** A turn that waits for the agent's stopped machine to start: it shows in the thread, with the machine's progress. */
+export const waitsForMachine = (turn: ChatTurnWithEvents): boolean =>
+  turn.status === 'queued' && turn.machineWaitAt !== null;
+
+/** The chat's waiting messages in the order they start, and the others for the thread (those waiting for the machine too). */
 export function splitQueue(turns: readonly ChatTurnWithEvents[]) {
-  const waiting = turns.filter((turn) => turn.status === 'queued');
+  const waiting = turns.filter((turn) => turn.status === 'queued' && !waitsForMachine(turn));
   return {
-    thread: waiting.length === 0 ? turns : turns.filter((turn) => turn.status !== 'queued'),
+    thread: waiting.length === 0 ? turns : turns.filter((turn) => !waiting.includes(turn)),
     queue: [...waiting].sort(queueOrder),
   };
 }

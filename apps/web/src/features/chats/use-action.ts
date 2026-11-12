@@ -5,6 +5,8 @@ export interface Action {
   readonly busy: boolean;
   /** The last refusal in plain words, cleared by the next try. */
   readonly error: string | undefined;
+  /** The last refusal itself (its code and fields), cleared by the next try. */
+  readonly failure: unknown;
   /** Runs `action`, busy meanwhile; resolves true when it succeeded. Never throws. */
   run(action: () => Promise<unknown>): Promise<boolean>;
 }
@@ -13,18 +15,21 @@ export interface Action {
 export function useAction(): Action {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [failure, setFailure] = useState<unknown>();
   const run = useCallback(async (action: () => Promise<unknown>) => {
     setBusy(true);
     setError(undefined);
+    setFailure(undefined);
     try {
       await action();
       return true;
-    } catch (failure) {
-      setError(refusalText(failure));
+    } catch (refused) {
+      setError(refusalText(refused));
+      setFailure(refused);
       return false;
     } finally {
       setBusy(false);
     }
   }, []);
-  return { busy, error, run };
+  return { busy, error, failure, run };
 }

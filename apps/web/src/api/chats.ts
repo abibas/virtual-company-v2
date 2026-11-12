@@ -54,9 +54,17 @@ export function chatCalls(api: Api, companyId: string) {
     /** A new chat that continues this one's conversation from the reply of `turnId` (201). */
     branch: (chatId: string, turnId: string) =>
       call(one.branch.$post({ ...param(chatId), json: { turnId } })),
-    /** A prompt; with a `delivery` while a turn runs (S5.2 step 6): into it, after it, or interrupting it. */
-    send: (chatId: string, prompt: string, delivery?: ChatDelivery) =>
-      call(one.turns.$post({ ...param(chatId), json: delivery ? { prompt, delivery } : { prompt } })),
+    /**
+     * A prompt; with a `delivery` while a turn runs (S5.2 step 6): into it, after it, or interrupting it; with
+     * `startMachine` the agent's stopped machine is started for it (Start and send), and it waits for it.
+     */
+    send: (chatId: string, prompt: string, delivery?: ChatDelivery, startMachine = false) =>
+      call(
+        one.turns.$post({
+          ...param(chatId),
+          json: { prompt, ...(delivery ? { delivery } : {}), ...(startMachine ? { startMachine } : {}) },
+        }),
+      ),
     /** S5.2 step 6: a waiting message's new prompt, its discard (204), and Now or Interrupt for it. */
     edit: (chatId: string, turnId: string, prompt: string) =>
       call(one.turns[':turnId'].$patch({ param: { companyId, chatId, turnId }, json: { prompt } })),

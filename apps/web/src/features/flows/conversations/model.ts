@@ -16,7 +16,7 @@ export interface ConversationLook {
   readonly live: boolean;
 }
 
-/** Running, Queued, Ended, Stopped, Failed, or Not started before its first turn. */
+/** Running, Starting machine (its turn waits for the stopped machine), Queued, Ended, Stopped, Failed, or Not started. */
 export function conversationLook(conversation: TaskConversation): ConversationLook {
   switch (conversation.lastTurn?.status) {
     case undefined:
@@ -24,7 +24,9 @@ export function conversationLook(conversation: TaskConversation): ConversationLo
     case 'running':
       return { label: 'Running', tone: 'blue', live: true };
     case 'queued':
-      return { label: 'Queued', tone: 'pending', live: true };
+      return conversation.lastTurn?.waitsForMachine
+        ? { label: 'Starting machine', tone: 'pending', live: true }
+        : { label: 'Queued', tone: 'pending', live: true };
     case 'done':
       return { label: 'Ended', tone: 'done', live: false };
     case 'stopped':

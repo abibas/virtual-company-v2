@@ -75,7 +75,7 @@ export const sampleConversations = (key: string): Conversation[] =>
     agent: ref(spec.agent),
     title: `${key} · ${spec.step[1]} · a sample`,
     started: true,
-    lastTurn: { status: spec.status, at: ago(spec.minutes) },
+    lastTurn: { status: spec.status, at: ago(spec.minutes), waitsForMachine: false },
     createdAt: ago(60 * 26),
   }));
 
@@ -123,6 +123,7 @@ const turn = (
     status,
     delivery: null,
     system: false,
+    machineWaitAt: null,
     profileId: null,
     credentialId: null,
     startedAt: ago(minutes),

@@ -12,6 +12,7 @@ import { turnModel } from './model/turn-model.ts';
 import { type Answering, QuestionCard } from './question/QuestionCard.tsx';
 import { questionStatus } from './question/question-model.ts';
 import { ReplyParts } from './ReplyParts.tsx';
+import { MachineWaitStatus } from './status/MachineWait.tsx';
 import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
 import { TurnFooter } from './status/TurnFooter.tsx';
 import { QueuedStatus, type RunsOn, WorkingStatus } from './status/WorkingStatus.tsx';
@@ -21,7 +22,8 @@ import { TodoCard } from './todo/TodoCard.tsx';
 /**
  * One turn of a chat (S5.1c, S5.2): the person's prompt on the right; the agent's reply on the left as its events build
  * it (Markdown text, quiet activity rows, subagent blocks), the to-do card, the agent's question (S5.2 step 4), and the
- * live status while it runs or the quiet summary once it ended, with Copy and Branch under the reply. A Compact turn is a marker, a Clear a divider; a turn
+ * live status while it runs (or the machine's progress while it waits for its stopped machine) or the quiet summary
+ * once it ended, with Copy and Branch under the reply. A Compact turn is a marker, a Clear a divider; a turn
  * whose prompt carried answers shows no prompt (the question's receipt stands for it).
  */
 
@@ -125,7 +127,8 @@ function Reply({
       )}
       {model.error !== undefined && <FailedBox error={model.error} />}
       {running && <WorkingStatus turn={turn} model={model} runsOn={runsOn} />}
-      {turn.status === 'queued' && <QueuedStatus />}
+      {turn.status === 'queued' &&
+        (turn.machineWaitAt === null ? <QueuedStatus /> : <MachineWaitStatus turn={turn} />)}
       {!running && turn.status !== 'queued' && (
         <div className="-mt-1 flex min-h-7 min-w-0 items-center gap-3">
           <div className="min-w-0 flex-1">

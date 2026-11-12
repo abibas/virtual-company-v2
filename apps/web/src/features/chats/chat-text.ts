@@ -6,11 +6,11 @@ import type { Tone } from '../../components/ui/Badge.tsx';
 
 /**
  * The chat refusals the page words itself (docs/harness.md, "How a turn runs"); any other code shows the server's own
- * message, which already names what to fix (`harness_missing`, `profile_empty` name the CLI and the profile).
+ * message, which already names what to fix (`harness_missing`, `profile_empty` name the CLI and the profile;
+ * `machine_offline` and `machine_stopped` name the machine and why it is down).
  */
 const REFUSALS: Readonly<Record<string, string>> = {
   runner_outdated: "This machine's runner can't run chats yet: update it on the Machines page.",
-  machine_offline: "The agent's machine is offline: start its runner, then try again.",
   container_runs_later:
     "The agent runs in a container, which chats don't support yet: place it on its machine, in a folder.",
   placement_missing: "The agent doesn't run anywhere yet: choose where it runs on its page first.",
