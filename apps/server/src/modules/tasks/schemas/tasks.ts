@@ -8,22 +8,41 @@ import {
   TaskStepState,
 } from '@mwc/shared/enums';
 import { TASK_DESCRIPTION_MAX, TASK_PAGE, TASK_REASON_MAX, TASK_TITLE } from '@mwc/shared/flows';
+import { CURSOR_PATTERN, STATES_PATTERN } from '../rules/list.ts';
 import { At, PrincipalRefSchema, StepRefSchema } from '../schemas.ts';
 
 const Title = z.string().trim().min(TASK_TITLE.min).max(TASK_TITLE.max).openapi({ example: 'Fix the login' });
 const Description = z.string().max(TASK_DESCRIPTION_MAX).openapi({ description: 'Markdown' });
 const query = (name: string, example: string) => ({ param: { name, in: 'query' as const }, example });
 
-/** `?flowId&state&stepId&assignee&limit&before`: the company's tasks, newest first, a page at a time. */
+/**
+ * `?flowId&state&stepId&assignee&q&sort&limit&before&cursor`: the company's tasks, newest first (or the latest activity
+ * first), a page at a time.
+ */
 export const TaskListQuerySchema = z.object({
   flowId: z.uuid().optional().openapi(query('flowId', '019a4f0c-a1b2-7c3d-8e4f-5a6b7c8d9e0f')),
-  state: TaskState.optional().openapi(query('state', 'active')),
+  /** One state, or several with commas between them (`queued,active,escalated`). */
+  state: z
+    .string()
+    .regex(STATES_PATTERN, 'a task state, or several with commas between them')
+    .optional()
+    .openapi(query('state', 'queued,active,escalated')),
+  /** A task's key (`T-12`) or number, or a part of its title (any case). */
+  q: z.string().max(TASK_TITLE.max).optional().openapi(query('q', 'login')),
+  /** `created` (the default): the newest task first; `updated`: the latest change first. */
+  sort: z.enum(['created', 'updated']).optional().openapi(query('sort', 'updated')),
   stepId: z.uuid().optional().openapi(query('stepId', '019a4f0c-b2c3-7d4e-8f50-6a7b8c9d0e1f')),
   /** Tasks at a step of this principal's, and escalated tasks of the flows it leads. */
   assignee: z.uuid().optional().openapi(query('assignee', '019a4f0c-9d2f-7a3b-8c41-5e2f3a7b8c90')),
   limit: z.coerce.number().int().min(1).max(TASK_PAGE.max).optional().openapi(query('limit', '50')),
   /** The `nextBefore` of the page before. */
   before: z.coerce.number().int().min(1).optional().openapi(query('before', '12')),
+  /** The `nextCursor` of the page before, in either order. */
+  cursor: z
+    .string()
+    .regex(CURSOR_PATTERN, 'the nextCursor of a page')
+    .optional()
+    .openapi(query('cursor', '1762941600000.12')),
 });
 
 export const CreateTaskSchema = z
@@ -87,8 +106,10 @@ export const TaskSummarySchema = z
 export const TaskListSchema = z
   .object({
     tasks: z.array(TaskSummarySchema),
-    /** The `before` of the next page; null on the last one. */
+    /** The `before` of the next page (newest first); null on the last one. */
     nextBefore: z.number().int().nullable(),
+    /** The `cursor` of the next page, in the order asked for; null on the last one. */
+    nextCursor: z.string().nullable(),
   })
   .openapi('TaskList');
 

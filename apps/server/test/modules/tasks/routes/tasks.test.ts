@@ -186,3 +186,57 @@ describe('PATCH /api/companies/:companyId/tasks/:taskId', () => {
     );
   });
 });
+
+describe('GET /api/companies/:companyId/tasks: several states, a search, the latest activity first', () => {
+  let c: TeamCompany;
+  type Cursored = Page & { nextCursor: string | null };
+  const list = async (query: string) => {
+    const res = await as(w, c.viewer)('GET', tasksPath(c, query));
+    expect(res.status).toBe(200);
+    return res.body as Cursored;
+  };
+  const keys = async (query: string) => (await list(query)).tasks.map((task) => task.key);
+  beforeAll(async () => {
+    c = await teamCompany(w);
+    const flow = await makeFlow(w, c);
+    await makeTask(w, c, c.owner, { flowId: flow.id }); // T-1 queued: Fix the login
+    await makeTask(w, c, c.owner, {
+      flowId: flow.id,
+      title: 'Speed up 50% of builds',
+      stepId: stepOf(flow, 'QA').id,
+    }); // T-2
+    await makeTask(w, c, c.owner, { flowId: flow.id, title: 'Login page copy' }); // T-3
+    await moved(w, c, c.owner, 'T-3', { action: 'cancel' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const edited = await as(w, c.owner)('PATCH', tasksPath(c, '/T-1'), { priority: 'high' });
+    expect(edited.status).toBe(200);
+  });
+
+  it('takes several states at once and refuses an unknown one', async () => {
+    expect(await keys('?state=queued,active,escalated')).toEqual(['T-2', 'T-1']);
+    expect(await keys('?state=cancelled,done')).toEqual(['T-3']);
+    expect(await keys('?state=active')).toEqual(['T-2']);
+    expect((await as(w, c.viewer)('GET', tasksPath(c, '?state=open'))).status).toBe(400);
+  });
+
+  it('searches the key, the number and the title in any case, wildcards taken literally', async () => {
+    expect(await keys('?q=LOGIN')).toEqual(['T-3', 'T-1']);
+    expect(await keys('?q=t-2')).toEqual(['T-2']);
+    expect(await keys('?q=3')).toEqual(['T-3']);
+    expect(await keys(`?q=${encodeURIComponent('50%')}`)).toEqual(['T-2']);
+    expect(await keys('?q=_')).toEqual([]);
+    expect(await keys('?q=%20')).toEqual(['T-3', 'T-2', 'T-1']);
+    expect(await keys('?q=login&state=queued')).toEqual(['T-1']);
+  });
+
+  it('sorts by the latest change and pages with a cursor in either order', async () => {
+    expect(await keys('?sort=updated')).toEqual(['T-1', 'T-3', 'T-2']);
+    const first = await list('?sort=updated&limit=2');
+    expect([first.tasks.map((task) => task.key), first.nextBefore]).toEqual([['T-1', 'T-3'], 3]);
+    const second = await list(`?sort=updated&limit=2&cursor=${first.nextCursor}`);
+    expect([second.tasks.map((task) => task.key), second.nextCursor]).toEqual([['T-2'], null]);
+    const newest = await list('?limit=2');
+    expect(await keys(`?cursor=${newest.nextCursor}`)).toEqual(['T-1']);
+    expect((await as(w, c.viewer)('GET', tasksPath(c, '?cursor=12'))).status).toBe(400);
+  });
+});

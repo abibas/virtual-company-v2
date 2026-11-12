@@ -9,8 +9,9 @@ import {
   tasks,
 } from '@mwc/db';
 import type { TaskState } from '@mwc/shared/enums';
-import { and, asc, count, desc, eq, inArray, lt, max, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, lt, max, or, type SQL, sql } from 'drizzle-orm';
 import type { TaskRef } from '../rules.ts';
+import { likeLiteral, type TaskCursor, type TaskSearch } from '../rules/list.ts';
 
 /** The tasks and their history, through the company's tenant only (S5.3a). */
 
@@ -54,6 +55,28 @@ export interface TaskFilter {
     | undefined;
   /** Only tasks numbered below this (the page after one ending there). */
   readonly before?: number | undefined;
+  /** Its number, or a part of its title. */
+  readonly search?: TaskSearch | undefined;
+  /** `updated`: the latest change first; else the newest task first. */
+  readonly sort?: 'created' | 'updated' | undefined;
+  /** Only tasks after this one in the order (the page after one ending there). */
+  readonly after?: TaskCursor | undefined;
+}
+
+/** A task's last change to the millisecond, as a page's cursor holds it. */
+const changed = sql`date_trunc('milliseconds', ${tasks.updatedAt})`;
+
+/** The tasks after `cursor` in the order: by number, or by the last change and then the number. */
+function afterWhere(sort: TaskFilter['sort'], cursor: TaskCursor | undefined): SQL | undefined {
+  if (cursor === undefined) return undefined;
+  if (sort !== 'updated') return lt(tasks.number, cursor.number);
+  return sql`(${changed}, ${tasks.number}) < (${cursor.updatedAt.toISOString()}::timestamptz, ${cursor.number})`;
+}
+
+function searchWhere(search: TaskSearch | undefined): SQL | undefined {
+  if (search === undefined) return undefined;
+  const title = ilike(tasks.title, `%${likeLiteral(search.title)}%`);
+  return search.number === undefined ? title : or(eq(tasks.number, search.number), title);
 }
 
 /** `column in (ids)`, or false for no ids. */
@@ -61,7 +84,7 @@ const anyOf = (column: typeof tasks.currentStepId | typeof tasks.flowId, ids: re
   ids.length === 0 ? sql`false` : (inArray(column, [...ids]) as SQL);
 
 function filterWhere(filter: TaskFilter): SQL | undefined {
-  const { flowId, states, stepId, assignee, before } = filter;
+  const { flowId, states, stepId, assignee, before, search, sort, after } = filter;
   const assigned =
     assignee &&
     or(
@@ -74,12 +97,20 @@ function filterWhere(filter: TaskFilter): SQL | undefined {
     stepId === undefined ? undefined : eq(tasks.currentStepId, stepId),
     assigned,
     before === undefined ? undefined : lt(tasks.number, before),
+    searchWhere(search),
+    afterWhere(sort, after),
   );
 }
 
-/** A page of the company's tasks, newest first. */
-const page = (t: TenantDb, filter: TaskFilter, limit: number): Promise<Task[]> =>
-  t.select(tasks, filterWhere(filter)).orderBy(desc(tasks.number)).limit(limit);
+/** A page of the company's tasks, newest first, or the latest change first. */
+const page = (t: TenantDb, filter: TaskFilter, limit: number): Promise<Task[]> => {
+  const query = t.select(tasks, filterWhere(filter));
+  const ordered =
+    filter.sort === 'updated'
+      ? query.orderBy(desc(changed), desc(tasks.number))
+      : query.orderBy(desc(tasks.number));
+  return ordered.limit(limit);
+};
 
 /** The flow's open tasks: queued, active and escalated. */
 const open = (t: TenantDb, flowId: string): Promise<Task[]> =>

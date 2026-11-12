@@ -3,6 +3,7 @@ import { TASK_PAGE } from '@mwc/shared/flows';
 import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { allowedActions, editRefusal, intoStepRefusal } from '../rules/access.ts';
+import { cursorOf, cursorText, searchOf, statesOf } from '../rules/list.ts';
 import { move } from '../rules/machine.ts';
 import { FLOW_NOT_FOUND, type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
 import type {
@@ -25,13 +26,13 @@ export type TaskResult<S extends 403 | 404 | 409 | 422> =
   | { readonly ok: true; readonly task: TaskDetailView }
   | Refusal<S>;
 
-/** A page of the company's tasks, newest first (`TaskListQuery`), with the next page's `before`. */
+/** A page of the company's tasks (`TaskListQuery`), with the next page's `before` and `cursor`. */
 export async function listTasks(
   deps: Deps,
   repo: TasksRepo,
   t: TenantDb,
   query: TaskListQuery,
-): Promise<{ tasks: TaskSummaryView[]; nextBefore: number | null }> {
+): Promise<{ tasks: TaskSummaryView[]; nextBefore: number | null; nextCursor: string | null }> {
   const limit = query.limit ?? TASK_PAGE.default;
   const flows = await repo.flows.list(t);
   const steps = await repo.flows.allSteps(t);
@@ -44,10 +45,13 @@ export async function listTasks(
         };
   const filter = {
     flowId: query.flowId,
-    states: query.state === undefined ? undefined : [query.state],
+    states: query.state === undefined ? undefined : statesOf(query.state),
     stepId: query.stepId,
     assignee,
     before: query.before,
+    search: searchOf(query.q),
+    sort: query.sort,
+    after: query.cursor === undefined ? undefined : cursorOf(query.cursor),
   };
   const rows = await repo.tasks.page(t, filter, limit + 1);
   const kept = rows.slice(0, limit);
@@ -60,9 +64,11 @@ export async function listTasks(
     t,
     kept.flatMap((task) => taskPrincipals(task, step(task), lead(task))),
   );
+  const last = rows.length > limit ? kept.at(-1) : undefined;
   return {
     tasks: kept.map((task) => taskSummary(task, byId, lead(task), names)),
-    nextBefore: rows.length > limit ? (kept.at(-1)?.number ?? null) : null,
+    nextBefore: last?.number ?? null,
+    nextCursor: last === undefined ? null : cursorText(last),
   };
 }
 
