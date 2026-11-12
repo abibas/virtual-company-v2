@@ -18,14 +18,14 @@ const header =
 
 /**
  * `/:slug/subscriptions`: the person's own AI subscriptions (Sign in with Claude or OpenAI, a pasted setup-token, API
- * keys) with their limits; the same in every company of theirs.
+ * keys) with their limits, and their tool sign-ins (GitHub, Atlassian); the same in every company of theirs.
  */
 export function SubscriptionsCompanyPage() {
   return (
     <SubscriptionsTab
       header={header(
         'Subscriptions',
-        "Yours, not the company's: your Claude and OpenAI sign-ins and API keys, the same in every company. Secrets are stored encrypted and never shown back.",
+        "Yours, not the company's: your AI subscriptions and your GitHub and Atlassian sign-ins, the same in every company. Secrets are stored encrypted and never shown back.",
       )}
     />
   );
