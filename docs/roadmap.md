@@ -655,6 +655,17 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
        page in a test space.
      - **S7.1d** GitHub in a turn: the per-turn token, the credential helper, the SSH rewrite and the repository
        allowlist. Test: an agent pushes a branch to a sandbox repo and lists its PRs.
+     - **S7.1e Slack** (Ihor, 2026-11-12: "i wan to add SLACK TOOL as well.. I have a bot"):
+       - **The sign-in:** his Slack bot's token (`xoxb-…`, kind `slack_bot_token`), checked with `auth.test`, which
+         shows the workspace, the bot's name and its scopes.
+       - **The rights:** a Slack profile holds read on or off, post on or off, and the channels it may use (`all`, or a
+         list). DMs are off unless chosen, and it never posts `@here` or `@channel`.
+       - **The tools:** server-side `slack_post` (into a channel or a thread), `slack_channel_history`,
+         `slack_thread` and `slack_search` (if the token's scopes allow). The token never reaches the machine.
+       - **Who it posts as:** posts show as his bot. With `chat:write.customize` each agent posts under its own name
+         and icon, marked as an app.
+       - A user token (`xoxp-…`), which would post as Ihor himself, is a later choice of his.
+       - Test: an agent posts a short message in a test channel and reads the replies.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
