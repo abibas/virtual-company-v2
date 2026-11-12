@@ -8,6 +8,7 @@ import { effortLabel, type RunsWith, runsModelLabel } from '../../components/org
 import { Panel } from '../../components/ui/Panel.tsx';
 import { runsOf } from './harness-from-profile.ts';
 import { ProfileChoice, type ProfileProps } from './ProfileFields.tsx';
+import { ToolProfileChoice } from './ToolPickers.tsx';
 
 /** The person's own access profiles, as the page loads them once (`useAccessProfiles`). */
 export type OwnProfiles = Loaded<{ readonly profiles: readonly AccessProfile[] }>;
@@ -37,9 +38,9 @@ function RunsNote({ runs }: { readonly runs: RunsWith | null | undefined }) {
 /**
  * How the agent works, in the order it is decided: how many runs at once, whose subscription it runs on (an access
  * profile, which also decides what runs it, Claude Code for a Claude profile and Codex for an OpenAI one, and its model
- * and effort, said in a line under it), and where it runs (`where`, the form's "Where it runs"); `profileNote` under the
- * profile says when that harness's CLI is missing on the chosen machine. There is no harness, model or effort choice
- * here: the profile holds them.
+ * and effort, said in a line under it), its GitHub and Atlassian profiles (S7.1b), and where it runs (`where`, the
+ * form's "Where it runs"); `profileNote` under the profile says when that harness's CLI is missing on the chosen
+ * machine. There is no harness, model or effort choice here: the profile holds them.
  */
 export function ModelPanel({
   where,
@@ -71,6 +72,10 @@ export function ModelPanel({
         </div>
         {profileNote}
         <RunsNote runs={runsOf(values.profileId, profiles.data?.profiles, agent)} />
+        <div className="grid items-start gap-4 sm:grid-cols-2">
+          <ToolProfileChoice {...props} provider="github" profiles={profiles} />
+          <ToolProfileChoice {...props} provider="atlassian" profiles={profiles} />
+        </div>
         {where}
       </div>
     </Panel>

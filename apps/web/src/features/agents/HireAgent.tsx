@@ -21,7 +21,7 @@ import { type PlacementDraft, placementStep, usePlacementDraft } from '../placem
 import { WhereItRuns } from '../placements/WhereItRuns.tsx';
 import { AgentForm, FormActions } from './AgentForm.tsx';
 import { type AgentDraft, newAgentOf, type ProfileDefaults, useAgentDraft } from './agent-draft.ts';
-import { previewBriefing } from './CompanyBriefing.tsx';
+import { briefingTools, previewBriefing } from './CompanyBriefing.tsx';
 import { runsOf } from './harness-from-profile.ts';
 import { saveNewIcon } from './icon-draft.ts';
 import type { AgentLinks } from './links.ts';
@@ -181,7 +181,15 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
           chart={chart}
           meUserId={meUserId}
           profiles={profiles}
-          briefing={previewBriefing(company, chart.nodes, previewNode(draft, runsWith))}
+          briefing={previewBriefing(
+            company,
+            chart.nodes,
+            previewNode(draft, runsWith),
+            briefingTools(
+              [draft.values.githubProfileId, draft.values.atlassianProfileId],
+              profiles.data?.profiles,
+            ),
+          )}
         />
         <FormActions status="" error={error}>
           <ButtonLink href={links.chart} tone="quiet">

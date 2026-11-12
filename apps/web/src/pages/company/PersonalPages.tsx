@@ -1,3 +1,4 @@
+import { PROFILE_PROVIDERS } from '@mwc/shared/credentials';
 import type { ProfileProvider } from '@mwc/shared/enums';
 import type { ReactNode } from 'react';
 import { useCompany } from '../../app/company.ts';
@@ -29,12 +30,13 @@ export function GatewaysCompanyPage() {
 /** What `?new=` asks of the profiles page: New profile for that provider, or at its provider choice. */
 function newProfileOf(wanted: string | null): ProfileProvider | 'choose' | undefined {
   if (wanted === null) return undefined;
-  return wanted === 'claude' || wanted === 'openai' ? wanted : 'choose';
+  return PROFILE_PROVIDERS.find((provider) => provider === wanted) ?? 'choose';
 }
 
 /**
- * `/:slug/profiles`: the person's own access profiles, Claude's and OpenAI's, which they give their agents, and their
- * defaults; `?new=claude|openai` (an agent form's "Make one") opens New profile for that provider.
+ * `/:slug/profiles`: the person's own access profiles, Claude's, OpenAI's, GitHub's and Atlassian's, which they give
+ * their agents, and their defaults; `?new=claude|openai|github|atlassian` (an agent form's "Make one") opens New profile
+ * for that provider.
  */
 export function ProfilesCompanyPage() {
   const { me, reload } = useCompany();

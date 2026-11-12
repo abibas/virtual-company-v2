@@ -1,15 +1,15 @@
-import type { Effort, Harness, ProfileProvider } from '@mwc/shared/enums';
+import { rightsSummary } from '@mwc/shared/credentials';
+import type { AiProvider, Effort, Harness } from '@mwc/shared/enums';
 import { catalogueModel, effortsOf } from '@mwc/shared/models';
 import type { Agent } from '../../api/types.ts';
 import type { AgentRef } from '../feed/kinds.ts';
 import type { SegmentOption } from '../forms/Segmented.tsx';
 
 /** Each provider's name, as the model and effort lines say it ("Claude's default"). */
-const PROVIDER_WORDS: Readonly<Record<ProfileProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
+const PROVIDER_WORDS: Readonly<Record<AiProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
 
 /** What a profile with no model runs: "Claude's default", "OpenAI's default". */
-export const defaultModelLabel = (provider: ProfileProvider): string =>
-  `${PROVIDER_WORDS[provider]}'s default`;
+export const defaultModelLabel = (provider: AiProvider): string => `${PROVIDER_WORDS[provider]}'s default`;
 
 /** A model as people read it: "Opus 5.5" for one of the catalogue's, the id itself for another. */
 export function modelLabel(model: string): string {
@@ -39,10 +39,7 @@ export const EFFORT_HINTS: Readonly<Record<Effort, string>> = {
 };
 
 /** The levels a profile of `provider` may run `model` at, low to high, for a segmented control. */
-export function effortOptions(
-  provider: ProfileProvider,
-  model: string | null,
-): readonly SegmentOption<Effort>[] {
+export function effortOptions(provider: AiProvider, model: string | null): readonly SegmentOption<Effort>[] {
   return effortsOf(provider, model).map((value) => ({ value, label: EFFORT_WORDS[value] }));
 }
 
@@ -76,8 +73,13 @@ export const runsLine = (runs: RunsWith | null): string =>
   runs === null ? 'No profile' : `${runsModelLabel(runs)} · ${runsEffortLabel(runs.effort)}`;
 
 /** The access profile an agent's runs use, with its owner ("Work · Ihor Herasko"), or "None". */
-export const profileLabel = (profile: Agent['profile']): string =>
-  profile ? `${profile.name} · ${profile.ownerName}` : 'None';
+export const profileLabel = (
+  profile: Pick<NonNullable<Agent['profile']>, 'name' | 'ownerName'> | null,
+): string => (profile ? `${profile.name} · ${profile.ownerName}` : 'None');
+
+/** An agent's GitHub or Atlassian profile (S7.1b) with its rights in short ("AiriaLLC (push, PRs · AiriaLLC/*)"), or "None". */
+export const toolProfileLine = (tool: Agent['githubProfile']): string =>
+  tool ? `${tool.name} (${rightsSummary(tool.rights)})` : 'None';
 
 /** An agent as the feed and the quick-create dock show it: its name, its role and its drawn face. */
 export function agentRef(agent: Pick<Agent, 'id' | 'name' | 'roleTitle' | 'face'>): AgentRef {

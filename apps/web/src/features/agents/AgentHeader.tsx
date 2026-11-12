@@ -7,7 +7,7 @@ import type { AgentDetail, ChartNode } from '../../api/types.ts';
 import { formatDate, formatDateTime } from '../../components/data/format.ts';
 import { AgentIcon } from '../../components/feed/AgentIcon.tsx';
 import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
-import { harnessLabel, profileLabel, runsLine } from '../../components/org/agent-labels.ts';
+import { harnessLabel, profileLabel, runsLine, toolProfileLine } from '../../components/org/agent-labels.ts';
 import { nodeName } from '../../components/org/chart.ts';
 import { StatusPill } from '../../components/ui/Badge.tsx';
 import { Button, type ButtonTone } from '../../components/ui/Button.tsx';
@@ -73,7 +73,7 @@ function StatusActions({ agent, calls, onChanged }: StatusProps) {
 
 /**
  * The facts under the name: its handle, its manager, what powers it and on whose access profile, the machine it runs
- * on and how, its revision and when it was hired.
+ * on and how, its GitHub and Atlassian profiles with their rights in short, its revision and when it was hired.
  */
 function AgentFacts({
   agent,
@@ -88,6 +88,8 @@ function AgentFacts({
     ['Powered by', `${harnessLabel(agent.harness)}, ${runsLine(agent.runsWith)}`],
     ['Runs on', placementLine(agent.placement)],
     ['Access profile', profileLabel(agent.profile)],
+    ['GitHub', toolProfileLine(agent.githubProfile)],
+    ['Atlassian', toolProfileLine(agent.atlassianProfile)],
     ['Instructions', `Revision ${agent.instructionsRev}`],
   ];
   return (
@@ -96,6 +98,7 @@ function AgentFacts({
         <div key={term} className="flex min-w-0 gap-2">
           <dt className="shrink-0 text-dim">{term}</dt>
           <dd
+            title={value}
             className={
               term === 'Handle'
                 ? 'truncate font-mono text-xs leading-5 text-ink-2'

@@ -1,3 +1,4 @@
+export { ChipsInput } from './ChipsInput.tsx';
 export { ConfirmInline } from './ConfirmInline.tsx';
 export { CopyButton } from './CopyButton.tsx';
 export { EmojiPicker, WORK_EMOJI } from './EmojiPicker.tsx';

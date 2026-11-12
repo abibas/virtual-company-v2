@@ -1,5 +1,5 @@
-import { ACCESS_PROFILE_NAME } from '@mwc/shared/credentials';
-import type { ProfileProvider } from '@mwc/shared/enums';
+import { ACCESS_PROFILE_NAME, isToolProvider } from '@mwc/shared/credentials';
+import type { AiProvider, ProfileProvider } from '@mwc/shared/enums';
 import { ArrowLeft } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
@@ -10,18 +10,13 @@ import { SelectField, TextField } from '../../components/forms/Field.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { IconTile } from '../../components/ui/IconTile.tsx';
+import { ToolProfileFields } from './NewToolProfile.tsx';
 import { PROVIDER_STYLES, ProviderChoice } from './Providers.tsx';
 import { gatewayOptions, hasGateway, subscriptionOptions } from './profile-options.ts';
 import { type Runs, RunsFields } from './RunsFields.tsx';
 
 /** The hint under the subscription select: what it is for, or where to add one of the provider's. */
-function SubscriptionHint({
-  provider,
-  count,
-}: {
-  readonly provider: ProfileProvider;
-  readonly count: number;
-}) {
+function SubscriptionHint({ provider, count }: { readonly provider: AiProvider; readonly count: number }) {
   const addHref = usePersonalHref('subscriptions', true);
   if (count > 1) return <>The {PROVIDER_STYLES[provider].agents} you give it run on this subscription.</>;
   return (
@@ -68,7 +63,7 @@ function GatewayField({
 }
 
 interface FormProps {
-  readonly provider: ProfileProvider;
+  readonly provider: AiProvider;
   readonly subscriptions: readonly Subscription[];
   readonly create: (profile: NewAccessProfile) => Promise<unknown>;
   readonly onBack: () => void;
@@ -76,7 +71,7 @@ interface FormProps {
 }
 
 /** What the form holds, and its submit: the profile as `POST` takes it, with its optional gateway, model and effort. */
-function useNewProfile(provider: ProfileProvider, create: FormProps['create']) {
+function useNewProfile(provider: AiProvider, create: FormProps['create']) {
   const [name, setName] = useState('');
   const [credentialId, setCredentialId] = useState('');
   const [gatewayCredentialId, setGateway] = useState('');
@@ -174,9 +169,10 @@ function ProfileFields({ provider, subscriptions, create, onBack, onCancel }: Fo
 }
 
 /**
- * New profile, on its own card above the list: the provider first (two big choices; `provider` preselects one, as
- * "Make one" on an agent's form does), then its name, its subscription, a gateway, and the model and effort its runs
- * use (the provider's defaults until chosen). A refusal (a name taken) shows on the form.
+ * New profile, on its own card above the list: the provider first (big choices; `provider` preselects one, as "Make
+ * one" on an agent's form does), then for an AI provider its name, its subscription, a gateway, and the model and effort
+ * its runs use (the provider's defaults until chosen), for a tool its name, its sign-in and its rights
+ * (`ToolProfileFields`). A refusal (a name taken) shows on the form.
  */
 export function NewProfileForm({
   provider: preselected,
@@ -195,6 +191,15 @@ export function NewProfileForm({
     <Card as="section" aria-label="New profile" className="mb-5">
       {provider === undefined ? (
         <ProviderChoice onChoose={setProvider} onCancel={onCancel} />
+      ) : isToolProvider(provider) ? (
+        <ToolProfileFields
+          key={provider}
+          provider={provider}
+          subscriptions={subscriptions}
+          create={create}
+          onBack={() => setProvider(undefined)}
+          onCancel={onCancel}
+        />
       ) : (
         <ProfileFields
           key={provider}

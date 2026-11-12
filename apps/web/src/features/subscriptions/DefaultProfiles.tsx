@@ -1,5 +1,5 @@
-import { PROFILE_PROVIDERS } from '@mwc/shared/credentials';
-import type { ProfileProvider } from '@mwc/shared/enums';
+import { AI_PROVIDERS } from '@mwc/shared/credentials';
+import type { AiProvider } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { useId, useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
@@ -19,7 +19,7 @@ interface DefaultsProps {
 }
 
 /** The membership's default of each provider. */
-const DEFAULTS: Readonly<Record<ProfileProvider, (m: Membership) => string | null>> = {
+const DEFAULTS: Readonly<Record<AiProvider, (m: Membership) => string | null>> = {
   claude: (m) => m.defaultClaudeProfileId,
   openai: (m) => m.defaultOpenaiProfileId,
 };
@@ -31,7 +31,7 @@ function DefaultSelect({
   profiles,
   calls,
   onChanged,
-}: DefaultsProps & { readonly membership: Membership; readonly provider: ProfileProvider }) {
+}: DefaultsProps & { readonly membership: Membership; readonly provider: AiProvider }) {
   const id = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -83,7 +83,7 @@ function DefaultRow({ membership, ...rest }: DefaultsProps & { readonly membersh
         <span className="text-xs text-dim">You are {roleName(membership.role).toLowerCase()} there</span>
       </div>
       <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2 sm:[&>*]:w-56">
-        {PROFILE_PROVIDERS.map((provider) => (
+        {AI_PROVIDERS.map((provider) => (
           <DefaultSelect key={provider} membership={membership} provider={provider} {...rest} />
         ))}
       </div>

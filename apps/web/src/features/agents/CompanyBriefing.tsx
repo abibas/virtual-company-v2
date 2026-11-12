@@ -1,6 +1,7 @@
 import { agentBriefing } from '@mwc/shared/agent-briefing';
+import { type BriefingTool, isToolProvider } from '@mwc/shared/credentials';
 import { ChevronRight, Lock } from 'lucide-react';
-import type { ChartNode } from '../../api/types.ts';
+import type { AccessProfile, ChartNode } from '../../api/types.ts';
 import { Badge } from '../../components/ui/Badge.tsx';
 
 /**
@@ -24,14 +25,32 @@ export function CompanyBriefing({ text }: { readonly text: string | undefined })
   );
 }
 
+/** The chosen GitHub and Atlassian profiles (of the person's own, `mine`) as the briefing reads them. */
+export function briefingTools(
+  ids: readonly (string | null)[],
+  mine: readonly AccessProfile[] | undefined,
+): BriefingTool[] {
+  return ids.flatMap((id) => {
+    const profile = mine?.find((own) => own.id === id);
+    if (!profile || profile.rights === null || !isToolProvider(profile.provider)) return [];
+    const { account = null, site = null } = profile.subscription ?? {};
+    return [{ provider: profile.provider, account, site, rights: profile.rights }];
+  });
+}
+
 /**
- * What a new agent will be told of its place once its manager is chosen (the Hire page): the chart with its card added,
- * written by the same function as the server's.
+ * What a new agent will be told of its place once its manager is chosen (the Hire page): the chart with its card added
+ * and its chosen tool profiles, written by the same function as the server's.
  */
-export function previewBriefing(company: string, nodes: readonly ChartNode[], node: ChartNode) {
+export function previewBriefing(
+  company: string,
+  nodes: readonly ChartNode[],
+  node: ChartNode,
+  tools: readonly BriefingTool[] = [],
+) {
   if (node.reportsTo === null || node.reportsTo === '') return { shown: false, text: undefined };
   return {
     shown: true,
-    text: agentBriefing({ company, nodes: [...nodes, node], principalId: node.principalId }).text,
+    text: agentBriefing({ company, nodes: [...nodes, node], principalId: node.principalId, tools }).text,
   };
 }

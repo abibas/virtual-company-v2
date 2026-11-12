@@ -1,4 +1,4 @@
-import type { Effort, ProfileProvider } from '@mwc/shared/enums';
+import type { AiProvider, Effort } from '@mwc/shared/enums';
 import {
   catalogueModel,
   effortsOf,
@@ -23,29 +23,29 @@ const ANOTHER = 'another';
 const DEFAULT_EFFORT = 'default';
 
 /** The model's choices: the provider's default, its models by name, and another id typed in. */
-const modelOptions = (provider: ProfileProvider) => [
+const modelOptions = (provider: AiProvider) => [
   { value: DEFAULT_MODEL, label: defaultModelLabel(provider) },
   ...MODEL_CATALOGUE[provider].map((model) => ({ value: model.id, label: model.label })),
   { value: ANOTHER, label: 'Another model (type its id)' },
 ];
 
 /** The change a new model makes: the model, and the effort back to the default when the new model does not take it. */
-export function withModel(provider: ProfileProvider, runs: Runs, model: string | null): Partial<Runs> {
+export function withModel(provider: AiProvider, runs: Runs, model: string | null): Partial<Runs> {
   const keeps = runs.effort === null || effortsOf(provider, model).includes(runs.effort);
   return keeps ? { model } : { model, effort: null };
 }
 
 /** The harness each provider's profiles run, as the hints name it. */
-const HARNESS_NAMES: Readonly<Record<ProfileProvider, string>> = { claude: 'Claude Code', openai: 'Codex' };
+const HARNESS_NAMES: Readonly<Record<AiProvider, string>> = { claude: 'Claude Code', openai: 'Codex' };
 
 /** The effort's hint: what the chosen level does, or who decides by default. */
-function effortHint(provider: ProfileProvider, effort: Effort | null): string {
+function effortHint(provider: AiProvider, effort: Effort | null): string {
   if (effort !== null) return EFFORT_HINTS[effort];
   return `${HARNESS_NAMES[provider]} picks its own. More effort thinks longer and costs more.`;
 }
 
 interface RunsFieldsProps {
-  readonly provider: ProfileProvider;
+  readonly provider: AiProvider;
   readonly runs: Runs;
   /** A change of the model or the effort (both when a new model does not take the effort); a refusal shows here. */
   readonly onChange: (change: Partial<Runs>) => unknown;
@@ -86,7 +86,7 @@ function ModelIdField({
   onType,
   commit,
 }: {
-  readonly provider: ProfileProvider;
+  readonly provider: AiProvider;
   readonly typed: string;
   readonly live: boolean;
   readonly onType: (text: string) => void;
@@ -120,7 +120,7 @@ function EffortChoice({
   busy,
   onPick,
 }: {
-  readonly provider: ProfileProvider;
+  readonly provider: AiProvider;
   readonly runs: Runs;
   readonly busy: boolean;
   readonly onPick: (effort: Effort | null) => void;
