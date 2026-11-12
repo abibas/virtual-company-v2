@@ -145,7 +145,7 @@ describe('the power scheduler on a devbox', () => {
     expect(await stateOf(company, box.machineId)).toMatchObject({ window: null });
   });
 
-  it('logs a start that fails and keeps the error, once per window', async () => {
+  it('logs a start that fails, keeps the error, and tries again 5 minutes later until it works', async () => {
     w.clock.set('2026-11-06T07:00:00Z');
     const company = await membersCompany(w);
     const { mac, box } = await macAndBox(w, company);
@@ -160,7 +160,46 @@ describe('the power scheduler on a devbox', () => {
     expect((await eventsOf(w.t.db, box.machineId)).at(-1)).toBe(
       `failed schedule: Keep-on hours started (${HOURS}), but the start failed: ${MACHINE_POWER_ERROR_MESSAGES.stockout_or_quota}`,
     );
-    expect((await stateOf(company, box.machineId)).box?.error?.code).toBe('stockout_or_quota');
+    expect(await stateOf(company, box.machineId)).toMatchObject({
+      autoStartedWindow: null,
+      autoStartTriedAt: '2026-11-06T07:00:00.000Z',
+      box: { error: { code: 'stockout_or_quota' } },
+    });
+    // The box's reading is due at 07:05; the start waits for its 5 minutes, then goes again and works.
+    await step('2026-11-06T07:04:00Z');
+    expect(calls(driver)).toEqual(['start']);
+    await step('2026-11-06T07:05:00Z');
+    expect(calls(driver)).toEqual(['start', 'start']);
+    expect(await stateOf(company, box.machineId)).toMatchObject({
+      autoStartedWindow: '2026-11-06',
+      autoStartTriedAt: null,
+      box: { status: 'starting', error: null },
+    });
+    await step('2026-11-06T07:20:00Z');
+    expect(calls(driver)).toEqual(['start', 'start', 'status']);
+    expect((await eventsOf(w.t.db, box.machineId)).at(-1)).toBe(
+      `started schedule: Keep-on hours started (${HOURS})`,
+    );
+  });
+
+  it('starts the box when the Mac wakes late in the hours, after a start lost to its sleep', async () => {
+    w.clock.set('2026-11-06T07:09:00Z');
+    const company = await membersCompany(w);
+    const { mac, box } = await macAndBox(w, company);
+    const driver = boxDriver();
+    driver.failNext('start', 'timeout', 'No answer from the airia CLI within 200000 ms');
+    await connectController(w, mac.runnerKey, driver);
+    await putPolicy(w, company, box.machineId, { ...KEEP_ON, autoStartAtKeepOn: true });
+    const step = scheduled();
+    await step();
+    expect(calls(driver)).toEqual(['start']);
+    await step('2026-11-06T08:07:00Z');
+    expect(calls(driver)).toEqual(['start', 'start']);
+    expect((await stateOf(company, box.machineId)).autoStartedWindow).toBe('2026-11-06');
+    w.clock.set('2026-11-06T09:00:00Z');
+    expect((await as(w, company.owner)('POST', powerPath(company, box.machineId, '/stop'))).status).toBe(202);
+    await step('2026-11-06T09:30:00Z');
+    expect(calls(driver)).toEqual(['start', 'start', 'stop', 'status']);
   });
 
   it('reads the box at most every 5 minutes, keeping a failed reading without logging it', async () => {

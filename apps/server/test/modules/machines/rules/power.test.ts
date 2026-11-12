@@ -83,6 +83,21 @@ describe('decide: the start of the keep-on hours', () => {
     ).not.toBeNull();
   });
 
+  it('tries a start that did not work again 5 minutes after it, while the window lasts', () => {
+    const tried = state({ autoStartTriedAt: '2026-11-06T11:56:00.000Z' });
+    expect(decide(auto, tried, NOON, DEVBOX).start).toBeNull();
+    expect(decide(auto, tried, at('2026-11-06T12:01:00Z'), DEVBOX).start).toEqual({
+      reason: 'Keep-on hours started (Mon–Fri 09:00–19:00 Europe/Kyiv)',
+      window: WINDOW.id,
+    });
+    const yesterday = state({ autoStartTriedAt: '2026-11-06T06:58:00.000Z' });
+    expect(decide(auto, yesterday, at('2026-11-06T07:00:00Z'), DEVBOX).start).not.toBeNull();
+    expect(decide(auto, tried, NOON, box({ boxStatus: 'running' }))).toMatchObject({
+      start: null,
+      autoStartedWindow: WINDOW.id,
+    });
+  });
+
   it('leaves the box off after a Stop by hand inside the window, not one before it', () => {
     expect(decide(auto, state({ manualStopAt: '2026-11-06T08:00:00.000Z' }), NOON, DEVBOX).start).toBeNull();
     expect(

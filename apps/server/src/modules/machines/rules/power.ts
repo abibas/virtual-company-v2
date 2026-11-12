@@ -7,13 +7,15 @@ import { type KeepOnSpan, keepOnWindowAt } from './power/window.ts';
 /**
  * The power policy's decisions (docs/machines.md, S4.4b), pure: for one machine at one instant, the hold its runner
  * keeps (the keep-on hours, the hold after a turn) and what the scheduler does to a devbox (start it once per keep-on
- * window, stop it when the window ends unless work is live). The keep-on window's clock is `power/window.ts`.
+ * window, a failed start again every `AUTO_START_RETRY_MS` while the window lasts; stop it when the window ends unless
+ * work is live). The keep-on window's clock is `power/window.ts`. Starting a machine for work or a message is the wake's
+ * (`service/power/wake.ts`), not the scheduler's.
  */
 
 export { daysText, hoursText, policyText } from './power/text.ts';
 export { type KeepOnSpan, keepOnWindowAt } from './power/window.ts';
 
-/** What a hold is for: the keep-on hours, or the time after an agent's turn (S5 sets the turn). */
+/** What a hold is for: the keep-on hours, or the time after an agent's turn (a wake for work sets the turn's time). */
 export type HoldKind = 'keep_on' | 'after_turn';
 
 /** Who a power event names (`machine_power_events.actor`). */
@@ -50,9 +52,11 @@ export interface PowerState {
   readonly holdKind: HoldKind | null;
   /** The keep-on window the box was auto-started in (or found already on), so it starts once per window. */
   readonly autoStartedWindow: string | null;
+  /** When the last auto-start at the keep-on hours was sent: one that did not work goes again later. */
+  readonly autoStartTriedAt: string | null;
   /** The last Stop by hand: inside a window it keeps auto-start off for the rest of that window. */
   readonly manualStopAt: string | null;
-  /** The end of the agent's last turn on it (S5). */
+  /** The end of the agent's last turn on it, or when it was woken for work (its hold after a turn runs from then). */
   readonly lastTurnAt: string | null;
   /** The keep-on window the scheduler last saw it in, so the window's end is noticed once. */
   readonly window: string | null;
@@ -65,6 +69,7 @@ export const EMPTY_POWER_STATE: PowerState = {
   holdReason: null,
   holdKind: null,
   autoStartedWindow: null,
+  autoStartTriedAt: null,
   manualStopAt: null,
   lastTurnAt: null,
   window: null,
@@ -94,7 +99,7 @@ export interface PowerDecision {
   readonly window: string | null;
   /** The next `state.autoStartedWindow` when no start is needed (the box is on already). */
   readonly autoStartedWindow: string | null;
-  /** Start the box (its window becomes `autoStartedWindow` once the start is sent). */
+  /** Start the box (its window becomes `autoStartedWindow` once the start worked; a failed one is tried again later). */
   readonly start: { readonly reason: string; readonly window: string } | null;
   /** Stop the box, and why. */
   readonly stop: string | null;
@@ -105,6 +110,9 @@ export interface PowerDecision {
 /** True for a machine the server powers on and off: a `vm` of the Airia devbox provider. */
 export const isPowered = (facts: { readonly kind: MachineKind; readonly provider: MachineProvider }) =>
   facts.kind === 'vm' && facts.provider === 'airia_devbox';
+
+/** How long after an auto-start that did not work (the CLI failed, the Mac slept through it) it is sent again. */
+export const AUTO_START_RETRY_MS = 5 * 60_000;
 
 const UP: readonly (PowerStatus | null)[] = ['running', 'starting'];
 const DOWN: readonly (PowerStatus | null)[] = ['stopped', 'stopping', 'missing'];
@@ -144,14 +152,31 @@ export function holdOf(
   );
 }
 
-/** Auto-start at the keep-on hours: once per window, never after a Stop by hand inside it, never a missing box. */
-function autoStart(policy: MachinePowerPolicy, state: PowerState, span: KeepOnSpan, facts: PowerFacts) {
+/** True while an auto-start sent in this window is younger than `AUTO_START_RETRY_MS`. */
+function triedLately(state: PowerState, span: KeepOnSpan, now: Date): boolean {
+  const tried = time(state.autoStartTriedAt);
+  return tried !== null && tried >= span.start.getTime() && now.getTime() - tried < AUTO_START_RETRY_MS;
+}
+
+/**
+ * Auto-start at the keep-on hours: once per window (counted once a start worked or the box is seen on), a start that did
+ * not work again every `AUTO_START_RETRY_MS` while the window lasts, never after a Stop by hand inside it, never a
+ * missing box.
+ */
+function autoStart(
+  policy: MachinePowerPolicy,
+  state: PowerState,
+  span: KeepOnSpan,
+  facts: PowerFacts,
+  now: Date,
+) {
   const handled = state.autoStartedWindow === span.id;
   const stoppedByHand = (time(state.manualStopAt) ?? Number.NEGATIVE_INFINITY) >= span.start.getTime();
   if (!policy.autoStartAtKeepOn || handled || stoppedByHand || facts.boxStatus === 'missing') {
     return { autoStartedWindow: state.autoStartedWindow, start: null };
   }
   if (UP.includes(facts.boxStatus)) return { autoStartedWindow: span.id, start: null };
+  if (triedLately(state, span, now)) return { autoStartedWindow: state.autoStartedWindow, start: null };
   return {
     autoStartedWindow: state.autoStartedWindow,
     start: { reason: `Keep-on hours started (${hoursText(policy)})`, window: span.id },
@@ -176,9 +201,10 @@ function atWindowEnd(policy: MachinePowerPolicy, facts: PowerFacts, hold: Hold |
 
 /**
  * The scheduler's decision for one machine at `now`: its hold, the keep-on window it is in, and for a devbox a start
- * (once per window, with `autoStartAtKeepOn`) or, when the window it was last seen in has ended (and none follows at
- * once), a stop with `stopAtKeepOnEnd` — or `kept` when work is live. Turning the hours off ends no window: nothing is
- * stopped for it. `autoStartOnWork` and `autoStartOnMessage` act from S5.
+ * (once per window, with `autoStartAtKeepOn`; a failed one again after `AUTO_START_RETRY_MS`) or, when the window it was
+ * last seen in has ended (and none follows at once), a stop with `stopAtKeepOnEnd` — or `kept` when work is live.
+ * Turning the hours off ends no window: nothing is stopped for it. `autoStartOnWork` and `autoStartOnMessage` act
+ * through the wake (`service/power/wake.ts`), when work or a message comes for a stopped machine.
  */
 export function decide(
   policy: MachinePowerPolicy,
@@ -191,7 +217,7 @@ export function decide(
   const none = { autoStartedWindow: state.autoStartedWindow, start: null, stop: null, kept: null };
   const window = span?.id ?? null;
   if (!isPowered(facts) || !policy.keepOn.enabled) return { hold, window, ...none };
-  if (span !== null) return { hold, window, ...none, ...autoStart(policy, state, span, facts) };
+  if (span !== null) return { hold, window, ...none, ...autoStart(policy, state, span, facts, now) };
   if (state.window === null) return { hold, window, ...none };
   return { hold, window, ...none, ...atWindowEnd(policy, facts, hold) };
 }

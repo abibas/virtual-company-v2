@@ -36,6 +36,7 @@ const StoredState = z.object({
   holdReason: text,
   holdKind: nullable(z.enum(['keep_on', 'after_turn'])),
   autoStartedWindow: text,
+  autoStartTriedAt: text,
   manualStopAt: text,
   lastTurnAt: text,
   window: text,

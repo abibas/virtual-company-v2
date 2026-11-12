@@ -10,7 +10,8 @@ import { logPower, readPower, saveFailure, saveReading, saveState } from './stor
 
 /**
  * The power scheduler (docs/machines.md, "The choice"): a step at most once a minute (the machines' jobs) decides
- * every machine's hold and sends it when it changes; for a devbox it starts the box at its keep-on hours, stops it when
+ * every machine's hold and sends it when it changes; for a devbox it starts the box at its keep-on hours (a start that
+ * failed, again every 5 minutes while they last: a Mac asleep at 09:00 starts the box when it wakes), stops it when
  * they end, and reads its status through its controller (this server's own driver, or a runner controller:
  * `control.ts`) at most every 5 minutes. Starts, stops and readings take up to minutes, so they run after the step, one
  * at a time per machine; `idle()` waits for them. What it decided is in the rows, so a step after a restart takes up
@@ -58,14 +59,23 @@ export function boxCheckDue(box: BoxState | null, now: Date): boolean {
 type Work = (t: TenantDb, machine: Machine, controller: Controller) => Promise<void>;
 type Deps = SchedulerDeps & { readonly control: PowerControl };
 
-/** A start or stop the scheduler decided, run through the controller and logged as the schedule's. */
-function powerWork(deps: Deps, action: 'start' | 'stop', reason: string): Work {
+/**
+ * A start or stop the scheduler decided, run through the controller and logged as the schedule's; `done` is the state
+ * it saves once the command worked (a start's window, counted as auto-started only then).
+ */
+function powerWork(
+  deps: Deps,
+  action: 'start' | 'stop',
+  reason: string,
+  done: Partial<PowerState> = {},
+): Work {
   return async (t, machine, controller) => {
     const result = await controller.run(action);
     const { state } = await readPower(t, machine.id);
     const at = deps.clock();
     if (result.ok) {
       await saveReading(t, machine, state.box, result.reading, at);
+      await saveState(t, machine.id, done);
       await deps.control.syncTunnels(t, controller.machineId);
       await logPower(t, machine.id, {
         action: action === 'start' ? 'started' : 'stopped',
@@ -109,9 +119,10 @@ function checkWork(deps: Deps): Work {
 }
 
 /**
- * The devbox's command for this decision, through its controller: a start (its window then counts as auto-started),
- * a stop, or a due reading. Without a connected controller a start waits for the next step; a stop is logged `failed`
- * (the window's end comes once).
+ * The devbox's command for this decision, through its controller: a start (noted as tried now; its window counts as
+ * auto-started once it worked, and one that failed goes again `AUTO_START_RETRY_MS` later), a stop, or a due reading.
+ * Without a connected controller a start waits for the next step; a stop is logged `failed` (the window's end comes
+ * once).
  */
 async function devboxWork(
   deps: Deps,
@@ -134,9 +145,10 @@ async function devboxWork(
   }
   const run = (work: Work) => () => work(t, machine, controller);
   if (decision.start !== null) {
+    const done = { autoStartedWindow: decision.start.window, autoStartTriedAt: null };
     return {
-      work: run(powerWork(deps, 'start', decision.start.reason)),
-      patch: { autoStartedWindow: decision.start.window },
+      work: run(powerWork(deps, 'start', decision.start.reason, done)),
+      patch: { autoStartTriedAt: now.toISOString() },
     };
   }
   if (decision.stop !== null) return { work: run(powerWork(deps, 'stop', decision.stop)), patch: {} };
