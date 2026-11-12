@@ -191,7 +191,7 @@ They point at `tasks/T-12` in the company (the web's task page, next step).
 | `PUT flows/{flowId}/steps` `{steps}` | the Lead's people, admins | 403, 404, 409 `step_has_tasks`, 422 the step list's |
 | `GET flows/{flowId}/text` | viewer+ | 404: the written form below, as `{text}` |
 | `GET flows/{flowId}/board?done=10` | viewer+ | 404 |
-| `GET tasks?flowId&state&stepId&assignee&limit&before` | viewer+ | newest first, `nextBefore` pages |
+| `GET tasks?flowId&state&stepId&assignee&q&sort&limit&before&cursor` | viewer+ | newest first (`sort=updated`: the latest change first); `state` takes several (`queued,active,escalated`); `q` matches the key, the number or a part of the title; `nextBefore` pages newest first, `nextCursor` in either order |
 | `POST tasks` `{flowId, title, description?, priority?, stepId?}` | member+ | 403 `not_lead` (a step), 404 `flow_not_found`, 422 `unknown_step` |
 | `GET tasks/{taskId}` (`T-12` or the id) | viewer+ | 404 `task_not_found`; with its history and the caller's `actions` |
 | `PATCH tasks/{taskId}` `{title?, description?, priority?}` | its creator, the Lead's people, admins | 403 `not_yours`, 404 |
@@ -222,7 +222,7 @@ Each takes `--company`, `--json` and `--server` like `mwc org tree`.
 
 ### Web
 
-The rail's **Flows** item (a task's page belongs to it too). Every page starts with the path Company structure / Flows /
+The rail's **Flows** and **Tasks** items (a task's page belongs to Tasks). Every page starts with the path Company structure / Flows /
 the flow / `T-12`. The views take their data and calls as props, so the design gallery (`/design/flows`) draws them on
 sample records.
 
@@ -231,7 +231,8 @@ sample records.
 | `/:slug/flows` | Every team's flow as a card: the Lead's face, the flow's name, its open tasks, its steps as chips in their kind's colour with the tasks at each, and Queued, Done and Escalated counts (each card reads its board with `?done=0`). "Create a flow" lists the managers without one that the viewer may lead |
 | `/:slug/flows/<lead>` | The team's **Board**: Queued, each step (its name, kind colour and assignee's face), Done (the latest 10, "3 of 14") and Escalated. A card shows its key, priority (unless normal), when it last moved, its title, its step state ("Needs you" to the person it waits for), its round from the second on and who has it; it opens the task. **New task** (member and up): title, description (Markdown), priority, and "Start at" a step for those who lead the team. Read again every 30 seconds while the page is visible |
 | `/:slug/flows/<lead>/flow` | The team's **Flow**: the drawing (one row of boxes in their kind's colour, each with its assignee's face and name, Keep ↻ or Fresh ✦ on an agent's step, the limit as "3×", then Done; dashed arrows in an SVG under the row from each Check and Sign-off box back to its target) and the written form (`GET …/text`) with Copy. **Edit** (`?edit=1`) for those who lead the team |
-| `/:slug/tasks/T-12` | The task: its title (renamed in place), state and step state; its moves (the API's `actions`); the flow drawn with its step ringed and each step's rounds and send-backs under its box; its description (Markdown, edited in place); its facts (flow, step, round, who has it, priority as a select, who made it, when) and its history as a timeline (who, what, from and to which step, the reason, when). Escalated: the reason and where Retry goes. `/:slug/tasks` alone opens the flows |
+| `/:slug/tasks/T-12` | The task: its title (renamed in place), state and step state; its moves (the API's `actions`); the flow drawn with its step ringed and each step's rounds and send-backs under its box; its description (Markdown, edited in place); its facts (flow, step, round, who has it, priority as a select, who made it, when) and its history as a timeline (who, what, from and to which step, the reason, when). Escalated: the reason and where Retry goes |
+| `/:slug/tasks` | **Tasks**: every task across the flows, the latest change first: key, title, flow, step (its kind's colour), who has it, state as the board says it (Blocked's reason on hover), priority, round, when it changed; a row opens the task. Filters in the address: Open (the default), Done, Cancelled, All; flow; who (Me, a person, an agent); a search on the key and the title. Load more pages on |
 
 `<lead>` is an agent Lead's slug or a person Lead's principal id. A Lead without a flow gets the editor that makes one
 (`POST …/flows`) for those who may, and "No flow yet" for everyone else. On the org chart a manager's ⋯ menu has "Open
@@ -259,7 +260,7 @@ show above the buttons (`step_has_tasks` names the tasks).
 
 The web's parts: `apps/web/src/api/flows.ts` (the types inferred from the routes, the hooks, the calls),
 `features/flows/` (`list/`, `team/`, `board/`, `drawing/`, `editor/`, `task/`, and `access.ts`, `links.ts`, `words.ts`,
-`Face.tsx`), `pages/company/flows/` and `pages/design/flows/`.
+`Face.tsx`), `pages/company/flows/` and `pages/design/flows/`; the Tasks page's `api/tasks.ts` and `features/tasks/`.
 
 ### What S5.3a left to S5.3b
 
