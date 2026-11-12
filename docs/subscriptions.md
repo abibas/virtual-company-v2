@@ -209,7 +209,8 @@ Built in S3.4 (migration `0008_access_profiles`, then bundles of three slots), o
 `0015_profile_provider`:
 
 - **The row.** `access_profiles` is personal (an owner, no company): `name` (1–80, unique per owner whatever the
-  provider), `provider` (`claude` | `openai`, `ProfileProvider` of `@mwc/shared/enums`, fixed when it is made),
+  provider), `provider` (`claude` | `openai`, `ProfileProvider` of `@mwc/shared/enums`, fixed when it is made; since
+  S7.1b also `github` | `atlassian`, "Tool profiles" below),
   `credential_id` (the subscription) and `gateway_credential_id`, both keys to `credentials` with `on delete set null`
   (until migration `0016_gateway_provider`, `access_profiles_gateway_check` allowed a gateway on a Claude profile only).
   The subscription is one of the owner's own credentials of a kind of the provider: Claude `claude_oauth`,
@@ -441,6 +442,97 @@ token** linking to id.atlassian.com/manage-profile/security/api-tokens). The mar
    **Create an API token**; the card shows the name, the email, the site, and whether Jira and Confluence answered.
 5. **Check again** on a card asks the provider at once. Revoking a token at the provider and checking again shows
    "Needs sign-in" and **Sign in again** in blue.
+
+## Tool profiles
+
+Built in S7.1b (2026-11-12). Ihor decided that day: GitHub and Atlassian get **separate tool profiles**, one provider
+each as Claude and OpenAI, picked per agent next to its AI profile, with no default per membership ("this GH and JIRA
+are part of the configs! and they have their own accesses").
+
+- **The row.** `access_profiles.provider` takes `github` and `atlassian` too (`ProfileProvider` of `@mwc/shared/enums`;
+  `AiProvider` is Claude and OpenAI, the only ones with a model, an effort, a gateway and a default; `ToolProvider` the
+  two tools). A tool profile holds one of its owner's sign-ins of its tool as its `credential_id` (GitHub `github_oauth`
+  or `github_token`, Atlassian `atlassian_api_token`: `PROVIDER_KINDS` now covers all four providers, so `fitsProvider`
+  keeps tool sign-ins out of AI profiles and the reverse), no gateway, model or effort, and its **rights** in `rights`
+  (jsonb). Migration `0030_tool_profiles` adds `rights` with three CHECKs (`access_profiles_rights_check`: rights on tool
+  profiles and only there; `access_profiles_rights_object_check`: an object; `access_profiles_tool_check`: no gateway,
+  model or effort on a tool profile), widens the provider CHECK, and adds `agents.github_profile_id` and
+  `atlassian_profile_id` (keys to `access_profiles`, `on delete set null`, indexed). No data step: every profile before
+  it is an AI one.
+- **Rights** (`GitHubRights`, `AtlassianRights` and `ToolRights` of `@mwc/shared/credentials`, in
+  `credentials/tool-rights.ts`): zod schemas the API, the agents' views and the briefing all parse with; stored rights
+  that do not parse as their tool's count as none at all (`storedRights`), so a damaged row never grants anything. The
+  tools check them on every call once they arrive (S7.1c, S7.1d).
+
+  | Tool      | Right              | Values                                                                                         |
+  | --------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+  | GitHub    | `repos`            | `all`, or up to 100 of `owner/name` and `owner/*` (repeats dropped, case ignored); empty reaches none |
+  |           | `push`             | push branches                                                                                  |
+  |           | `pullRequests`     | open and update pull requests                                                                  |
+  | Atlassian | `jira`             | `off`, `read`, `changes` (comment, transition, create)                                         |
+  |           | `jiraProjects`     | `all`, or project keys (`AP`; typed lower-case, stored upper-case)                             |
+  |           | `confluence`       | `off`, `read`, `write` (create and update pages)                                               |
+  |           | `confluenceSpaces` | `all`, or space keys (`ENG`, a personal space's `~` key)                                       |
+
+  GitHub reads in the repositories it reaches, always. A GitHub profile never merges, deletes, force-pushes or pushes to
+  a default branch, and an Atlassian profile never deletes or archives: those are no options, said in the shared types'
+  doc comments. New profiles start at the safe end (`defaultRights`): GitHub reaches no repository and only reads;
+  Atlassian reads Jira and Confluence everywhere and writes nowhere.
+- **Managing them:** the same `/api/me/access-profiles`. `POST` takes `{ name, provider: 'github' | 'atlassian',
+  credentialId?, rights? }` (rights left out: the defaults); `PATCH` takes `rights` as the whole set, compared as jsonb,
+  so the same set again writes nothing. Refusals, all 422 unless said: a tool sign-in in an AI profile, an AI
+  subscription in a tool profile or the other tool's sign-in (`provider_mismatch`); a revoked sign-in
+  (`credential_revoked`); someone else's (`credential_not_found`); a gateway, model or effort on a tool profile
+  (`not_for_tool_profile`; null, what it holds anyway, is fine); rights on an AI profile (`rights_not_for_ai_profile`);
+  the other tool's rights (`rights_provider_mismatch`); rights of neither tool's shape, a `merge` or `delete` key among
+  them, 400. Every profile shows `rights` (null for an AI one), and its credential shows `account` (GitHub's login,
+  Atlassian's display name, else its email) and `site` (Atlassian's), both null for the AI kinds (`toolAccountOf`).
+  `rights` joins the profile's audited fields.
+- **Giving them to agents:** `githubProfileId` and `atlassianProfileId` on `POST` and `PATCH
+  /api/companies/:companyId/agents`, by the AI profile's rules: only the profile's owner gives it, signed in (403
+  `session_required`), as an admin or owner (403 `forbidden`); someone else's is 403 `profile_not_yours`, none 422
+  `profile_not_found`, a profile of another provider in either column 422 `profile_provider_mismatch` (a tool profile as
+  `profileId` 422 `profile_harness_mismatch`); any admin or owner takes one off (`null`), with an API key too. **No
+  default:** an agent has none until one is given. Agents show `githubProfile` and `atlassianProfile`, each `{ id, name,
+  provider, ownerUserId, ownerName, account, site, rights }`, never the sign-in itself; each column is audited
+  (`githubProfileId`, `atlassianProfileId`). Removing a profile and leaving the company take them off as they do the AI
+  profile, one audit row per column; the profile's list shows the agents using it.
+- **The briefing:** an agent's briefing ends with one line per tool profile (`toolBriefingLine` of
+  `credentials/tool-words.ts`, GitHub's then Atlassian's), what it may do there and as whom, and that the access is
+  configured while its tools come later:
+
+  ```
+  - GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never merges, force-pushes, deletes or pushes to a default branch. Configured; the tools that use it arrive with Most Wanted’s tools.
+  - Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: may read, create and update pages in ENG; never deletes or archives. Configured; the tools that use it arrive with Most Wanted’s tools.
+  ```
+
+  A profile without a sign-in says "its profile has no sign-in now, so no access." Names past 25 are counted.
+- **The web** (labels only):
+  - Access profiles: GitHub and Atlassian groups after Claude and OpenAI, each with **New GitHub profile** or **New
+    Atlassian profile**; New profile offers the four providers. A tool's form asks **Name**, **Sign-in** (the person's
+    sign-ins of that tool; **Add a sign-in** links to Subscriptions when there is none) and the rights: GitHub's
+    **Repositories** (**All repositories**, else chips of `owner/name` and `owner/*`), **Push branches** and **Pull
+    requests**; Atlassian's **Jira** (Off, Read, Changes) and **Confluence** (Off, Read, Write), each with **All
+    projects** or **All spaces**, else key chips. A tool profile's card renames, switches its sign-in and saves its
+    rights as they change, lists the agents using it and deletes as the AI cards do. `?new=github|atlassian` opens New
+    profile for that tool. **Defaults for agents I hire** stays Claude and OpenAI.
+  - The agent form's How it works: **GitHub** and **Atlassian** pickers under the access profile (None, then the person's
+    profiles of that tool; **Make one** links to `?new=`; someone else's shows its owner and **Remove**). The agent's
+    facts show "GitHub · AiriaLLC push (push, PRs · AiriaLLC/*)" and "Atlassian · Jira (Jira read · AP; Confluence
+    write · ENG)" (`rightsSummary`), and the Hire page's briefing preview has the chosen profiles' lines.
+
+### How to test it (Ihor)
+
+1. Merge, then restart the dev API (`pnpm dev`): migration `0030_tool_profiles` runs on start. Reload the web.
+2. **Access profiles** → **New GitHub profile**: a name ("AiriaLLC push"), **Sign-in** your GitHub sign-in; under
+   **Repositories** type `AiriaLLC/*` and Enter; switch on **Push branches** and **Pull requests**; **Create profile**.
+   The card shows them; a change on the card saves at once.
+3. **New Atlassian profile**: a name, **Sign-in** your Atlassian sign-in; **Jira** Read with **All projects** (or switch
+   it off and type `AP`), **Confluence** Read or Write; **Create profile**.
+4. **Agents** → **test-dev** → **How it works**: **GitHub** your GitHub profile, **Atlassian** your Atlassian profile;
+   **Save changes**. The facts at the top show both with their rights in short, and **Instructions** → **From the
+   company** ends with the two lines. **None** and **Save changes** take one off; deleting the profile on Access profiles
+   does too.
 
 ## Security
 

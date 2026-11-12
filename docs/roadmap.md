@@ -673,6 +673,23 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          secrets, the owner and session rules and the audit.
      - **S7.1b** The tool profiles: GitHub and Atlassian profiles on Access profiles, with their rights; the agent
        form's two pickers; and the agent's page and briefing. Test: he gives his DEVBOX agents profiles.
+       **Built 2026-11-12** (docs/subscriptions.md, "Tool profiles"; waiting for his live test):
+       - Profile providers `github` and `atlassian` (`ProfileProvider`; `AiProvider` keeps Claude and OpenAI for models,
+         defaults and harnesses), each holding one sign-in of its tool and its rights, with no gateway, model or effort.
+         Migration `0030_tool_profiles`: `access_profiles.rights` and its CHECKs, the widened provider CHECK, and
+         `agents.github_profile_id` and `atlassian_profile_id` (`on delete set null`). No data step.
+       - The rights in `@mwc/shared/credentials` (`credentials/tool-rights.ts`): GitHub `repos` (all, or `owner/name` and
+         `owner/*`), `push`, `pullRequests`, read always; Atlassian `jira` off/read/changes in `jiraProjects`,
+         `confluence` off/read/write in `confluenceSpaces`. Never a merge, delete, force-push, default-branch push or
+         archive. Safe defaults; damaged stored rights count as none.
+       - `/api/me/access-profiles` makes and changes tool profiles (rights as a whole set, audited); the agent routes carry
+         `githubProfileId` and `atlassianProfileId` by the AI profile's giving rules, with no default, and show
+         `githubProfile` and `atlassianProfile` (account, site, rights, never a secret); removal and leaving take them off
+         with their audit rows. The briefing ends with one line per tool profile (`credentials/tool-words.ts`).
+       - Web: GitHub and Atlassian groups and forms on Access profiles (`ToolRightsFields`, `ChipsInput`), the agent
+         form's two pickers, the agent's facts and the Hire page's briefing preview.
+       - Tests: the rights and words in `@mwc/shared`, the migration's CHECKs and keys, the profile and parts rules, the
+         tool profiles' routes, the agents' giving, view, audit, removal and leaving, and the briefing route.
      - **S7.1c** The Atlassian tools for agents: Jira read first, then Confluence read and write, then Jira changes,
        each checked on the server against the profile. Test: an agent reads a real ticket and writes a Confluence
        page in a test space.
