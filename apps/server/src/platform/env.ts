@@ -81,6 +81,11 @@ export interface AppDeps {
    */
   readonly leadWakeTimers?: Timers;
   /**
+   * The timers that end a chat turn's wait for its stopped machine (10 minutes after it began); tests pass ones they fire
+   * by hand. Omitted, Node's.
+   */
+  readonly machineWaitTimers?: Timers;
+  /**
    * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
    * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.
    */

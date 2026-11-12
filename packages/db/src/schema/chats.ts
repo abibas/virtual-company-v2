@@ -119,6 +119,8 @@ export const chats = pgTable(
  * agent worked (`delivery`). Its `kind` (S5.2): a person's prompt, the harness's own `/compact`, or a Clear, which runs
  * no process (always `done`, on no credential) and marks where the chat's next turn starts a new conversation. A turn
  * Most Wanted queued itself (`system`, S6c: a Lead's wake-up) names the agent as its sender and shows as Most Wanted's.
+ * A turn for an agent whose machine was stopped waits `queued` while the machine starts (`machine_wait_at`, migration
+ * 0026): it starts once the machine's runner connects, and fails when the start fails or takes too long.
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -134,6 +136,8 @@ export const chatTurns = pgTable(
     delivery: text('delivery').$type<ChatTurnDelivery>(),
     /** Queued by Most Wanted itself, not by a person (S6c: a Lead's wake-up); `created_by` is then the agent. */
     system: boolean('system').notNull().default(false),
+    /** Since when the turn waits for its machine to start (it was stopped when the turn came); null for any other turn. */
+    machineWaitAt: at('machine_wait_at'),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     startedAt: at('started_at'),

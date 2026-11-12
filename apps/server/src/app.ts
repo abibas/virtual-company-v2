@@ -11,6 +11,7 @@ import { inboxRoutes } from './modules/inbox/index.ts';
 import {
   createPowerControl,
   createRunnerHub,
+  machinePowerRuntime,
   machinesRoutes,
   machineUpkeep,
   type PowerControl,
@@ -76,7 +77,8 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * the runners' sockets (`platform/realtime/sockets.ts`, whose server `start.ts` gives to `serve()`). The power control
  * is the one passed in (`start.ts`: this server's own driver when MWC_LOCAL_POWER finds the airia CLI), else the runner
  * controllers'; `/api/config` says which (`localPower`). The chats (S5.1b) start their turns through the same hub and
- * share the machines' terminal tickets; the tasks (S5.3b) run their steps through the chats' runtime, whose task
+ * share the machines' terminal tickets and wake a stopped machine through the machines' power runtime (a message, a
+ * step's run, a Lead's wake-up); the tasks (S5.3b) run their steps through the chats' runtime, whose task
  * conversations report back to the tasks module's hook, and (S6c) wake their agent Leads in its team chats.
  * Dictation transcribes through the speech passed in (tests: a fake; undefined: off), else this computer's whisper.cpp
  * when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
@@ -99,11 +101,13 @@ export function createApp(deps: AppOptions) {
     deps.powerControl ?? createPowerControl({ hub, port: deps.config.MWC_PORT, logger: deps.logger });
   // One ticket store for the machines' terminals and the chats' (S5.1b): both open the same browser socket.
   const tickets = terminalTickets();
+  // One power runtime: the machines' routes and the chats' wakes of a stopped machine share its locks and its starts.
+  const power = machinePowerRuntime({ ...server, localDocker, hub, control });
   // One chats runtime (S5.3b): the chats' routes and the tasks module's step runs share its live turns and queue, and a
   // task's conversation reports its turns to the tasks module's hook. Neither module imports the other. The hook runs
   // the next step after an agent's decision or a Lead's move (S6a) through the runtime, asked when needed.
   const hook = taskTurnHook({ ...server, steps: () => chats.taskTurns });
-  const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook };
+  const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook, wake: power.wake };
   const chats = chatsRuntime(chatsDeps);
   startLeadWakes(server, chats.teamChats, deps.leadWakeTimers);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
@@ -129,7 +133,7 @@ export function createApp(deps: AppOptions) {
     .route('/', orgRoutes(server))
     .route('/', credentialsRoutes({ ...server, keyring }))
     .route('/', signInRoutes({ ...server, keyring, loginHelper }))
-    .route('/', machinesRoutes({ ...server, hub, control, tickets, localDocker }))
+    .route('/', machinesRoutes({ ...server, hub, control, tickets, localDocker, power }))
     .route('/', chatsRoutes(chatsDeps, chats))
     .route('/', speechRoutes({ ...server, speech }))
     .route('/', notificationsRoutes(server))

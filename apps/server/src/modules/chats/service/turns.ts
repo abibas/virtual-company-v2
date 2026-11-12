@@ -17,6 +17,7 @@ import {
 } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
+import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
 import { resolveTarget, type Target, type TargetDeps } from './target.ts';
 import {
   artifactsOf,
@@ -37,7 +38,7 @@ import { turnView } from './views.ts';
  * checks and marks its question in the transaction that records the turn. A message sent while a turn runs waits in
  * the chat's queue instead (`queue.ts`, S5.2 step 6), which starts it through `launch` once the running turn ended. A
  * message turn of a task's conversation (S5.3b) gets its outputs folder from the tasks module's hook, which hears of
- * its start (`task-hook.ts`).
+ * its start (`task-hook.ts`). A prompt whose machine is stopped may start it and wait for it (`machine-wait.ts`).
  */
 
 export interface TurnsDeps extends TargetDeps {
@@ -45,6 +46,8 @@ export interface TurnsDeps extends TargetDeps {
   readonly clock: () => Date;
   /** The tasks module's side of a task's conversation (S5.3b); none: chats know nothing of tasks. */
   readonly tasks?: TaskTurnHook | undefined;
+  /** The waits for a stopped machine (the runtime's); none: a stopped machine refuses the turn (`machine_offline`). */
+  readonly waits?: MachineWaits | undefined;
 }
 
 /**
@@ -54,6 +57,8 @@ export interface TurnsDeps extends TargetDeps {
 export interface TurnCaller {
   readonly principalId: string;
   readonly system?: boolean | undefined;
+  /** What a prompt may do when the agent's machine is stopped: wake it for a message or for work. */
+  readonly wake?: TurnWake | undefined;
 }
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
@@ -121,7 +126,9 @@ export async function startTurn(
     principalId: caller.principalId,
     purpose: 'chat_turn',
   });
-  if (!target.ok) return target;
+  if (!target.ok) {
+    return target.code === MACHINE_OFFLINE.code ? waitForMachine(deps, t, caller, chat, prompt) : target;
+  }
   const draft = await taskDraft(deps.tasks, t, { chat, agent: target.agent, kind: how.kind });
   const tools = await specTools(deps, t, { chat, target, kind: how.kind, draft });
   const spec = TurnSpec.safeParse({
@@ -209,7 +216,7 @@ export async function launch(
   return { ok: true, turn: turnView(turn) };
 }
 
-/** Asks the runner to stop the chat's running turn; 202 with the turn, or why not. */
+/** Asks the runner to stop the chat's running turn, or ends one waiting for its machine; 202 with the turn, or why not. */
 export async function stopTurn(
   deps: TurnsDeps,
   t: TenantDb,
@@ -220,6 +227,10 @@ export async function stopTurn(
   if (chat === undefined) return CHAT_NOT_FOUND;
   const turn = await turnsRepo.get(t, chat.id, turnId);
   if (turn === undefined) return TURN_NOT_FOUND;
+  if (turn.status === 'queued' && turn.machineWaitAt !== null) {
+    const stopped = await deps.waits?.stop(t, turn);
+    return stopped === undefined ? TURN_NOT_RUNNING : { ok: true, turn: turnView(stopped) };
+  }
   if (turn.status !== 'running' || !deps.live.stop(turn.id)) return TURN_NOT_RUNNING;
   return { ok: true, turn: turnView(turn) };
 }

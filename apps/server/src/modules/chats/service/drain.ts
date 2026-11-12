@@ -5,7 +5,7 @@ import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { nextQueued, startSeq } from '../rules/queue.ts';
-import { CHAT_ARCHIVED, type Refusal, titleOf } from '../rules.ts';
+import { CHAT_ARCHIVED, MACHINE_OFFLINE, type Refusal, titleOf } from '../rules.ts';
 import { resolveTarget, type Target } from './target.ts';
 import { artifactsOf, taskDraft } from './task-hook.ts';
 import { INVALID_SPEC, launch, specIssues, specTools, type TurnsDeps } from './turns.ts';
@@ -15,8 +15,10 @@ import { turnView } from './views.ts';
  * Starting a chat's waiting turns (S5.2 step 6, docs/harness.md "Delivery while a turn runs"): while no turn of the chat
  * runs, the next waiting one (`nextQueued`) starts as a prompt does, as the person who sent it (its checks, its
  * credential, its runner), resuming the chat's session; one refused fails with the refusal's words and the next one is
- * tried. Called after each turn's end and after each message queued or moved up; one chat's starts run one at a time in
- * this process, and a start that loses a race to another (the one-running-turn index) leaves the chat to it.
+ * tried, except while a turn of the chat waits for its stopped machine to start (`machine-wait.ts`): its queue then
+ * waits for the runner. Called after each turn's end, after each message queued or moved up and when a machine that
+ * was waited for connects; one chat's starts run one at a time in this process, and a start that loses a race to
+ * another (the one-running-turn index) leaves the chat to it.
  */
 
 export interface DrainDeps extends TurnsDeps {
@@ -96,7 +98,10 @@ async function drain(deps: DrainDeps, t: TenantDb, chatId: string): Promise<void
     if (head === undefined) return;
     const outcome = await startOne(deps, t, chatId, head);
     if (outcome === 'started' || outcome === 'raced') return;
-    if (typeof outcome === 'object') await failed(deps, t, head, outcome.message, false);
+    if (typeof outcome !== 'object') continue;
+    if (outcome.code === MACHINE_OFFLINE.code && (await queueRepo.machineWaitsOf(t, chatId)).length > 0)
+      return;
+    await failed(deps, t, head, outcome.message, false);
   }
 }
 

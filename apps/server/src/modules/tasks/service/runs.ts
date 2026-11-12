@@ -25,8 +25,9 @@ import { recordWake } from './wake/record.ts';
 /**
  * A step's run (S5.3b, docs/processes.md "Built in S5.3b"): once a move has started a task at an agent's step (a step
  * that starts by itself on entry, or Start), its turn starts in the step's conversation (`TaskTurns` of the chats
- * module) with the step's prompt (`stepPrompt` of `@mwc/shared/flows`), as the person whose move started it. A start
- * the chats refuse (no placement, no runner, no profile, …) blocks the task at the step with the refusal's words. Every
+ * module) with the step's prompt (`stepPrompt` of `@mwc/shared/flows`), as the person whose move started it (a stopped
+ * machine is started when its policy starts it for work, and the turn waits for it). A start the chats refuse (no
+ * placement, no runner, the machine stopped, no profile, …) blocks the task at the step with the refusal's words. Every
  * change a run makes to the task's step state is written here (`applyStepChange`), audited as the system's (or the
  * replier's) and told to the Lead's nearest person when it needs one; a block or a turn ended also wakes an agent Lead
  * (S6c), unless a person stopped the turn.
@@ -123,6 +124,7 @@ export async function runStep(deps: RunDeps, repo: TasksRepo, t: TenantDb, calle
     round,
     keep: step.onReturn === 'keep',
     title: conversationTitle(taskKey(task.number), step.name, task.title),
+    wakeReason: `Started for ${taskKey(task.number)} · ${step.name}`,
     prompt,
   });
   if (!started.ok) await changeStep(repo, t, task, step.id, (now, at) => blocked(now, at, started.message));

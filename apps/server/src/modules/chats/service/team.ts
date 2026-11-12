@@ -22,8 +22,8 @@ import { turnView } from './views.ts';
  * new one titled "<flow>: team", made by Most Wanted (audited as the system). A wake-up's message goes there as a turn
  * Most Wanted queued (`system`, the agent as its sender), delivered "after this turn": at once while nothing runs, else
  * behind the running turn; while a wake-up of its own still waits there, the new message joins it rather than queue
- * another. Every check of a turn holds (the placement, the runner, the profile); a paused agent is not woken. A refusal
- * says why in words.
+ * another. Every check of a turn holds (the placement, the runner, the profile); a paused agent is not woken. A stopped
+ * machine is started when its policy starts it for work, and the wake-up waits for it. A refusal says why in words.
  */
 
 export const AGENT_PAUSED = refuse(409, 'agent_paused', 'The agent is paused: resume it to wake it');
@@ -99,7 +99,12 @@ export function teamChats(deps: QueueDeps): TeamChats {
       if (!('id' in chat)) return chat;
       const joined = await joinWaiting(deps, t, chat, request.prompt);
       if (joined !== undefined) return { ok: true, chatId: chat.id, turnId: joined.id, merged: true };
-      const caller = { principalId: request.agentPrincipalId, system: true };
+      const reason = `Started for a wake-up of the Lead of ${request.flowName}`;
+      const caller = {
+        principalId: request.agentPrincipalId,
+        system: true,
+        wake: { trigger: 'work' as const, reason },
+      };
       const sent = await sendMessage(deps, t, caller, chat.id, request.prompt, 'after');
       if (!sent.ok) return sent;
       if (sent.turn.status === 'failed') {

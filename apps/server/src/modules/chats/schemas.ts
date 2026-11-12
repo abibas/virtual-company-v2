@@ -121,6 +121,11 @@ export const ChatTurnSchema = z
     endedAt: dateTime.nullable(),
     resultText: z.string().nullable().openapi({ description: "The reply: the result's text" }),
     error: z.string().nullable(),
+    machineWaitAt: dateTime.nullable().openapi({
+      description:
+        'Since when a `queued` turn waits for its stopped machine to start (docs/harness.md "When the machine is ' +
+        'stopped"): it starts once the machine\'s runner connects; null for any other turn',
+    }),
     detached: z
       .boolean()
       .optional()
@@ -212,6 +217,14 @@ export const CreateTurnSchema = z
         'While a turn runs: `now` (into it: Claude Code only), `after` (queued for its end) or `interrupt` (stop it, ' +
         'start this). Left out, a running turn refuses the prompt (`turn_running`)',
     }),
+    startMachine: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "Start the agent's machine when it is stopped, whatever its policy's start on a message says (an admin or " +
+          "owner's Start and send); the turn then waits for it (`machineWaitAt`)",
+      }),
   })
   .openapi('CreateTurn');
 

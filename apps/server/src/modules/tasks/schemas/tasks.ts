@@ -124,7 +124,15 @@ export const TaskConversationSchema = z
      * Where its turns stand: the running turn's status while one runs, else its latest turn's (`queued`, `done`,
      * `failed`, `stopped`), and its last activity (the latest start or end of a turn); null before its first turn.
      */
-    lastTurn: z.object({ status: ChatTurnStatus, at: At }).nullable(),
+    lastTurn: z
+      .object({
+        status: ChatTurnStatus,
+        at: At,
+        waitsForMachine: z.boolean().openapi({
+          description: "A `queued` turn that waits for the agent's stopped machine to start",
+        }),
+      })
+      .nullable(),
     createdAt: At,
   })
   .openapi('TaskConversation');

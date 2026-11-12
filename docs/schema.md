@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 38. Migrations: 26, the last is `0025_lead_wakes`.
+Tables: 38. Migrations: 27, the last is `0026_chat_machine_waits`.
 
 ```mermaid
 erDiagram
@@ -111,6 +111,7 @@ erDiagram
     text status "not null, default 'queued', queued|running|done|failed|stopped"
     text delivery "nullable, now|after|interrupt"
     boolean system "not null, default false"
+    timestamptz machine_wait_at "nullable"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     timestamptz started_at "nullable"
@@ -851,6 +852,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `status` | `text` | no | `'queued'` |  | `queued`, `running`, `done`, `failed`, `stopped` |
 | `delivery` | `text` | yes |  |  | `now`, `after`, `interrupt` |
 | `system` | `boolean` | no | `false` |  |  |
+| `machine_wait_at` | `timestamp with time zone` | yes |  |  |  |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `started_at` | `timestamp with time zone` | yes |  |  |  |

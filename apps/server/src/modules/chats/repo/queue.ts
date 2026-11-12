@@ -1,10 +1,10 @@
-import { type ChatTurn, chatTurns, type TenantDb, type TenantSet } from '@mwc/db';
-import { and, asc, eq, max, ne } from 'drizzle-orm';
+import { type ChatTurn, chats, chatTurns, type TenantDb, type TenantSet } from '@mwc/db';
+import { and, asc, eq, inArray, isNotNull, max, ne } from 'drizzle-orm';
 
 /**
  * A chat's queue (S5.2 step 6, docs/harness.md "Delivery while a turn runs"): the turn that runs, the ones waiting
  * behind it, and the changes a waiting one takes (its prompt, its delivery, its start or its end) only while it still
- * waits, through the company's tenant only.
+ * waits, through the company's tenant only; and the turns that wait for their chat's machine to start (S5, the wake).
  */
 
 /** The chat's running turn, if one runs. */
@@ -48,4 +48,36 @@ async function deleteQueued(t: TenantDb, chatId: string, id: string): Promise<Ch
   return row;
 }
 
-export const queueRepo = { runningOf, queuedOf, lastStartedSeq, updateQueued, deleteQueued };
+/** The chat's turns that wait for its machine to start, by number. */
+const machineWaitsOf = (t: TenantDb, chatId: string): Promise<ChatTurn[]> =>
+  t
+    .select(
+      chatTurns,
+      and(eq(chatTurns.chatId, chatId), eq(chatTurns.status, 'queued'), isNotNull(chatTurns.machineWaitAt)),
+    )
+    .orderBy(asc(chatTurns.seq));
+
+/** The chats on the machine with a turn waiting for it to start. */
+async function chatsWaitingOn(t: TenantDb, machineId: string): Promise<string[]> {
+  const onMachine = (await t.selectFields(chats, { id: chats.id }, eq(chats.machineId, machineId))).map(
+    (row) => row.id,
+  );
+  if (onMachine.length === 0) return [];
+  const waiting = and(
+    inArray(chatTurns.chatId, onMachine),
+    eq(chatTurns.status, 'queued'),
+    isNotNull(chatTurns.machineWaitAt),
+  );
+  const rows = await t.selectFields(chatTurns, { chatId: chatTurns.chatId }, waiting);
+  return [...new Set(rows.map((row) => row.chatId))];
+}
+
+export const queueRepo = {
+  runningOf,
+  queuedOf,
+  lastStartedSeq,
+  updateQueued,
+  deleteQueued,
+  machineWaitsOf,
+  chatsWaitingOn,
+};

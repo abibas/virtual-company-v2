@@ -41,6 +41,7 @@ export function turnView(row: ChatTurn): ChatTurnView {
     status: row.status,
     delivery: row.delivery,
     system: row.system,
+    machineWaitAt: iso(row.machineWaitAt),
     profileId: row.profileId,
     credentialId: row.credentialId,
     startedAt: iso(row.startedAt),

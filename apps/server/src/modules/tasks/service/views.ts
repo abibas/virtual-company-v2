@@ -202,13 +202,17 @@ export function boardCard(
   };
 }
 
-/** Where a conversation's turns stand: the running one's status, else the latest's; and its last start or end. */
+/**
+ * Where a conversation's turns stand: the running one's status, else the latest's, and whether it waits for its stopped
+ * machine to start; and its last start or end.
+ */
 export function lastTurnOf(turns: readonly ConversationTurnRow[]): TaskConversationView['lastTurn'] {
   if (turns.length === 0) return null;
   const latest = turns.reduce((a, b) => (b.seq > a.seq ? b : a));
   const shown = turns.find((turn) => turn.status === 'running') ?? latest;
   const at = Math.max(...turns.map((turn) => (turn.endedAt ?? turn.startedAt ?? turn.createdAt).getTime()));
-  return { status: shown.status, at: new Date(at).toISOString() };
+  const waitsForMachine = shown.status === 'queued' && shown.machineWaitAt !== null;
+  return { status: shown.status, at: new Date(at).toISOString(), waitsForMachine };
 }
 
 /** A step's conversation of the task: its chat, the step (by its name now), the round it began in, its agent. */

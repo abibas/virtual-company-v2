@@ -101,7 +101,7 @@ describe('entering an agent’s step that starts by itself', () => {
     });
     expect(later).toMatchObject({
       stepState: 'blocked',
-      blockedReason: "The agent's machine has no connected runner",
+      blockedReason: 'This Mac is asleep: wake it, and its runner reconnects on its own',
     });
   });
 });

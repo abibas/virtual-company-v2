@@ -69,6 +69,8 @@ export async function machinesWorld(
     readonly localDocker?: LocalDocker;
     /** The Lead wake-up tick's timers (S6c), fired by hand; else the tick does not run. */
     readonly leadWakeTimers?: Timers;
+    /** The timers that end a chat turn's wait for its stopped machine, fired by hand; else Node's. */
+    readonly machineWaitTimers?: Timers;
   } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
@@ -92,6 +94,7 @@ export async function machinesWorld(
     ...(options.registryFetch === undefined ? {} : { registryFetch: options.registryFetch }),
     localDocker: options.localDocker,
     ...(options.leadWakeTimers === undefined ? {} : { leadWakeTimers: options.leadWakeTimers }),
+    ...(options.machineWaitTimers === undefined ? {} : { machineWaitTimers: options.machineWaitTimers }),
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

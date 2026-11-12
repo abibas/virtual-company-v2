@@ -1,5 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { beginChat } from '../../../../fixtures/chats/world.ts';
+import { beginChat, place } from '../../../../fixtures/chats/world.ts';
+import {
+  boxDriver,
+  connectController,
+  eventsOf,
+  macAndBox,
+  putPolicy,
+} from '../../../../fixtures/machines/power.ts';
 import { as } from '../../../../fixtures/members/members.ts';
 import { agentOf, stepStateIs } from '../../../../fixtures/runs.ts';
 import { flowsPath, moved, stepOf } from '../../../../fixtures/tasks.ts';
@@ -172,5 +179,27 @@ describe('the Lead wakes up on its team’s events', () => {
     const [event] = await wakeEvents(w.t.db, s.flow.id);
     expect(event).toMatchObject({ outcome: 'dropped', detail: 'The task moved on first', turnId: null });
     expect(await teamChatsOf(w.t.db, s.flow.id)).toEqual([]);
+  });
+
+  it('starts the Lead’s stopped machine for its wake-up, which waits for it and takes in the next one', async () => {
+    const s = await wakeScene(w);
+    const { mac, box } = await macAndBox(w, s.c);
+    await connectController(w, mac.runnerKey, boxDriver());
+    await putPolicy(w, s.c, box.machineId, { autoStartOnWork: true });
+    await place(w, s.c, (await agentOf(w.t.db, s.c.lead)).id, { machineId: box.machineId });
+    await escalate(w, s, (await taskAt(w, s, 'QA')).key);
+    await tickPastWindow(w);
+    const [team] = await teamChatsOf(w.t.db, s.flow.id);
+    const [waiting] = await turnsOf(w.t.db, team?.id as string);
+    expect(waiting).toMatchObject({ system: true, status: 'queued', delivery: 'after' });
+    expect(waiting?.machineWaitAt).not.toBeNull();
+    expect(await eventsOf(w.t.db, box.machineId)).toContain(
+      'held auto: Held for 45 minutes after the last turn',
+    );
+    await escalate(w, s, (await taskAt(w, s, 'QA', 'Fix the logout')).key);
+    await tickPastWindow(w);
+    const turns = await turnsOf(w.t.db, team?.id as string);
+    expect(turns).toHaveLength(1);
+    expect(turns[0]?.prompt).toContain('Fix the logout');
   });
 });

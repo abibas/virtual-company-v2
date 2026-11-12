@@ -1,0 +1,1 @@
+ALTER TABLE "chat_turns" ADD COLUMN "machine_wait_at" timestamp with time zone;

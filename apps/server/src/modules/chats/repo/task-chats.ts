@@ -1,9 +1,10 @@
 import { type Agent, agents, type Chat, chats, chatTurns, type TenantDb } from '@mwc/db';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
 
 /**
  * A task's conversations (S5.3b), through the company's tenant only: the agent a step's assignee is, the latest
- * conversation of a task at a step (of one agent), and a turn of the step's conversations that runs.
+ * conversation of a task at a step (of one agent), and a turn of the step's conversations that runs (or waits for its
+ * machine).
  */
 
 /** The agent of a principal (archived ones too); undefined for a person or another company's principal. */
@@ -24,12 +25,16 @@ async function latestOf(
   return row;
 }
 
-/** The id of a running turn of any of the task's conversations at the step; undefined when none runs. */
+/**
+ * The id of a turn of any of the task's conversations at the step that runs, or waits for its stopped machine; undefined
+ * when there is none.
+ */
 async function runningTurnOf(t: TenantDb, taskId: string, stepId: string): Promise<string | undefined> {
   const where = and(eq(chats.taskId, taskId), eq(chats.taskStepId, stepId));
   const ids = (await t.selectFields(chats, { id: chats.id }, where)).map((row) => row.id);
   if (ids.length === 0) return undefined;
-  const running = and(inArray(chatTurns.chatId, ids), eq(chatTurns.status, 'running'));
+  const waiting = and(eq(chatTurns.status, 'queued'), isNotNull(chatTurns.machineWaitAt));
+  const running = and(inArray(chatTurns.chatId, ids), or(eq(chatTurns.status, 'running'), waiting));
   const [row] = await t.selectFields(chatTurns, { id: chatTurns.id }, running).limit(1);
   return row?.id;
 }

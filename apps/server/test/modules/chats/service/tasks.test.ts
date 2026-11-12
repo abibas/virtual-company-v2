@@ -40,6 +40,7 @@ describe('taskTurns.start refuses', () => {
       round: 1,
       keep: true,
       title: 'x',
+      wakeReason: 'x',
       prompt: { plain: { full: 'x', delta: 'x' }, tools: { full: 'x', delta: 'x' } },
     });
     expect(started).toMatchObject({ ok: false, status: 409, code: 'not_an_agent' });

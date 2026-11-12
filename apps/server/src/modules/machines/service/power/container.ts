@@ -138,9 +138,10 @@ async function act(
   }
 }
 
-/** A container's power view, and its Start and Stop. */
+/** A container's power view, and its Start and Stop; `docker` says whether this server can run them. */
 export function containerPower(deps: ContainerPowerDeps) {
   return {
+    docker: deps.docker !== undefined,
     view: (machine: Machine) => view(deps, machine),
     act: (machine: Machine, action: 'start' | 'stop', force: boolean) => act(deps, machine, action, force),
   };

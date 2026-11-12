@@ -42,7 +42,7 @@ export interface ChatsWorld extends MachinesWorld {
 
 export async function chatsWorld(
   hubOptions: HubOptions = {},
-  options: { readonly leadWakeTimers?: Timers } = {},
+  options: { readonly leadWakeTimers?: Timers; readonly machineWaitTimers?: Timers } = {},
 ): Promise<ChatsWorld> {
   const keyring = ephemeralKeyring();
   const provider = new FakeProvider();

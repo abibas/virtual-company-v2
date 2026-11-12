@@ -70,7 +70,7 @@ export async function actOnTask(
     },
   );
   if (!done.ok) return done;
-  if (running !== undefined && request.body.force === true) deps.steps?.stop(running);
+  if (running !== undefined && request.body.force === true) await deps.steps?.stop(t, running);
   if (startedNow(done.transition)) await runStep(deps, repo, t, caller, done.task.id);
   const now = (await repo.tasks.get(t, { id: done.task.id })) as Task;
   return { ok: true, outcome: done.transition.outcome, task: await shownTask(deps, repo, t, caller, now) };
