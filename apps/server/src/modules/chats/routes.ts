@@ -10,6 +10,7 @@ import { chatRoutes } from './routes/chats.ts';
 import { conversationRoutes } from './routes/conversation.ts';
 import { historyRoutes } from './routes/history.ts';
 import { queueRoutes } from './routes/queue.ts';
+import { reportChatRoutes } from './routes/reports.ts';
 import { streamRoutes } from './routes/stream.ts';
 import { chatTerminalRoutes } from './routes/terminal.ts';
 import { turnRoutes } from './routes/turns.ts';
@@ -64,7 +65,8 @@ export type ChatsRuntime = ReturnType<typeof chatsRuntime>;
 /**
  * The chats module's routes (S5.1b, docs/harness.md "How a turn runs"): chats with an agent, their turns (the older
  * ones a page at a time), a branch from a reply, Compact and Clear (S5.2), answers to the agent's questions (S5.2 step
- * 4), the messages that wait for a running turn (S5.2 step 6), the chat's stream and its terminal, on the app's runtime
+ * 4), the messages that wait for a running turn (S5.2 step 6), the chat's stream and its terminal, your direct reports'
+ * main chats with you (the right rail's Chats), on the app's runtime
  * (`chatsRuntime`, one of its own when none is given).
  */
 export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntime(deps)) {
@@ -72,6 +74,7 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
   const queued = { ...turns, queue };
   return newRouter()
     .route('/', chatRoutes(deps, live.isDetached))
+    .route('/', reportChatRoutes(deps))
     .route('/', branchRoutes(deps))
     .route('/', turnRoutes(queued))
     .route('/', historyRoutes(deps))
