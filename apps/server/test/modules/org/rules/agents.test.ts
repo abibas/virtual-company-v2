@@ -29,6 +29,8 @@ const agent: Agent = {
   iconEmoji: null,
   settings: {},
   profileId: null,
+  githubProfileId: null,
+  atlassianProfileId: null,
   createdAt: new Date('2026-11-05T10:00:00Z'),
   updatedAt: new Date('2026-11-05T10:00:00Z'),
 };
@@ -101,9 +103,15 @@ describe('auditedAgent', () => {
       maxConcurrentRuns: 1,
       face: 9,
       profileId: null,
+      githubProfileId: null,
+      atlassianProfileId: null,
     });
     expect(audited).not.toHaveProperty('instructions');
     expect(auditedAgent({ ...agent, profileId: 'pr1' }).profileId).toBe('pr1');
+    expect(auditedAgent({ ...agent, githubProfileId: 'gh1', atlassianProfileId: 'at1' })).toMatchObject({
+      githubProfileId: 'gh1',
+      atlassianProfileId: 'at1',
+    });
   });
 });
 

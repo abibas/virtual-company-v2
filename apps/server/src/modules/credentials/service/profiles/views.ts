@@ -1,4 +1,5 @@
 import { type AccessProfile, type DbHandle, type OwnedDb, tenant } from '@mwc/db';
+import { isToolProvider, storedRights, toolAccountOf } from '@mwc/shared/credentials';
 import { companiesOf } from '../../../identity/service.ts';
 import { agentsUsingProfiles } from '../../../org/service.ts';
 import { profileRows as repo } from '../../repo/profiles.ts';
@@ -34,7 +35,10 @@ export async function agentsByProfile(db: DbHandle, userId: string, profileIds: 
   return uses;
 }
 
-/** Profiles as the API shows them: their credentials as metadata (never a secret) and the agents using each. */
+/**
+ * Profiles as the API shows them: their credentials as metadata (never a secret; a tool sign-in also with the account
+ * and site it acts as), a tool profile's rights (`storedRights`) and the agents using each.
+ */
 export async function views(
   o: OwnedDb,
   rows: readonly AccessProfile[],
@@ -44,7 +48,14 @@ export async function views(
   const held = new Map<string, ProfileSubscriptionView>();
   for (const credential of await repo.credentialsOf(o, ids)) {
     const { id, kind, label, accountEmail, status } = credential;
-    held.set(id, { id, kind, label, accountEmail, status });
+    held.set(id, {
+      id,
+      kind,
+      label,
+      accountEmail,
+      status,
+      ...toolAccountOf(kind, accountEmail, credential.accountMeta),
+    });
   }
   const shownAs = (id: string | null) => (id === null ? null : (held.get(id) ?? null));
   return rows.map((row) => ({
@@ -55,6 +66,7 @@ export async function views(
     gateway: shownAs(row.gatewayCredentialId),
     model: row.model,
     effort: row.effort,
+    rights: isToolProvider(row.provider) ? storedRights(row.provider, row.rights) : null,
     agents: uses.get(row.id) ?? [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

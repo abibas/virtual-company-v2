@@ -6,7 +6,8 @@
  * at the fake provider, the server learning of a membership's start or end by each path (a webhook delivery, the
  * reconcile on sign-in, the self reconcile, Sync now, the periodic reconcile of the jobs loop), and the chart as the
  * API shows it. For access profiles (S3.4): subscriptions of every kind sealed as the store seals them, profiles made
- * straight through the personal layer and put on agents and defaults straight in the tables, and raw reads of both.
+ * straight through the personal layer and put on agents and defaults straight in the tables, and raw reads of both; for
+ * tool profiles (S7.1b) GitHub and Atlassian sign-ins with a fake account's details, and GitHub and Atlassian profiles.
  */
 import { randomBytes } from 'node:crypto';
 import {
@@ -22,7 +23,14 @@ import {
   tenant,
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import type { CredentialKind, MembershipRole, MembershipStatus, ProfileProvider } from '@mwc/shared/enums';
+import { defaultRights } from '@mwc/shared/credentials';
+import type {
+  AiProvider,
+  CredentialKind,
+  MembershipRole,
+  MembershipStatus,
+  ToolProvider,
+} from '@mwc/shared/enums';
 import type { NormalizedIdentityEvent } from '@mwc/shared/identity';
 import { validateChart } from '@mwc/shared/org-chart';
 import { captureLogger, getJson, seedAgent, testConfig } from '@mwc/testkit';
@@ -325,6 +333,44 @@ export function addSubscription(
   return credentialSecrets({ db: w.t.db, keyring, clock: w.clock }).storeCredential(input);
 }
 
+/** The fake account each tool sign-in acts as: GitHub's login, Atlassian's name, email and site. */
+export const TOOL_ACCOUNTS = {
+  github_oauth: {
+    accountEmail: null,
+    accountMeta: { host: 'github.com', login: 'ihor-fake', name: 'Ihor Fake' },
+  },
+  github_token: {
+    accountEmail: null,
+    accountMeta: { host: 'github.com', login: 'ihor-pat', tokenType: 'classic' },
+  },
+  atlassian_api_token: {
+    accountEmail: 'ihor@example.test',
+    accountMeta: {
+      site: 'airia-fake.atlassian.net',
+      jira: true,
+      confluence: true,
+      displayName: 'Ihor Herasko',
+    },
+  },
+} as const;
+
+/** Seals a GitHub or Atlassian sign-in for a person with its fake account's details (`TOOL_ACCOUNTS`), as the store does. */
+export function addSignIn(
+  w: AuthWorld,
+  keyring: Keyring,
+  userId: string,
+  kind: keyof typeof TOOL_ACCOUNTS,
+): Promise<SubscriptionView> {
+  const input = {
+    kind,
+    secret: SECRETS[kind],
+    label: `${kind} ${randomBytes(2).toString('hex')}`,
+    ownerUserId: userId,
+  };
+  const store = credentialSecrets({ db: w.t.db, keyring, clock: w.clock });
+  return store.storeCredential({ ...input, ...TOOL_ACCOUNTS[kind] } as StoreCredentialInput);
+}
+
 /** Marks a subscription revoked at its provider, straight in the table. */
 export async function revokeSubscription(db: DbHandle, id: string): Promise<void> {
   await rawDb(db).update(credentials).set({ status: 'revoked' }).where(eq(credentials.id, id));
@@ -343,6 +389,14 @@ export async function seedProfile(
   return row as AccessProfile;
 }
 
+/** A GitHub or Atlassian profile of a person's, with its tool's default rights unless given (no rules checked). */
+export const seedToolProfile = (
+  db: DbHandle,
+  userId: string,
+  provider: ToolProvider,
+  values: Partial<Omit<AccessProfile, 'id' | 'ownerUserId' | 'provider'>> = {},
+) => seedProfile(db, userId, { provider, rights: defaultRights(provider), ...values });
+
 /** Puts a profile on an agent straight in the table (no rules checked). */
 export async function putProfile(db: DbHandle, companyId: string, agentId: string, profileId: string | null) {
   await (await tenant(db, companyId)).update(agents, { profileId }, eq(agents.id, agentId));
@@ -356,7 +410,7 @@ export async function putDefault(
   db: DbHandle,
   membershipId: string,
   profileId: string | null,
-  provider: ProfileProvider = 'claude',
+  provider: AiProvider = 'claude',
 ) {
   await rawDb(db)
     .update(memberships)
@@ -368,12 +422,14 @@ export async function putDefault(
 export const agentProfileOf = async (db: DbHandle, agentId: string) =>
   (await rawDb(db).select().from(agents).where(eq(agents.id, agentId)))[0]?.profileId;
 
+/** The GitHub and Atlassian profiles an agent holds, as stored. */
+export async function agentToolsOf(db: DbHandle, agentId: string) {
+  const [row] = await rawDb(db).select().from(agents).where(eq(agents.id, agentId));
+  return { githubProfileId: row?.githubProfileId, atlassianProfileId: row?.atlassianProfileId };
+}
+
 /** The default profile of a provider (Claude by default) a membership holds, as stored. */
-export const defaultProfileOf = async (
-  db: DbHandle,
-  membershipId: string,
-  provider: ProfileProvider = 'claude',
-) =>
+export const defaultProfileOf = async (db: DbHandle, membershipId: string, provider: AiProvider = 'claude') =>
   (await rawDb(db).select().from(memberships).where(eq(memberships.id, membershipId)))[0]?.[
     DEFAULT_FIELDS[provider]
   ];

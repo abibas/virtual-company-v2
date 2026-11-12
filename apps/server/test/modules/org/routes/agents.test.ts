@@ -63,6 +63,8 @@ describe('POST /api/companies/:companyId/agents', () => {
       title: null,
       profile: null,
       runsWith: null,
+      githubProfile: null,
+      atlassianProfile: null,
       placement: null,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt,

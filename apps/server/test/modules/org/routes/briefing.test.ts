@@ -1,15 +1,25 @@
 import { companies } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { BRIEFING_HEADING, briefingVersion } from '@mwc/shared/agent-briefing';
+import { TOOL_ACCESS_NOTE } from '@mwc/shared/credentials';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
 import { as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
-import { agentsPath, makeAgent, placedMember, positionPath } from '../../../fixtures/org.ts';
+import {
+  addSignIn,
+  agentsPath,
+  makeAgent,
+  placedMember,
+  positionPath,
+  seedToolProfile,
+} from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
+const keyring = ephemeralKeyring();
 let w: AuthWorld;
 beforeAll(async () => {
-  w = await authWorld();
+  w = await authWorld({ keyring });
 });
 afterAll(() => w.t.close());
 
@@ -74,6 +84,29 @@ describe('GET /api/companies/:companyId/agents/:agentId/briefing', () => {
     await as(w, owner)('PATCH', agentsPath(company, coder.id), { status: 'archived' });
     expect((await read(coder.id)).briefing).toContain(
       `- You are not on the org chart of ${await nameOf(company)}.`,
+    );
+  });
+
+  it('ends with what its GitHub and Atlassian profiles let it do and as whom, and follows their changes', async () => {
+    const company = await membersCompany(w);
+    const owner = company.owner;
+    const signIn = await addSignIn(w, keyring, owner.userId, 'github_oauth');
+    const rights = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
+    const github = await seedToolProfile(w.t.db, owner.userId, 'github', { credentialId: signIn.id, rights });
+    const atlassian = await seedToolProfile(w.t.db, owner.userId, 'atlassian');
+    const coder = await makeAgent(w, company, owner, { name: 'Coder', githubProfileId: github.id });
+    const read = async () =>
+      ((await as(w, owner)('GET', briefingPath(company, coder.id))).body as { briefing: string }).briefing;
+    expect((await read()).split('\n').at(-1)).toBe(
+      '- GitHub: as ihor-fake; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
+        `merges, force-pushes, deletes or pushes to a default branch. ${TOOL_ACCESS_NOTE}`,
+    );
+    await as(w, owner)('PATCH', agentsPath(company, coder.id), {
+      githubProfileId: null,
+      atlassianProfileId: atlassian.id,
+    });
+    expect((await read()).split('\n').at(-1)).toBe(
+      '- Atlassian: its profile has no sign-in now, so no access.',
     );
   });
 

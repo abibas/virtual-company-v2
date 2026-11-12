@@ -1,10 +1,11 @@
 import { diffFields, type Membership, type TenantDb } from '@mwc/db';
-import { DEFAULT_COLUMNS } from '../../repo/profiles.ts';
+import { DEFAULT_COLUMNS, PROFILE_COLUMNS } from '../../repo/profiles.ts';
 import type { AuditBy } from '../audit.ts';
 import type { ProfileRepo } from '../profiles.ts';
 
-// Access profiles leaving a company (S3.4): a member who leaves takes their profiles off its agents, and a profile its
-// owner removes leaves its agents and defaults, each with its audit rows.
+// Access profiles leaving a company (S3.4; tool profiles too since S7.1b): a member who leaves takes their profiles off
+// its agents, and a profile its owner removes leaves its agents and defaults, each with its audit rows (one per agent
+// column that held it: `profileId`, `githubProfileId`, `atlassianProfileId`).
 
 /** The audit row of a profile taken off an agent or a default, by `by`. */
 function auditLoss(
@@ -29,21 +30,19 @@ function auditLoss(
 
 /**
  * A person whose membership ended (S2.4's `unplaceMember`): every agent of the company that uses one of their access
- * profiles loses it, each with its `update` audit row by `by`, in the membership's own transaction, so their personal
- * subscriptions stop powering a company they left.
+ * profiles (its AI profile or a tool profile) loses it, each with its `update` audit row by `by`, in the membership's own
+ * transaction, so their personal subscriptions and sign-ins stop working for a company they left.
  */
 export async function clearProfilesOf(repo: ProfileRepo, t: TenantDb, principalId: string, by: AuditBy) {
   // A person leaving the chart has a membership: its status is what changed.
   const { userId } = (await repo.membershipOf(t, principalId)) as Membership;
-  const used = await repo.agentsUsing(t, await repo.profileIdsOf(t, userId));
-  await repo.clearAgentProfiles(t, used);
+  const theirs = await repo.profileIdsOf(t, userId);
+  const used = await repo.agentsUsing(t, theirs);
+  await repo.clearAgentProfiles(t, theirs);
   for (const agent of used) {
-    await auditLoss(repo, t, by, {
-      entityType: 'agent',
-      id: agent.id,
-      field: 'profileId',
-      profileId: agent.profileId,
-    });
+    for (const field of PROFILE_COLUMNS.filter((column) => theirs.includes(agent[column] as string))) {
+      await auditLoss(repo, t, by, { entityType: 'agent', id: agent.id, field, profileId: agent[field] });
+    }
   }
 }
 
@@ -63,7 +62,9 @@ export async function auditProfileRemoval(
   const owner = (await repo.membershipOfUser(t, by.userId)) as Membership;
   const who: AuditBy = { actorKind: 'user', actorPrincipalId: owner.principalId, requestId: by.requestId };
   for (const agent of await repo.agentsUsing(t, [profileId])) {
-    await auditLoss(repo, t, who, { entityType: 'agent', id: agent.id, field: 'profileId', profileId });
+    for (const field of PROFILE_COLUMNS.filter((column) => agent[column] === profileId)) {
+      await auditLoss(repo, t, who, { entityType: 'agent', id: agent.id, field, profileId });
+    }
   }
   for (const membership of await repo.defaultsUsing(t, profileId)) {
     for (const field of Object.values(DEFAULT_COLUMNS).filter((column) => membership[column] === profileId)) {

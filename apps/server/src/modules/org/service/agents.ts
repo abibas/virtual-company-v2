@@ -19,7 +19,14 @@ import type { AgentDetailView, CreateAgent, UpdateAgent } from '../schemas.ts';
 import { auditEntry, auditPosition, type Caller } from './audit.ts';
 import { agentIconHash } from './icons.ts';
 import { moveForStatus } from './lifecycle.ts';
-import { newAgentProfile, profileChange, profileExtras, profileRefs } from './profiles.ts';
+import {
+  newAgentProfile,
+  profileChange,
+  profileExtras,
+  profileIdsOf,
+  profileRefs,
+  toolProfilesChange,
+} from './profiles.ts';
 import { agentDetail, loadOrg } from './read.ts';
 
 /** A profile a harness change took off the agent, when one did. */
@@ -35,8 +42,8 @@ export type AgentRows<S extends RefusalStatus> =
   | Refusal<S>;
 
 /**
- * An agent a change left, as the API shows it: with its access profile, what that runs, where it runs and its icon,
- * read after the change's transaction.
+ * An agent a change left, as the API shows it: with its access profile, what that runs, its tool profiles, where it runs
+ * and its icon, read after the change's transaction.
  */
 export async function shownAgent<S extends RefusalStatus>(
   deps: Pick<ServerDeps, 'db'>,
@@ -46,7 +53,7 @@ export async function shownAgent<S extends RefusalStatus>(
 ): Promise<AgentResult<S>> {
   if (!result.ok) return result;
   const { agent, position, profileCleared } = result;
-  const profile = profileExtras(await profileRefs(deps, repo, t, [agent.profileId]), agent.profileId);
+  const profile = profileExtras(await profileRefs(deps, repo, t, profileIdsOf(agent)), agent);
   const placement = (await placementsOf(t)).get(agent.id) ?? null;
   const iconHash = await agentIconHash(t, agent.id);
   const shown = agentDetail(agent, position, { ...profile, placement, iconHash });
@@ -58,8 +65,8 @@ export async function shownAgent<S extends RefusalStatus>(
  * position under `reportsToPrincipalId` (the caller when left out), with their audit rows. The slug is the one
  * chosen (409 when taken) or derived from the name; the face, left out, comes from the slug; the access profile is
  * the one given (only the caller's own: 403; 422 for none or one of another provider than the harness's), else the
- * caller's default here of the harness's provider (`newAgentProfile`). A refusal is decided before anything is
- * written.
+ * caller's default here of the harness's provider (`newAgentProfile`); its GitHub and Atlassian profiles are the ones
+ * given, by the same rules (`toolProfilesChange`), none by default. A refusal is decided before anything is written.
  */
 export function createAgent(
   repo: OrgRepo,
@@ -69,7 +76,8 @@ export function createAgent(
 ): Promise<AgentRows<403 | 409 | 422>> {
   return t.transaction(async (tx) => {
     await repo.lock(tx);
-    const { reportsToPrincipalId, slug: chosen, face, profileId: requested, ...fields } = input;
+    const { reportsToPrincipalId, slug: chosen, face, profileId: requested, ...rest } = input;
+    const { githubProfileId, atlassianProfileId, ...fields } = rest;
     const slug = chooseSlug(input.name, chosen, await repo.takenSlugs(tx));
     if (typeof slug !== 'string') return slug;
     const principalId = newId();
@@ -78,8 +86,14 @@ export function createAgent(
     if (refusal) return refusal;
     const profile = await newAgentProfile(repo, tx, caller, { requested, harness: input.harness });
     if (!profile.ok) return profile;
+    const tools = await toolProfilesChange(repo, tx, caller, {
+      agent: undefined,
+      requested: { githubProfileId, atlassianProfileId },
+    });
+    if (!tools.ok) return tools;
     const values = {
       ...fields,
+      ...tools.set,
       principalId,
       slug,
       face: face ?? agentFace(slug),
@@ -105,8 +119,9 @@ const managerOf = async (repo: OrgRepo, t: TenantDb, principalId: string) =>
  * audit row each (new instructions as a bump of `instructionsRev`). A slug another agent has is a 409; archiving
  * and restoring move it on the chart (`moveForStatus`), refused with a 422; giving it an access profile is only for
  * the profile's owner (403; 422 for none or one of another provider than its harness's), while any admin or owner
- * takes it off, and a harness change takes off a profile that no longer fits, saying so (`profileChange`). A refusal is
- * decided before anything is written. Pausing, resuming and archiving notify the manager it reported to (S2.9).
+ * takes it off, and a harness change takes off a profile that no longer fits, saying so (`profileChange`); its GitHub and
+ * Atlassian profiles follow the same rules of giving (`toolProfilesChange`). A refusal is decided before anything is
+ * written. Pausing, resuming and archiving notify the manager it reported to (S2.9).
  */
 export function updateAgent(
   repo: OrgRepo,
@@ -121,8 +136,14 @@ export function updateAgent(
     const { profileId: requested, harness } = change.patch;
     const profile = await profileChange(repo, tx, caller, { agent, requested, harness });
     if (!profile.ok) return profile;
+    const { githubProfileId, atlassianProfileId } = change.patch;
+    const tools = await toolProfilesChange(repo, tx, caller, {
+      agent,
+      requested: { githubProfileId, atlassianProfileId },
+    });
+    if (!tools.ok) return tools;
     const { profileCleared } = profile;
-    const set = { ...agentChanges(agent, change.patch), ...profile.set };
+    const set = { ...agentChanges(agent, change.patch), ...profile.set, ...tools.set };
     if (set.slug !== undefined && (await repo.takenSlugs(tx)).has(set.slug)) return slugTaken(set.slug);
     const manager = set.status === undefined ? null : await managerOf(repo, tx, agent.principalId);
     const moved = await moveForStatus(repo, tx, caller, agent, statusMove(agent.status, set.status));

@@ -50,7 +50,7 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
   }
   const agent = org.agents.get(node.principalId) as Agent;
   const { id: agentId, name, slug, roleTitle, status, harness, face } = agent;
-  const { profile, runsWith } = profileExtras(shown.profiles, agent.profileId);
+  const { profile, runsWith } = profileExtras(shown.profiles, agent);
   const placement = shown.placements.get(agentId) ?? null;
   const icon = iconOf(agent, shown.icons.get(agentId));
   return {
@@ -82,8 +82,12 @@ export function chartReader(deps: Pick<ServerDeps, 'db' | 'logger'>, repo: OrgRe
     const org = await loadOrg(repo, t);
     const userIds = org.chart.flatMap((node) => org.members.get(node.principalId)?.userId ?? []);
     const people = await profilesOf(deps.db, userIds);
-    const profileIds = [...org.agents.values()].map((agent) => agent.profileId);
-    const profiles = await profileRefs(deps, repo, t, profileIds);
+    const profiles = await profileRefs(
+      deps,
+      repo,
+      t,
+      [...org.agents.values()].map((agent) => agent.profileId),
+    );
     const shown = { people, profiles, placements: await placementsOf(t), icons: await agentIconHashes(t) };
     warnOnce(t.companyId, org.chart);
     return { nodes: org.chart.map((node) => nodeView(org, node, shown)), tree: buildTree(org.chart) };

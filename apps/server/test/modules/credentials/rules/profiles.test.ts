@@ -16,6 +16,7 @@ const profile = {
   gatewayCredentialId: 'g1',
   model: 'claude-opus-5-5',
   effort: 'high' as const,
+  rights: null,
 };
 
 /** A credential as the rules read it: its kind, state and account details (none by default). */
@@ -40,12 +41,40 @@ describe('credentialRefusal', () => {
     ['openai', 'claude_oauth'],
     ['openai', 'anthropic_api_key'],
     ['openai', 'gateway'],
+    ['claude', 'github_oauth'],
+    ['openai', 'atlassian_api_token'],
+    ['github', 'claude_oauth'],
+    ['github', 'atlassian_api_token'],
+    ['atlassian', 'github_token'],
+    ['atlassian', 'openai_api_key'],
   ] as const)('refuses a %s profile a %s subscription: another provider', (provider, kind) => {
     expect(credentialRefusal('subscription', provider, held(kind))).toMatchObject({
       ok: false,
       status: 422,
       code: 'provider_mismatch',
     });
+  });
+
+  it.each([
+    ['github', 'github_oauth'],
+    ['github', 'github_token'],
+    ['atlassian', 'atlassian_api_token'],
+  ] as const)('lets a %s profile take a %s sign-in, never a revoked one', (provider, kind) => {
+    expect(credentialRefusal('subscription', provider, held(kind))).toBeUndefined();
+    expect(credentialRefusal('subscription', provider, held(kind, 'revoked'))).toMatchObject({
+      code: 'credential_revoked',
+      message: 'A revoked sign-in cannot be its sign-in; sign in again',
+    });
+    expect(credentialRefusal('subscription', provider, undefined)).toMatchObject({
+      code: 'credential_not_found',
+      message: 'No such sign-in of yours for its sign-in',
+    });
+  });
+
+  it('names what a tool profile takes when it refuses an AI subscription', () => {
+    expect(credentialRefusal('subscription', 'github', held('claude_oauth'))?.message).toBe(
+      'A GitHub profile takes a GitHub sign-in (github_oauth, github_token), not one of kind claude_oauth',
+    );
   });
 
   it('takes only a gateway as a gateway', () => {
@@ -122,6 +151,13 @@ describe('profileChanges', () => {
       gatewayCredentialId: 'g2',
     });
   });
+
+  it('keeps rights only when they differ as jsonb, whatever their keys’ order', () => {
+    const tool = { ...profile, rights: { repos: ['a/b'], push: true, pullRequests: false } };
+    expect(profileChanges(tool, { rights: { pullRequests: false, push: true, repos: ['a/b'] } })).toEqual({});
+    const rights = { repos: 'all', push: true, pullRequests: false };
+    expect(profileChanges(tool, { rights })).toEqual({ rights });
+  });
 });
 
 describe('a profile’s refusals and audit fields', () => {
@@ -141,7 +177,7 @@ describe('a profile’s refusals and audit fields', () => {
     expect(providerFixed('claude').message).toContain('This is a Claude profile');
   });
 
-  it('audits its owner, name, provider, credentials, model and effort, nothing else', () => {
+  it('audits its owner, name, provider, credentials, model, effort and rights, nothing else', () => {
     const row = {
       ...profile,
       id: 'p1',

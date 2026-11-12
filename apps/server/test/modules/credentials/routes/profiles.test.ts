@@ -57,6 +57,8 @@ const shown = (view: { id: string; kind: string; label: string; status: string }
   label: view.label,
   accountEmail: null,
   status: view.status,
+  account: null,
+  site: null,
 });
 
 describe('POST /api/me/access-profiles', () => {
@@ -80,6 +82,7 @@ describe('POST /api/me/access-profiles', () => {
       gateway: shown(gateway),
       model: 'claude-opus-5-5',
       effort: 'xhigh',
+      rights: null,
       agents: [],
       createdAt: view.createdAt,
       updatedAt: view.updatedAt,
