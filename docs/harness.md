@@ -474,7 +474,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    of the company (else `profile_missing`), and goes when the profile does.
 2. **A prompt** (`POST …/chats/{chatId}/turns`, at most 20 000 characters) is checked in this order, each refusal
    naming what to fix: the chat not archived, no turn of it running; the agent's placement (none, `container` mode: S5
-   proper), its machine's runner connected, newer than chats (`caps.harnesses` with versions) and with the harness's
+   proper), its machine's runner connected (a stopped machine may be started and waited for: "When the machine is
+   stopped"), newer than chats (`caps.harnesses` with versions) and with the harness's
    CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile;
    Codex: an OpenAI profile; else `profile_harness_mismatch`), with its gateway (its address with the route's path, by
    the harness and the credential's kind), and its subscription (`profile_empty`
@@ -868,7 +869,8 @@ Now (into the running turn), After this turn (queued) or by Interrupt. The serve
   every message queued or moved up, while nothing runs, the next waiting turn (`queueOrder` of `@mwc/shared/chats`:
   Now and Interrupt first, then After, each oldest first) starts as a prompt does, as the person who sent it (the
   checks, a `credential_uses` row, the runner), resuming the chat's session. One the checks refuse fails with the
-  refusal's words ("The agent's machine has no connected runner") and the next is tried. A turn that starts after a
+  refusal's words ("The agent's machine has no connected runner") and the next is tried, except while a turn of the
+  chat waits for its stopped machine: the queue then waits for the machine's runner ("When the machine is stopped"). A turn that starts after a
   later one (it was overtaken) takes the next number after the chat's last, so the turns that started are numbered in
   start order and `Last-Event-ID` still reads them in order. One chat's starts run one at a time in the server process;
   a start that loses to another (the index) leaves the chat to it. At the server's start the queued turns fail with
@@ -913,6 +915,39 @@ Paths are single-quoted (`'` as `'\''`) and a command that crosses a second shel
 `$` and backquotes escaped); a test reads them back through `/bin/sh`. The popover says it uses that machine's own
 login, not the chat's access profile, and that typing there spends it; a Codex chat's thread lives in the runner's
 own folder unless the agent has a config folder, which it says too.
+
+## When the machine is stopped
+
+Built 2026-11-12 (Ihor: his messages to an agent on a stopped devbox were refused with "The agent's machine is offline:
+start its runner, then try again"; a message should start the machine, show its progress in the chat, and be sent once
+it is up). The chats module's side is `service/machine-wait.ts`, `rules/machine.ts` and the queue's
+(`repo/queue.ts`); the machines module's wake (docs/machines.md, "Waking a machine for work") starts the machine.
+
+- **When a turn's machine has no connected runner**, a prompt (`POST …/turns`), a task's step and a Lead's wake-up ask
+  the wake instead of refusing at once: a message as the trigger `message` (the person and their role, and
+  `startMachine: true` when they asked to start it, Start and send), a step and a wake-up as `work`. A Compact or an
+  answer is refused as before (`machine_offline`).
+- **Started, or under way**: the turn is recorded `queued`, delivered `after`, with `machine_wait_at` (migration
+  `0026_chat_machine_waits`; `machineWaitAt` on the turn), and 202 answers it. When the machine's runner connects (the
+  hub's connect listener), each chat on it with such a turn starts its next waiting turn, as any queued turn starts
+  (`drain.ts`). While such a turn waits, the queue does not fail the chat's other waiting messages for the missing
+  runner; they start after it. A message sent meanwhile queues behind it; a Lead's wake-up joins a wake-up that waits.
+- **It fails** with the wake's words when the start fails ("Airia devbox did not start: <why>"), and 10 minutes after it
+  began waiting when the runner did not come (`MACHINE_WAIT_MS`: "Airia devbox did not connect within 10 minutes"; the
+  timers are the app's, `machineWaitTimers` in tests). **Stop** (`POST …/turns/{turnId}/stop`) ends it `stopped`. A task's
+  turn that ends so is told to the tasks module's hook (a failure blocks the task with those words), and a waiting turn
+  of a step counts as its running turn (a move needs `force`, which stops it). At the server's start such turns fail
+  with the other waiting ones (`server_restarted`).
+- **Refused**: the switch for the trigger off and nobody asked: 409 `machine_stopped` with `error.machine {id, name,
+  hourlyCost, canStart}` ("Airia devbox is stopped"; for work "…: start it on the Machines page, then retry", which
+  blocks the step); nothing here can start the machine: 409 `machine_offline` in the wake's words ("This Mac is asleep:
+  wake it, and its runner reconnects on its own").
+- **The web** (`features/chats/`, the rail's docked chat too): a waiting turn shows in the thread as the person's message
+  and one line that follows the machine, "Starting Airia devbox… 0:42", "Airia devbox is up · runner connecting…",
+  "Sending…", with Cancel (`thread/status/MachineWait.tsx`, reading the machines and the machine's power every 5 s), and
+  becomes the running turn when it starts. `machine_stopped` shows "Airia devbox is stopped." and **Start Airia devbox ·
+  $0.54/h and send** above the box for those who may start it (`delivery/StartAndSend.tsx`), which sends the kept text
+  again with `startMachine`. A task's conversation waiting for its machine says "Starting machine" on the task page.
 
 ## Compact and Clear
 
@@ -1050,6 +1085,9 @@ checks and refusals, the credential's use, the standing instructions, the stream
   offers them (`TaskTurnHook.toolsFor`) and its calls go to the hook (`TaskTurnHook.tool`); a move it records is applied
   when the turn ends (`ended`), in place of `ended_without_handoff`. The step's prompt is written for the tools then
   (`TaskTurnRequest.prompt.tools`; `.plain` for an older runner).
+- **A stopped machine** ("When the machine is stopped"): a step's turn starts the agent's machine when its policy starts
+  it for work, and waits for it with the task `working`; otherwise the task is blocked in words ("Airia devbox is
+  stopped: start it on the Machines page, then retry").
 - **A dropped link or a restart** (S5.4, "Surviving restarts"). A task's turn is a chat turn: it waits the grace for
   its runner and goes on when the runner comes back, so its task stays `working` (no false `blocked`). Only a turn that
   finally fails ends through its sink (`machine_disconnected` when the grace after a dropped link runs out,

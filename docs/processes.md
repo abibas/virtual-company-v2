@@ -300,9 +300,16 @@ old ones stay readable, and different steps never share a conversation (the look
 - **`starts: manual`**: the task waits (`waiting`) until Start, which starts the turn the same way.
 - **Refused**: a start the chats refuse leaves the task **`blocked`** with the refusal's words in `blocked_reason` (a new
   `tasks` column, kept only while blocked) and a `blocked` history row by nobody: the step's assignee is no agent
-  (`not_an_agent`), the agent is archived, has no placement or a container one, its machine has no runner, the runner is
-  too old or lacks the CLI, the agent has no access profile or the profile no subscription, and so on (the chats' own
-  checks, docs/harness.md "How a turn runs"). Start again tries once more (`blocked` is startable).
+  (`not_an_agent`), the agent is archived, has no placement or a container one, its machine has no runner ("This Mac is
+  asleep: …"; a stopped devbox or container whose start on work is off: "Airia devbox is stopped: start it on the
+  Machines page, then retry"), the runner is too old or lacks the CLI, the agent has no access profile or the profile
+  no subscription, and so on (the chats' own checks, docs/harness.md "How a turn runs"). Start again tries once more
+  (`blocked` is startable).
+- **A stopped machine** that starts on work (its policy's `autoStartOnWork`, since 2026-11-12): the machine is started
+  (logged "Started for T-3 · Code review") and the step's turn waits for it with the task `working`; the task's
+  conversation says "Starting machine" (`lastTurn.waitsForMachine`) and its thread follows the machine. A start that
+  fails, or a runner that does not come within 10 minutes, blocks the task with those words (docs/harness.md "When the
+  machine is stopped"). A Lead's wake-up starts its machine the same way.
 - A person's step runs nothing, as before.
 
 ### The step's prompt

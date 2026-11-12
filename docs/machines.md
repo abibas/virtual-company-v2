@@ -89,6 +89,46 @@ later). Never both:
   once the server holds its tunnel.
 - **Not here.** Keeping This Mac awake (`caffeinate`) stays a runner's job, as do placements and the terminal.
 
+### A failed start at the keep-on hours
+
+Since 2026-11-12 (the box stayed off one morning: This Mac, which runs the server, slept through 09:00, dark-woke at
+09:09, the scheduler sent the start, the Mac slept again during the airia CLI's call and the start failed on wake with
+"No answer from the airia CLI within 200000 ms"; the window had been marked as handled when the start was sent). The
+window counts as auto-started (`state.autoStartedWindow`) only once a start worked or the box is read `starting` or
+`running`; each start sent is noted (`state.autoStartTriedAt`, in the state jsonb) and one that did not work is sent
+again at the first scheduler step 5 minutes later (`AUTO_START_RETRY_MS`), while the window lasts, so a Mac that wakes
+at 10:07 starts the box then. Each attempt that fails is one `failed` entry in the power log. A Stop by hand inside the
+window still keeps the box off for the rest of it (`manualStopAt`).
+
+### Waking a machine for work
+
+Built 2026-11-12 (Ihor: a message to an agent whose machine is stopped should start the machine, show "Starting …" in
+the chat and send the message once it is up; the policy's `autoStartOnMessage` and `autoStartOnWork`, shown "from S5"
+until then, now act). The machines module's wake (`service/power/wake.ts`, made once per app with the containers' power
+and the job lock by `machinePowerRuntime`, `service/power/runtime.ts`) is what the chats module calls when a turn needs
+an agent whose machine's runner is not connected:
+
+- **Who it starts.** A devbox through its controller (this server's driver or a runner controller: the same command as
+  Start), a container runner's container with this server's Docker (the same `docker start` and job lock as Start).
+  Anything else cannot be started from here and is said in words: a laptop "This Mac is asleep: wake it, and its runner
+  reconnects on its own", another machine "… is offline: start its runner there", a devbox whose controller is away
+  "Airia devbox is stopped and cannot be started now: <why>", a container without the server's Docker "… is stopped: run
+  its start command, on the Machines page".
+- **When.** With the policy's switch for the trigger on (`autoStartOnMessage` for a person's message, `autoStartOnWork`
+  for a task's step and a Lead's wake-up), or when an admin or owner asked (the chat's Start and send). Otherwise it
+  answers `switch_off` with whether the person may start it.
+- **How.** The start runs in the background (a devbox's takes minutes); it is logged `started` (or "…: the box was
+  already on") or `failed` (`<reason>, but the start failed: <why>`) with the wake's reason ("Started for a message to
+  Developer", "Started for T-3 · Code review", "Started for a wake-up of the Lead of DEVBOX delivery"), as `auto`, or as
+  the person who asked. A failed start is told to the wake's listeners (the chats fail the turns that waited). A start
+  under way in this process, or a box read `starting` or `running` in the last 5 minutes, is not sent again. Each wake
+  sets the hold after a turn from now (`state.lastTurnAt`, `holdAfterTurnMin`), so the box is held for the work once its
+  runner connects and gets its hold.
+- **What it answers**: `up` (its runner is connected), `starting` (a start was sent or is under way), `switch_off`
+  (with `canStart`) or `cannot` (why in words), and 404 for a machine not in the company. The chats' side is
+  docs/harness.md, "When the machine is stopped".
+- **The Machines page** shows both switches for a devbox and a container, without the old "from S5" badge.
+
 ## Data model (migration 0009_machines, tenant tables)
 
 - `machines`: name, kind (`laptop|vm|container`), provider (`none|airia_devbox`), provider_ref (jsonb: instance, zone,
@@ -155,7 +195,9 @@ later). Never both:
   `rules/container/power.ts` (pure: its status from Docker's state, the commands and the refusals); the web's
   `features/machines/power/ContainerPower.tsx` and `container-power.ts`.
 - `apps/server/src/modules/machines/`: routes, service, repo, `rules/power.ts` (pure: keep-on window incl. overnight
-  and TZ, hold-until, once-per-window auto-start where a manual Stop sticks, stop at the end only without live work),
+  and TZ, hold-until, once-per-window auto-start where a manual Stop sticks and a failed start is sent again every 5
+  minutes, stop at the end only without live work), `rules/power/wake.ts` and `service/power/wake.ts` (the wake for
+  work),
   `rules/stats.ts` (overloaded = load1/cpus > 1.0 or CPU > 85 %; badge when overloaded now or > 50 % of 24 h; 5-min
   bucket means; up/down segments from sessions + power events; runtime = online time; agent runs 24 h = sum of run
   durations, "—" until S5). Scheduler + prune as jobs in `platform/jobs`. Logic ported from v1
@@ -167,8 +209,8 @@ later). Never both:
   /api/runner/enroll`, `GET /api/runner/ws`.
 - Web: `/:slug/machines` (`pages/company/MachinesPage.tsx`, `features/machines/`): a card per machine — status,
   agents on it, the stats row, Start/Stop with the hourly cost (devbox), the Power form (keep-on hours, days, from/to,
-  time zone, start when hours begin, stop when they end, hold minutes, keep This Mac awake, start on message / on work
-  marked "from S5"), the box's own rules read-only with "Set the box's time zone to X", the last 10 log entries;
+  time zone, start when hours begin, stop when they end, hold minutes, keep This Mac awake, start on message / on work:
+  "Waking a machine for work" above), the box's own rules read-only with "Set the box's time zone to X", the last 10 log entries;
   **Add a machine** sheet: kind → a one-time enrollment token and the exact install command (Mac:
   `curl … install.sh | sh -s -- …`; devbox: `airia devbox ssh -- -R … '<install>'` for Ihor to run on This Mac;
   container: compose command), as "Installing a runner" below has them (the port of `apiUrl` in `GET /api/config`
@@ -592,8 +634,8 @@ runner's card has **Stop** while its container runs and **Start** while it does 
   "Offline", and the Power part "Container stopped". Without the server's Docker the view says `running` while its
   runner is connected and `unknown` otherwise; when Docker does not answer, the same, with `error`.
 - **Power settings.** The scheduler does not start or stop containers (`decide` acts on devboxes only): the keep-on
-  hours' auto-start and stop switches are not shown for them, and the settings say the hours and the time after a chat
-  do not start or stop a container. Turning those on for containers is a later change.
+  hours' auto-start and stop switches are not shown for them, and the settings say the hours do not start or stop a
+  container. Its start on a message and on work are shown and act ("Waking a machine for work").
 
 ## One job at a time
 
@@ -798,7 +840,8 @@ picker in a sheet (pick, crop, upload, Remove).
 | 4 | S4.8 structure review → tag v0.5.0 | small / main | |
 
 Moved out of S4: the runner's signed self-update (to S8; not needed for the SLOP BOX milestone). The devbox's agent
-runs, worktrees and the "Waking up…" chat banner come with S5 (runs), using this power layer.
+runs and worktrees come with S5 (runs), using this power layer; the chat's "Starting Airia devbox…" line came with the
+wake ("Waking a machine for work").
 
 ## Verification
 

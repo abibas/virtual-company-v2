@@ -527,6 +527,18 @@ third tab, Chats: the open agent's chat, compact (the chat page's thread and com
 reports, With you / Team chat for a Lead, New chat and Open full chat; the first message begins a chat when there is none.
 The same tab works in the narrow drawer. Merging needs the dev API restarted (a new route) and the web reloaded.
 
+**A stopped machine starts for a message or work: built 2026-11-12 on the `machine-wake` branch, not merged yet**
+(docs/machines.md "A failed start at the keep-on hours" and "Waking a machine for work", docs/harness.md "When the
+machine is stopped"). Ihor's devbox stayed off one morning (This Mac slept through the keep-on start, which then failed
+and was never tried again), and his messages to its agents were refused. The scheduler sends a failed keep-on start again
+every 5 minutes while the hours last. The machines' wake starts a devbox (or a container with this server's Docker) for
+a message (`autoStartOnMessage`) or work (`autoStartOnWork`, a task's step and a Lead's wake-up), or when an admin asks
+(Start and send), logged with its reason; the turn waits `queued` (`chat_turns.machine_wait_at`, migration
+`0026_chat_machine_waits`) and starts when the machine's runner connects, or fails in words (the start failed, 10
+minutes passed); Stop ends it. Switch off: `machine_stopped` with the machine (the web's Start and send), a step blocked
+in words. The chat shows "Starting Airia devbox… 0:42" until it runs; the Machines page's two switches lose "from S5".
+Merging needs the dev API restarted (migration 0026 runs on start) and the web reloaded; the runner is unchanged.
+
 ### S7 — work model from v1 (one ticket each, behind the same tests discipline)
 
 GitHub (`gh auth login --device`) and Jira (`acli`) sign-ins, stored in the S3 credential store and given through access profiles. Review flows (ordered review/approval stages; only a person moves a task to Done), sprints tied to releases, Jira intake read-only via the person's sign-in, PR watch, per-task worktrees, agent chat per agent, AI gateway routing per run and per machine, machine power schedule for the devbox (the Codex driver landed in S5.1a). Each item names the v1 behaviour it replaces and ships with integration tests.
