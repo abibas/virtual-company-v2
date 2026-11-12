@@ -116,7 +116,7 @@ describe('a turn waits for a free slot', () => {
     expect((await runner(s).frames.next('turn.start')).turnId).toBe(later.id);
   });
 
-  it('waits again when the runner says every slot is taken, and starts when a turn there ends', async () => {
+  it('waits again when the runner says every slot is taken, starts when a turn there ends, keeping its wait', async () => {
     const s = await scene(w);
     await prompt(s, s.chat.id, 'Busy one');
     const refused = await runner(s).frames.next('turn.start');
@@ -131,11 +131,19 @@ describe('a turn waits for a free slot', () => {
       startedAt: null,
       error: null,
     });
+    const since = (await turnRow(w.t.db, refused.turnId))?.machineWaitAt;
     const b = await otherChat(s);
     await prompt(s, b.id, 'Other');
     const other = await runner(s).frames.next('turn.start');
+    w.clock.advance(60_000);
     endTurn(runner(s), other.turnId);
     expect((await runner(s).frames.next('turn.start')).turnId).toBe(refused.turnId);
+    endTurn(runner(s), refused.turnId, { ok: false, exitCode: null, error: 'busy' });
+    await eventually(
+      'it waits again',
+      async () => (await turnRow(w.t.db, refused.turnId))?.status === 'queued',
+    );
+    expect((await turnRow(w.t.db, refused.turnId))?.machineWaitAt).toEqual(since);
   });
 
   it('fails after 30 minutes in words, refuses a Compact, and stops when the person says so', async () => {

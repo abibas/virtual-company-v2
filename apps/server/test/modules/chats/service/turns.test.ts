@@ -6,9 +6,9 @@ import { QUESTION_CLOSED } from '../../../../src/modules/chats/rules/questions.t
 import { chatsLive } from '../../../../src/modules/chats/service/live.ts';
 import { startTurn, stopTurn, type TurnsDeps } from '../../../../src/modules/chats/service/turns.ts';
 import { credentialsForHarness } from '../../../../src/modules/credentials/index.ts';
-import type { RunnerHub, TurnChannel } from '../../../../src/modules/machines/index.ts';
+import type { RunnerHub, TurnChannel, TurnSink } from '../../../../src/modules/machines/index.ts';
 import { standingReader } from '../../../../src/modules/org/index.ts';
-import { type ChatsWorld, chatsWorld, type Scene, scene } from '../../../fixtures/chats/world.ts';
+import { type ChatsWorld, chatsWorld, type Scene, scene, turnRow } from '../../../fixtures/chats/world.ts';
 
 // What the routes cannot reach: a runner gone between the checks and the send, two prompts at the same moment, and a
 // turn the database says runs but this process does not know (left by a stopped server before its reaper ran).
@@ -65,6 +65,22 @@ describe('startTurn', () => {
       'started',
       'turn_running',
     ]);
+  });
+});
+
+describe('a turn the runner refused as busy', () => {
+  it('fails as before where nothing waits for slots (a live part without the slots)', async () => {
+    const s = await scene(w);
+    const t = await tenant(w.t.db, s.company.companyId);
+    let sink: TurnSink | undefined;
+    const deps = depsWith((_machineId, request, given) => {
+      sink = given;
+      return { turnId: request.turnId, input: () => {}, stop: () => {} };
+    });
+    const result = await startTurn(deps, t, caller(s), s.chat.id, 'hi');
+    await sink?.end({ ok: false, exitCode: null, error: 'busy' });
+    const turnId = result.ok ? result.turn.id : '';
+    expect(await turnRow(w.t.db, turnId)).toMatchObject({ status: 'failed', error: 'busy' });
   });
 });
 
