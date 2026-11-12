@@ -30,6 +30,7 @@ type BriefedAgent = Pick<Agent, 'principalId' | (typeof TOOL_COLUMNS)[keyof type
 async function toolsOf(deps: Pick<ServerDeps, 'db'>, repo: OrgRepo, t: TenantDb, agent: BriefedAgent) {
   const held = { profileId: null, ...agent };
   const ids = Object.values(TOOL_COLUMNS).map((column) => held[column]);
+  if (ids.every((id) => id === null)) return [];
   const { githubProfile, atlassianProfile } = profileExtras(await profileRefs(deps, repo, t, ids), held);
   return [githubProfile, atlassianProfile].flatMap((tool): BriefingTool[] =>
     tool === null
