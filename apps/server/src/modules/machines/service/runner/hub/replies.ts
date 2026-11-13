@@ -9,7 +9,7 @@ import type {
 
 /**
  * How a runner answers the hub's commands (docs/runner-protocol.md, "Semantics"): `cmd.ack`, `power.result` for
- * `power.command`, `runner.update.result` for `runner.update`, `fs.result` for `fs.list` and `fs.mkdir` and
+ * `power.command`, `runner.update.result` for `runner.update`, `fs.result` for `fs.list`, `fs.mkdir` and `fs.mkdirp`, and
  * `tools.result` for `tools.check` and `tools.install`, matched by `cmdId`; and why a request failed.
  */
 

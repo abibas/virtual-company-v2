@@ -171,6 +171,7 @@ describe('when the tunnels cannot be sent', () => {
         terminal: false,
         selfUpdate: false,
         folders: false,
+        mkdirp: false,
         forks: false,
         reattach: false,
         agentTools: false,

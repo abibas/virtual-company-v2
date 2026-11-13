@@ -18,6 +18,13 @@ export const RUNNER_OUTDATED = refuse(
   "The machine's runner is older than the folder browser: update it on the Machines page",
 );
 
+/** A runner that browses folders but is older than `fs.mkdirp` (`caps.mkdirp`): it cannot make a folder's parents. */
+export const RUNNER_CANNOT_MAKE = refuse(
+  409,
+  'runner_outdated',
+  "The machine's runner is older than making a folder with its parents: update it on the Machines page",
+);
+
 export const FOLDERS_TIMED_OUT = refuse(
   504,
   'runner_timeout',
@@ -35,6 +42,7 @@ const REFUSALS: Readonly<Record<RunnerRefusal, readonly [string, (words: string)
     'outside_volume',
     (words) => `A Docker runner keeps its folders in its work volume, /work (${words})`,
   ],
+  outside_roots: ['outside_roots', (words) => `The runner makes folders only in its user's home (${words})`],
   exists: ['folder_exists', (words) => `${words} is there already`],
   invalid_path: ['invalid_path', (words) => `Give an absolute path, starting with / or ~/ (${words})`],
   failed: ['folder_failed', (words) => `The machine could not read the folder: ${words}`],
@@ -43,7 +51,7 @@ const REFUSALS: Readonly<Record<RunnerRefusal, readonly [string, (words: string)
 /** The runner's words without their code (`not_found: /x` reads `/x`). */
 const wordsOf = (error: string | undefined) => (error ?? 'no reason given').replace(/^[a-z_]+: ?/, '');
 
-/** A runner's refusal of `fs.list` or `fs.mkdir`: a 409 for a runner that cannot browse, else a 422 in plain words. */
+/** A runner's refusal of a folder frame: a 409 for a runner that cannot browse, else a 422 in plain words. */
 export function folderRefusal(error: string | undefined): Refusal<409> | Refusal<422> {
   const code = folderErrorCode(error);
   if (code === 'unsupported') return RUNNER_OUTDATED;

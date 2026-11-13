@@ -63,6 +63,7 @@ describe('which runners the hub has', () => {
         terminal: false,
         selfUpdate: true,
         folders: false,
+        mkdirp: false,
         forks: false,
         reattach: false,
         agentTools: false,

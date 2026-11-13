@@ -64,7 +64,7 @@ export interface FakeRunnerOptions {
   readonly samples?: readonly MachineSample[];
   /**
    * Answers each server frame in place of the default (`cmd.ack` ok, `power.result` ok, `runner.update.result` ok,
-   * `fs.result` ok: an empty `/work` for `fs.list`, the path for `fs.mkdir`; and with `caps.tools`, `tools.result` ok:
+   * `fs.result` ok: an empty `/work` for `fs.list`, the path for `fs.mkdir`, the path made for `fs.mkdirp`; and with `caps.tools`, `tools.result` ok:
    * the tools for `tools.check`, with the installed version for `tools.install`); `[]` answers nothing.
    */
   readonly respond?: (frame: ServerFrame) => readonly RunnerFrame[];
@@ -126,6 +126,7 @@ export class FakeRunner {
       terminal: false,
       selfUpdate: false,
       folders: false,
+      mkdirp: false,
       forks: false,
       reattach: false,
       agentTools: false,
@@ -244,6 +245,8 @@ export class FakeRunner {
     if (frame.type === 'fs.list') return [{ ...FAKE_FOLDER_LIST, cmdId: frame.cmdId }];
     if (frame.type === 'fs.mkdir')
       return [{ type: 'fs.result', cmdId: frame.cmdId, ok: true, path: frame.path }];
+    if (frame.type === 'fs.mkdirp')
+      return [{ type: 'fs.result', cmdId: frame.cmdId, ok: true, path: frame.path, created: true }];
     if (frame.type === 'tools.check' || frame.type === 'tools.install') return this.#tools(frame);
     return 'cmdId' in frame ? [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }] : [];
   }

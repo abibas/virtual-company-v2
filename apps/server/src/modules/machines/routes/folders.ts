@@ -25,11 +25,13 @@ const NO_MACHINE = errorResponse(
   'No such company, or not an active member of it (`not_found`), or no such machine in it (`machine_not_found`)',
 );
 const NOT_READY = errorResponse(
-  "The machine's runner is not connected (`machine_offline`), or is older than the folder browser (`runner_outdated`)",
+  "The machine's runner is not connected (`machine_offline`), or is older than the folder browser, or than making a " +
+    "folder's parents (`runner_outdated`)",
 );
 const REFUSED = errorResponse(
   'The runner refused, in plain words: `folder_not_found`, `not_a_directory`, `permission_denied`, `outside_volume` ' +
-    '(a Docker runner keeps its folders under /work), `folder_exists`, `invalid_path` or `folder_failed`',
+    '(a Docker runner keeps its folders under /work), `outside_roots` (with `parents`, outside the runner user’s ' +
+    'home), `folder_exists`, `invalid_path` or `folder_failed`',
 );
 const TIMED_OUT = errorResponse('The runner did not answer within 10 seconds (`runner_timeout`)');
 
@@ -64,9 +66,13 @@ const makeRoute = (deps: ServerDeps) => {
     ...base,
     method: 'post',
     summary: 'Make a folder on a machine, through its runner (admin and above)',
-    description: 'One folder (0755) whose parent exists, as the runner user. Audited.',
+    description:
+      'One folder (0755) whose parent exists, as the runner user; with `parents`, the folder and its missing parents ' +
+      'inside the runner’s roots (a container’s /work, else its user’s home), and one already there is a 200. ' +
+      'Audited when made.',
     request: { params: MachineParamsSchema, body: jsonBody(MakeFolderSchema) },
     responses: {
+      200: jsonResponse('The folder was there already (with `parents`)', MadeFolderSchema),
       201: jsonResponse('The new folder', MadeFolderSchema),
       400: errorResponse('The path is not absolute (`invalid_request`)'),
       ...refusals,
@@ -91,8 +97,9 @@ export function folderRoutes(deps: ServerDeps & { readonly hub: RunnerHub }) {
     .openapi(makeRoute(deps), async (c) => {
       const caller = { principalId: c.var.membership.principalId, requestId: c.var.requestId };
       const { machineId } = c.req.valid('param');
-      const result = await makeFolder(folders, c.var.tenant, caller, machineId, c.req.valid('json').path);
+      const result = await makeFolder(folders, c.var.tenant, caller, machineId, c.req.valid('json'));
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
-      return c.json({ path: result.path }, 201);
+      const made = { path: result.path, created: result.created };
+      return result.created ? c.json(made, 201) : c.json(made, 200);
     });
 }

@@ -2,6 +2,7 @@ import type {
   CmdAck,
   FsList,
   FsMkdir,
+  FsMkdirp,
   FsResult,
   PowerCommand,
   PowerResult,
@@ -28,7 +29,7 @@ export type ReplyTo<F extends CommandFrame> = F extends PowerCommand
   ? PowerResult
   : F extends RunnerUpdate
     ? RunnerUpdateResult | CmdAck
-    : F extends FsList | FsMkdir
+    : F extends FsList | FsMkdir | FsMkdirp
       ? FsResult | CmdAck
       : F extends ToolsCheck | ToolsInstall
         ? ToolsResult | CmdAck

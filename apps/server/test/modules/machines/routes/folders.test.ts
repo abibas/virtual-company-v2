@@ -23,7 +23,11 @@ const folders = (company: MembersCompany, machineId: string, person = company.ow
         `/${machineId}/folders${path === undefined ? '' : `?path=${encodeURIComponent(path)}`}`,
       ),
     ),
-  make: (path: unknown) => as(w, person)('POST', machinesPath(company, `/${machineId}/folders`), { path }),
+  make: (path: unknown, parents?: boolean) =>
+    as(w, person)('POST', machinesPath(company, `/${machineId}/folders`), {
+      path,
+      ...(parents === undefined ? {} : { parents }),
+    }),
 });
 
 /** A Mac's listing of `~/agents`. */
@@ -43,7 +47,8 @@ const MAC_LIST = (cmdId: string): RunnerFrame => ({
 const answering =
   (answer: (frame: ServerFrame & { cmdId: string }) => RunnerFrame[]) =>
   (frame: ServerFrame): RunnerFrame[] => {
-    if (frame.type === 'fs.list' || frame.type === 'fs.mkdir') return answer(frame);
+    if (frame.type === 'fs.list' || frame.type === 'fs.mkdir' || frame.type === 'fs.mkdirp')
+      return answer(frame);
     return 'cmdId' in frame ? [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: true }] : [];
   };
 
@@ -156,7 +161,7 @@ describe('POST machines/:machineId/folders', () => {
   it('makes the folder through the runner, answers 201 with its path, and audits it', async () => {
     const { company, machineId, api, runner } = await connected();
     const res = await api.make('/Users/ihor/agents/scout');
-    expect([res.status, res.body]).toEqual([201, { path: '/Users/ihor/agents/scout' }]);
+    expect([res.status, res.body]).toEqual([201, { path: '/Users/ihor/agents/scout', created: true }]);
     expect(runner.frames.of('fs.mkdir').map((frame) => frame.path)).toEqual(['/Users/ihor/agents/scout']);
     expect(await auditOf(w.t.db, 'machine', machineId)).toContain('folder_create folder');
     expect(company.owner.principalId).toBeDefined();
@@ -184,6 +189,87 @@ describe('POST machines/:machineId/folders', () => {
   });
 });
 
+describe('POST machines/:machineId/folders with parents', () => {
+  const MKDIRP = { folders: true, mkdirp: true };
+
+  it('makes the folder with its parents through fs.mkdirp: 201 and audited when made', async () => {
+    const { machineId, api, runner } = await connected({ caps: MKDIRP });
+    const res = await api.make('/work/team/test-dev', true);
+    expect([res.status, res.body]).toEqual([201, { path: '/work/team/test-dev', created: true }]);
+    expect(runner.frames.of('fs.mkdirp').map((frame) => frame.path)).toEqual(['/work/team/test-dev']);
+    expect(runner.frames.of('fs.mkdir')).toEqual([]);
+    expect(await auditOf(w.t.db, 'machine', machineId)).toContain('folder_create folder');
+  });
+
+  it('answers 200 for a folder already there, and audits nothing', async () => {
+    const { machineId, api } = await connected({
+      caps: MKDIRP,
+      respond: answering((frame) => [
+        { type: 'fs.result', cmdId: frame.cmdId, ok: true, path: '/work/test-dev', created: false },
+      ]),
+    });
+    const res = await api.make('/work/test-dev', true);
+    expect([res.status, res.body]).toEqual([200, { path: '/work/test-dev', created: false }]);
+    expect(await auditOf(w.t.db, 'machine', machineId)).not.toContain('folder_create folder');
+  });
+
+  it("passes on the runner's refusal of a folder outside its roots in plain words", async () => {
+    const { api } = await connected({
+      caps: MKDIRP,
+      respond: answering((frame) => [
+        {
+          type: 'fs.result',
+          cmdId: frame.cmdId,
+          ok: false,
+          error: 'outside_roots: /opt/x is outside /Users/ihor',
+        },
+      ]),
+    });
+    expect(await api.make('/opt/x', true)).toMatchObject({
+      status: 422,
+      body: {
+        error: {
+          code: 'outside_roots',
+          message: "The runner makes folders only in its user's home (/opt/x is outside /Users/ihor)",
+        },
+      },
+    });
+  });
+
+  it('is for admins and owners, and a 400 for a relative path', async () => {
+    const { company, machineId, api } = await connected({ caps: MKDIRP });
+    expect((await api.make('work/x', true)).status).toBe(400);
+    const admin = await addMember(w, company, 'admin');
+    expect((await folders(company, machineId, admin).make('/work/a', true)).status).toBe(201);
+    for (const role of ['member', 'viewer'] as const) {
+      const person = await addMember(w, company, role);
+      expect((await folders(company, machineId, person).make('/work/b', true)).status).toBe(403);
+    }
+  });
+
+  it('is runner_outdated for a runner older than fs.mkdirp, and one that acks it as unknown', async () => {
+    const { api, runner } = await connected();
+    expect(await api.make('/work/x', true)).toMatchObject({
+      status: 409,
+      body: {
+        error: {
+          code: 'runner_outdated',
+          message:
+            "The machine's runner is older than making a folder with its parents: update it on the Machines page",
+        },
+      },
+    });
+    expect(runner.frames.of('fs.mkdirp')).toEqual([]);
+    const acking = await connected({
+      caps: MKDIRP,
+      respond: answering((frame) => [{ type: 'cmd.ack', cmdId: frame.cmdId, ok: false, error: 'unknown' }]),
+    });
+    expect((await acking.api.make('/work/x', true)).body).toMatchObject({
+      error: { code: 'runner_outdated' },
+    });
+  });
+});
+
 describe('the folders service', () => {
   it('is a 504 runner_timeout when the runner does not answer in time, and passes on an error that is not the hub’s', async () => {
     const { company, machineId } = await connected({ respond: () => [] });
@@ -196,7 +282,9 @@ describe('the folders service', () => {
     const broken = { ...w.hub, request: () => Promise.reject(new Error('encode failed')) };
     await expect(listFolders({ hub: broken }, t, machineId, null)).rejects.toThrow('encode failed');
     const caller = { principalId: company.owner.principalId, requestId: 'req-1' };
-    expect(await makeFolder({ hub: w.hub, timeoutMs: 50 }, t, caller, machineId, '/a')).toMatchObject({
+    expect(
+      await makeFolder({ hub: w.hub, timeoutMs: 50 }, t, caller, machineId, { path: '/a' }),
+    ).toMatchObject({
       code: 'runner_timeout',
     });
   });
@@ -207,9 +295,10 @@ describe('the folders service', () => {
     });
     const t = await tenant(w.t.db, company.companyId);
     const caller = { principalId: company.owner.principalId, requestId: 'req-2' };
-    expect(await makeFolder({ hub: w.hub }, t, caller, machineId, '/w/a')).toEqual({
+    expect(await makeFolder({ hub: w.hub }, t, caller, machineId, { path: '/w/a' })).toEqual({
       ok: true,
       path: '/w/a',
+      created: true,
     });
   });
 });

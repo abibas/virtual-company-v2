@@ -57,11 +57,22 @@ export const FolderListSchema = z
   .openapi('FolderList');
 
 export const MakeFolderSchema = z
-  .object({ path: FolderPathSchema.openapi({ example: '/Users/ihor/agents/scout' }) })
+  .object({
+    path: FolderPathSchema.openapi({ example: '/Users/ihor/agents/scout' }),
+    parents: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          'Make its missing parents too (`mkdir -p`), only inside the runner user’s home or a container’s /work; ' +
+          'a folder already there is then no error',
+      }),
+  })
   .openapi('MakeFolder');
 
 export const MadeFolderSchema = z
   .object({
-    path: z.string().openapi({ example: '/Users/ihor/agents/scout', description: 'The new folder' }),
+    path: z.string().openapi({ example: '/Users/ihor/agents/scout', description: 'The folder' }),
+    created: z.boolean().openapi({ description: 'False when it was there already (with `parents`)' }),
   })
   .openapi('MadeFolder');

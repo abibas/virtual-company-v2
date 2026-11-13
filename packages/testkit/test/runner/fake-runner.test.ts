@@ -67,6 +67,7 @@ describe('FakeRunner: connecting', () => {
         terminal: false,
         selfUpdate: false,
         folders: false,
+        mkdirp: false,
         forks: false,
         reattach: false,
         agentTools: false,
@@ -193,7 +194,7 @@ describe('FakeRunner: commands', () => {
     ]);
   });
 
-  it('answers fs.list with an empty work volume and fs.mkdir with its path', async () => {
+  it('answers fs.list with an empty work volume, and fs.mkdir and fs.mkdirp with their path', async () => {
     const { server, runner } = await setUp();
     await runner.connect();
     const list = newId();
@@ -206,6 +207,15 @@ describe('FakeRunner: commands', () => {
       cmdId: made,
       ok: true,
       path: '/work/scout',
+    });
+    const deep = newId();
+    server.send({ type: 'fs.mkdirp', cmdId: deep, path: '/work/a/b' });
+    expect(await server.frames.next('fs.result')).toEqual({
+      type: 'fs.result',
+      cmdId: deep,
+      ok: true,
+      path: '/work/a/b',
+      created: true,
     });
   });
 
