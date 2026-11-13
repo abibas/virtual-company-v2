@@ -137,7 +137,9 @@ function QueuedRow({ turn, actions }: { readonly turn: ChatTurnWithEvents; reado
           <p className="line-clamp-3 text-sm break-words whitespace-pre-wrap text-ink">{turn.prompt}</p>
         )}
         <p className={cx('text-2xs', sent ? 'text-blue' : 'text-dim')}>
-          {turn.system ? `Most Wanted · ${WAITING_NOTE[delivery]}` : WAITING_NOTE[delivery]}
+          {turn.system
+            ? `${turn.from ? `${turn.from.name} via Slack` : 'Most Wanted'} · ${WAITING_NOTE[delivery]}`
+            : WAITING_NOTE[delivery]}
         </p>
         {error && (
           <p role="alert" className="text-2xs font-medium text-failed">

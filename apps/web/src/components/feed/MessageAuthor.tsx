@@ -8,7 +8,13 @@ import { AgentIcon, type AgentIconSubject } from './AgentIcon.tsx';
 /** Who wrote a message: an agent (its icon), a person (their photo or initials), or Most Wanted itself (its mark). */
 export type MessageAuthorView =
   | { readonly kind: 'agent'; readonly name: string; readonly agent: AgentIconSubject }
-  | { readonly kind: 'person'; readonly name: string; readonly imageUrl?: string | null | undefined }
+  | {
+      readonly kind: 'person';
+      readonly name: string;
+      readonly imageUrl?: string | null | undefined;
+      /** Where they wrote it when not here (2026-11-13: `Slack`, a Slack message an agent answers). */
+      readonly via?: string | undefined;
+    }
   | { readonly kind: 'system'; readonly name: string };
 
 /** Most Wanted as the author of the messages it writes itself (a team chat's wake-ups). */
@@ -70,6 +76,9 @@ export function MessageAuthor({
         <MessageFace author={author} dense={dense} own={end} />
         <div className={cx('flex min-w-0 items-baseline gap-2', end && 'flex-row-reverse')}>
           <span className="truncate text-sm font-semibold text-ink">{author.name}</span>
+          {author.kind === 'person' && author.via && (
+            <span className="shrink-0 text-xs text-dim">via {author.via}</span>
+          )}
           {at && (
             <time dateTime={at} className="shrink-0 text-xs text-faint tabular">
               {formatTime(at)}

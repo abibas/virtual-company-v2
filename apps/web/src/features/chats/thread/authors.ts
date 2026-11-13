@@ -16,7 +16,7 @@ export interface Prompter {
 /** Who writes in a thread: the chat's agent (every reply), and who wrote each prompt. */
 export interface ThreadAuthors {
   readonly agent: MessageAuthorView;
-  readonly prompter: (turn: Pick<ChatTurn, 'system' | 'createdBy'>) => Prompter;
+  readonly prompter: (turn: Pick<ChatTurn, 'system' | 'createdBy' | 'from'>) => Prompter;
 }
 
 /** The signed-in person, as `GET /api/me` gives them. */
@@ -30,6 +30,16 @@ const personAuthor = (
   kind: 'person',
   name: personName(displayName, email),
   imageUrl,
+});
+
+/** The outside place a turn Most Wanted queued came from, as its author's "via" (2026-11-13: a Slack message). */
+const VIA: Readonly<Record<NonNullable<ChatTurn['from']>['via'], string>> = { slack: 'Slack' };
+
+/** A Slack message's sender as its turn's author: their name, via Slack. */
+const viaAuthor = (from: NonNullable<ChatTurn['from']>): MessageAuthorView => ({
+  kind: 'person',
+  name: from.name,
+  via: VIA[from.via],
 });
 
 type AgentNode = Extract<ChartNode, { kind: 'agent' }>;
@@ -60,7 +70,7 @@ export function replierOf(
 
 /**
  * The thread's authors from the company's chart (`nodes`, by principal; none while it loads) and the reader. A prompt
- * Most Wanted queued itself is its own; any other is its writer's, found on the chart. Until the chart comes, a
+ * Most Wanted queued for a Slack message is its sender's, via Slack; any other it queued itself is its own; any other is its writer's, found on the chart. Until the chart comes, a
  * person's prompt is taken as the reader's (the usual case: admins write in their agents' chats); someone no longer on
  * the chart shows as a former member.
  */
@@ -83,6 +93,7 @@ export function threadAuthors({
   return {
     agent: replier,
     prompter: (turn) => {
+      if (turn.system && turn.from) return { author: viaAuthor(turn.from), own: false };
       if (turn.system) return { author: SYSTEM_AUTHOR, own: false };
       if (nodes === undefined) return self;
       const node = nodes.get(turn.createdBy);

@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SkeletonRows } from '../../components/ui/Skeleton.tsx';
+import { CHAT_DOT_WORDS, type ChatDot } from './chat-dots.ts';
 import { useAction } from './use-action.ts';
 
 export interface ChatListProps {
@@ -22,10 +23,35 @@ export interface ChatListProps {
   readonly cannotStart: string | undefined;
   readonly onNew: () => Promise<void>;
   readonly onArchive: (chatId: string) => Promise<void>;
+  /** Each chat's dot (2026-11-13: live, from the chats' activity): working, or new activity since you looked. */
+  readonly dots?: ReadonlyMap<string, ChatDot> | undefined;
 }
 
-/** A chat's title in the list, a branch's after a small branch icon, a flow's team chat (S6c) after a bell. */
-function ChatTitle({ chat, open }: { readonly chat: Chat; readonly open: boolean }) {
+const DOT_TONE: Readonly<Record<ChatDot, string>> = { working: 'bg-done', unseen: 'bg-blue' };
+
+/** A chat's dot after its title: green and pulsing while a turn waits or runs, blue for activity you have not seen. */
+function RowDot({ dot }: { readonly dot: ChatDot }) {
+  const tone = DOT_TONE[dot];
+  return (
+    <span className="relative ml-auto flex size-2 shrink-0" role="img" aria-label={CHAT_DOT_WORDS[dot]}>
+      {dot === 'working' && (
+        <span className={cx('absolute inset-0 rounded-full opacity-0 motion-safe:animate-attention', tone)} />
+      )}
+      <span className={cx('relative size-full rounded-full', tone)} />
+    </span>
+  );
+}
+
+/** A chat's title in the list, a branch's after a small branch icon, a flow's team chat (S6c) after a bell; its dot last. */
+function ChatTitle({
+  chat,
+  open,
+  dot,
+}: {
+  readonly chat: Chat;
+  readonly open: boolean;
+  readonly dot: ChatDot | undefined;
+}) {
   return (
     <span
       className={cx('flex min-w-0 items-center gap-1 text-sm font-medium', open ? 'text-ink' : 'text-ink-2')}
@@ -35,6 +61,7 @@ function ChatTitle({ chat, open }: { readonly chat: Chat; readonly open: boolean
         <GitBranch size={12} aria-label="Branched" className="shrink-0 text-faint" />
       )}
       <span className="truncate">{chat.title ?? 'New chat'}</span>
+      {dot && <RowDot dot={dot} />}
     </span>
   );
 }
@@ -43,12 +70,14 @@ function ChatTitle({ chat, open }: { readonly chat: Chat; readonly open: boolean
 function ChatRow({
   chat,
   open,
+  dot,
   href,
   admin,
   onArchive,
 }: {
   readonly chat: Chat;
   readonly open: boolean;
+  readonly dot: ChatDot | undefined;
   readonly href: string;
   readonly admin: boolean;
   readonly onArchive: () => void;
@@ -83,7 +112,7 @@ function ChatRow({
         aria-current={open ? 'page' : undefined}
         className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 focus-visible:outline-2 focus-visible:outline-blue"
       >
-        <ChatTitle chat={chat} open={open} />
+        <ChatTitle chat={chat} open={open} dot={dot} />
         <span className="block text-2xs text-faint">{fromNow(chat.updatedAt)}</span>
       </Link>
       {admin && (
@@ -99,8 +128,11 @@ function ChatRow({
   );
 }
 
-/** The left column (S5.1c): the agent's chats, newest first, with New chat and Archive (admins and owners). */
-export function ChatList({ chats, openId, hrefOf, admin, cannotStart, onNew, onArchive }: ChatListProps) {
+/**
+ * The left column (S5.1c): the agent's chats, newest first, with New chat and Archive (admins and owners); live since
+ * 2026-11-13 (a new chat on top at once, each with its dot).
+ */
+export function ChatList({ chats, openId, hrefOf, admin, cannotStart, onNew, onArchive, dots }: ChatListProps) {
   const { busy, error, run } = useAction();
   return (
     <nav aria-label="Chats" className="flex min-h-0 flex-1 flex-col gap-3">
@@ -140,6 +172,7 @@ export function ChatList({ chats, openId, hrefOf, admin, cannotStart, onNew, onA
                   key={chat.id}
                   chat={chat}
                   open={chat.id === openId}
+                  dot={dots?.get(chat.id)}
                   href={hrefOf(chat.id)}
                   admin={admin}
                   onArchive={() => void run(() => onArchive(chat.id))}

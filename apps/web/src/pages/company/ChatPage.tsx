@@ -1,8 +1,9 @@
 import { roleAtLeast } from '@mwc/shared/roles';
 import { MessagesSquare } from 'lucide-react';
-import { useMemo, useRef } from 'react';
-import { chatCalls, useAgentChats } from '../../api/chats.ts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { chatCalls } from '../../api/chats.ts';
 import { useApi } from '../../api/context.ts';
+import { useAgentChatsLive } from '../../api/use-agent-chats-live.ts';
 import { useAgentAt, useAgentPlacement } from '../../api/org.ts';
 import { useAccessProfiles } from '../../api/subscriptions.ts';
 import type { AgentDetail, AgentPlacement } from '../../api/types.ts';
@@ -15,9 +16,11 @@ import { Card } from '../../components/ui/Card.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
 import { type AgentLinks, chatsPath, companyAgentLinks } from '../../features/agents/links.ts';
 import { ChatList } from '../../features/chats/ChatList.tsx';
+import { chatDots } from '../../features/chats/chat-dots.ts';
 import { CHAT_AREA, ChatBar } from '../../features/chats/header/ChatBar.tsx';
 import { OpenChat } from '../../features/chats/OpenChat.tsx';
 import { useFillViewport } from '../../features/chats/use-fill-viewport.ts';
+import { markSeen, useSeenMarks } from '../../features/report-chats/seen.ts';
 
 /**
  * How far above the window's bottom the frame ends on wide screens. The frame's negative bottom margin (`lg:-mb-6`)
@@ -56,6 +59,20 @@ function cannotStart(agent: AgentDetail, placement: AgentPlacement | undefined):
   return undefined;
 }
 
+/**
+ * The chat open when the address names none: the newest when the list came, kept while it is listed, so a chat that
+ * arrives on top (a Slack conversation's) does not take its place.
+ */
+function useNewestAtFirst(chats: readonly { readonly id: string }[] | undefined): string | undefined {
+  const [kept, setKept] = useState<string>();
+  const listed = kept !== undefined && chats?.some((chat) => chat.id === kept);
+  const newest = chats?.[0]?.id;
+  useEffect(() => {
+    if (chats !== undefined && !listed) setKept(newest);
+  }, [chats, listed, newest]);
+  return listed ? kept : newest;
+}
+
 /** The page once the agent is loaded: its chats on the left, the open one on the right. */
 function ChatsOf({
   agent,
@@ -68,12 +85,20 @@ function ChatsOf({
   const { companyId, slug, role } = membership;
   const api = useApi();
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
-  const chats = useAgentChats(companyId, agent.id);
+  const { chats, lastTurns } = useAgentChatsLive(companyId, agent.id, roleAtLeast(role, 'member'));
   const placement = useAgentPlacement(companyId, agent.id);
   const profiles = useAccessProfiles();
   const admin = roleAtLeast(role, 'admin');
-  const openId = openWanted ?? chats.data?.chats[0]?.id;
+  const newestAtFirst = useNewestAtFirst(chats.data?.chats);
+  const openId = openWanted ?? newestAtFirst;
   const hrefOf = (chatId?: string) => chatsPath(slug, agent.id, chatId);
+  useSeenMarks();
+  const dots = chatDots(lastTurns, openId);
+  // What ends in the open chat counts as seen: its dot does not come back once you move on.
+  const openEnded = openId === undefined ? undefined : lastTurns.get(openId)?.endedAt;
+  useEffect(() => {
+    if (openId && openEnded) markSeen(openId, openEnded);
+  }, [openId, openEnded]);
 
   const opened = (chat: { readonly id: string }) => {
     chats.reload();
@@ -85,7 +110,7 @@ function ChatsOf({
     chats.reload();
     if (chatId === openId) navigate(hrefOf(), { replace: true });
   };
-  const list = { chats, openId, hrefOf, admin, onNew: newChat, onArchive: archive };
+  const list = { chats, openId, hrefOf, admin, onNew: newChat, onArchive: archive, dots };
   const crumbs = chatCrumbs(companyAgentLinks(slug), agent);
   // On wide screens the frame fills the window to its bottom exactly, so only the thread and the list scroll.
   const frame = useRef<HTMLDivElement>(null);
@@ -143,8 +168,8 @@ function NoChatOpen({
 }
 
 /**
- * `/:slug/chats/:agentId` (S5.1c): an agent's chats, newest first, and the open one (`?chat=<id>`, else the newest),
- * live, with its access profile picker and, for owners, its terminal, in one frame under one header with the path the
+ * `/:slug/chats/:agentId` (S5.1c): an agent's chats, newest first and live (2026-11-13: a new chat, a Slack
+ * conversation's too, on top at once, each with its dot), and the open one (`?chat=<id>`, else the newest), live, with its access profile picker and, for owners, its terminal, in one frame under one header with the path the
  * person came through. Members read; admins and owners write. The page reads in Inter (`font-reading`).
  */
 export function ChatPage({ agentId }: { readonly agentId: string }) {
