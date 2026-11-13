@@ -5,7 +5,7 @@
  * the lifecycle tests (S2.4): a company whose owner has an admin under them, a person invited by someone and accepted
  * at the fake provider, the server learning of a membership's start or end by each path (a webhook delivery, the
  * reconcile on sign-in, the self reconcile, Sync now, the periodic reconcile of the jobs loop), and the chart as the
- * API shows it. The access profiles' helpers (S3.4, tool profiles since S7.1b) are `org/profiles.ts`, re-exported here.
+ * API shows it. The access profiles' helpers (S3.4, their tool parts since S7.1b) are `org/profiles.ts`, re-exported here.
  */
 import { auditLog, type DbHandle, orgPositions, tenant } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';

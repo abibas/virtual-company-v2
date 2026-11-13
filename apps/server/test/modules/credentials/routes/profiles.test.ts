@@ -82,7 +82,7 @@ describe('POST /api/me/access-profiles', () => {
       gateway: shown(gateway),
       model: 'claude-opus-5-5',
       effort: 'xhigh',
-      rights: null,
+      tools: { github: null, atlassian: null },
       agents: [],
       createdAt: view.createdAt,
       updatedAt: view.updatedAt,

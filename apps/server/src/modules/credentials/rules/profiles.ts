@@ -1,23 +1,42 @@
 import { sameValue } from '@mwc/db';
-import { fitsGateway, fitsProvider, isToolProvider, PROVIDER_KINDS } from '@mwc/shared/credentials';
-import type { CredentialKind, CredentialStatus, Effort, ProfileProvider } from '@mwc/shared/enums';
+import {
+  fitsGateway,
+  fitsProvider,
+  fitsTool,
+  PROVIDER_KINDS,
+  TOOL_KINDS,
+  TOOL_PROVIDERS,
+} from '@mwc/shared/credentials';
+import type {
+  CredentialKind,
+  CredentialStatus,
+  Effort,
+  ProfileProvider,
+  ToolProvider,
+} from '@mwc/shared/enums';
+import { TOOL_NAMES } from './tools.ts';
 
 // Access profiles' own rules (S3.4, one provider each since 2026-11-10, docs/subscriptions.md): what a profile's
-// subscription and gateway take (any of its owner's gateways: they are universal since 2026-11-10), what a change writes,
-// and what the audit log keeps of a profile; which model and effort it may run is `profile-model.ts`'s, and which parts
-// and rights a tool profile has (S7.1b) `tool-profiles.ts`'s. Who gives a profile to an agent, and to which harness it
-// fits, is the org module's rule. Pure.
+// subscription, gateway and tool parts' sign-ins take (any of its owner's gateways: they are universal since
+// 2026-11-10), what a change writes, and what the audit log keeps of a profile; which model and effort it may run is
+// `profile-model.ts`'s, and what a request's tool parts write (S7.1b, one profile since 2026-11-13) `tool-parts.ts`'s.
+// Who gives a profile to an agent, and to which harness it fits, is the org module's rule. Pure.
 
-/** A profile's two credentials: its subscription and its gateway. */
-export type ProfilePart = 'subscription' | 'gateway';
+/** A profile's credentials: its subscription, its gateway, and each tool part's sign-in. */
+export type ProfilePart = 'subscription' | 'gateway' | ToolProvider;
 
 /** The column that holds each part's credential. */
 const PART_COLUMNS = {
   subscription: 'credentialId',
   gateway: 'gatewayCredentialId',
+  github: 'githubCredentialId',
+  atlassian: 'atlassianCredentialId',
 } as const satisfies Record<ProfilePart, string>;
 
 type PartColumn = (typeof PART_COLUMNS)[ProfilePart];
+
+/** Each tool part's rights column. */
+type RightsColumn = 'githubRights' | 'atlassianRights';
 
 /** A profile's credentials as a request gives them: a credential id, null to empty one, or left out to keep it. */
 export type CredentialChoice = { readonly [C in PartColumn]?: string | null | undefined };
@@ -28,16 +47,18 @@ export interface ProfileRuns {
   readonly effort: Effort | null;
 }
 
-/** A profile's name, credentials, model, effort and (a tool profile's) rights as stored. */
+/** A profile's name, credentials, model, effort and tool parts' rights as stored. */
 export type ProfileFields = { readonly name: string } & {
   readonly [C in PartColumn]: string | null;
-} & ProfileRuns & { readonly rights: Readonly<Record<string, unknown>> | null };
+} & ProfileRuns & { readonly [C in RightsColumn]: Readonly<Record<string, unknown>> | null };
 
 /** A change of what a profile runs, as a request gives it: a value, null for the default, or left out to keep it. */
 export type RunsChoice = { readonly [K in keyof ProfileRuns]?: ProfileRuns[K] | undefined };
 
-/** A tool profile's new rights, as a request gives them (the whole set), or left out to keep them. */
-export type RightsChoice = { readonly rights?: Readonly<Record<string, unknown>> | undefined };
+/** A change of the tool parts' rights (a part's whole set, or null with the part), or left out to keep them. */
+export type RightsChoice = {
+  readonly [C in RightsColumn]?: Readonly<Record<string, unknown>> | null | undefined;
+};
 
 type RefusalStatus = 404 | 409 | 422;
 
@@ -66,17 +87,11 @@ export const PROFILE_NOT_FOUND = refuse(404, 'access_profile_not_found', 'No suc
 export const profileNameTaken = (name: string) =>
   refuse(409, 'access_profile_name_taken', `You have an access profile named ${name} already`);
 
-/** Each provider's name with its article, as messages show it: "a Claude", "an OpenAI", "a GitHub". */
+/** Each provider's name with its article, as messages show it: "a Claude", "an OpenAI". */
 export const A_PROVIDER: Readonly<Record<ProfileProvider, string>> = {
   claude: 'a Claude',
   openai: 'an OpenAI',
-  github: 'a GitHub',
-  atlassian: 'an Atlassian',
 };
-
-/** What a profile of each provider holds, as messages say it: a subscription, or a tool profile's sign-in. */
-export const heldName = (provider: ProfileProvider): string =>
-  isToolProvider(provider) ? 'sign-in' : 'subscription';
 
 /** A change that names another provider than the profile's: it is fixed when the profile is made. */
 export const providerFixed = (provider: ProfileProvider) =>
@@ -88,9 +103,21 @@ export const providerFixed = (provider: ProfileProvider) =>
 
 export const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** Each part as a message names it: its subscription (a tool profile's sign-in), its gateway. */
-const partName = (part: ProfilePart, provider: ProfileProvider) =>
-  part === 'gateway' ? 'its gateway' : `its ${heldName(provider)}`;
+const isToolPart = (part: ProfilePart): part is ToolProvider =>
+  (TOOL_PROVIDERS as readonly string[]).includes(part);
+
+/** Each tool with its article, as messages show it: "a GitHub", "an Atlassian". */
+const A_TOOL: Readonly<Record<ToolProvider, string>> = { github: 'a GitHub', atlassian: 'an Atlassian' };
+
+/** What a part holds, as messages say it: a subscription, or a tool part's sign-in ("GitHub sign-in"). */
+const heldName = (part: ProfilePart): string =>
+  isToolPart(part) ? `${TOOL_NAMES[part]} sign-in` : 'subscription';
+
+/** Each part as a message names it: its subscription, its gateway, its GitHub part. */
+const partName = (part: ProfilePart): string => {
+  if (part === 'subscription') return 'its subscription';
+  return part === 'gateway' ? 'its gateway' : `its ${TOOL_NAMES[part]} part`;
+};
 
 /** What the rules read of a credential: its kind and its state. */
 export interface HeldCredential {
@@ -98,41 +125,57 @@ export interface HeldCredential {
   readonly status: CredentialStatus;
 }
 
+/** Why a credential of this kind may not be in this part (422), or undefined when it may. */
+function kindRefusal(part: ProfilePart, provider: ProfileProvider, kind: CredentialKind) {
+  if (part === 'subscription') {
+    if (fitsProvider(provider, kind)) return undefined;
+    const a = A_PROVIDER[provider];
+    const kinds = PROVIDER_KINDS[provider].join(', ');
+    return refuse(
+      422,
+      'provider_mismatch',
+      `${capital(a)} profile takes ${a} subscription (${kinds}), not one of kind ${kind}`,
+    );
+  }
+  if (part === 'gateway') {
+    if (fitsGateway(kind)) return undefined;
+    return refuse(
+      422,
+      'credential_kind_mismatch',
+      `A profile's gateway is a gateway, not one of kind ${kind}`,
+    );
+  }
+  if (fitsTool(part, kind)) return undefined;
+  const kinds = TOOL_KINDS[part].join(', ');
+  return refuse(
+    422,
+    'credential_kind_mismatch',
+    `A profile's ${TOOL_NAMES[part]} part takes ${A_TOOL[part]} sign-in (${kinds}), not one of kind ${kind}`,
+  );
+}
+
 /**
- * Why a credential may not be a `provider` profile's subscription (a tool profile's sign-in) or gateway, or undefined
- * when it may. `credential` is the profile owner's own credential of that id, undefined when they have none (another
- * person's is the same, so nobody learns which exist): 422 `credential_not_found`, `provider_mismatch` (a subscription or
- * sign-in of another provider: a tool sign-in never goes in an AI profile, nor an AI subscription in a tool profile),
- * `credential_kind_mismatch` (a gateway that is not one) or `credential_revoked`. Any gateway fits any AI profile.
+ * Why a credential may not be in this part of a `provider` profile (its subscription, its gateway, or a tool part's
+ * sign-in), or undefined when it may. `credential` is the profile owner's own credential of that id, undefined when they
+ * have none (another person's is the same, so nobody learns which exist): 422 `credential_not_found`,
+ * `provider_mismatch` (a subscription of another provider, or a tool sign-in as the subscription),
+ * `credential_kind_mismatch` (a gateway that is not one; a tool part's sign-in of another kind than its tool's) or
+ * `credential_revoked`. Any gateway fits any profile.
  */
 export function credentialRefusal(
   part: ProfilePart,
   provider: ProfileProvider,
   credential: HeldCredential | undefined,
 ): ProfileRefusal<422> | undefined {
-  const where = partName(part, provider);
+  const where = partName(part);
   if (credential === undefined) {
-    return refuse(422, 'credential_not_found', `No such ${heldName(provider)} of yours for ${where}`);
+    return refuse(422, 'credential_not_found', `No such ${heldName(part)} of yours for ${where}`);
   }
-  if (part === 'subscription' && !fitsProvider(provider, credential.kind)) {
-    const a = A_PROVIDER[provider];
-    const kinds = PROVIDER_KINDS[provider].join(', ');
-    return refuse(
-      422,
-      'provider_mismatch',
-      `${capital(a)} profile takes ${a} ${heldName(provider)} (${kinds}), not one of kind ${credential.kind}`,
-    );
-  }
-  if (part === 'gateway' && !fitsGateway(credential.kind)) {
-    return refuse(
-      422,
-      'credential_kind_mismatch',
-      `A profile's gateway is a gateway, not one of kind ${credential.kind}`,
-    );
-  }
+  const mismatch = kindRefusal(part, provider, credential.kind);
+  if (mismatch) return mismatch;
   if (credential.status === 'revoked') {
-    const again = isToolProvider(provider) ? 'sign in again' : 'add it again';
-    return refuse(422, 'credential_revoked', `A revoked ${heldName(provider)} cannot be ${where}; ${again}`);
+    const again = isToolPart(part) ? 'sign in again' : 'add it again';
+    return refuse(422, 'credential_revoked', `A revoked ${heldName(part)} cannot be ${where}; ${again}`);
   }
   return undefined;
 }
@@ -158,7 +201,14 @@ export function profileChanges(
 ): Partial<ProfileFields> {
   const set: Record<string, unknown> = {};
   if (patch.name !== undefined && patch.name !== profile.name) set.name = patch.name;
-  for (const column of [...Object.values(PART_COLUMNS), 'model', 'effort', 'rights'] as const) {
+  const columns = [
+    ...Object.values(PART_COLUMNS),
+    'model',
+    'effort',
+    'githubRights',
+    'atlassianRights',
+  ] as const;
+  for (const column of columns) {
     const value = patch[column];
     if (value !== undefined && !sameValue(value, profile[column])) set[column] = value;
   }
@@ -166,8 +216,8 @@ export function profileChanges(
 }
 
 /**
- * The fields a profile's audit rows record: its owner, name, provider, the ids of its credentials, its model, effort and
- * (a tool profile's) rights.
+ * The fields a profile's audit rows record: its owner, name, provider, the ids of its credentials, its model and effort,
+ * and its tool parts' sign-ins and rights.
  */
 export function auditedProfile(
   row: ProfileFields & { readonly ownerUserId: string; readonly provider: ProfileProvider },
@@ -180,6 +230,9 @@ export function auditedProfile(
     gatewayCredentialId: row.gatewayCredentialId,
     model: row.model,
     effort: row.effort,
-    rights: row.rights,
+    githubCredentialId: row.githubCredentialId,
+    githubRights: row.githubRights,
+    atlassianCredentialId: row.atlassianCredentialId,
+    atlassianRights: row.atlassianRights,
   };
 }

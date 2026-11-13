@@ -16,7 +16,10 @@ const profile = {
   gatewayCredentialId: 'g1',
   model: 'claude-opus-5-5',
   effort: 'high' as const,
-  rights: null,
+  githubCredentialId: null,
+  githubRights: null,
+  atlassianCredentialId: null,
+  atlassianRights: null,
 };
 
 /** A credential as the rules read it: its kind, state and account details (none by default). */
@@ -43,10 +46,6 @@ describe('credentialRefusal', () => {
     ['openai', 'gateway'],
     ['claude', 'github_oauth'],
     ['openai', 'atlassian_api_token'],
-    ['github', 'claude_oauth'],
-    ['github', 'atlassian_api_token'],
-    ['atlassian', 'github_token'],
-    ['atlassian', 'openai_api_key'],
   ] as const)('refuses a %s profile a %s subscription: another provider', (provider, kind) => {
     expect(credentialRefusal('subscription', provider, held(kind))).toMatchObject({
       ok: false,
@@ -59,21 +58,41 @@ describe('credentialRefusal', () => {
     ['github', 'github_oauth'],
     ['github', 'github_token'],
     ['atlassian', 'atlassian_api_token'],
-  ] as const)('lets a %s profile take a %s sign-in, never a revoked one', (provider, kind) => {
-    expect(credentialRefusal('subscription', provider, held(kind))).toBeUndefined();
-    expect(credentialRefusal('subscription', provider, held(kind, 'revoked'))).toMatchObject({
+  ] as const)('lets a profile’s %s part take a %s sign-in, never a revoked one', (part, kind) => {
+    for (const provider of ['claude', 'openai'] as const) {
+      expect(credentialRefusal(part, provider, held(kind))).toBeUndefined();
+      expect(credentialRefusal(part, provider, held(kind, 'needs_sign_in'))).toBeUndefined();
+    }
+    const tool = part === 'github' ? 'GitHub' : 'Atlassian';
+    expect(credentialRefusal(part, 'claude', held(kind, 'revoked'))).toMatchObject({
       code: 'credential_revoked',
-      message: 'A revoked sign-in cannot be its sign-in; sign in again',
+      message: `A revoked ${tool} sign-in cannot be its ${tool} part; sign in again`,
     });
-    expect(credentialRefusal('subscription', provider, undefined)).toMatchObject({
+    expect(credentialRefusal(part, 'claude', undefined)).toMatchObject({
       code: 'credential_not_found',
-      message: 'No such sign-in of yours for its sign-in',
+      message: `No such ${tool} sign-in of yours for its ${tool} part`,
     });
   });
 
-  it('names what a tool profile takes when it refuses an AI subscription', () => {
-    expect(credentialRefusal('subscription', 'github', held('claude_oauth'))?.message).toBe(
-      'A GitHub profile takes a GitHub sign-in (github_oauth, github_token), not one of kind claude_oauth',
+  it.each([
+    ['github', 'atlassian_api_token'],
+    ['github', 'claude_oauth'],
+    ['github', 'gateway'],
+    ['atlassian', 'github_token'],
+    ['atlassian', 'openai_api_key'],
+  ] as const)('refuses a profile’s %s part a %s: another kind', (part, kind) => {
+    expect(credentialRefusal(part, 'claude', held(kind))).toMatchObject({
+      status: 422,
+      code: 'credential_kind_mismatch',
+    });
+  });
+
+  it('names what a tool part takes when it refuses another kind', () => {
+    expect(credentialRefusal('github', 'openai', held('claude_oauth'))?.message).toBe(
+      "A profile's GitHub part takes a GitHub sign-in (github_oauth, github_token), not one of kind claude_oauth",
+    );
+    expect(credentialRefusal('atlassian', 'claude', held('github_oauth'))?.message).toBe(
+      "A profile's Atlassian part takes an Atlassian sign-in (atlassian_api_token), not one of kind github_oauth",
     );
   });
 
@@ -136,6 +155,20 @@ describe('partsPutIn', () => {
     expect(partsPutIn(profile, { credentialId: 'c1', gatewayCredentialId: undefined })).toEqual([]);
     expect(partsPutIn(profile, { credentialId: null })).toEqual([]);
   });
+
+  it('lists the tool parts given a sign-in, and not one a part keeps', () => {
+    const withGithub = { ...profile, githubCredentialId: 's1' };
+    expect(
+      partsPutIn(withGithub, {
+        githubCredentialId: 's1',
+        atlassianCredentialId: 's2',
+        gatewayCredentialId: 'g1',
+      }),
+    ).toEqual([['atlassian', 's2']]);
+    expect(partsPutIn(withGithub, { githubCredentialId: 's3', atlassianCredentialId: null })).toEqual([
+      ['github', 's3'],
+    ]);
+  });
 });
 
 describe('profileChanges', () => {
@@ -152,11 +185,16 @@ describe('profileChanges', () => {
     });
   });
 
-  it('keeps rights only when they differ as jsonb, whatever their keys’ order', () => {
-    const tool = { ...profile, rights: { repos: ['a/b'], push: true, pullRequests: false } };
-    expect(profileChanges(tool, { rights: { pullRequests: false, push: true, repos: ['a/b'] } })).toEqual({});
-    const rights = { repos: 'all', push: true, pullRequests: false };
-    expect(profileChanges(tool, { rights })).toEqual({ rights });
+  it('keeps a tool part’s rights only when they differ as jsonb, whatever their keys’ order', () => {
+    const tool = { ...profile, githubRights: { repos: ['a/b'], push: true, pullRequests: false } };
+    const same = { pullRequests: false, push: true, repos: ['a/b'] };
+    expect(profileChanges(tool, { githubRights: same, atlassianRights: null })).toEqual({});
+    const githubRights = { repos: 'all', push: true, pullRequests: false };
+    expect(profileChanges(tool, { githubRights })).toEqual({ githubRights });
+    expect(profileChanges(tool, { githubCredentialId: 's1', githubRights: null })).toEqual({
+      githubCredentialId: 's1',
+      githubRights: null,
+    });
   });
 });
 
@@ -177,7 +215,7 @@ describe('a profile’s refusals and audit fields', () => {
     expect(providerFixed('claude').message).toContain('This is a Claude profile');
   });
 
-  it('audits its owner, name, provider, credentials, model, effort and rights, nothing else', () => {
+  it('audits its owner, name, provider, credentials, model, effort and tool parts, nothing else', () => {
     const row = {
       ...profile,
       id: 'p1',

@@ -1,6 +1,6 @@
 import { type Agent, diffFields, type Membership, type TenantDb } from '@mwc/db';
 import { HARNESS_PROVIDER, profileFitsHarness } from '@mwc/shared/credentials';
-import type { AiProvider, Harness, ProfileProvider } from '@mwc/shared/enums';
+import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import { DEFAULT_COLUMNS } from '../../repo/profiles.ts';
 import {
   defaultProviderMismatch,
@@ -21,7 +21,7 @@ import type { Given, ProfileRepo } from '../profiles.ts';
  * Why the caller may not give this profile where a `provider` profile goes (`giveRefusal`, then `mismatch` for one of
  * the other provider), read in the caller's transaction; undefined when they may.
  */
-export async function giveCheck(
+async function giveCheck(
   repo: ProfileRepo,
   t: TenantDb,
   caller: Caller,
@@ -136,7 +136,7 @@ export function setDefaultProfile(
   repo: ProfileRepo,
   t: TenantDb,
   caller: Caller,
-  choice: { readonly provider: AiProvider; readonly profileId: string | null },
+  choice: { readonly provider: ProfileProvider; readonly profileId: string | null },
 ): Promise<Given<{ readonly value: DefaultProfileView }>> {
   const { provider, profileId } = choice;
   const field = DEFAULT_COLUMNS[provider];

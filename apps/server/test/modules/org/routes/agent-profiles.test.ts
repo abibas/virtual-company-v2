@@ -42,7 +42,7 @@ const patchAgent = (person: Person, agentId: string, body: Record<string, unknow
   as(w, person, requestId)('PATCH', agentsPath(company, agentId), body);
 
 describe('giving an access profile to an agent', () => {
-  it('lets the owner give theirs, and shows it on the agent, the list and the chart, never its subscriptions', async () => {
+  it('lets the owner give theirs, and shows it on the agent, the list and the chart, never a secret', async () => {
     const profile = await seedProfile(w.t.db, company.owner.userId, { name: 'Work' });
     const agent = await makeAgent(w, company, company.owner, { name: 'Profiled' });
     expect(agent.profile).toBeNull();
@@ -53,6 +53,8 @@ describe('giving an access profile to an agent', () => {
       provider: 'claude',
       ownerUserId: company.owner.userId,
       ownerName: await ownerName(company.owner),
+      account: null,
+      tools: { github: null, atlassian: null },
     };
     expect(res).toMatchObject({ status: 200, body: { profile: shown } });
     expect(Object.keys((res.body as AgentDetailView).profile ?? {})).toEqual(Object.keys(shown));

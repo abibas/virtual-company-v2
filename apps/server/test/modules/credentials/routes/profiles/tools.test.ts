@@ -1,4 +1,7 @@
+import { credentials } from '@mwc/db';
+import { rawDb } from '@mwc/db/system';
 import { defaultRights } from '@mwc/shared/credentials';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AccessProfileView } from '../../../../../src/modules/credentials/schemas/profiles.ts';
 import { ephemeralKeyring } from '../../../../../src/platform/secrets/keyring.ts';
@@ -9,13 +12,14 @@ import {
   auditRows,
   noSecret,
   PROFILES,
+  profileToolsOf,
   revokeSubscription,
 } from '../../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../../fixtures/platform/auth.ts';
 
-// Tool profiles (S7.1b, docs/subscriptions.md "Tool profiles"): a GitHub or Atlassian profile holds one of its owner's
-// sign-ins of that tool (never an AI subscription, nor a tool sign-in in an AI profile, nor a revoked one) and the rights
-// its agents have there, with no gateway, model or effort; its rights start at the safe end and change as a whole.
+// A profile's tool parts (S7.1b, one profile with tool parts since 2026-11-13, docs/subscriptions.md "Tool parts"): a
+// GitHub and an Atlassian part beside the AI part, each one of the owner's sign-ins of that tool (never another kind,
+// someone else's or a revoked one) and the rights its agents have there; added, changed and removed by `tools`.
 
 const keyring = ephemeralKeyring();
 let w: AuthWorld;
@@ -30,192 +34,219 @@ afterAll(() => w.t.close());
 
 const as = (user: LinkedUser, requestId?: string) => call(w, user.token, requestId);
 let names = 0;
-const post = (body: Record<string, unknown>, user = ihor, requestId?: string) =>
-  as(user, requestId)('POST', PROFILES, { name: `Tool ${++names}`, ...body });
+const post = (body: Record<string, unknown>, requestId?: string) =>
+  as(ihor, requestId)('POST', PROFILES, { name: `Full ${++names}`, provider: 'claude', ...body });
 const patch = (id: string, body: Record<string, unknown>, requestId?: string) =>
   as(ihor, requestId)('PATCH', `${PROFILES}/${id}`, body);
+const made = async (body: Record<string, unknown> = {}) => (await post(body)).body as AccessProfileView;
 const refusal = (status: number, code: string) => ({ status, body: { error: { code } } });
+const updates = async (id: string) =>
+  (await auditRows(w.t.db, 'access_profile', id))
+    .filter((row) => row.action === 'update')
+    .map((row) => [row.field, row.requestId, row.oldValue, row.newValue]);
 
 const PUSH = { repos: ['AiriaLLC/*', 'abibas/virtual-company-v2'], push: true, pullRequests: true };
-const JIRA = { jira: 'changes', jiraProjects: ['AP'], confluence: 'write', confluenceSpaces: ['ENG'] };
+const WIKI = { jira: 'changes', jiraProjects: ['AP'], confluence: 'write', confluenceSpaces: ['ENG'] };
 
-describe('making a tool profile', () => {
-  it('holds a GitHub sign-in with the safe defaults, shown with its account, and audits its rights', async () => {
-    const signIn = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
+describe('a profile’s tool parts when it is made', () => {
+  it('are none unless given', async () => {
+    expect((await made()).tools).toEqual({ github: null, atlassian: null });
+  });
+
+  it('hold a sign-in of each tool with its rights, shown with the account and site, audited, never a secret', async () => {
+    const github = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
+    const atlassian = await addSignIn(w, keyring, ihor.userId, 'atlassian_api_token');
     const res = await post(
-      { name: 'AiriaLLC', provider: 'github', credentialId: signIn.id },
-      ihor,
-      'req-gh-1',
+      {
+        tools: {
+          github: { credentialId: github.id, rights: PUSH },
+          atlassian: { credentialId: atlassian.id },
+        },
+      },
+      'req-tools-1',
     );
     expect(res.status).toBe(201);
     const view = res.body as AccessProfileView;
-    expect(view).toMatchObject({
-      name: 'AiriaLLC',
-      provider: 'github',
-      subscription: {
-        id: signIn.id,
-        kind: 'github_oauth',
-        account: 'ihor-fake',
-        site: null,
-        status: 'active',
+    expect(view.tools).toEqual({
+      github: {
+        signIn: expect.objectContaining({
+          id: github.id,
+          kind: 'github_oauth',
+          account: 'ihor-fake',
+          site: null,
+        }),
+        rights: PUSH,
       },
-      gateway: null,
-      model: null,
-      effort: null,
-      rights: { repos: [], push: false, pullRequests: false },
-      agents: [],
+      atlassian: {
+        signIn: expect.objectContaining({
+          id: atlassian.id,
+          account: 'Ihor Herasko',
+          site: 'airia-fake.atlassian.net',
+          accountEmail: 'ihor@example.test',
+        }),
+        rights: defaultRights('atlassian'),
+      },
     });
     noSecret(view);
     const audit = (await auditRows(w.t.db, 'access_profile', view.id)).map((row) => [
       row.field,
       row.newValue,
     ]);
-    expect(audit).toContainEqual(['rights', defaultRights('github')]);
-    expect(audit).toContainEqual(['provider', 'github']);
-    expect(audit.map(([field]) => field)).not.toContain('model');
+    expect(audit).toEqual(
+      expect.arrayContaining([
+        ['githubCredentialId', github.id],
+        ['githubRights', PUSH],
+        ['atlassianCredentialId', atlassian.id],
+        ['atlassianRights', defaultRights('atlassian')],
+      ]),
+    );
   });
 
-  it('holds an Atlassian sign-in with the rights given, shown with its name and site', async () => {
-    const signIn = await addSignIn(w, keyring, ihor.userId, 'atlassian_api_token');
-    const res = await post({ provider: 'atlassian', credentialId: signIn.id, rights: JIRA });
-    expect(res).toMatchObject({
-      status: 201,
+  it('may have a part with no sign-in yet', async () => {
+    expect((await made({ tools: { github: {} } })).tools).toEqual({
+      github: { signIn: null, rights: defaultRights('github') },
+      atlassian: null,
+    });
+  });
+});
+
+describe('changing a profile’s tool parts', () => {
+  it('adds a part, changes its sign-in and its rights as a whole, and audits only what differs', async () => {
+    const profile = await made();
+    const signIn = await addSignIn(w, keyring, ihor.userId, 'github_token');
+    const added = await patch(profile.id, { tools: { github: { credentialId: signIn.id } } }, 'req-add');
+    expect(added).toMatchObject({
+      status: 200,
       body: {
-        provider: 'atlassian',
-        subscription: {
-          account: 'Ihor Herasko',
-          site: 'airia-fake.atlassian.net',
-          accountEmail: 'ihor@example.test',
+        tools: {
+          github: { signIn: { id: signIn.id, account: 'ihor-pat' }, rights: defaultRights('github') },
         },
-        rights: JIRA,
       },
     });
-    const empty = await post({ provider: 'atlassian' });
-    expect(empty).toMatchObject({
-      status: 201,
-      body: { subscription: null, rights: defaultRights('atlassian') },
+    const normalised = { ...PUSH, repos: [' AiriaLLC/* ', 'airiallc/*'] };
+    const changed = await patch(profile.id, { tools: { github: { rights: normalised } } }, 'req-rights');
+    expect(changed).toMatchObject({
+      status: 200,
+      body: { tools: { github: { rights: { ...PUSH, repos: ['AiriaLLC/*'] } } } },
     });
+    const again = {
+      tools: { github: { rights: { pullRequests: true, push: true, repos: ['AiriaLLC/*'] } } },
+    };
+    expect((await patch(profile.id, again)).status).toBe(200);
+    expect(await updates(profile.id)).toEqual([
+      ['githubCredentialId', 'req-add', null, signIn.id],
+      ['githubRights', 'req-add', null, defaultRights('github')],
+      ['githubRights', 'req-rights', defaultRights('github'), { ...PUSH, repos: ['AiriaLLC/*'] }],
+    ]);
   });
 
-  it('refuses an AI subscription in a tool profile, a tool sign-in in an AI one, and the other tool’s sign-in', async () => {
+  it('removes a part with null, its sign-in staying in the store; removing one it has not writes nothing', async () => {
+    const signIn = await addSignIn(w, keyring, ihor.userId, 'atlassian_api_token');
+    const profile = await made({ tools: { atlassian: { credentialId: signIn.id, rights: WIKI } } });
+    const res = await patch(profile.id, { tools: { atlassian: null, github: null } }, 'req-off');
+    expect(res).toMatchObject({ status: 200, body: { tools: { github: null, atlassian: null } } });
+    expect(await profileToolsOf(w.t.db, profile.id)).toEqual({
+      githubCredentialId: null,
+      githubRights: null,
+      atlassianCredentialId: null,
+      atlassianRights: null,
+    });
+    expect(await updates(profile.id)).toEqual([
+      ['atlassianCredentialId', 'req-off', signIn.id, null],
+      ['atlassianRights', 'req-off', WIKI, null],
+    ]);
+    const store = await rawDb(w.t.db).select().from(credentials).where(eq(credentials.id, signIn.id));
+    expect(store).toHaveLength(1);
+  });
+
+  it('keeps a part whose sign-in is removed from the store, with no sign-in', async () => {
+    const signIn = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
+    const profile = await made({ tools: { github: { credentialId: signIn.id, rights: PUSH } } });
+    await rawDb(w.t.db).delete(credentials).where(eq(credentials.id, signIn.id));
+    const list = ((await as(ihor)('GET', PROFILES)).body as { profiles: AccessProfileView[] }).profiles;
+    expect(list.find((p) => p.id === profile.id)?.tools.github).toEqual({ signIn: null, rights: PUSH });
+  });
+
+  it('keeps a sign-in revoked while in place until it is replaced', async () => {
+    const signIn = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
+    const profile = await made({ tools: { github: { credentialId: signIn.id } } });
+    await revokeSubscription(w.t.db, signIn.id);
+    const res = await patch(profile.id, { tools: { github: { credentialId: signIn.id, rights: PUSH } } });
+    expect(res).toMatchObject({
+      status: 200,
+      body: { tools: { github: { signIn: { status: 'revoked' } } } },
+    });
+  });
+});
+
+describe('what a tool part refuses', () => {
+  it('a sign-in of another kind: an AI subscription, a gateway or the other tool’s (422)', async () => {
     const claude = await addSubscription(w, keyring, ihor.userId, 'claude_setup_token');
-    const github = await addSignIn(w, keyring, ihor.userId, 'github_token');
+    const gateway = await addSubscription(w, keyring, ihor.userId, 'gateway');
     const atlassian = await addSignIn(w, keyring, ihor.userId, 'atlassian_api_token');
-    for (const [provider, credentialId] of [
-      ['github', claude.id],
-      ['claude', github.id],
-      ['openai', atlassian.id],
-      ['github', atlassian.id],
-      ['atlassian', github.id],
-    ] as const) {
-      expect(await post({ provider, credentialId }), `${provider} ${credentialId}`).toMatchObject(
-        refusal(422, 'provider_mismatch'),
+    const github = await addSignIn(w, keyring, ihor.userId, 'github_token');
+    for (const tools of [
+      { github: { credentialId: claude.id } },
+      { github: { credentialId: gateway.id } },
+      { github: { credentialId: atlassian.id } },
+      { atlassian: { credentialId: github.id } },
+    ]) {
+      expect(await post({ tools }), JSON.stringify(tools)).toMatchObject(
+        refusal(422, 'credential_kind_mismatch'),
       );
     }
-    expect(await post({ provider: 'claude', gatewayCredentialId: github.id })).toMatchObject(
+    const profile = await made();
+    expect(await patch(profile.id, { tools: { atlassian: { credentialId: claude.id } } })).toMatchObject(
       refusal(422, 'credential_kind_mismatch'),
     );
   });
 
-  it('refuses a revoked sign-in and someone else’s', async () => {
+  it('a tool sign-in as the subscription or the gateway', async () => {
+    const github = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
+    expect(await post({ credentialId: github.id })).toMatchObject(refusal(422, 'provider_mismatch'));
+    expect(await post({ provider: 'openai', credentialId: github.id })).toMatchObject(
+      refusal(422, 'provider_mismatch'),
+    );
+    expect(await post({ gatewayCredentialId: github.id })).toMatchObject(
+      refusal(422, 'credential_kind_mismatch'),
+    );
+  });
+
+  it('a revoked sign-in, and someone else’s', async () => {
     const revoked = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
     await revokeSubscription(w.t.db, revoked.id);
-    expect(await post({ provider: 'github', credentialId: revoked.id })).toMatchObject(
+    expect(await post({ tools: { github: { credentialId: revoked.id } } })).toMatchObject(
       refusal(422, 'credential_revoked'),
     );
-    const theirs = await addSignIn(w, keyring, other.userId, 'github_oauth');
-    expect(await post({ provider: 'github', credentialId: theirs.id })).toMatchObject(
+    const theirs = await addSignIn(w, keyring, other.userId, 'atlassian_api_token');
+    expect(await post({ tools: { atlassian: { credentialId: theirs.id } } })).toMatchObject(
       refusal(422, 'credential_not_found'),
     );
   });
 
-  it('refuses a gateway, a model or an effort on a tool profile, and rights on an AI one or of the other tool', async () => {
-    const gateway = await addSubscription(w, keyring, ihor.userId, 'gateway');
-    for (const extra of [
-      { gatewayCredentialId: gateway.id },
-      { model: 'claude-opus-5-5' },
-      { effort: 'high' },
+  it('rights of the other tool or of no tool’s shape, unknown parts and keys, and a tool provider (400)', async () => {
+    for (const body of [
+      { tools: { github: { rights: WIKI } } },
+      { tools: { atlassian: { rights: PUSH } } },
+      { tools: { github: { rights: { ...PUSH, merge: true } } } },
+      { tools: { github: { rights: { ...PUSH, repos: ['not a repo'] } } } },
+      { tools: { atlassian: { rights: { ...WIKI, delete: true } } } },
+      { tools: { github: { credentialId: null, push: true } } },
+      { tools: { slack: {} } },
+      { provider: 'github' },
     ]) {
-      expect(await post({ provider: 'github', ...extra })).toMatchObject(
-        refusal(422, 'not_for_tool_profile'),
-      );
-    }
-    expect(await post({ provider: 'claude', rights: PUSH })).toMatchObject(
-      refusal(422, 'rights_not_for_ai_profile'),
-    );
-    expect(await post({ provider: 'github', rights: JIRA })).toMatchObject(
-      refusal(422, 'rights_provider_mismatch'),
-    );
-  });
-
-  it('refuses rights of no tool’s shape, a merge right among them (400)', async () => {
-    for (const rights of [
-      { ...PUSH, merge: true },
-      { ...PUSH, repos: ['not a repo'] },
-      { repos: 'all', push: true },
-      { ...JIRA, jira: 'write' },
-      { ...JIRA, delete: true },
-    ]) {
-      expect(await post({ provider: 'github', rights }), JSON.stringify(rights)).toMatchObject(
-        refusal(400, 'invalid_request'),
-      );
+      const res = await post(body);
+      expect(res, JSON.stringify(body)).toMatchObject(refusal(400, 'invalid_request'));
     }
   });
 });
 
-describe('changing a tool profile', () => {
-  it('replaces its rights as a whole and audits the change; the same rights again write nothing', async () => {
-    const made = (await post({ provider: 'github' })).body as AccessProfileView;
-    const res = await patch(
-      made.id,
-      { rights: { ...PUSH, repos: [' AiriaLLC/* ', 'airiallc/*'] } },
-      'req-rights',
-    );
-    expect(res).toMatchObject({ status: 200, body: { rights: { ...PUSH, repos: ['AiriaLLC/*'] } } });
-    const again = await patch(made.id, { rights: { pullRequests: true, push: true, repos: ['AiriaLLC/*'] } });
-    expect(again.status).toBe(200);
-    const rows = (await auditRows(w.t.db, 'access_profile', made.id)).filter(
-      (row) => row.action === 'update',
-    );
-    expect(rows.map((row) => [row.field, row.requestId, row.oldValue, row.newValue])).toEqual([
-      ['rights', 'req-rights', defaultRights('github'), { ...PUSH, repos: ['AiriaLLC/*'] }],
-    ]);
-  });
-
-  it('takes a sign-in of its tool, never another provider, a gateway, a model or the other tool’s rights', async () => {
-    const made = (await post({ provider: 'atlassian' })).body as AccessProfileView;
-    const signIn = await addSignIn(w, keyring, ihor.userId, 'atlassian_api_token');
-    expect(await patch(made.id, { credentialId: signIn.id })).toMatchObject({
-      status: 200,
-      body: { subscription: { id: signIn.id, account: 'Ihor Herasko' } },
-    });
-    expect(await patch(made.id, { provider: 'github' })).toMatchObject(refusal(422, 'provider_mismatch'));
-    expect(await patch(made.id, { effort: 'max' })).toMatchObject(refusal(422, 'not_for_tool_profile'));
-    expect(await patch(made.id, { rights: PUSH })).toMatchObject(refusal(422, 'rights_provider_mismatch'));
-    const claude = await addSubscription(w, keyring, ihor.userId, 'claude_oauth');
-    expect(await patch(made.id, { credentialId: claude.id })).toMatchObject(
-      refusal(422, 'provider_mismatch'),
-    );
-    expect(
-      await patch(made.id, { credentialId: null, gatewayCredentialId: null, model: null }),
-    ).toMatchObject({
-      status: 200,
-      body: { subscription: null },
-    });
-  });
-
-  it('refuses rights on an AI profile', async () => {
-    const claude = (await post({ provider: 'claude' })).body as AccessProfileView;
-    expect(await patch(claude.id, { rights: PUSH })).toMatchObject(refusal(422, 'rights_not_for_ai_profile'));
-  });
-
-  it('lists tool profiles with the AI ones, each with its rights (null for an AI one)', async () => {
+describe('the list', () => {
+  it('shows every profile with its tool parts, never a secret', async () => {
     const res = await as(ihor)('GET', PROFILES);
     const profiles = (res.body as { profiles: AccessProfileView[] }).profiles;
-    expect(new Set(profiles.map((profile) => profile.provider))).toEqual(
-      new Set(['github', 'atlassian', 'claude']),
-    );
-    for (const profile of profiles) expect(profile.rights === null).toBe(profile.provider === 'claude');
+    expect(profiles.some((profile) => profile.tools.github !== null)).toBe(true);
+    expect(profiles.some((profile) => profile.tools.atlassian !== null)).toBe(true);
     noSecret(res.body);
   });
 });

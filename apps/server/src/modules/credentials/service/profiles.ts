@@ -6,8 +6,6 @@ import {
   type OwnedDb,
   owned,
 } from '@mwc/db';
-import { defaultRights, isAiProvider, isToolProvider } from '@mwc/shared/credentials';
-import type { ProfileProvider } from '@mwc/shared/enums';
 import { auditProfileRemoval } from '../../org/service.ts';
 import { profileRows as repo } from '../repo/profiles.ts';
 import { runsAfter, runsRefusal } from '../rules/profile-model.ts';
@@ -17,13 +15,12 @@ import {
   credentialRefusal,
   PROFILE_NOT_FOUND,
   type ProfileRefusal,
-  type ProfileRuns,
   partsPutIn,
   profileChanges,
   profileNameTaken,
   providerFixed,
 } from '../rules/profiles.ts';
-import { partsRefusal } from '../rules/tool-profiles.ts';
+import { toolColumns } from '../rules/tool-parts.ts';
 import type { AccessProfileView, CreateAccessProfile, UpdateAccessProfile } from '../schemas/profiles.ts';
 import type { Caller } from '../service.ts';
 import { agentsByProfile, companiesOfUser, views } from './profiles/views.ts';
@@ -87,10 +84,6 @@ async function shown(db: DbHandle, caller: Caller, row: AccessProfile): Promise<
 
 type Deps = { readonly db: DbHandle };
 
-/** Why a `provider` profile may not run this model at this effort (`runsRefusal`); a tool profile runs nothing. */
-const runsRefused = (provider: ProfileProvider, runs: ProfileRuns) =>
-  isAiProvider(provider) ? runsRefusal(provider, runs) : undefined;
-
 /** The caller's profiles, oldest first, with their credentials and the agents using each. */
 async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileView[]> {
   const o = owned(deps.db, caller.userId);
@@ -101,8 +94,9 @@ async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileVi
 }
 
 /**
- * A new profile of the caller's, its parts, model and effort and its credentials checked against its provider (422), its
- * name unique (409). A tool profile without rights gets its tool's safe defaults.
+ * A new profile of the caller's, its model and effort and its credentials (its subscription, gateway and tool parts'
+ * sign-ins) checked against its provider and parts (422), its name unique (409). A tool part given without rights gets
+ * its tool's safe defaults (`toolColumns`).
  */
 async function createProfile(
   deps: Deps,
@@ -110,15 +104,15 @@ async function createProfile(
   body: CreateAccessProfile,
 ): Promise<Saved<409 | 422>> {
   const runs = { model: body.model ?? null, effort: body.effort ?? null };
-  const refused = partsRefusal(body.provider, body) ?? runsRefused(body.provider, runs);
+  const refused = runsRefusal(body.provider, runs);
   if (refused) return refused;
   const saved = await namedWrite(body.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
-      const refusal = await choiceRefusal(o, { provider: body.provider }, body);
-      if (refusal) return refusal;
       const { name, provider, credentialId, gatewayCredentialId } = body;
-      const rights = isToolProvider(provider) ? (body.rights ?? defaultRights(provider)) : null;
-      const values = { name, provider, credentialId, gatewayCredentialId, ...runs, rights };
+      const tools = toolColumns(undefined, body.tools);
+      const refusal = await choiceRefusal(o, { provider }, { credentialId, gatewayCredentialId, ...tools });
+      if (refusal) return refusal;
+      const values = { name, provider, credentialId, gatewayCredentialId, ...runs, ...tools };
       const row = await repo.insertProfile(o, values);
       await o.audit(entry(caller, row.id, 'create', diffFields(null, auditedProfile(row))));
       return row;
@@ -128,9 +122,9 @@ async function createProfile(
 }
 
 /**
- * Renames one of the caller's profiles or changes its credentials, model, effort or (a tool profile's) rights (its
- * provider is fixed: 422 `provider_mismatch`; only the parts its provider has, `partsRefusal`; a model and effort it may
- * run, `runsRefusal`); only what differs is written and audited.
+ * Renames one of the caller's profiles or changes its credentials, model, effort or tool parts (its provider is fixed:
+ * 422 `provider_mismatch`; the credentials each part takes, `credentialRefusal`; a model and effort it may run,
+ * `runsRefusal`; a tool part added, changed or removed, `toolColumns`); only what differs is written and audited.
  */
 async function updateProfile(
   deps: Deps,
@@ -143,12 +137,14 @@ async function updateProfile(
       const row = await repo.getProfile(o, profileId);
       if (row === undefined) return PROFILE_NOT_FOUND;
       if (patch.provider !== undefined && patch.provider !== row.provider) return providerFixed(row.provider);
-      const refusal = partsRefusal(row.provider, patch) ?? (await choiceRefusal(o, row, patch));
+      const { tools, ...fields } = patch;
+      const change = { ...fields, ...toolColumns(row, tools) };
+      const refusal = await choiceRefusal(o, row, change);
       if (refusal) return refusal;
-      const set = profileChanges(row, patch);
+      const set = profileChanges(row, change);
       if (Object.keys(set).length === 0) return row;
       const refused =
-        'model' in set || 'effort' in set ? runsRefused(row.provider, runsAfter(row, set)) : undefined;
+        'model' in set || 'effort' in set ? runsRefusal(row.provider, runsAfter(row, set)) : undefined;
       if (refused) return refused;
       const after = await repo.updateProfile(o, row.id, set);
       await o.audit(entry(caller, row.id, 'update', diffFields(auditedProfile(row), auditedProfile(after))));
@@ -184,9 +180,9 @@ async function removeProfile(
  * The access profiles API's logic (S3.4, one provider each since 2026-11-10), always as the caller (the personal layer):
  * list their profiles, create one, change one, remove one. A profile's provider is fixed when it is made; its
  * subscription is one of the caller's own of that provider, its gateway any of their gateways, never a
- * revoked one, its model one of that provider's and its effort one its model takes (422); a GitHub or Atlassian
- * profile's (S7.1b) credential is one of the caller's sign-ins of that tool, and it holds rights instead of a gateway,
- * model and effort (422); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
+ * revoked one, its model one of that provider's and its effort one its model takes (422); its GitHub and Atlassian parts
+ * (S7.1b, one profile since 2026-11-13) each hold one of the caller's sign-ins of that tool, never a revoked one, and
+ * the rights given there (422 otherwise); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
  * its `access_profile` audit rows; removing one also writes, in each of the caller's companies, the rows of the agents
  * and defaults it leaves (the org module's `auditProfileRemoval`), before the foreign keys detach it.
  */

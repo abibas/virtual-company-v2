@@ -1,9 +1,14 @@
-import { type AccessProfile, type DbHandle, type OwnedDb, tenant } from '@mwc/db';
-import { isToolProvider, storedRights, toolAccountOf } from '@mwc/shared/credentials';
+import { type AccessProfile, type DbHandle, type OwnedDb, PROFILE_TOOL_COLUMNS, tenant } from '@mwc/db';
+import { storedRights, TOOL_PROVIDERS, toolAccountOf } from '@mwc/shared/credentials';
 import { companiesOf } from '../../../identity/service.ts';
 import { agentsUsingProfiles } from '../../../org/service.ts';
 import { profileRows as repo } from '../../repo/profiles.ts';
-import type { AccessProfileView, ProfileAgentView, ProfileSubscriptionView } from '../../schemas/profiles.ts';
+import type {
+  AccessProfileView,
+  ProfileAgentView,
+  ProfileSubscriptionView,
+  ProfileToolsView,
+} from '../../schemas/profiles.ts';
 
 // What the access profiles API shows of a person's profiles (S3.4): each with its credentials as metadata and the
 // agents using it in the owner's companies. Read outside the writes' transactions.
@@ -35,16 +40,35 @@ export async function agentsByProfile(db: DbHandle, userId: string, profileIds: 
   return uses;
 }
 
+/** Every credential a profile holds: its subscription, its gateway and its tool parts' sign-ins. */
+const heldIds = (row: AccessProfile): (string | null)[] => [
+  row.credentialId,
+  row.gatewayCredentialId,
+  ...TOOL_PROVIDERS.map((tool) => row[PROFILE_TOOL_COLUMNS[tool].credential]),
+];
+
+/** A profile's tool parts as shown: each part it has, with its sign-in (`shownAs`) and its rights (`storedRights`). */
+function toolsOf(row: AccessProfile, shownAs: (id: string | null) => ProfileSubscriptionView | null) {
+  const part = <T extends (typeof TOOL_PROVIDERS)[number]>(tool: T) => {
+    const columns = PROFILE_TOOL_COLUMNS[tool];
+    const rights = row[columns.rights];
+    return rights === null
+      ? null
+      : { signIn: shownAs(row[columns.credential]), rights: storedRights(tool, rights) };
+  };
+  return { github: part('github'), atlassian: part('atlassian') } satisfies ProfileToolsView;
+}
+
 /**
- * Profiles as the API shows them: their credentials as metadata (never a secret; a tool sign-in also with the account
- * and site it acts as), a tool profile's rights (`storedRights`) and the agents using each.
+ * Profiles as the API shows them: their credentials as metadata (never a secret; a tool part's sign-in also with the
+ * account and site it acts as), their tool parts' rights (`storedRights`) and the agents using each.
  */
 export async function views(
   o: OwnedDb,
   rows: readonly AccessProfile[],
   uses: ReadonlyMap<string, ProfileAgentView[]>,
 ): Promise<AccessProfileView[]> {
-  const ids = rows.flatMap((row) => [row.credentialId, row.gatewayCredentialId]).filter((id) => id !== null);
+  const ids = rows.flatMap(heldIds).filter((id) => id !== null);
   const held = new Map<string, ProfileSubscriptionView>();
   for (const credential of await repo.credentialsOf(o, ids)) {
     const { id, kind, label, accountEmail, status } = credential;
@@ -66,7 +90,7 @@ export async function views(
     gateway: shownAs(row.gatewayCredentialId),
     model: row.model,
     effort: row.effort,
-    rights: isToolProvider(row.provider) ? storedRights(row.provider, row.rights) : null,
+    tools: toolsOf(row, shownAs),
     agents: uses.get(row.id) ?? [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

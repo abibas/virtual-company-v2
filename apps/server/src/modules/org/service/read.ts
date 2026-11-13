@@ -2,7 +2,7 @@ import type { Agent, OrgPosition, TenantDb } from '@mwc/db';
 import { agentIconView } from '@mwc/shared/agent-icons';
 import { type OrgRepo, orgRepo } from '../repo.ts';
 import { type OrgState, orgState } from '../rules/placement.ts';
-import type { AgentProfileView, AgentToolProfileView, RunsWithView } from '../schemas/profiles.ts';
+import type { AgentProfileView, RunsWithView } from '../schemas/profiles.ts';
 import type { AgentDetailView, AgentPlacementSummaryView, AgentView, PositionView } from '../schemas.ts';
 
 /** The company's chart as stored (in the caller's transaction when it is one). */
@@ -22,16 +22,14 @@ export const orgOf = (t: TenantDb): Promise<OrgState> => loadOrg(orgRepo(), t);
 type Place = Pick<OrgPosition, 'reportsToPrincipalId' | 'title'> | undefined;
 
 /**
- * What an agent's views show beside its own row: its image's hash (for its icon), its access profile and what that runs,
- * its GitHub and Atlassian profiles (`profileExtras`), and where it runs (the machines module's).
+ * What an agent's views show beside its own row: its image's hash (for its icon), its access profile (with its tool
+ * parts) and what that runs (`profileExtras`), and where it runs (the machines module's).
  */
 export interface AgentExtras {
   /** Its image's SHA-256 (`agent_icons`), null or undefined for none: its icon's version. */
   readonly iconHash: string | null | undefined;
   readonly profile: AgentProfileView | null;
   readonly runsWith: RunsWithView | null;
-  readonly githubProfile: AgentToolProfileView | null;
-  readonly atlassianProfile: AgentToolProfileView | null;
   readonly placement: AgentPlacementSummaryView | null;
 }
 
@@ -57,8 +55,6 @@ export function agentView(agent: Agent, place: Place, extras: AgentExtras): Agen
     title: place?.title ?? null,
     profile: extras.profile,
     runsWith: extras.runsWith,
-    githubProfile: extras.githubProfile,
-    atlassianProfile: extras.atlassianProfile,
     placement: extras.placement,
     createdAt: agent.createdAt.toISOString(),
     updatedAt: agent.updatedAt.toISOString(),

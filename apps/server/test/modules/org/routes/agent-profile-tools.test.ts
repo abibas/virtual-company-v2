@@ -1,0 +1,133 @@
+import { users } from '@mwc/db';
+import { rawDb } from '@mwc/db/system';
+import { defaultRights } from '@mwc/shared/credentials';
+import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { credentialSecrets, type StoreCredentialInput } from '../../../../src/modules/credentials/index.ts';
+import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
+import { as, type MembersCompany, membersCompany } from '../../../fixtures/members/members.ts';
+import {
+  type AgentDetailView,
+  addSignIn,
+  agentsPath,
+  chartOf,
+  makeAgent,
+  noSecret,
+  PROFILES,
+  placedMember,
+  seedProfile,
+} from '../../../fixtures/org.ts';
+import { type AuthWorld, authWorld, type Person } from '../../../fixtures/platform/auth.ts';
+
+// An agent's access (S7.1b, one profile with tool parts since 2026-11-13): an agent holds one access profile, and its
+// view shows that profile with the account its subscription acts as and its GitHub and Atlassian parts (who each acts
+// as, where, and the rights), never a secret, on the agent, the list and the chart; it follows the profile's changes.
+// Agents have no tool profiles of their own any more.
+
+const keyring = ephemeralKeyring();
+let w: AuthWorld;
+let company: MembersCompany;
+let admin: Person;
+beforeAll(async () => {
+  w = await authWorld({ keyring });
+  company = await membersCompany(w);
+  admin = await placedMember(w, company, 'admin');
+});
+afterAll(() => w.t.close());
+
+const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
+const WIKI = { jira: 'read', jiraProjects: ['AP'], confluence: 'write', confluenceSpaces: ['ENG'] };
+
+/** A Claude setup token of the person's whose account says this email, sealed as the store does. */
+const subscription = (person: Person, accountEmail: string) =>
+  credentialSecrets({ db: w.t.db, keyring, clock: w.clock }).storeCredential({
+    kind: 'claude_setup_token',
+    secret: { token: 'sk-ant-oat01-SETUPtokenNEVERshownAGAIN_0123456789' },
+    label: 'Max',
+    ownerUserId: person.userId,
+    accountEmail,
+  } as StoreCredentialInput);
+
+/** A Claude profile of `person`'s with a subscription and both tool parts, each with a sign-in. */
+async function fullProfile(person: Person) {
+  const claude = await subscription(person, 'ihorherasko@airia.test');
+  const github = await addSignIn(w, keyring, person.userId, 'github_oauth');
+  const atlassian = await addSignIn(w, keyring, person.userId, 'atlassian_api_token');
+  return seedProfile(w.t.db, person.userId, {
+    credentialId: claude.id,
+    githubCredentialId: github.id,
+    githubRights: PUSH,
+    atlassianCredentialId: atlassian.id,
+    atlassianRights: WIKI,
+  });
+}
+
+const ownerName = async (person: Person) =>
+  (await rawDb(w.t.db).select().from(users).where(eq(users.id, person.userId)))[0]?.displayName;
+
+describe('an agent’s profile with its tool parts', () => {
+  it('shows the accounts and rights on the agent, the list and the chart, never a secret', async () => {
+    const profile = await fullProfile(company.owner);
+    const agent = await makeAgent(w, company, company.owner, { name: 'Toolbox', profileId: profile.id });
+    const shown = {
+      id: profile.id,
+      name: profile.name,
+      provider: 'claude',
+      ownerUserId: company.owner.userId,
+      ownerName: await ownerName(company.owner),
+      account: 'ihorherasko@airia.test',
+      tools: {
+        github: { account: 'ihor-fake', site: null, rights: PUSH },
+        atlassian: { account: 'Ihor Herasko', site: 'airia-fake.atlassian.net', rights: WIKI },
+      },
+    };
+    expect(agent.profile).toEqual(shown);
+    noSecret(agent);
+    const listed = await as(w, admin)('GET', agentsPath(company));
+    const row = (listed.body as { agents: AgentDetailView[] }).agents.find((a) => a.id === agent.id);
+    expect(row?.profile).toEqual(shown);
+    const chart = await chartOf(w, company);
+    const node = chart.nodes.find((n) => n.principalId === agent.principalId);
+    expect(node).toMatchObject({ kind: 'agent', agent: { profile: shown } });
+    noSecret(chart);
+  });
+
+  it('shows none of the parts a profile does not have, and no account without a subscription', async () => {
+    const plain = await seedProfile(w.t.db, company.owner.userId);
+    const agent = await makeAgent(w, company, company.owner, { name: 'Plain', profileId: plain.id });
+    expect(agent.profile).toMatchObject({ account: null, tools: { github: null, atlassian: null } });
+  });
+
+  it('shows a part without a sign-in with no account, and follows the profile’s changes', async () => {
+    const profile = await seedProfile(w.t.db, company.owner.userId, {
+      atlassianRights: defaultRights('atlassian'),
+    });
+    const agent = await makeAgent(w, company, company.owner, { name: 'Unsigned', profileId: profile.id });
+    expect(agent.profile?.tools.atlassian).toEqual({
+      account: null,
+      site: null,
+      rights: defaultRights('atlassian'),
+    });
+    const signIn = await addSignIn(w, keyring, company.owner.userId, 'github_token');
+    const change = { tools: { atlassian: null, github: { credentialId: signIn.id, rights: PUSH } } };
+    expect((await as(w, company.owner)('PATCH', `${PROFILES}/${profile.id}`, change)).status).toBe(200);
+    const read = await as(w, admin)('GET', agentsPath(company, agent.id));
+    expect((read.body as AgentDetailView).profile?.tools).toEqual({
+      github: { account: 'ihor-pat', site: null, rights: PUSH },
+      atlassian: null,
+    });
+  });
+
+  it('takes no tool profiles of an agent’s own any more: the old fields are not part of an agent', async () => {
+    const profile = await fullProfile(company.owner);
+    const agent = await makeAgent(w, company, company.owner, {
+      name: 'Old fields',
+      profileId: null,
+      githubProfileId: profile.id,
+      atlassianProfileId: profile.id,
+    });
+    expect(agent).not.toHaveProperty('githubProfile');
+    expect(agent).not.toHaveProperty('atlassianProfile');
+    expect(agent.profile).toBeNull();
+  });
+});

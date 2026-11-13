@@ -1,6 +1,6 @@
 import type { TenantDb } from '@mwc/db';
 import type { Briefing } from '@mwc/shared/agent-briefing';
-import type { AgentStatus, AiProvider } from '@mwc/shared/enums';
+import type { AgentStatus, ProfileProvider } from '@mwc/shared/enums';
 import type { ServerDeps } from '../../platform/env.ts';
 import { placementsOf } from '../machines/service/placement.ts';
 import { orgRepo } from './repo.ts';
@@ -16,7 +16,6 @@ import {
   auditProfileRemoval as auditRemoval,
   type ProfileUse,
   profileExtras,
-  profileIdsOf,
   profileRefs,
   profileUses,
   setDefaultProfile,
@@ -63,18 +62,19 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
   const briefing = briefingReader(deps, repo);
   return {
     /**
-     * The company's agents, in the order they were created, each with its place on the chart, its profiles, where it
+     * The company's agents, in the order they were created, each with its place on the chart, its profile, where it
      * runs and its icon.
      */
     async list(t: TenantDb, filter: AgentListFilter): Promise<AgentView[]> {
       const rows = await repo.listAgents(t, LIST_STATUSES[filter ?? 'default']);
       const places = new Map((await repo.positions(t)).map((position) => [position.principalId, position]));
-      const profiles = await profileRefs(deps, repo, t, rows.flatMap(profileIdsOf));
+      const profileIds = rows.map((agent) => agent.profileId);
+      const profiles = await profileRefs(deps, repo, t, profileIds);
       const placements = await placementsOf(t);
       const icons = await agentIconHashes(t);
       return rows.map((agent) =>
         agentView(agent, places.get(agent.principalId), {
-          ...profileExtras(profiles, agent),
+          ...profileExtras(profiles, agent.profileId),
           placement: placements.get(agent.id) ?? null,
           iconHash: icons.get(agent.id),
         }),
@@ -110,7 +110,7 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
     setDefaultProfile: (
       t: TenantDb,
       caller: Caller,
-      choice: { readonly provider: AiProvider; readonly profileId: string | null },
+      choice: { readonly provider: ProfileProvider; readonly profileId: string | null },
     ) => setDefaultProfile(repo, t, caller, choice),
     chart: chartReader(deps, repo),
   };

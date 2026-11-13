@@ -1,6 +1,6 @@
 import type { Agent } from '@mwc/db';
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
-import type { AgentStatus, Harness, MembershipRole, ProfileProvider, ToolProvider } from '@mwc/shared/enums';
+import type { AgentStatus, Harness, MembershipRole, ProfileProvider } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { slugify, withSuffix } from '@mwc/shared/slugs';
 import { type Refusal, refuse } from './placement.ts';
@@ -80,7 +80,7 @@ export function agentChanges(agent: Agent, patch: AgentPatch): AgentSet {
   return set as AgentSet;
 }
 
-/** The agent fields the audit log follows: its instructions by their revision, never their text; its profiles' ids. */
+/** The agent fields the audit log follows: its instructions by their revision, never their text; its profile's id. */
 export function auditedAgent(agent: Agent) {
   const { principalId, name, slug, roleTitle, status, harness } = agent;
   return {
@@ -94,8 +94,6 @@ export function auditedAgent(agent: Agent) {
     maxConcurrentRuns: agent.maxConcurrentRuns,
     face: agent.face,
     profileId: agent.profileId,
-    githubProfileId: agent.githubProfileId,
-    atlassianProfileId: agent.atlassianProfileId,
   };
 }
 
@@ -146,17 +144,10 @@ export function giveRefusal(giver: Giver, ownerUserId: string | undefined): Refu
   return undefined;
 }
 
-const PROVIDER_NAMES: Readonly<Record<ProfileProvider, string>> = {
-  claude: 'Claude',
-  openai: 'OpenAI',
-  github: 'GitHub',
-  atlassian: 'Atlassian',
-};
+const PROVIDER_NAMES: Readonly<Record<ProfileProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
 const A_PROFILE: Readonly<Record<ProfileProvider, string>> = {
   claude: 'a Claude profile',
   openai: 'an OpenAI profile',
-  github: 'a GitHub profile',
-  atlassian: 'an Atlassian profile',
 };
 const AN_AGENT: Readonly<Record<Harness, string>> = {
   claude_code: 'a Claude Code agent',
@@ -170,14 +161,6 @@ export const profileHarnessMismatch = (provider: ProfileProvider, harness: Harne
     422,
     'profile_harness_mismatch',
     `${capital(AN_AGENT[harness])} needs ${A_PROFILE[HARNESS_PROVIDER[harness]]}; this access profile is for ${PROVIDER_NAMES[provider]}`,
-  );
-
-/** An agent's GitHub or Atlassian profile given a profile of another provider (422 `profile_provider_mismatch`, S7.1b). */
-export const toolProfileMismatch = (provider: ProfileProvider, wanted: ToolProvider): Refusal<422> =>
-  refuse(
-    422,
-    'profile_provider_mismatch',
-    `An agent's ${PROVIDER_NAMES[wanted]} profile is ${A_PROFILE[wanted]}; this access profile is for ${PROVIDER_NAMES[provider]}`,
   );
 
 /** A default of one provider given a profile of the other (422 `provider_mismatch`). */

@@ -6,8 +6,9 @@ import { MODEL_ID_MAX, MODEL_ID_PATTERN } from '@mwc/shared/models';
 /**
  * The access profiles API's shapes (`/api/me/access-profiles`, S3.4, one provider each since 2026-11-10): a person's
  * named choice of one of their own subscriptions, Claude's or OpenAI's, with an optional gateway, and (since
- * 2026-11-10) the model and effort its runs use; since S7.1b also a tool profile, one GitHub or Atlassian sign-in with
- * the rights the agents given it have there. A credential shows its metadata, never a secret.
+ * 2026-11-10) the model and effort its runs use; since 2026-11-13 also its optional tool parts (S7.1b reshaped), a
+ * GitHub and an Atlassian part, each one of the person's sign-ins of that tool with the rights the agents given the
+ * profile have there. A credential shows its metadata, never a secret.
  */
 
 export const AccessProfileParamsSchema = z.object({
@@ -24,20 +25,8 @@ const name = z
   .max(ACCESS_PROFILE_NAME.max, `A name is at most ${ACCESS_PROFILE_NAME.max} characters`)
   .openapi({ example: 'Work' });
 
-/** What it holds, a Claude or OpenAI subscription or a GitHub or Atlassian sign-in: fixed when it is made. */
+/** Whose subscription it holds, Claude's or OpenAI's: fixed when it is made. */
 const provider = ProfileProvider;
-
-/**
- * A tool profile's rights, GitHub's or Atlassian's (`ToolRights` of `@mwc/shared/credentials`, made again here so it is
- * made after zod-openapi extends zod); the whole set, never a part.
- */
-export const RightsSchema = z.union([GitHubRights, AtlassianRights]).openapi('ToolRights', {
-  description:
-    'GitHub: `repos` (`all` or `owner/name`, `owner/*`), `push`, `pullRequests`; it never merges, deletes, ' +
-    'force-pushes or pushes to a default branch. Atlassian: `jira` (off, read, changes) in `jiraProjects`, ' +
-    '`confluence` (off, read, write) in `confluenceSpaces`, each `all` or keys; it never deletes or archives.',
-  example: { repos: ['AiriaLLC/*'], push: true, pullRequests: true },
-});
 
 /** A model id (one of the catalogue's of the profile's provider, or another), or null for the provider's default. */
 const model = z
@@ -55,7 +44,7 @@ const effort = Effort.nullable().openapi({ example: 'high' });
 /** One of your subscriptions, or null to empty the profile's. */
 const choice = z.string().nullable().openapi({ example: '019a5a10-3c4d-7e5f-8a6b-7c8d9e0f1a2b' });
 
-/** A profile's subscription, sign-in or gateway as it shows it: what it is and whose account, never its secret. */
+/** A profile's subscription, gateway or tool part's sign-in as it shows it: what it is and whose account, never its secret. */
 export const ProfileSubscriptionSchema = z
   .object({
     id: z.string(),
@@ -87,15 +76,62 @@ export const ProfileAgentSchema = z
   })
   .openapi('ProfileAgent');
 
+/**
+ * The GitHub part's rights as the API shows and takes them (the whole set): reading always, in `repos`. The shared
+ * schemas are cloned so the copies are made after zod-openapi extends zod.
+ */
+const GitHubRightsSchema = GitHubRights.clone().openapi('GitHubRights', {
+  description:
+    '`repos` (`all`, or `owner/name` and `owner/*`), `push` (push branches), `pullRequests` (open and update them); ' +
+    'it never merges, deletes, force-pushes or pushes to a default branch',
+  example: { repos: ['AiriaLLC/*'], push: true, pullRequests: true },
+});
+
+/** The Atlassian part's rights (the whole set): Jira's and Confluence's levels and where they reach. */
+const AtlassianRightsSchema = AtlassianRights.clone().openapi('AtlassianRights', {
+  description:
+    '`jira` (off, read, changes) in `jiraProjects`, `confluence` (off, read, write) in `confluenceSpaces`, each `all` ' +
+    'or keys; it never deletes or archives',
+  example: { jira: 'read', jiraProjects: 'all', confluence: 'write', confluenceSpaces: ['ENG'] },
+});
+
+/** A tool part as the profile shows it: its sign-in (null while it has none: no access) and its rights. */
+const toolPartView = <R extends z.ZodType>(rights: R, name: string) =>
+  z.object({ signIn: ProfileSubscriptionSchema.nullable(), rights }).openapi(name);
+
+/** The profile's tool parts, each null when it has none. */
+export const ProfileToolsSchema = z
+  .object({
+    github: toolPartView(GitHubRightsSchema, 'ProfileGitHubPart').nullable(),
+    atlassian: toolPartView(AtlassianRightsSchema, 'ProfileAtlassianPart').nullable(),
+  })
+  .openapi('ProfileTools');
+
+/** A tool part in a change: one of your sign-ins of the tool (null for none, left out to keep it) and its whole rights. */
+const toolPartChoice = <R extends z.ZodType>(rights: R) =>
+  z.object({ credentialId: choice.optional(), rights: rights.optional() }).strict();
+
+/**
+ * The tool parts in a change: a part to add (its rights default to the tool's safe ones) or change, null to remove it,
+ * or left out to keep it.
+ */
+const ToolPartsChoiceSchema = z
+  .object({
+    github: toolPartChoice(GitHubRightsSchema).nullable().optional(),
+    atlassian: toolPartChoice(AtlassianRightsSchema).nullable().optional(),
+  })
+  .strict()
+  .openapi('ProfileToolsChoice');
+
 export const AccessProfileSchema = z
   .object({
     id: z.string(),
     name: z.string().openapi({ example: 'Work' }),
-    /** Claude for `claude_code` agents, OpenAI for `codex` agents; GitHub or Atlassian for a tool profile. */
+    /** Claude for `claude_code` agents, OpenAI for `codex` agents. */
     provider: ProfileProvider,
-    /** Its subscription of that provider, or a tool profile's sign-in; null while it has none (it cannot work until it does). */
+    /** Its subscription of that provider; null while it has none (it cannot run until it does). */
     subscription: ProfileSubscriptionSchema.nullable(),
-    /** Its gateway (any), which its runs send their AI requests through; null for none, and always for a tool profile. */
+    /** Its gateway (any), which its runs send their AI requests through; null for none. */
     gateway: ProfileSubscriptionSchema.nullable(),
     model: z.string().nullable().openapi({
       description:
@@ -105,9 +141,8 @@ export const AccessProfileSchema = z
     effort: Effort.nullable().openapi({
       description: "The reasoning effort its runs use, one its model takes; null: the provider's default",
     }),
-    rights: RightsSchema.nullable().openapi({
-      description: "A tool profile's rights; null for an AI profile",
-    }),
+    /** Its GitHub and Atlassian parts. */
+    tools: ProfileToolsSchema,
     /** The agents that use it, in your companies. */
     agents: z.array(ProfileAgentSchema),
     createdAt: z.string().openapi({ format: 'date-time' }),
@@ -121,8 +156,7 @@ export const AccessProfileListSchema = z
 
 /**
  * A new profile: a name, its provider and, optionally, one of your subscriptions of that provider and any of your
- * gateways, a model and an effort (none: the provider's defaults); for a GitHub or Atlassian profile one of your sign-ins
- * of that tool and its rights (none: the safe defaults), with no gateway, model or effort.
+ * gateways, a model and an effort (none: the provider's defaults), and tool parts (none: no GitHub or Atlassian access).
  */
 export const CreateAccessProfileSchema = z
   .object({
@@ -132,14 +166,14 @@ export const CreateAccessProfileSchema = z
     gatewayCredentialId: choice.optional(),
     model: model.optional(),
     effort: effort.optional(),
-    rights: RightsSchema.optional(),
+    tools: ToolPartsChoiceSchema.optional(),
   })
   .openapi('CreateAccessProfile');
 
 /**
- * A new name, another subscription (or sign-in) of the same provider or another gateway, another model or effort, a tool
- * profile's new rights (the whole set), any of them (null empties one, or goes back to the provider's default). The
- * provider is fixed: given, it must be the profile's own.
+ * A new name, another subscription of the same provider or another gateway, another model or effort, tool parts added,
+ * changed or removed, any of them (null empties one, or goes back to the provider's default). The provider is fixed:
+ * given, it must be the profile's own.
  */
 export const UpdateAccessProfileSchema = z
   .object({
@@ -149,7 +183,7 @@ export const UpdateAccessProfileSchema = z
     gatewayCredentialId: choice.optional(),
     model: model.optional(),
     effort: effort.optional(),
-    rights: RightsSchema.optional(),
+    tools: ToolPartsChoiceSchema.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, 'Give at least one field to change')
   .openapi('UpdateAccessProfile');
@@ -157,5 +191,6 @@ export const UpdateAccessProfileSchema = z
 export type AccessProfileView = z.infer<typeof AccessProfileSchema>;
 export type ProfileSubscriptionView = z.infer<typeof ProfileSubscriptionSchema>;
 export type ProfileAgentView = z.infer<typeof ProfileAgentSchema>;
+export type ProfileToolsView = z.infer<typeof ProfileToolsSchema>;
 export type CreateAccessProfile = z.infer<typeof CreateAccessProfileSchema>;
 export type UpdateAccessProfile = z.infer<typeof UpdateAccessProfileSchema>;

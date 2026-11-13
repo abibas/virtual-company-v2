@@ -1,6 +1,5 @@
 import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
 import { CHAT_WINDOW } from '@mwc/shared/chats';
-import { isAiProvider } from '@mwc/shared/credentials';
 import { profileWindowOf } from '@mwc/shared/harness';
 import { historyRepo } from '../repo/history.ts';
 import { profilesRepo } from '../repo/profiles.ts';
@@ -51,10 +50,7 @@ export interface CurrentConversation {
 async function profileWindow(t: TenantDb, chat: Chat): Promise<number | null> {
   const profileId = chat.profileId ?? (await chatsRepo.agentOf(t, chat.agentId))?.profileId ?? null;
   const profile = profileId === null ? undefined : await profilesRepo.get(t, profileId);
-  // A tool profile never powers a chat (its giving refuses it), so it has no window either.
-  return profile === undefined || !isAiProvider(profile.provider)
-    ? null
-    : profileWindowOf(profile.provider, profile.model);
+  return profile === undefined ? null : profileWindowOf(profile.provider, profile.model);
 }
 
 /** The chat's current conversation, its latest turns with their events, and what is left out (see above). */

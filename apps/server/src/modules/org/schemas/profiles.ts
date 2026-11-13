@@ -1,15 +1,42 @@
 import { z } from '@hono/zod-openapi';
 import { AtlassianRights, GitHubRights } from '@mwc/shared/credentials';
-import { AiProvider, Effort, ProfileProvider, ToolProvider } from '@mwc/shared/enums';
+import { Effort, ProfileProvider } from '@mwc/shared/enums';
 
 /**
  * The org API's shapes of access profiles (S3.4, one provider each since 2026-11-10): the profile an agent's runs use,
- * as agents and the chart show it (never a subscription of it) with what it runs, its GitHub and Atlassian profiles
- * (S7.1b) with the account they act as and their rights, a member's defaults for the agents they hire (one per AI
+ * as agents and the chart show it (the accounts it acts as, never a secret) with what it runs and its GitHub and
+ * Atlassian parts (S7.1b, one profile since 2026-11-13), a member's defaults for the agents they hire (one per
  * provider), and the note of a profile a harness change took off an agent.
  */
 
-/** The access profile an agent uses: its name, provider and whose it is, never its subscriptions. */
+/** Who a tool part's sign-in acts as (null while the part has none: no access) and where, and its rights there. */
+const toolPart = <R extends z.ZodType>(rights: R, name: string) =>
+  z
+    .object({
+      account: z.string().nullable().openapi({
+        description: "GitHub's login or Atlassian's name (else email); null while the part has no sign-in",
+        example: 'ihorherasko',
+      }),
+      site: z
+        .string()
+        .nullable()
+        .openapi({ description: "Atlassian's site; null for GitHub", example: null }),
+      rights,
+    })
+    .openapi(name);
+
+/** An agent's profile's tool parts, each null when the profile has none (the rights cloned after zod-openapi's zod). */
+const AgentProfileToolsSchema = z
+  .object({
+    github: toolPart(GitHubRights.clone(), 'AgentGitHubPart').nullable(),
+    atlassian: toolPart(AtlassianRights.clone(), 'AgentAtlassianPart').nullable(),
+  })
+  .openapi('AgentProfileTools');
+
+/**
+ * The access profile an agent uses: its name, provider and whose it is, the account its subscription acts as and its
+ * tool parts; never a secret.
+ */
 export const AgentProfileSchema = z
   .object({
     id: z.string(),
@@ -19,6 +46,12 @@ export const AgentProfileSchema = z
     ownerUserId: z.string(),
     /** The owner's first and last name, else their email. */
     ownerName: z.string().openapi({ example: 'Ihor Herasko' }),
+    account: z.string().nullable().openapi({
+      description: "Its subscription's account email; null without a subscription, or one that names none",
+      example: 'ihorherasko@airia.ai',
+    }),
+    /** Its GitHub and Atlassian parts: what the agent may do there and as whom. */
+    tools: AgentProfileToolsSchema,
   })
   .openapi('AgentProfile');
 
@@ -30,38 +63,11 @@ export const RunsWithSchema = z
   .object({
     model: z.string().nullable().openapi({ example: 'claude-opus-5-5' }),
     effort: Effort.nullable().openapi({ example: 'high' }),
-    provider: AiProvider,
+    provider: ProfileProvider,
   })
   .openapi('RunsWith');
 
-/**
- * A GitHub or Atlassian profile an agent has (S7.1b): its name, tool and owner, who its sign-in acts as (null while it
- * has none) and where, and its rights; never its sign-in's secret.
- */
-export const AgentToolProfileSchema = z
-  .object({
-    id: z.string(),
-    name: z.string().openapi({ example: 'AiriaLLC push' }),
-    provider: ToolProvider,
-    ownerUserId: z.string(),
-    /** The owner's first and last name, else their email. */
-    ownerName: z.string().openapi({ example: 'Ihor Herasko' }),
-    account: z.string().nullable().openapi({
-      description: "GitHub's login or Atlassian's name (else email); null while the profile has no sign-in",
-      example: 'ihorherasko',
-    }),
-    site: z.string().nullable().openapi({ description: "Atlassian's site; null for GitHub", example: null }),
-    /** Its rights there (`ToolRights` of `@mwc/shared/credentials`, made after zod-openapi extends zod). */
-    rights: z.union([GitHubRights, AtlassianRights]).openapi({
-      example: { repos: ['AiriaLLC/*'], push: true, pullRequests: true },
-    }),
-  })
-  .openapi('AgentToolProfile');
-
-/**
- * A profile in a change: one of yours to give (of the agent's harness's provider; of the tool, for a GitHub or Atlassian
- * profile), or null for none.
- */
+/** A profile in a change: one of yours to give (of the agent's harness's provider), or null for none. */
 export const ProfileChoice = z
   .string()
   .nullable()
@@ -72,7 +78,7 @@ export const ProfileChoice = z
  * agents; one of theirs of that provider, or null for none.
  */
 export const DefaultProfileBodySchema = z
-  .object({ provider: AiProvider, profileId: ProfileChoice })
+  .object({ provider: ProfileProvider, profileId: ProfileChoice })
   .openapi('DefaultProfileChoice');
 
 /** A member's defaults here, one per provider. */
@@ -97,6 +103,6 @@ export const ProfileClearedSchema = z
 
 export type AgentProfileView = z.infer<typeof AgentProfileSchema>;
 export type RunsWithView = z.infer<typeof RunsWithSchema>;
-export type AgentToolProfileView = z.infer<typeof AgentToolProfileSchema>;
+export type AgentProfileToolsView = z.infer<typeof AgentProfileToolsSchema>;
 export type DefaultProfileView = z.infer<typeof DefaultProfileSchema>;
 export type ProfileClearedView = z.infer<typeof ProfileClearedSchema>;

@@ -10,26 +10,15 @@ import {
   ownersOf,
   type TenantDb,
 } from '@mwc/db';
-import type { AiProvider, CredentialKind, CredentialStatus, ToolProvider } from '@mwc/shared/enums';
+import type { CredentialKind, CredentialStatus, ProfileProvider } from '@mwc/shared/enums';
 import { asc, eq, inArray, or } from 'drizzle-orm';
 
 /**
- * The org module's reads and writes of access profiles (S3.4; tool profiles since S7.1b): the company's agents and
- * memberships that point at one, through the company's tenant, and the profiles themselves, personal rows, through the
- * personal layer on the tenant's connection: whose a profile is (`ownersOf`), then its rows through its owner's layer
- * (`ownedIn`), and a tool profile's sign-in's account details the same way (never its secret).
+ * The org module's reads and writes of access profiles (S3.4): the company's agents and memberships that point at one,
+ * through the company's tenant, and the profiles themselves, personal rows, through the personal layer on the tenant's
+ * connection: whose a profile is (`ownersOf`), then its rows through its owner's layer (`ownedIn`), and its tool parts'
+ * sign-ins' account details the same way (S7.1b, one profile since 2026-11-13; never a secret).
  */
-
-/** The agent column of each tool's profile (S7.1b). */
-export const TOOL_COLUMNS = {
-  github: 'githubProfileId',
-  atlassian: 'atlassianProfileId',
-} as const satisfies Record<ToolProvider, keyof Agent>;
-
-/** Every agent column that holds an access profile: its AI profile, then its tool profiles. */
-export const PROFILE_COLUMNS = ['profileId', ...Object.values(TOOL_COLUMNS)] as const;
-
-export type ProfileColumn = (typeof PROFILE_COLUMNS)[number];
 
 /** The owner of each of these profiles that exists, by profile id. */
 const profileOwners = (t: TenantDb, ids: readonly string[]): Promise<Map<string, string>> =>
@@ -51,7 +40,7 @@ async function profileIdsOf(t: TenantDb, userId: string): Promise<string[]> {
   return (await ownedIn(t, userId).select(accessProfiles)).map((profile) => profile.id);
 }
 
-/** A tool sign-in's details an agent's view shows: who it acts as, never its secret. */
+/** A profile's credential's details an agent's view shows: who it acts as, never its secret. */
 export interface SignInDetails {
   readonly id: string;
   readonly kind: CredentialKind;
@@ -60,8 +49,8 @@ export interface SignInDetails {
   readonly status: CredentialStatus;
 }
 
-/** These credentials of one owner, as their account details only. */
-async function ownerSignIns(
+/** These credentials of one owner (a profile's subscription, its tool parts' sign-ins), as their account details only. */
+async function ownerCredentials(
   t: TenantDb,
   ownerUserId: string,
   ids: readonly string[],
@@ -77,23 +66,19 @@ async function ownerSignIns(
   }));
 }
 
-/**
- * The company's agents (archived ones too) that use one of these profiles as their AI profile or a tool profile, in the
- * order they were created.
- */
-const agentsUsing = (t: TenantDb, profileIds: readonly string[]): Promise<Agent[]> => {
-  if (profileIds.length === 0) return Promise.resolve([]);
-  const ids = [...profileIds];
-  const where = or(...PROFILE_COLUMNS.map((column) => inArray(agents[column], ids)));
-  return t.select(agents, where).orderBy(asc(agents.createdAt), asc(agents.id));
-};
+/** The company's agents (archived ones too) that use one of these profiles, in the order they were created. */
+const agentsUsing = (t: TenantDb, profileIds: readonly string[]): Promise<Agent[]> =>
+  profileIds.length === 0
+    ? Promise.resolve([])
+    : t
+        .select(agents, inArray(agents.profileId, [...profileIds]))
+        .orderBy(asc(agents.createdAt), asc(agents.id));
 
-/** Takes these profiles off every agent of the company that has one, in whichever of its columns. */
-async function clearAgentProfiles(t: TenantDb, profileIds: readonly string[]): Promise<void> {
-  if (profileIds.length === 0) return;
-  for (const column of PROFILE_COLUMNS) {
-    await t.update(agents, { [column]: null }, inArray(agents[column], [...profileIds]));
-  }
+/** Takes their profile off these agents of the company. */
+async function clearAgentProfiles(t: TenantDb, used: readonly Agent[]): Promise<void> {
+  if (used.length === 0) return;
+  const ids = used.map((agent) => agent.id);
+  await t.update(agents, { profileId: null }, inArray(agents.id, ids));
 }
 
 /** The membership of a principal of the company, whatever its status. */
@@ -120,16 +105,16 @@ const defaultsUsing = (t: TenantDb, profileId: string): Promise<Membership[]> =>
     )
     .orderBy(asc(memberships.id));
 
-/** The membership column of each AI provider's default (tool profiles have no default). */
+/** The membership column of each provider's default. */
 export const DEFAULT_COLUMNS = {
   claude: 'defaultClaudeProfileId',
   openai: 'defaultOpenaiProfileId',
-} as const satisfies Record<AiProvider, keyof Membership>;
+} as const satisfies Record<ProfileProvider, keyof Membership>;
 
 async function setDefaultProfile(
   t: TenantDb,
   membershipId: string,
-  provider: AiProvider,
+  provider: ProfileProvider,
   profileId: string | null,
 ) {
   const where = eq(memberships.id, membershipId);
@@ -141,7 +126,7 @@ async function setDefaultProfile(
 export const profileRows = {
   profileOwners,
   ownerProfiles,
-  ownerSignIns,
+  ownerCredentials,
   profileRow,
   profileIdsOf,
   agentsUsing,

@@ -10,9 +10,10 @@ import {
   addSignIn,
   agentsPath,
   makeAgent,
+  PROFILES,
   placedMember,
   positionPath,
-  seedToolProfile,
+  seedProfile,
 } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
@@ -87,27 +88,26 @@ describe('GET /api/companies/:companyId/agents/:agentId/briefing', () => {
     );
   });
 
-  it('ends with what its GitHub and Atlassian profiles let it do and as whom, and follows their changes', async () => {
+  it('ends with what its profile’s GitHub and Atlassian parts let it do and as whom, and follows their changes', async () => {
     const company = await membersCompany(w);
     const owner = company.owner;
     const signIn = await addSignIn(w, keyring, owner.userId, 'github_oauth');
-    const rights = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
-    const github = await seedToolProfile(w.t.db, owner.userId, 'github', { credentialId: signIn.id, rights });
-    const atlassian = await seedToolProfile(w.t.db, owner.userId, 'atlassian');
-    const coder = await makeAgent(w, company, owner, { name: 'Coder', githubProfileId: github.id });
+    const githubRights = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
+    const profile = await seedProfile(w.t.db, owner.userId, { githubCredentialId: signIn.id, githubRights });
+    const coder = await makeAgent(w, company, owner, { name: 'Coder', profileId: profile.id });
     const read = async () =>
       ((await as(w, owner)('GET', briefingPath(company, coder.id))).body as { briefing: string }).briefing;
     expect((await read()).split('\n').at(-1)).toBe(
       '- GitHub: as ihor-fake; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
         `merges, force-pushes, deletes or pushes to a default branch. ${TOOL_ACCESS_NOTE}`,
     );
-    await as(w, owner)('PATCH', agentsPath(company, coder.id), {
-      githubProfileId: null,
-      atlassianProfileId: atlassian.id,
-    });
+    const change = { tools: { github: null, atlassian: {} } };
+    expect((await as(w, owner)('PATCH', `${PROFILES}/${profile.id}`, change)).status).toBe(200);
     expect((await read()).split('\n').at(-1)).toBe(
-      '- Atlassian: its profile has no sign-in now, so no access.',
+      '- Atlassian: your access profile has no sign-in for it now, so no access.',
     );
+    await as(w, owner)('PATCH', agentsPath(company, coder.id), { profileId: null });
+    expect((await read()).split('\n').at(-1)).toBe('- Nobody reports to you.');
   });
 
   it('is a 404 for an unknown agent and for another company’s', async () => {

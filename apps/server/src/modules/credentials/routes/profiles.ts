@@ -15,8 +15,9 @@ import { accessProfilesService } from '../service/profiles.ts';
 
 /**
  * `/api/me/access-profiles` (S3.4, one provider each since 2026-11-10): the caller's own access profiles, each one of
- * their Claude subscriptions or one of their OpenAI ones with any of their gateways (optional) and the model and
- * effort its runs use (since 2026-11-10, `@mwc/shared/models`), which they give to
+ * their Claude subscriptions or one of their OpenAI ones with any of their gateways (optional), the model and effort
+ * its runs use (since 2026-11-10, `@mwc/shared/models`) and its optional GitHub and Atlassian parts (S7.1b, one profile
+ * since 2026-11-13: a sign-in of that tool and its rights), which they give to
  * agents of the matching harness in companies where they are an admin or owner (the agent routes) and choose as their
  * default there, one per provider. Personal, and managed only signed in to the web app: an API key is refused (403
  * `session_required`).
@@ -31,8 +32,9 @@ const NAME_TAKEN = errorResponse('You have a profile of that name already (`acce
 const CREDENTIAL_REFUSED = errorResponse(
   'None of your subscriptions (`credential_not_found`); a subscription of another provider than the profile’s ' +
     '(`provider_mismatch`: Claude takes `claude_oauth`, `claude_setup_token`, `anthropic_api_key`; OpenAI ' +
-    '`codex_oauth`, `openai_api_key`); a gateway that is not one (`credential_kind_mismatch`; any gateway fits any ' +
-    'profile); a revoked one (`credential_revoked`); a model of the other provider (`model_provider_mismatch`); an effort its model, or ' +
+    '`codex_oauth`, `openai_api_key`); a gateway that is not one, or a tool part’s sign-in of another tool ' +
+    '(`credential_kind_mismatch`: GitHub takes `github_oauth`, `github_token`; Atlassian `atlassian_api_token`; any ' +
+    'gateway fits any profile); a revoked one (`credential_revoked`); a model of the other provider (`model_provider_mismatch`); an effort its model, or ' +
     'its provider, does not take (`effort_unsupported`: Claude takes low to max, Codex low to ultra, some models fewer)',
 );
 const UPDATE_REFUSED = errorResponse(
@@ -48,7 +50,7 @@ const listRoute = (deps: ServerDeps) => {
     ...base,
     method: 'get',
     summary:
-      'Your access profiles, with their subscription and gateway as metadata and the agents using each',
+      'Your access profiles, with their subscription, gateway and tool parts as metadata and the agents using each',
     responses: { 200: jsonResponse('Your profiles, oldest first', AccessProfileListSchema), ...refusals },
   });
 };
@@ -59,7 +61,7 @@ const createProfileRoute = (deps: ServerDeps) => {
     ...base,
     method: 'post',
     summary:
-      'Make an access profile: its provider (fixed), one of your subscriptions of it, any of your gateways, a model and an effort',
+      'Make an access profile: its provider (fixed), one of your subscriptions of it, any of your gateways, a model, an effort and tool parts',
     request: { body: jsonBody(CreateAccessProfileSchema) },
     responses: {
       201: jsonResponse('The new profile', AccessProfileSchema),
@@ -77,7 +79,7 @@ const updateProfileRoute = (deps: ServerDeps) => {
     ...base,
     method: 'patch',
     summary:
-      'Rename one of your access profiles, or change its subscription (of its provider) or gateway (any), its model or effort',
+      'Rename one of your access profiles, or change its subscription (of its provider), gateway (any), model, effort or tool parts (add, change, remove)',
     request: { params: AccessProfileParamsSchema, body: jsonBody(UpdateAccessProfileSchema) },
     responses: {
       200: jsonResponse('The profile after the change', AccessProfileSchema),

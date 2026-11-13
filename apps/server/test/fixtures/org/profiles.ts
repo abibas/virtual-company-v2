@@ -1,8 +1,8 @@
 /**
  * The access profiles' test helpers (S3.4), split from `../org.ts`, which re-exports them: subscriptions of every kind
  * sealed as the store seals them, profiles made straight through the personal layer and put on agents and defaults
- * straight in the tables, and raw reads of both; for tool profiles (S7.1b) GitHub and Atlassian sign-ins with a fake
- * account's details, GitHub and Atlassian profiles, and an agent's tool profiles as stored.
+ * straight in the tables, and raw reads of both; for a profile's tool parts (S7.1b, one profile since 2026-11-13) GitHub
+ * and Atlassian sign-ins with a fake account's details.
  */
 import { randomBytes } from 'node:crypto';
 import {
@@ -17,8 +17,7 @@ import {
   tenant,
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import { defaultRights } from '@mwc/shared/credentials';
-import type { AiProvider, CredentialKind, ToolProvider } from '@mwc/shared/enums';
+import type { CredentialKind, ProfileProvider } from '@mwc/shared/enums';
 import { and, asc, eq } from 'drizzle-orm';
 import { expect } from 'vitest';
 import { credentialSecrets, type StoreCredentialInput } from '../../../src/modules/credentials/index.ts';
@@ -136,14 +135,6 @@ export async function seedProfile(
   return row as AccessProfile;
 }
 
-/** A GitHub or Atlassian profile of a person's, with its tool's default rights unless given (no rules checked). */
-export const seedToolProfile = (
-  db: DbHandle,
-  userId: string,
-  provider: ToolProvider,
-  values: Partial<Omit<AccessProfile, 'id' | 'ownerUserId' | 'provider'>> = {},
-) => seedProfile(db, userId, { provider, rights: defaultRights(provider), ...values });
-
 /** Puts a profile on an agent straight in the table (no rules checked). */
 export async function putProfile(db: DbHandle, companyId: string, agentId: string, profileId: string | null) {
   await (await tenant(db, companyId)).update(agents, { profileId }, eq(agents.id, agentId));
@@ -157,7 +148,7 @@ export async function putDefault(
   db: DbHandle,
   membershipId: string,
   profileId: string | null,
-  provider: AiProvider = 'claude',
+  provider: ProfileProvider = 'claude',
 ) {
   await rawDb(db)
     .update(memberships)
@@ -169,14 +160,19 @@ export async function putDefault(
 export const agentProfileOf = async (db: DbHandle, agentId: string) =>
   (await rawDb(db).select().from(agents).where(eq(agents.id, agentId)))[0]?.profileId;
 
-/** The GitHub and Atlassian profiles an agent holds, as stored. */
-export async function agentToolsOf(db: DbHandle, agentId: string) {
-  const [row] = await rawDb(db).select().from(agents).where(eq(agents.id, agentId));
-  return { githubProfileId: row?.githubProfileId, atlassianProfileId: row?.atlassianProfileId };
+/** A profile's tool part columns as stored. */
+export async function profileToolsOf(db: DbHandle, profileId: string) {
+  const [row] = await rawDb(db).select().from(accessProfiles).where(eq(accessProfiles.id, profileId));
+  const { githubCredentialId, githubRights, atlassianCredentialId, atlassianRights } = row as AccessProfile;
+  return { githubCredentialId, githubRights, atlassianCredentialId, atlassianRights };
 }
 
 /** The default profile of a provider (Claude by default) a membership holds, as stored. */
-export const defaultProfileOf = async (db: DbHandle, membershipId: string, provider: AiProvider = 'claude') =>
+export const defaultProfileOf = async (
+  db: DbHandle,
+  membershipId: string,
+  provider: ProfileProvider = 'claude',
+) =>
   (await rawDb(db).select().from(memberships).where(eq(memberships.id, membershipId)))[0]?.[
     DEFAULT_FIELDS[provider]
   ];

@@ -13,7 +13,6 @@ import { SLUG_PATTERN } from '@mwc/shared/slugs';
 import { AgentIconSchema } from './schemas/icons.ts';
 import {
   AgentProfileSchema,
-  AgentToolProfileSchema,
   ProfileChoice,
   ProfileClearedSchema,
   RunsWithSchema,
@@ -88,10 +87,6 @@ export const AgentSchema = z
       description:
         "What its runs run: its access profile's model and effort (null each: the provider's default); null without a profile",
     }),
-    /** Its GitHub profile (S7.1b): the account it acts as there and its rights; null for none. */
-    githubProfile: AgentToolProfileSchema.nullable(),
-    /** Its Atlassian profile (S7.1b), for Jira and Confluence; null for none. */
-    atlassianProfile: AgentToolProfileSchema.nullable(),
     /** Where it runs (S4.7); null until it is placed on a machine. */
     placement: AgentPlacementSummarySchema.nullable(),
     createdAt: at,
@@ -119,9 +114,9 @@ export const AgentListSchema = z.object({ agents: z.array(AgentSchema) }).openap
 
 /**
  * A new agent. Left out: the slug is derived from the name (with `-2`, `-3`, ... when taken), the face from the slug,
- * the manager is the caller, the profile is the caller's default here (`profileId: null` for none), and it has no GitHub
- * or Atlassian profile (S7.1b: tool profiles have no default). Its model and effort are its profile's (since
- * 2026-11-10): an agent has none of its own.
+ * the manager is the caller, and the profile is the caller's default here (`profileId: null` for none). Its model and
+ * effort are its profile's (since 2026-11-10), and so are its GitHub and Atlassian access (the profile's tool parts,
+ * since 2026-11-13): an agent has none of its own.
  */
 export const CreateAgentSchema = z
   .object({
@@ -134,15 +129,12 @@ export const CreateAgentSchema = z
     face: Face.optional(),
     reportsToPrincipalId: PrincipalRef.nullable().optional(),
     profileId: ProfileChoice.optional(),
-    githubProfileId: ProfileChoice.optional(),
-    atlassianProfileId: ProfileChoice.optional(),
   })
   .openapi('CreateAgent');
 
 /**
  * Any of the agent's fields; `status: archived` takes it off the chart, and back from there it reports to the caller.
- * `profileId`, `githubProfileId`, `atlassianProfileId`: one of your access profiles (of that kind) to give it, or null
- * to take it off.
+ * `profileId`: one of your access profiles to give it, or null to take its profile off.
  */
 export const UpdateAgentSchema = z
   .object({
@@ -155,8 +147,6 @@ export const UpdateAgentSchema = z
     face: Face.optional(),
     status: AgentStatus.optional(),
     profileId: ProfileChoice.optional(),
-    githubProfileId: ProfileChoice.optional(),
-    atlassianProfileId: ProfileChoice.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, 'Give at least one field to change')
   .openapi('UpdateAgent');

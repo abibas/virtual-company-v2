@@ -5,11 +5,10 @@ import {
   type BriefingNode,
   standingInstructions,
 } from '@mwc/shared/agent-briefing';
-import type { BriefingTool } from '@mwc/shared/credentials';
+import { type BriefingTool, TOOL_PROVIDERS } from '@mwc/shared/credentials';
 import type { ChartNode } from '@mwc/shared/org-chart';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { profilesOf, type UserProfile } from '../../identity/service.ts';
-import { TOOL_COLUMNS } from '../repo/profiles.ts';
 import { type OrgRepo, orgRepo } from '../repo.ts';
 import type { OrgState } from '../rules/placement.ts';
 import { profileExtras, profileRefs } from './profiles.ts';
@@ -19,24 +18,22 @@ import { loadOrg } from './read.ts';
  * An agent's briefing (docs/harness.md, "Standing instructions"): `agentBriefing` of `@mwc/shared/agent-briefing` over
  * the company's live chart, read as `GET /org/chart` reads it (every active member and every agent not archived, the
  * titles on the chart, people's display names from the identity module, read outside any transaction), the company's
- * name, and the agent's GitHub and Atlassian profiles (S7.1b: who each acts as, and its rights). The web writes the same
- * text from the chart it shows.
+ * name, and the tool parts of the agent's access profile (S7.1b, one profile since 2026-11-13: who each acts as, and
+ * its rights). The web writes the same text from the chart it shows.
  */
 
-/** What the briefing reads of an agent: its principal and its tool profiles. */
-type BriefedAgent = Pick<Agent, 'principalId' | (typeof TOOL_COLUMNS)[keyof typeof TOOL_COLUMNS]>;
+/** What the briefing reads of an agent: its principal and its access profile. */
+type BriefedAgent = Pick<Agent, 'principalId' | 'profileId'>;
 
-/** The agent's tool profiles as the briefing reads them, GitHub's then Atlassian's (none it no longer has). */
+/** The tool parts of the agent's access profile as the briefing reads them, GitHub's then Atlassian's. */
 async function toolsOf(deps: Pick<ServerDeps, 'db'>, repo: OrgRepo, t: TenantDb, agent: BriefedAgent) {
-  const held = { profileId: null, ...agent };
-  const ids = Object.values(TOOL_COLUMNS).map((column) => held[column]);
-  if (ids.every((id) => id === null)) return [];
-  const { githubProfile, atlassianProfile } = profileExtras(await profileRefs(deps, repo, t, ids), held);
-  return [githubProfile, atlassianProfile].flatMap((tool): BriefingTool[] =>
-    tool === null
-      ? []
-      : [{ provider: tool.provider, account: tool.account, site: tool.site, rights: tool.rights }],
-  );
+  if (agent.profileId === null) return [];
+  const { profile } = profileExtras(await profileRefs(deps, repo, t, [agent.profileId]), agent.profileId);
+  if (profile === null) return [];
+  return TOOL_PROVIDERS.flatMap((provider): BriefingTool[] => {
+    const part = profile.tools[provider];
+    return part === null ? [] : [{ provider, ...part }];
+  });
 }
 
 /** A chart node with what the briefing reads of it. */

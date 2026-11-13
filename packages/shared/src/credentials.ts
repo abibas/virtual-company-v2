@@ -1,6 +1,6 @@
 import type { CredentialKind, Harness, ProfileProvider, ToolProvider } from './enums.ts';
 
-/** A tool profile's rights (S7.1b) and who its sign-in acts as: `credentials/tool-rights.ts`; in words: `tool-words.ts`. */
+/** A profile's tool parts' rights (S7.1b) and who a sign-in acts as: `credentials/tool-rights.ts`; in words: `tool-words.ts`. */
 export * from './credentials/tool-rights.ts';
 export * from './credentials/tool-words.ts';
 export type { ToolProvider } from './enums.ts';
