@@ -123,6 +123,8 @@ export class SlackError extends Error {
   /** Slack's own `error` (`missing_scope`, `channel_not_found`); null when Slack said none (an outage). */
   readonly slackError: string | null;
   readonly status: number | null;
+  /** A rate limit's wait before trying again, in ms (its `Retry-After`); null for any other error. */
+  readonly retryAfterMs: number | null;
 
   constructor(
     code: SlackErrorCode,
@@ -130,6 +132,7 @@ export class SlackError extends Error {
       readonly slackError?: string | null;
       readonly status?: number | null;
       readonly detail?: string | undefined;
+      readonly retryAfterMs?: number | null;
     } = {},
   ) {
     const words = SLACK_ERROR_MESSAGES[code];
@@ -138,6 +141,7 @@ export class SlackError extends Error {
     this.code = code;
     this.slackError = options.slackError ?? null;
     this.status = options.status ?? null;
+    this.retryAfterMs = options.retryAfterMs ?? null;
   }
 }
 

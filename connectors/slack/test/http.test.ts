@@ -86,6 +86,7 @@ describe('a call to Slack', () => {
     const long = fakeFetch({ 'search.messages': { status: 429, headers: { 'retry-after': '60' } } });
     const error = await failure(slackHttp({ fetch: long.fetch, ...noSleep })(SIGN_IN, 'search.messages'));
     expect(error.message).toContain('Try again in 60 s.');
+    expect(error.retryAfterMs).toBe(60_000);
     expect(long.calls).toHaveLength(1);
     const inBody = fakeFetch({ 'search.messages': [refused('ratelimited'), ok()] });
     const call = slackHttp({ fetch: inBody.fetch, maxWaitMs: UNSAID_WAIT_MS, ...noSleep });

@@ -5,7 +5,7 @@ import { SlackError, type SlackErrorCode, type SlackSignIn } from '@mwc/tools-co
  * form-encoded (what every Web API method takes; blocks as JSON), through the injected `fetch` (the server's provider
  * client, so no test reaches Slack), with redirects refused and a deadline per attempt. Slack answers a refusal with HTTP
  * 200 and `{ok: false, error}`; a rate limit with 429 and `Retry-After` (or `error: ratelimited`), retried up to twice
- * when its wait is short (at most 10 s each), else refused saying when to try again. A refusal is a `SlackError` in words
+ * when its wait is short (at most 10 s each), else refused saying when to try again (the wait kept as `retryAfterMs`). A refusal is a `SlackError` in words
  * with Slack's own error kept; the token never appears in one. Only `slack.com` is ever called.
  */
 
@@ -172,7 +172,12 @@ export function slackHttp(options: HttpOptions): Request {
       await response.body?.cancel().catch(() => undefined);
       const wait = limitWait(response);
       if (tries >= retries || wait > maxWait)
-        throw new SlackError('rate_limited', { slackError: 'ratelimited', status, detail: waitWords(wait) });
+        throw new SlackError('rate_limited', {
+          slackError: 'ratelimited',
+          status,
+          detail: waitWords(wait),
+          retryAfterMs: wait,
+        });
       await sleep(wait);
     }
   };

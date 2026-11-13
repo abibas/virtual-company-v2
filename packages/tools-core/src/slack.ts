@@ -69,6 +69,8 @@ export interface SlackUser {
   readonly timeZone: string | null;
   /** Their avatar's address (72 px), when Slack gives one. */
   readonly image: string | null;
+  /** Their email, only when the token has `users:read.email`. */
+  readonly email: string | null;
 }
 
 /** A message search's hit. */

@@ -103,7 +103,12 @@ describe('the Slack connector', () => {
       name: 'ihor',
       real_name: 'Ihor Herasko',
       tz: 'Europe/Kyiv',
-      profile: { display_name: 'Ihor', title: 'CEO', image_72: 'https://avatars.slack-edge.com/u01_72.png' },
+      profile: {
+        display_name: 'Ihor',
+        title: 'CEO',
+        image_72: 'https://avatars.slack-edge.com/u01_72.png',
+        email: 'ihor@airia.com',
+      },
     };
     const ci = {
       id: 'U02',
@@ -129,6 +134,7 @@ describe('the Slack connector', () => {
         deleted: false,
         timeZone: 'Europe/Kyiv',
         image: 'https://avatars.slack-edge.com/u01_72.png',
+        email: 'ihor@airia.com',
       },
       {
         id: 'U02',
@@ -140,6 +146,7 @@ describe('the Slack connector', () => {
         deleted: true,
         timeZone: null,
         image: 'x',
+        email: null,
       },
     ]);
     expect((await api.userInfo(SIGN_IN, 'U01')).title).toBe('CEO');

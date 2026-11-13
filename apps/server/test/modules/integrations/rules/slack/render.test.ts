@@ -77,6 +77,7 @@ describe('the Slack answers', () => {
       deleted: true,
       timeZone: null,
       image: null,
+      email: null,
     };
     expect(userView(user)).toEqual({ id: 'U1', name: 'ihor', deleted: true });
     expect(userName(user)).toBe('ihor');
