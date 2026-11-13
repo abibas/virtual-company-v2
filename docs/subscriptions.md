@@ -982,7 +982,12 @@ In the Slack app (api.slack.com/apps → the app):
   again: then "App-level token set", Replace, Remove). The switch needs the token; removing the token stops receiving.
 - **Who can wake agents**: **Anyone in the allowed channels** (the channels the answering agent's profile reaches) or
   **Only these people** (the default): Slack people as chips with their avatars, added by a search of the workspace
-  (a name among `users.list`'s people, an email with `users.lookupByEmail`; no bots or deactivated people). Before the
+  (a name among `users.list`'s people, an email with `users.lookupByEmail`; no bots or deactivated people). The
+  workspace's people are kept in memory per bot sign-in: focusing the field loads every `users.list` page once in the
+  background (rate limits waited out as `Retry-After` says; a sliding bar with the count so far), searches rank that
+  list at once (name words starting with the typed words, then names holding them, then emails; any case or accent;
+  20 with title, email and avatar), it reloads after 6 hours or on "Reload from Slack", one `slack_people` use per load
+  (2026-11-13: the old search read only the first 1,000 people and called Slack on every key). Before the
   settings are first saved, the list holds the owner's own Slack person when one of their user tokens of the same
   workspace names it (its `auth.test`'s user); else it starts empty, and nobody wakes an agent until someone is added.
 - **Default agent**: any agent of the owner's companies whose profile's Slack part uses this sign-in.
@@ -990,8 +995,9 @@ In the Slack app (api.slack.com/apps → the app):
 
 The API: `GET`/`PUT /api/me/subscriptions/{credentialId}/slack-inbound` (`appToken`, write-only, null removes it;
 `inbound`, `wake`, `people`, `defaultAgent`, `maxPerHour`; 422 `app_token_missing`, `agent_not_eligible`,
-`not_a_slack_bot`, `credential_revoked`), `GET …/slack-people?q=` (a use `slack_people`; 422 `slack_refused` with
-Slack's words, 502 `provider_unavailable`). Personal and session-only like the sign-ins; audited per field, the token
+`not_a_slack_bot`, `credential_revoked`), `GET …/slack-people?q=` (no `q` only starts the load; `people`, `loading`,
+`loaded`, `loadedAt`; 422 `slack_refused` with Slack's words, 502 `provider_unavailable`) and `POST
+…/slack-people/refresh` (loads the people again). Personal and session-only like the sign-ins; audited per field, the token
 as `set`, never its value.
 
 ### Socket Mode (`connectors/slack`, `socket.ts`)

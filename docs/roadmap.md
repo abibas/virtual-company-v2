@@ -901,6 +901,12 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          (30, said once), no bots or self, a stopped machine started only by its policy for a message; each wake an
          `inbound` use, audited. Web: the Slack card's Receive messages (the token, the switch and status, who can wake
          agents with a people picker, the default agent, the cap). The runner did not change.
+       - **People search, 2026-11-13** (Ihor: typing "eri" found nothing; "when I start typing I need a progress bar"):
+         the workspace's people kept in memory per bot sign-in (`service/slack/inbound/directory.ts`: every `users.list`
+         page once in the background, `Retry-After` waited out, reloaded after 6 hours or on demand, one `slack_people`
+         use per load), ranked by `rules/slack/inbound/people.ts`; the picker warms it on focus with a progress bar and
+         lists matches as you type (keyboard, the typed part marked). The port's `SlackUser.email` and
+         `SlackError.retryAfterMs` came with it.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
