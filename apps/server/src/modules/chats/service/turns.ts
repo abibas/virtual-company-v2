@@ -19,6 +19,7 @@ import {
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
+import { type ServerToolsHook, serverToolsOf } from './server-tools.ts';
 import { slotCheck, waitForSlot } from './slot-wait.ts';
 import { resolveTarget, type Target, type TargetDeps } from './target.ts';
 import {
@@ -49,6 +50,8 @@ export interface TurnsDeps extends TargetDeps {
   readonly clock: () => Date;
   /** The tasks module's side of a task's conversation (S5.3b); none: chats know nothing of tasks. */
   readonly tasks?: TaskTurnHook | undefined;
+  /** The server's own tools (S7.1c, the Atlassian tools); none: a turn gets none. */
+  readonly serverTools?: ServerToolsHook | undefined;
   /** The waits for a stopped machine (the runtime's); none: a stopped machine refuses the turn (`machine_offline`). */
   readonly waits?: MachineWaits | undefined;
 }
@@ -174,8 +177,11 @@ export async function startTurn(
   return launch(deps, t, turn, { machineId: chat.machineId, agent: target.agent }, used, spec.data, draft);
 }
 
-/** What a turn's spec adds for the agents' tools (S6a) when its runner offers them: their names, its instructions. */
-export const specTools = (
+/**
+ * What a turn's spec adds for the tools when its runner offers them: the agents' tools' names (S6a), the server's own
+ * tools of its profile (S7.1c), and its instructions with each one's line.
+ */
+export async function specTools(
   deps: TurnsDeps,
   t: TenantDb,
   turn: {
@@ -184,15 +190,26 @@ export const specTools = (
     readonly kind: ChatTurnKind;
     readonly draft: TaskTurnDraft | undefined;
   },
-) =>
-  toolsOf(deps.tasks, t, {
+) {
+  const { target, kind } = turn;
+  const agent = await toolsOf(deps.tasks, t, {
     chat: turn.chat,
-    agent: turn.target.agent,
-    kind: turn.kind,
+    agent: target.agent,
+    kind,
     draft: turn.draft,
-    offers: turn.target.agentTools,
-    instructions: turn.target.spec.instructions,
+    offers: target.agentTools,
+    instructions: target.spec.instructions,
   });
+  const instructions = agent.instructions ?? target.spec.instructions;
+  const offers = target.serverTools;
+  const server = await serverToolsOf(deps.serverTools, t, {
+    profileId: target.profileId,
+    kind,
+    offers,
+    instructions,
+  });
+  return { ...agent, ...server };
+}
 
 /** Why a spec failed its schema: the paths of its issues, once each. */
 export const specIssues = (error: {

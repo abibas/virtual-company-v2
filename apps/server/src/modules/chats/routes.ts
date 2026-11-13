@@ -20,6 +20,7 @@ import { failLeftTurns, turnAdopter } from './service/adopt.ts';
 import { type ChatQueue, chatQueue } from './service/drain.ts';
 import { chatsLive } from './service/live.ts';
 import { machineWaits } from './service/machine-wait.ts';
+import type { ServerToolsHook } from './service/server-tools.ts';
 import { slotWaits, slotWordsOf } from './service/slot-wait.ts';
 import type { TaskTurnHook } from './service/task-hook.ts';
 import { taskTurns } from './service/tasks.ts';
@@ -34,6 +35,8 @@ export interface ChatsDeps extends ServerDeps {
   readonly tickets: TerminalTickets;
   readonly keyring: Keyring;
   readonly tasks?: TaskTurnHook | undefined;
+  /** The server's own tools (S7.1c: the Atlassian tools), offered by a turn's profile. */
+  readonly serverTools?: ServerToolsHook | undefined;
   readonly wake: MachineWake;
 }
 
@@ -51,7 +54,8 @@ export interface ChatsDeps extends ServerDeps {
 export function chatsRuntime(deps: ChatsDeps) {
   const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
   const credentials = credentialsForHarness({ ...deps, providerFetch });
-  const live = chatsLive({ logger: deps.logger, clock: deps.clock, credentials, tasks: deps.tasks });
+  const { logger, clock, tasks, serverTools } = deps;
+  const live = chatsLive({ logger, clock, credentials, tasks, serverTools });
   const later = {} as { queue: ChatQueue };
   const timers = deps.machineWaitTimers ?? SYSTEM_TIMERS;
   const startNext = (t: TenantDb, chatId: string) => later.queue.startNext(t, chatId);

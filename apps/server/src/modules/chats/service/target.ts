@@ -64,6 +64,8 @@ export interface Target {
   readonly kind: CredentialKind;
   /** True when the machine's runner offers the agents' tools (S6a, `caps.agentTools`). */
   readonly agentTools: boolean;
+  /** True when it lists and relays the server's own tools (S7.1c, `caps.serverTools`). */
+  readonly serverTools: boolean;
 }
 
 /** Who asks, and for what. */
@@ -88,7 +90,14 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
   if (version === null) return harnessMissing(chat.harness);
   if (terminal && !runner.caps.terminal) return TERMINAL_UNAVAILABLE;
   if (chat.forkPending && !runner.caps.forks) return RUNNER_CANNOT_FORK;
-  return { ok: true as const, agent, placement, agentTools: runner.caps.agentTools === true };
+  const { caps } = runner;
+  return {
+    ok: true as const,
+    agent,
+    placement,
+    agentTools: caps.agentTools === true,
+    serverTools: caps.serverTools,
+  };
 }
 
 /** The profile the chat runs on: its own while the person who chose it is still an admin here, else the agent's. */
@@ -175,5 +184,6 @@ export async function resolveTarget(
     ownerUserId: profile.ownerUserId,
     kind: credential.kind,
     agentTools: place.agentTools,
+    serverTools: place.serverTools,
   };
 }

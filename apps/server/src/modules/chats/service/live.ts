@@ -13,6 +13,7 @@ import { noticeQuestion } from './ask-notice.ts';
 import { type ChatBus, chatBus } from './bus.ts';
 import { heldForSlot } from './live-slot.ts';
 import { NO_TOOLS_HERE, toolCall } from './live-tools.ts';
+import type { ServerToolsHook } from './server-tools.ts';
 import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
 
@@ -46,6 +47,8 @@ export interface LiveDeps {
   readonly credentials: CredentialsForHarness;
   /** The tasks module's side of a task's conversation (S5.3b). */
   readonly tasks?: TaskTurnHook | undefined;
+  /** The server's own tools (S7.1c), whose calls skip the write queue. */
+  readonly serverTools?: ServerToolsHook | undefined;
 }
 
 interface LiveTurn {
@@ -209,7 +212,7 @@ export function chatsLive(deps: LiveDeps) {
           }),
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
-        tool: (call) => toolCall(deps.tasks, run, t, { turn, context }, call),
+        tool: (call) => toolCall(deps, run, t, { turn, context }, call),
         end: (ending) => run(() => ended(l, t, turn, { ending, outcome, used, task })),
         lastSeq: async () => {
           let seq = 0;

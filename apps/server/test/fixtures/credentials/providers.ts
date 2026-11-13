@@ -46,6 +46,7 @@ export class FakeProvider {
   readonly calls: ProviderCall[] = [];
   readonly #queued = new Map<string, Answer[]>();
   readonly #standing = new Map<string, Answer>();
+  readonly #routes = new Map<string, Answer[]>();
 
   /** Answers the next call to `url` once, before any standing answer. */
   once(url: string, answer: Answer): this {
@@ -59,6 +60,15 @@ export class FakeProvider {
     return this;
   }
 
+  /**
+   * Answers the calls of `method` to `url` whatever their query, when neither a queued nor a standing answer takes them
+   * (S7.1c: Atlassian's addresses carry queries); a list is answered in turn, its last answer kept.
+   */
+  route(method: string, url: string, ...answers: Answer[]): this {
+    this.#routes.set(`${method} ${url}`, answers);
+    return this;
+  }
+
   /** The calls to one address. */
   callsTo(url: string): ProviderCall[] {
     return this.calls.filter((call) => call.url === url);
@@ -69,6 +79,13 @@ export class FakeProvider {
     this.calls.length = 0;
     this.#queued.clear();
     this.#standing.clear();
+    this.#routes.clear();
+  }
+
+  /** A route's next answer for the call (its address without the query). */
+  #routed(method: string, url: string): Answer | undefined {
+    const answers = this.#routes.get(`${method} ${url.split('?')[0]}`);
+    return answers && answers.length > 1 ? answers.shift() : answers?.[0];
   }
 
   readonly fetch: typeof fetch = async (input, init) => {
@@ -84,7 +101,8 @@ export class FakeProvider {
       hasDeadline: init?.signal instanceof AbortSignal,
     };
     this.calls.push(call);
-    const answer = this.#queued.get(url)?.shift() ?? this.#standing.get(url);
+    const answer =
+      this.#queued.get(url)?.shift() ?? this.#standing.get(url) ?? this.#routed(call.method, url);
     if (answer === undefined) throw new Error(`The fake provider has no answer for ${call.method} ${url}`);
     return answer(call);
   };

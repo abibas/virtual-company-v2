@@ -242,6 +242,9 @@ importers:
       '@hono/zod-openapi':
         specifier: 1.6.3
         version: 1.6.3(hono@4.13.16)(zod@4.6.7)
+      '@mwc/atlassian':
+        specifier: workspace:*
+        version: link:../../connectors/atlassian
       '@mwc/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -260,6 +263,9 @@ importers:
       '@mwc/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@mwc/tools-core':
+        specifier: workspace:*
+        version: link:../../packages/tools-core
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.14)(postgres@4.0.0)
