@@ -65,6 +65,7 @@ export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
     forks: true,
     reattach: harness?.keeper !== undefined && processes !== undefined,
     agentTools: harness?.ask !== undefined && processes !== undefined,
+    serverTools: harness?.ask !== undefined && processes !== undefined,
     ...(tools ? { tools } : {}),
     ...(containerId ? { containerId } : {}),
   };

@@ -1,14 +1,15 @@
 import { type AgentTool, checkToolInput, type InputIssue, issueLines } from '@mwc/shared/flows';
-import { ASK_TOOL, AskInput, type AskQuestions } from '@mwc/shared/harness';
+import { ASK_TOOL, AskInput, type AskQuestions, type ServerToolDef } from '@mwc/shared/harness';
 import { agentToolDefinition } from './agent-tools.ts';
+import { serverToolDefinition, serverToolInput } from './server-tools.ts';
 import { ASK_TOOL_DEFINITION, type AskReply, MCP_SERVER_NAME } from './tool.ts';
 
 /**
  * The runner's MCP server, by hand (docs/harness.md, "Asking the person" and "Agents' tools"): JSON-RPC 2.0 messages,
  * one per line, as the stdio transport carries them. It answers `initialize` (tools only), `ping`, `tools/list` (the
- * question tool, then the turn's agents' tools, S6a) and `tools/call` of one of them: the input is checked first (a bad
- * one is a tool error the model reads and corrects), then relayed to the runner (`ask`, `call`), whose text is the
- * tool's result. A tool this turn does not offer is -32602. Notifications (`notifications/initialized`) get no answer;
+ * question tool, then the turn's agents' tools, S6a, then the server's own, S7.1c) and `tools/call` of one of them: the
+ * input is checked first (a bad one is a tool error the model reads and corrects; a server tool's only for being an
+ * object, since the server checks it), then relayed to the runner (`ask`, `call`), whose text is the tool's result. A tool this turn does not offer is -32602. Notifications (`notifications/initialized`) get no answer;
  * an unknown method is -32601, a line that is no JSON -32700, anything else that is no request -32600.
  */
 
@@ -25,9 +26,9 @@ export const JSON_RPC = {
 /** Relays a tool call's questions to the runner that started the turn. */
 export type AskRelay = (questions: AskQuestions) => Promise<AskReply>;
 
-/** Relays a call of an agents' tool, its input checked, to the runner that started the turn (S6a). */
+/** Relays a call of an agents' tool (S6a) or a server tool (S7.1c), its input checked, to the turn's runner. */
 export type ToolRelay = (call: {
-  readonly tool: AgentTool;
+  readonly tool: string;
   readonly input: Record<string, unknown>;
 }) => Promise<AskReply>;
 
@@ -67,6 +68,8 @@ export interface McpServerOptions {
   readonly ask: AskRelay;
   /** The agents' tools this turn offers (S6a); none: the question tool alone. */
   readonly tools?: readonly AgentTool[];
+  /** The server's own tools this turn offers (S7.1c), after the agents' tools. */
+  readonly serverTools?: readonly ServerToolDef[];
   /** Where their calls go; required with `tools`. */
   readonly call?: ToolRelay;
 }
@@ -110,7 +113,13 @@ export class McpServer {
       case 'ping':
         return result(id, {});
       case 'tools/list':
-        return result(id, { tools: [ASK_TOOL_DEFINITION, ...this.#tools.map(agentToolDefinition)] });
+        return result(id, {
+          tools: [
+            ASK_TOOL_DEFINITION,
+            ...this.#tools.map(agentToolDefinition),
+            ...this.#serverTools.map(serverToolDefinition),
+          ],
+        });
       case 'tools/call':
         return this.#call(id, params);
       default:
@@ -132,9 +141,15 @@ export class McpServer {
     return this.#options.call === undefined ? [] : (this.#options.tools ?? []);
   }
 
+  get #serverTools(): readonly ServerToolDef[] {
+    return this.#options.call === undefined ? [] : (this.#options.serverTools ?? []);
+  }
+
   async #call(id: Id, params: Message) {
     const agentTool = this.#tools.find((tool) => tool === params.name);
     if (agentTool !== undefined) return this.#agentTool(id, agentTool, params.arguments);
+    const serverTool = this.#serverTools.find((tool) => tool.name === params.name);
+    if (serverTool !== undefined) return this.#serverTool(id, serverTool.name, params.arguments);
     if (params.name !== ASK_TOOL) {
       return failure(id, JSON_RPC.invalidParams, `Unknown tool: ${String(params.name)}`);
     }
@@ -149,5 +164,13 @@ export class McpServer {
     if (!checked.ok) return result(id, toolText(checked.error, true));
     const call = this.#options.call as ToolRelay;
     return result(id, await relayed(() => call({ tool, input: checked.input })));
+  }
+
+  /** A server tool's call (S7.1c): its input an object, relayed as it is; the server checks it and answers. */
+  async #serverTool(id: Id, tool: string, args: unknown) {
+    const input = serverToolInput(tool, args);
+    if (!input.ok) return result(id, toolText(input.error, true));
+    const call = this.#options.call as ToolRelay;
+    return result(id, await relayed(() => call({ tool, input: input.input })));
   }
 }

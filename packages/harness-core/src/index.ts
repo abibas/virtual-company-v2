@@ -21,6 +21,7 @@ export {
   type PrivateDir,
   type PrivateFile,
   type ProcessSpec,
+  SERVER_TOOLS_ENV,
   TOOLS_ENV,
   type TurnNotice,
   type TurnTools,

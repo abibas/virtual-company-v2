@@ -183,3 +183,25 @@ describe('the agents’ tools on a spec (S6a)', () => {
     ).toBe(false);
   });
 });
+
+describe('the server’s own tools on a spec (S7.1c)', () => {
+  const SEARCH = {
+    name: 'searchJiraIssuesUsingJql',
+    title: 'Search Jira issues',
+    description: 'Search issues with JQL.',
+    inputSchema: { type: 'object' },
+    readOnly: true,
+  };
+
+  it('are optional, whole, each name once and none of the reserved ones', () => {
+    expect(TurnSpec.parse(turn).serverTools).toBeUndefined();
+    expect(TurnSpec.parse({ ...turn, serverTools: [SEARCH] }).serverTools).toEqual([SEARCH]);
+    expect(TurnSpec.safeParse({ ...turn, serverTools: [SEARCH, SEARCH] }).success).toBe(false);
+    expect(TurnSpec.safeParse({ ...turn, serverTools: [{ ...SEARCH, name: 'task_read' }] }).success).toBe(
+      false,
+    );
+    expect(
+      TurnSpec.safeParse({ ...turn, serverTools: [{ ...SEARCH, name: 'ask_user_question' }] }).success,
+    ).toBe(false);
+  });
+});

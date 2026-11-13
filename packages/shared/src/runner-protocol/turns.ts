@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { CHAT_PROMPT } from '../chats.ts';
 import { Harness } from '../enums.ts';
-import { AgentToolName, TOOL_RESULT_MAX } from '../flows/tools.ts';
-import { AskQuestions, CodexAuthJson, TurnEvent, TurnSpec } from '../harness.ts';
+import { TOOL_RESULT_MAX } from '../flows/tools.ts';
+import { AskQuestions, CodexAuthJson, ServerToolName, TurnEvent, TurnSpec } from '../harness.ts';
 import { TurnArtifact, TurnArtifacts } from './artifacts.ts';
 import { ErrorText, frame, JsonObject, protocolObject, Uuid } from './common.ts';
 import { EVENT_BATCH_MAX_EVENTS } from './constants.ts';
@@ -137,11 +137,12 @@ export type TurnQuestion = z.infer<typeof TurnQuestion>;
  * from the runner's MCP server over the turn's private socket. `callId` is the runner's UUID for the call (a file
  * `task_attach {path}` attaches came just before, as `turn.artifact` parts with this id), `input` the tool's arguments
  * as the runner checked them (the server checks them again, with who may do what). Answered by `turn.tool.result`.
+ * Since S7.1c it may name one of the server's own tools (`TurnSpec.serverTools`), whose name may be camelCase.
  */
 export const TurnTool = frame('turn.tool', {
   turnId: Uuid,
   callId: Uuid,
-  tool: AgentToolName,
+  tool: ServerToolName,
   input: JsonObject,
 });
 export type TurnTool = z.infer<typeof TurnTool>;

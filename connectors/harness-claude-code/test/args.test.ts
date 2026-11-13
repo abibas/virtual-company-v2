@@ -151,6 +151,13 @@ describe('the runner’s tools', () => {
     expect(allowedTools({ ...TOOLS, names: [] })).toBe('mcp__mwc__ask_user_question');
   });
 
+  it('allows the server’s own tools by their camelCase names, still one plain word each (S7.1c)', () => {
+    const names = ['searchJiraIssuesUsingJql', 'getJiraIssue', 'get-thing', 'mcp__x y', '9lives'];
+    expect(allowedTools({ ...TOOLS, names })).toBe(
+      'mcp__mwc__ask_user_question,mcp__mwc__searchJiraIssuesUsingJql,mcp__mwc__getJiraIssue',
+    );
+  });
+
   it('start the runner’s MCP server with its socket and token in the config, never on a command line', () => {
     expect(JSON.parse(mcpConfig(TOOLS))).toEqual({
       mcpServers: { mwc: { type: 'stdio', command: TOOLS.command, args: TOOLS.args, env: TOOLS.env } },

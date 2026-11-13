@@ -67,6 +67,8 @@ export const RunnerCaps = protocolObject({
    * turn's spec and writes the step's prompt for them. False from an older runner, whose agents move nothing.
    */
   agentTools: z.boolean().default(false),
+  /** True when its turns list and relay the server's own tools (S7.1c, `TurnSpec.serverTools`); false from older ones. */
+  serverTools: z.boolean().default(false),
   /**
    * The CLIs it found, each one's version or null (`tools.ts`); left out by a runner older than the tools, which knows
    * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).

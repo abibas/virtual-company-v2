@@ -7,6 +7,7 @@ import { AgentToolName, TURN_TOOLS_MAX } from '../flows/tools.ts';
 import { PlacementPath } from '../machines.ts';
 import { MODEL_ID_PATTERN, ModelId } from '../models.ts';
 import { protocolObject } from '../runner-protocol/common.ts';
+import { ServerToolDefs } from './server-tools.ts';
 
 /**
  * What the server asks a runner to start (docs/harness.md): one chat turn (`TurnSpec`, with the credential it resolved
@@ -144,7 +145,8 @@ export const TurnToolNames = z
  * (docs/harness.md "Branching") resumes `sessionId` forked (`forkSession`: a new conversation from a copy, the original
  * untouched), with Claude Code up to `resumeAt` (a message id) when it continues from an earlier reply; absent: false,
  * none. A turn of a task's step (S5.3b) names its outputs' folder (`artifacts`); one with the agents' tools (S6a) names
- * them (`tools`).
+ * them (`tools`); one with the server's own tools (S7.1c, only to a runner that says `caps.serverTools`) carries them
+ * whole (`serverTools`).
  */
 export const TurnSpec = protocolObject({
   ...sessionFields,
@@ -153,5 +155,6 @@ export const TurnSpec = protocolObject({
   resumeAt: HarnessMessageId.optional(),
   artifacts: TurnArtifactsSpec.optional(),
   tools: TurnToolNames.optional(),
+  serverTools: ServerToolDefs.optional(),
 });
 export type TurnSpec = z.infer<typeof TurnSpec>;

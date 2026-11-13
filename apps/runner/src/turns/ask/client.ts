@@ -1,5 +1,4 @@
 import { connect } from 'node:net';
-import type { AgentTool } from '@mwc/shared/flows';
 import type { AskQuestions } from '@mwc/shared/harness';
 import { LineReader } from '../lines.ts';
 import { ASK_LINE_MAX, AskReply } from './tool.ts';
@@ -67,11 +66,11 @@ export function askRunner(
   return request(socketPath, JSON.stringify({ token, questions }), timeoutMs, NOT_IN_TURN);
 }
 
-/** Relays an agents' tool's call to the runner at `socketPath` with `token` (S6a); never throws. */
+/** Relays an agents' tool's (S6a) or a server tool's (S7.1c) call to the runner at `socketPath`; never throws. */
 export function callRunner(
   socketPath: string,
   token: string,
-  call: { readonly tool: AgentTool; readonly input: Record<string, unknown> },
+  call: { readonly tool: string; readonly input: Record<string, unknown> },
   timeoutMs = TOOL_TIMEOUT_MS,
 ): Promise<AskReply> {
   return request(socketPath, JSON.stringify({ token, ...call }), timeoutMs, TOOL_NOT_IN_TURN);

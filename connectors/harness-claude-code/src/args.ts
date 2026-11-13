@@ -74,8 +74,11 @@ export function mcpConfig(tools: TurnTools): string {
   return JSON.stringify({ mcpServers: { [ASK_SERVER]: server } });
 }
 
-/** An MCP tool's name as Claude Code calls it: `mcp__<server>__<tool>`; only plain lower-case names are allowed. */
-const TOOL_NAME = /^[a-z][a-z_]{0,63}$/;
+/**
+ * An MCP tool's name as Claude Code calls it: `mcp__<server>__<tool>`; only one plain word is allowed: letters, digits
+ * and `_` (the server's own tools keep Atlassian's camelCase names, S7.1c).
+ */
+const TOOL_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 
 /**
  * What `--allowedTools` takes for the runner's tools: one argument, every tool its server offers as Claude Code names it

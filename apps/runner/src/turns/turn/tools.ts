@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentTool } from '@mwc/shared/flows';
 import type { TurnArtifact, TurnTool, TurnToolResult } from '@mwc/shared/runner-protocol';
 import type { Log } from '../../system/log.ts';
 import type { Timers } from '../../system/time.ts';
@@ -62,7 +61,7 @@ export class TurnToolCalls {
   }
 
   /** Relays a call (its input checked by the bridge) and resolves with the server's answer, or why it did nothing. */
-  call(tool: AgentTool, input: Record<string, unknown>): Promise<AskReply> {
+  call(tool: string, input: Record<string, unknown>): Promise<AskReply> {
     const { turnId, relay, artifacts } = this.#deps;
     if (!this.#deps.live()) return Promise.resolve(failed(TOOL_ENDING));
     const callId = randomUUID();

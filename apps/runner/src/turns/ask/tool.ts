@@ -1,4 +1,3 @@
-import type { AgentTool } from '@mwc/shared/flows';
 import { ASK_LIMITS, ASK_SERVER, ASK_TOOL, type AskQuestions } from '@mwc/shared/harness';
 import { z } from 'zod';
 
@@ -104,9 +103,9 @@ export type AskReply = z.infer<typeof AskReply>;
 
 /**
  * What the runner does with a turn's requests (`turns/turn.ts`): shows its questions, or says why not; relays an agents'
- * tool's call to the server and answers what it said (S6a).
+ * tool's call (S6a) or a server tool's (S7.1c) to the server and answers what it said.
  */
 export interface AskHandler {
   ask(questions: AskQuestions): AskReply;
-  tool(tool: AgentTool, input: Record<string, unknown>): Promise<AskReply>;
+  tool(tool: string, input: Record<string, unknown>): Promise<AskReply>;
 }

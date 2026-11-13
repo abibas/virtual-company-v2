@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fakeLines, fakeTurnSpec } from '@mwc/harness-core/fake';
 import { newId } from '@mwc/shared/ids';
@@ -164,5 +164,44 @@ describe("a chat turn's agents' tools (S6a)", () => {
       ok: false,
       error: TOOL_NOT_IN_TURN,
     });
+  });
+});
+
+describe("a chat turn's server tools (S7.1c)", () => {
+  const SEARCH = {
+    name: 'searchJiraIssuesUsingJql',
+    title: 'Search Jira issues',
+    description: 'Search issues with JQL.',
+    inputSchema: { type: 'object' },
+    readOnly: true,
+  };
+
+  it('writes them to the turn’s folder, names them to the driver and relays their calls by name', async () => {
+    const { w, driver, cwd } = toolWorld();
+    w.spawn.when(FAKE_COMMAND, (child) => {
+      child.dies = false;
+    });
+    const turnId = newId();
+    const spec = fakeTurnSpec('claude_code', { cwd, tools: ['task_read'], serverTools: [SEARCH] });
+    w.turns.handle({ type: 'turn.start', turnId, spec });
+    await vi.waitFor(() => expect(w.spawn.calls).toHaveLength(1));
+    expect(driver.tools[0]?.names).toEqual(['ask_user_question', 'task_read', SEARCH.name]);
+    const file = envOf(w).MWC_SERVER_TOOLS as string;
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual([SEARCH]);
+    const { socket, token } = socketOf(w);
+    const pending = callRunner(socket, token, { tool: SEARCH.name, input: { jql: 'project = AP' } });
+    await vi.waitFor(() => expect(toolFrames(w)).toHaveLength(1));
+    const [call] = toolFrames(w);
+    expect(call).toMatchObject({ turnId, tool: SEARCH.name, input: { jql: 'project = AP' } });
+    w.turns.handle({
+      type: 'turn.tool.result',
+      turnId,
+      callId: call?.callId as string,
+      ok: true,
+      text: 'AP-1',
+    });
+    expect(await pending).toEqual({ ok: true, text: 'AP-1' });
+    w.spawn.calls[0]?.child.finish(answerLines(), 0);
+    await vi.waitFor(() => expect(w.ends()).toHaveLength(1));
   });
 });

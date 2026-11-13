@@ -4,6 +4,7 @@ import type { Log } from '../system/log.ts';
 import { ArtifactCollector } from './artifacts/collect.ts';
 import { knownTools } from './ask/agent-tools.ts';
 import { type AskBridge, turnTools } from './ask/bridge.ts';
+import { serverToolsFile } from './ask/server-tools.ts';
 import { processEnv } from './env.ts';
 import { type PrivateLease, withPrivateDir } from './private-dir.ts';
 import { RunFolder } from './runs/folder.ts';
@@ -14,7 +15,8 @@ import type { HarnessHost } from './turns.ts';
 
 /**
  * What a turn runs with (`turns.ts`): a fresh one's driver spec, run folder, private folder, environment, parser,
- * question socket (with the agents' tools the spec names that this runner knows, S6a) and outputs folder, built after
+ * question socket (with the agents' tools the spec names that this runner knows, S6a, and the server's own it carries,
+ * S7.1c, written to the turn's folder) and outputs folder, built after
  * the checks; a turn found on the disk at start (S5.4) takes its
  * driver's parser (from the turn's own start), its private folder adopted, its question socket listening again and its
  * outputs folder as its run folder noted it.
@@ -61,11 +63,12 @@ export function prepareTurn(
   if (driver === undefined) return { refused: 'unsupported' };
   if (!host.isDirectory(spec.cwd)) return { refused: 'home_missing' };
   const bridge = openBridge(host, turnId, log);
+  const serverTools = spec.serverTools ?? [];
   let built: ProcessSpec;
   try {
     built = driver.turn(
       spec,
-      bridge && host.ask && turnTools(host.ask, bridge, knownTools(spec.tools ?? [])),
+      bridge && host.ask && turnTools(host.ask, bridge, knownTools(spec.tools ?? []), serverTools),
     );
   } catch (error) {
     bridge?.close();
@@ -75,7 +78,11 @@ export function prepareTurn(
   let folder: RunFolder | undefined;
   try {
     folder = RunFolder.create(host.runs, turnId);
-    for (const file of built.turnFiles ?? []) bridge?.write(file);
+    const files = [
+      ...(built.turnFiles ?? []),
+      ...(serverTools.length > 0 ? [serverToolsFile(serverTools)] : []),
+    ];
+    for (const file of files) bridge?.write(file);
     lease = built.privateDir && host.dirs.acquire(built.privateDir, spec.harness, spec.cwd);
   } catch (error) {
     bridge?.close();

@@ -6,21 +6,24 @@ import {
   ASK_SOCKET_ENV,
   ASK_TOKEN_ENV,
   type PrivateFile,
+  SERVER_TOOLS_ENV,
   TOOLS_ENV,
   type TurnTools,
 } from '@mwc/harness-core';
 import { AgentTool } from '@mwc/shared/flows';
-import { ASK_TOOL, AskQuestions } from '@mwc/shared/harness';
+import { ASK_TOOL, AskQuestions, type ServerToolDef } from '@mwc/shared/harness';
 import type { Log } from '../../system/log.ts';
 import { LineReader } from '../lines.ts';
 import { checkToolInput } from './agent-tools.ts';
+import { isServerToolName, SERVER_TOOLS_FILE, serverToolInput } from './server-tools.ts';
 import { ASK_LINE_MAX, ASK_SOCKET_FILE, type AskHandler, type AskReply, AskRequest } from './tool.ts';
 
 /**
  * The runner's side of a turn's questions (docs/harness.md, "Asking the person"): a private folder per turn
  * (`<state>/turns/<12 hex>/`, 0700) holding a Unix socket (`ask.sock`) the turn's MCP server connects to, and the
  * files a driver asks for (Claude Code's `mcp.json`, 0600). A call must carry the turn's random token (compared in
- * constant time) and valid questions, or an agents' tool and a valid input (S6a); the handler the turn binds answers it,
+ * constant time) and valid questions, or an agents' tool and a valid input (S6a), or a server tool's name and an object
+ * (S7.1c, the server checks the rest); the handler the turn binds answers it,
  * a tool's call once the server said (the connection waits; only sending the request is timed). The socket listens
  * before the process starts (Node binds a path at once) and the folder goes, socket and files with it, when the process
  * ends. A runner that
@@ -101,13 +104,20 @@ export function answerRequest(
   return handler === undefined ? { ok: false, error: NOT_READY } : handler.ask(questions.data);
 }
 
-/** An agents' tool's call: a tool the runner knows, its input checked again, then the handler's (the server's) word. */
+/**
+ * A tool's call: an agents' tool the runner knows with its input checked again, or a server tool's name with an object
+ * (S7.1c), then the handler's (the server's) word.
+ */
 function toolRequest(request: AskRequest, handler: AskHandler | undefined): AskReply | Promise<AskReply> {
-  const tool = AgentTool.safeParse(request.tool);
-  if (!tool.success) return { ok: false, error: `Unknown tool: ${request.tool}` };
-  const input = checkToolInput(tool.data, request.input);
+  const name = request.tool as string;
+  const tool = AgentTool.safeParse(name);
+  const input = tool.success
+    ? checkToolInput(tool.data, request.input)
+    : isServerToolName(name)
+      ? serverToolInput(name, request.input)
+      : { ok: false as const, error: `Unknown tool: ${name}` };
   if (!input.ok) return input;
-  return handler === undefined ? { ok: false, error: NOT_READY } : handler.tool(tool.data, input.input);
+  return handler === undefined ? { ok: false, error: NOT_READY } : handler.tool(name, input.input);
 }
 
 /**
@@ -190,10 +200,16 @@ function listenBridge(dir: string, token: string, tokenSha256: string, log: Log)
 }
 
 /**
- * What a driver gets of a turn's bridge: its folder, how to start the MCP server, the socket and token for it, and the
- * agents' tools it offers (S6a: `MWC_TOOLS`, comma-joined, only when there are any), named after the question tool.
+ * What a driver gets of a turn's bridge: its folder, how to start the MCP server, the socket and token for it, the
+ * agents' tools it offers (S6a: `MWC_TOOLS`, comma-joined, only when there are any) and the server's own (S7.1c: the
+ * file in its folder `MWC_SERVER_TOOLS` names, which the runner writes), named after the question tool.
  */
-export function turnTools(host: AskHost, bridge: AskBridge, tools: readonly AgentTool[] = []): TurnTools {
+export function turnTools(
+  host: AskHost,
+  bridge: AskBridge,
+  tools: readonly AgentTool[] = [],
+  serverTools: readonly ServerToolDef[] = [],
+): TurnTools {
   return {
     dir: bridge.dir,
     command: host.command,
@@ -202,8 +218,9 @@ export function turnTools(host: AskHost, bridge: AskBridge, tools: readonly Agen
       [ASK_SOCKET_ENV]: bridge.socketPath,
       [ASK_TOKEN_ENV]: bridge.token,
       ...(tools.length > 0 ? { [TOOLS_ENV]: tools.join(',') } : {}),
+      ...(serverTools.length > 0 ? { [SERVER_TOOLS_ENV]: join(bridge.dir, SERVER_TOOLS_FILE) } : {}),
     },
-    names: [ASK_TOOL, ...tools],
+    names: [ASK_TOOL, ...tools, ...serverTools.map((tool) => tool.name)],
   };
 }
 

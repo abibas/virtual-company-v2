@@ -38,6 +38,8 @@ export const ASK_SOCKET_ENV = 'MWC_ASK_SOCKET';
 export const ASK_TOKEN_ENV = 'MWC_ASK_TOKEN';
 /** The variable that names the agents' tools the turn's MCP server offers (S6a), comma-joined; absent: none. */
 export const TOOLS_ENV = 'MWC_TOOLS';
+/** The variable that names the file of the server's own tools the turn's MCP server offers (S7.1c); absent: none. */
+export const SERVER_TOOLS_ENV = 'MWC_SERVER_TOOLS';
 
 /**
  * The runner's tools a turn may call (docs/harness.md, "Asking the person" and "Agents' tools"): its MCP server, which a
@@ -52,9 +54,15 @@ export interface TurnTools {
   readonly command: string;
   /** `[<runner.mjs>, 'mcp']`. */
   readonly args: readonly string[];
-  /** `ASK_SOCKET_ENV` and `ASK_TOKEN_ENV`, and `TOOLS_ENV` when it offers agents' tools. */
+  /**
+   * `ASK_SOCKET_ENV` and `ASK_TOKEN_ENV`, `TOOLS_ENV` when it offers agents' tools, and `SERVER_TOOLS_ENV` when it offers
+   * the server's own (S7.1c).
+   */
   readonly env: Readonly<Record<string, string>>;
-  /** The MCP tools its server offers: `ask_user_question` first, then the turn's agents' tools in order. */
+  /**
+   * The MCP tools its server offers: `ask_user_question` first, then the turn's agents' tools in order, then the
+   * server's own (S7.1c).
+   */
   readonly names: readonly string[];
 }
 

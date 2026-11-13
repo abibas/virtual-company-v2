@@ -168,10 +168,11 @@ describe("a turn's agents' tools on the socket (S6a)", () => {
       ok: false,
       error: ASK_REFUSED,
     });
-    const unknown = { tool: 'rm_rf', input: {} } as unknown as typeof read;
+    // A name of one word may be a server tool's (S7.1c): relayed for the server to decide; anything else is refused.
+    const unknown = { tool: 'rm -rf', input: {} } as unknown as typeof read;
     expect(await callRunner(bridge.socketPath, bridge.token, unknown)).toEqual({
       ok: false,
-      error: 'Unknown tool: rm_rf',
+      error: 'Unknown tool: rm -rf',
     });
     const bad = await callRunner(bridge.socketPath, bridge.token, { tool: 'task_blocked', input: {} });
     expect(bad.ok).toBe(false);
