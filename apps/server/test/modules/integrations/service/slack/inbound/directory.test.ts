@@ -140,6 +140,13 @@ describe('a load', () => {
     expect(viewOf(await d.view())).toEqual({ ids: ['U0IHOR'], loading: false });
     expect(d.open).toHaveBeenCalledTimes(2);
   });
+
+  it('is not left under way when opening the sign-in throws', async () => {
+    const d = directoryOf([page([IHOR])]);
+    d.open.mockRejectedValueOnce(new Error('database away'));
+    await expect(d.view()).rejects.toThrow('database away');
+    expect(viewOf(await d.view())).toEqual({ ids: ['U0IHOR'], loading: false });
+  });
 });
 
 describe('the list kept', () => {

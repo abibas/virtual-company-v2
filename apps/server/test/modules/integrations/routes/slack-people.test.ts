@@ -122,6 +122,7 @@ describe('the people search', () => {
       'users.lookupByEmail': [
         ok({ user: rawUser('U0ANNA', 'anna', { profile: { image_72: 'http://x' } }) }),
         slackError('users_not_found'),
+        ok({ user: rawUser('U0BOTX', 'bot', { is_bot: true }) }),
       ],
     });
     await loaded(s);
@@ -130,9 +131,11 @@ describe('the people search', () => {
       { id: 'U0ANNA', name: 'anna', title: null, email: null, image: null },
     ]);
     expect((await search(s, 'nobody@airia.com')).body.people).toEqual([]);
+    expect((await search(s, 'bot@airia.com')).body.people).toEqual([]);
     expect(callsOf(w, 'users.lookupByEmail').map(formOf)).toEqual([
       { email: 'anna@airia.com' },
       { email: 'nobody@airia.com' },
+      { email: 'bot@airia.com' },
     ]);
   });
 
@@ -179,6 +182,11 @@ describe('the people search', () => {
       status: 422,
       body: { error: { code: 'credential_revoked' } },
     });
+    const reload = as(w, lookup.company.owner)(
+      'POST',
+      `${inboundPath(lookup.signIn.id, 'slack-people')}/refresh`,
+    );
+    expect((await reload).status).toBe(422);
     const elsewhere = await slackScene(w);
     expect(
       (await as(w, refused.company.owner)('GET', inboundPath(elsewhere.signIn.id, 'slack-people'))).status,

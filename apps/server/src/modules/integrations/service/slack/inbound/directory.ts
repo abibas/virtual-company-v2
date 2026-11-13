@@ -158,7 +158,10 @@ export function slackDirectory(deps: DirectoryDeps) {
       if (idle && entry.loadedAt === null && resting) return { ok: false, error: failed.error };
       if (idle && !resting && (entry.loadedAt === null || at - entry.loadedAt >= REFRESH_MS)) {
         entry.partial = []; // under way from here: an ask meanwhile sees it loading
-        const opened = await open();
+        const opened = await open().catch((error: unknown) => {
+          entry.partial = null;
+          throw error;
+        });
         if (!opened.ok) {
           entry.partial = null;
           return opened;
