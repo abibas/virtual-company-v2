@@ -182,7 +182,7 @@ A gateway has no provider any more: the `accountMeta.provider` that gateways bri
   the first 8 and the last 4 (`agk-NTE5••••MHx8`), 8 to 15 the first 2 and the last 2, fewer only `••••`, and a scheme
   word (Bearer, Basic, Token, Bot, Digest, ApiKey, Key, DPoP, in any case) stays in front of its token's preview
   (`Bearer eyJhbGci••••abcd`). The server makes them when it seals the headers and stores them beside the sealed value
-  (`credentials.header_previews`, migration `0033_gateway_header_previews`), so a list opens no secret. A gateway sealed
+  (`credentials.header_previews`, migration `0034_gateway_header_previews`), so a list opens no secret. A gateway sealed
   before that migration has no previews: SQL cannot open a sealed value, so the first `GET /api/me/subscriptions` opens it
   once, records a `preview` use and stores them; one that does not open is listed with `headers: null`.
 - **Changing one:** `PATCH /api/me/subscriptions/:id` takes `label`, and for a gateway `baseUrl`, `paths` (given paths
