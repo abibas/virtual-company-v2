@@ -42,7 +42,7 @@ company. Kinds:
 "Subscription login" (Ihor, 2026-11-05): adding a subscription obtains **and stores** its login token and config,
 so nothing has to be signed in again on a machine.
 
-The GitHub and Atlassian sign-ins (S7.1a) share this store with three more kinds: "Tool sign-ins" below.
+The GitHub and Atlassian sign-ins (S7.1a) and Slack's (S7.1e) share this store with five more kinds: "Tool sign-ins" below.
 
 ### The sign-in helper
 
@@ -226,8 +226,9 @@ same day: "we have to LOCK in Profile, that we can Choose EITHER 1 harness EITHE
 | OpenAI    | one OpenAI subscription (`codex_oauth`, `openai_api_key`), any gateway, a model, an effort and a mode |
 | GitHub    | one GitHub sign-in (`github_oauth`, `github_token`) and its rights ("Tool parts" below)            |
 | Atlassian | one Atlassian sign-in (`atlassian_api_token`) and its rights                                       |
+| Slack     | one Slack sign-in (`slack_bot_token`, `slack_user_token`) and its rights ("Slack" below)           |
 
-Slack comes later (S7.1e) as a third tool part. A profile has a Claude part or an OpenAI part, or neither (a GitHub-only
+Slack is the third tool part since S7.1e (migration `0036_slack_part`). A profile has a Claude part or an OpenAI part, or neither (a GitHub-only
 or Atlassian-only profile), never both. An agent gets one profile (`agents.profile_id`) with an AI part, and its harness
 follows that part: Claude Code on a Claude part, Codex on an OpenAI part. Its GitHub and Atlassian access are the
 profile's tool parts. A person makes as many profiles as they
@@ -242,7 +243,7 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
     `credentials`, `on delete set null`), `<part>_model` (1–100, null for the harness's default), `<part>_effort`
     (null for the default) and `<part>_mode` (since `0035_profile_mode`: one of its harness's modes, null for the
     default, Manual or Ask; "Mode" below), for `claude` and `openai`;
-  - each tool part: `<tool>_credential_id` and `<tool>_rights` (jsonb), for `github` and `atlassian`; the part is
+  - each tool part: `<tool>_credential_id` and `<tool>_rights` (jsonb), for `github`, `atlassian` and `slack`; the part is
     there when its rights are.
 
   CHECKs keep one AI part at most (`access_profiles_one_ai_part_check`: `not (claude_part and openai_part)`), an AI
@@ -251,13 +252,13 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
   `src/profile-parts.ts`) map the parts to their columns. **Why typed columns rather than one jsonb or a parts table:**
   every credential needs a real column for its foreign key, so removing a credential lets go of it; typed columns keep
   the model and effort CHECKs, one row read per profile (a turn reads its harness's part straight from the row), and
-  per-field audit rows; a part is two to five columns, and Slack is two more.
+  per-field audit rows; a part is two to five columns, and Slack's was two more (`0036_slack_part`).
 - **Credentials.** Each is one of the owner's own, of a kind its place takes (`PROVIDER_KINDS`, `GATEWAY_KINDS`,
   `TOOL_KINDS`, `fitsProvider`, `fitsGateway`, `fitsTool`), never a revoked one when it is put in; one revoked while in
   place stays until it is replaced. Removing a credential empties its place, and the part stays (an AI part without a
   subscription cannot run: a turn says `profile_empty`).
 - **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
-  only. `POST` takes `{ name, parts? }`, `PATCH` `{ name?, parts? }`; `parts` is `{ claude?, openai?, github?, atlassian? }`:
+  only. `POST` takes `{ name, parts? }`, `PATCH` `{ name?, parts? }`; `parts` is `{ claude?, openai?, github?, atlassian?, slack? }`:
   - an AI part `{ credentialId?, gatewayCredentialId?, model?, effort?, mode? }` (a mode of its harness: Claude Code's
     five on a Claude part, Codex's three on an OpenAI part; another is a 400), a tool part `{ credentialId?, rights? }`;
   - a part the profile has not is added with what it gives, the rest empty (an AI part's mode its default, Manual or
@@ -306,13 +307,13 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
 - **Audit:** profile create, update and delete (personal rows: `name`, `ownerUserId` and every part column:
   `claudePart`, `claudeCredentialId`, `claudeGatewayCredentialId`, `claudeModel`, `claudeEffort`, `claudeMode`, the
   same for `openai`,
-  `githubCredentialId`, `githubRights`, `atlassianCredentialId`, `atlassianRights`), an agent's `profileId`, a
+  `githubCredentialId`, `githubRights`, `atlassianCredentialId`, `atlassianRights`, `slackCredentialId`, `slackRights`), an agent's `profileId`, a
   membership's `defaultClaudeProfileId` and `defaultOpenaiProfileId`.
 - **The web** (the **Profiles** page; the rail and its links say Profiles, the route stays `/profiles`; labels only):
   - one list of profile cards, with no provider groups or badges. Each card has its name (renamed in place) and Delete,
-    then its parts as sections in a fixed order (Claude, OpenAI, GitHub, Atlassian), each with **Remove**: an AI part's
+    then its parts as sections in a fixed order (Claude, OpenAI, GitHub, Atlassian, Slack), each with **Remove**: an AI part's
     **Subscription**, **Gateway**, **Model**, **Effort** and **Mode** (a segmented control of its harness's modes); a tool part's **Sign-in** and rights ("Tool parts" below);
-    each saved as it changes. A row of **Add Claude**, **Add OpenAI**, **Add GitHub** and **Add Atlassian** adds the
+    each saved as it changes. A row of **Add Claude**, **Add OpenAI**, **Add GitHub**, **Add Atlassian** and **Add Slack** adds the
     missing ones (each with the person's first credential of that kind); Add Claude and Add OpenAI show only while the
     profile has neither, so once one is added the other's button is gone, and removing it brings both back (still
     refused while agents run on it). "Used by: Developer, QA" names the agents.
@@ -416,7 +417,7 @@ Built in S7.1a (2026-11-12). Ihor decided that day: Atlassian signs in with an A
 of their own in S7.1b (since 2026-11-13 parts of a generic profile, "Tool parts" below), and work stops after each step
 for his live test.
 
-A tool sign-in lives in the same personal store as the subscriptions, with three more kinds. Each is sealed like the
+A tool sign-in lives in the same personal store as the subscriptions, with five more kinds (Slack's two since S7.1e). Each is sealed like the
 others, write-only, managed only in a Clerk session (an API key is 403 `session_required`) and audited, and every
 server-side use of its secret is a `credential_uses` row (purpose `tool_check`). Tool sign-ins never power an AI turn:
 they go only in a profile's tool part of their tool; as an AI part's subscription or gateway one is 422
@@ -429,6 +430,8 @@ page's widget never shows them. `TOOL_CREDENTIAL_KINDS`, `isToolKind`, `TOOL_PRO
 | `github_oauth`        | **Sign in with GitHub**: the GitHub CLI's device sign-in in the sign-in helper | `{ token }` (`gh auth token`) | `host` (`github.com`), `login`, `name`, `scopes`; its public email is the account email | GitHub `GET https://api.github.com/user` |
 | `github_token`        | paste a classic (`ghp_`) or fine-grained (`github_pat_`) personal access token | `{ token }`           | the same, and `tokenType` (`classic` or `fine_grained`); no `scopes` for a fine-grained token | the same |
 | `atlassian_api_token` | the site, the account email and an API token                        | `{ site, email, token }`  | `site`, `jira` and `confluence` (true when that product answered), `accountId`, `displayName`; the email is the account email | Jira `GET https://<site>/rest/api/3/myself` and Confluence `GET https://<site>/wiki/rest/api/user/current`, basic auth, side by side |
+| `slack_bot_token`     | paste a Slack app's Bot User OAuth Token (`xoxb-`); S7.1e           | `{ token }`               | `team` (the workspace), `teamId`, `url`, `user` (the bot's name), `userId`, `botId`, `enterpriseId` when there is one, `scopes` (from `X-OAuth-Scopes`) | Slack `POST https://slack.com/api/auth.test`, bearer |
+| `slack_user_token`    | paste a Slack app's User OAuth Token (`xoxp-`), which acts and posts as that person | `{ token }` | the same, with the person's name and no `botId` | the same |
 
 Migration `0029_tool_sign_ins` widened the kind CHECK and added `credentials.checked_at` (a tool sign-in's last check
 with its provider; null for the AI kinds, whose limits checks live in the server's memory) and `check_error` (why it did
@@ -555,13 +558,20 @@ told.
   |           | `jiraProjects`     | `all`, or project keys (`AP`; typed lower-case, stored upper-case)                             |
   |           | `confluence`       | `off`, `read`, `write` (create and update pages)                                               |
   |           | `confluenceSpaces` | `all`, or space keys (`ENG`, a personal space's `~` key)                                       |
+  | Slack     | `read`             | channels' history and threads, the channel list, users (S7.1e, "Slack" below)                  |
+  |           | `post`             | post into channels and threads                                                                 |
+  |           | `channels`         | `all`, or channel names (`general`: typed with or without `#`, stored lower-case) and ids (`C0123ABCD`) |
+  |           | `dms`              | `off`, `read`, `post` (direct messages and group DMs)                                          |
+  |           | `search`           | search messages (a user token with `search:read`, and `read`)                                  |
+  |           | `react`            | add reactions                                                                                  |
 
   GitHub reads in the repositories it reaches, always. A GitHub part never merges, deletes, force-pushes or pushes to a
-  default branch, and an Atlassian part never deletes or archives: those are no options. A new part starts at the safe
-  end (`defaultRights`): GitHub reaches no repository and only reads; Atlassian reads Jira and Confluence everywhere and
-  writes nowhere.
+  default branch, an Atlassian part never deletes or archives, and a Slack part never mentions `@here`, `@channel` or
+  `@everyone`, deletes, edits others' messages, invites, kicks or administers: those are no options. A new part starts at
+  the safe end (`defaultRights`): GitHub reaches no repository and only reads; Atlassian reads Jira and Confluence
+  everywhere and writes nowhere; Slack reads every channel and posts nowhere, with DMs, search and reactions off.
 - **The briefing:** an agent's briefing ends with one line per tool part of its profile (`toolBriefingLine` of
-  `credentials/tool-words.ts`, GitHub's then Atlassian's), what it may do there and as whom, and which of Most Wanted's
+  `credentials/tool-words.ts`, GitHub's, Atlassian's then Slack's), what it may do there and as whom, and which of Most Wanted's
   tools use it: Atlassian's since S7.1c, GitHub's since S7.1d (until then it said the access was configured and its tools
   would come), with git and gh on the machine when the part may push:
 
@@ -785,6 +795,160 @@ package).
    list the sandbox's pull requests with gh". The clone and push work over https with your sign-in (an SSH address
    too); `gh pr list` answers. Asking it to push to main, or to force-push, ends in the hook's
    "Most Wanted: refused: …" line.
+
+## Slack
+
+Built in S7.1e (2026-11-13; Ihor: "lets do 7.1e... I have keys for slack… now! i need something where i can define
+scopes.. READ only etc"). He has a Slack app with a Bot User OAuth Token (`xoxb-`) and a User OAuth Token (`xoxp-`). An
+agent whose turn runs on a profile with a Slack part reads Slack and, by its rights, posts, reacts and searches through
+tools the **server** answers; the token is opened on the server for each call and never reaches the machine.
+
+### The sign-in
+
+- **One form** (Subscriptions → Tools → Add a tool → Slack, **Bot or user token**): `POST /api/me/subscriptions/tools`
+  with `{ kind: 'slack', label?, token }`. The prefix decides the kind: `xoxb-` is `slack_bot_token`, `xoxp-`
+  `slack_user_token` (`slackKindOf` of `@mwc/shared/credentials`); anything else (an app-level `xapp-` token, a legacy
+  token, spaces, other characters) is a 400 before Slack is asked. A renewal (`credentialId`) keeps its kind: a user token
+  for a bot's sign-in is 422 `tool_kind_mismatch`.
+- **The check:** `POST https://slack.com/api/auth.test` with the token as the bearer. Slack answers 200 with `{ok: true}`
+  and the workspace (`team`, `team_id`, `url`), who the token is (`user`, `user_id`) and a bot's id (`bot_id`); the scopes
+  Slack granted come in the `X-OAuth-Scopes` header. All of it is kept in the account details (`team`, `teamId`, `url`,
+  `user`, `userId`, `botId`, `enterpriseId`, `scopes`), named "Slack · <workspace>" unless a name is given. A bot token
+  that names no bot (or a user token that names one) is refused. Slack refuses with 200 and `{ok: false, error}`:
+  `invalid_auth`, `not_authed`, `account_inactive`, `token_revoked` and `token_expired` mean `needs_sign_in` (422
+  `tool_sign_in_refused` when adding); `ratelimited` or a 429 `rate_limited`; `internal_error`, `fatal_error`,
+  `service_unavailable` or a 5xx `provider_unavailable`; `not_allowed_token_type` and `no_permission` `refused`; anything
+  else `invalid_response`.
+- **As the other tool sign-ins:** write-only, Check again, the daily check (a revoked or invalid token turns
+  `needs_sign_in`, one that works again `active`, new scopes are kept), every check a `tool_check` use.
+- **The card** shows the Slack mark, "Slack bot" or "Slack user", the workspace, "Bot · <name>" or "User · <name>", and
+  the token's scopes as chips.
+
+### The profile's Slack part
+
+`access_profiles.slack_credential_id` and `slack_rights` (migration `0036_slack_part`, `PROFILE_TOOL_COLUMNS.slack`;
+`SlackRights` of `@mwc/shared/credentials`): a Slack sign-in and these rights.
+
+| Right      | What it allows                                                                  | Default |
+| ---------- | ------------------------------------------------------------------------------- | ------- |
+| `read`     | channels' history and threads, the channel list, the users                      | on      |
+| `post`     | post into channels and threads                                                  | off     |
+| `channels` | where `read`, `post` and `react` reach: `all`, or names and ids (at most 100)   | `all`   |
+| `dms`      | `off`, `read` or `post`: direct messages and group DMs, apart from `channels`   | `off`   |
+| `search`   | search messages (a user token's `search:read`, with `read`)                     | off     |
+| `react`    | add reactions                                                                   | off     |
+
+**The token's own scopes cap the rights** (`effectiveSlackRights`): a right whose scopes the token lacks gives no tool,
+and its call is refused naming the scope ("The Slack sign-in of this agent's profile needs chat:write for
+slack_post_message: its owner adds it to the Slack app, reinstalls the app and adds the new token."). A request that
+**turns on** a right the part's sign-in cannot use is 422 `slack_scope_missing` ("Post needs chat:write, which this
+Slack sign-in lacks: add the scope to the Slack app, reinstall it and add the new token"); a right already on, a new
+part's defaults, or a new sign-in alone are never refused, so a part can always be changed and a right turned off. The
+Profiles page shows such a right disabled, with a tooltip naming what is missing.
+
+**A user token posts as Ihor himself.** It is allowed, since he has one, but the bot is the default; the part's section
+says **Posts as you** beside its sign-in, and its posts still carry the footer naming the agent.
+
+### The Slack app's scopes
+
+Give the app the scopes of the rights you mean to use, as **Bot Token Scopes** for the bot (or **User Token Scopes** for
+a user token), on its **OAuth & Permissions** page (`SLACK_SCOPES` of `@mwc/shared/credentials`):
+
+| Right                 | Scopes                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| read                  | `channels:read` and `channels:history`; `groups:read` and `groups:history` for private channels; `users:read` for the users and the authors' names |
+| post                  | `chat:write`; `chat:write.customize` to post under the agent's name and icon; `chat:write.public` to post in a public channel the bot was not invited to |
+| DMs                   | read: `im:read` and `im:history`; post: also `im:write` and `chat:write`                    |
+| search                | a user token's `search:read` (Slack does not let bots search)                              |
+| react                 | `reactions:write`                                                                          |
+
+- **Reinstall the app after changing its scopes:** Slack keeps a token's scopes as they were when the app was
+  installed. Reinstall it (OAuth & Permissions → Reinstall to Workspace), then **Sign in again** on the card with the
+  token Slack shows (or **Check again**, if the token stayed the same) so the new scopes are kept.
+- **Don't opt into token rotation** (expiring tokens with a refresh token): it is not supported yet; a rotated token
+  stops working after 12 hours and the sign-in turns `needs_sign_in`.
+- A bot reads and posts only in channels it was invited to (`/invite @<bot>`); a call there says so ("The bot is not in
+  #general: invite the bot to #general in Slack (/invite @mw-bot), then try again.").
+
+### The Slack tools
+
+By the names and inputs of the reference Slack MCP server (`modelcontextprotocol/servers`, whose `slack_<verb>_<thing>`
+names Slack's own MCP server shares), with `slack_search_messages` for search:
+
+| Given by                       | Tools |
+| ------------------------------ | ----- |
+| `read` (or `dms` for DMs)      | `slack_list_channels {limit?, cursor?}`, `slack_get_channel_history {channel_id, limit?, cursor?, oldest?, latest?}`, `slack_get_thread_replies {channel_id, thread_ts, limit?, cursor?}` |
+| the same with `users:read`     | `slack_get_users {limit?, cursor?}`, `slack_get_user_profile {user_id}` |
+| `post` (or `dms` `post`)       | `slack_post_message {channel_id, text}`, `slack_reply_to_thread {channel_id, thread_ts, text}` |
+| `react`                        | `slack_add_reaction {channel_id, timestamp, reaction}` (the emoji's name, colons dropped) |
+| `search`                       | `slack_search_messages {query, count?, page?, sort?, sort_dir?}` |
+
+Nothing deletes, edits a message, invites, kicks or administers: there is no such tool. Arguments that would change who
+a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as_user`, `blocks`, `attachments`,
+`link_names`, `parse`, `reply_broadcast`) are refused by name.
+
+- **Offered** to a message turn whose profile (the chat's own, else the agent's) has a Slack part with a sign-in, on a
+  runner that says `caps.serverTools`, by its rights as its token's scopes let them work. The standing instructions get
+  one line: "Slack tools (from Most Wanted): as mw-bot in Airia: read #general; post in #general. Your tools, by the
+  names of the Slack MCP servers: …; channel_id takes a channel's id or #name. Posts show under your own name on the bot
+  and end with "via Most Wanted · <your name>"; @here, @channel and @everyone are stripped. They never delete, edit
+  others' messages, invite or kick." The briefing's line: "- Slack: as mw-bot in Airia; may read #general; may post in
+  #general. Your Most Wanted tools: slack_get_channel_history, slack_post_message, …; never @here, @channel or @everyone."
+- **Checked on every call** (`modules/integrations/service/slack/call.ts`): the tool is one of them; the profile is read
+  again; the part has a sign-in and its working rights give the tool; no refused argument; the input passes its schema.
+- **The conversation** a call names (`channel_id`) is resolved and checked before Slack is asked to act
+  (`service/slack/channels.ts`): a name (`#general` or `general`) is found in the channels the sign-in sees
+  (`conversations.list`, public ones and, with `groups:read`, private ones, up to 1000); an id the allowlist names is
+  used as it is, any other id read with `conversations.info`; then the channel must be in `channels` (by its id or its
+  name) and the right on: "#random is outside the Slack channels this agent's profile reaches (#general).". A DM's id
+  (`D…`) and a group DM go by `dms` alone ("Direct messages are off for this agent's profile.", "This agent's profile may
+  only read direct messages."); a person's id (`U…`) only posts a DM, opened with `conversations.open`.
+  `slack_list_channels` gives a page of what the sign-in sees, kept to the allowlist (and the DMs when they are on),
+  saying how many it left out. A search's hits outside the channels and DMs are dropped and counted.
+- **Posting** (`service/slack/posts.ts`): every mention of many people is stripped before Slack sees the text
+  (`<!here>`, `<!channel>`, `<!everyone>`, user groups `<!subteam^…>`, and `@here`, `@channel`, `@everyone` typed as
+  words; the word stays, the mention goes; the answer and the audit row name what was stripped), with `link_names` off,
+  `parse` none and no unfurls. The text goes in Block Kit sections (at most 3000 characters each) with a context line
+  "via Most Wanted · <agent>" under it, and as the notification's text. On a bot token with `chat:write.customize` the
+  post shows under the agent's name, and its icon when the agent's icon is an emoji Slack knows by name (`:robot_face:`
+  for 🤖, about forty common ones); agents' uploaded images have no public address yet, so none is sent as `icon_url`.
+  Without that scope it shows as the bot; a user token's as its person.
+- **Answers** are trimmed JSON (`rules/slack/render.ts`): a message's `ts`, its time, its author by name (from
+  `users.info` with `users:read`, at most 15 a call, else the id), text (cut at 4000), thread and replies, reactions and
+  files; a channel's id, `#name`, topic and members; a person's names and title; a hit's channel, text and link.
+- **Slack's refusals** in words (the connector, `connectors/slack`: `POST https://slack.com/api/<method>`, form-encoded,
+  `Authorization: Bearer`, redirects refused, 15 s an attempt): `invalid_auth`, `token_revoked` and the like say to add
+  the token again and mark the sign-in `needs_sign_in`; `missing_scope` names the scope and says to reinstall the app;
+  `not_in_channel` says to invite the bot; `channel_not_found` and the like "found nothing there"; anything else with
+  Slack's own error ("Slack said: already_reacted."). A rate limit (429 with `Retry-After`, or `error: ratelimited`) is
+  retried twice when its wait is at most 5 s, else refused with when to try again.
+- **Records.** Each call opens the sign-in for `tool:<name>` (a `credential_uses` row with the company, the agent, the
+  chat and who sent the prompt). Each post and reaction is audited in the company as the agent, with the turn as its
+  request: action `tool:<name>`, entity `slack_message` `<channel id>/<ts>`, fields `channel`, `thread`, `text` (its
+  start), `mentionsStripped`, `reaction`.
+- **How many tools.** Slack's 9 with GitHub's 14 and Atlassian's 15 pass the 32 a turn's spec carried; a turn now
+  carries up to 64, and an older runner still gets 32 with the least important left out (docs/harness.md, "Server tools").
+
+**Later** (Ihor, 2026-11-13): Slack may help mirror the team structure, a channel per team for example. Not built.
+
+### How to test it (Ihor)
+
+1. Merge, then `pnpm --filter @mwc/runner build` and restart the dev API (`pnpm dev`): migration `0036_slack_part` runs
+   on start. On **Machines**, the Docker runner's card → **Update container** (another machine's runner: **Update
+   runner**). The Slack tools work on an older runner too; the update only lets a turn carry more than 32 tools.
+2. In the Slack app (api.slack.com/apps → your app → OAuth & Permissions), check the Bot Token Scopes: `channels:read`,
+   `channels:history`, `users:read`, `chat:write`, `chat:write.customize` (and `groups:read`, `groups:history` for a
+   private channel). After a change, **Reinstall to Workspace**. In Slack, invite the bot to the test channel
+   (`/invite @<bot>`).
+3. **Subscriptions** → **Tools** → **Add a tool** → **Slack** → **Bot or user token**: paste the Bot User OAuth Token
+   (`xoxb-…`). The card shows the workspace, "Bot · <name>" and the scopes.
+4. **Profiles** → TEST DEV's profile → **Add Slack**: its sign-in is the bot; **Channels**: switch off **All channels**,
+   type the channel's name and Enter; **Read** on, **Post** off.
+5. **Agents** → TEST DEV → its chat: "what's new in #<channel>?". It calls `slack_get_channel_history` and answers with
+   the latest messages by their authors. Asking about another channel ends in "… is outside the Slack channels this
+   agent's profile reaches".
+6. Back on **Profiles**, switch **Post** on. In the chat: "post a test message in #<channel>". It calls
+   `slack_post_message`; the message shows under TEST DEV's name with "via Most Wanted · TEST DEV" under it.
 
 ## Security
 

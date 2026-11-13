@@ -36,7 +36,7 @@ export interface BriefingInput {
   readonly nodes: readonly BriefingNode[];
   /** The agent the briefing is for. */
   readonly principalId: string;
-  /** Its access profile's tool parts, GitHub's then Atlassian's (S7.1b); none when left out. */
+  /** Its access profile's tool parts, GitHub's, Atlassian's then Slack's (S7.1b, S7.1e); none when left out. */
   readonly tools?: readonly BriefingTool[];
 }
 

@@ -854,6 +854,39 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          and icon, marked as an app.
        - A user token (`xoxp-…`), which would post as Ihor himself, is a later choice of his.
        - Test: an agent posts a short message in a test channel and reads the replies.
+       **Built 2026-11-13** (Ihor: "lets do 7.1e... I have keys for slack… now! i need something where i can define
+       scopes.. READ only etc"; docs/subscriptions.md "Slack", docs/harness.md "Server tools"; waiting for his live test):
+       - The sign-in: one form for either token, the kind by its prefix (`slack_bot_token` `xoxb-`, `slack_user_token`
+         `xoxp-`), checked with `auth.test` (the workspace, the bot or person, the bot's id) and the scopes from
+         `X-OAuth-Scopes`, all kept; write-only, Check again, the daily check, `needs_sign_in` on `invalid_auth` and
+         `token_revoked`, `tool_check` uses, as the other tool sign-ins. The card: the workspace, "Bot · <name>" or
+         "User · <name>", the scopes as chips. A user token is allowed (it posts as Ihor: the part says "Posts as you").
+       - The profile's Slack part (migration `0036_slack_part`: `slack_credential_id`, `slack_rights` through the parts
+         map): `SlackRights` `read` (on), `post` (off), `channels` (`all`, or names and ids), `dms` (`off`/`read`/`post`),
+         `search` (a user token's `search:read`), `react`, in `@mwc/shared`. The token's scopes cap them
+         (`effectiveSlackRights`): no tool and a refusal naming the scope on the server, a disabled control with a
+         tooltip on the Profiles page, 422 `slack_scope_missing` for a request turning one on. Never `@here`,
+         `@channel`, `@everyone` (stripped), never deletes, edits others' messages, invites, kicks or administers.
+       - The tools, by the reference Slack MCP server's names: `slack_list_channels`, `slack_get_channel_history`,
+         `slack_get_thread_replies`, `slack_get_users`, `slack_get_user_profile`, `slack_post_message`,
+         `slack_reply_to_thread`, `slack_add_reaction`, `slack_search_messages`, each checked on the server against the
+         rights and scopes, the channel allowlist (names resolved to ids) and the DM rights. Posts on a bot with
+         `chat:write.customize` show under the agent's name and emoji icon, every post with the footer "via Most Wanted ·
+         <agent>". Uses for `tool:<name>`; posts and reactions audited as the agent on `slack_message`. The port
+         `SlackApi`/`SlackError` in `@mwc/tools-core` and `connectors/slack` (bearer, form arguments, `ratelimited` and
+         429 retried after `Retry-After`, `not_in_channel` as "invite the bot to #x"), wired through `platform/slack.ts`.
+       - The tool limit: GitHub's 14, Atlassian's 15 and Slack's 9 pass 32. A spec now carries up to 64
+         (`SERVER_TOOLS_MAX`) to a runner that says `caps.serverToolsMax`; an older runner still gets 32, the least
+         important left out first in a stated order (`DROP_FIRST`) and named in a last line, and the chat's notice says
+         "all 38". **The runner changed** (it says `caps.serverToolsMax` 64): rebuild and update it once; until then
+         turns keep working with 32.
+       - Web: Subscriptions → Tools → Add a tool → Slack; the Slack card; Profiles → Add Slack with the sign-in, Channels
+         (All channels or chips), Read, Post, Search, React and DMs Off/Read/Post. The briefing's Slack line.
+       - Tests: the connector on a fake fetch, the check and its routes, the rights × scopes, the profile's refusals, every
+         tool through a live turn (allowlist and name resolution, DMs, mention stripping, customize and footer, rate
+         limits, `invalid_auth`, uses and audit), the tool limit with old and new runners, the migration.
+       - **Later** (Ihor, 2026-11-13): Slack may help mirror the team structure, a channel per team for example. Not
+         built.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.

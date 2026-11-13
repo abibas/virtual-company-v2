@@ -56,7 +56,7 @@ Most_Wanted_corp_v2/
 │   ├── identity-core/              identity model and projector                S1
 │   ├── machines-core/              the machine power driver port, its fake, the tunnels' supervisor S4
 │   ├── harness-core/               the harness driver port, its fake and the fake binary (built) S5.1a
-│   ├── tools-core/                 the outside tools' ports: AtlassianApi, GitHubApi, their errors (built) S7.1c–d
+│   ├── tools-core/                 the outside tools' ports: AtlassianApi, GitHubApi, SlackApi, their errors (built) S7.1c–e
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
 │   │                               api/ (client, org, session), org/ (commands.ts, render.ts) S2.6
@@ -70,6 +70,7 @@ Most_Wanted_corp_v2/
 │   ├── harness-codex/              Codex HarnessDriver, its parser, fixtures (built) S5.1a
 │   ├── atlassian/                  Jira v3 and Confluence v2 for the AtlassianApi, ADF ⇄ Markdown (built) S7.1c
 │   ├── github/                     api.github.com for the GitHubApi (built)    S7.1d
+│   ├── slack/                      slack.com/api for the SlackApi (built)      S7.1e
 │   └── gateway/                                                                S7
 ├── deploy/                         Dockerfiles, compose, later Kubernetes
 └── docs/                           architecture, roadmap, ports, schema, testing, structure, subscriptions, harness

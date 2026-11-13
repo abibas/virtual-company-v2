@@ -976,18 +976,19 @@ model is unchanged.
 
 ## Server tools
 
-Built in S7.1c (2026-11-13; what they do is docs/subscriptions.md, "Atlassian tools" and "GitHub tools"). The server's
+Built in S7.1c (2026-11-13; what they do is docs/subscriptions.md, "Atlassian tools", "GitHub tools" and "Slack"). The server's
 own tools are defined and answered whole by the server, so the runner lists and relays them without knowing them: a new
 server tool needs no new runner. The first are the Atlassian tools, which keep the names and inputs of Atlassian's remote
 MCP (`searchJiraIssuesUsingJql`, `getJiraIssue`, …), so they may be camelCase; the GitHub tools (S7.1d) keep GitHub's MCP
-server's (`search_pull_requests`, `pull_request_read`, …). The integrations module's one hook (`service/tools.ts`) asks
-Atlassian's and GitHub's in turn and merges their plans: tools one after the other, lines one under the other, labels in
-one sentence ("Jira, Confluence and GitHub").
+server's (`search_pull_requests`, `pull_request_read`, …), the Slack tools (S7.1e) the Slack MCP servers'
+(`slack_get_channel_history`, `slack_post_message`, …). The integrations module's one hook (`service/tools.ts`) asks
+Atlassian's, GitHub's and Slack's in turn and merges their plans: tools one after the other, lines one under the other,
+labels in one sentence ("Jira, Confluence, GitHub and Slack").
 
 - **Which turns.** A message turn whose profile (the chat's own, else the agent's: the one the turn runs on) offers them,
   on a runner that says `caps.serverTools`: the chats module asks its `ServerToolsHook` (`chats/service/server-tools.ts`,
   implemented by the integrations module and passed by `app.ts`) and puts them in the spec whole
-  (`TurnSpec.serverTools`: `{name, title, description, inputSchema, readOnly}`, at most 32, each name once and never the
+  (`TurnSpec.serverTools`: `{name, title, description, inputSchema, readOnly}`, at most 64 (S7.1e; 32 before), each name once and never the
   question tool's or an agents' tool's, `ServerToolDefs` of `@mwc/shared/harness`), with the hook's line after the
   standing instructions (left out when it would not fit). A Compact, a Clear or an older runner gets none; a message
   turn on an older runner gets instead one line saying its tools (the plan's `label`, "Jira and Confluence") are
@@ -1005,10 +1006,21 @@ one sentence ("Jira, Confluence and GitHub").
   its chat, the chat's agent, the turn's profile and who sent its prompt), off the turn's write queue: it waits on an
   outside system, which the turn's events must not. The hook checks everything again and answers in words; it never
   throws.
+- **How many** (S7.1e, 2026-11-13). Atlassian's 15, GitHub's 14 and Slack's 9 together are 38, past the 32 a spec
+  carried until then. A runner since S7.1e says `caps.serverToolsMax` 64 and parses 64 (`SERVER_TOOLS_MAX`); an older one
+  says nothing and parses 32, so the server sends it at most 32 (`serverToolsLimit`). Past a runner's limit the merge
+  leaves the least important out first, in a stated order (`DROP_FIRST` of `rules/plans.ts`: `request_copilot_review`,
+  `slack_get_user_profile`, `search_repositories`, `list_branches`, `getPagesInConfluenceSpace`, `getConfluenceSpaces`,
+  `getVisibleJiraProjects`, `lookupJiraAccountId`, `get_commit`, `list_commits`, `slack_get_users`, `slack_add_reaction`,
+  `getTransitionsForJiraIssue`, `search_issues`; then the last ones), keeps every main read and every write, and adds a
+  last line naming what it left out and that the runner's update brings it back; the chat's notice then says "all 38".
+  So a profile with all three parts on an older runner loses `request_copilot_review`, `slack_get_user_profile`,
+  `search_repositories`, `list_branches`, `getPagesInConfluenceSpace` and `getConfluenceSpaces` until the update.
 - **Rebuilding the runner.** The runner's side (the file, `MWC_SERVER_TOOLS`, the listing and relay, `caps.serverTools`,
   the wider `--allowedTools`) is new in S7.1c: a machine's runner must be rebuilt and updated once (its card's Update,
   or `docker compose … up --build` for a container runner) before its turns get any server tool. After that, new server
-  tools need no runner change.
+  tools need no runner change. S7.1e changed it once more (`caps.serverToolsMax`), only so a turn may carry more than
+  32: a runner not updated keeps working with 32.
 
 ## git in a turn
 
@@ -1064,6 +1076,16 @@ turn whose profile may push gets the profile's GitHub sign-in for that turn only
 - **gh** is in the Docker runner's image (2.103.3, checksum-pinned as the sign-in image's, prompts and update notices
   off); elsewhere it is the machine's own (`caps.tools.gh` reports it). The briefing and the turn's line say the server
   tools are preferred for reading and pull requests.
+- **How many** (S7.1e, 2026-11-13). Atlassian's 15, GitHub's 14 and Slack's 9 together are 38, past the 32 a spec
+  carried until then. A runner since S7.1e says `caps.serverToolsMax` 64 and parses 64 (`SERVER_TOOLS_MAX`); an older one
+  says nothing and parses 32, so the server sends it at most 32 (`serverToolsLimit`). Past a runner's limit the merge
+  leaves the least important out first, in a stated order (`DROP_FIRST` of `rules/plans.ts`: `request_copilot_review`,
+  `slack_get_user_profile`, `search_repositories`, `list_branches`, `getPagesInConfluenceSpace`, `getConfluenceSpaces`,
+  `getVisibleJiraProjects`, `lookupJiraAccountId`, `get_commit`, `list_commits`, `slack_get_users`, `slack_add_reaction`,
+  `getTransitionsForJiraIssue`, `search_issues`; then the last ones), keeps every main read and every write, and adds a
+  last line naming what it left out and that the runner's update brings it back; the chat's notice then says "all 38".
+  So a profile with all three parts on an older runner loses `request_copilot_review`, `slack_get_user_profile`,
+  `search_repositories`, `list_branches`, `getPagesInConfluenceSpace` and `getConfluenceSpaces` until the update.
 - **Rebuilding the runner.** The runner changed in S7.1d (`caps.github`, the environment, the hooks): each machine's
   runner must be rebuilt and updated once, and the Docker runner needs **Update container** for gh.
 

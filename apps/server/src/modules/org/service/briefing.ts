@@ -25,7 +25,7 @@ import { loadOrg } from './read.ts';
 /** What the briefing reads of an agent: its principal and its access profile. */
 type BriefedAgent = Pick<Agent, 'principalId' | 'profileId'>;
 
-/** The tool parts of the agent's profile as the briefing reads them, GitHub's then Atlassian's. */
+/** The tool parts of the agent's profile as the briefing reads them, GitHub's, Atlassian's then Slack's. */
 async function toolsOf(deps: Pick<ServerDeps, 'db'>, repo: OrgRepo, t: TenantDb, agent: BriefedAgent) {
   if (agent.profileId === null) return [];
   const profile = (await profileRefs(deps, repo, t, [agent.profileId])).get(agent.profileId)?.profile;
