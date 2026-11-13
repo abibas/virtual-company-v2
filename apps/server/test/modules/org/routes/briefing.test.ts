@@ -101,10 +101,10 @@ describe('GET /api/companies/:companyId/agents/:agentId/briefing', () => {
       '- GitHub: as ihor-fake; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
         `merges, force-pushes, deletes or pushes to a default branch. ${TOOL_ACCESS_NOTE}`,
     );
-    const change = { tools: { github: null, atlassian: {} } };
+    const change = { parts: { github: null, atlassian: {} } };
     expect((await as(w, owner)('PATCH', `${PROFILES}/${profile.id}`, change)).status).toBe(200);
     expect((await read()).split('\n').at(-1)).toBe(
-      '- Atlassian: your access profile has no sign-in for it now, so no access.',
+      '- Atlassian: your profile has no sign-in for it now, so no access.',
     );
     await as(w, owner)('PATCH', agentsPath(company, coder.id), { profileId: null });
     expect((await read()).split('\n').at(-1)).toBe('- Nobody reports to you.');

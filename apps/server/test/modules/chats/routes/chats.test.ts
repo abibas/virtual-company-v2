@@ -79,8 +79,8 @@ describe('POST agents/:agentId/chats', () => {
       422,
       {
         error: {
-          code: 'profile_harness_mismatch',
-          message: expect.stringContaining('needs a Claude profile'),
+          code: 'profile_part_missing',
+          message: 'This profile has no Claude part, which a Claude Code agent runs on',
         },
       },
     ]);
@@ -177,12 +177,12 @@ describe('PATCH and DELETE chats/:chatId', () => {
     expect([notYours.status, notYours.body]).toMatchObject([403, { error: { code: 'profile_not_yours' } }]);
     const off = await as(w, admin)('PATCH', chatPath(s.company, s.chat.id), { profileId: null });
     expect(off.body).toMatchObject({ profileId: null, profileSetBy: null });
-    // A Claude Code chat takes only a Claude profile: the picker's choices are the harness's provider's.
+    // A Claude Code chat takes only a profile with a Claude part: the picker's choices are those.
     const openai = await seedProfile(w.t.db, s.company.owner.userId, { provider: 'openai' });
     const mismatch = await owner('PATCH', chatPath(s.company, s.chat.id), { profileId: openai.id });
     expect([mismatch.status, mismatch.body]).toMatchObject([
       422,
-      { error: { code: 'profile_harness_mismatch' } },
+      { error: { code: 'profile_part_missing' } },
     ]);
     expect(await auditOf(w.t.db, 'chat', s.chat.id)).toContain('update profileId');
     expect((await owner('PATCH', chatPath(s.company, 'nope'), { title: 'x' })).status).toBe(404);

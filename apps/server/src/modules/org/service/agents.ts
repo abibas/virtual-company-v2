@@ -14,7 +14,6 @@ import {
   statusMove,
 } from '../rules/agents.ts';
 import { placeRefusal, type Refusal, type RefusalStatus } from '../rules/placement.ts';
-import type { ProfileClearedView } from '../schemas/profiles.ts';
 import type { AgentDetailView, CreateAgent, UpdateAgent } from '../schemas.ts';
 import { auditEntry, auditPosition, type Caller } from './audit.ts';
 import { agentIconHash } from './icons.ts';
@@ -22,16 +21,13 @@ import { moveForStatus } from './lifecycle.ts';
 import { newAgentProfile, profileChange, profileExtras, profileRefs } from './profiles.ts';
 import { agentDetail, loadOrg } from './read.ts';
 
-/** A profile a harness change took off the agent, when one did. */
-type Cleared = { readonly profileCleared?: ProfileClearedView | undefined };
-
 export type AgentResult<S extends RefusalStatus> =
-  | ({ readonly ok: true; readonly agent: AgentDetailView } & Cleared)
+  | { readonly ok: true; readonly agent: AgentDetailView }
   | Refusal<S>;
 
 /** An agent as a change leaves it, with its place (none once archived); the service shows it with its profile. */
 export type AgentRows<S extends RefusalStatus> =
-  | ({ readonly ok: true; readonly agent: Agent; readonly position: OrgPosition | undefined } & Cleared)
+  | { readonly ok: true; readonly agent: Agent; readonly position: OrgPosition | undefined }
   | Refusal<S>;
 
 /**
@@ -45,19 +41,19 @@ export async function shownAgent<S extends RefusalStatus>(
   result: AgentRows<S>,
 ): Promise<AgentResult<S>> {
   if (!result.ok) return result;
-  const { agent, position, profileCleared } = result;
-  const profile = profileExtras(await profileRefs(deps, repo, t, [agent.profileId]), agent.profileId);
+  const { agent, position } = result;
+  const profile = profileExtras(await profileRefs(deps, repo, t, [agent.profileId]), agent);
   const placement = (await placementsOf(t)).get(agent.id) ?? null;
   const iconHash = await agentIconHash(t, agent.id);
   const shown = agentDetail(agent, position, { ...profile, placement, iconHash });
-  return profileCleared ? { ok: true, agent: shown, profileCleared } : { ok: true, agent: shown };
+  return { ok: true, agent: shown };
 }
 
 /**
  * Creates an agent in one transaction under the company's lock: its principal (kind `agent`), the agent and its
  * position under `reportsToPrincipalId` (the caller when left out), with their audit rows. The slug is the one
  * chosen (409 when taken) or derived from the name; the face, left out, comes from the slug; the access profile is
- * the one given (only the caller's own: 403; 422 for none or one of another provider than the harness's), else the
+ * the one given (only the caller's own: 403; 422 for none or one without the harness's part), else the
  * caller's default here of the harness's provider (`newAgentProfile`). A refusal is decided before anything is
  * written.
  */
@@ -104,8 +100,8 @@ const managerOf = async (repo: OrgRepo, t: TenantDb, principalId: string) =>
  * Changes an agent in one transaction under the company's lock: only the fields that differ are written, with one
  * audit row each (new instructions as a bump of `instructionsRev`). A slug another agent has is a 409; archiving
  * and restoring move it on the chart (`moveForStatus`), refused with a 422; giving it an access profile is only for
- * the profile's owner (403; 422 for none or one of another provider than its harness's), while any admin or owner
- * takes it off, and a harness change takes off a profile that no longer fits, saying so (`profileChange`). A refusal is
+ * the profile's owner (403; 422 for none or one without its harness's part), while any admin or owner takes it off, and
+ * a harness change its profile has no part for is refused (`profileChange`). A refusal is
  * decided before anything is written. Pausing, resuming and archiving notify the manager it reported to (S2.9).
  */
 export function updateAgent(
@@ -121,7 +117,6 @@ export function updateAgent(
     const { profileId: requested, harness } = change.patch;
     const profile = await profileChange(repo, tx, caller, { agent, requested, harness });
     if (!profile.ok) return profile;
-    const { profileCleared } = profile;
     const set = { ...agentChanges(agent, change.patch), ...profile.set };
     if (set.slug !== undefined && (await repo.takenSlugs(tx)).has(set.slug)) return slugTaken(set.slug);
     const manager = set.status === undefined ? null : await managerOf(repo, tx, agent.principalId);
@@ -137,6 +132,6 @@ export function updateAgent(
       const change = { principalId: agent.principalId, from: agent.status, to: set.status, manager };
       await noticeAgentStatus(tx, caller.principalId, change);
     }
-    return { ok: true as const, agent: after, position: moved.position, profileCleared };
+    return { ok: true as const, agent: after, position: moved.position };
   });
 }

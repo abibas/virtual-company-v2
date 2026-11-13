@@ -197,7 +197,7 @@ describe('Sign in again over HTTP', () => {
       secret: { credentials: CLAUDE_CREDENTIALS },
     });
     const profiles = (await as(ihor)('GET', PROFILES)).body as { profiles: AccessProfileView[] };
-    expect(profiles.profiles.find((p) => p.id === profile.id)?.subscription).toMatchObject({
+    expect(profiles.profiles.find((p) => p.id === profile.id)?.parts.claude?.subscription).toMatchObject({
       id: old.id,
       status: 'active',
     });

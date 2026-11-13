@@ -1,8 +1,8 @@
 /**
- * The access profiles' test helpers (S3.4), split from `../org.ts`, which re-exports them: subscriptions of every kind
- * sealed as the store seals them, profiles made straight through the personal layer and put on agents and defaults
- * straight in the tables, and raw reads of both; for a profile's tool parts (S7.1b, one profile since 2026-11-13) GitHub
- * and Atlassian sign-ins with a fake account's details.
+ * The profiles' test helpers (S3.4; generic since 2026-11-13), split from `../org.ts`, which re-exports them:
+ * subscriptions of every kind sealed as the store seals them, profiles made straight through the personal layer and put
+ * on agents and defaults straight in the tables, and raw reads of both; for a profile's tool parts GitHub and Atlassian
+ * sign-ins with a fake account's details.
  */
 import { randomBytes } from 'node:crypto';
 import {
@@ -13,11 +13,11 @@ import {
   credentials,
   type DbHandle,
   memberships,
-  owned,
   tenant,
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { CredentialKind, ProfileProvider } from '@mwc/shared/enums';
+import { type SeedProfileOptions, seedProfile as seedTestkitProfile } from '@mwc/testkit';
 import { and, asc, eq } from 'drizzle-orm';
 import { expect } from 'vitest';
 import { credentialSecrets, type StoreCredentialInput } from '../../../src/modules/credentials/index.ts';
@@ -122,18 +122,15 @@ export async function revokeSubscription(db: DbHandle, id: string): Promise<void
   await rawDb(db).update(credentials).set({ status: 'revoked' }).where(eq(credentials.id, id));
 }
 
-/** A profile of a person's (a Claude one unless `provider` says), straight through the personal layer (no rules checked). */
-export async function seedProfile(
+/**
+ * A profile of a person's with one AI part (Claude unless `provider` says; none for `provider: null`) and any other
+ * columns, straight through the personal layer (no rules checked): the testkit's `seedProfile`.
+ */
+export const seedProfile = (
   db: DbHandle,
   userId: string,
-  values: Partial<Omit<AccessProfile, 'id' | 'ownerUserId'>> = {},
-): Promise<AccessProfile> {
-  const name = `Profile ${randomBytes(3).toString('hex')}`;
-  const [row] = await owned(db, userId)
-    .insert(accessProfiles, { name, provider: 'claude', ...values })
-    .returning();
-  return row as AccessProfile;
-}
+  values: SeedProfileOptions = {},
+): Promise<AccessProfile> => seedTestkitProfile(db, userId, values);
 
 /** Puts a profile on an agent straight in the table (no rules checked). */
 export async function putProfile(db: DbHandle, companyId: string, agentId: string, profileId: string | null) {

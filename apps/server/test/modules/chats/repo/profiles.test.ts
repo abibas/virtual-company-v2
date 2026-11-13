@@ -19,7 +19,7 @@ describe('profilesRepo', () => {
     expect(await profilesRepo.get(scoped, profile.id)).toMatchObject({
       id: profile.id,
       ownerUserId: owner.user.id,
-      provider: 'openai',
+      openaiPart: true,
     });
     expect(await profilesRepo.get(scoped, newId())).toBeUndefined();
     expect(await profilesRepo.membershipOf(scoped, owner.user.id)).toMatchObject({ role: 'owner' });

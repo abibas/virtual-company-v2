@@ -6,24 +6,25 @@ import {
   type OwnedDb,
   owned,
 } from '@mwc/db';
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import { auditProfileRemoval } from '../../org/service.ts';
 import { profileRows as repo } from '../repo/profiles.ts';
-import { runsAfter, runsRefusal } from '../rules/profile-model.ts';
+import { partColumns, partInUse, removedAiParts, runsAfterChange } from '../rules/parts.ts';
+import { runsRefusal } from '../rules/profile-model.ts';
 import {
   auditedProfile,
-  type CredentialChoice,
   credentialRefusal,
   PROFILE_NOT_FOUND,
+  type ProfileChange,
+  type ProfileFields,
   type ProfileRefusal,
   partsPutIn,
   profileChanges,
   profileNameTaken,
-  providerFixed,
 } from '../rules/profiles.ts';
-import { toolColumns } from '../rules/tool-parts.ts';
 import type { AccessProfileView, CreateAccessProfile, UpdateAccessProfile } from '../schemas/profiles.ts';
 import type { Caller } from '../service.ts';
-import { agentsByProfile, companiesOfUser, views } from './profiles/views.ts';
+import { agentsByProfile, companiesOfUser, type ProfileUser, views } from './profiles/views.ts';
 
 type Saved<S extends 404 | 409 | 422> =
   | { readonly ok: true; readonly profile: AccessProfileView }
@@ -31,22 +32,40 @@ type Saved<S extends 404 | 409 | 422> =
 
 const NAME_UNIQUE = 'access_profiles_owner_user_id_name_unique';
 
-/** Why a change may not give a `provider` profile these credentials (`credentialRefusal`), read as the owner. */
-async function choiceRefusal(
-  o: OwnedDb,
-  profile: Parameters<typeof partsPutIn>[0] & { readonly provider: AccessProfile['provider'] },
-  choice: CredentialChoice,
-) {
-  const putIn = partsPutIn(profile, choice);
+/** Why a change may not put these credentials in the profile's parts (`credentialRefusal`), read as the owner. */
+async function choiceRefusal(o: OwnedDb, before: Partial<ProfileFields>, change: ProfileChange) {
+  const putIn = partsPutIn(before, change);
   if (putIn.length === 0) return undefined;
   const held = await repo.credentialsOf(
     o,
     putIn.map(([, id]) => id),
   );
   const found = new Map(held.map((row) => [row.id, row]));
-  for (const [part, id] of putIn) {
-    const refusal = credentialRefusal(part, profile.provider, found.get(id));
+  for (const [slot, id] of putIn) {
+    const refusal = credentialRefusal(slot, found.get(id));
     if (refusal) return refusal;
+  }
+  return undefined;
+}
+
+/** Why a change may not make its AI parts run what it sets (`runsRefusal`, each part against its provider). */
+function runsRefused(before: AccessProfile | undefined, set: ProfileChange) {
+  for (const [provider, runs] of runsAfterChange(before, set)) {
+    const refusal = runsRefusal(provider, runs);
+    if (refusal) return refusal;
+  }
+  return undefined;
+}
+
+/** Why a change may not remove the AI parts it removes: agents run on them (`partInUse`, naming them). */
+function removalRefused(before: AccessProfile, set: ProfileChange, users: readonly ProfileUser[]) {
+  for (const provider of removedAiParts(before, set)) {
+    const running = users.filter((user) => HARNESS_PROVIDER[user.harness] === provider);
+    if (running.length > 0)
+      return partInUse(
+        provider,
+        running.map((user) => user.agentName),
+      );
   }
   return undefined;
 }
@@ -84,36 +103,35 @@ async function shown(db: DbHandle, caller: Caller, row: AccessProfile): Promise<
 
 type Deps = { readonly db: DbHandle };
 
-/** The caller's profiles, oldest first, with their credentials and the agents using each. */
+/** The caller's profiles, oldest first, with their parts and the agents using each. */
 async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileView[]> {
   const o = owned(deps.db, caller.userId);
   const rows = await repo.listProfiles(o);
-  const ids = rows.map((row) => row.id);
-  const uses = await agentsByProfile(deps.db, caller.userId, ids);
+  const uses = await agentsByProfile(
+    deps.db,
+    caller.userId,
+    rows.map((row) => row.id),
+  );
   return views(o, rows, uses);
 }
 
 /**
- * A new profile of the caller's, its model and effort and its credentials (its subscription, gateway and tool parts'
- * sign-ins) checked against its provider and parts (422), its name unique (409). A tool part given without rights gets
- * its tool's safe defaults (`toolColumns`).
+ * A new profile of the caller's: its name (unique, 409) and the parts given (`partColumns`), their credentials checked
+ * against each place (422) and each AI part's model and effort against its provider (422).
  */
 async function createProfile(
   deps: Deps,
   caller: Caller,
   body: CreateAccessProfile,
 ): Promise<Saved<409 | 422>> {
-  const runs = { model: body.model ?? null, effort: body.effort ?? null };
-  const refused = runsRefusal(body.provider, runs);
+  const set = partColumns(undefined, body.parts);
+  const refused = runsRefused(undefined, set);
   if (refused) return refused;
   const saved = await namedWrite(body.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
-      const { name, provider, credentialId, gatewayCredentialId } = body;
-      const tools = toolColumns(undefined, body.tools);
-      const refusal = await choiceRefusal(o, { provider }, { credentialId, gatewayCredentialId, ...tools });
+      const refusal = await choiceRefusal(o, {}, set);
       if (refusal) return refusal;
-      const values = { name, provider, credentialId, gatewayCredentialId, ...runs, ...tools };
-      const row = await repo.insertProfile(o, values);
+      const row = await repo.insertProfile(o, { name: body.name, ...set });
       await o.audit(entry(caller, row.id, 'create', diffFields(null, auditedProfile(row))));
       return row;
     }),
@@ -122,9 +140,10 @@ async function createProfile(
 }
 
 /**
- * Renames one of the caller's profiles or changes its credentials, model, effort or tool parts (its provider is fixed:
- * 422 `provider_mismatch`; the credentials each part takes, `credentialRefusal`; a model and effort it may run,
- * `runsRefusal`; a tool part added, changed or removed, `toolColumns`); only what differs is written and audited.
+ * Renames one of the caller's profiles or adds, changes or removes its parts (`partColumns`): the credentials each
+ * place takes (`credentialRefusal`), a model and effort each AI part may run (`runsRefusal`), and never removing an AI
+ * part agents run on (422 `profile_part_in_use`, naming them: the agents are read before the transaction). Only what
+ * differs is written and audited.
  */
 async function updateProfile(
   deps: Deps,
@@ -132,19 +151,23 @@ async function updateProfile(
   change: { readonly profileId: string; readonly patch: UpdateAccessProfile },
 ): Promise<Saved<404 | 409 | 422>> {
   const { profileId, patch } = change;
+  const removing = patch.parts?.claude === null || patch.parts?.openai === null;
+  const users = removing
+    ? ((await agentsByProfile(deps.db, caller.userId, [profileId])).get(profileId) ?? [])
+    : [];
   const saved = await namedWrite(patch.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
       const row = await repo.getProfile(o, profileId);
       if (row === undefined) return PROFILE_NOT_FOUND;
-      if (patch.provider !== undefined && patch.provider !== row.provider) return providerFixed(row.provider);
-      const { tools, ...fields } = patch;
-      const change = { ...fields, ...toolColumns(row, tools) };
-      const refusal = await choiceRefusal(o, row, change);
+      const wanted = {
+        ...(patch.name === undefined ? {} : { name: patch.name }),
+        ...partColumns(row, patch.parts),
+      };
+      const refusal = await choiceRefusal(o, row, wanted);
       if (refusal) return refusal;
-      const set = profileChanges(row, change);
+      const set = profileChanges(row, wanted);
       if (Object.keys(set).length === 0) return row;
-      const refused =
-        'model' in set || 'effort' in set ? runsRefusal(row.provider, runsAfter(row, set)) : undefined;
+      const refused = removalRefused(row, set, users) ?? runsRefused(row, set);
       if (refused) return refused;
       const after = await repo.updateProfile(o, row.id, set);
       await o.audit(entry(caller, row.id, 'update', diffFields(auditedProfile(row), auditedProfile(after))));
@@ -177,14 +200,14 @@ async function removeProfile(
 }
 
 /**
- * The access profiles API's logic (S3.4, one provider each since 2026-11-10), always as the caller (the personal layer):
- * list their profiles, create one, change one, remove one. A profile's provider is fixed when it is made; its
- * subscription is one of the caller's own of that provider, its gateway any of their gateways, never a
- * revoked one, its model one of that provider's and its effort one its model takes (422); its GitHub and Atlassian parts
- * (S7.1b, one profile since 2026-11-13) each hold one of the caller's sign-ins of that tool, never a revoked one, and
- * the rights given there (422 otherwise); a name is unique among theirs (409); another person's profile is the same 404 as none. Every change writes
- * its `access_profile` audit rows; removing one also writes, in each of the caller's companies, the rows of the agents
- * and defaults it leaves (the org module's `auditProfileRemoval`), before the foreign keys detach it.
+ * The profiles API's logic (S3.4; generic since 2026-11-13), always as the caller (the personal layer): list their
+ * profiles, create one, change one, remove one. A profile is a name and optional parts: a Claude and an OpenAI part
+ * (one of the caller's subscriptions of that provider, any of their gateways, never a revoked one, a model of that
+ * provider and an effort it takes) and a GitHub and an Atlassian part (one of their sign-ins of that tool and its
+ * rights); 422 otherwise; an AI part agents run on is not removed (422). A name is unique among theirs (409); another
+ * person's profile is the same 404 as none. Every change writes its `access_profile` audit rows; removing one also
+ * writes, in each of the caller's companies, the rows of the agents and defaults it leaves (the org module's
+ * `auditProfileRemoval`), before the foreign keys detach it.
  */
 export function accessProfilesService(deps: Deps) {
   return {

@@ -74,7 +74,7 @@ export function orgService(deps: Pick<ServerDeps, 'db' | 'logger'>) {
       const icons = await agentIconHashes(t);
       return rows.map((agent) =>
         agentView(agent, places.get(agent.principalId), {
-          ...profileExtras(profiles, agent.profileId),
+          ...profileExtras(profiles, agent),
           placement: placements.get(agent.id) ?? null,
           iconHash: icons.get(agent.id),
         }),

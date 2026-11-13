@@ -248,7 +248,7 @@ describe('credentials handed to a turn', () => {
         headers: { 'x-api-key': 'gw-HEADERvalueNEVERshown' },
       },
     });
-    expect((await scene(w, { harness: 'codex' })).profile.gatewayCredentialId).toBeNull();
+    expect((await scene(w, { harness: 'codex' })).profile.openaiGatewayCredentialId).toBeNull();
   });
 
   it("sends a Claude and a Codex chat through one gateway, each at its CLI's path under the gateway's address", async () => {

@@ -107,11 +107,14 @@ describe('GET /api/companies/:companyId/org/chart', () => {
           profile: {
             id: work.id,
             name: 'Work',
-            provider: 'claude',
             ownerUserId: admin.userId,
             ownerName: admin.subject,
-            account: null,
-            tools: { github: null, atlassian: null },
+            parts: {
+              claude: { model: 'claude-opus-5-5', effort: 'xhigh' },
+              openai: null,
+              github: null,
+              atlassian: null,
+            },
           },
           runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
           placement: null,

@@ -11,27 +11,27 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { profilesOf, type UserProfile } from '../../identity/service.ts';
 import { type OrgRepo, orgRepo } from '../repo.ts';
 import type { OrgState } from '../rules/placement.ts';
-import { profileExtras, profileRefs } from './profiles.ts';
+import { profileRefs } from './profiles.ts';
 import { loadOrg } from './read.ts';
 
 /**
  * An agent's briefing (docs/harness.md, "Standing instructions"): `agentBriefing` of `@mwc/shared/agent-briefing` over
  * the company's live chart, read as `GET /org/chart` reads it (every active member and every agent not archived, the
  * titles on the chart, people's display names from the identity module, read outside any transaction), the company's
- * name, and the tool parts of the agent's access profile (S7.1b, one profile since 2026-11-13: who each acts as, and
- * its rights). The web writes the same text from the chart it shows.
+ * name, and the tool parts of the agent's profile (S7.1b, generic profiles since 2026-11-13: who each acts as, and its
+ * rights). The web writes the same text from the chart it shows.
  */
 
 /** What the briefing reads of an agent: its principal and its access profile. */
 type BriefedAgent = Pick<Agent, 'principalId' | 'profileId'>;
 
-/** The tool parts of the agent's access profile as the briefing reads them, GitHub's then Atlassian's. */
+/** The tool parts of the agent's profile as the briefing reads them, GitHub's then Atlassian's. */
 async function toolsOf(deps: Pick<ServerDeps, 'db'>, repo: OrgRepo, t: TenantDb, agent: BriefedAgent) {
   if (agent.profileId === null) return [];
-  const { profile } = profileExtras(await profileRefs(deps, repo, t, [agent.profileId]), agent.profileId);
-  if (profile === null) return [];
+  const profile = (await profileRefs(deps, repo, t, [agent.profileId])).get(agent.profileId)?.profile;
+  if (profile === undefined) return [];
   return TOOL_PROVIDERS.flatMap((provider): BriefingTool[] => {
-    const part = profile.tools[provider];
+    const part = profile.parts[provider];
     return part === null ? [] : [{ provider, ...part }];
   });
 }

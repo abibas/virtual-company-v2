@@ -1,5 +1,5 @@
 import type { Agent } from '@mwc/db';
-import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
+import { HARNESS_PROVIDER, PART_NAMES } from '@mwc/shared/credentials';
 import type { AgentStatus, Harness, MembershipRole, ProfileProvider } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { slugify, withSuffix } from '@mwc/shared/slugs';
@@ -144,36 +144,29 @@ export function giveRefusal(giver: Giver, ownerUserId: string | undefined): Refu
   return undefined;
 }
 
-const PROVIDER_NAMES: Readonly<Record<ProfileProvider, string>> = { claude: 'Claude', openai: 'OpenAI' };
-const A_PROFILE: Readonly<Record<ProfileProvider, string>> = {
-  claude: 'a Claude profile',
-  openai: 'an OpenAI profile',
-};
-const AN_AGENT: Readonly<Record<Harness, string>> = {
-  claude_code: 'a Claude Code agent',
-  codex: 'a Codex agent',
-};
-const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+const HARNESS_WORDS: Readonly<Record<Harness, string>> = { claude_code: 'Claude Code', codex: 'Codex' };
 
-/** A profile of another provider than the one the agent's harness runs on (422 `profile_harness_mismatch`). */
-export const profileHarnessMismatch = (provider: ProfileProvider, harness: Harness): Refusal<422> =>
+/** The harness whose agents run on each AI part. */
+const PART_HARNESS: Readonly<Record<ProfileProvider, Harness>> = { claude: 'claude_code', openai: 'codex' };
+
+/**
+ * A profile without the AI part an agent's harness runs on (422 `profile_part_missing`): a Claude Code agent needs its
+ * profile's Claude part, a Codex agent its OpenAI part.
+ */
+export const profilePartMissing = (harness: Harness): Refusal<422> =>
   refuse(
     422,
-    'profile_harness_mismatch',
-    `${capital(AN_AGENT[harness])} needs ${A_PROFILE[HARNESS_PROVIDER[harness]]}; this access profile is for ${PROVIDER_NAMES[provider]}`,
+    'profile_part_missing',
+    `This profile has no ${PART_NAMES[HARNESS_PROVIDER[harness]]} part, which a ${HARNESS_WORDS[harness]} agent runs on`,
   );
 
-/** A default of one provider given a profile of the other (422 `provider_mismatch`). */
-export const defaultProviderMismatch = (provider: ProfileProvider, wanted: ProfileProvider): Refusal<422> =>
+/** A default for one AI part's agents given a profile without that part (422 `profile_part_missing`). */
+export const defaultPartMissing = (provider: ProfileProvider): Refusal<422> =>
   refuse(
     422,
-    'provider_mismatch',
-    `Your ${PROVIDER_NAMES[wanted]} default is ${A_PROFILE[wanted]}; this access profile is for ${PROVIDER_NAMES[provider]}`,
+    'profile_part_missing',
+    `This profile has no ${PART_NAMES[provider]} part, so it cannot be your default for ${HARNESS_WORDS[PART_HARNESS[provider]]} agents`,
   );
-
-/** What the answer to a harness change says of the profile it took off the agent. */
-export const profileClearedMessage = (name: string, provider: ProfileProvider, harness: Harness): string =>
-  `Its access profile ${name} is for ${PROVIDER_NAMES[provider]}, so it was taken off: ${AN_AGENT[harness]} needs ${A_PROFILE[HARNESS_PROVIDER[harness]]}`;
 
 /** What a requested profile does to the one an agent (or a default) has: give one, take it off, or nothing. */
 export type ProfileStep = 'give' | 'remove' | 'none';

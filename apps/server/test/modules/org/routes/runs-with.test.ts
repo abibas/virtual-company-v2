@@ -54,16 +54,13 @@ describe("an agent's runsWith", () => {
   it('follows its profile when the owner changes the model or the effort', async () => {
     const created = await as(w, admin)('POST', PROFILES, {
       name: 'Changing',
-      provider: 'openai',
-      model: 'gpt-6.1-sol',
-      effort: 'high',
+      parts: { openai: { model: 'gpt-6.1-sol', effort: 'high' } },
     });
     const profileId = (created.body as { id: string }).id;
     const agent = await makeAgent(w, company, admin, { name: 'Follower', harness: 'codex', profileId });
     expect(agent.runsWith).toEqual({ model: 'gpt-6.1-sol', effort: 'high', provider: 'openai' });
     const changed = await as(w, admin)('PATCH', `${PROFILES}/${profileId}`, {
-      model: 'gpt-6-astra',
-      effort: 'ultra',
+      parts: { openai: { model: 'gpt-6-astra', effort: 'ultra' } },
     });
     expect(changed.status).toBe(200);
     const read = await as(w, company.owner)('GET', agentsPath(company, agent.id));

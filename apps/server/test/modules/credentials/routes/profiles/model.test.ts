@@ -4,9 +4,9 @@ import { addUser, call, type LinkedUser } from '../../../../fixtures/companies/c
 import { auditRows, PROFILES } from '../../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../../fixtures/platform/auth.ts';
 
-// An access profile's model and effort (since 2026-11-10, docs/subscriptions.md "Model and effort"): a model of its
-// provider (the catalogue's or another id that looks like one), an effort its model takes, each null for the provider's
-// default; a model of the other provider and an effort the model does not take are 422s.
+// An AI part's model and effort (since 2026-11-10, docs/subscriptions.md "Model and effort"): a model of its provider
+// (the catalogue's or another id that looks like one), an effort its model takes, each null for the default; a model of
+// the other provider and an effort the model does not take are 422s.
 
 let w: AuthWorld;
 let ihor: LinkedUser;
@@ -18,7 +18,12 @@ afterAll(() => w.t.close());
 
 const as = (requestId?: string) => call(w, ihor.token, requestId);
 let names = 0;
-const post = (body: Record<string, unknown>) => as()('POST', PROFILES, { name: `Model ${++names}`, ...body });
+/** A new profile with one AI part of these fields. */
+const post = ({ provider, ...part }: Record<string, unknown>) =>
+  as()('POST', PROFILES, { name: `Model ${++names}`, parts: { [provider as string]: part } });
+/** A change of a profile's OpenAI part, or of its name. */
+const patchPart = (id: string, part: Record<string, unknown>, requestId?: string) =>
+  as(requestId)('PATCH', `${PROFILES}/${id}`, { parts: { openai: part } });
 const patch = (id: string, body: Record<string, unknown>, requestId?: string) =>
   as(requestId)('PATCH', `${PROFILES}/${id}`, body);
 const refusal = (code: string) => ({ status: 422, body: { error: { code } } });
@@ -35,9 +40,11 @@ describe("a profile's model and effort", () => {
     ] as const) {
       const res = await post({ provider, model, effort });
       expect(res.status, `${provider} ${model} ${effort}`).toBe(201);
-      expect(res.body).toMatchObject({ provider, model, effort });
+      expect(res.body).toMatchObject({ parts: { [provider]: { model, effort } } });
     }
-    expect((await post({ provider: 'claude' })).body).toMatchObject({ model: null, effort: null });
+    expect((await post({ provider: 'claude' })).body).toMatchObject({
+      parts: { claude: { model: null, effort: null } },
+    });
   });
 
   it('refuses a model of the other provider, and an effort its model or provider does not take', async () => {
@@ -75,28 +82,31 @@ describe("a profile's model and effort", () => {
     }
   });
 
-  it('changes the model and effort, checks them against what the profile runs after, and audits each', async () => {
+  it('changes the model and effort, checks them against what the part runs after, and audits each', async () => {
     const created = (await post({ provider: 'openai', model: 'gpt-6.1-sol', effort: 'ultra' }))
       .body as AccessProfileView;
     // GPT-5.5 takes no ultra: the stored effort refuses the move until the change gives one it takes.
-    expect(await patch(created.id, { model: 'gpt-5.5' })).toMatchObject(refusal('effort_unsupported'));
-    const moved = await patch(created.id, { model: 'gpt-5.5', effort: 'high' }, 'req-model-1');
-    expect(moved).toMatchObject({ status: 200, body: { model: 'gpt-5.5', effort: 'high' } });
-    const reset = await patch(created.id, { model: null, effort: null }, 'req-model-2');
-    expect(reset).toMatchObject({ status: 200, body: { model: null, effort: null } });
-    expect(await patch(created.id, { model: 'claude-haiku-5-5' })).toMatchObject(
+    expect(await patchPart(created.id, { model: 'gpt-5.5' })).toMatchObject(refusal('effort_unsupported'));
+    const moved = await patchPart(created.id, { model: 'gpt-5.5', effort: 'high' }, 'req-model-1');
+    expect(moved).toMatchObject({
+      status: 200,
+      body: { parts: { openai: { model: 'gpt-5.5', effort: 'high' } } },
+    });
+    const reset = await patchPart(created.id, { model: null, effort: null }, 'req-model-2');
+    expect(reset).toMatchObject({ status: 200, body: { parts: { openai: { model: null, effort: null } } } });
+    expect(await patchPart(created.id, { model: 'claude-haiku-5-5' })).toMatchObject(
       refusal('model_provider_mismatch'),
     );
-    // A rename alone does not check what the profile runs.
+    // A rename alone does not check what the part runs.
     expect((await patch(created.id, { name: 'Renamed model' })).status).toBe(200);
     const updates = (await auditRows(w.t.db, 'access_profile', created.id)).filter(
       (row) => row.action === 'update',
     );
     expect(updates.map((row) => [row.requestId, row.field, row.oldValue, row.newValue])).toEqual([
-      ['req-model-1', 'effort', 'ultra', 'high'],
-      ['req-model-1', 'model', 'gpt-6.1-sol', 'gpt-5.5'],
-      ['req-model-2', 'effort', 'high', null],
-      ['req-model-2', 'model', 'gpt-5.5', null],
+      ['req-model-1', 'openaiEffort', 'ultra', 'high'],
+      ['req-model-1', 'openaiModel', 'gpt-6.1-sol', 'gpt-5.5'],
+      ['req-model-2', 'openaiEffort', 'high', null],
+      ['req-model-2', 'openaiModel', 'gpt-5.5', null],
       [expect.any(String), 'name', expect.any(String), 'Renamed model'],
     ]);
   });

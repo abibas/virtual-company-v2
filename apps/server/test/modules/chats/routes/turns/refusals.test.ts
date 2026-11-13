@@ -74,7 +74,8 @@ describe('POST chats/:chatId/turns refusals', () => {
     await owner('DELETE', `/api/companies/${s.company.companyId}/agents/${s.agentId}/placement`);
     expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([409, 'placement_missing']);
     await place(w, s.company, s.agentId, { machineId: s.machineId });
-    await owner('PATCH', `/api/companies/${s.company.companyId}/agents/${s.agentId}`, { harness: 'codex' });
+    const agentPath = `/api/companies/${s.company.companyId}/agents/${s.agentId}`;
+    await owner('PATCH', agentPath, { harness: 'codex', profileId: null });
     expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([409, 'harness_changed']);
   });
 
@@ -111,14 +112,14 @@ describe('POST chats/:chatId/turns refusals', () => {
     expect((res.body as { error: { message: string } }).error.message).toContain('no longer an admin');
   });
 
-  it('refuses a profile of another provider than the harness runs on, put there without the rules', async () => {
+  it('refuses a profile without the part the harness runs on, put there without the rules', async () => {
     const s = await scene(w, { harness: 'codex' });
     const claude = await seedProfile(w.t.db, s.company.owner.userId, { provider: 'claude' });
     await putProfile(w.t.db, s.company.companyId, s.agentId, claude.id);
     const res = await sendPrompt(w, s, 'hi');
-    expect(refusal(res)).toEqual([422, 'profile_harness_mismatch']);
+    expect(refusal(res)).toEqual([422, 'profile_part_missing']);
     expect((res.body as { error: { message: string } }).error.message).toBe(
-      'A Codex agent needs an OpenAI profile; this access profile is for Claude',
+      'This profile has no OpenAI part, which a Codex agent runs on',
     );
     expect(s.runner?.frames.of('turn.start')).toEqual([]);
   });

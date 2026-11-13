@@ -1,12 +1,12 @@
-import type { AccessProfile, Agent, Chat, TenantDb } from '@mwc/db';
-import { type GatewayRoute, gatewayRouteOf, profileFitsHarness } from '@mwc/shared/credentials';
+import { type AccessProfile, type Agent, type AiPartRow, aiPartOf, type Chat, type TenantDb } from '@mwc/db';
+import { type GatewayRoute, gatewayRouteOf, HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import type { HarnessCredential, HarnessGateway, TerminalSpec } from '@mwc/shared/harness';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { harnessVersionOf } from '@mwc/shared/runner-protocol';
 import type { CredentialsForHarness, HarnessUse } from '../../credentials/index.ts';
 import { agentPlacement, type RunnerHub } from '../../machines/index.ts';
-import { profileHarnessMismatch } from '../../org/rules/agents.ts';
+import { profilePartMissing } from '../../org/rules/agents.ts';
 import { profilesRepo } from '../repo/profiles.ts';
 import { chatsRepo } from '../repo.ts';
 import { BRANCH_PENDING, RUNNER_CANNOT_FORK } from '../rules/branch.ts';
@@ -102,15 +102,16 @@ async function profileOf(t: TenantDb, chat: Chat, agent: Agent): Promise<AccessP
   return profile ?? PROFILE_MISSING;
 }
 
-/** The profile's gateway as the turn's route reaches it, or null for none. */
+/** The part's gateway as the turn's route reaches it, or null for none. */
 async function gatewayOf(
   deps: TargetDeps,
-  profile: AccessProfile,
+  owned: { readonly profile: AccessProfile; readonly part: AiPartRow },
   use: HarnessUse,
   route: GatewayRoute,
 ): Promise<{ readonly ok: true; readonly gateway: HarnessGateway | null } | Refusal<422 | 503>> {
-  if (profile.gatewayCredentialId === null) return { ok: true, gateway: null };
-  const opened = await deps.credentials.gateway(profile.gatewayCredentialId, profile.ownerUserId, use, route);
+  const { profile, part } = owned;
+  if (part.gatewayCredentialId === null) return { ok: true, gateway: null };
+  const opened = await deps.credentials.gateway(part.gatewayCredentialId, profile.ownerUserId, use, route);
   return opened.ok ? { ok: true, gateway: opened.gateway } : opened;
 }
 
@@ -130,9 +131,9 @@ export async function resolveTarget(
   if (!forked.ok) return forked;
   const profile = await profileOf(t, chat, agent);
   if (!('id' in profile)) return profile;
-  if (!profileFitsHarness(profile.provider, chat.harness))
-    return profileHarnessMismatch(profile.provider, chat.harness);
-  const { credentialId } = profile;
+  const part = aiPartOf(profile, HARNESS_PROVIDER[chat.harness]);
+  if (part === undefined) return profilePartMissing(chat.harness);
+  const { credentialId } = part;
   if (credentialId === null) return profileEmpty(profile.name);
   const instructions = await deps.standing(t, agent);
   const use: HarnessUse = {
@@ -145,14 +146,19 @@ export async function resolveTarget(
   const opened = await deps.credentials.credential(credentialId, profile.ownerUserId, use);
   if (!opened.ok) return opened;
   const credential: HarnessCredential = opened.credential;
-  const gateway = await gatewayOf(deps, profile, use, gatewayRouteOf(chat.harness, credential.kind));
+  const gateway = await gatewayOf(
+    deps,
+    { profile, part },
+    use,
+    gatewayRouteOf(chat.harness, credential.kind),
+  );
   if (!gateway.ok) return gateway;
   const spec: TerminalSpec = {
     harness: chat.harness,
     cwd: placement.home,
     sessionId: chat.sessionId,
-    model: turnModel(chat.harness, profile.model),
-    effort: turnEffort(chat.harness, profile.effort),
+    model: turnModel(chat.harness, part.model),
+    effort: turnEffort(chat.harness, part.effort),
     permissionPolicy: placement.permissionPolicy,
     configDir: placement.configDir,
     credential,

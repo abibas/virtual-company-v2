@@ -36,11 +36,8 @@ async function finish(s: Scene, turnId: string) {
   await ended(w.t.db, turnId);
 }
 
-/** Changes what a scene's profile runs straight in the table (no rules checked). */
-async function profileRuns(
-  s: Scene,
-  set: { model?: string | null; effort?: 'low' | 'max' | 'ultra' | null },
-) {
+/** Changes what a scene's profile's OpenAI part runs straight in the table (no rules checked). */
+async function openaiRuns(s: Scene, set: { openaiModel?: string | null; openaiEffort?: 'max' | null }) {
   await owned(w.t.db, s.company.owner.userId).update(
     accessProfiles,
     set,
@@ -80,7 +77,7 @@ describe("a turn's model and effort", () => {
     expect(defaults.spec.model).toBeNull();
     expect(defaults.spec).not.toHaveProperty('effort');
     await finish(s, defaults.turnId);
-    await profileRuns(s, { model: 'codex-default', effort: 'max' });
+    await openaiRuns(s, { openaiModel: 'codex-default', openaiEffort: 'max' });
     const marker = await startedTurn(w, s, 'the old marker');
     expect([marker.spec.model, marker.spec.effort]).toEqual([null, 'max']);
     const claude = await scene(w, { model: 'claude-haiku-5-5', effort: 'ultra' });

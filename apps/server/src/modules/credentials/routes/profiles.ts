@@ -14,31 +14,29 @@ import {
 import { accessProfilesService } from '../service/profiles.ts';
 
 /**
- * `/api/me/access-profiles` (S3.4, one provider each since 2026-11-10): the caller's own access profiles, each one of
- * their Claude subscriptions or one of their OpenAI ones with any of their gateways (optional), the model and effort
- * its runs use (since 2026-11-10, `@mwc/shared/models`) and its optional GitHub and Atlassian parts (S7.1b, one profile
- * since 2026-11-13: a sign-in of that tool and its rights), which they give to
- * agents of the matching harness in companies where they are an admin or owner (the agent routes) and choose as their
- * default there, one per provider. Personal, and managed only signed in to the web app: an API key is refused (403
+ * `/api/me/access-profiles` (S3.4; generic since 2026-11-13, docs/subscriptions.md "Profiles"): the caller's own
+ * profiles, each a name and optional parts (Claude, OpenAI, GitHub, Atlassian), which they give to agents in companies
+ * where they are an admin or owner (the agent routes; an agent needs the part its harness runs on) and choose as their
+ * default there, one per AI part. Personal, and managed only signed in to the web app: an API key is refused (403
  * `session_required`).
  */
 
 const PROFILES = '/api/me/access-profiles' as const;
 const INVALID = errorResponse('The request does not match the schema (`invalid_request`)');
 const NOT_FOUND = errorResponse(
-  "No such access profile of yours (`access_profile_not_found`); another person's is the same",
+  "No such profile of yours (`access_profile_not_found`); another person's is the same",
 );
 const NAME_TAKEN = errorResponse('You have a profile of that name already (`access_profile_name_taken`)');
 const CREDENTIAL_REFUSED = errorResponse(
-  'None of your subscriptions (`credential_not_found`); a subscription of another provider than the profile’s ' +
-    '(`provider_mismatch`: Claude takes `claude_oauth`, `claude_setup_token`, `anthropic_api_key`; OpenAI ' +
-    '`codex_oauth`, `openai_api_key`); a gateway that is not one, or a tool part’s sign-in of another tool ' +
-    '(`credential_kind_mismatch`: GitHub takes `github_oauth`, `github_token`; Atlassian `atlassian_api_token`; any ' +
-    'gateway fits any profile); a revoked one (`credential_revoked`); a model of the other provider (`model_provider_mismatch`); an effort its model, or ' +
-    'its provider, does not take (`effort_unsupported`: Claude takes low to max, Codex low to ultra, some models fewer)',
+  'None of your credentials (`credential_not_found`); a kind the place does not take (`credential_kind_mismatch`: ' +
+    'a Claude part takes `claude_oauth`, `claude_setup_token`, `anthropic_api_key`; an OpenAI part `codex_oauth`, ' +
+    '`openai_api_key`; a gateway any gateway; GitHub `github_oauth`, `github_token`; Atlassian `atlassian_api_token`); ' +
+    'a revoked one (`credential_revoked`); a model of the other provider (`model_provider_mismatch`); an effort its ' +
+    'model, or its provider, does not take (`effort_unsupported`: Claude takes low to max, Codex low to ultra, some ' +
+    'models fewer)',
 );
 const UPDATE_REFUSED = errorResponse(
-  'As for a new profile, or another provider than the profile’s, which is fixed (`provider_mismatch`)',
+  'As for a new profile, or removing an AI part agents run on (`profile_part_in_use`, naming them)',
 );
 
 const profilesRoute = <P extends PersonalPath>(deps: ServerDeps, path: P) =>
@@ -49,8 +47,7 @@ const listRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'get',
-    summary:
-      'Your access profiles, with their subscription, gateway and tool parts as metadata and the agents using each',
+    summary: 'Your profiles, with their parts (credentials as metadata) and the agents using each',
     responses: { 200: jsonResponse('Your profiles, oldest first', AccessProfileListSchema), ...refusals },
   });
 };
@@ -60,8 +57,7 @@ const createProfileRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'post',
-    summary:
-      'Make an access profile: its provider (fixed), one of your subscriptions of it, any of your gateways, a model, an effort and tool parts',
+    summary: 'Make a profile: a name and, optionally, its Claude, OpenAI, GitHub and Atlassian parts',
     request: { body: jsonBody(CreateAccessProfileSchema) },
     responses: {
       201: jsonResponse('The new profile', AccessProfileSchema),
@@ -78,8 +74,7 @@ const updateProfileRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'patch',
-    summary:
-      'Rename one of your access profiles, or change its subscription (of its provider), gateway (any), model, effort or tool parts (add, change, remove)',
+    summary: 'Rename one of your profiles, or add, change or remove its parts',
     request: { params: AccessProfileParamsSchema, body: jsonBody(UpdateAccessProfileSchema) },
     responses: {
       200: jsonResponse('The profile after the change', AccessProfileSchema),
@@ -97,7 +92,7 @@ const removeProfileRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'delete',
-    summary: 'Remove one of your access profiles: the agents using it and your defaults lose it',
+    summary: 'Remove one of your profiles: the agents using it and your defaults lose it',
     request: { params: AccessProfileParamsSchema },
     responses: { 204: { description: 'Removed' }, ...refusals, 404: NOT_FOUND },
   });

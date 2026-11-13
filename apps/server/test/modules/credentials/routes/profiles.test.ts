@@ -11,9 +11,10 @@ import { addUser, call, type LinkedUser } from '../../../fixtures/companies/comp
 import { addSubscription, auditRows, noSecret, PROFILES, revokeSubscription } from '../../../fixtures/org.ts';
 import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../../fixtures/platform/auth.ts';
 
-// `/api/me/access-profiles` (S3.4, one provider each since 2026-11-10): a person's own access profiles, each a Claude
-// one (a Claude subscription) or an OpenAI one (an OpenAI subscription) with an optional gateway (any of the person's:
-// gateways are universal), its provider fixed; never a revoked subscription and never someone else's; managed signed in only.
+// `/api/me/access-profiles` (S3.4; generic since 2026-11-13): a person's own profiles, each a name and optional parts;
+// here the profile itself and its AI parts (a Claude or an OpenAI subscription, any of the person's gateways), never a
+// revoked credential and never someone else's; managed signed in only. Models and efforts are `profiles/model.test.ts`'s,
+// tool parts and removing a part agents run on `profiles/parts.test.ts`'s.
 
 const MISSING = '0190f5f0-0000-7000-8000-000000000000';
 const keyring = ephemeralKeyring();
@@ -42,7 +43,7 @@ let names = 0;
 const fresh = () => `Profile ${++names}`;
 
 async function create(user: LinkedUser, body: Record<string, unknown>, requestId?: string) {
-  const res = await as(user, requestId)('POST', PROFILES, { name: fresh(), provider: 'claude', ...body });
+  const res = await as(user, requestId)('POST', PROFILES, { name: fresh(), ...body });
   if (res.status !== 201)
     throw new Error(`POST ${PROFILES} answered ${res.status}: ${JSON.stringify(res.body)}`);
   return res.body as AccessProfileView;
@@ -61,113 +62,111 @@ const shown = (view: { id: string; kind: string; label: string; status: string }
   site: null,
 });
 
+const NO_PARTS = { claude: null, openai: null, github: null, atlassian: null };
+
 describe('POST /api/me/access-profiles', () => {
-  it('makes a Claude profile of a subscription, a gateway, a model and an effort, shown as metadata only, and audits it', async () => {
-    const [claude, gateway] = [await sub(ihor, 'claude_setup_token'), await sub(ihor, 'gateway')];
-    const res = await as(ihor, 'req-profile-1')('POST', PROFILES, {
-      name: '  Work ',
-      provider: 'claude',
-      credentialId: claude.id,
-      gatewayCredentialId: gateway.id,
-      model: ' claude-opus-5-5 ',
-      effort: 'xhigh',
-    });
-    expect(res.status).toBe(201);
-    const view = res.body as AccessProfileView;
+  it('makes a profile of a name alone, with no parts', async () => {
+    const view = await create(ihor, { name: '  Empty ' });
     expect(view).toEqual({
       id: view.id,
-      name: 'Work',
-      provider: 'claude',
-      subscription: shown(claude),
-      gateway: shown(gateway),
-      model: 'claude-opus-5-5',
-      effort: 'xhigh',
-      tools: { github: null, atlassian: null },
+      name: 'Empty',
+      parts: NO_PARTS,
       agents: [],
       createdAt: view.createdAt,
       updatedAt: view.updatedAt,
     });
+  });
+
+  it('makes a Claude part of a subscription, a gateway, a model and an effort, shown as metadata only, and audits it', async () => {
+    const [claude, gateway] = [await sub(ihor, 'claude_setup_token'), await sub(ihor, 'gateway')];
+    const res = await as(ihor, 'req-profile-1')('POST', PROFILES, {
+      name: 'Work',
+      parts: {
+        claude: {
+          credentialId: claude.id,
+          gatewayCredentialId: gateway.id,
+          model: ' claude-opus-5-5 ',
+          effort: 'xhigh',
+        },
+      },
+    });
+    expect(res.status).toBe(201);
+    const view = res.body as AccessProfileView;
+    expect(view.parts).toEqual({
+      ...NO_PARTS,
+      claude: {
+        subscription: shown(claude),
+        gateway: shown(gateway),
+        model: 'claude-opus-5-5',
+        effort: 'xhigh',
+      },
+    });
     noSecret(view);
-    const audit = await auditRows(w.t.db, 'access_profile', view.id);
+    const audit = (await auditRows(w.t.db, 'access_profile', view.id)).map((row) => [
+      row.field,
+      row.newValue,
+      row.action,
+      row.requestId,
+    ]);
     expect(audit).toEqual(
       [
-        ['credentialId', claude.id],
-        ['effort', 'xhigh'],
-        ['gatewayCredentialId', gateway.id],
-        ['model', 'claude-opus-5-5'],
+        ['claudeCredentialId', claude.id],
+        ['claudeEffort', 'xhigh'],
+        ['claudeGatewayCredentialId', gateway.id],
+        ['claudeModel', 'claude-opus-5-5'],
+        ['claudePart', true],
         ['name', 'Work'],
+        ['openaiPart', false],
         ['ownerUserId', ihor.userId],
-        ['provider', 'claude'],
-      ].map(([field, value]) => ({
-        companyId: null,
-        actorKind: 'user',
-        actorPrincipalId: null,
-        requestId: 'req-profile-1',
-        entityType: 'access_profile',
-        entityId: view.id,
-        action: 'create',
-        field,
-        oldValue: null,
-        newValue: value,
-      })),
+      ].map((row) => [...row, 'create', 'req-profile-1']),
     );
   });
 
-  it('makes an OpenAI profile of an OpenAI subscription, with no gateway', async () => {
-    const openai = await sub(ihor, 'codex_oauth');
-    const view = await create(ihor, {
-      provider: 'openai',
-      credentialId: openai.id,
-      gatewayCredentialId: null,
-    });
-    expect(view).toMatchObject({
-      provider: 'openai',
-      subscription: shown(openai),
-      gateway: null,
-      model: null,
-      effort: null,
-    });
-  });
-
-  it('gives any profile any gateway: one gateway in a Claude and an OpenAI profile alike', async () => {
+  it('holds a Claude and an OpenAI part on one profile, any gateway in either', async () => {
+    const [claude, openai] = [await sub(ihor, 'claude_oauth'), await sub(ihor, 'codex_oauth')];
     const memory = await addGateway(ihor);
     const older = await addGateway(ihor, { provider: 'openai' });
-    const codex = await create(ihor, { provider: 'openai', gatewayCredentialId: memory.id });
-    expect(codex).toMatchObject({ provider: 'openai', gateway: shown(memory) });
-    const claude = await create(ihor, { gatewayCredentialId: memory.id });
-    expect(claude).toMatchObject({ provider: 'claude', gateway: shown(memory) });
-    const olderInClaude = await create(ihor, { gatewayCredentialId: older.id });
-    expect(olderInClaude).toMatchObject({ provider: 'claude', gateway: shown(older) });
-    const swapped = await as(ihor)('PATCH', `${PROFILES}/${codex.id}`, { gatewayCredentialId: older.id });
-    expect(swapped).toMatchObject({ status: 200, body: { gateway: shown(older) } });
-    const emptied = await as(ihor)('PATCH', `${PROFILES}/${codex.id}`, { gatewayCredentialId: null });
-    expect(emptied).toMatchObject({ status: 200, body: { gateway: null } });
+    const view = await create(ihor, {
+      parts: {
+        claude: { credentialId: claude.id, gatewayCredentialId: older.id },
+        openai: { credentialId: openai.id, gatewayCredentialId: memory.id },
+      },
+    });
+    expect(view.parts).toMatchObject({
+      claude: { subscription: shown(claude), gateway: shown(older), model: null, effort: null },
+      openai: { subscription: shown(openai), gateway: shown(memory) },
+      github: null,
+    });
   });
 
-  it('takes every kind of its provider, and none', async () => {
+  it('takes every kind of each AI part’s provider, and none', async () => {
     for (const kind of ['claude_oauth', 'claude_setup_token', 'anthropic_api_key'] as const) {
-      const view = await create(ihor, { credentialId: (await sub(ihor, kind)).id });
-      expect([view.provider, view.subscription?.kind]).toEqual(['claude', kind]);
+      const view = await create(ihor, { parts: { claude: { credentialId: (await sub(ihor, kind)).id } } });
+      expect(view.parts.claude?.subscription?.kind).toBe(kind);
     }
     for (const kind of ['codex_oauth', 'openai_api_key'] as const) {
-      const view = await create(ihor, { provider: 'openai', credentialId: (await sub(ihor, kind)).id });
-      expect([view.provider, view.subscription?.kind]).toEqual(['openai', kind]);
+      const view = await create(ihor, { parts: { openai: { credentialId: (await sub(ihor, kind)).id } } });
+      expect(view.parts.openai?.subscription?.kind).toBe(kind);
     }
-    const empty = await create(ihor, { credentialId: null });
-    expect(empty).toMatchObject({ provider: 'claude', subscription: null, gateway: null });
+    const empty = await create(ihor, { parts: { claude: {} } });
+    expect(empty.parts.claude).toEqual({ subscription: null, gateway: null, model: null, effort: null });
   });
 
   it.each([
-    ['claude', 'credentialId', 'openai_api_key', 'provider_mismatch'],
-    ['claude', 'credentialId', 'codex_oauth', 'provider_mismatch'],
-    ['claude', 'credentialId', 'gateway', 'provider_mismatch'],
-    ['openai', 'credentialId', 'claude_oauth', 'provider_mismatch'],
-    ['openai', 'credentialId', 'anthropic_api_key', 'provider_mismatch'],
-    ['claude', 'gatewayCredentialId', 'claude_setup_token', 'credential_kind_mismatch'],
-    ['openai', 'gatewayCredentialId', 'codex_oauth', 'credential_kind_mismatch'],
-  ] as const)('refuses a %s profile a %s of kind %s (422 %s)', async (provider, field, kind, code) => {
-    const body = { name: fresh(), provider, [field]: (await sub(ihor, kind)).id };
-    expect(await as(ihor)('POST', PROFILES, body)).toMatchObject({ status: 422, body: { error: { code } } });
+    ['claude', 'credentialId', 'openai_api_key'],
+    ['claude', 'credentialId', 'codex_oauth'],
+    ['claude', 'credentialId', 'gateway'],
+    ['claude', 'credentialId', 'github_oauth'],
+    ['openai', 'credentialId', 'claude_oauth'],
+    ['openai', 'credentialId', 'anthropic_api_key'],
+    ['claude', 'gatewayCredentialId', 'claude_setup_token'],
+    ['openai', 'gatewayCredentialId', 'codex_oauth'],
+  ] as const)('refuses a %s part a %s of kind %s (422)', async (part, field, kind) => {
+    const body = { name: fresh(), parts: { [part]: { [field]: (await sub(ihor, kind)).id } } };
+    expect(await as(ihor)('POST', PROFILES, body)).toMatchObject({
+      status: 422,
+      body: { error: { code: 'credential_kind_mismatch' } },
+    });
   });
 
   it('refuses a revoked subscription, someone else’s, an unknown or malformed id, writing nothing', async () => {
@@ -181,26 +180,29 @@ describe('POST /api/me/access-profiles', () => {
       [MISSING, 'credential_not_found'],
       ['not-an-id', 'credential_not_found'],
     ]) {
-      const res = await as(ihor)('POST', PROFILES, { name: fresh(), provider: 'claude', credentialId: id });
+      const res = await as(ihor)('POST', PROFILES, {
+        name: fresh(),
+        parts: { claude: { credentialId: id } },
+      });
       expect(res).toMatchObject({ status: 422, body: { error: { code } } });
     }
     expect(await listOf(ihor)).toHaveLength(before);
   });
 
-  it('keeps names unique per person (409), whatever the provider, while another person may take the same one', async () => {
+  it('keeps names unique per person (409), while another person may take the same one', async () => {
     await create(ihor, { name: 'Shared name' });
-    const res = await as(ihor)('POST', PROFILES, { name: 'Shared name', provider: 'openai' });
+    const res = await as(ihor)('POST', PROFILES, { name: 'Shared name', parts: { openai: {} } });
     expect(res).toMatchObject({ status: 409, body: { error: { code: 'access_profile_name_taken' } } });
     expect((await create(other, { name: 'Shared name' })).name).toBe('Shared name');
   });
 
   it.each([
-    ['no name', { provider: 'claude' }],
-    ['an empty name', { name: '   ', provider: 'claude' }],
-    ['a name over 80 characters', { name: 'x'.repeat(81), provider: 'claude' }],
-    ['no provider', { name: 'Ok' }],
-    ['another provider', { name: 'Ok', provider: 'gemini' }],
-    ['a subscription that is not a string', { name: 'Ok', provider: 'claude', credentialId: 7 }],
+    ['no name', {}],
+    ['an empty name', { name: '   ' }],
+    ['a name over 80 characters', { name: 'x'.repeat(81) }],
+    ['an unknown part', { name: 'Ok', parts: { gemini: {} } }],
+    ['an unknown field in a part', { name: 'Ok', parts: { claude: { rights: {} } } }],
+    ['a subscription that is not a string', { name: 'Ok', parts: { claude: { credentialId: 7 } } }],
   ])('refuses %s (400)', async (_, body) => {
     expect(await as(ihor)('POST', PROFILES, body)).toMatchObject({
       status: 400,
@@ -210,89 +212,93 @@ describe('POST /api/me/access-profiles', () => {
 });
 
 describe('GET /api/me/access-profiles', () => {
-  it('lists only the caller’s own profiles, of both providers, oldest first', async () => {
+  it('lists only the caller’s own profiles, oldest first', async () => {
     const solo = await addUser(w.t.db, w.fake);
     const first = await create(solo, { name: 'First' });
-    const second = await create(solo, { name: 'Second', provider: 'openai' });
+    const second = await create(solo, { name: 'Second', parts: { openai: {} } });
     await create(other, {});
-    expect((await listOf(solo)).map((profile) => [profile.id, profile.provider])).toEqual([
-      [first.id, 'claude'],
-      [second.id, 'openai'],
-    ]);
+    expect((await listOf(solo)).map((profile) => profile.id)).toEqual([first.id, second.id]);
     expect((await listOf(other)).map((profile) => profile.id)).not.toContain(first.id);
   });
 
-  it('shows a profile emptied when its subscription is removed', async () => {
+  it('keeps a part whose subscription is removed, with none', async () => {
     const claude = await sub(ihor, 'anthropic_api_key');
-    const profile = await create(ihor, { credentialId: claude.id });
+    const profile = await create(ihor, { parts: { claude: { credentialId: claude.id } } });
     expect((await as(ihor)('DELETE', `/api/me/subscriptions/${claude.id}`)).status).toBe(204);
     const [row] = await rawDb(w.t.db).select().from(accessProfiles).where(eq(accessProfiles.id, profile.id));
-    expect(row?.credentialId).toBeNull();
-    expect((await listOf(ihor)).find((listed) => listed.id === profile.id)?.subscription).toBeNull();
+    expect(row).toMatchObject({ claudePart: true, claudeCredentialId: null });
+    const listed = (await listOf(ihor)).find((each) => each.id === profile.id);
+    expect(listed?.parts.claude?.subscription).toBeNull();
   });
 });
 
 describe('PATCH /api/me/access-profiles/:profileId', () => {
-  it('renames it and changes its subscription, writing only what differs, with audit rows', async () => {
+  it('renames it and changes a part’s subscription, writing only what differs, with audit rows', async () => {
     const first = await sub(ihor, 'claude_oauth');
     const second = await sub(ihor, 'claude_setup_token');
-    const profile = await create(ihor, { name: 'Before', credentialId: first.id });
+    const profile = await create(ihor, { name: 'Before', parts: { claude: { credentialId: first.id } } });
     const path = `${PROFILES}/${profile.id}`;
-    const res = await as(ihor, 'req-profile-2')('PATCH', path, { name: 'After', credentialId: second.id });
+    const change = { name: 'After', parts: { claude: { credentialId: second.id } } };
+    const res = await as(ihor, 'req-profile-2')('PATCH', path, change);
     expect(res).toMatchObject({
       status: 200,
-      body: { id: profile.id, name: 'After', provider: 'claude', subscription: { id: second.id } },
+      body: { id: profile.id, name: 'After', parts: { claude: { subscription: { id: second.id } } } },
     });
-    const same = await as(ihor, 'req-profile-3')('PATCH', path, {
-      name: 'After',
-      provider: 'claude',
-      credentialId: second.id,
-    });
-    expect(same.status).toBe(200);
+    expect((await as(ihor, 'req-profile-3')('PATCH', path, change)).status).toBe(200);
     const updates = (await auditRows(w.t.db, 'access_profile', profile.id)).filter(
       (row) => row.action === 'update',
     );
     expect(updates.map((row) => [row.requestId, row.field, row.oldValue, row.newValue])).toEqual([
-      ['req-profile-2', 'credentialId', first.id, second.id],
+      ['req-profile-2', 'claudeCredentialId', first.id, second.id],
       ['req-profile-2', 'name', 'Before', 'After'],
     ]);
   });
 
-  it('keeps its provider: another one, or a subscription of another, is a 422 provider_mismatch', async () => {
+  it('adds an AI part and removes one no agent runs on, emptying its columns', async () => {
     const openai = await sub(ihor, 'openai_api_key');
-    const claude = await create(ihor, {});
-    const codex = await create(ihor, { provider: 'openai', credentialId: openai.id });
-    const turned = await as(ihor)('PATCH', `${PROFILES}/${claude.id}`, { provider: 'openai' });
-    expect(turned).toMatchObject({
-      status: 422,
+    const profile = await create(ihor, { parts: { claude: {} } });
+    const path = `${PROFILES}/${profile.id}`;
+    const added = await as(ihor)('PATCH', path, {
+      parts: { openai: { credentialId: openai.id, model: 'gpt-5.5' } },
+    });
+    expect(added).toMatchObject({
+      status: 200,
       body: {
-        error: { code: 'provider_mismatch', message: expect.stringContaining('This is a Claude profile') },
+        parts: {
+          claude: { subscription: null },
+          openai: { subscription: { id: openai.id }, model: 'gpt-5.5' },
+        },
       },
     });
-    const wrongKind = await as(ihor)('PATCH', `${PROFILES}/${claude.id}`, { credentialId: openai.id });
-    expect(wrongKind).toMatchObject({ status: 422, body: { error: { code: 'provider_mismatch' } } });
-    expect(await listOf(ihor)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: claude.id, provider: 'claude', subscription: null }),
-        expect.objectContaining({ id: codex.id, provider: 'openai', gateway: null }),
-      ]),
-    );
+    const removed = await as(ihor, 'req-off')('PATCH', path, { parts: { claude: null, openai: null } });
+    expect(removed).toMatchObject({ status: 200, body: { parts: NO_PARTS } });
+    const [row] = await rawDb(w.t.db).select().from(accessProfiles).where(eq(accessProfiles.id, profile.id));
+    expect(row).toMatchObject({
+      claudePart: false,
+      openaiPart: false,
+      openaiCredentialId: null,
+      openaiModel: null,
+    });
   });
 
   it('empties a credential with null, keeps a revoked subscription in place, but refuses putting one in', async () => {
     const gateway = await sub(ihor, 'gateway');
     const claude = await sub(ihor, 'claude_setup_token');
-    const profile = await create(ihor, { gatewayCredentialId: gateway.id, credentialId: claude.id });
+    const profile = await create(ihor, {
+      parts: { claude: { gatewayCredentialId: gateway.id, credentialId: claude.id } },
+    });
     await revokeSubscription(w.t.db, claude.id);
     const path = `${PROFILES}/${profile.id}`;
-    const kept = await as(ihor)('PATCH', path, { credentialId: claude.id, gatewayCredentialId: null });
+    const kept = await as(ihor)('PATCH', path, {
+      parts: { claude: { credentialId: claude.id, gatewayCredentialId: null } },
+    });
     expect(kept).toMatchObject({
       status: 200,
-      body: { subscription: { id: claude.id, status: 'revoked' }, gateway: null },
+      body: { parts: { claude: { subscription: { id: claude.id, status: 'revoked' }, gateway: null } } },
     });
-    const emptied = await as(ihor)('PATCH', path, { credentialId: null });
-    expect(emptied).toMatchObject({ status: 200, body: { subscription: null } });
-    const back = await as(ihor)('PATCH', path, { credentialId: claude.id });
+    const emptied = await as(ihor)('PATCH', path, { parts: { claude: { credentialId: null } } });
+    expect(emptied).toMatchObject({ status: 200, body: { parts: { claude: { subscription: null } } } });
+    const back = await as(ihor)('PATCH', path, { parts: { claude: { credentialId: claude.id } } });
     expect(back).toMatchObject({ status: 422, body: { error: { code: 'credential_revoked' } } });
   });
 
@@ -307,7 +313,9 @@ describe('PATCH /api/me/access-profiles/:profileId', () => {
     const taken = await as(ihor)('PATCH', `${PROFILES}/${other2.id}`, { name: mine.name });
     expect(taken).toMatchObject({ status: 409, body: { error: { code: 'access_profile_name_taken' } } });
     expect((await as(ihor)('PATCH', `${PROFILES}/${mine.id}`, {})).status).toBe(400);
-    const wrong = await as(ihor)('PATCH', `${PROFILES}/${mine.id}`, { credentialId: MISSING });
+    const wrong = await as(ihor)('PATCH', `${PROFILES}/${mine.id}`, {
+      parts: { openai: { credentialId: MISSING } },
+    });
     expect(wrong).toMatchObject({ status: 422, body: { error: { code: 'credential_not_found' } } });
   });
 });
@@ -317,7 +325,7 @@ describe('DELETE /api/me/access-profiles/:profileId', () => {
     const theirs = await create(other, {});
     expect(await as(ihor)('DELETE', `${PROFILES}/${theirs.id}`)).toMatchObject({ status: 404 });
     const loner = await addUser(w.t.db, w.fake);
-    const mine = await create(loner, { name: 'Gone' });
+    const mine = await create(loner, { name: 'Gone', parts: { claude: {} } });
     expect((await as(loner, 'req-profile-4')('DELETE', `${PROFILES}/${mine.id}`)).status).toBe(204);
     expect(await listOf(loner)).toEqual([]);
     const deleted = (await auditRows(w.t.db, 'access_profile', mine.id)).filter(
@@ -326,27 +334,25 @@ describe('DELETE /api/me/access-profiles/:profileId', () => {
     expect(
       deleted.map((row) => [row.companyId, row.requestId, row.field, row.oldValue, row.newValue]),
     ).toEqual([
+      [null, 'req-profile-4', 'claudePart', true, null],
       [null, 'req-profile-4', 'name', 'Gone', null],
+      [null, 'req-profile-4', 'openaiPart', false, null],
       [null, 'req-profile-4', 'ownerUserId', loner.userId, null],
-      [null, 'req-profile-4', 'provider', 'claude', null],
     ]);
     expect((await as(loner)('DELETE', `${PROFILES}/${mine.id}`)).status).toBe(404);
   });
 });
 
-describe('who may manage access profiles', () => {
+describe('who may manage profiles', () => {
   it('refuses an API key on every route with 403 session_required, even the owner’s own', async () => {
     const { company } = await seedCompany(w.t.db);
     const person = await addPerson(w.t.db, w.fake, company.id);
     const { key } = await seedApiKey(w.t.db, { companyId: company.id, principalId: person.principalId });
-    const mine = await call(w, `fake:${person.subject}`)('POST', PROFILES, {
-      name: 'Keyed',
-      provider: 'claude',
-    });
+    const mine = await call(w, `fake:${person.subject}`)('POST', PROFILES, { name: 'Keyed' });
     const id = (mine.body as AccessProfileView).id;
     for (const [method, path, body] of [
       ['GET', PROFILES, undefined],
-      ['POST', PROFILES, { name: 'Other', provider: 'openai' }],
+      ['POST', PROFILES, { name: 'Other' }],
       ['PATCH', `${PROFILES}/${id}`, { name: 'x' }],
       ['DELETE', `${PROFILES}/${id}`, undefined],
     ] as const) {

@@ -330,22 +330,20 @@ describe('tool sign-ins among the subscriptions', () => {
     expect((await usesOf(w.t.db, view.id)).length).toBe(1);
   });
 
-  it('never go in an access profile', async () => {
+  it('never go in a profile’s AI part', async () => {
     w.provider.always(GITHUB_USER, githubUser());
     const view = await addedTool(w, ihor, githubToken());
     const profiles = call(w, ihor.token);
     expect(
       await profiles('POST', '/api/me/access-profiles', {
         name: 'Tools?',
-        provider: 'claude',
-        credentialId: view.id,
+        parts: { claude: { credentialId: view.id } },
       }),
-    ).toMatchObject({ status: 422, body: { error: { code: 'provider_mismatch' } } });
+    ).toMatchObject({ status: 422, body: { error: { code: 'credential_kind_mismatch' } } });
     expect(
       await profiles('POST', '/api/me/access-profiles', {
         name: 'Tools as gateway?',
-        provider: 'claude',
-        gatewayCredentialId: view.id,
+        parts: { openai: { gatewayCredentialId: view.id } },
       }),
     ).toMatchObject({ status: 422, body: { error: { code: 'credential_kind_mismatch' } } });
   });

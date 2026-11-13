@@ -50,7 +50,7 @@ function nodeView(org: OrgState, node: ChartNode, shown: Shown): ChartNodeView {
   }
   const agent = org.agents.get(node.principalId) as Agent;
   const { id: agentId, name, slug, roleTitle, status, harness, face } = agent;
-  const { profile, runsWith } = profileExtras(shown.profiles, agent.profileId);
+  const { profile, runsWith } = profileExtras(shown.profiles, agent);
   const placement = shown.placements.get(agentId) ?? null;
   const icon = iconOf(agent, shown.icons.get(agentId));
   return {

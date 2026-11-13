@@ -93,7 +93,7 @@ export const TERMINAL_UNAVAILABLE = refuse(
 export const PROFILE_MISSING = refuse(
   422,
   'profile_missing',
-  'Neither the chat nor the agent has an access profile: give the agent one, or choose one for this chat',
+  'Neither the chat nor the agent has a profile: give the agent one, or choose one for this chat',
 );
 export const PROFILE_OWNER_GONE = refuse(
   422,
@@ -120,7 +120,7 @@ export const profileEmpty = (name: string): Refusal<422> =>
   refuse(
     422,
     'profile_empty',
-    `The access profile ${name} has no subscription: its owner chooses one on their Access profiles page`,
+    `The profile ${name} has no subscription in the part this agent runs on: its owner chooses one on their Profiles page`,
   );
 
 /** A chat's title: the first prompt on one line, cut to 80 characters with an ellipsis. */

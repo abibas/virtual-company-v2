@@ -14,7 +14,6 @@ import {
   AgentListSchema,
   AgentParamsSchema,
   AgentsParamsSchema,
-  AgentUpdatedSchema,
   CreateAgentSchema,
   OrgChartSchema,
   PositionParamsSchema,
@@ -115,12 +114,12 @@ const updateAgentRoute = (deps: ServerDeps) => {
     description:
       'New instructions bump `instructionsRev`. Archiving moves its reports up (to the company’s earliest active ' +
       'owner when nobody above can take an agent) and removes its place; back from the archive it reports to the ' +
-      'caller. There is no hard delete. `profileId`: only its owner gives an access profile, signed in, of the ' +
-      'provider the harness runs on; any admin takes it off (`null`). A new `harness` its profile does not fit takes ' +
-      'the profile off, said in `profileCleared`.',
+      'caller. There is no hard delete. `profileId`: only its owner gives a profile, signed in, with the part the ' +
+      'harness runs on (Claude for Claude Code, OpenAI for Codex); any admin takes it off (`null`). A new `harness` ' +
+      'its profile has no part for is refused (`profile_part_missing`).',
     request: { params: AgentParamsSchema, body: jsonBody(UpdateAgentSchema) },
     responses: {
-      200: jsonResponse('The agent after the change', AgentUpdatedSchema),
+      200: jsonResponse('The agent after the change', AgentDetailSchema),
       400: INVALID,
       401: refusals[401],
       403: GIVE_REFUSED,
@@ -183,8 +182,7 @@ function agentRoutes(deps: ServerDeps, org: OrgService) {
       const { agentId } = c.req.valid('param');
       const result = await org.update(c.var.tenant, callerOf(c.var), agentId, c.req.valid('json'));
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
-      const { profileCleared } = result;
-      return c.json(profileCleared ? { ...result.agent, profileCleared } : result.agent, 200);
+      return c.json(result.agent, 200);
     })
     .route('/', agentIconRoutes(deps))
     .route('/', agentBriefingRoutes(deps, org));

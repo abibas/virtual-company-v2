@@ -50,11 +50,9 @@ describe('giving an access profile to an agent', () => {
     const shown = {
       id: profile.id,
       name: 'Work',
-      provider: 'claude',
       ownerUserId: company.owner.userId,
       ownerName: await ownerName(company.owner),
-      account: null,
-      tools: { github: null, atlassian: null },
+      parts: { claude: { model: null, effort: null }, openai: null, github: null, atlassian: null },
     };
     expect(res).toMatchObject({ status: 200, body: { profile: shown } });
     expect(Object.keys((res.body as AgentDetailView).profile ?? {})).toEqual(Object.keys(shown));
@@ -261,8 +259,8 @@ describe('PUT /api/companies/:companyId/me/default-profile', () => {
       status: 422,
       body: {
         error: {
-          code: 'provider_mismatch',
-          message: 'Your Claude default is a Claude profile; this access profile is for OpenAI',
+          code: 'profile_part_missing',
+          message: 'This profile has no Claude part, so it cannot be your default for Claude Code agents',
         },
       },
     });

@@ -4,10 +4,9 @@ import {
   agentChanges,
   auditedAgent,
   chooseSlug,
-  defaultProviderMismatch,
+  defaultPartMissing,
   giveRefusal,
-  profileClearedMessage,
-  profileHarnessMismatch,
+  profilePartMissing,
   profileStep,
   statusMove,
 } from '../../../../src/modules/org/rules/agents.ts';
@@ -144,23 +143,20 @@ describe('profileStep', () => {
 });
 
 describe('which profiles fit', () => {
-  it('names the profile an agent on each harness needs, and the one a default of each provider takes', () => {
-    expect(profileHarnessMismatch('openai', 'claude_code')).toEqual({
+  it('names the part an agent on each harness needs, and the one a default for each part takes', () => {
+    expect(profilePartMissing('claude_code')).toEqual({
       ok: false,
       status: 422,
-      code: 'profile_harness_mismatch',
-      message: 'A Claude Code agent needs a Claude profile; this access profile is for OpenAI',
+      code: 'profile_part_missing',
+      message: 'This profile has no Claude part, which a Claude Code agent runs on',
     });
-    expect(profileHarnessMismatch('claude', 'codex').message).toBe(
-      'A Codex agent needs an OpenAI profile; this access profile is for Claude',
+    expect(profilePartMissing('codex').message).toBe(
+      'This profile has no OpenAI part, which a Codex agent runs on',
     );
-    expect(defaultProviderMismatch('claude', 'openai')).toMatchObject({
+    expect(defaultPartMissing('openai')).toMatchObject({
       status: 422,
-      code: 'provider_mismatch',
-      message: 'Your OpenAI default is an OpenAI profile; this access profile is for Claude',
+      code: 'profile_part_missing',
+      message: 'This profile has no OpenAI part, so it cannot be your default for Codex agents',
     });
-    expect(profileClearedMessage('Home', 'openai', 'claude_code')).toBe(
-      'Its access profile Home is for OpenAI, so it was taken off: a Claude Code agent needs a Claude profile',
-    );
   });
 });

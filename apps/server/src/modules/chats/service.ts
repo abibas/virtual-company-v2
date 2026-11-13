@@ -1,9 +1,10 @@
 import type { AccessProfile, Chat, TenantDb } from '@mwc/db';
+import { aiPartOf } from '@mwc/db';
 import { queueOrder } from '@mwc/shared/chats';
-import { profileFitsHarness } from '@mwc/shared/credentials';
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { Harness } from '@mwc/shared/enums';
 import { agentPlacement } from '../machines/index.ts';
-import { giveRefusal, profileHarnessMismatch } from '../org/rules/agents.ts';
+import { giveRefusal, profilePartMissing } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
 import { chatsRepo } from './repo.ts';
 import { openQuestion } from './rules/questions.ts';
@@ -18,7 +19,7 @@ import { chatView } from './service/views.ts';
 /**
  * The chats with an agent (S5.1b): list an agent's, begin one (on the agent's harness and its placement's machine,
  * with the caller's own access profile when they choose one), read one with its current conversation, rename it,
- * choose its profile (only one's own, of the provider the chat's harness runs on: the rules of giving a profile to an
+ * choose its profile (only one's own, with the part the chat's harness runs on: the rules of giving a profile to an
  * agent; any admin takes it off) and archive it.
  * Every change is audited (entity `chat`). The turns are `service/turns.ts`'s, a branch `service/branch.ts`'s.
  */
@@ -36,14 +37,15 @@ type Shown = { readonly ok: true; readonly chat: ChatView };
 
 /**
  * Why the caller may not choose this profile for a chat on `harness` (the rules of giving one to an agent: only their
- * own, of the harness's provider, else 422 `profile_harness_mismatch`); undefined when they may.
+ * own, with the harness's part, else 422 `profile_part_missing`); undefined when they may.
  */
 async function chooseRefusal(t: TenantDb, caller: ChatCaller, profileId: string, harness: Harness) {
   const profile = await profilesRepo.get(t, profileId);
   const refusal = giveRefusal(caller, profile?.ownerUserId);
   if (refusal) return refusal;
-  const { provider } = profile as AccessProfile;
-  return profileFitsHarness(provider, harness) ? undefined : profileHarnessMismatch(provider, harness);
+  return aiPartOf(profile as AccessProfile, HARNESS_PROVIDER[harness])
+    ? undefined
+    : profilePartMissing(harness);
 }
 
 /** The agent's chats not archived, the latest first; 404 for an unknown agent. */

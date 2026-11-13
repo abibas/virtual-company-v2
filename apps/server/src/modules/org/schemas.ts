@@ -11,12 +11,7 @@ import {
 } from '@mwc/shared/org';
 import { SLUG_PATTERN } from '@mwc/shared/slugs';
 import { AgentIconSchema } from './schemas/icons.ts';
-import {
-  AgentProfileSchema,
-  ProfileChoice,
-  ProfileClearedSchema,
-  RunsWithSchema,
-} from './schemas/profiles.ts';
+import { AgentProfileSchema, ProfileChoice, RunsWithSchema } from './schemas/profiles.ts';
 
 const pathParam = (name: string, example: string) =>
   z.string().openapi({ param: { name, in: 'path' }, example });
@@ -104,11 +99,6 @@ export const AgentDetailSchema = AgentSchema.extend({ instructions: z.string() }
 export const AgentBriefingSchema = z
   .object({ briefing: z.string(), version: z.string().openapi({ example: '9c1d4e2a' }) })
   .openapi('AgentBriefing');
-
-/** An agent after a change, with the profile a harness change took off it, when one did. */
-export const AgentUpdatedSchema = AgentDetailSchema.extend({
-  profileCleared: ProfileClearedSchema.optional(),
-}).openapi('AgentUpdated');
 
 export const AgentListSchema = z.object({ agents: z.array(AgentSchema) }).openapi('AgentList');
 
