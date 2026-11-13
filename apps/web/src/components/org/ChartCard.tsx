@@ -1,3 +1,4 @@
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import { Server } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
 import type { ChartNode } from '../../api/types.ts';
@@ -105,7 +106,7 @@ function Facts({
             className="flex min-w-0 items-center gap-1 text-2xs font-medium text-ink-2"
             title={`${harnessLabel(agent.harness)} · ${runsLine(agent.runsWith)}`}
           >
-            <ProviderLogo provider={agent.profile.provider} size={12} className="shrink-0" />
+            <ProviderLogo provider={HARNESS_PROVIDER[agent.harness]} size={12} className="shrink-0" />
             <span className="truncate">{agent.profile.name}</span>
           </span>
         ) : (

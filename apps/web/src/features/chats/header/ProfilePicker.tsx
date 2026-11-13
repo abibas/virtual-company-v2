@@ -2,7 +2,7 @@ import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { Harness } from '@mwc/shared/enums';
 import type { AccessProfile, Chat } from '../../../api/types.ts';
 import { Select, type SelectOption } from '../../../components/forms/Input.tsx';
-import { PROVIDER_STYLES } from '../../subscriptions/Providers.tsx';
+import { PART_STYLES } from '../../subscriptions/Providers.tsx';
 import { useAction } from '../use-action.ts';
 
 /** The agent's profile: the empty value, so choosing it sends `profileId: null`. */
@@ -13,9 +13,9 @@ const HEADER_SELECT =
   'w-auto max-w-56 [&_select]:h-8 [&_select]:rounded-full [&_select]:bg-surface-2 [&_select]:pr-8 [&_select]:pl-3 [&_select]:text-xs [&_select]:font-semibold [&_select]:text-ink-2 [&_select:hover]:bg-surface-3 [&>svg]:right-2.5 [&>svg]:size-3.5';
 
 /**
- * The choices: the agent's own profile, then the person's own profiles of the provider the chat's harness runs on
- * (Claude for Claude Code, OpenAI for Codex), those without a subscription shown but not choosable; a profile of
- * someone else that the chat runs on stays listed as the current choice.
+ * The choices: the agent's own profile, then the person's own profiles with the part the chat's harness runs on (a
+ * Claude part for Claude Code, an OpenAI part for Codex), those whose part has no subscription shown but not
+ * choosable; a profile of someone else that the chat runs on stays listed as the current choice.
  */
 export function profileOptions(
   harness: Harness,
@@ -24,12 +24,12 @@ export function profileOptions(
   current: string | null,
 ): readonly SelectOption[] {
   const provider = HARNESS_PROVIDER[harness];
-  const fitting = mine.filter((profile) => profile.provider === provider);
-  const group = `Your ${PROVIDER_STYLES[provider].name} profiles`;
+  const fitting = mine.filter((profile) => profile.parts[provider] !== null);
+  const group = `Your profiles with a ${PART_STYLES[provider].name} part`;
   const options: SelectOption[] = [
     { value: AGENTS, label: `Agent's profile (${agentProfileName ?? 'none'})` },
     ...fitting.map((profile) => {
-      const empty = profile.subscription === null;
+      const empty = profile.parts[provider]?.subscription === null;
       return {
         value: profile.id,
         label: empty ? `${profile.name} (no subscription)` : profile.name,
@@ -68,7 +68,7 @@ export function ProfilePicker({
     <div className="relative min-w-0">
       <Select
         size="sm"
-        aria-label="Access profile for this chat"
+        aria-label="Profile for this chat"
         title="The access profile this chat's turns run on"
         value={chat.profileId ?? AGENTS}
         options={profileOptions(chat.harness, agentProfileName, profiles ?? [], chat.profileId)}

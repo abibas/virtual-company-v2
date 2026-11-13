@@ -23,8 +23,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
   turn_not_running: 'That turn already ended.',
   credential_needs_sign_in:
     'The subscription this chat runs on needs a new sign-in: its owner signs in again on Subscriptions.',
-  credential_revoked: 'The subscription this chat runs on is revoked: choose another access profile.',
-  credential_not_found: 'The subscription this chat runs on is gone: choose another access profile.',
+  credential_revoked: 'The subscription this chat runs on is revoked: choose another profile.',
+  credential_not_found: 'The subscription this chat runs on is gone: choose another profile.',
   provider_unavailable: "The provider didn't refresh the sign-in just now. Try again in a moment.",
   terminal_unavailable: "This machine's runner has no terminal: update it on the Machines page.",
   agent_archived: 'The agent is archived: restore it to chat with it.',

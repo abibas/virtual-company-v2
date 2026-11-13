@@ -1,23 +1,22 @@
 import type { ToolRights } from '@mwc/shared/credentials';
 import type { ToolProvider } from '@mwc/shared/enums';
-import { type LucideIcon, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import type { AccessProfileChanges } from '../../api/types.ts';
 import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
-import { Button } from '../../components/ui/Button.tsx';
-import type { CardProps } from './ProfileParts.tsx';
-import { SavedSelect } from './ProfileParts.tsx';
-import { TOOL_STYLES } from './Providers.tsx';
-import { firstSignIn, signInOptions } from './profile-options.ts';
+import { type CardProps, PartFrame, SavedSelect } from './ProfileParts.tsx';
+import { PART_STYLES } from './Providers.tsx';
+import { signInOptions } from './profile-options.ts';
 import { ToolRightsFields } from './ToolRightsFields.tsx';
 
-type Part = NonNullable<CardProps['profile']['tools'][ToolProvider]>;
+type Part = NonNullable<CardProps['profile']['parts'][ToolProvider]>;
 
-/** A change of one tool part, as `PATCH` takes it: the part (its sign-in, its rights) or null to remove it. */
-const partChange = (tool: ToolProvider, part: Record<string, unknown> | null): AccessProfileChanges =>
-  ({ tools: { [tool]: part } }) as AccessProfileChanges;
+/** A change of one tool part, as `PATCH` takes it: its sign-in or rights, or null to remove the part. */
+export const toolPartChange = (
+  tool: ToolProvider,
+  part: Record<string, unknown> | null,
+): AccessProfileChanges => ({ parts: { [tool]: part } }) as AccessProfileChanges;
 
 /** The part's rights, each change saved at once as the whole set; a refusal shows under them and puts them back. */
 function SavedRights({
@@ -37,7 +36,7 @@ function SavedRights({
     setBusy(true);
     setError(undefined);
     try {
-      await update(partChange(tool, { rights: next }));
+      await update(toolPartChange(tool, { rights: next }));
     } catch (failure) {
       setRights(part.rights);
       setError(friendlyMessage(failure));
@@ -57,96 +56,37 @@ function SavedRights({
   );
 }
 
-/** A button that saves a change of the part, busy while it goes, with its refusal beside it. */
-function PartButton({
-  label,
-  icon,
-  run,
-}: {
-  readonly label: string;
-  readonly icon?: LucideIcon;
-  readonly run: () => Promise<unknown>;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const click = async () => {
-    setBusy(true);
-    setError(undefined);
-    try {
-      await run();
-    } catch (failure) {
-      setError(friendlyMessage(failure));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <span className="flex items-center gap-2">
-      {error && (
-        <span role="alert" className="text-xs font-medium text-failed">
-          {error}
-        </span>
-      )}
-      <Button size="sm" tone="quiet" {...(icon ? { icon } : {})} busy={busy} onClick={() => void click()}>
-        {label}
-      </Button>
-    </span>
-  );
-}
-
 /**
- * One tool part of a profile's card (S7.1b, one profile since 2026-11-13): "None" with Add GitHub (or Atlassian), which
- * adds the part with the person's first sign-in of that tool and its safe rights; or its sign-in and its rights, each
- * saved at once, and Remove.
+ * A profile's GitHub or Atlassian part on its card (S7.1b, generic profiles since 2026-11-13): its sign-in and its rights,
+ * each saved as it changes, and Remove.
  */
 export function ToolPartSection({
   tool,
-  profile,
+  part,
   subscriptions,
   update,
-}: Omit<CardProps, 'remove'> & { readonly tool: ToolProvider }) {
-  const { name, icon: Icon } = TOOL_STYLES[tool];
-  const part = profile.tools[tool];
+}: Pick<CardProps, 'subscriptions' | 'update'> & { readonly tool: ToolProvider; readonly part: Part }) {
+  const { name, icon } = PART_STYLES[tool];
   const addSignInHref = usePersonalHref('subscriptions');
-  const options = signInOptions(tool, subscriptions, part?.signIn ?? null);
+  const options = signInOptions(tool, subscriptions, part.signIn);
   return (
-    <section aria-label={name} className="flex flex-col gap-3 rounded-xl border border-line px-3 py-2.5">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <Icon size={16} aria-hidden="true" />
-          {name}
-          {part === null && <span className="font-normal text-dim">None</span>}
-        </span>
-        {part === null ? (
-          <PartButton
-            label={`Add ${name}`}
-            icon={Plus}
-            run={() => update(partChange(tool, { credentialId: firstSignIn(tool, subscriptions) }))}
-          />
-        ) : (
-          <PartButton label="Remove" run={() => update(partChange(tool, null))} />
-        )}
-      </header>
-      {part !== null && (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SavedSelect
-              label="Sign-in"
-              hint={
-                options.length <= 1 && (
-                  <Link to={addSignInHref} className="font-semibold text-blue hover:underline">
-                    Add a sign-in
-                  </Link>
-                )
-              }
-              value={part.signIn?.id ?? ''}
-              options={options}
-              save={(credentialId) => update(partChange(tool, { credentialId }))}
-            />
-          </div>
-          <SavedRights key={JSON.stringify(part.rights)} tool={tool} part={part} update={update} />
-        </>
-      )}
-    </section>
+    <PartFrame name={name} icon={icon} onRemove={() => update(toolPartChange(tool, null))}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SavedSelect
+          label="Sign-in"
+          hint={
+            options.length <= 1 && (
+              <Link to={addSignInHref} className="font-semibold text-blue hover:underline">
+                Add a sign-in
+              </Link>
+            )
+          }
+          value={part.signIn?.id ?? ''}
+          options={options}
+          save={(credentialId) => update(toolPartChange(tool, { credentialId }))}
+        />
+      </div>
+      <SavedRights key={JSON.stringify(part.rights)} tool={tool} part={part} update={update} />
+    </PartFrame>
   );
 }

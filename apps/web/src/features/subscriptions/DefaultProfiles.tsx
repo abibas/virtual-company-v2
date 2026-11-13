@@ -8,7 +8,7 @@ import type { AccessProfile, Membership } from '../../api/types.ts';
 import { Select } from '../../components/forms/Input.tsx';
 import { roleName } from '../../components/ui/Badge.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
-import { PROVIDER_STYLES } from './Providers.tsx';
+
 import { profilesOf } from './profile-options.ts';
 
 interface DefaultsProps {
@@ -17,6 +17,12 @@ interface DefaultsProps {
   /** Saved: read the person's memberships again, which carry the defaults. */
   readonly onChanged: () => Promise<unknown>;
 }
+
+/** Each default's label: the agents it is for. */
+const DEFAULT_LABELS: Readonly<Record<ProfileProvider, string>> = {
+  claude: 'Claude Code agents',
+  openai: 'Codex agents',
+};
 
 /** The membership's default of each provider. */
 const DEFAULTS: Readonly<Record<ProfileProvider, (m: Membership) => string | null>> = {
@@ -35,7 +41,6 @@ function DefaultSelect({
   const id = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const style = PROVIDER_STYLES[provider];
   const change = async (value: string) => {
     setBusy(true);
     setError(undefined);
@@ -55,7 +60,7 @@ function DefaultSelect({
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="text-xs font-semibold text-dim">
-        {style.name}, for {style.agents}
+        {DEFAULT_LABELS[provider]}
       </label>
       <Select
         id={id}

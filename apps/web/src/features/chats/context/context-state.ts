@@ -1,3 +1,4 @@
+import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import { contextPercent, contextWindowOf } from '@mwc/shared/harness';
 import type {
   AccessProfile,
@@ -220,14 +221,16 @@ export function runsModel(harness: Chat['harness'], runs: ChatRuns | undefined):
 }
 
 /**
- * What the chat runs: its own access profile's when it has one (known when it is one of the viewer's), else the
- * agent's; undefined when that is not known.
+ * What the chat runs: its own profile's part for the chat's harness when it has one (known when it is one of the
+ * viewer's), else the agent's; undefined when that is not known.
  */
 export function chatRuns(
-  chat: Pick<Chat, 'profileId'>,
+  chat: Pick<Chat, 'profileId' | 'harness'>,
   agent: Pick<AgentDetail, 'runsWith'>,
   mine: readonly AccessProfile[] | undefined,
 ): ChatRuns | undefined {
   if (chat.profileId === null) return agent.runsWith ?? undefined;
-  return mine?.find((profile) => profile.id === chat.profileId);
+  const provider = HARNESS_PROVIDER[chat.harness];
+  const part = mine?.find((profile) => profile.id === chat.profileId)?.parts[provider];
+  return part ? { model: part.model, provider } : undefined;
 }

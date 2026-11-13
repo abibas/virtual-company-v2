@@ -171,7 +171,7 @@ export function PasteForm({ kind, onAdded, onBack }: PasteFormProps) {
         onChange={(event) => form.set('label', event.target.value)}
         required
         maxLength={CREDENTIAL_LABEL.max}
-        hint="How it shows on your cards and in your access profiles."
+        hint="How it shows on your cards and in your profiles."
       />
       <PastedSecret kind={kind} form={form} />
       {form.error && <Notice tone="error">{form.error}</Notice>}

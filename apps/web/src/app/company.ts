@@ -26,7 +26,7 @@ export function useCompany(): CompanyView {
 }
 
 /**
- * The address of one of the person's own pages (Subscriptions, AI gateways, Access profiles): the current company's
+ * The address of one of the person's own pages (Subscriptions, AI gateways, Profiles): the current company's
  * (`/:slug/gateways`) inside the company shell, else the old `/subscriptions?tab=...`, which opens the last company's.
  */
 export function usePersonalHref(page: PersonalPage, add = false): string {

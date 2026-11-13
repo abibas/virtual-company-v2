@@ -111,7 +111,7 @@ export function SubscriptionCard({
         <UseLine subscription={subscription} />
         <ConfirmInline
           label="Remove"
-          question={`Remove ${subscription.label}? Agents using it lose it, and it leaves your access profiles.`}
+          question={`Remove ${subscription.label}? Agents using it lose it, and it leaves your profiles.`}
           confirmLabel="Remove"
           onConfirm={remove}
         />

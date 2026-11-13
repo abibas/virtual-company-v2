@@ -1,4 +1,3 @@
-import type { ProfileProvider } from '@mwc/shared/enums';
 import type { ReactNode } from 'react';
 import { useCompany } from '../../app/company.ts';
 import { useLocation } from '../../app/router.tsx';
@@ -26,15 +25,9 @@ export function GatewaysCompanyPage() {
   return <GatewaysTab addOnOpen={search.get('add') === '1'} header={header('AI gateways')} />;
 }
 
-/** What `?new=` asks of the profiles page: New profile for that provider, or at its provider choice. */
-function newProfileOf(wanted: string | null): ProfileProvider | 'choose' | undefined {
-  if (wanted === null) return undefined;
-  return wanted === 'claude' || wanted === 'openai' ? wanted : 'choose';
-}
-
 /**
- * `/:slug/profiles`: the person's own access profiles, Claude's and OpenAI's, which they give their agents, and their
- * defaults; `?new=claude|openai` (an agent form's "Make one") opens New profile for that provider.
+ * `/:slug/profiles`: the person's own profiles (a name with Claude, OpenAI, GitHub and Atlassian parts), which they give
+ * their agents, and their defaults; `?new=1` (an agent form's "Make one") opens New profile.
  */
 export function ProfilesCompanyPage() {
   const { me, reload } = useCompany();
@@ -43,8 +36,8 @@ export function ProfilesCompanyPage() {
     <ProfilesTab
       memberships={me.memberships}
       onDefaultChanged={reload}
-      startWith={newProfileOf(search.get('new'))}
-      header={header('Access profiles')}
+      startWith={search.get('new') !== null}
+      header={header('Profiles')}
     />
   );
 }

@@ -29,11 +29,13 @@ const SKELETON = (
 
 const WHAT_IT_IS =
   "An address your agents' AI requests go through, like your own proxy on port 8300: one gateway serves Claude Code " +
-  'and Codex, each at its own path. Any access profile can include it, and its runs then use it on any machine.';
+  'and Codex, each at its own path. Any profile’s Claude or OpenAI part can include it, and its runs then use it on any machine.';
 
 /** The profiles whose gateway is `id`; undefined while the profiles load. */
 const profilesWith = (profiles: readonly AccessProfile[] | undefined, id: string) =>
-  profiles?.filter((profile) => profile.gateway?.id === id);
+  profiles?.filter((profile) =>
+    [profile.parts.claude, profile.parts.openai].some((part) => part?.gateway?.id === id),
+  );
 
 interface ListProps {
   readonly gateways: readonly Subscription[];
@@ -150,7 +152,9 @@ export function GatewaysTab({
         onAdded={(gateway) => {
           setAdding(false);
           changed();
-          setAdded(`${gateway.label} is added. Choose it in an access profile's Gateway.`);
+          setAdded(
+            `${gateway.label} is added. Choose it as the gateway of a profile’s Claude or OpenAI part.`,
+          );
         }}
       />
     </>

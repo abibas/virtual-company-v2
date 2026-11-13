@@ -33,7 +33,7 @@ export function briefingTools(
   const profile = mine?.find((own) => own.id === profileId);
   if (!profile) return [];
   return TOOL_PROVIDERS.flatMap((provider): BriefingTool[] => {
-    const part = profile.tools[provider];
+    const part = profile.parts[provider];
     if (part === null) return [];
     const { account = null, site = null } = part.signIn ?? {};
     return [{ provider, account, site, rights: part.rights }];

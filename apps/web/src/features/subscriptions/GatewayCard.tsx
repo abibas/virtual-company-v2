@@ -27,14 +27,14 @@ const addressOf = (gateway: Subscription): string | undefined => {
   return typeof value === 'string' && value !== '' ? value : undefined;
 };
 
-/** The profiles that include it, each a link to the Access profiles tab; with none, where to choose it. */
+/** The profiles that include it, each a link to the Profiles tab; with none, where to choose it. */
 function GatewayProfiles({ profiles }: { readonly profiles: readonly AccessProfile[] | undefined }) {
   const profilesHref = usePersonalHref('profiles');
-  if (profiles === undefined) return <p className="text-xs text-dim">Checking your access profiles…</p>;
+  if (profiles === undefined) return <p className="text-xs text-dim">Checking your profiles…</p>;
   if (profiles.length === 0) {
     return (
       <p className="text-xs text-dim">
-        No access profile includes it yet. Choose it in any profile’s Gateway, Claude or OpenAI.
+        No profile includes it yet. Choose it as the gateway of a profile’s Claude or OpenAI part.
       </p>
     );
   }
@@ -103,7 +103,7 @@ export function GatewayCard({ gateway, profiles, rename, remove }: GatewayCardPr
         </p>
         <ConfirmInline
           label="Remove"
-          question={`Remove ${gateway.label}? It leaves your access profiles, and agents using them stop sending requests through it.`}
+          question={`Remove ${gateway.label}? It leaves your profiles, and agents using them stop sending requests through it.`}
           confirmLabel="Remove"
           onConfirm={remove}
         />

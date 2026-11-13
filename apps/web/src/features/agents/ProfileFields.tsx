@@ -1,4 +1,3 @@
-import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import { useId } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import type { AccessProfile, AgentDetail, AgentProfile } from '../../api/types.ts';
@@ -7,84 +6,66 @@ import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
 import { Field, SelectField, TextField } from '../../components/forms/Field.tsx';
 import { Input } from '../../components/forms/Input.tsx';
-import { profileLabel } from '../../components/org/agent-labels.ts';
+import { hasPartFor, missingPart, profileLabel, profileLine } from '../../components/org/agent-labels.ts';
 import { Button } from '../../components/ui/Button.tsx';
-import { PROVIDER_STYLES } from '../subscriptions/Providers.tsx';
-import { profilesOf } from '../subscriptions/profile-options.ts';
 import type { AgentDraft } from './agent-draft.ts';
-import { followProvider } from './harness-from-profile.ts';
 
 /** The person's own access profiles, as the form loads them once. */
 type MyProfiles = Loaded<{ readonly profiles: readonly AccessProfile[] }>;
 
-/** The address of New profile for a provider on the person's profiles page. */
-function newProfileHref(profilesHref: string, provider: ProfileProvider): string {
-  return `${profilesHref}${profilesHref.includes('?') ? '&' : '?'}new=${provider}`;
+/** The address of New profile on the person's profiles page. */
+function newProfileHref(profilesHref: string): string {
+  return `${profilesHref}${profilesHref.includes('?') ? '&' : '?'}new=1`;
 }
 
-/** The hint under the profile select: what the profile decides, what runs the agent now, and the profiles page. */
-function ProfileHint({
-  harness,
-  count,
-  error,
-}: {
-  readonly harness: Harness;
-  readonly count: number | undefined;
-  readonly error: unknown;
-}) {
+/** The hint under the profile select: the profiles page, or Make one when the person has none. */
+function ProfileHint({ count, error }: { readonly count: number | undefined; readonly error: unknown }) {
   const profilesHref = usePersonalHref('profiles');
   if (error !== undefined) return friendlyMessage(error);
-  const link = (
+  if (count === undefined) return null;
+  return (
     <Link
-      to={count === 0 ? newProfileHref(profilesHref, 'claude') : profilesHref}
+      to={count === 0 ? newProfileHref(profilesHref) : profilesHref}
       className="font-semibold text-blue hover:underline"
     >
-      {count === 0 ? 'Make one' : 'Your access profiles'}
+      {count === 0 ? 'Make one' : 'Your profiles'}
     </Link>
-  );
-  if (count === 0) return <>No access profile yet. {link}</>;
-  const runs = harness === 'codex' ? 'Codex' : 'Claude Code';
-  return (
-    <>
-      {runs} · {link}
-    </>
   );
 }
 
-/** One of the signed-in person's own profiles, Claude's first then OpenAI's, or None; a pick sets the harness. */
+/**
+ * One of the signed-in person's own profiles, or None: each listed with its parts in short; one without the part the
+ * agent's harness runs on is shown but not choosable ("No Claude part").
+ */
 function MyProfileSelect({ draft, profiles }: { readonly draft: AgentDraft; readonly profiles: MyProfiles }) {
   const all = profiles.data?.profiles ?? [];
-  const ordered = [...profilesOf(all, 'claude'), ...profilesOf(all, 'openai')];
+  const { harness } = draft.values;
   const value = draft.values.profileId ?? '';
   const options = [
     { value: '', label: 'None' },
-    ...ordered.map((p) => ({ value: p.id, label: `${p.name} · ${PROVIDER_STYLES[p.provider].name}` })),
+    ...all.map((p) => {
+      const fits = hasPartFor(p, harness);
+      return {
+        value: p.id,
+        label: `${p.name} · ${fits ? profileLine(p) : missingPart(harness)}`,
+        disabled: !fits && p.id !== value,
+      };
+    }),
   ];
-  if (value && !ordered.some((p) => p.id === value)) {
+  if (value && !all.some((p) => p.id === value)) {
     options.push({
       value,
       label: profiles.data ? 'A profile that no longer exists' : 'Loading your profiles…',
     });
   }
-  const pick = (id: string) => {
-    draft.set('profileId', id || null);
-    const picked = all.find((p) => p.id === id);
-    if (picked) followProvider(draft, picked.provider);
-  };
   return (
     <SelectField
-      label="Access profile"
+      label="Profile"
       value={value}
       options={options}
       disabled={profiles.loading && profiles.data === undefined}
-      onChange={(event) => pick(event.target.value)}
-      hint={
-        <ProfileHint
-          harness={draft.values.harness}
-          count={profiles.data && ordered.length}
-          error={profiles.error}
-        />
-      }
+      onChange={(event) => draft.set('profileId', event.target.value || null)}
+      hint={<ProfileHint count={profiles.data && all.length} error={profiles.error} />}
     />
   );
 }
@@ -99,7 +80,7 @@ function TheirProfile({
 }) {
   const id = useId();
   return (
-    <Field label="Access profile" id={id} hint="Someone else's profile.">
+    <Field label="Profile" id={id} hint="Someone else's profile.">
       <div className="flex items-center gap-2">
         <Input
           id={id}
@@ -125,8 +106,8 @@ export interface ProfileProps {
 }
 
 /**
- * Whose subscription the agent runs on: an admin picks one of their own access profiles of the provider its harness
- * runs on (or None); an agent with someone else's shows it with its owner and a Remove; everyone else reads it.
+ * The profile the agent runs on: an admin picks one of their own with the part its harness runs on (or None); an agent
+ * with someone else's shows it with its owner and a Remove; everyone else reads it.
  */
 export function ProfileChoice({
   draft,
@@ -136,7 +117,7 @@ export function ProfileChoice({
   profiles,
 }: ProfileProps & { readonly profiles: MyProfiles }) {
   const current = agent?.profile;
-  if (readOnly) return <TextField label="Access profile" value={profileLabel(current ?? null)} readOnly />;
+  if (readOnly) return <TextField label="Profile" value={profileLabel(current ?? null)} readOnly />;
   if (current && current.ownerUserId !== meUserId && draft.values.profileId === current.id) {
     return <TheirProfile profile={current} onRemove={() => draft.set('profileId', null)} />;
   }

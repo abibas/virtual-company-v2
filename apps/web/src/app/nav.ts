@@ -55,7 +55,7 @@ export function movedSection(section: string, search: URLSearchParams): string |
 
 /**
  * The rail of a company: its pages (the one of `section` current), the person's own Subscriptions, AI gateways and
- * Access profiles in their own group (rail only; phones reach them from the account menu), then API keys and Settings.
+ * Profiles in their own group (rail only; phones reach them from the account menu), then API keys and Settings.
  * The inbox is the right rail's (S6b). `hrefOf` places them: the company's routes, or the design gallery's mocks.
  */
 export function companyNav(hrefOf: SectionHref, section: string): readonly NavItem[] {
@@ -71,7 +71,7 @@ export function companyNav(hrefOf: SectionHref, section: string): readonly NavIt
     page('machines', 'Machines', Server),
     { ...page('subscriptions', 'Subscriptions', CreditCard), divider: true, railOnly: true },
     { ...page('gateways', 'AI gateways', Waypoints), railOnly: true },
-    { ...page('profiles', 'Access profiles', IdCard), railOnly: true },
+    { ...page('profiles', 'Profiles', IdCard), railOnly: true },
     { ...page('api-keys', 'API keys', KeyRound), divider: true },
     page('settings', 'Settings', Settings),
   ];

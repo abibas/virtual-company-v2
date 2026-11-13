@@ -1,74 +1,80 @@
-import { TOOL_PROVIDERS } from '@mwc/shared/credentials';
-import { usePersonalHref } from '../../app/company.ts';
-import { Link } from '../../app/router.tsx';
+import { isAiPart, PROFILE_PARTS, type ProfilePart } from '@mwc/shared/credentials';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { friendlyMessage } from '../../api/errors.ts';
+import { Button } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
-import { type CardProps, ProfileAgents, ProfileHeader, SavedSelect } from './ProfileParts.tsx';
-import { gatewayOptions, hasGateway, subscriptionOptions } from './profile-options.ts';
-import { RunsFields } from './RunsFields.tsx';
-import { ToolPartSection } from './ToolPartSection.tsx';
+import { AiPartSection, aiPartChange } from './AiPartSection.tsx';
+import { type CardProps, ProfileAgents, ProfileHeader } from './ProfileParts.tsx';
+import { PART_STYLES } from './Providers.tsx';
+import { firstSignIn, firstSubscription } from './profile-options.ts';
+import { ToolPartSection, toolPartChange } from './ToolPartSection.tsx';
 
-/** The profile's gateway: any of the person's gateways (they serve Claude Code and Codex alike), or where to add one. */
-function GatewaySlot({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
-  const addGatewayHref = usePersonalHref('gateways', true);
+/**
+ * "Add Claude · Add OpenAI · Add GitHub · Add Atlassian" for the parts the profile does not have: each adds its part with
+ * the person's first credential of that kind (an AI part its provider's subscription, a tool part its sign-in and its
+ * tool's safe rights).
+ */
+function AddParts({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
+  const [busy, setBusy] = useState<ProfilePart>();
+  const [error, setError] = useState<string>();
+  const missing = PROFILE_PARTS.filter((part) => profile.parts[part] === null);
+  if (missing.length === 0) return null;
+  const add = async (part: ProfilePart) => {
+    setBusy(part);
+    setError(undefined);
+    try {
+      await update(
+        isAiPart(part)
+          ? aiPartChange(part, { credentialId: firstSubscription(part, subscriptions) })
+          : toolPartChange(part, { credentialId: firstSignIn(part, subscriptions) }),
+      );
+    } catch (failure) {
+      setError(friendlyMessage(failure));
+    } finally {
+      setBusy(undefined);
+    }
+  };
   return (
-    <SavedSelect
-      label="Gateway"
-      hint={
-        !hasGateway(subscriptions) &&
-        !profile.gateway && (
-          <Link to={addGatewayHref} className="font-semibold text-blue hover:underline">
-            Add a gateway
-          </Link>
-        )
-      }
-      value={profile.gateway?.id ?? ''}
-      options={gatewayOptions(subscriptions, profile.gateway)}
-      save={(gatewayCredentialId) => update({ gatewayCredentialId })}
-    />
-  );
-}
-
-/** The profile's AI part: its subscription (of its provider), gateway (any), model and effort, each saved at once. */
-function AiPart({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <SavedSelect
-        label="Subscription"
-        hint={profile.subscription === null ? 'Its agents cannot run without one' : undefined}
-        value={profile.subscription?.id ?? ''}
-        options={subscriptionOptions(profile.provider, subscriptions, profile.subscription)}
-        save={(credentialId) => update({ credentialId })}
-      />
-      <GatewaySlot profile={profile} subscriptions={subscriptions} update={update} />
-      <RunsFields
-        key={profile.id}
-        provider={profile.provider}
-        runs={{ model: profile.model, effort: profile.effort }}
-        onChange={(change) => update(change)}
-      />
+    <div className="flex flex-wrap items-center gap-2">
+      {missing.map((part) => (
+        <Button
+          key={part}
+          size="sm"
+          tone="quiet"
+          icon={Plus}
+          busy={busy === part}
+          disabled={busy !== undefined}
+          onClick={() => void add(part)}
+        >
+          Add {PART_STYLES[part].name}
+        </Button>
+      ))}
+      {error && (
+        <span role="alert" className="text-xs font-medium text-failed">
+          {error}
+        </span>
+      )}
     </div>
   );
 }
 
 /**
- * One access profile (S7.1b, one profile with tool parts since 2026-11-13): its name (renamed in place) with its
- * provider's badge and Delete; its AI part (subscription, gateway, model, effort); its GitHub and Atlassian parts; and
- * which agents use it. A change saves at once.
+ * One profile (generic since 2026-11-13): its name (renamed in place) and Delete; its parts as sections in a fixed order
+ * (Claude, OpenAI, GitHub, Atlassian), each saved as it changes and removable; Add for the parts it does not have; and
+ * which agents use it.
  */
 export function ProfileCard({ profile, subscriptions, update, remove }: CardProps) {
+  const { claude, openai, github, atlassian } = profile.parts;
+  const shared = { subscriptions, update };
   return (
     <Card as="article" aria-label={profile.name} className="flex flex-col gap-4">
       <ProfileHeader profile={profile} update={update} remove={remove} />
-      <AiPart profile={profile} subscriptions={subscriptions} update={update} />
-      {TOOL_PROVIDERS.map((tool) => (
-        <ToolPartSection
-          key={tool}
-          tool={tool}
-          profile={profile}
-          subscriptions={subscriptions}
-          update={update}
-        />
-      ))}
+      {claude && <AiPartSection key={`claude-${profile.id}`} provider="claude" part={claude} {...shared} />}
+      {openai && <AiPartSection key={`openai-${profile.id}`} provider="openai" part={openai} {...shared} />}
+      {github && <ToolPartSection tool="github" part={github} {...shared} />}
+      {atlassian && <ToolPartSection tool="atlassian" part={atlassian} {...shared} />}
+      <AddParts profile={profile} {...shared} />
       <ProfileAgents agents={profile.agents} />
     </Card>
   );

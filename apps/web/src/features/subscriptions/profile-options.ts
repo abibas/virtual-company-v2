@@ -11,8 +11,8 @@ import type { AccessProfile, Subscription } from '../../api/types.ts';
 import type { SelectOption } from '../../components/forms/Input.tsx';
 import { kindLabel } from './KindBadge.tsx';
 
-/** A profile's subscription or gateway as the profile shows it. */
-type Held = AccessProfile['subscription'];
+/** A part's subscription, gateway or sign-in as the profile shows it. */
+type Held = NonNullable<AccessProfile['parts']['claude']>['subscription'];
 
 /**
  * `none` first, then the person's subscriptions of `kinds` that `fits` takes, grouped by kind in the order the kinds
@@ -38,7 +38,7 @@ function options(
   ];
 }
 
-/** The choices of a `provider` profile's subscription: None, then the person's subscriptions of that provider. */
+/** The choices of a profile's `provider` part's subscription: None, then the person's subscriptions of that provider. */
 export const subscriptionOptions = (
   provider: ProfileProvider,
   subscriptions: readonly Subscription[],
@@ -75,6 +75,13 @@ export const gatewayOptions = (
 export const hasGateway = (subscriptions: readonly Subscription[]): boolean =>
   subscriptions.some((s) => fitsGateway(s.kind) && s.status !== 'revoked');
 
-/** The profiles of one provider, in the order the list has them. */
+/** The first subscription a new AI part takes: the person's first of that provider that is not revoked, else none. */
+export const firstSubscription = (
+  provider: ProfileProvider,
+  subscriptions: readonly Subscription[],
+): string | null =>
+  subscriptions.find((s) => fitsProvider(provider, s.kind) && s.status !== 'revoked')?.id ?? null;
+
+/** The profiles with a part of one provider, in the order the list has them. */
 export const profilesOf = (profiles: readonly AccessProfile[], provider: ProfileProvider): AccessProfile[] =>
-  profiles.filter((profile) => profile.provider === provider);
+  profiles.filter((profile) => profile.parts[provider] !== null);

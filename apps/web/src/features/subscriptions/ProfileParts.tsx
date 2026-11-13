@@ -8,8 +8,9 @@ import { ConfirmInline } from '../../components/forms/ConfirmInline.tsx';
 import { SelectField } from '../../components/forms/Field.tsx';
 import { InlineEdit } from '../../components/forms/InlineEdit.tsx';
 import type { SelectOption } from '../../components/forms/Input.tsx';
+import { Button } from '../../components/ui/Button.tsx';
+import type { IconComponent } from '../../components/ui/icon.ts';
 import { companyAgentLinks } from '../agents/links.ts';
-import { ProviderBadge } from './Providers.tsx';
 
 /** What a profile's card is given: the profile, the person's credentials, and its change and removal. */
 export interface CardProps {
@@ -19,6 +20,53 @@ export interface CardProps {
   readonly update: (changes: AccessProfileChanges) => Promise<unknown>;
   /** Removes it (`DELETE`), then the list is read again. */
   readonly remove: () => Promise<void>;
+}
+
+/** A part's section on the card: its logo and name, Remove, and its fields under them. */
+export function PartFrame({
+  name,
+  icon: Icon,
+  onRemove,
+  children,
+}: {
+  readonly name: string;
+  readonly icon: IconComponent;
+  readonly onRemove: () => Promise<unknown>;
+  readonly children: ReactNode;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const remove = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await onRemove();
+    } catch (failure) {
+      setError(friendlyMessage(failure));
+      setBusy(false);
+    }
+  };
+  return (
+    <section aria-label={name} className="flex flex-col gap-3 rounded-xl border border-line px-3 py-2.5">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <Icon size={16} aria-hidden="true" />
+          {name}
+        </span>
+        <span className="flex items-center gap-2">
+          {error && (
+            <span role="alert" className="text-xs font-medium text-failed">
+              {error}
+            </span>
+          )}
+          <Button size="sm" tone="quiet" busy={busy} onClick={() => void remove()}>
+            Remove
+          </Button>
+        </span>
+      </header>
+      {children}
+    </section>
+  );
 }
 
 /** A select of the profile's that saves as soon as it changes; a refusal shows under it. */
@@ -61,7 +109,7 @@ export function SavedSelect({
   );
 }
 
-/** A card's top: the profile's name (renamed in place) with its provider's badge, and Delete, confirmed in place. */
+/** A card's top: the profile's name (renamed in place), and Delete, confirmed in place. */
 export function ProfileHeader({ profile, update, remove }: Omit<CardProps, 'subscriptions'>) {
   const users = profile.agents.length;
   return (
@@ -75,7 +123,6 @@ export function ProfileHeader({ profile, update, remove }: Omit<CardProps, 'subs
         >
           <span className="text-md font-bold tracking-[-0.01em] text-ink">{profile.name}</span>
         </InlineEdit>
-        <ProviderBadge provider={profile.provider} />
       </div>
       <ConfirmInline
         label="Delete"

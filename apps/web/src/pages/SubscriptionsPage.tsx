@@ -52,7 +52,7 @@ export function SubscriptionsPage() {
           },
           {
             href: oldPersonalPath('profiles'),
-            label: 'Access profiles',
+            label: 'Profiles',
             icon: Layers,
             current: tab === 'profiles',
           },

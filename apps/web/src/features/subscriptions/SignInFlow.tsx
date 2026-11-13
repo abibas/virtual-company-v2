@@ -153,15 +153,15 @@ function DoneNotice({
   if (!again) {
     return (
       <Notice tone="success" title="Signed in">
-        {live.email ? `Signed in as ${live.email}.` : 'Your subscription is stored.'} Rename it or put it in
-        an access profile on the Subscriptions page.
+        {live.email ? `Signed in as ${live.email}.` : 'Your subscription is stored.'} Rename it or put it in a
+        profile on the Profiles page.
       </Notice>
     );
   }
   return (
     <Notice tone="success" title="Signed in again">
       {live.email ? `Signed in again as ${live.email}.` : 'Your subscription is renewed.'} It keeps its name
-      and its access profiles.
+      and its profiles.
       {live.signIn.accountChanged &&
         ' This is a different account than before: the subscription and the agents using it now run on it.'}
     </Notice>

@@ -5,6 +5,8 @@ export {
   effortOptions,
   HARNESS_OPTIONS,
   harnessLabel,
+  hasPartFor,
+  missingPart,
   modelLabel,
   profileLabel,
   profileLine,

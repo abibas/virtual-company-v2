@@ -1,4 +1,11 @@
-import { rightsSummary, TOOL_PROVIDERS, type ToolRights } from '@mwc/shared/credentials';
+import {
+  HARNESS_PROVIDER,
+  PART_NAMES,
+  PROFILE_PROVIDERS,
+  rightsSummary,
+  TOOL_PROVIDERS,
+  type ToolRights,
+} from '@mwc/shared/credentials';
 import type { Effort, Harness, ProfileProvider, ToolProvider } from '@mwc/shared/enums';
 import { catalogueModel, effortsOf } from '@mwc/shared/models';
 import type { AccessProfile, Agent, AgentProfile } from '../../api/types.ts';
@@ -71,53 +78,50 @@ export const profileLabel = (
   profile: Pick<NonNullable<Agent['profile']>, 'name' | 'ownerName'> | null,
 ): string => (profile ? `${profile.name} · ${profile.ownerName}` : 'None');
 
-const TOOL_WORDS: Readonly<Record<ToolProvider, string>> = { github: 'GitHub', atlassian: 'Atlassian' };
+/** A profile's parts as the line reads them: the person's own profile's or as an agent shows it. */
+type Parts = AccessProfile['parts'] | AgentProfile['parts'];
 
-/** A tool part as the line reads it: whether its sign-in is there, and its rights. */
-interface PartWords {
-  readonly signedIn: boolean;
-  readonly rights: ToolRights;
+/** One AI part in short: "Claude", with its model and effort when not the defaults ("Claude · Opus 5.5 · High"). */
+function aiWords(
+  provider: ProfileProvider,
+  part: { readonly model: string | null; readonly effort: Effort | null },
+) {
+  const model = part.model === null ? [] : [modelLabel(part.model)];
+  const effort = part.effort === null ? [] : [effortLabel(part.effort)];
+  return [PART_NAMES[provider], ...model, ...effort].join(' · ');
 }
 
-/** A profile's parts, from the person's own profile (`AccessProfile`) or as an agent shows it (`AgentProfile`). */
-function partsOf(profile: AccessProfile | AgentProfile) {
-  const own = 'subscription' in profile;
-  const account = own ? (profile.subscription?.accountEmail ?? null) : profile.account;
-  const part = (tool: ToolProvider): PartWords | null => {
-    const held = profile.tools[tool];
-    if (held === null) return null;
-    return { signedIn: 'signIn' in held ? held.signIn !== null : held.account !== null, rights: held.rights };
-  };
-  return { account, tools: TOOL_PROVIDERS.map((tool) => [tool, part(tool)] as const) };
+/** One tool part in short: "GitHub: push, PRs · AiriaLLC/*", or "GitHub: no sign-in". */
+function toolWords(tool: ToolProvider, part: { readonly rights: ToolRights } & object) {
+  const signedIn = 'signIn' in part ? part.signIn !== null : 'account' in part && part.account !== null;
+  return `${PART_NAMES[tool]}: ${signedIn ? rightsSummary(part.rights) : 'no sign-in'}`;
 }
 
 /**
- * A profile's parts in one compact line (S7.1b, one profile since 2026-11-13): its provider, the model and effort it
- * runs (`runs`: the person's own profile itself, or the agent's `runsWith`) when not the defaults, its subscription's account, then each tool part's rights in short ("Claude · Opus 5.5 ·
- * High · ihor@airia.ai · GitHub: push, PRs · AiriaLLC/* · Atlassian: Jira read · Confluence write"); a part without a
- * sign-in says so.
+ * A profile's parts in one compact line (generic profiles since 2026-11-13), in their fixed order: each AI part with its
+ * model and effort when not the defaults, then each tool part's rights in short ("Claude · Opus 5.5 · High · GitHub:
+ * push, PRs · AiriaLLC/* · Atlassian: Jira read (AP) · Confluence write"); never a subscription or its account.
  */
-export function profileLine(
-  profile: AccessProfile | AgentProfile,
-  runs: Pick<RunsWith, 'model' | 'effort'> | null,
-): string {
-  const { account, tools } = partsOf(profile);
-  const model = runs?.model ?? null;
-  const effort = runs?.effort ?? null;
-  const parts = tools.flatMap(([tool, part]) => {
-    if (part === null) return [];
-    return [`${TOOL_WORDS[tool]}: ${part.signedIn ? rightsSummary(part.rights) : 'no sign-in'}`];
+export function profileLine(profile: { readonly parts: Parts }): string {
+  const { parts } = profile;
+  const ai = PROFILE_PROVIDERS.flatMap((provider) => {
+    const part = parts[provider];
+    return part === null ? [] : [aiWords(provider, part)];
   });
-  return [
-    PROVIDER_WORDS[profile.provider],
-    model === null ? null : modelLabel(model),
-    effort === null ? null : effortLabel(effort),
-    account,
-    ...parts,
-  ]
-    .filter((piece) => piece !== null && piece !== '')
-    .join(' · ');
+  const tools = TOOL_PROVIDERS.flatMap((tool) => {
+    const part = parts[tool];
+    return part === null ? [] : [toolWords(tool, part)];
+  });
+  const pieces = [...ai, ...tools];
+  return pieces.length === 0 ? 'No parts' : pieces.join(' · ');
 }
+
+/** True when a profile has the AI part a harness runs on (a Claude part for Claude Code, an OpenAI part for Codex). */
+export const hasPartFor = (profile: { readonly parts: Parts }, harness: Harness): boolean =>
+  profile.parts[HARNESS_PROVIDER[harness]] !== null;
+
+/** "No Claude part": why a profile cannot serve an agent on `harness`. */
+export const missingPart = (harness: Harness): string => `No ${PART_NAMES[HARNESS_PROVIDER[harness]]} part`;
 
 /** An agent as the feed and the quick-create dock show it: its name, its role and its drawn face. */
 export function agentRef(agent: Pick<Agent, 'id' | 'name' | 'roleTitle' | 'face'>): AgentRef {

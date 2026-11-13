@@ -72,8 +72,8 @@ function StatusActions({ agent, calls, onChanged }: StatusProps) {
 }
 
 /**
- * The facts under the name: its handle, its manager, what powers it and on whose access profile with that profile's
- * parts in one line (`profileLine`: its account, GitHub and Atlassian access), the machine it runs on and how, its
+ * The facts under the name: its handle, its manager, what powers it and on whose profile with that profile's parts in
+ * one line (`profileLine`: what each AI part runs, its GitHub and Atlassian access), the machine it runs on and how, its
  * revision and when it was hired.
  */
 function AgentFacts({
@@ -88,8 +88,8 @@ function AgentFacts({
     ['Reports to', manager ? nodeName(manager) : agent.status === 'archived' ? 'Off the chart' : '—'],
     ['Powered by', `${harnessLabel(agent.harness)}, ${runsLine(agent.runsWith)}`],
     ['Runs on', placementLine(agent.placement)],
-    ['Access profile', profileLabel(agent.profile)],
-    ...(agent.profile ? [['Access', profileLine(agent.profile, agent.runsWith)] as [string, string]] : []),
+    ['Profile', profileLabel(agent.profile)],
+    ...(agent.profile ? [['Access', profileLine(agent.profile)] as [string, string]] : []),
     ['Instructions', `Revision ${agent.instructionsRev}`],
   ];
   return (
