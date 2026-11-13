@@ -8,11 +8,11 @@ import {
   TOOL_PROVIDERS,
 } from '@mwc/shared/credentials';
 import type { Effort, ProfileProvider } from '@mwc/shared/enums';
-import { type ProfileChange, type ProfileRefusal, type ProfileRuns, refuse } from './profiles.ts';
+import { A_PROVIDER, type ProfileChange, type ProfileRefusal, type ProfileRuns, refuse } from './profiles.ts';
 
 // A profile's parts (generic profiles since 2026-11-13, docs/subscriptions.md "Profiles"): what a request's `parts`
-// write to the profile's columns, which AI parts a change removes or makes run something new, and the refusal of
-// removing a part agents run on. Which credential fits each place is `credentialRefusal`'s (`profiles.ts`), the rights'
+// write to the profile's columns, which AI parts a change removes or makes run something new, the refusal of a second AI
+// part (one at most since 2026-11-13) and of removing a part agents run on. Which credential fits each place is `credentialRefusal`'s (`profiles.ts`), the rights'
 // shape `@mwc/shared/credentials`' (the request's schema parses them). Pure.
 
 /** An AI part as a request gives it: its subscription, gateway, model and effort, each optional. */
@@ -116,6 +116,29 @@ export function runsAfterChange(
     const effort = set[at.effort] === undefined ? (before?.[at.effort] ?? null) : set[at.effort];
     return [[provider, { model: model ?? null, effort: effort ?? null }] as const];
   });
+}
+
+/**
+ * A change that leaves a profile with both AI parts (422 `one_ai_part`, since 2026-11-13: a profile runs one AI, and an
+ * agent's harness follows it), or undefined. A swap in one change (one part removed, the other added) is fine.
+ */
+export function secondAiPart(
+  before: Stored | undefined,
+  set: ProfileChange,
+): ProfileRefusal<422> | undefined {
+  const after = (provider: ProfileProvider) => {
+    const at = PROFILE_AI_COLUMNS[provider].part;
+    return set[at] ?? before?.[at] ?? false;
+  };
+  if (!after('claude') || !after('openai')) return undefined;
+  const had = PROFILE_PROVIDERS.find((provider) => before?.[PROFILE_AI_COLUMNS[provider].part] === true);
+  return refuse(
+    422,
+    'one_ai_part',
+    had === undefined
+      ? 'A profile runs one AI: give it a Claude part or an OpenAI part, not both'
+      : `This profile already has ${A_PROVIDER[had]} part; a profile runs one AI`,
+  );
 }
 
 /** Names in a sentence: "a", "a and b", "a, b and c". */

@@ -255,13 +255,13 @@ describe('the list', () => {
 });
 
 describe('removing a part agents use', () => {
-  it('refuses an AI part agents run on, naming them, and takes a tool part or another AI part off', async () => {
+  it('refuses an AI part agents run on, naming them, and takes a tool part off', async () => {
     const company = await membersCompany(w);
     const owner = company.owner;
     const signIn = await addSignIn(w, keyring, owner.userId, 'github_oauth');
     const res = await asPerson(w, owner)('POST', PROFILES, {
       name: 'In use',
-      parts: { claude: {}, openai: {}, github: { credentialId: signIn.id } },
+      parts: { claude: {}, github: { credentialId: signIn.id } },
     });
     const profile = res.body as AccessProfileView;
     for (const name of ['Developer', 'QA'])
@@ -279,5 +279,7 @@ describe('removing a part agents use', () => {
     });
     const kept = await asPerson(w, owner)('PATCH', path, { parts: { openai: null, github: null } });
     expect(kept).toMatchObject({ status: 200, body: { parts: { openai: null, github: null, claude: {} } } });
+    const swap = await asPerson(w, owner)('PATCH', path, { parts: { claude: null, openai: {} } });
+    expect(swap).toMatchObject({ status: 422, body: { error: { code: 'profile_part_in_use' } } });
   });
 });

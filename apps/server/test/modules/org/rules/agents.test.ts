@@ -6,6 +6,8 @@ import {
   chooseSlug,
   defaultPartMissing,
   giveRefusal,
+  PROFILE_NO_AI_PART,
+  profileHarness,
   profilePartMissing,
   profileStep,
   statusMove,
@@ -69,11 +71,8 @@ describe('statusMove', () => {
 describe('agentChanges', () => {
   it('keeps only the fields that differ, and bumps instructionsRev with new instructions', () => {
     expect(agentChanges(agent, { name: 'SLOP BOX', face: 9, instructions: 'v1' })).toEqual({});
-    expect(
-      agentChanges(agent, { name: 'New', harness: 'codex', status: 'paused', maxConcurrentRuns: 3 }),
-    ).toEqual({
+    expect(agentChanges(agent, { name: 'New', status: 'paused', maxConcurrentRuns: 3 })).toEqual({
       name: 'New',
-      harness: 'codex',
       status: 'paused',
       maxConcurrentRuns: 3,
     });
@@ -158,5 +157,14 @@ describe('which profiles fit', () => {
       code: 'profile_part_missing',
       message: 'This profile has no OpenAI part, so it cannot be your default for Codex agents',
     });
+  });
+});
+
+describe('profileHarness', () => {
+  it('runs Claude Code on a Claude part, Codex on an OpenAI part, nothing without an AI part', () => {
+    expect(profileHarness({ claudePart: true, openaiPart: false })).toBe('claude_code');
+    expect(profileHarness({ claudePart: false, openaiPart: true })).toBe('codex');
+    expect(profileHarness({ claudePart: false, openaiPart: false })).toBeUndefined();
+    expect(PROFILE_NO_AI_PART).toMatchObject({ status: 422, code: 'profile_no_ai_part' });
   });
 });

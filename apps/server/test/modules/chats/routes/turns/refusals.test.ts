@@ -75,7 +75,10 @@ describe('POST chats/:chatId/turns refusals', () => {
     expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([409, 'placement_missing']);
     await place(w, s.company, s.agentId, { machineId: s.machineId });
     const agentPath = `/api/companies/${s.company.companyId}/agents/${s.agentId}`;
-    await owner('PATCH', agentPath, { harness: 'codex', profileId: null });
+    const codex = await seedProfile(w.t.db, s.company.owner.userId, { provider: 'openai' });
+    expect((await owner('PATCH', agentPath, { profileId: codex.id })).body).toMatchObject({
+      harness: 'codex',
+    });
     expect(refusal(await sendPrompt(w, s, 'hi'))).toEqual([409, 'harness_changed']);
   });
 

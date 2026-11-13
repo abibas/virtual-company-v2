@@ -14,7 +14,8 @@ import { type AuthWorld, addPerson, authWorld, seedApiKey } from '../../../fixtu
 // `/api/me/access-profiles` (S3.4; generic since 2026-11-13): a person's own profiles, each a name and optional parts;
 // here the profile itself and its AI parts (a Claude or an OpenAI subscription, any of the person's gateways), never a
 // revoked credential and never someone else's; managed signed in only. Models and efforts are `profiles/model.test.ts`'s,
-// tool parts and removing a part agents run on `profiles/parts.test.ts`'s.
+// tool parts and removing a part agents run on `profiles/parts.test.ts`'s, one AI part at most
+// `profiles/one-ai-part.test.ts`'s.
 
 const MISSING = '0190f5f0-0000-7000-8000-000000000000';
 const keyring = ephemeralKeyring();
@@ -122,20 +123,24 @@ describe('POST /api/me/access-profiles', () => {
     );
   });
 
-  it('holds a Claude and an OpenAI part on one profile, any gateway in either', async () => {
+  it('holds a Claude or an OpenAI part, any gateway in either', async () => {
     const [claude, openai] = [await sub(ihor, 'claude_oauth'), await sub(ihor, 'codex_oauth')];
     const memory = await addGateway(ihor);
     const older = await addGateway(ihor, { provider: 'openai' });
-    const view = await create(ihor, {
-      parts: {
-        claude: { credentialId: claude.id, gatewayCredentialId: older.id },
-        openai: { credentialId: openai.id, gatewayCredentialId: memory.id },
-      },
+    const work = await create(ihor, {
+      parts: { claude: { credentialId: claude.id, gatewayCredentialId: older.id } },
     });
-    expect(view.parts).toMatchObject({
+    expect(work.parts).toMatchObject({
       claude: { subscription: shown(claude), gateway: shown(older), model: null, effort: null },
-      openai: { subscription: shown(openai), gateway: shown(memory) },
+      openai: null,
       github: null,
+    });
+    const codex = await create(ihor, {
+      parts: { openai: { credentialId: openai.id, gatewayCredentialId: memory.id } },
+    });
+    expect(codex.parts).toMatchObject({
+      claude: null,
+      openai: { subscription: shown(openai), gateway: shown(memory) },
     });
   });
 
@@ -256,19 +261,14 @@ describe('PATCH /api/me/access-profiles/:profileId', () => {
 
   it('adds an AI part and removes one no agent runs on, emptying its columns', async () => {
     const openai = await sub(ihor, 'openai_api_key');
-    const profile = await create(ihor, { parts: { claude: {} } });
+    const profile = await create(ihor, {});
     const path = `${PROFILES}/${profile.id}`;
     const added = await as(ihor)('PATCH', path, {
       parts: { openai: { credentialId: openai.id, model: 'gpt-5.5' } },
     });
     expect(added).toMatchObject({
       status: 200,
-      body: {
-        parts: {
-          claude: { subscription: null },
-          openai: { subscription: { id: openai.id }, model: 'gpt-5.5' },
-        },
-      },
+      body: { parts: { claude: null, openai: { subscription: { id: openai.id }, model: 'gpt-5.5' } } },
     });
     const removed = await as(ihor, 'req-off')('PATCH', path, { parts: { claude: null, openai: null } });
     expect(removed).toMatchObject({ status: 200, body: { parts: NO_PARTS } });

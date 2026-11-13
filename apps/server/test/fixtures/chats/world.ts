@@ -144,7 +144,7 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
   const runner = options.offline
     ? undefined
     : await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, ...options.caps } });
-  const agent = await makeAgent(w, company, company.owner, { harness });
+  const agent = await makeAgent(w, company, company.owner);
   const configDir = options.configDir ?? null;
   await place(w, company, agent.id, {
     machineId,
@@ -166,7 +166,7 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
   });
   await (await tenant(w.t.db, company.companyId)).update(
     agents,
-    { profileId: profile.id },
+    { profileId: profile.id, harness },
     eq(agents.id, agent.id),
   );
   const chat = await beginChat(w, company, agent.id);

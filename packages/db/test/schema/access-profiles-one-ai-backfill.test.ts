@@ -37,7 +37,11 @@ describe(`0033_one_ai_part on ${testDbKind()}: one AI part per profile`, () => {
   });
   afterAll(() => testDb.close());
 
-  const profileAt0032 = async (ownerUserId: string, name: string, parts: { claude: boolean; openai: boolean }) => {
+  const profileAt0032 = async (
+    ownerUserId: string,
+    name: string,
+    parts: { claude: boolean; openai: boolean },
+  ) => {
     const id = newId();
     await queryRows(
       handle,
@@ -63,7 +67,10 @@ describe(`0033_one_ai_part on ${testDbKind()}: one AI part per profile`, () => {
     expect((await migrationStatus(handle)).current).toBe(true);
     const kept = await handle.db.select().from(accessProfiles).where(eq(accessProfiles.id, both));
     expect(kept).toMatchObject([{ claudePart: true, openaiPart: false }]);
-    const again = handle.db.update(accessProfiles).set({ openaiPart: true }).where(eq(accessProfiles.id, both));
+    const again = handle.db
+      .update(accessProfiles)
+      .set({ openaiPart: true })
+      .where(eq(accessProfiles.id, both));
     expect(await pgError(again)).toMatchObject({ constraint: 'access_profiles_one_ai_part_check' });
   });
 });

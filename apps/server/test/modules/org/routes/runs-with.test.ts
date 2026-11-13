@@ -41,11 +41,7 @@ describe("an agent's runsWith", () => {
 
   it("shows the provider's defaults as nulls, and none without a profile", async () => {
     const codex = await seedProfile(w.t.db, admin.userId, { provider: 'openai' });
-    const agent = await makeAgent(w, company, admin, {
-      name: 'Codex coder',
-      harness: 'codex',
-      profileId: codex.id,
-    });
+    const agent = await makeAgent(w, company, admin, { name: 'Codex coder', profileId: codex.id });
     expect(agent.runsWith).toEqual({ model: null, effort: null, provider: 'openai' });
     const bare = await makeAgent(w, company, admin, { name: 'No profile', profileId: null });
     expect(bare).toMatchObject({ profile: null, runsWith: null });
@@ -57,7 +53,7 @@ describe("an agent's runsWith", () => {
       parts: { openai: { model: 'gpt-6.1-sol', effort: 'high' } },
     });
     const profileId = (created.body as { id: string }).id;
-    const agent = await makeAgent(w, company, admin, { name: 'Follower', harness: 'codex', profileId });
+    const agent = await makeAgent(w, company, admin, { name: 'Follower', profileId });
     expect(agent.runsWith).toEqual({ model: 'gpt-6.1-sol', effort: 'high', provider: 'openai' });
     const changed = await as(w, admin)('PATCH', `${PROFILES}/${profileId}`, {
       parts: { openai: { model: 'gpt-6-astra', effort: 'ultra' } },

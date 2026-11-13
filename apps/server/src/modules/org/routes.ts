@@ -49,8 +49,7 @@ const GIVE_REFUSED = errorResponse(
 );
 const REFUSED_OR_NO_PROFILE = errorResponse(
   'The org rules refuse the place (their code and sentence), no such access profile (`profile_not_found`), or one ' +
-    'of another provider than the harness runs on (`profile_harness_mismatch`: Claude Code takes a Claude profile, ' +
-    'Codex an OpenAI one)',
+    'without an AI part (`profile_no_ai_part`), which an agent runs on',
 );
 
 const route = <P extends CompanyPath>(deps: ServerDeps, role: MembershipRole, path: P, tag: string) =>
@@ -90,9 +89,11 @@ const createAgentRoute = (deps: ServerDeps) => {
     method: 'post',
     summary: 'Create an agent on the chart (admin and above)',
     description:
-      'Defaults: model `claude-opus-5-5`, effort `high`, harness `claude_code`, one run at a time, the slug from the ' +
-      'name (`-2`, `-3`, ... when taken), the face from the slug, the caller as its manager, and the caller’s default ' +
-      'access profile here (`profileId`: one of yours, signed in, or null for none).',
+      'Defaults: one run at a time, the slug from the name (`-2`, `-3`, ... when taken), the face from the slug, the ' +
+      'caller as its manager, and the caller’s default access profile here for Claude Code agents, else for Codex ' +
+      'agents (`profileId`: one of yours, signed in, or null for none). Its harness follows the profile’s AI part ' +
+      '(`claude_code` for Claude, `codex` for OpenAI; `claude_code` without a profile), and its model and effort are ' +
+      'that part’s.',
     request: { params: AgentsParamsSchema, body: jsonBody(CreateAgentSchema) },
     responses: {
       201: jsonResponse('The new agent', AgentDetailSchema),
@@ -114,9 +115,9 @@ const updateAgentRoute = (deps: ServerDeps) => {
     description:
       'New instructions bump `instructionsRev`. Archiving moves its reports up (to the company’s earliest active ' +
       'owner when nobody above can take an agent) and removes its place; back from the archive it reports to the ' +
-      'caller. There is no hard delete. `profileId`: only its owner gives a profile, signed in, with the part the ' +
-      'harness runs on (Claude for Claude Code, OpenAI for Codex); any admin takes it off (`null`). A new `harness` ' +
-      'its profile has no part for is refused (`profile_part_missing`).',
+      'caller. There is no hard delete. `profileId`: only its owner gives a profile, signed in, with an AI part, which ' +
+      'sets the agent’s harness (Claude for `claude_code`, OpenAI for `codex`; its chats on the old one then say ' +
+      '`harness_changed`); any admin takes it off (`null`), which keeps the harness.',
     request: { params: AgentParamsSchema, body: jsonBody(UpdateAgentSchema) },
     responses: {
       200: jsonResponse('The agent after the change', AgentDetailSchema),

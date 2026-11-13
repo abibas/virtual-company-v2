@@ -53,9 +53,9 @@ export async function shownAgent<S extends RefusalStatus>(
  * Creates an agent in one transaction under the company's lock: its principal (kind `agent`), the agent and its
  * position under `reportsToPrincipalId` (the caller when left out), with their audit rows. The slug is the one
  * chosen (409 when taken) or derived from the name; the face, left out, comes from the slug; the access profile is
- * the one given (only the caller's own: 403; 422 for none or one without the harness's part), else the
- * caller's default here of the harness's provider (`newAgentProfile`). A refusal is decided before anything is
- * written.
+ * the one given (only the caller's own: 403; 422 for none or one without an AI part), else the caller's default here
+ * (`newAgentProfile`), and the harness follows its AI part (Claude Code without one). A refusal is decided before
+ * anything is written.
  */
 export function createAgent(
   repo: OrgRepo,
@@ -72,7 +72,7 @@ export function createAgent(
     const reportsTo = reportsToPrincipalId === undefined ? caller.principalId : reportsToPrincipalId;
     const refusal = placeRefusal((await loadOrg(repo, tx)).chart, { principalId, kind: 'agent', reportsTo });
     if (refusal) return refusal;
-    const profile = await newAgentProfile(repo, tx, caller, { requested, harness: input.harness });
+    const profile = await newAgentProfile(repo, tx, caller, requested);
     if (!profile.ok) return profile;
     const values = {
       ...fields,
@@ -80,6 +80,7 @@ export function createAgent(
       slug,
       face: face ?? agentFace(slug),
       profileId: profile.profileId,
+      harness: profile.harness,
     };
     const agent = await repo.insertAgent(tx, values);
     const position = await repo.placePosition(tx, { principalId, reportsToPrincipalId: reportsTo });
@@ -100,9 +101,8 @@ const managerOf = async (repo: OrgRepo, t: TenantDb, principalId: string) =>
  * Changes an agent in one transaction under the company's lock: only the fields that differ are written, with one
  * audit row each (new instructions as a bump of `instructionsRev`). A slug another agent has is a 409; archiving
  * and restoring move it on the chart (`moveForStatus`), refused with a 422; giving it an access profile is only for
- * the profile's owner (403; 422 for none or one without its harness's part), while any admin or owner takes it off, and
- * a harness change its profile has no part for is refused (`profileChange`). A refusal is
- * decided before anything is written. Pausing, resuming and archiving notify the manager it reported to (S2.9).
+ * the profile's owner (403; 422 for none or one without an AI part) and sets its harness from the profile's AI part,
+ * while any admin or owner takes it off (`profileChange`). A refusal is decided before anything is written. Pausing, resuming and archiving notify the manager it reported to (S2.9).
  */
 export function updateAgent(
   repo: OrgRepo,
@@ -114,8 +114,7 @@ export function updateAgent(
     await repo.lock(tx);
     const agent = await repo.getAgent(tx, change.agentId);
     if (agent === undefined) return AGENT_NOT_FOUND;
-    const { profileId: requested, harness } = change.patch;
-    const profile = await profileChange(repo, tx, caller, { agent, requested, harness });
+    const profile = await profileChange(repo, tx, caller, { agent, requested: change.patch.profileId });
     if (!profile.ok) return profile;
     const set = { ...agentChanges(agent, change.patch), ...profile.set };
     if (set.slug !== undefined && (await repo.takenSlugs(tx)).has(set.slug)) return slugTaken(set.slug);

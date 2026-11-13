@@ -6,6 +6,7 @@ import {
   partInUse,
   removedAiParts,
   runsAfterChange,
+  secondAiPart,
 } from '../../../../src/modules/credentials/rules/parts.ts';
 
 const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
@@ -130,5 +131,28 @@ describe('partInUse', () => {
     expect(partInUse('openai', ['A', 'B', 'C']).message).toBe(
       "A, B and C run on this profile's OpenAI part: give them another profile first",
     );
+  });
+});
+
+describe('secondAiPart', () => {
+  it('refuses a change that leaves both AI parts, naming the one the profile has', () => {
+    expect(secondAiPart(undefined, { claudePart: true, openaiPart: true })).toMatchObject({
+      status: 422,
+      code: 'one_ai_part',
+      message: 'A profile runs one AI: give it a Claude part or an OpenAI part, not both',
+    });
+    expect(secondAiPart(withClaude, { openaiPart: true })?.message).toBe(
+      'This profile already has a Claude part; a profile runs one AI',
+    );
+    expect(secondAiPart({ ...empty, openaiPart: true }, { claudePart: true })?.message).toBe(
+      'This profile already has an OpenAI part; a profile runs one AI',
+    );
+  });
+
+  it('lets one AI part, none, or a swap through', () => {
+    expect(secondAiPart(undefined, { openaiPart: true })).toBeUndefined();
+    expect(secondAiPart(withGithub, {})).toBeUndefined();
+    expect(secondAiPart(withClaude, { claudePart: false, openaiPart: true })).toBeUndefined();
+    expect(secondAiPart(withClaude, { claudeModel: null })).toBeUndefined();
   });
 });

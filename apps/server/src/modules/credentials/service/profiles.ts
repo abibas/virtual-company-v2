@@ -9,7 +9,7 @@ import {
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import { auditProfileRemoval } from '../../org/service.ts';
 import { profileRows as repo } from '../repo/profiles.ts';
-import { partColumns, partInUse, removedAiParts, runsAfterChange } from '../rules/parts.ts';
+import { partColumns, partInUse, removedAiParts, runsAfterChange, secondAiPart } from '../rules/parts.ts';
 import { runsRefusal } from '../rules/profile-model.ts';
 import {
   auditedProfile,
@@ -116,8 +116,9 @@ async function listProfiles(deps: Deps, caller: Caller): Promise<AccessProfileVi
 }
 
 /**
- * A new profile of the caller's: its name (unique, 409) and the parts given (`partColumns`), their credentials checked
- * against each place (422) and each AI part's model and effort against its provider (422).
+ * A new profile of the caller's: its name (unique, 409) and the parts given (`partColumns`), one AI part at most (422
+ * `one_ai_part`), their credentials checked against each place (422) and its AI part's model and effort against its
+ * provider (422).
  */
 async function createProfile(
   deps: Deps,
@@ -125,7 +126,7 @@ async function createProfile(
   body: CreateAccessProfile,
 ): Promise<Saved<409 | 422>> {
   const set = partColumns(undefined, body.parts);
-  const refused = runsRefused(undefined, set);
+  const refused = secondAiPart(undefined, set) ?? runsRefused(undefined, set);
   if (refused) return refused;
   const saved = await namedWrite(body.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
@@ -141,8 +142,8 @@ async function createProfile(
 
 /**
  * Renames one of the caller's profiles or adds, changes or removes its parts (`partColumns`): the credentials each
- * place takes (`credentialRefusal`), a model and effort each AI part may run (`runsRefusal`), and never removing an AI
- * part agents run on (422 `profile_part_in_use`, naming them: the agents are read before the transaction). Only what
+ * place takes (`credentialRefusal`), one AI part at most (422 `one_ai_part`), a model and effort each AI part may run
+ * (`runsRefusal`), and never removing an AI part agents run on (422 `profile_part_in_use`, naming them: the agents are read before the transaction). Only what
  * differs is written and audited.
  */
 async function updateProfile(
@@ -167,7 +168,7 @@ async function updateProfile(
       if (refusal) return refusal;
       const set = profileChanges(row, wanted);
       if (Object.keys(set).length === 0) return row;
-      const refused = removalRefused(row, set, users) ?? runsRefused(row, set);
+      const refused = secondAiPart(row, set) ?? removalRefused(row, set, users) ?? runsRefused(row, set);
       if (refused) return refused;
       const after = await repo.updateProfile(o, row.id, set);
       await o.audit(entry(caller, row.id, 'update', diffFields(auditedProfile(row), auditedProfile(after))));
@@ -201,8 +202,8 @@ async function removeProfile(
 
 /**
  * The profiles API's logic (S3.4; generic since 2026-11-13), always as the caller (the personal layer): list their
- * profiles, create one, change one, remove one. A profile is a name and optional parts: a Claude and an OpenAI part
- * (one of the caller's subscriptions of that provider, any of their gateways, never a revoked one, a model of that
+ * profiles, create one, change one, remove one. A profile is a name and optional parts: a Claude or an OpenAI part, not
+ * both (one of the caller's subscriptions of that provider, any of their gateways, never a revoked one, a model of that
  * provider and an effort it takes) and a GitHub and an Atlassian part (one of their sign-ins of that tool and its
  * rights); 422 otherwise; an AI part agents run on is not removed (422). A name is unique among theirs (409); another
  * person's profile is the same 404 as none. Every change writes its `access_profile` audit rows; removing one also

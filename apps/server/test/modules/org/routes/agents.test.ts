@@ -94,7 +94,7 @@ describe('POST /api/companies/:companyId/agents', () => {
     ]);
   });
 
-  it('takes every field it is given, an agent as its manager too; a model and effort are its profile’s, not its own', async () => {
+  it('takes every field it is given, an agent as its manager too; a harness, model and effort are its profile’s', async () => {
     const company = await membersCompany(w);
     const lead = await makeAgent(w, company, company.owner, { name: 'Lead' });
     const agent = await makeAgent(w, company, company.owner, {
@@ -114,7 +114,7 @@ describe('POST /api/companies/:companyId/agents', () => {
     expect(agent).toMatchObject({
       slug: 'code-reviewer',
       roleTitle: 'Code Reviewer',
-      harness: 'codex',
+      harness: 'claude_code',
       runsWith: null,
       instructions: 'Review every change.',
       instructionsRev: 1,
@@ -202,7 +202,6 @@ describe('POST /api/companies/:companyId/agents', () => {
       { name: 'X' },
       { name: 'X', roleTitle: 'y'.repeat(81) },
       { name: 'X', roleTitle: 'Coder', slug: 'Not A Slug' },
-      { name: 'X', roleTitle: 'Coder', harness: 'vim' },
       { name: 'X', roleTitle: 'Coder', maxConcurrentRuns: 0 },
       { name: 'X', roleTitle: 'Coder', maxConcurrentRuns: 9 },
       { name: 'X', roleTitle: 'Coder', face: -1 },

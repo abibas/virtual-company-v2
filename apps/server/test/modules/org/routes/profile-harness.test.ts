@@ -8,15 +8,14 @@ import {
   makeAgent,
   placedMember,
   putDefault,
-  putProfile,
   seedProfile,
 } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld, type Person } from '../../../fixtures/platform/auth.ts';
 
-// A profile serves an agent through the part its harness runs on (generic profiles since 2026-11-13,
-// docs/subscriptions.md "Profiles"): a Claude Code agent needs its profile's Claude part, a Codex agent its OpenAI part
-// (422 `profile_part_missing` otherwise), a profile with both serves either; a hire without a profile gets the hirer's
-// default for its harness when it still has that part; a harness change the profile has no part for is refused.
+// An agent's harness follows its profile (since 2026-11-13, docs/subscriptions.md "Profiles"): a profile has one AI
+// part at most, and giving it to an agent, on hire or later, sets the agent's harness from it (Claude Code for a Claude
+// part, Codex for an OpenAI part); a profile with no AI part is given to no agent (422 `profile_no_ai_part`); taking
+// the profile off keeps the harness; a hire without a profile gets the hirer's Claude default, else their OpenAI one.
 
 let w: AuthWorld;
 let company: MembersCompany;
@@ -30,157 +29,126 @@ afterAll(() => w.t.close());
 
 const patchAgent = (agentId: string, body: Record<string, unknown>, requestId?: string) =>
   as(w, admin, requestId)('PATCH', agentsPath(company, agentId), body);
-const missing = (message: string) => ({
+const NO_AI_PART = {
   status: 422,
-  body: { error: { code: 'profile_part_missing', message } },
-});
+  body: { error: { code: 'profile_no_ai_part', message: 'This profile has no AI part' } },
+};
 
-/** A profile of `person`'s with both AI parts. */
-const both = (person: Person) => seedProfile(w.t.db, person.userId, { provider: 'claude', openaiPart: true });
-
-describe('giving a profile with the harness’s part', () => {
-  it('gives a Claude Code agent a profile with a Claude part, a Codex agent one with an OpenAI part', async () => {
-    const claude = await seedProfile(w.t.db, admin.userId, { provider: 'claude' });
-    const openai = await seedProfile(w.t.db, admin.userId, { provider: 'openai' });
+describe('hiring with a profile', () => {
+  it('runs Claude Code on a Claude part and Codex on an OpenAI part, whatever harness is asked', async () => {
+    const claude = await seedProfile(w.t.db, admin.userId, { provider: 'claude', model: 'claude-opus-5-5' });
+    const openai = await seedProfile(w.t.db, admin.userId, { provider: 'openai', model: 'gpt-6.1-sol' });
     const coder = await makeAgent(w, company, admin, { name: 'Claude coder', profileId: claude.id });
-    expect(coder.profile?.id).toBe(claude.id);
+    expect(coder).toMatchObject({
+      harness: 'claude_code',
+      profile: { id: claude.id },
+      runsWith: { model: 'claude-opus-5-5', provider: 'claude' },
+    });
     const codex = await makeAgent(w, company, admin, {
       name: 'Codex coder',
-      harness: 'codex',
+      harness: 'claude_code',
       profileId: openai.id,
     });
-    expect(codex.profile?.id).toBe(openai.id);
-    const refused = await as(w, admin)('POST', agentsPath(company), {
-      name: 'Refused hire',
-      roleTitle: 'Coder',
+    expect(codex).toMatchObject({
       harness: 'codex',
-      profileId: claude.id,
+      profile: { id: openai.id },
+      runsWith: { model: 'gpt-6.1-sol', provider: 'openai' },
     });
-    expect(refused).toMatchObject(missing('This profile has no OpenAI part, which a Codex agent runs on'));
-    expect(await patchAgent(coder.id, { profileId: openai.id })).toMatchObject(
-      missing('This profile has no Claude part, which a Claude Code agent runs on'),
-    );
-    expect(await agentProfileOf(w.t.db, coder.id)).toBe(claude.id);
+    expect((await fieldAudit(w.t.db, 'agent', codex.id, 'harness')).at(-1)?.at(-1)).toBe('codex');
   });
 
-  it('gives one profile with both AI parts to a Claude Code and a Codex agent, each running its own part', async () => {
-    const shared = await seedProfile(w.t.db, admin.userId, {
-      provider: 'claude',
-      model: 'claude-opus-5-5',
-      openaiPart: true,
-      openaiModel: 'gpt-6.1-sol',
-    });
-    const coder = await makeAgent(w, company, admin, { name: 'Both: Claude', profileId: shared.id });
-    const codex = await makeAgent(w, company, admin, {
-      name: 'Both: Codex',
-      harness: 'codex',
-      profileId: shared.id,
-    });
-    expect(coder.runsWith).toEqual({ model: 'claude-opus-5-5', effort: null, provider: 'claude' });
-    expect(codex.runsWith).toEqual({ model: 'gpt-6.1-sol', effort: null, provider: 'openai' });
-  });
-
-  it('refuses a profile with only tool parts', async () => {
+  it('refuses a profile with only tool parts, and runs Claude Code without a profile', async () => {
     const tools = await seedProfile(w.t.db, admin.userId, { provider: null, githubRights: {} });
     const res = await as(w, admin)('POST', agentsPath(company), {
       name: 'Tools only',
       roleTitle: 'Coder',
       profileId: tools.id,
     });
-    expect(res).toMatchObject({ status: 422, body: { error: { code: 'profile_part_missing' } } });
+    expect(res).toMatchObject(NO_AI_PART);
+    const bare = await makeAgent(w, company, admin, { name: 'Bare', harness: 'codex', profileId: null });
+    expect(bare).toMatchObject({ harness: 'claude_code', profile: null, runsWith: null });
   });
+});
 
-  it("hires with the hirer's default for the harness when no profile is given, and none once it lost the part", async () => {
+describe('hiring without a profile: the defaults', () => {
+  it('takes the Claude default, else the OpenAI one, each only while it has its part', async () => {
     const hirer = await placedMember(w, company, 'admin');
     const claude = await seedProfile(w.t.db, hirer.userId, { provider: 'claude' });
     const openai = await seedProfile(w.t.db, hirer.userId, { provider: 'openai' });
     const path = defaultPath(company.companyId);
-    expect((await as(w, hirer)('PUT', path, { provider: 'claude', profileId: claude.id })).status).toBe(200);
-    expect(
-      (await makeAgent(w, company, hirer, { name: 'Codex, no default', harness: 'codex' })).profile,
-    ).toBeNull();
+    expect((await makeAgent(w, company, hirer, { name: 'No defaults' })).profile).toBeNull();
     expect((await as(w, hirer)('PUT', path, { provider: 'openai', profileId: openai.id })).status).toBe(200);
-    const codex = await makeAgent(w, company, hirer, { name: 'Codex hire', harness: 'codex' });
-    const coder = await makeAgent(w, company, hirer, { name: 'Claude hire' });
-    expect([codex.profile?.id, coder.profile?.id]).toEqual([openai.id, claude.id]);
-    await putDefault(w.t.db, hirer.membershipId, openai.id, 'claude');
-    expect((await makeAgent(w, company, hirer, { name: 'Default without part' })).profile).toBeNull();
-  });
-});
-
-describe('changing the harness', () => {
-  const made = async (name: string, body: Record<string, unknown>) =>
-    makeAgent(w, company, admin, { name, ...body });
-
-  it('refuses a harness its profile has no part for, writing nothing', async () => {
-    const claude = await seedProfile(w.t.db, admin.userId, { provider: 'claude' });
-    const agent = await made('Stubborn', { profileId: claude.id });
-    for (const body of [{ harness: 'codex' }, { harness: 'codex', profileId: claude.id }]) {
-      expect(await patchAgent(agent.id, body)).toMatchObject(
-        missing('This profile has no OpenAI part, which a Codex agent runs on'),
-      );
-    }
-    expect(await agentProfileOf(w.t.db, agent.id)).toBe(claude.id);
-    expect((await as(w, admin)('GET', agentsPath(company, agent.id))).body).toMatchObject({
+    expect(await makeAgent(w, company, hirer, { name: 'OpenAI default' })).toMatchObject({
+      harness: 'codex',
+      profile: { id: openai.id },
+    });
+    expect((await as(w, hirer)('PUT', path, { provider: 'claude', profileId: claude.id })).status).toBe(200);
+    expect(await makeAgent(w, company, hirer, { name: 'Claude default' })).toMatchObject({
       harness: 'claude_code',
+      profile: { id: claude.id },
+    });
+    // Defaults that lost their part are passed over: none at all, then the OpenAI one.
+    const tools = await seedProfile(w.t.db, hirer.userId, { provider: null, githubRights: {} });
+    await putDefault(w.t.db, hirer.membershipId, openai.id, 'claude');
+    await putDefault(w.t.db, hirer.membershipId, tools.id, 'openai');
+    expect(await makeAgent(w, company, hirer, { name: 'Defaults without parts' })).toMatchObject({
+      harness: 'claude_code',
+      profile: null,
+    });
+    await putDefault(w.t.db, hirer.membershipId, openai.id, 'openai');
+    expect(await makeAgent(w, company, hirer, { name: 'Passed over' })).toMatchObject({
+      harness: 'codex',
+      profile: { id: openai.id },
     });
   });
 
-  it('keeps a profile with both parts, and takes a new profile or none with the new harness', async () => {
-    const shared = await both(admin);
-    const openai = await seedProfile(w.t.db, admin.userId, { provider: 'openai' });
-    const agent = await made('Switcher', { profileId: shared.id });
-    const kept = await patchAgent(agent.id, { harness: 'codex' }, 'req-switch');
-    expect(kept).toMatchObject({ status: 200, body: { harness: 'codex', profile: { id: shared.id } } });
-    const other = await made('Other', { profileId: shared.id });
-    const given = await patchAgent(other.id, { harness: 'codex', profileId: openai.id });
-    expect(given).toMatchObject({ status: 200, body: { harness: 'codex', profile: { id: openai.id } } });
-    const claude = await seedProfile(w.t.db, admin.userId, { provider: 'claude' });
-    const third = await made('Third', { profileId: claude.id });
-    const off = await patchAgent(third.id, { harness: 'codex', profileId: null }, 'req-off');
-    expect(off).toMatchObject({ status: 200, body: { harness: 'codex', profile: null } });
-    expect((await fieldAudit(w.t.db, 'agent', third.id, 'profileId')).at(-1)).toEqual([
-      company.companyId,
-      'update',
-      admin.principalId,
-      'req-off',
-      claude.id,
-      null,
-    ]);
-    const bare = await made('No profile', { profileId: null });
-    expect(await patchAgent(bare.id, { harness: 'codex' })).toMatchObject({ status: 200 });
-  });
-
-  it('keeps a profile put on without the rules once the new harness has its part', async () => {
-    const openai = await seedProfile(w.t.db, admin.userId, { provider: 'openai' });
-    const agent = await made('Misfit', { profileId: null });
-    await putProfile(w.t.db, company.companyId, agent.id, openai.id);
-    const res = await patchAgent(agent.id, { harness: 'codex' });
-    expect(res).toMatchObject({ status: 200, body: { harness: 'codex', profile: { id: openai.id } } });
+  it('refuses a default without its part', async () => {
+    const hirer = await placedMember(w, company, 'admin');
+    const claude = await seedProfile(w.t.db, hirer.userId, { provider: 'claude' });
+    const path = defaultPath(company.companyId);
+    expect(await as(w, hirer)('PUT', path, { provider: 'openai', profileId: claude.id })).toMatchObject({
+      status: 422,
+      body: {
+        error: {
+          code: 'profile_part_missing',
+          message: 'This profile has no OpenAI part, so it cannot be your default for Codex agents',
+        },
+      },
+    });
   });
 });
 
-describe("a member's default for each AI part", () => {
-  it('puts each default on the hires of its own harness only', async () => {
-    const hirer = await placedMember(w, company, 'admin');
-    const openai = await seedProfile(w.t.db, hirer.userId, { provider: 'openai' });
-    await putDefault(w.t.db, hirer.membershipId, openai.id, 'openai');
-    expect((await makeAgent(w, company, hirer, { name: 'Claude, no default' })).profile).toBeNull();
-    expect(
-      (await makeAgent(w, company, hirer, { name: 'Codex default', harness: 'codex' })).profile?.id,
-    ).toBe(openai.id);
+describe('changing an agent’s profile', () => {
+  it('sets the harness from the new profile, audited, and ignores a harness asked for', async () => {
+    const claude = await seedProfile(w.t.db, admin.userId, { provider: 'claude' });
+    const openai = await seedProfile(w.t.db, admin.userId, { provider: 'openai' });
+    const agent = await makeAgent(w, company, admin, { name: 'Switcher', profileId: claude.id });
+    expect(await patchAgent(agent.id, { name: 'Switcher', harness: 'codex' })).toMatchObject({
+      status: 200,
+      body: { harness: 'claude_code', profile: { id: claude.id } },
+    });
+    const moved = await patchAgent(agent.id, { profileId: openai.id }, 'req-switch');
+    expect(moved).toMatchObject({ status: 200, body: { harness: 'codex', profile: { id: openai.id } } });
+    expect((await fieldAudit(w.t.db, 'agent', agent.id, 'harness')).at(-1)).toEqual([
+      company.companyId,
+      'update',
+      admin.principalId,
+      'req-switch',
+      'claude_code',
+      'codex',
+    ]);
+    const back = await patchAgent(agent.id, { profileId: claude.id });
+    expect(back).toMatchObject({ status: 200, body: { harness: 'claude_code', profile: { id: claude.id } } });
   });
 
-  it('takes a profile with both parts as either default, and refuses one without the part', async () => {
-    const hirer = await placedMember(w, company, 'admin');
-    const shared = await both(hirer);
-    const path = defaultPath(company.companyId);
-    for (const provider of ['claude', 'openai']) {
-      expect((await as(w, hirer)('PUT', path, { provider, profileId: shared.id })).status).toBe(200);
-    }
-    const tools = await seedProfile(w.t.db, hirer.userId, { provider: null, atlassianRights: {} });
-    expect(await as(w, hirer)('PUT', path, { provider: 'openai', profileId: tools.id })).toMatchObject(
-      missing('This profile has no OpenAI part, so it cannot be your default for Codex agents'),
-    );
+  it('keeps the harness when the profile is taken off, and refuses one without an AI part, writing nothing', async () => {
+    const openai = await seedProfile(w.t.db, admin.userId, { provider: 'openai' });
+    const agent = await makeAgent(w, company, admin, { name: 'Off', profileId: openai.id });
+    const off = await patchAgent(agent.id, { profileId: null }, 'req-off');
+    expect(off).toMatchObject({ status: 200, body: { harness: 'codex', profile: null } });
+    const tools = await seedProfile(w.t.db, admin.userId, { provider: null, atlassianRights: {} });
+    const kept = await makeAgent(w, company, admin, { name: 'Kept', profileId: openai.id });
+    expect(await patchAgent(kept.id, { profileId: tools.id })).toMatchObject(NO_AI_PART);
+    expect(await agentProfileOf(w.t.db, kept.id)).toBe(openai.id);
   });
 });

@@ -1,4 +1,4 @@
-import type { Agent } from '@mwc/db';
+import type { AccessProfile, Agent } from '@mwc/db';
 import { HARNESS_PROVIDER, PART_NAMES } from '@mwc/shared/credentials';
 import type { AgentStatus, Harness, MembershipRole, ProfileProvider } from '@mwc/shared/enums';
 import { roleAtLeast } from '@mwc/shared/roles';
@@ -46,7 +46,6 @@ export interface AgentPatch {
   readonly name?: string | undefined;
   readonly slug?: string | undefined;
   readonly roleTitle?: string | undefined;
-  readonly harness?: Agent['harness'] | undefined;
   readonly instructions?: string | undefined;
   readonly maxConcurrentRuns?: number | undefined;
   readonly face?: number | undefined;
@@ -57,7 +56,6 @@ const EDITABLE = [
   'name',
   'slug',
   'roleTitle',
-  'harness',
   'instructions',
   'maxConcurrentRuns',
   'face',
@@ -99,9 +97,9 @@ export function auditedAgent(agent: Agent) {
 
 // Who may put an access profile on an agent, or choose it as their default for the agents they hire (S3.4,
 // docs/subscriptions.md): only its owner, signed in to the web app, in a company where they are an admin or an owner;
-// and which profiles fit: one of the provider the agent's harness runs on (Claude for Claude Code, OpenAI for Codex),
-// a default of its own provider. Taking a profile off an agent is any admin's or owner's (the agent routes are
-// theirs). Pure.
+// and which profiles fit: one with an AI part, which sets the agent's harness (since 2026-11-13: a Claude part runs
+// Claude Code, an OpenAI part Codex), a default one with its own AI part. Taking a profile off an agent is any admin's
+// or owner's (the agent routes are theirs). Pure.
 
 export const PROFILE_NOT_FOUND = refuse(422, 'profile_not_found', 'No such access profile');
 
@@ -150,8 +148,22 @@ const HARNESS_WORDS: Readonly<Record<Harness, string>> = { claude_code: 'Claude 
 const PART_HARNESS: Readonly<Record<ProfileProvider, Harness>> = { claude: 'claude_code', openai: 'codex' };
 
 /**
- * A profile without the AI part an agent's harness runs on (422 `profile_part_missing`): a Claude Code agent needs its
- * profile's Claude part, a Codex agent its OpenAI part.
+ * The harness a profile gives the agents it is given to (since 2026-11-13, a profile has one AI part at most): Claude
+ * Code for a Claude part, Codex for an OpenAI part; undefined for a profile with neither.
+ */
+export function profileHarness(
+  profile: Pick<AccessProfile, 'claudePart' | 'openaiPart'>,
+): Harness | undefined {
+  if (profile.claudePart) return PART_HARNESS.claude;
+  return profile.openaiPart ? PART_HARNESS.openai : undefined;
+}
+
+/** A profile with neither AI part, given to an agent (422 `profile_no_ai_part`): it has nothing to run on. */
+export const PROFILE_NO_AI_PART = refuse(422, 'profile_no_ai_part', 'This profile has no AI part');
+
+/**
+ * A profile without the AI part a harness runs on (422 `profile_part_missing`), for a chat's own profile: a Claude Code
+ * chat needs its profile's Claude part, a Codex chat its OpenAI part.
  */
 export const profilePartMissing = (harness: Harness): Refusal<422> =>
   refuse(

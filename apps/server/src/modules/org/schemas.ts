@@ -68,6 +68,7 @@ export const AgentSchema = z
     slug: z.string(),
     roleTitle: z.string(),
     status: AgentStatus,
+    /** What it runs on: its profile's AI part's harness (Claude Code for Claude, Codex for OpenAI). */
     harness: Harness,
     instructionsRev: z.number().int(),
     maxConcurrentRuns: z.number().int(),
@@ -104,16 +105,16 @@ export const AgentListSchema = z.object({ agents: z.array(AgentSchema) }).openap
 
 /**
  * A new agent. Left out: the slug is derived from the name (with `-2`, `-3`, ... when taken), the face from the slug,
- * the manager is the caller, and the profile is the caller's default here (`profileId: null` for none). Its model and
- * effort are its profile's (since 2026-11-10), and so are its GitHub and Atlassian access (the profile's tool parts,
- * since 2026-11-13): an agent has none of its own.
+ * the manager is the caller, and the profile is the caller's default here for Claude Code agents, else for Codex agents
+ * (`profileId: null` for none). Its harness follows its profile's AI part (since 2026-11-13: Claude Code for a Claude
+ * part, Codex for an OpenAI part; Claude Code without a profile), its model and effort are that part's (since
+ * 2026-11-10), and its GitHub and Atlassian access are the profile's tool parts: an agent has none of its own.
  */
 export const CreateAgentSchema = z
   .object({
     name: Name,
     slug: Slug.optional(),
     roleTitle: RoleTitle,
-    harness: Harness.default(AGENT_DEFAULTS.harness),
     instructions: Instructions.default(AGENT_DEFAULTS.instructions),
     maxConcurrentRuns: MaxRuns.default(AGENT_DEFAULTS.maxConcurrentRuns),
     face: Face.optional(),
@@ -124,14 +125,14 @@ export const CreateAgentSchema = z
 
 /**
  * Any of the agent's fields; `status: archived` takes it off the chart, and back from there it reports to the caller.
- * `profileId`: one of your access profiles to give it, or null to take its profile off.
+ * `profileId`: one of your access profiles to give it, which sets its harness from the profile's AI part, or null to take
+ * its profile off (its harness stays).
  */
 export const UpdateAgentSchema = z
   .object({
     name: Name.optional(),
     slug: Slug.optional(),
     roleTitle: RoleTitle.optional(),
-    harness: Harness.optional(),
     instructions: Instructions.optional(),
     maxConcurrentRuns: MaxRuns.optional(),
     face: Face.optional(),

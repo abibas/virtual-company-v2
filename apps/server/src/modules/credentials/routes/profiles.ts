@@ -33,10 +33,11 @@ const CREDENTIAL_REFUSED = errorResponse(
     '`openai_api_key`; a gateway any gateway; GitHub `github_oauth`, `github_token`; Atlassian `atlassian_api_token`); ' +
     'a revoked one (`credential_revoked`); a model of the other provider (`model_provider_mismatch`); an effort its ' +
     'model, or its provider, does not take (`effort_unsupported`: Claude takes low to max, Codex low to ultra, some ' +
-    'models fewer)',
+    'models fewer); both a Claude and an OpenAI part (`one_ai_part`: a profile runs one AI)',
 );
 const UPDATE_REFUSED = errorResponse(
-  'As for a new profile, or removing an AI part agents run on (`profile_part_in_use`, naming them)',
+  'As for a new profile (a second AI part: `one_ai_part`), or removing an AI part agents run on (`profile_part_in_use`, ' +
+    'naming them)',
 );
 
 const profilesRoute = <P extends PersonalPath>(deps: ServerDeps, path: P) =>

@@ -55,7 +55,7 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
         name: 'SLOP BOX 2',
         slug: 'slop-box-two',
         roleTitle: 'Senior Coder',
-        harness: 'codex',
+        harness: 'claude_code',
         maxConcurrentRuns: 2,
         face: 3,
         instructionsRev: 1,
@@ -66,7 +66,6 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
     expect(res.body).not.toHaveProperty('model');
     expect(rows.map((row) => [row.field, row.oldValue, row.newValue])).toEqual([
       ['face', agent.face, 3],
-      ['harness', 'claude_code', 'codex'],
       ['name', 'SLOP BOX', 'SLOP BOX 2'],
       ['roleTitle', 'Coder', 'Senior Coder'],
       ['slug', 'slop-box', 'slop-box-two'],
@@ -85,7 +84,7 @@ describe('PATCH /api/companies/:companyId/agents/:agentId', () => {
     expect(again).toMatchObject({ status: 200, body: { name: 'SLOP BOX 2' } });
     expect(
       (await auditRows(w.t.db, 'agent', agent.id)).filter((row) => row.action === 'update'),
-    ).toHaveLength(5);
+    ).toHaveLength(4);
   });
 
   it('bumps instructionsRev when the instructions change, and audits the revision, never the text', async () => {
