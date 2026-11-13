@@ -1,10 +1,12 @@
 /*
  * The chat's motion (S5.2), imported by theme.css: a light sweeping across the working pill's "Working"
- * (`text-shimmer animate-shimmer`), and a new current action rolling in (`animate-roll-in`); motion-safe only.
+ * (`text-shimmer animate-shimmer`), and a new current action rolling in (`animate-roll-in`); a thin bar's segment
+ * sliding across while something loads for as long as it takes (`animate-indeterminate`); motion-safe only.
  */
 @theme static {
   --animate-shimmer: shimmer 2.4s linear infinite;
   --animate-roll-in: roll-in 180ms ease-out;
+  --animate-indeterminate: indeterminate 1.1s ease-in-out infinite;
 
   @keyframes shimmer {
     from {
@@ -12,6 +14,15 @@
     }
     to {
       background-position: -50% 0;
+    }
+  }
+
+  @keyframes indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
     }
   }
 
