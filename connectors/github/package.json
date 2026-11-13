@@ -1,0 +1,16 @@
+{
+  "name": "@mwc/github",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The GitHub connector: implements @mwc/tools-core's GitHubApi over api.github.com's REST API (and GraphQL for a pull request's draft state) with a bearer token, an injected fetch, retries on rate limits and timeouts.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/tools-core": "workspace:*"
+  }
+}

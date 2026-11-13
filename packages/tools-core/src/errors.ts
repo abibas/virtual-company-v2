@@ -58,3 +58,39 @@ export class AtlassianError extends Error {
 }
 
 export const isAtlassianError = (error: unknown): error is AtlassianError => error instanceof AtlassianError;
+
+/** What went wrong in a GitHub call (S7.1d): the same codes as Atlassian's. */
+export const GITHUB_ERROR_CODES = ATLASSIAN_ERROR_CODES;
+export type GitHubErrorCode = AtlassianErrorCode;
+
+/** The words for each code, the start of a GitHub error's message. */
+export const GITHUB_ERROR_MESSAGES: Readonly<Record<GitHubErrorCode, string>> = {
+  needs_sign_in:
+    'GitHub refused the sign-in (401): its owner needs to sign in again on the Subscriptions page.',
+  forbidden: 'GitHub says the account has no permission for this (403).',
+  not_found: 'GitHub found nothing there, or the account cannot see it (404).',
+  bad_request: 'GitHub refused the request as written.',
+  conflict: 'GitHub says it conflicts with how things are now (409).',
+  rate_limited: 'GitHub is limiting requests.',
+  unavailable: 'GitHub did not answer; try again shortly.',
+  invalid_response: 'GitHub gave an answer that could not be read.',
+};
+
+/** The one error every `GitHubApi` method rejects with: its code, HTTP status and words (never the token). */
+export class GitHubError extends Error {
+  readonly code: GitHubErrorCode;
+  readonly status: number | null;
+
+  constructor(
+    code: GitHubErrorCode,
+    options: { readonly status?: number | null; readonly detail?: string | undefined } = {},
+  ) {
+    const words = GITHUB_ERROR_MESSAGES[code];
+    super(options.detail ? `${words} ${options.detail}` : words);
+    this.name = 'GitHubError';
+    this.code = code;
+    this.status = options.status ?? null;
+  }
+}
+
+export const isGitHubError = (error: unknown): error is GitHubError => error instanceof GitHubError;

@@ -359,6 +359,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/tools-core
 
+  connectors/github:
+    dependencies:
+      '@mwc/tools-core':
+        specifier: workspace:*
+        version: link:../../packages/tools-core
+
   connectors/harness-claude-code:
     dependencies:
       '@mwc/harness-core':
