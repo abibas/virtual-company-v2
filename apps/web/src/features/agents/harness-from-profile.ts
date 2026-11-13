@@ -3,7 +3,7 @@ import { profileAiPart, type RunsWith } from '../../components/org/agent-labels.
 
 /**
  * What a profile runs for an agent (since 2026-11-13 a profile has one AI part at most, and the agent's harness follows
- * it): that part's model and effort. The agent form asks for neither; the profile's part decides them. Pure.
+ * it): that part's model, effort and mode. The agent form asks for none of them; the profile's part decides. Pure.
  */
 
 /**
@@ -20,7 +20,7 @@ export function runsOf(
   if (own) {
     const provider = profileAiPart(own);
     const part = provider && own.parts[provider];
-    return provider && part ? { model: part.model, effort: part.effort, provider } : null;
+    return provider && part ? { model: part.model, effort: part.effort, mode: part.mode, provider } : null;
   }
   return agent?.profile?.id === profileId ? agent.runsWith : undefined;
 }

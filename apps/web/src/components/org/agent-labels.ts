@@ -5,8 +5,9 @@ import {
   TOOL_PROVIDERS,
   type ToolRights,
 } from '@mwc/shared/credentials';
-import type { Effort, Harness, ProfileProvider, ToolProvider } from '@mwc/shared/enums';
+import type { Effort, Harness, PermissionMode, ProfileProvider, ToolProvider } from '@mwc/shared/enums';
 import { catalogueModel, effortsOf } from '@mwc/shared/models';
+import { DEFAULT_MODES, modeChoice } from '@mwc/shared/modes';
 import type { AccessProfile, Agent, AgentProfile } from '../../api/types.ts';
 import type { AgentRef } from '../feed/kinds.ts';
 import type { SegmentOption } from '../forms/Segmented.tsx';
@@ -74,14 +75,22 @@ export const profileLabel = (
 /** A profile's parts as the line reads them: the person's own profile's or as an agent shows it. */
 type Parts = AccessProfile['parts'] | AgentProfile['parts'];
 
-/** One AI part in short: "Claude", with its model and effort when not the defaults ("Claude · Opus 5.5 · High"). */
+/** A part's mode as people read it ("Plan", "Skip prompts (full trust)"); the id for one of another part. */
+export const modeLabel = (provider: ProfileProvider, mode: PermissionMode): string =>
+  modeChoice(provider, mode)?.label ?? mode;
+
+/**
+ * One AI part in short: "Claude", with its model, effort and mode when not the defaults ("Claude · Opus 5.5 · High ·
+ * Skip prompts (full trust)").
+ */
 function aiWords(
   provider: ProfileProvider,
-  part: { readonly model: string | null; readonly effort: Effort | null },
+  part: { readonly model: string | null; readonly effort: Effort | null; readonly mode: PermissionMode },
 ) {
   const model = part.model === null ? [] : [modelLabel(part.model)];
   const effort = part.effort === null ? [] : [effortLabel(part.effort)];
-  return [PART_NAMES[provider], ...model, ...effort].join(' · ');
+  const mode = part.mode === DEFAULT_MODES[provider] ? [] : [modeLabel(provider, part.mode)];
+  return [PART_NAMES[provider], ...model, ...effort, ...mode].join(' · ');
 }
 
 /** One tool part in short: "GitHub: push, PRs · AiriaLLC/*", or "GitHub: no sign-in". */
@@ -92,7 +101,7 @@ function toolWords(tool: ToolProvider, part: { readonly rights: ToolRights } & o
 
 /**
  * A profile's parts in one compact line (generic profiles since 2026-11-13), in their fixed order: each AI part with its
- * model and effort when not the defaults, then each tool part's rights in short ("Claude · Opus 5.5 · High · GitHub:
+ * model, effort and mode when not the defaults, then each tool part's rights in short ("Claude · Opus 5.5 · High · GitHub:
  * push, PRs · AiriaLLC/* · Atlassian: Jira read (AP) · Confluence write"); never a subscription or its account.
  */
 export function profileLine(profile: { readonly parts: Parts }): string {

@@ -43,7 +43,6 @@ type PlacementRoutes = AgentRoutes[':agentId']['placement'];
 export type AgentPlacement = InferResponseType<PlacementRoutes['$get'], 200>['placement'];
 export type PlacementChange = InferRequestType<PlacementRoutes['$put']>['json'];
 export type PlacementMode = PlacementChange['mode'];
-export type PermissionPolicy = PlacementChange['permissionPolicy'];
 /** A machine as the placement's machine select lists it (`GET /machines`). */
 export type MachineChoice = InferResponseType<CompanyRoutes['machines']['$get'], 200>['machines'][number];
 
@@ -108,6 +107,8 @@ export type ChatTurn = InferResponseType<ChatRoutes['turns']['$post'], 202>;
 export type ChatEvent = ChatTurnWithEvents['events'][number];
 export type TurnEvent = ChatEvent['event'];
 export type ChatChanges = InferRequestType<ChatRoutes['$patch']>['json'];
+/** `PATCH …/chats/:chatId/overrides` (2026-11-13): the chat's own mode, model and effort, each null to clear. */
+export type ChatOverridesChanges = InferRequestType<ChatRoutes['overrides']['$patch']>['json'];
 /** S5.2 step 6: how a message sent while the agent works reaches it (`now`, `after`, `interrupt`). */
 export type ChatDelivery = NonNullable<InferRequestType<ChatRoutes['turns']['$post']>['json']['delivery']>;
 /** An `event:` message of a chat's stream: one event with its turn's id and number (its `id:` is `<turnSeq>.<seq>`). */

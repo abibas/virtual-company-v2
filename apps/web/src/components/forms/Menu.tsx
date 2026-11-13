@@ -68,19 +68,22 @@ export interface MenuTriggerProps {
 /**
  * A dropdown: the trigger gets the ARIA wiring, the items are `MenuItem`s. Opening focuses the first item; arrow keys
  * move, Escape or a click outside closes (focus back on the trigger); picking an item closes it. `floating` fixes
- * the panel to the window (`useFloatingPanel`), for a trigger inside a scrolling container that would cut it off.
+ * the panel to the window (`useFloatingPanel`), for a trigger inside a scrolling container that would cut it off;
+ * `side` says where it opens first (`above`: a trigger at the bottom, as the composer's menus).
  */
 export function Menu({
   trigger,
   align = 'start',
   width = 'w-64',
   floating = false,
+  side = 'below',
   children,
 }: {
   readonly trigger: (props: MenuTriggerProps) => ReactNode;
   readonly align?: 'start' | 'end';
   readonly width?: string;
   readonly floating?: boolean;
+  readonly side?: 'below' | 'above';
   readonly children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -90,7 +93,7 @@ export function Menu({
   const id = useId();
   const close = useCallback(() => setOpen(false), []);
   useDismiss(open, close, root, button);
-  const place = useFloatingPanel(open && floating, align, button, panel, close);
+  const place = useFloatingPanel(open && floating, align, button, panel, close, side);
   useEffect(() => {
     if (open) panel.current?.querySelector<HTMLElement>(ITEMS)?.focus({ preventScroll: floating });
   }, [open, floating]);
@@ -115,8 +118,14 @@ export function Menu({
         }}
         style={floating ? place : undefined}
         className={cx(
-          'max-w-[calc(100vw-2rem)] rounded-xl bg-surface p-1.5 shadow-float ring-1 ring-line',
-          floating ? 'z-40' : cx('absolute top-full z-30 mt-2', align === 'start' ? 'left-0' : 'right-0'),
+          'max-h-[min(36rem,85dvh)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl bg-surface p-1.5 shadow-float ring-1 ring-line',
+          floating
+            ? 'z-40'
+            : cx(
+                'absolute z-30',
+                side === 'above' ? 'bottom-full mb-2' : 'top-full mt-2',
+                align === 'start' ? 'left-0' : 'right-0',
+              ),
           width,
         )}
       >

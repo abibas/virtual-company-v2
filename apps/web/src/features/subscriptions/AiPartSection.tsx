@@ -2,6 +2,7 @@ import type { ProfileProvider } from '@mwc/shared/enums';
 import type { AccessProfileChanges } from '../../api/types.ts';
 import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
+import { ModeField } from './ModeField.tsx';
 import { type CardProps, PartFrame, SavedSelect } from './ProfileParts.tsx';
 import { PART_STYLES } from './Providers.tsx';
 import { gatewayOptions, hasGateway, subscriptionOptions } from './profile-options.ts';
@@ -17,7 +18,7 @@ export const aiPartChange = (
 
 /**
  * A profile's Claude or OpenAI part on its card (generic profiles since 2026-11-13): its subscription (of that
- * provider), its gateway (any), its model and effort, each saved as it changes, and Remove (refused while agents run on
+ * provider), its gateway (any), its model, effort and mode, each saved as it changes, and Remove (refused while agents run on
  * it, naming them).
  */
 export function AiPartSection({
@@ -69,6 +70,7 @@ export function AiPartSection({
           runs={{ model: part.model, effort: part.effort }}
           onChange={(change) => save(change)}
         />
+        <ModeField provider={provider} mode={part.mode} onChange={(mode) => save({ mode })} />
       </div>
     </PartFrame>
   );

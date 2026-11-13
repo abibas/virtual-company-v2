@@ -2,12 +2,12 @@ import { CHAT_PAGE } from '@mwc/shared/chats';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
-import type { AnswerBody, Chat, ChatChanges, ChatDelivery } from './types.ts';
+import type { AnswerBody, Chat, ChatChanges, ChatDelivery, ChatOverridesChanges } from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
 
 /**
  * Chats with an agent on its machine (S5.1c, docs/harness.md "How a turn runs"): an agent's chats, one chat with its
- * current conversation and its older turns a page at a time, the changes admins make (begin, rename or choose the profile, archive, branch), prompts and Stop, an owner's terminal
+ * current conversation and its older turns a page at a time, the changes admins make (begin, rename or choose the profile, its own mode, model and effort, archive, branch), prompts and Stop, an owner's terminal
  * ticket, the waiting messages (S5.2 step 6), and the chat's stream (Server-Sent Events read with the client's own Bearer header, never `EventSource`).
  */
 
@@ -50,6 +50,9 @@ export function chatCalls(api: Api, companyId: string) {
         }),
       ),
     update: (chatId: string, changes: ChatChanges) => call(one.$patch({ ...param(chatId), json: changes })),
+    /** The chat's own mode, model and effort for its next turns (2026-11-13): a value sets, null clears. */
+    overrides: (chatId: string, changes: ChatOverridesChanges) =>
+      call(one.overrides.$patch({ ...param(chatId), json: changes })),
     archive: (chatId: string) => call(one.$delete(param(chatId))),
     /** A new chat that continues this one's conversation from the reply of `turnId` (201). */
     branch: (chatId: string, turnId: string) =>

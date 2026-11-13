@@ -27,6 +27,7 @@ import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx
 import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
 import { chatMachine, fixOf } from './machine-context.ts';
+import { chatRunsMenus } from './runs/chat-runs.tsx';
 import { useThreadAuthors } from './thread/authors.ts';
 import { ChatThread } from './thread/ChatThread.tsx';
 import { questionOf } from './thread/question/question-model.ts';
@@ -251,6 +252,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
               onSend={actions.send}
               onStop={actions.stop}
               queue={<QueuedMessages queue={queue} actions={queueActions(calls, live, chat, running)} />}
+              runs={chatRunsMenus({ calls, live, chat, closed, agent, mine: rest.profiles })}
               meter={
                 <ChatContextMeter
                   calls={calls}

@@ -3,6 +3,7 @@ import type { ChatTurnWithEvents } from '../../../../api/types.ts';
 import { cx } from '../../../../components/cx.ts';
 import { tokens } from '../../chat-text.ts';
 import { PLAN_COST } from '../../context/context-text.ts';
+import { ranLine } from '../../runs/runs-state.ts';
 import { activitySummary } from '../model/current-action.ts';
 import { roundedDuration } from '../model/format.ts';
 import type { TurnModel } from '../model/parts.ts';
@@ -26,7 +27,8 @@ function usageWords(usage: NonNullable<TurnModel['usage']>, onPlan: boolean): st
 
 /**
  * A finished turn's quiet last line (S5.2): "Worked for 3m · ran 4 commands, called 6 tools" (or failed, stopped),
- * and the tokens; Copy sits beside it (`MessageActions`).
+ * what it ran with (its mode, model and effort, since 2026-11-13), and the tokens; Copy sits beside it
+ * (`MessageActions`).
  */
 export function TurnFooter({
   turn,
@@ -41,6 +43,7 @@ export function TurnFooter({
   const took =
     model.durationMs === undefined ? ending.bare : `${ending.words} ${roundedDuration(model.durationMs)}`;
   const summary = activitySummary(model);
+  const ran = ranLine(turn);
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-faint">
       <span className="inline-flex min-w-0 items-center gap-1.5 text-dim">
@@ -48,6 +51,7 @@ export function TurnFooter({
         <span className="font-semibold">{took}</span>
         {summary && <span className="min-w-0">· {summary}</span>}
       </span>
+      {ran && <span title="What this turn ran with">{ran}</span>}
       {model.usage && (
         <span className="tabular">{usageWords(model.usage, turn.usage?.includedInPlan === true)}</span>
       )}

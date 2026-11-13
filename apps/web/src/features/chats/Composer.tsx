@@ -79,7 +79,7 @@ function RoundAction({
 
 /**
  * The message box under the thread (S5.1c): a rounded card with the text on top and its toolbar inside it (dictation,
- * the context meter, the hint, Stop and the round Send). Enter sends, Shift+Enter makes a new line. While a turn runs
+ * the chat's Mode and Model menus, the context meter, the hint, Stop and the round Send). Enter sends, Shift+Enter makes a new line. While a turn runs
  * (S5.2 step 6) it stays open with a strip above it that says how the message reaches the agent (Now, After this turn,
  * Interrupt; the last choice remembered in this browser), Stop beside Send, and the waiting messages above it. A
  * refusal (the machine offline, the runner too old, an empty slot) shows above it in plain words, and the text stays so
@@ -94,6 +94,7 @@ export function Composer({
   onStop,
   queue,
   meter,
+  runs,
   dense = false,
 }: {
   /** A turn of this chat runs: Stop beside Send. */
@@ -113,6 +114,8 @@ export function Composer({
   readonly queue?: ReactNode;
   /** The context meter (S5.2), in the card's toolbar, and beside the reason when the box is closed. */
   readonly meter?: ReactNode;
+  /** The chat's Mode and Model menus (2026-11-13), in the card's toolbar after the microphone. */
+  readonly runs?: ReactNode;
   /** Narrow (the right rail's docked chat): tighter margins, no keyboard hint. */
   readonly dense?: boolean;
 }) {
@@ -174,6 +177,7 @@ export function Composer({
           />
           <div className="flex min-h-12 items-center gap-1 py-1.5 pr-2 pl-2.5">
             <DictationButton value={text} onChange={setText} />
+            {runs}
             <div className="min-w-0">{meter}</div>
             <p className={cx('ml-auto hidden pr-1.5 text-2xs text-faint', !dense && 'xl:block')}>
               Enter sends · Shift+Enter for a new line

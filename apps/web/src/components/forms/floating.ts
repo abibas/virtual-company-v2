@@ -11,7 +11,8 @@ const UNPLACED: CSSProperties = { position: 'fixed', top: 0, left: 0, opacity: 0
 
 /**
  * Where an open dropdown floats: fixed to the window below its trigger (above it when the window has no room
- * below), aligned to the trigger's start or end. A fixed panel is never cut off by a scrolling container (a wide
+ * below), or above it first for a trigger at the bottom of its area (`prefer`: the composer's menus), aligned to the
+ * trigger's start or end. A fixed panel is never cut off by a scrolling container (a wide
  * chart, a table); since it would drift from its trigger, any scroll outside it or a resize closes it.
  */
 export function useFloatingPanel(
@@ -20,6 +21,7 @@ export function useFloatingPanel(
   trigger: RefObject<HTMLElement | null>,
   panel: RefObject<HTMLElement | null>,
   close: () => void,
+  prefer: 'below' | 'above' = 'below',
 ): CSSProperties {
   const [style, setStyle] = useState<CSSProperties>(UNPLACED);
   useLayoutEffect(() => {
@@ -31,7 +33,9 @@ export function useFloatingPanel(
     if (box) {
       const height = panel.current?.offsetHeight ?? 0;
       const below = window.innerHeight - box.bottom;
-      const up = below < height + 2 * GAP && box.top > below;
+      const fitsAbove = box.top >= height + 2 * GAP;
+      const up =
+        prefer === 'above' ? fitsAbove || box.top > below : below < height + 2 * GAP && box.top > below;
       setStyle({
         position: 'fixed',
         top: up ? Math.max(GAP, box.top - GAP - height) : box.bottom + GAP,
@@ -47,6 +51,6 @@ export function useFloatingPanel(
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', close);
     };
-  }, [open, align, trigger, panel, close]);
+  }, [open, align, trigger, panel, close, prefer]);
   return style;
 }

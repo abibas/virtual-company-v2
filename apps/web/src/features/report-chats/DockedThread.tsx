@@ -10,6 +10,7 @@ import { Composer } from '../chats/Composer.tsx';
 import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
 import { chatMachine, fixOf } from '../chats/machine-context.ts';
 import { asking, chatActions, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
+import { chatRunsMenus } from '../chats/runs/chat-runs.tsx';
 import { useThreadAuthors } from '../chats/thread/authors.ts';
 import { ChatThread } from '../chats/thread/ChatThread.tsx';
 import { ChatMachineContext } from '../chats/thread/status/MachineWait.tsx';
@@ -41,7 +42,8 @@ function Opening({ detail }: { readonly detail: ChatLive['detail'] }) {
 
 /**
  * A chat in the right rail, live: the chat page's thread (the stream, tool calls, subagents, questions, copy) and its
- * composer (delivery while the agent works, Stop, the waiting messages), narrow and without the context meter. Its
+ * composer (delivery while the agent works, Stop, the waiting messages, the Mode and Model menus with short labels),
+ * narrow and without the context meter. Its
  * replies count as seen as they show (`useMarkSeen`).
  */
 export function DockedThread({
@@ -100,6 +102,7 @@ export function DockedThread({
         }}
         onStop={actions.stop}
         queue={<QueuedMessages queue={view.queue} actions={queueActions(calls, live, chat, view.running)} />}
+        runs={chatRunsMenus({ calls, live, chat, closed, dense: true })}
       />
     </ChatMachineContext.Provider>
   );

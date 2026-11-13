@@ -3,18 +3,16 @@ import { useState } from 'react';
 import type {
   AgentPlacement,
   AgentPlacementSummary,
-  PermissionPolicy,
   PlacementChange,
   PlacementMode,
 } from '../../api/types.ts';
 import type { SegmentOption } from '../../components/forms/Segmented.tsx';
 
-/** What "Where it runs" holds: a machine (empty for nowhere), the mode, the home folder and the permissions. */
+/** What "Where it runs" holds: a machine (empty for nowhere), the mode and the home folder. */
 export interface PlacementValues {
   readonly machineId: string;
   readonly mode: PlacementMode;
   readonly home: string;
-  readonly permissionPolicy: PermissionPolicy;
 }
 
 export interface PlacementDraft {
@@ -32,11 +30,6 @@ export const MODE_OPTIONS: readonly SegmentOption<PlacementMode>[] = [
   { value: 'container', label: 'In a fresh locked-down container per run' },
 ];
 
-export const POLICY_OPTIONS: readonly SegmentOption<PermissionPolicy>[] = [
-  { value: 'ask', label: 'Ask me' },
-  { value: 'bypass', label: 'Skip prompts (full trust)' },
-];
-
 const MODE_WORDS: Readonly<Record<PlacementMode, string>> = {
   host: 'in a folder',
   container: 'in a container',
@@ -51,7 +44,6 @@ const startOf = (saved: AgentPlacement | undefined): PlacementValues => ({
   machineId: saved?.machineId ?? '',
   mode: saved?.mode ?? 'host',
   home: saved?.home ?? '',
-  permissionPolicy: saved?.permissionPolicy ?? 'ask',
 });
 
 /** Which saved placement the values started from: loading, nowhere, or one version of one. */
@@ -92,8 +84,7 @@ export function placementStep(draft: PlacementDraft): PlacementStep {
     saved !== null &&
     saved.machineId === values.machineId &&
     saved.mode === values.mode &&
-    saved.home === home &&
-    saved.permissionPolicy === values.permissionPolicy;
+    saved.home === home;
   if (same) return { kind: 'none' };
   return {
     kind: 'put',
@@ -103,7 +94,6 @@ export function placementStep(draft: PlacementDraft): PlacementStep {
       home,
       configDir: saved?.configDir ?? null,
       worktreeRoot: saved?.worktreeRoot ?? null,
-      permissionPolicy: values.permissionPolicy,
     },
   };
 }

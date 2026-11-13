@@ -94,7 +94,7 @@ const agentNode = ({
     face,
     icon: { kind: 'face' },
     profile: null,
-    runsWith: { model, effort, provider: 'claude' },
+    runsWith: { model, effort, mode: 'manual', provider: 'claude' },
     placement: slug === 'mason' ? { machineId: 'mc-1', machineName: 'Studio Mac', mode: 'host' } : null,
   },
 });
@@ -138,7 +138,7 @@ const detailOf = (agent: SampleAgent): AgentDetail => ({
   roleTitle: agent.roleTitle,
   status: agent.status,
   harness: 'claude_code',
-  runsWith: { model: agent.model, effort: agent.effort, provider: 'claude' },
+  runsWith: { model: agent.model, effort: agent.effort, mode: 'manual', provider: 'claude' },
   instructionsRev: agent.rev,
   maxConcurrentRuns: agent.slug === 'mason' ? 3 : 1,
   face: agent.face,

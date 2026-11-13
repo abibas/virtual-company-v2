@@ -10,7 +10,7 @@ import { Select } from '../../components/forms/Input.tsx';
 import { SegmentedControl } from '../../components/forms/Segmented.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import { HomeFolderField } from './HomeFolderField.tsx';
-import { MODE_OPTIONS, type PlacementDraft, POLICY_OPTIONS } from './placement-draft.ts';
+import { MODE_OPTIONS, type PlacementDraft } from './placement-draft.ts';
 import { WakeInline, wakeFailureText } from './WakeMachine.tsx';
 import { wakeView } from './wake-text.ts';
 
@@ -101,8 +101,8 @@ function MachineSelect({
 
 /**
  * "Where it runs", in How it works: a machine (or nowhere), the mode, its home folder there (typed, or chosen with
- * Browse… from the machine's folders) and its permissions. The placement is saved with the agent; members and viewers
- * read it.
+ * Browse… from the machine's folders). Whether its turns ask before a tool is its profile's Mode (since 2026-11-13).
+ * The placement is saved with the agent; members and viewers read it.
  */
 export function WhereItRuns(props: WhereItRunsProps) {
   const { draft, readOnly, companyId, agentSlug } = props;
@@ -134,27 +134,16 @@ export function WhereItRuns(props: WhereItRunsProps) {
         )}
       </div>
       {placed && (
-        <div className="flex flex-wrap gap-x-8 gap-y-5">
-          <ChoiceField label="How">
-            <SegmentedControl
-              label="How it runs"
-              options={MODE_OPTIONS}
-              value={values.mode}
-              onChange={(mode) => set('mode', mode)}
-              disabled={readOnly}
-              className="max-w-full overflow-x-auto"
-            />
-          </ChoiceField>
-          <ChoiceField label="Permissions" hint="Skip: any tool runs without asking.">
-            <SegmentedControl
-              label="Permissions"
-              options={POLICY_OPTIONS}
-              value={values.permissionPolicy}
-              onChange={(policy) => set('permissionPolicy', policy)}
-              disabled={readOnly}
-            />
-          </ChoiceField>
-        </div>
+        <ChoiceField label="How">
+          <SegmentedControl
+            label="How it runs"
+            options={MODE_OPTIONS}
+            value={values.mode}
+            onChange={(mode) => set('mode', mode)}
+            disabled={readOnly}
+            className="max-w-full overflow-x-auto"
+          />
+        </ChoiceField>
       )}
     </section>
   );
