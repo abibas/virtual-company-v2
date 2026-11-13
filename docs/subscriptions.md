@@ -222,8 +222,8 @@ same day: "we have to LOCK in Profile, that we can Choose EITHER 1 harness EITHE
 
 | Part      | Holds                                                                                              |
 | --------- | -------------------------------------------------------------------------------------------------- |
-| Claude    | one Claude subscription (`claude_oauth`, `claude_setup_token`, `anthropic_api_key`), any gateway, a model and an effort |
-| OpenAI    | one OpenAI subscription (`codex_oauth`, `openai_api_key`), any gateway, a model and an effort       |
+| Claude    | one Claude subscription (`claude_oauth`, `claude_setup_token`, `anthropic_api_key`), any gateway, a model, an effort and a mode |
+| OpenAI    | one OpenAI subscription (`codex_oauth`, `openai_api_key`), any gateway, a model, an effort and a mode |
 | GitHub    | one GitHub sign-in (`github_oauth`, `github_token`) and its rights ("Tool parts" below)            |
 | Atlassian | one Atlassian sign-in (`atlassian_api_token`) and its rights                                       |
 
@@ -239,13 +239,14 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
 - **The row.** `access_profiles` is personal (an owner, no company): `name` (1–80, unique per owner) and its parts'
   columns, with no provider:
   - each AI part: `<part>_part` (it has the part), `<part>_credential_id` and `<part>_gateway_credential_id` (keys to
-    `credentials`, `on delete set null`), `<part>_model` (1–100, null for the harness's default) and `<part>_effort`
-    (null for the default), for `claude` and `openai`;
+    `credentials`, `on delete set null`), `<part>_model` (1–100, null for the harness's default), `<part>_effort`
+    (null for the default) and `<part>_mode` (since `0035_profile_mode`: one of its harness's modes, null for the
+    default, Manual or Ask; "Mode" below), for `claude` and `openai`;
   - each tool part: `<tool>_credential_id` and `<tool>_rights` (jsonb), for `github` and `atlassian`; the part is
     there when its rights are.
 
   CHECKs keep one AI part at most (`access_profiles_one_ai_part_check`: `not (claude_part and openai_part)`), an AI
-  part's fields off while the part is not there, a model's length, the stored efforts, a tool sign-in
+  part's fields off while the part is not there, a model's length, the stored efforts, each part's own modes, a tool sign-in
   only with its rights, and rights an object. `PROFILE_AI_COLUMNS`, `PROFILE_TOOL_COLUMNS` and `aiPartOf` (`@mwc/db`,
   `src/profile-parts.ts`) map the parts to their columns. **Why typed columns rather than one jsonb or a parts table:**
   every credential needs a real column for its foreign key, so removing a credential lets go of it; typed columns keep
@@ -257,9 +258,10 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
   subscription cannot run: a turn says `profile_empty`).
 - **Managing them:** `/api/me/access-profiles` (`GET`, `POST`, `PATCH`/`DELETE /:profileId`), the owner's Clerk session
   only. `POST` takes `{ name, parts? }`, `PATCH` `{ name?, parts? }`; `parts` is `{ claude?, openai?, github?, atlassian? }`:
-  - an AI part `{ credentialId?, gatewayCredentialId?, model?, effort? }`, a tool part `{ credentialId?, rights? }`;
-  - a part the profile has not is added with what it gives, the rest empty (a tool part's rights its tool's safe
-    defaults); a part it has changes only what is given (the same values write nothing); null removes the part and
+  - an AI part `{ credentialId?, gatewayCredentialId?, model?, effort?, mode? }` (a mode of its harness: Claude Code's
+    five on a Claude part, Codex's three on an OpenAI part; another is a 400), a tool part `{ credentialId?, rights? }`;
+  - a part the profile has not is added with what it gives, the rest empty (an AI part's mode its default, Manual or
+    Ask; a tool part's rights its tool's safe defaults); a part it has changes only what is given (the same values write nothing); null removes the part and
     empties its columns; a part left out is kept.
 
   Refusals, all 422: none of the owner's credential (`credential_not_found`), a kind its place does not take
@@ -278,8 +280,8 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
   else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`, one with no AI part 422 `profile_no_ai_part`
   ("This profile has no AI part"). Any admin or owner takes a profile off (`null`), with a session or an API key. Agents and the chart show `profile: {id, name,
   ownerUserId, ownerName, parts}`: each AI part's model and effort, each tool part's account, site and rights; never a
-  subscription, its account or a secret. `runsWith: {model, effort, provider}` is what the agent runs: its profile's AI
-  part's model and effort (null without a profile).
+  subscription, its account or a secret. `runsWith: {model, effort, mode, provider}` is what the agent runs: its
+  profile's AI part's model, effort and mode (null without a profile).
 - **The harness follows the profile** (since 2026-11-13): giving a profile, on hire or with `PATCH`, sets
   `agents.harness` from its AI part on the server (`claude_code` for Claude, `codex` for OpenAI), audited like any
   field. `harness` is no longer a field of the agent routes (one sent is ignored); it stays a stored column, always
@@ -302,13 +304,14 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
 - **Removing a profile** takes it off its agents, chats and its owner's defaults through the foreign keys, with the
   audit rows of the agents and defaults in its company, by the owner.
 - **Audit:** profile create, update and delete (personal rows: `name`, `ownerUserId` and every part column:
-  `claudePart`, `claudeCredentialId`, `claudeGatewayCredentialId`, `claudeModel`, `claudeEffort`, the same for `openai`,
+  `claudePart`, `claudeCredentialId`, `claudeGatewayCredentialId`, `claudeModel`, `claudeEffort`, `claudeMode`, the
+  same for `openai`,
   `githubCredentialId`, `githubRights`, `atlassianCredentialId`, `atlassianRights`), an agent's `profileId`, a
   membership's `defaultClaudeProfileId` and `defaultOpenaiProfileId`.
 - **The web** (the **Profiles** page; the rail and its links say Profiles, the route stays `/profiles`; labels only):
   - one list of profile cards, with no provider groups or badges. Each card has its name (renamed in place) and Delete,
     then its parts as sections in a fixed order (Claude, OpenAI, GitHub, Atlassian), each with **Remove**: an AI part's
-    **Subscription**, **Gateway**, **Model** and **Effort**; a tool part's **Sign-in** and rights ("Tool parts" below);
+    **Subscription**, **Gateway**, **Model**, **Effort** and **Mode** (a segmented control of its harness's modes); a tool part's **Sign-in** and rights ("Tool parts" below);
     each saved as it changes. A row of **Add Claude**, **Add OpenAI**, **Add GitHub** and **Add Atlassian** adds the
     missing ones (each with the person's first credential of that kind); Add Claude and Add OpenAI show only while the
     profile has neither, so once one is added the other's button is gone, and removing it brings both back (still
@@ -321,8 +324,9 @@ generic since migration `0032_generic_profiles`, with one AI part since `0033_on
     profile as its name and its AI in short ("Claude Code 2nd · Claude"), those without an AI part disabled ("Work
     tools · No AI part"); choosing one sets the harness, and the Hire page starts from the hirer's Claude default, else
     their OpenAI one. Under it, once, a quiet line of the chosen profile's parts (`profileLine`): "Claude · Opus 5.5 ·
-    High · GitHub: push, PRs · AiriaLLC/* · Atlassian: Jira read (AP) · Confluence write" (a model and effort only when
-    not the defaults; never the subscription's account), and **Your profiles** as the link. The agent page's facts show
+    High · GitHub: push, PRs · AiriaLLC/* · Atlassian: Jira read (AP) · Confluence write" (a model, effort and mode
+    only when not the defaults; never the subscription's account). Since 2026-11-13 it has no Permissions either (the
+    profile's Mode decides; the Hire page the same), and **Your profiles** as the link. The agent page's facts show
     it once, as **Access**; agent cards, the agents
     table, the header and the chart show the model and effort the agent runs, and a chat's picker lists the profiles
     with the part of its harness.
@@ -372,6 +376,38 @@ a tie going to the newest agent's; the model became null (the provider's default
 on a Claude one). A profile no agent used kept both null. Then `agents.model` and `agents.effort` were dropped
 (`agents.harness` stays). The audit log has each value set, by the system, with the request id
 `migration:0017_profile_model`.
+
+### Mode
+
+Since 2026-11-13 (Ihor: "I would love to set it in the PROFILE, with an ability to change in the CHAT") whether an
+agent's turns ask before a tool is its profile's AI part's **mode**, no longer the agent's placement (its old
+Permissions: Ask me / Skip prompts). The modes are `@mwc/shared/modes` (`MODES`, `DEFAULT_MODES`), each with a label,
+a short label and one line:
+
+| Part | Mode (stored) | Label | What it does | Default |
+| --- | --- | --- | --- | --- |
+| Claude (Claude Code's `--permission-mode` values) | `manual` | Manual | Asks before each edit and command | yes |
+| | `acceptEdits` | Accept edits | Edits files without asking; asks before commands | |
+| | `plan` | Plan | Explores and writes a plan; changes nothing | |
+| | `auto` | Auto | Runs safe actions itself; asks before risky ones | |
+| | `bypassPermissions` | Skip prompts (full trust) | Never asks: runs every tool | |
+| OpenAI (Codex's sandbox and approvals) | `ask` | Ask | Reads only; asks before any change | yes |
+| | `auto` | Auto | Works in its folder; asks for anything outside | |
+| | `full` | Full trust | Never asks: no prompts, no sandbox | |
+
+How each reaches its harness's command line is docs/harness.md, "Modes". In a chat turn nobody answers a prompt: what
+would ask is refused, the model is told, and the thread shows a "Refused for permission" notice (in the terminal the
+harness asks the person). A chat may run its next turns in another mode, model and effort than its profile's (its
+overrides, docs/harness.md "Modes"); the composer's Mode and Model menus set them.
+
+**From placements to profiles** (migration `0035_profile_mode`, its `-- custom:` data step): each profile with an AI part
+took its mode from the agents running on it (not archived, with a placement): Skip prompts (`bypassPermissions`) on a
+Claude part or Full trust (`full`) on an OpenAI part when every one of them had `bypass`; else, all `ask` or a mix,
+Manual or Ask. A profile whose agents differed is named in a notice when the migration runs (`migration
+0035_profile_mode: the profile "…" (…) runs in Manual or Ask: its agents differed: A (bypass), B (ask)`). A profile no
+such agent used kept the default (null). Then `agent_placements.permission_policy` was dropped. The audit log has each
+mode set, by the system, with the request id `migration:0035_profile_mode`. Note for Codex: the old `ask` gave Codex the
+workspace-write sandbox, which is now Auto; a Codex profile migrated to Ask runs read-only until it is set to Auto.
 
 ## Tool sign-ins
 

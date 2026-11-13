@@ -21,6 +21,7 @@ The server reads only `@mwc/shared/harness`; it never imports a harness package.
 
 ```ts
 TurnSpec     { harness, cwd, prompt, sessionId: string|null, model: string|null, effort?, permissionPolicy: 'ask'|'bypass',
+               permissionMode? /* the harness's mode, 2026-11-13 ("Modes"); absent: the one the policy meant */,
                configDir: string|null, credential: HarnessCredential, gateway: { baseUrl, headers } | null,
                forkSession?: boolean /* a branch's first turn: resume sessionId forked */,
                resumeAt?: string /* Claude Code: cut the forked copy after this message uuid */,
@@ -156,13 +157,15 @@ Verified against `claude --help` 2.1.319; the input mode against 2.1.321 (S5.2 s
 
 ```
 turn:      claude -p --output-format stream-json --verbose --input-format stream-json --replay-user-messages
-                  [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
+                  [--resume <id>] [--model <m>] [--effort <e>] [<mode>]
                   the prompt as the first user message on stdin, which stays open
            with the runner's tools, after those:
                   --mcp-config <dir>/mcp.json --allowedTools mcp__mwc__ask_user_question[,mcp__mwc__<agent tool>…]
                   --append-system-prompt "When the person must choose between options, ask them with the
                   ask_user_question tool, then end your turn: their answer comes as their next message."
-terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [--dangerously-skip-permissions]
+terminal:  claude [--resume <id>] [--model <m>] [--effort <e>] [<mode>]
+mode:      Manual nothing · Accept edits, Plan, Auto --permission-mode acceptEdits|plan|auto
+           · Skip prompts --dangerously-skip-permissions                                   ("Modes")
 both:      with standing instructions, after those: --system-prompt-snapshot off
            and always, last:  --settings <runner state>/claude_code/<16 hex of sha256(cwd)>/settings-<12 hex>.json
            with standing instructions, then:  --append-system-prompt-file <same folder>/instructions-<12 hex>.md
@@ -205,9 +208,9 @@ env:       DISABLE_AUTOUPDATER=1; the credential's variable; CLAUDE_CONFIG_DIR=<
   at a `result` whose `queued_turn_count` is 0 (or absent); a result that says a message waits, and any echo after a
   result, keep it reading. A Compact's `/compact` goes as the first message the same way (as the Agent SDK sends slash
   commands); that it runs as the command in this mode is not verified without a real turn.
-- **Permissions.** `bypass` adds `--dangerously-skip-permissions`. `ask` adds nothing: in `-p` there is no one to ask,
-  so a tool that needs approval is refused, the model is told, and the `result`'s `permission_denials` become `warn`
-  notices (`Refused for permission: Bash (rm -rf build)`). In the terminal Claude Code asks the person on the TUI.
+- **The mode** (`modeArgs`, "Modes" below). In `-p` there is no one to ask, so a tool the mode does not allow is refused,
+  the model is told, and the `result`'s `permission_denials` become `warn` notices (`Refused for permission: Bash (rm
+  -rf build)`), whatever the mode (Accept edits and Auto too). In the terminal Claude Code asks the person on the TUI.
 - **Parsing** (`stream-json`, `connectors/harness-claude-code/src/`): the first message with a `session_id`
   (`system/init`) gives `session`, and `system/init` gives `init` (`model`, `effort` when it says one, `cwd`,
   `slash_commands`; `system.ts`); `assistant` text blocks give `text`, `thinking` blocks with text give `thinking`
@@ -251,9 +254,11 @@ tools:          -c mcp_servers.mwc.command="<node>" -c mcp_servers.mwc.args=["<r
                 -c mcp_servers.mwc.env_vars=["MWC_ASK_SOCKET","MWC_ASK_TOKEN"(,"MWC_TOOLS" with agents' tools, S6a)]
                 -c mcp_servers.mwc.default_tools_approval_mode="approve"     and both variables in codex's env
 terminal:       codex [resume] -c check_for_update_on_startup=false [--model <m>] [-c …] <permissions> [<threadId>]
-permissions:    bypass  --dangerously-bypass-approvals-and-sandbox
-                ask     turn: -c sandbox_mode="workspace-write" -c approval_policy="never"
-                        terminal: --sandbox workspace-write --ask-for-approval on-request
+permissions:    Full trust  --dangerously-bypass-approvals-and-sandbox
+                Auto        turn: -c sandbox_mode="workspace-write" -c approval_policy="never"
+                            terminal: --sandbox workspace-write --ask-for-approval on-request
+                Ask         turn: -c sandbox_mode="read-only" -c approval_policy="never"
+                            terminal: --sandbox read-only --ask-for-approval on-request      ("Modes")
 provider:       gateway   -c model_provider="mwc_gateway" -c model_providers.mwc_gateway.name="Most Wanted gateway"
                           -c model_providers.mwc_gateway.base_url="<baseUrl>"
                           -c model_providers.mwc_gateway.wire_api="responses"
@@ -459,6 +464,71 @@ of Codex 0.160–0.166 session files on a Mac (structure only; none of them had 
   subagent's end while others still run (instead of "Writing the reply…"). After a reload the stored events give the
   same thread.
 
+## Modes
+
+Built 2026-11-13 (Ihor: "I would love to set it in the PROFILE, with an ability to change in the CHAT"; the profile's
+side is docs/subscriptions.md "Mode"). A turn and a terminal run in a **mode**: the chat's own (a message chat's
+override) when it has one that fits, else its profile's AI part's.
+
+**On the command line** (verified with `claude --help` 2.1.323, `codex --help` and `codex exec --help` 0.167.0; no
+session was run):
+
+| Harness | Mode | Turn (`-p` / `codex exec`) | Terminal (the TUI) |
+| --- | --- | --- | --- |
+| Claude Code | Manual (`manual`) | nothing: Claude Code's own default, as the old `ask` (an older CLI without `manual` runs it too) | the same |
+| | Accept edits (`acceptEdits`) | `--permission-mode acceptEdits` | the same |
+| | Plan (`plan`) | `--permission-mode plan`: the turn explores and writes a plan; anything that would change something is refused | the same |
+| | Auto (`auto`) | `--permission-mode auto` | the same |
+| | Skip prompts (`bypassPermissions`) | `--dangerously-skip-permissions`, as the old `bypass` | the same |
+| Codex | Ask (`ask`) | `-c sandbox_mode="read-only" -c approval_policy="never"` | `--sandbox read-only --ask-for-approval on-request` |
+| | Auto (`auto`) | `-c sandbox_mode="workspace-write" -c approval_policy="never"` (the old `ask`) | `--sandbox workspace-write --ask-for-approval on-request` |
+| | Full trust (`full`) | `--dangerously-bypass-approvals-and-sandbox` | the same |
+
+`claude --help` 2.1.323 lists `--permission-mode` with `acceptEdits`, `auto`, `bypassPermissions`, `manual`, `dontAsk`,
+`plan`; Codex 0.167.0's `--sandbox` takes `read-only`, `workspace-write`, `danger-full-access` and `--ask-for-approval`
+`on-request` and `never` (the TUI and `codex exec`; `codex exec` and `exec resume` take no `--ask-for-approval`, and
+`exec resume` no `--sandbox`, so a turn says both as config overrides). In a turn nobody answers a prompt: whatever the
+mode does not allow is refused and the model is told; Claude Code's `permission_denials` and Codex's declined commands
+become `warn` notices in the thread, for every mode (Accept edits and Auto relay the prompts they still raise the same
+way). Approving one live (the permission tool) is still to come ("Not supported yet").
+
+**On the wire.** `TurnSpec.permissionMode` (and `TerminalSpec`'s) carries the mode; `permissionPolicy` stays beside it
+for a runner older than the modes: `bypass` for Skip prompts and Full trust, `ask` for the rest (`policyOfMode`). Such a
+runner runs every other mode as `ask` (Manual on Claude Code, the old workspace-write sandbox on Codex) until it is
+updated. A driver reads the spec's mode, else the one an older server's policy meant (`specMode`, `modeOfPolicy`: `ask`
+is Manual on Claude Code and Auto on Codex), and refuses a mode of the other harness (`invalid_spec`).
+
+**The chat's own mode, model and effort** (the overrides; `chats.mode`, `model`, `effort`, each null for the profile's):
+
+- `PATCH /api/companies/:companyId/chats/:chatId/overrides` `{ mode?, model?, effort? }` (admins and owners, as sending a
+  message; a value sets, null clears, a field left out is kept; at least one) → the chat with `overrides`. Refusals: 404
+  `chat_not_found`; 409 `chat_archived`, and `overrides_unsupported` for a task's conversation or a flow's team chat;
+  422 `mode_unsupported` (a mode of the other harness), `model_unsupported` (not one of the chat's provider's catalogue
+  models: no typed-in ids), `effort_unsupported` (an effort the model it then runs, the chat's else the profile's, does
+  not take). Audited with the chat (`mode`, `model`, `effort`).
+- Taken at any time, a turn running or not: a running turn keeps what it started with, the next one (a waiting message
+  too, when it starts) takes them.
+- Message chats only: a task step's turns (and a person's reply in a task's conversation), a Lead's wake-ups and team
+  room turns run on the profile's, whatever the row says.
+- A turn runs `chatRuns` (`@mwc/shared/modes`): each override that fits the chat's AI, else the profile's; the effort
+  the chat's when the model it runs takes it, else the profile's when it does, else the default.
+- When the chat's profile becomes one of another AI than its harness's (Claude ↔ OpenAI: the chat back on its agent's
+  profile after the agent moved to the other AI), its overrides are cleared in the same change, audited. A turn never
+  takes an override of another provider anyway.
+- The chat shows `overrides` (lists and detail); the detail shows `profileRuns` (`{mode, model, effort}` of the profile it
+  runs on, for its harness), which the menus name as "Profile's (…)".
+
+**What a turn records**: `chat_turns.mode`, `model` and `effort`, what its spec carried when it started (the model and
+effort null for the harness's default; all null before 2026-11-13, for a Clear and for a turn that has not started).
+The turn's view has them, and the thread's footer reads them ("Plan · Sonnet 5.5 · Low").
+
+**The web**: the composer's footer has a **Mode** menu (the current mode; "Profile's (Manual)" first, checked while the
+chat has none of its own, then each mode with its line, as Claude's own mode menu) and a **Model** menu (the profile's,
+then the provider's catalogue, with Effort as a sub-choice listing the levels the model takes); each has **Reset to
+profile** once the chat overrides it, and a pill turns blue while it does. Choosing a model the chat's effort does not
+fit clears that effort. The full chat and the rail's docked chat both have them (short labels there), opening upward;
+they show in message chats while the composer is open. The Profiles page's AI part has the **Mode** control.
+
 ## How a turn runs
 
 Built in S5.1b (2026-11-09; Ihor's choices of that day): a chat with an agent runs on the agent's placement (its machine
@@ -480,7 +550,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    Codex: an OpenAI part; else `profile_part_missing`), with its gateway (its address with the route's path, by
    the harness and the credential's kind), and its subscription (`profile_empty`
    when it has none). The spec's model and effort are that profile's (since 2026-11-10; docs/subscriptions.md "Model
-   and effort"): none for the provider's default, and Codex's old marker `codex-default`, a Claude id on Codex or an
+   and effort"), and its mode too (since 2026-11-13), each the chat's own instead in a message chat that sets one
+   ("Modes"): none for the provider's default, and Codex's old marker `codex-default`, a Claude id on Codex or an
    effort the harness does not take give way to the harness's own default (`turnModel`, `turnEffort`).
 3. **The credential** is opened by the credentials module as its owner (`credentialsForHarness`): one
    `credential_uses` row per turn, naming the company, the agent, the chat and who sent the prompt (`chat_turn`;
@@ -494,7 +565,7 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    harness ("Credentials and gateways").
 4. **The standing instructions** (2026-11-11): the agent's briefing, read from the live chart now, then its own
    instructions, go in the spec's `instructions` ("Standing instructions"), for a terminal too.
-5. **The turn** is recorded `running` (with the profile and credential it runs on; the first prompt is the chat's title,
+5. **The turn** is recorded `running` (with the profile and credential it runs on, and the mode, model and effort; the first prompt is the chat's title,
    80 characters), its sink is put in place, and `turn.start {turnId, spec}` goes to the runner. The answer is 202 with
    the turn.
 6. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
@@ -808,7 +879,7 @@ prompt. The same bridge is where S6's tool approvals will ride.
   103 bytes (macOS's limit) or a folder that cannot be made runs the turn without the tool, logged.
 - **The harnesses.** Claude Code gets `--mcp-config <dir>/mcp.json` (`{mcpServers: {mwc: {type: 'stdio', command,
   args, env}}}`, written 0600 by the runner from the driver's `turnFiles`, so the token is never on a command line),
-  `--allowedTools mcp__mwc__ask_user_question` (the `ask` policy refuses tools that need approval in print mode) and one
+  `--allowedTools mcp__mwc__ask_user_question` (a mode that asks refuses tools that need approval in print mode) and one
   `--append-system-prompt` line. Codex 0.162.1 takes MCP servers as config overrides (verified with `codex mcp list` on
   an empty `CODEX_HOME`: `env_vars` takes names, `default_tools_approval_mode` one of `auto`, `prompt`, `writes`,
   `approve`): its server's command and arguments, `env_vars` naming the two variables (set in codex's own environment,
@@ -881,7 +952,7 @@ model is unchanged.
   50 000 characters, never empty). A turn whose sink takes no calls answers that the server offers it no tools. The hook
   re-checks everything (docs/processes.md "Built in S6a"); the runner's checks are never trusted.
 - **The harnesses.** Claude Code's `--allowedTools` is one comma-joined argument with every tool the server offers
-  (`allowedTools`, `claude --help` 2.1.322: "Comma or space-separated list of tool names to allow"), so the `ask` policy
+  (`allowedTools`, `claude --help` 2.1.322: "Comma or space-separated list of tool names to allow"), so a mode that asks
   does not refuse them in print mode; a name that is not one plain lower-case word is passed over. Codex gets the same
   MCP server with `MWC_TOOLS` among its `env_vars` and the same approval mode (`approve`), so its tool names stay off its
   command line. The asking line in Claude Code's appended system prompt is unchanged; what the step's tools do is in
@@ -1322,8 +1393,8 @@ company's 404, an empty list) and `rules/reports.test.ts`.
 - Codex takes no message mid-turn (`codex exec` reads its prompt once): Now is hidden for it. A Claude Code turn that
   takes a message after its result reports that result's usage as Claude Code counts it, and the parser's first-result
   bookkeeping (a background subagent still running becomes `interrupted`) is not redone for the extra turn.
-- Approving a tool mid-turn (the permission tool): S6, over the same bridge. Until then `ask` refuses in chat and asks
-  only in the terminal. Selections are built ("Asking the person"); the agent ends its turn after asking, and the answer
+- Approving a tool mid-turn (the permission tool): S6, over the same bridge. Until then a mode that would ask refuses in
+  chat (a notice says what) and asks only in the terminal. Selections are built ("Asking the person"); the agent ends its turn after asking, and the answer
   is the next turn rather than a live reply.
 - Branching: merging a branch back, branching from the person's message (to edit it), a Codex branch from an earlier
   reply (its CLI forks a whole thread), and showing the parent's messages inside the branch.

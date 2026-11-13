@@ -736,6 +736,24 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          `harness_changed` as before. A hire without a profile takes the hirer's Claude default, else the OpenAI one.
        - Web: no Harness control; the Profile picker lists "name · Claude", tool-only ones disabled ("No AI part"), one
          parts line under it; the Profiles page offers Add Claude and Add OpenAI only while a profile has neither.
+       **Mode in the profile, and the chat's own mode, model and effort, 2026-11-13** (Ihor: "I would love to set it in
+       the PROFILE, with an ability to change in the CHAT"; docs/subscriptions.md "Mode", docs/harness.md "Modes"):
+       - Each AI part has a mode: Claude Code's Manual, Accept edits, Plan, Auto, Skip prompts (its `--permission-mode`
+         values), Codex's Ask, Auto, Full trust (its sandbox and approvals); Manual and Ask by default. The agent's
+         Permissions setting (`agent_placements.permission_policy`) is gone: migration `0035_profile_mode` gives each
+         profile Skip prompts or Full trust when all its running, placed agents had `bypass`, else Manual or Ask (a
+         notice names the profiles whose agents differed), and drops the column.
+       - A message chat may run its next turns in its own mode, model and effort (`chats.mode`, `model`, `effort`;
+         `PATCH …/chats/:chatId/overrides`), even while a turn runs; task steps, Lead wake-ups and team room turns run
+         on the profile's; a provider switch clears them. Each turn records what it ran with. The turn spec carries
+         `permissionMode` beside the old `permissionPolicy`, so runners need updating for the new modes (an older one
+         runs Manual or Ask as `ask`, Skip prompts and Full trust as `bypass`).
+       - Web: Mode on the Profiles page's AI part; the composer's Mode and Model menus (the full chat and the docked
+         one, short labels, opening upward); a turn's footer names its mode, model and effort; no Permissions on the
+         agent form or the Hire page.
+       - Tests: the modes and `chatRuns` (shared), the migration (agree, differ, unused), the drivers' flags per mode,
+         the spec builder (override, profile, task turns), the overrides route and its refusals, the provider switch,
+         and the placement API ignoring an old client's `permissionPolicy`.
        **Built 2026-11-12** (docs/subscriptions.md, "Tool profiles"; waiting for his live test):
        - Profile providers `github` and `atlassian` (`ProfileProvider`; `AiProvider` keeps Claude and OpenAI for models,
          defaults and harnesses), each holding one sign-in of its tool and its rights, with no gateway, model or effort.
