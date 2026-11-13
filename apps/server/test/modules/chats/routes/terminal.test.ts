@@ -76,6 +76,7 @@ describe("a chat's terminal socket", () => {
         model: 'claude-opus-5-5',
         effort: 'max',
         permissionPolicy: 'ask',
+        permissionMode: 'manual',
         credential: { kind: 'claude_setup_token' },
         gateway: null,
       },

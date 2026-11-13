@@ -7,11 +7,11 @@ import {
   owned,
   PROFILE_AI_COLUMNS,
 } from '@mwc/db';
-import type { Effort, ProfileProvider } from '@mwc/shared/enums';
+import type { Effort, PermissionMode, ProfileProvider } from '@mwc/shared/enums';
 
 /**
  * A profile to seed: its name, the one AI part to give it (`provider`, Claude unless said; null for none) with that
- * part's subscription, gateway, model and effort, and any other column as it is (a second AI part, tool parts).
+ * part's subscription, gateway, model, effort and mode (null: the part's default), and any other column as it is (a second AI part, tool parts).
  */
 export type SeedProfileOptions = Partial<Omit<NewAccessProfile, 'id' | 'ownerUserId'>> & {
   readonly provider?: ProfileProvider | null;
@@ -19,6 +19,7 @@ export type SeedProfileOptions = Partial<Omit<NewAccessProfile, 'id' | 'ownerUse
   readonly gatewayCredentialId?: string | null;
   readonly model?: string | null;
   readonly effort?: Effort | null;
+  readonly mode?: PermissionMode | null;
 };
 
 /**
@@ -31,7 +32,7 @@ export async function seedProfile(
   ownerUserId: string,
   options: SeedProfileOptions = {},
 ): Promise<AccessProfile> {
-  const { provider = 'claude', credentialId, gatewayCredentialId, model, effort, ...columns } = options;
+  const { provider = 'claude', credentialId, gatewayCredentialId, model, effort, mode, ...columns } = options;
   const part =
     provider === null
       ? {}
@@ -43,6 +44,7 @@ export async function seedProfile(
             [at.gateway]: gatewayCredentialId ?? null,
             [at.model]: model ?? null,
             [at.effort]: effort ?? null,
+            [at.mode]: mode ?? null,
           };
         })();
   const name = `Profile ${randomBytes(4).toString('hex')}`;

@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { AtlassianRights, GitHubRights } from '@mwc/shared/credentials';
-import { Effort, ProfileProvider } from '@mwc/shared/enums';
+import { Effort, PermissionMode, ProfileProvider } from '@mwc/shared/enums';
 
 /**
  * The org API's shapes of access profiles (S3.4; generic profiles since 2026-11-13): the profile an agent's runs use, as
@@ -9,12 +9,19 @@ import { Effort, ProfileProvider } from '@mwc/shared/enums';
  * part).
  */
 
-/** What an AI part runs: a model and an effort, each null for the harness's default. */
+/** A permission mode of either harness (`@mwc/shared/modes`), as agents show it. */
+const Mode = PermissionMode.clone().openapi({ example: 'manual' });
+
+/**
+ * What an AI part runs: a model and an effort, each null for the harness's default, and the permission mode its turns
+ * run in (since 2026-11-13).
+ */
 const aiPart = (name: string) =>
   z
     .object({
       model: z.string().nullable().openapi({ example: 'claude-opus-5-5' }),
       effort: Effort.nullable().openapi({ example: 'high' }),
+      mode: Mode,
     })
     .openapi(name);
 
@@ -59,12 +66,13 @@ export const AgentProfileSchema = z
 
 /**
  * What an agent's runs run (since 2026-11-10, docs/subscriptions.md "Model and effort"): the model and effort of its
- * profile's part for its harness, each null for the default, and that part.
+ * profile's part for its harness, each null for the default, its permission mode (since 2026-11-13), and that part.
  */
 export const RunsWithSchema = z
   .object({
     model: z.string().nullable().openapi({ example: 'claude-opus-5-5' }),
     effort: Effort.nullable().openapi({ example: 'high' }),
+    mode: Mode,
     provider: ProfileProvider,
   })
   .openapi('RunsWith');

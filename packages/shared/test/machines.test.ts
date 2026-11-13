@@ -15,7 +15,6 @@ import {
   MachineSample,
   MachineStatus,
   MachineTool,
-  PermissionPolicy,
   PlacementMode,
   PlacementPath,
   PowerAction,
@@ -39,7 +38,6 @@ describe('the machines enums', () => {
     expect(MachineStatus).toBe(enums.MachineStatus);
     expect(PowerEventAction).toBe(enums.PowerEventAction);
     expect(PlacementMode).toBe(enums.PlacementMode);
-    expect(PermissionPolicy).toBe(enums.PermissionPolicy);
   });
 
   it('list the protocol values', () => {

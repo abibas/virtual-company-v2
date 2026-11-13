@@ -47,7 +47,6 @@ describe('GET and PUT /api/companies/:companyId/agents/:agentId/placement', () =
       home: '/Users/ihor/slop',
       configDir: null,
       worktreeRoot: null,
-      permissionPolicy: 'ask',
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
@@ -58,8 +57,17 @@ describe('GET and PUT /api/companies/:companyId/agents/:agentId/placement', () =
       'create home',
       'create machineId',
       'create mode',
-      'create permissionPolicy',
     ]);
+  });
+
+  it("ignores an older client's permissionPolicy: the profile's mode says whether turns ask (2026-11-13)", async () => {
+    const { company, agent, machineId } = await placementWorld(w);
+    const placement = await place(w, company, agent.id, onHost(machineId, { permissionPolicy: 'bypass' }));
+    expect(placement).not.toHaveProperty('permissionPolicy');
+    const again = await place(w, company, agent.id, onHost(machineId, { permissionPolicy: 'yolo' }));
+    expect(again).toMatchObject({ id: placement.id, home: '/Users/ihor/agents/slop-box' });
+    const fields = (await auditTrail(w.t.db, 'agent_placement', placement.id)).map(([, field]) => field);
+    expect(fields).not.toContain('permissionPolicy');
   });
 
   it('changes the one default placement in place, auditing only what changed', async () => {
@@ -75,7 +83,6 @@ describe('GET and PUT /api/companies/:companyId/agents/:agentId/placement', () =
         home: '/home/ihor/airia-dev',
         configDir: '/home/ihor/.claude-slop',
         worktreeRoot: '/home/ihor/airia-dev/worktrees',
-        permissionPolicy: 'bypass',
       }),
     );
     expect(second).toMatchObject({
@@ -85,14 +92,12 @@ describe('GET and PUT /api/companies/:companyId/agents/:agentId/placement', () =
       mode: 'container',
       configDir: '/home/ihor/.claude-slop',
       worktreeRoot: '/home/ihor/airia-dev/worktrees',
-      permissionPolicy: 'bypass',
     });
     const cleared = await place(w, company, agent.id, onHost(box.machineId, { configDir: null }));
     expect(cleared).toMatchObject({
       mode: 'host',
       configDir: null,
       worktreeRoot: null,
-      permissionPolicy: 'ask',
     });
     expect((await placementsOfAgent(w.t.db, agent.id)).map((row) => row.isDefault)).toEqual([true]);
     const updates = (await auditTrail(w.t.db, 'agent_placement', first.id)).filter(([a]) => a === 'update');
@@ -101,12 +106,10 @@ describe('GET and PUT /api/companies/:companyId/agents/:agentId/placement', () =
       ['home', '/Users/ihor/agents/slop-box', '/home/ihor/airia-dev'],
       ['machineId', machineId, box.machineId],
       ['mode', 'host', 'container'],
-      ['permissionPolicy', 'ask', 'bypass'],
       ['worktreeRoot', null, '/home/ihor/airia-dev/worktrees'],
       ['configDir', '/home/ihor/.claude-slop', null],
       ['home', '/home/ihor/airia-dev', '/Users/ihor/agents/slop-box'],
       ['mode', 'container', 'host'],
-      ['permissionPolicy', 'bypass', 'ask'],
       ['worktreeRoot', '/home/ihor/airia-dev/worktrees', null],
     ]);
   });
@@ -158,8 +161,6 @@ describe('GET and PUT /api/companies/:companyId/agents/:agentId/placement', () =
     for (const body of [
       noMode,
       onHost(machineId, { mode: 'vm' }),
-      onHost(machineId, { permissionPolicy: 'yolo' }),
-      onHost(machineId, { permissionPolicy: undefined }),
       onHost(machineId, { home: 'agents/slop-box' }),
       onHost(machineId, { home: '~/airia-dev' }),
       onHost(machineId, { home: '   ' }),
@@ -222,7 +223,6 @@ describe('DELETE /api/companies/:companyId/agents/:agentId/placement', () => {
       ['home', '/Users/ihor/agents/slop-box', null],
       ['machineId', machineId, null],
       ['mode', 'host', null],
-      ['permissionPolicy', 'ask', null],
     ]);
     expect(await as(w, admin)('DELETE', path)).toMatchObject({
       status: 404,

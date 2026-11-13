@@ -1,11 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import {
-  ABSOLUTE_PATH_PATTERN,
-  MachineStatus,
-  PermissionPolicy,
-  PLACEMENT_PATH,
-  PlacementMode,
-} from '@mwc/shared/machines';
+import { ABSOLUTE_PATH_PATTERN, MachineStatus, PLACEMENT_PATH, PlacementMode } from '@mwc/shared/machines';
 
 /** An agent's placement (`/api/companies/{companyId}/agents/{agentId}/placement`, S4.7): where and how it runs. */
 
@@ -48,8 +42,6 @@ export const PlacementSchema = z
       .string()
       .nullable()
       .openapi({ description: 'Where its task worktrees go; null: the default' }),
-    /** `ask` a person before a tool outside its rules, or `bypass` the prompts. */
-    permissionPolicy: PermissionPolicy,
     createdAt: dateTime,
     updatedAt: dateTime,
   })
@@ -59,7 +51,10 @@ export const PlacementResultSchema = z
   .object({ placement: PlacementSchema.nullable() })
   .openapi('AgentPlacementResult', { description: 'Its default placement; null when it has none' });
 
-/** Where an agent runs from now on: a machine of the company that is not removed, a mode, its folders, its prompts. */
+/**
+ * Where an agent runs from now on: a machine of the company that is not removed, a mode and its folders. Whether its
+ * turns ask before a tool is its profile's mode (since 2026-11-13); an older client's `permissionPolicy` is ignored.
+ */
 export const SetPlacementSchema = z
   .object({
     machineId: z.string().openapi({ example: '019a5b2e-7c4d-7e5f-8a6b-7c8d9e0f1a2b' }),
@@ -67,7 +62,6 @@ export const SetPlacementSchema = z
     home: Folder,
     configDir: Folder.nullable().optional(),
     worktreeRoot: Folder.nullable().optional(),
-    permissionPolicy: PermissionPolicy,
   })
   .openapi('SetAgentPlacement');
 

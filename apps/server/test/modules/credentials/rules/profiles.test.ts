@@ -17,11 +17,13 @@ const profile = {
   claudeGatewayCredentialId: 'g1',
   claudeModel: 'claude-opus-5-5',
   claudeEffort: 'high' as const,
+  claudeMode: 'plan' as const,
   openaiPart: false,
   openaiCredentialId: null,
   openaiGatewayCredentialId: null,
   openaiModel: null,
   openaiEffort: null,
+  openaiMode: null,
   githubCredentialId: null,
   githubRights: null,
   atlassianCredentialId: null,
@@ -167,6 +169,6 @@ describe('a profile’s refusals and audit fields', () => {
   it('audits its owner, name and every column of its parts, nothing else', () => {
     const row = { ...profile, id: 'p1', ownerUserId: 'u1', createdAt: new Date(), updatedAt: new Date() };
     expect(auditedProfile(row)).toEqual({ ownerUserId: 'u1', ...profile });
-    expect(PART_COLUMNS).toHaveLength(14);
+    expect(PART_COLUMNS).toHaveLength(16);
   });
 });

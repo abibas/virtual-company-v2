@@ -5,6 +5,7 @@ import { newId } from '@mwc/shared/ids';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { machineBusy } from '../rules/machine.ts';
+import { ranWith } from '../rules/overrides.ts';
 import {
   CHAT_ARCHIVED,
   CHAT_NOT_FOUND,
@@ -164,6 +165,7 @@ export async function startTurn(
       status: 'running',
       profileId: target.profileId,
       credentialId: target.credentialId,
+      ...ranWith(spec.data),
       startedAt: now,
       createdBy: caller.principalId,
       system: caller.system === true,

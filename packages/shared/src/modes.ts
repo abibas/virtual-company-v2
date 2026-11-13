@@ -2,11 +2,13 @@ import { HARNESS_PROVIDER } from './credentials.ts';
 import {
   ClaudeMode,
   CodexMode,
+  type Effort,
   type Harness,
   type PermissionMode,
   type PermissionPolicy,
   type ProfileProvider,
 } from './enums.ts';
+import { catalogueModel, effortsOf } from './models.ts';
 
 /**
  * The permission modes (2026-11-13, docs/subscriptions.md "Mode", docs/harness.md "Modes"): each AI part of a profile
@@ -100,4 +102,36 @@ export function modeOfPolicy(harness: Harness, policy: PermissionPolicy): Permis
   const claude = HARNESS_PROVIDER[harness] === 'claude';
   if (policy === 'ask') return claude ? 'manual' : 'auto';
   return claude ? 'bypassPermissions' : 'full';
+}
+
+/** What a turn runs: a permission mode, a model and an effort (each of the last two null for the harness's default). */
+export interface Runs {
+  readonly mode: PermissionMode;
+  readonly model: string | null;
+  readonly effort: Effort | null;
+}
+
+/** A chat's own mode, model and effort for its next turns (docs/harness.md "Modes"), each null for the profile's. */
+export interface RunsOverrides {
+  readonly mode: PermissionMode | null;
+  readonly model: string | null;
+  readonly effort: Effort | null;
+}
+
+/** No overrides: the profile's of each. */
+export const NO_OVERRIDES: RunsOverrides = { mode: null, model: null, effort: null };
+
+/**
+ * What a chat's next turn runs on a `provider` part (2026-11-13): each override that fits the part (a mode of its own, a
+ * model of its catalogue), else the profile's; the effort the chat's when its model takes it, else the profile's when
+ * it does, else the default. Overrides that do not fit are passed over (a part of another AI since they were set).
+ */
+export function chatRuns(provider: ProfileProvider, profile: Runs, overrides: RunsOverrides): Runs {
+  const mode = overrides.mode !== null && isModeOf(provider, overrides.mode) ? overrides.mode : profile.mode;
+  const known = overrides.model !== null && catalogueModel(overrides.model, provider) !== undefined;
+  const model = known ? overrides.model : profile.model;
+  const takes = (effort: Effort | null): effort is Effort =>
+    effort !== null && effortsOf(provider, model).includes(effort);
+  const effort = takes(overrides.effort) ? overrides.effort : takes(profile.effort) ? profile.effort : null;
+  return { mode, model, effort };
 }

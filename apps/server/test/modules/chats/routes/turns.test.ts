@@ -38,7 +38,7 @@ afterAll(() => w.close());
 
 describe('a turn, end to end', () => {
   it("sends turn.start with the spec and the profile's credential, and answers 202 with the running turn", async () => {
-    const s = await scene(w, { permissionPolicy: 'bypass', configDir: '/Users/ihor/.claude-slop' });
+    const s = await scene(w, { mode: 'bypassPermissions', configDir: '/Users/ihor/.claude-slop' });
     const res = await sendPrompt(w, s, 'What is 2 + 2?');
     expect(res.status).toBe(202);
     const turn = res.body as ChatTurnView;
@@ -49,6 +49,9 @@ describe('a turn, end to end', () => {
       status: 'running',
       profileId: s.profile.id,
       credentialId: s.credential?.id,
+      mode: 'bypassPermissions',
+      model: 'claude-opus-5-5',
+      effort: 'high',
       startedAt: TEST_NOW,
       endedAt: null,
       createdBy: s.company.owner.principalId,
@@ -66,6 +69,7 @@ describe('a turn, end to end', () => {
         model: 'claude-opus-5-5',
         effort: 'high',
         permissionPolicy: 'bypass',
+        permissionMode: 'bypassPermissions',
         configDir: '/Users/ihor/.claude-slop',
         credential: {
           kind: 'claude_setup_token',

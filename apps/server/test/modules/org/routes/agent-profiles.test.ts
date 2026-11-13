@@ -52,7 +52,12 @@ describe('giving an access profile to an agent', () => {
       name: 'Work',
       ownerUserId: company.owner.userId,
       ownerName: await ownerName(company.owner),
-      parts: { claude: { model: null, effort: null }, openai: null, github: null, atlassian: null },
+      parts: {
+        claude: { model: null, effort: null, mode: 'manual' },
+        openai: null,
+        github: null,
+        atlassian: null,
+      },
     };
     expect(res).toMatchObject({ status: 200, body: { profile: shown } });
     expect(Object.keys((res.body as AgentDetailView).profile ?? {})).toEqual(Object.keys(shown));

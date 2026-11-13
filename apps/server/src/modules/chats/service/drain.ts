@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import { ranWith } from '../rules/overrides.ts';
 import { nextQueued, startSeq } from '../rules/queue.ts';
 import { CHAT_ARCHIVED, MACHINE_OFFLINE, type Refusal, titleOf } from '../rules.ts';
 import { holdForSlot, slotCheck } from './slot-wait.ts';
@@ -43,7 +44,8 @@ async function claim(deps: DrainDeps, t: TenantDb, chat: Chat, id: string, targe
       const seq = startSeq(waiting.seq, lastStarted, await turnsRepo.lastSeq(tx, chat.id));
       const now = deps.clock();
       const { profileId, credentialId } = target;
-      const set = { status: 'running', seq, profileId, credentialId, startedAt: now } as const;
+      const ran = ranWith(target.spec);
+      const set = { status: 'running', seq, profileId, credentialId, ...ran, startedAt: now } as const;
       const row = (await queueRepo.updateQueued(tx, chat.id, id, set)) as ChatTurn;
       const current = (await chatsRepo.get(tx, chat.id)) as Chat;
       const title = current.title === null ? { title: titleOf(row.prompt) } : {};

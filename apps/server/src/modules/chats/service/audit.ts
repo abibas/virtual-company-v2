@@ -9,6 +9,9 @@ const audited = (row: Chat) => ({
   machineId: row.machineId,
   profileId: row.profileId,
   title: row.title,
+  mode: row.mode,
+  model: row.model,
+  effort: row.effort,
   archivedAt: row.archivedAt?.toISOString() ?? null,
 });
 

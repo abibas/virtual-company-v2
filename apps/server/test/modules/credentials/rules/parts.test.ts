@@ -23,11 +23,13 @@ const empty = {
   claudeGatewayCredentialId: null,
   claudeModel: null,
   claudeEffort: null,
+  claudeMode: null,
   openaiPart: false,
   openaiCredentialId: null,
   openaiGatewayCredentialId: null,
   openaiModel: null,
   openaiEffort: null,
+  openaiMode: null,
   githubCredentialId: null,
   githubRights: null,
   atlassianCredentialId: null,
@@ -43,14 +45,17 @@ describe('partColumns', () => {
     expect(partColumns(withClaude, { claude: undefined })).toEqual({});
   });
 
-  it('adds an AI part with what it gives, the rest empty', () => {
+  it('adds an AI part with what it gives, the rest empty and its mode the default (Manual, Ask)', () => {
     expect(partColumns(undefined, { openai: { credentialId: 'o1', effort: 'ultra' } })).toEqual({
       openaiPart: true,
       openaiCredentialId: 'o1',
       openaiGatewayCredentialId: null,
       openaiModel: null,
       openaiEffort: 'ultra',
+      openaiMode: 'ask',
     });
+    expect(partColumns(empty, { claude: {} })).toMatchObject({ claudePart: true, claudeMode: 'manual' });
+    expect(partColumns(empty, { claude: { mode: 'plan' } })).toMatchObject({ claudeMode: 'plan' });
   });
 
   it('changes an AI part it has: only what it gives', () => {
@@ -59,6 +64,9 @@ describe('partColumns', () => {
       claudeGatewayCredentialId: 'g1',
     });
     expect(partColumns(withClaude, { claude: {} })).toEqual({});
+    expect(partColumns(withClaude, { claude: { mode: 'bypassPermissions' } })).toEqual({
+      claudeMode: 'bypassPermissions',
+    });
   });
 
   it('removes an AI part it has, every column; removing one it has not writes nothing', () => {
@@ -68,6 +76,7 @@ describe('partColumns', () => {
       claudeGatewayCredentialId: null,
       claudeModel: null,
       claudeEffort: null,
+      claudeMode: null,
     });
   });
 

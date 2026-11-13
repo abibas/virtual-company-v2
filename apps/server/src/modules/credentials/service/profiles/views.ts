@@ -66,8 +66,9 @@ function partsOf(row: AccessProfile, shownAs: Shown): ProfilePartsView {
   const ai = (provider: ProfileProvider) => {
     const part = aiPartOf(row, provider);
     if (part === undefined) return null;
-    const { credentialId, gatewayCredentialId, model, effort } = part;
-    return { subscription: shownAs(credentialId), gateway: shownAs(gatewayCredentialId), model, effort };
+    const { credentialId, gatewayCredentialId, model, effort, mode } = part;
+    const shown = { subscription: shownAs(credentialId), gateway: shownAs(gatewayCredentialId) };
+    return { ...shown, model, effort, mode };
   };
   const tool = <T extends ToolProvider>(provider: T) => {
     const at = PROFILE_TOOL_COLUMNS[provider];

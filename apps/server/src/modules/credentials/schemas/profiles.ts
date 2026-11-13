@@ -1,13 +1,13 @@
 import { z } from '@hono/zod-openapi';
 import { ACCESS_PROFILE_NAME, AtlassianRights, GitHubRights } from '@mwc/shared/credentials';
-import { CredentialKind, CredentialStatus, Effort } from '@mwc/shared/enums';
+import { ClaudeMode, CodexMode, CredentialKind, CredentialStatus, Effort } from '@mwc/shared/enums';
 import { MODEL_ID_MAX, MODEL_ID_PATTERN } from '@mwc/shared/models';
 
 /**
  * The profiles API's shapes (`/api/me/access-profiles`, S3.4; generic since 2026-11-13, docs/subscriptions.md
  * "Profiles"): a person's named profile with optional parts, each added, changed or removed on its own: a Claude and an
  * OpenAI part (one of the person's subscriptions of that provider, any of their gateways, the model and effort its turns
- * run) and a GitHub and an Atlassian part (one of their sign-ins of that tool and its rights). A credential shows its
+ * run and the permission mode they run in) and a GitHub and an Atlassian part (one of their sign-ins of that tool and its rights). A credential shows its
  * metadata, never a secret.
  */
 
@@ -89,8 +89,24 @@ const AtlassianRightsSchema = AtlassianRights.clone().openapi('AtlassianRights',
   example: { jira: 'read', jiraProjects: 'all', confluence: 'write', confluenceSpaces: ['ENG'] },
 });
 
-/** An AI part as the profile shows it: its subscription (null: its agents cannot run), gateway, model and effort. */
-const aiPartView = (part: string) =>
+/** Each AI part's modes, cloned so the copies follow zod-openapi's zod. */
+const PART_MODES = {
+  claude: ClaudeMode.clone().openapi('ClaudeMode', {
+    description:
+      "Claude Code's permission mode: `manual` (Manual), `acceptEdits` (Accept edits), `plan` (Plan), `auto` (Auto), " +
+      '`bypassPermissions` (Skip prompts, full trust)',
+  }),
+  openai: CodexMode.clone().openapi('CodexMode', {
+    description:
+      "Codex's mode: `ask` (a read-only sandbox), `auto` (its workspace), `full` (no prompts, no sandbox)",
+  }),
+} as const;
+
+/**
+ * An AI part as the profile shows it: its subscription (null: its agents cannot run), gateway, model, effort and the
+ * permission mode its turns run in.
+ */
+const aiPartView = (part: string, mode: (typeof PART_MODES)[keyof typeof PART_MODES]) =>
   z
     .object({
       subscription: ProfileSubscriptionSchema.nullable(),
@@ -99,6 +115,7 @@ const aiPartView = (part: string) =>
       effort: Effort.nullable().openapi({
         description: 'Its effort, one its model takes; null: the default',
       }),
+      mode,
     })
     .openapi(part);
 
@@ -109,22 +126,27 @@ const toolPartView = <R extends z.ZodType>(rights: R, part: string) =>
 /** The profile's parts, each null when it has none. */
 export const ProfilePartsSchema = z
   .object({
-    claude: aiPartView('ProfileClaudePart').nullable(),
-    openai: aiPartView('ProfileOpenaiPart').nullable(),
+    claude: aiPartView('ProfileClaudePart', PART_MODES.claude).nullable(),
+    openai: aiPartView('ProfileOpenaiPart', PART_MODES.openai).nullable(),
     github: toolPartView(GitHubRightsSchema, 'ProfileGitHubPart').nullable(),
     atlassian: toolPartView(AtlassianRightsSchema, 'ProfileAtlassianPart').nullable(),
   })
   .openapi('ProfileParts');
 
-/** An AI part in a change: a subscription of its provider, a gateway, a model and an effort, each optional. */
-const aiPartChoice = z
-  .object({
-    credentialId: choice.optional(),
-    gatewayCredentialId: choice.optional(),
-    model: model.optional(),
-    effort: effort.optional(),
-  })
-  .strict();
+/**
+ * An AI part in a change: a subscription of its provider, a gateway, a model, an effort and one of its own modes, each
+ * optional (a new part's mode: Manual or Ask).
+ */
+const aiPartChoice = (mode: (typeof PART_MODES)[keyof typeof PART_MODES]) =>
+  z
+    .object({
+      credentialId: choice.optional(),
+      gatewayCredentialId: choice.optional(),
+      model: model.optional(),
+      effort: effort.optional(),
+      mode: mode.optional(),
+    })
+    .strict();
 
 /** A tool part in a change: one of your sign-ins of the tool and its whole rights, each optional. */
 const toolPartChoice = <R extends z.ZodType>(rights: R) =>
@@ -136,8 +158,8 @@ const toolPartChoice = <R extends z.ZodType>(rights: R) =>
  */
 const PartsChoiceSchema = z
   .object({
-    claude: aiPartChoice.nullable().optional(),
-    openai: aiPartChoice.nullable().optional(),
+    claude: aiPartChoice(PART_MODES.claude).nullable().optional(),
+    openai: aiPartChoice(PART_MODES.openai).nullable().optional(),
     github: toolPartChoice(GitHubRightsSchema).nullable().optional(),
     atlassian: toolPartChoice(AtlassianRightsSchema).nullable().optional(),
   })

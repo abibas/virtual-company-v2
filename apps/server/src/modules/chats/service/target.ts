@@ -2,6 +2,7 @@ import { type AccessProfile, type Agent, type AiPartRow, aiPartOf, type Chat, ty
 import { type GatewayRoute, gatewayRouteOf, HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import type { HarnessCredential, HarnessGateway, TerminalSpec } from '@mwc/shared/harness';
+import { policyOfMode } from '@mwc/shared/modes';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { harnessVersionOf } from '@mwc/shared/runner-protocol';
 import type { CredentialsForHarness, HarnessUse } from '../../credentials/index.ts';
@@ -10,6 +11,7 @@ import { profilePartMissing } from '../../org/rules/agents.ts';
 import { profilesRepo } from '../repo/profiles.ts';
 import { chatsRepo } from '../repo.ts';
 import { BRANCH_PENDING, RUNNER_CANNOT_FORK } from '../rules/branch.ts';
+import { turnRuns } from '../rules/overrides.ts';
 import {
   CONTAINER_RUNS_LATER,
   HARNESS_CHANGED,
@@ -34,7 +36,9 @@ import { forkOf, type TurnFork } from './branch.ts';
  * (connected, with the harness's CLI, and a terminal for a terminal), the access profile (the chat's own while its owner
  * is still an admin here, else the agent's; of the provider the harness runs on) and its subscription, opened as its
  * owner (a `credential_uses` row) and refreshed when due, with the profile's gateway (any of its owner's: its address
- * with the path of the harness and, for Codex, of the credential's kind, `gatewayRouteOf`) and the profile's model and effort (since 2026-11-10; none: the harness's own default). A
+ * with the path of the harness and, for Codex, of the credential's kind, `gatewayRouteOf`) and the profile's model and
+ * effort (since 2026-11-10; none: the harness's own default) and permission mode (since 2026-11-13), each the chat's own
+ * instead in a message chat that sets one (`turnRuns`). A
  * branch not forked yet (`fork_pending`) opens no terminal, and its turn needs a runner that forks and says how to fork
  * (`forkOf`). The spec carries the agent's standing instructions, read from the live chart each time, so a move on the
  * chart reaches the chat's next turn (docs/harness.md, "Standing instructions"). Read before anything is written; each
@@ -140,7 +144,8 @@ export async function resolveTarget(
   if (!forked.ok) return forked;
   const profile = await profileOf(t, chat, agent);
   if (!('id' in profile)) return profile;
-  const part = aiPartOf(profile, HARNESS_PROVIDER[chat.harness]);
+  const provider = HARNESS_PROVIDER[chat.harness];
+  const part = aiPartOf(profile, provider);
   if (part === undefined) return profilePartMissing(chat.harness);
   const { credentialId } = part;
   if (credentialId === null) return profileEmpty(profile.name);
@@ -162,13 +167,15 @@ export async function resolveTarget(
     gatewayRouteOf(chat.harness, credential.kind),
   );
   if (!gateway.ok) return gateway;
+  const runs = turnRuns(chat, provider, part);
   const spec: TerminalSpec = {
     harness: chat.harness,
     cwd: placement.home,
     sessionId: chat.sessionId,
-    model: turnModel(chat.harness, part.model),
-    effort: turnEffort(chat.harness, part.effort),
-    permissionPolicy: placement.permissionPolicy,
+    model: turnModel(chat.harness, runs.model),
+    effort: turnEffort(chat.harness, runs.effort),
+    permissionPolicy: policyOfMode(runs.mode),
+    permissionMode: runs.mode,
     configDir: placement.configDir,
     credential,
     gateway: gateway.gateway,

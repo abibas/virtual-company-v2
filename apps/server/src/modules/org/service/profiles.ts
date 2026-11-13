@@ -44,7 +44,7 @@ const signInsOf = (row: AccessProfile): string[] =>
 function partsOf(row: AccessProfile, signIns: ReadonlyMap<string, SignInDetails>): AgentProfilePartsView {
   const ai = (provider: ProfileProvider) => {
     const part = aiPartOf(row, provider);
-    return part ? { model: part.model, effort: part.effort } : null;
+    return part ? { model: part.model, effort: part.effort, mode: part.mode } : null;
   };
   const tool = <T extends ToolProvider>(provider: T) => {
     const columns = PROFILE_TOOL_COLUMNS[provider];
@@ -113,7 +113,7 @@ export function profileExtras(
   const part = aiPartOf(ref.row, provider);
   return {
     profile: ref.profile,
-    runsWith: part ? { model: part.model, effort: part.effort, provider } : null,
+    runsWith: part ? { model: part.model, effort: part.effort, mode: part.mode, provider } : null,
   };
 }
 

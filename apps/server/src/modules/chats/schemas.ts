@@ -5,6 +5,7 @@ import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared
 import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
 import { ChatContextSchema } from './schemas/context.ts';
 import { ChatEarlierSchema } from './schemas/history.ts';
+import { ChatOverridesSchema, ProfileRunsSchema, turnRunFields } from './schemas/overrides.ts';
 
 export { ChatContextSchema, type ChatContextView } from './schemas/context.ts';
 
@@ -73,6 +74,7 @@ export const ChatSchema = z
       description:
         "A flow's team chat with its Lead agent (S6c): the flow whose events wake the Lead here; null for any other chat",
     }),
+    overrides: ChatOverridesSchema,
     createdBy: z.string().openapi({ description: 'The principal who began it' }),
     createdAt: dateTime,
     updatedAt: dateTime,
@@ -117,6 +119,7 @@ export const ChatTurnSchema = z
       .string()
       .nullable()
       .openapi({ description: 'The subscription it ran on (never its secret)' }),
+    ...turnRunFields,
     startedAt: dateTime.nullable(),
     endedAt: dateTime.nullable(),
     resultText: z.string().nullable().openapi({ description: "The reply: the result's text" }),
@@ -188,6 +191,11 @@ export const ChatDetailSchema = ChatSchema.extend({
   queue: z.array(z.string()).openapi({
     description:
       "The waiting turns' ids in the order they start (Now and interrupting ones first, then the rest, oldest first)",
+  }),
+  profileRuns: ProfileRunsSchema.nullable().openapi({
+    description:
+      "The mode, model and effort of the profile the chat runs on (its own, else its agent's), for its harness; null " +
+      'without one',
   }),
   question: OpenQuestionSchema.nullable().openapi({
     description:

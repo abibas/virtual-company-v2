@@ -14,13 +14,14 @@ import { auditChat } from './service/audit.ts';
 import { branchedFromOf } from './service/branch.ts';
 import { currentConversation } from './service/history.ts';
 import type { TurnAway } from './service/live.ts';
+import { profileRunsOf, switchedAi } from './service/overrides.ts';
 import { chatView } from './service/views.ts';
 
 /**
  * The chats with an agent (S5.1b): list an agent's, begin one (on the agent's harness and its placement's machine,
  * with the caller's own access profile when they choose one), read one with its current conversation, rename it,
  * choose its profile (only one's own, with the part the chat's harness runs on: the rules of giving a profile to an
- * agent; any admin takes it off) and archive it.
+ * agent; any admin takes it off; one of another AI clears the chat's own mode, model and effort) and archive it.
  * Every change is audited (entity `chat`). The turns are `service/turns.ts`'s, a branch `service/branch.ts`'s.
  */
 
@@ -108,7 +109,8 @@ export async function getChat(
   const queue = turns.filter((turn) => turn.status === 'queued').sort(queueOrder);
   const question = openQuestion(turns);
   const branchedFrom = await branchedFromOf(t, chat);
-  const detail = { ...chatView(chat), turns, earlier, branchedFrom, ...state, question };
+  const profileRuns = await profileRunsOf(t, chat);
+  const detail = { ...chatView(chat), turns, earlier, branchedFrom, ...state, profileRuns, question };
   return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id) } };
 }
 
@@ -121,7 +123,7 @@ export async function updateChat(
 ): Promise<Shown | Refusal> {
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
-  const set: Partial<Pick<Chat, 'title' | 'profileId' | 'profileSetBy'>> = {};
+  const set: Partial<Pick<Chat, 'title' | 'profileId' | 'profileSetBy' | 'mode' | 'model' | 'effort'>> = {};
   if (body.title !== undefined && body.title !== chat.title) set.title = body.title;
   if (body.profileId !== undefined && body.profileId !== chat.profileId) {
     const refused =
@@ -129,6 +131,7 @@ export async function updateChat(
     if (refused !== undefined) return refused;
     set.profileId = body.profileId;
     set.profileSetBy = body.profileId === null ? null : caller.userId;
+    Object.assign(set, await switchedAi(t, chat, body.profileId));
   }
   if (Object.keys(set).length === 0) return { ok: true, chat: chatView(chat) };
   const after = await chatsRepo.update(t, chat.id, set);

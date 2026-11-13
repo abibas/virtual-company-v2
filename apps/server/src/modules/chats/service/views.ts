@@ -24,6 +24,7 @@ export function chatView(row: Chat): ChatView {
         ? null
         : { taskId: row.taskId, stepId: row.taskStepId, round: row.taskRound },
     flowId: row.flowId,
+    overrides: { mode: row.mode, model: row.model, effort: row.effort },
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -45,6 +46,9 @@ export function turnView(row: ChatTurn): ChatTurnView {
     machineWait: row.machineWait,
     profileId: row.profileId,
     credentialId: row.credentialId,
+    mode: row.mode,
+    model: row.model,
+    effort: row.effort,
     startedAt: iso(row.startedAt),
     endedAt: iso(row.endedAt),
     resultText: row.resultText,

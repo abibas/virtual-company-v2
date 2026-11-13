@@ -47,6 +47,7 @@ describe('POST agents/:agentId/chats', () => {
       forkPending: false,
       task: null,
       flowId: null,
+      overrides: { mode: null, model: null, effort: null },
       createdBy: s.company.owner.principalId,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),

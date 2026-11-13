@@ -1,15 +1,16 @@
-import { aiPartOf, type Chat, type ChatTurn, type TenantDb } from '@mwc/db';
+import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
 import { CHAT_WINDOW } from '@mwc/shared/chats';
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import { profileWindowOf } from '@mwc/shared/harness';
 import { historyRepo } from '../repo/history.ts';
-import { profilesRepo } from '../repo/profiles.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { conversationsBefore } from '../rules/history.ts';
+import { turnRuns } from '../rules/overrides.ts';
 import { CHAT_NOT_FOUND, type ConversationState, conversationState, type Refusal } from '../rules.ts';
 import type { ChatEarlierView, OlderTurnsQuery } from '../schemas/history.ts';
 import type { ChatTurnWithEventsView } from '../schemas.ts';
+import { chatPart } from './overrides.ts';
 import { eventView, turnView } from './views.ts';
 
 /**
@@ -17,7 +18,8 @@ import { eventView, turnView } from './views.ts';
  * conversation (the turns since its last Clear, that Clear first), the latest `CHAT_WINDOW` of them, and says what it
  * left out (`earlier`); the older turns page in by number. What the conversation runs on and how full it is
  * (`conversationState`) still reads the whole current conversation: the left-out turns' `init`, `context` and `compact`
- * events only; when they name no window, the window is that of what the chat's access profile runs.
+ * events only; when they name no window, the window is that of the model the chat's next turn runs (its own, else its
+ * access profile's).
  */
 
 /** The turns with their events, in order. */
@@ -47,13 +49,11 @@ export interface CurrentConversation {
   readonly state: ConversationState;
 }
 
-/** The window of what the chat runs (its own access profile, else its agent's); null without one. */
+/** The window of the model the chat's next turn runs (its own, else its profile's); null without a profile. */
 async function profileWindow(t: TenantDb, chat: Chat): Promise<number | null> {
-  const profileId = chat.profileId ?? (await chatsRepo.agentOf(t, chat.agentId))?.profileId ?? null;
-  const profile = profileId === null ? undefined : await profilesRepo.get(t, profileId);
+  const part = await chatPart(t, chat);
   const provider = HARNESS_PROVIDER[chat.harness];
-  const part = profile === undefined ? undefined : aiPartOf(profile, provider);
-  return part === undefined ? null : profileWindowOf(provider, part.model);
+  return part === undefined ? null : profileWindowOf(provider, turnRuns(chat, provider, part).model);
 }
 
 /** The chat's current conversation, its latest turns with their events, and what is left out (see above). */

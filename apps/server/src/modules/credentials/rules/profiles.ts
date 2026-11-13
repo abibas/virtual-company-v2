@@ -17,7 +17,9 @@ import type { CredentialKind, CredentialStatus, Effort, ProfileProvider } from '
 // `profile-model.ts`'s, and what a request's parts write `parts.ts`'s. Who gives a profile to an agent, and that it has
 // the part the agent's harness runs on, is the org module's rule. Pure.
 
-/** Every column of a profile's parts: each AI part's presence, credentials, model and effort; each tool part's two. */
+/**
+ * Every column of a profile's parts: each AI part's presence, credentials, model, effort and mode; each tool part's two.
+ */
 export const PART_COLUMNS = [
   ...Object.values(PROFILE_AI_COLUMNS).flatMap((at) => [
     at.part,
@@ -25,6 +27,7 @@ export const PART_COLUMNS = [
     at.gateway,
     at.model,
     at.effort,
+    at.mode,
   ]),
   ...Object.values(PROFILE_TOOL_COLUMNS).flatMap((at) => [at.credential, at.rights]),
 ] as const;

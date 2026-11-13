@@ -7,7 +7,8 @@ import {
   PROFILE_PROVIDERS,
   TOOL_PROVIDERS,
 } from '@mwc/shared/credentials';
-import type { Effort, ProfileProvider } from '@mwc/shared/enums';
+import type { Effort, PermissionMode, ProfileProvider } from '@mwc/shared/enums';
+import { DEFAULT_MODES } from '@mwc/shared/modes';
 import { A_PROVIDER, type ProfileChange, type ProfileRefusal, type ProfileRuns, refuse } from './profiles.ts';
 
 // A profile's parts (generic profiles since 2026-11-13, docs/subscriptions.md "Profiles"): what a request's `parts`
@@ -15,12 +16,16 @@ import { A_PROVIDER, type ProfileChange, type ProfileRefusal, type ProfileRuns, 
 // part (one at most since 2026-11-13) and of removing a part agents run on. Which credential fits each place is `credentialRefusal`'s (`profiles.ts`), the rights'
 // shape `@mwc/shared/credentials`' (the request's schema parses them). Pure.
 
-/** An AI part as a request gives it: its subscription, gateway, model and effort, each optional. */
+/**
+ * An AI part as a request gives it: its subscription, gateway, model, effort and mode, each optional (the request's
+ * schema takes only the part's own modes).
+ */
 interface AiPartChoice {
   readonly credentialId?: string | null | undefined;
   readonly gatewayCredentialId?: string | null | undefined;
   readonly model?: string | null | undefined;
   readonly effort?: Effort | null | undefined;
+  readonly mode?: PermissionMode | undefined;
 }
 
 /** A tool part as a request gives it: its sign-in and its whole rights, each optional. */
@@ -45,7 +50,14 @@ function aiColumns(provider: ProfileProvider, before: Stored | undefined, choice
   const has = before?.[at.part] === true;
   if (choice === null) {
     return has
-      ? { [at.part]: false, [at.credential]: null, [at.gateway]: null, [at.model]: null, [at.effort]: null }
+      ? {
+          [at.part]: false,
+          [at.credential]: null,
+          [at.gateway]: null,
+          [at.model]: null,
+          [at.effort]: null,
+          [at.mode]: null,
+        }
       : {};
   }
   const fields = [
@@ -56,6 +68,7 @@ function aiColumns(provider: ProfileProvider, before: Stored | undefined, choice
   ] as const;
   const set: Record<string, unknown> = has ? {} : { [at.part]: true };
   for (const [column, value] of fields) if (value !== undefined || !has) set[column] = value ?? null;
+  if (choice.mode !== undefined || !has) set[at.mode] = choice.mode ?? DEFAULT_MODES[provider];
   return set;
 }
 
@@ -76,8 +89,8 @@ function toolColumns(
 
 /**
  * The columns a request's parts write, on a profile as stored (none for a new one): a part removed (null) empties its
- * columns, when the profile has it; a part added takes what it gives, the rest empty (a tool part's rights its tool's
- * safe defaults); a part changed takes what it gives, keeping what is left out. A part left out writes nothing.
+ * columns, when the profile has it; a part added takes what it gives, the rest empty (an AI part's mode its default,
+ * Manual or Ask; a tool part's rights its tool's safe defaults); a part changed takes what it gives, keeping what is left out. A part left out writes nothing.
  * `profileChanges` then drops what equals the stored values.
  */
 export function partColumns(before: Stored | undefined, parts: PartsChoice | undefined): ProfileChange {

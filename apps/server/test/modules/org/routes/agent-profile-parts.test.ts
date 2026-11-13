@@ -75,7 +75,7 @@ describe('an agent’s profile with its tool parts', () => {
       ownerUserId: company.owner.userId,
       ownerName: await ownerName(company.owner),
       parts: {
-        claude: { model: null, effort: null },
+        claude: { model: null, effort: null, mode: 'manual' },
         openai: null,
         github: { account: 'ihor-fake', site: null, rights: PUSH },
         atlassian: { account: 'Ihor Herasko', site: 'airia-fake.atlassian.net', rights: WIKI },
@@ -97,7 +97,7 @@ describe('an agent’s profile with its tool parts', () => {
     const plain = await seedProfile(w.t.db, company.owner.userId);
     const agent = await makeAgent(w, company, company.owner, { name: 'Plain', profileId: plain.id });
     expect(agent.profile?.parts).toEqual({
-      claude: { model: null, effort: null },
+      claude: { model: null, effort: null, mode: 'manual' },
       openai: null,
       github: null,
       atlassian: null,

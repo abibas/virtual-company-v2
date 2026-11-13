@@ -48,7 +48,6 @@ export function placementView(row: AgentPlacement, machine: Machine): PlacementV
     home: row.home,
     configDir: row.configDir,
     worktreeRoot: row.worktreeRoot,
-    permissionPolicy: row.permissionPolicy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -62,7 +61,6 @@ const audited = (row: AgentPlacement) => ({
   home: row.home,
   configDir: row.configDir,
   worktreeRoot: row.worktreeRoot,
-  permissionPolicy: row.permissionPolicy,
 });
 
 type Fields = ReturnType<typeof audited> | null;
@@ -117,7 +115,6 @@ export function setPlacement(
       home: body.home,
       configDir: body.configDir ?? null,
       worktreeRoot: body.worktreeRoot ?? null,
-      permissionPolicy: body.permissionPolicy,
     };
     const before = await placements.defaultOf(tx, agent.id);
     const row =

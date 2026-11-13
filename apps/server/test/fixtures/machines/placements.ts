@@ -17,12 +17,11 @@ export type { PlacementView };
 export const placementPath = (company: Pick<MembersCompany, 'companyId'>, agentId: string) =>
   `/api/companies/${company.companyId}/agents/${agentId}/placement`;
 
-/** A placement body on `machineId`: in a folder on the machine, asking first. */
+/** A placement body on `machineId`: in a folder on the machine. */
 export const onHost = (machineId: string, fields: Record<string, unknown> = {}) => ({
   machineId,
   mode: 'host',
   home: '/Users/ihor/agents/slop-box',
-  permissionPolicy: 'ask',
   ...fields,
 });
 

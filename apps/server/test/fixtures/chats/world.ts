@@ -15,7 +15,7 @@ import {
   tenant,
 } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
-import type { CredentialKind, Effort, Harness } from '@mwc/shared/enums';
+import type { CredentialKind, Effort, Harness, PermissionMode } from '@mwc/shared/enums';
 import type { TurnEvent } from '@mwc/shared/harness';
 import type { RunnerCaps, TurnEnd, TurnStart } from '@mwc/shared/runner-protocol';
 import type { FakeRunner } from '@mwc/testkit/runner';
@@ -74,8 +74,8 @@ export interface SceneOptions {
   readonly caps?: Partial<RunnerCaps>;
   /** No runner connected. */
   readonly offline?: boolean;
-  /** The placement's permission policy and configuration folder. */
-  readonly permissionPolicy?: 'ask' | 'bypass';
+  /** The profile part's permission mode (null: its default) and the placement's configuration folder. */
+  readonly mode?: PermissionMode | null;
   readonly configDir?: string | null;
   /** What the profile runs (stored as it is, no rules checked): Opus 5.5 (GPT-6.1 Sol for Codex) at high by default. */
   readonly model?: string | null;
@@ -103,7 +103,6 @@ export async function place(
   const res = await as(w, company.owner)('PUT', `${agentsPath(company, agentId)}/placement`, {
     mode: 'host',
     home: HOME,
-    permissionPolicy: 'ask',
     ...body,
   });
   if (res.status !== 200)
@@ -146,11 +145,7 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
     : await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, ...options.caps } });
   const agent = await makeAgent(w, company, company.owner);
   const configDir = options.configDir ?? null;
-  await place(w, company, agent.id, {
-    machineId,
-    permissionPolicy: options.permissionPolicy ?? 'ask',
-    configDir,
-  });
+  await place(w, company, agent.id, { machineId, configDir });
   const kind =
     options.kind === undefined ? (harness === 'codex' ? 'codex_oauth' : 'claude_setup_token') : options.kind;
   const credential =
@@ -163,6 +158,7 @@ export async function scene(w: ChatsWorld, options: SceneOptions = {}): Promise<
     model:
       options.model === undefined ? (harness === 'codex' ? 'gpt-6.1-sol' : 'claude-opus-5-5') : options.model,
     effort: options.effort === undefined ? 'high' : options.effort,
+    mode: options.mode ?? null,
   });
   await (await tenant(w.t.db, company.companyId)).update(
     agents,

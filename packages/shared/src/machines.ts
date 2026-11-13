@@ -15,7 +15,6 @@ export {
   MachineKind,
   MachineProvider,
   MachineStatus,
-  PermissionPolicy,
   PlacementMode,
   PowerEventAction,
 } from './enums.ts';

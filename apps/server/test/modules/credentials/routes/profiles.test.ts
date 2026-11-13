@@ -100,6 +100,7 @@ describe('POST /api/me/access-profiles', () => {
         gateway: shown(gateway),
         model: 'claude-opus-5-5',
         effort: 'xhigh',
+        mode: 'manual',
       },
     });
     noSecret(view);
@@ -114,6 +115,7 @@ describe('POST /api/me/access-profiles', () => {
         ['claudeCredentialId', claude.id],
         ['claudeEffort', 'xhigh'],
         ['claudeGatewayCredentialId', gateway.id],
+        ['claudeMode', 'manual'],
         ['claudeModel', 'claude-opus-5-5'],
         ['claudePart', true],
         ['name', 'Work'],
@@ -154,7 +156,13 @@ describe('POST /api/me/access-profiles', () => {
       expect(view.parts.openai?.subscription?.kind).toBe(kind);
     }
     const empty = await create(ihor, { parts: { claude: {} } });
-    expect(empty.parts.claude).toEqual({ subscription: null, gateway: null, model: null, effort: null });
+    expect(empty.parts.claude).toEqual({
+      subscription: null,
+      gateway: null,
+      model: null,
+      effort: null,
+      mode: 'manual',
+    });
   });
 
   it.each([
@@ -334,6 +342,7 @@ describe('DELETE /api/me/access-profiles/:profileId', () => {
     expect(
       deleted.map((row) => [row.companyId, row.requestId, row.field, row.oldValue, row.newValue]),
     ).toEqual([
+      [null, 'req-profile-4', 'claudeMode', 'manual', null],
       [null, 'req-profile-4', 'claudePart', true, null],
       [null, 'req-profile-4', 'name', 'Gone', null],
       [null, 'req-profile-4', 'openaiPart', false, null],

@@ -121,12 +121,10 @@ describe('where agents run, in the agents list, an agent, the chart and the mach
       'create home',
       'create machineId',
       'create mode',
-      'create permissionPolicy',
       'delete agentId',
       'delete home',
       'delete machineId',
       'delete mode',
-      'delete permissionPolicy',
     ]);
     const listed = agentsOf((await as(w, company.owner)('GET', agentsPath(company))).body);
     expect(listed.map((row) => [row.id, row.placement?.machineName ?? null])).toEqual([
