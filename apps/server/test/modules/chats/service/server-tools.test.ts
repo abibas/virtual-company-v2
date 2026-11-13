@@ -30,7 +30,7 @@ const hookOf = (plan: ServerToolsPlan): ServerToolsHook => ({
 const t = {} as TenantDb;
 const PLAN: ServerToolsPlan = { tools: [TOOL], instructions: 'Atlassian tools: yours.', label: 'Jira' };
 const turn = (offers: boolean, instructions: string | undefined = 'Standing.') =>
-  ({ profileId: 'p1', kind: 'message', offers, instructions }) as const;
+  ({ profileId: 'p1', kind: 'message', offers, instructions, max: 64 }) as const;
 
 describe('the server tools a turn gets', () => {
   it('gives a runner that takes them the tools and the plan’s line after the standing instructions', async () => {
@@ -64,6 +64,19 @@ describe('the server tools a turn gets', () => {
     expect(await serverToolsOf(undefined, t, turn(false))).toEqual({});
     const compact = { ...turn(false), kind: 'compact' } as const;
     expect(await serverToolsOf(hookOf(PLAN), t, compact)).toEqual({});
+  });
+
+  it('asks the hook for at most the runner’s limit', async () => {
+    const asked: unknown[] = [];
+    const hook: ServerToolsHook = {
+      ...hookOf(PLAN),
+      toolsFor: async (_, wanted) => {
+        asked.push(wanted);
+        return PLAN;
+      },
+    };
+    await serverToolsOf(hook, t, { ...turn(true), max: 32 });
+    expect(asked).toEqual([{ profileId: 'p1', max: 32 }]);
   });
 
   it('leaves a line out when it would not fit, keeping the tools', async () => {

@@ -1,7 +1,12 @@
 import { type AccessProfile, type Agent, type AiPartRow, aiPartOf, type Chat, type TenantDb } from '@mwc/db';
 import { type GatewayRoute, gatewayRouteOf, HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
-import type { HarnessCredential, HarnessGateway, TerminalSpec } from '@mwc/shared/harness';
+import {
+  type HarnessCredential,
+  type HarnessGateway,
+  serverToolsLimit,
+  type TerminalSpec,
+} from '@mwc/shared/harness';
 import { policyOfMode } from '@mwc/shared/modes';
 import { roleAtLeast } from '@mwc/shared/roles';
 import { harnessVersionOf } from '@mwc/shared/runner-protocol';
@@ -70,6 +75,8 @@ export interface Target {
   readonly agentTools: boolean;
   /** True when it lists and relays the server's own tools (S7.1c, `caps.serverTools`). */
   readonly serverTools: boolean;
+  /** How many of them a turn's spec may carry (S7.1e: 64; an older runner 32, `serverToolsLimit`). */
+  readonly serverToolsMax: number;
   /** True when its turns take a GitHub sign-in for git and gh (S7.1d, `caps.github`). */
   readonly github: boolean;
   /** Who asked: the principal the turn's uses of credentials are recorded for. */
@@ -105,6 +112,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
     placement,
     agentTools: caps.agentTools === true,
     serverTools: caps.serverTools,
+    serverToolsMax: serverToolsLimit(caps),
     github: caps.github === true,
   };
 }
@@ -197,6 +205,7 @@ export async function resolveTarget(
     kind: credential.kind,
     agentTools: place.agentTools,
     serverTools: place.serverTools,
+    serverToolsMax: place.serverToolsMax,
     github: place.github,
     by: request.principalId,
   };

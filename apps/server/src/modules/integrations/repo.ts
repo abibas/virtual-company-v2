@@ -14,7 +14,7 @@ import type { ToolProvider } from '@mwc/shared/enums';
 import { eq } from 'drizzle-orm';
 
 /**
- * The integrations module's reads (S7.1c, GitHub's part since S7.1d): a profile's Atlassian or GitHub part (personal
+ * The integrations module's reads (S7.1c, GitHub's part since S7.1d, Slack's since S7.1e): a profile's Atlassian or GitHub part (personal
  * rows, read through the personal layer on the tenant's connection: whose the profile is with `ownersOf`, then its row
  * and its sign-in's account through its owner's layer with `ownedIn`), an agent by its principal, through the tenant,
  * and the audit rows of what a tool changed outside.
@@ -27,10 +27,15 @@ export interface ToolPart<P extends ToolProvider> {
   readonly rights: RightsOf<P>;
   readonly site: string | null;
   readonly account: string | null;
+  /** Slack: a user token, which posts as its person. */
+  readonly asUser?: boolean;
+  /** Slack: the token's scopes. */
+  readonly scopes?: string[];
 }
 
 export type AtlassianPart = ToolPart<'atlassian'>;
 export type GitHubPart = ToolPart<'github'>;
+export type SlackPart = ToolPart<'slack'>;
 
 /** The profile's part of `provider`, or undefined when the profile is gone or has none. */
 async function toolPart<P extends ToolProvider>(
@@ -59,6 +64,9 @@ const atlassianPart = (t: TenantDb, profileId: string) => toolPart(t, profileId,
 /** The profile's GitHub part, or undefined. */
 const githubPart = (t: TenantDb, profileId: string) => toolPart(t, profileId, 'github');
 
+/** The profile's Slack part, or undefined (S7.1e). */
+const slackPart = (t: TenantDb, profileId: string) => toolPart(t, profileId, 'slack');
+
 /** The agent of a principal, or undefined. */
 async function agentOf(t: TenantDb, principalId: string) {
   const [row] = await t.select(agents, eq(agents.principalId, principalId));
@@ -70,5 +78,5 @@ async function audit(t: TenantDb, entry: AuditEntry): Promise<void> {
   await auditChanges(t, entry);
 }
 
-export const integrationsRepo = { atlassianPart, githubPart, agentOf, audit };
+export const integrationsRepo = { atlassianPart, githubPart, slackPart, agentOf, audit };
 export type IntegrationsRepo = typeof integrationsRepo;

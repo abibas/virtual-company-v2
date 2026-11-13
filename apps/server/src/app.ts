@@ -47,6 +47,7 @@ import type { LocalPower } from './platform/processes/power/local.ts';
 import { speechFromConfig } from './platform/processes/speech/select.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
+import { slackFor } from './platform/slack.ts';
 
 export {
   createPowerControl,
@@ -88,7 +89,7 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * share the machines' terminal tickets and wake a stopped machine through the machines' power runtime (a message, a
  * step's run, a Lead's wake-up); the tasks (S5.3b) run their steps through the chats' runtime, whose task
  * conversations report back to the tasks module's hook, and (S6c) wake their agent Leads in its team chats. A turn's
- * profile brings the server's own tools: the integrations module's Atlassian tools (S7.1c) and GitHub tools (S7.1d), on
+ * profile brings the server's own tools: the integrations module's Atlassian (S7.1c), GitHub (S7.1d) and Slack (S7.1e) tools, on
  * their connectors, with the GitHub sign-in for git on the machine when the profile may push.
  * Dictation transcribes through the speech passed in (tests: a fake; undefined: off), else this computer's whisper.cpp
  * when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
@@ -117,10 +118,10 @@ export function createApp(deps: AppOptions) {
   // task's conversation reports its turns to the tasks module's hook. Neither module imports the other. The hook runs
   // the next step after an agent's decision or a Lead's move (S6a) through the runtime, asked when needed.
   const hook = taskTurnHook({ ...server, steps: () => chats.taskTurns });
-  // The server's own tools: Atlassian's (S7.1c) and GitHub's (S7.1d), answered here through their connectors; the tokens
+  // The server's own tools: Atlassian's (S7.1c), GitHub's (S7.1d) and Slack's (S7.1e), answered here through their connectors; the tokens
   // stay here, but for a GitHub sign-in's that a turn's git and gh get when its profile may push.
   const fetch = deps.providerFetch ?? providerFetchFor(deps.config);
-  const tools = { atlassian: atlassianFor(fetch), github: githubFor(fetch) };
+  const tools = { atlassian: atlassianFor(fetch), github: githubFor(fetch), slack: slackFor(fetch) };
   const serverTools = integrationTools({ ...server, keyring, ...tools });
   const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook, serverTools, wake: power.wake };
   const chats = chatsRuntime(chatsDeps);

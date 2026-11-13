@@ -212,6 +212,7 @@ export async function specTools(
     offers,
     instructions,
     git,
+    max: target.serverToolsMax,
   });
   return { ...agent, ...server };
 }

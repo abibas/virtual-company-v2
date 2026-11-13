@@ -266,6 +266,9 @@ importers:
       '@mwc/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@mwc/slack':
+        specifier: workspace:*
+        version: link:../../connectors/slack
       '@mwc/tools-core':
         specifier: workspace:*
         version: link:../../packages/tools-core

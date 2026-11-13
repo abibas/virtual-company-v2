@@ -227,8 +227,11 @@ describe('the hooks', () => {
 
   it('the merged one owns both tools’ names and sends a call to its owner, refusing any other', async () => {
     const { logger } = captureLogger();
-    const hook = integrationTools({ ...base, logger, github: {} as never, atlassian: {} as never });
-    expect(hook.owns('pull_request_read') && hook.owns('getJiraIssue')).toBe(true);
+    const tools = { github: {} as never, atlassian: {} as never, slack: {} as never };
+    const hook = integrationTools({ ...base, logger, ...tools });
+    expect(
+      hook.owns('pull_request_read') && hook.owns('getJiraIssue') && hook.owns('slack_post_message'),
+    ).toBe(true);
     expect(hook.owns('task_read')).toBe(false);
     expect(await hook.tool(down, TURN, call('task_read'))).toEqual({ ok: false, text: NOT_OURS });
     expect(await hook.tool(down, TURN, call('getJiraIssue'))).toEqual({ ok: false, text: TOOL_FAILED });

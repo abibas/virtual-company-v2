@@ -1,7 +1,7 @@
 import type { Chat, TenantDb } from '@mwc/db';
 import { STANDING_INSTRUCTIONS_MAX } from '@mwc/shared/agent-briefing';
 import type { ChatTurnKind } from '@mwc/shared/enums';
-import type { ServerToolDef, TurnGitHub } from '@mwc/shared/harness';
+import { SERVER_TOOLS_MAX, type ServerToolDef, serverToolsLimit, type TurnGitHub } from '@mwc/shared/harness';
 import type { RunnerHub, TurnToolCall, TurnToolReply } from '../../machines/index.ts';
 import { chatsRepo } from '../repo.ts';
 
@@ -47,6 +47,9 @@ export interface ServerToolsPlan {
   readonly label?: string | undefined;
   readonly github?: TurnGitHub | undefined;
   readonly pushLabel?: string | undefined;
+  /** The tools left out for the runner's limit (S7.1e: an older runner takes 32), and how many the profile gives. */
+  readonly leftOut?: readonly string[] | undefined;
+  readonly total?: number | undefined;
 }
 
 /** What the tools are called when the plan does not say. */
@@ -61,10 +64,13 @@ export const runnerTooOldLine = (label: string): string =>
   'tell the person to update the runner on the Machines page.';
 
 export interface ServerToolsHook {
-  /** The tools a message turn on this profile gets (none when its profile gives none), and its git sign-in for `git`. */
+  /**
+   * The tools a message turn on this profile gets (none when its profile gives none), at most `max` (its runner's limit,
+   * `serverToolsLimit`; 64 when left out), and its git sign-in for `git`.
+   */
   toolsFor(
     t: TenantDb,
-    turn: { readonly profileId: string; readonly git?: GitUse },
+    turn: { readonly profileId: string; readonly git?: GitUse; readonly max?: number },
   ): Promise<ServerToolsPlan>;
   /** True for a tool of its own, whose calls go to `tool`. */
   owns(tool: string): boolean;
@@ -99,6 +105,8 @@ export async function serverToolsOf(
     readonly instructions: string | undefined;
     /** Given when the runner takes a GitHub sign-in for git (`caps.github`). */
     readonly git?: GitUse | undefined;
+    /** How many server tools the runner takes (`serverToolsLimit`). */
+    readonly max: number;
   },
 ): Promise<{
   readonly serverTools?: ServerToolDef[];
@@ -107,7 +115,7 @@ export async function serverToolsOf(
 }> {
   if (turn.kind !== 'message' || hook === undefined) return {};
   const git = turn.offers && turn.git !== undefined ? { git: turn.git } : {};
-  const plan = await hook.toolsFor(t, { profileId: turn.profileId, ...git });
+  const plan = await hook.toolsFor(t, { profileId: turn.profileId, max: turn.max, ...git });
   if (plan.tools.length === 0) return {};
   if (!turn.offers) return withLine(turn.instructions, runnerTooOldLine(plan.label ?? SERVER_TOOLS_LABEL));
   return {
@@ -120,8 +128,8 @@ export async function serverToolsOf(
 /**
  * What the profile a chat runs on (its own, else its agent's) gives of the server's tools that its machine's runner is too
  * old to take, in a few words ("Jira and Confluence"; "git push" when only the GitHub sign-in for git waits, S7.1d), for
- * the chat's notice; null when it gives none, the runner takes them, or it is not connected here (nothing is known of it
- * then).
+ * the chat's notice ("all 38" when the runner takes fewer than the profile gives, S7.1e); null when it gives none, the
+ * runner takes them, or it is not connected here (nothing is known of it then).
  */
 export async function runnerUpdateFor(
   deps: { readonly hub: RunnerHub; readonly serverTools?: ServerToolsHook | undefined },
@@ -131,10 +139,13 @@ export async function runnerUpdateFor(
   const runner = deps.hub.connected(chat.machineId);
   const hook = deps.serverTools;
   if (hook === undefined || runner?.companyId !== t.companyId) return null;
-  if (runner.caps.serverTools && runner.caps.github) return null;
+  const max = serverToolsLimit(runner.caps);
+  if (runner.caps.serverTools && runner.caps.github && max >= SERVER_TOOLS_MAX) return null;
   const profileId = chat.profileId ?? (await chatsRepo.agentOf(t, chat.agentId))?.profileId ?? null;
   if (profileId === null) return null;
-  const plan = await hook.toolsFor(t, { profileId });
+  const plan = await hook.toolsFor(t, { profileId, max });
   if (plan.tools.length === 0) return null;
-  return runner.caps.serverTools ? (plan.pushLabel ?? null) : (plan.label ?? SERVER_TOOLS_LABEL);
+  if (!runner.caps.serverTools) return plan.label ?? SERVER_TOOLS_LABEL;
+  if (plan.leftOut !== undefined && plan.leftOut.length > 0) return `all ${plan.total}`;
+  return runner.caps.github ? null : (plan.pushLabel ?? null);
 }
