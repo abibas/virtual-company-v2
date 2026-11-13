@@ -1,4 +1,11 @@
-import type { AtlassianApi, AtlassianSignIn, JiraProject, JiraTransition, JiraUser } from '@mwc/tools-core';
+import type {
+  AtlassianApi,
+  AtlassianSignIn,
+  JiraProject,
+  JiraTransition,
+  JiraUser,
+  NewJiraIssue,
+} from '@mwc/tools-core';
 import { jiraBody } from './body.ts';
 import type { Call, Request } from './http.ts';
 import { addedCommentOf, issueOf, nameOf } from './jira-issue.ts';
@@ -64,10 +71,12 @@ type JiraApi = Pick<
   | 'editIssue'
 >;
 
-/** The Jira half of the port on `request`. */
-export function jiraApi(request: Request): JiraApi {
-  const jira = (signIn: AtlassianSignIn, call: Omit<Call, 'product'>) =>
-    request(signIn, { product: 'Jira', ...call });
+type Jira = (signIn: AtlassianSignIn, call: Omit<Call, 'product'>) => Promise<unknown>;
+
+/** Jira's reads: search, an issue, its transitions, projects, people. */
+function jiraReads(
+  jira: Jira,
+): Omit<JiraApi, 'addComment' | 'transitionIssue' | 'createIssue' | 'editIssue'> {
   return {
     async searchIssues(signIn, query) {
       const body = {
@@ -116,6 +125,29 @@ export function jiraApi(request: Request): JiraApi {
       });
       return listOf(raw).map(userOf);
     },
+  };
+}
+
+/** The issue's fields a create sets, those given. */
+function createFields(issue: NewJiraIssue) {
+  return {
+    project: { key: issue.projectKey },
+    issuetype: { name: issue.issueTypeName },
+    summary: issue.summary,
+    ...(issue.description === undefined ? {} : { description: jiraBody(issue.description) }),
+    ...(issue.labels === undefined ? {} : { labels: issue.labels }),
+    ...(issue.priority === undefined ? {} : { priority: { name: issue.priority } }),
+    ...(issue.components === undefined ? {} : { components: issue.components.map((name) => ({ name })) }),
+    ...(issue.parent === undefined ? {} : { parent: { key: issue.parent } }),
+    ...(issue.assigneeAccountId === undefined ? {} : { assignee: { accountId: issue.assigneeAccountId } }),
+  };
+}
+
+/** Jira's changes: a comment, a transition, a new issue, an issue's summary, description and labels. */
+function jiraChanges(
+  jira: Jira,
+): Pick<JiraApi, 'addComment' | 'transitionIssue' | 'createIssue' | 'editIssue'> {
+  return {
     async addComment(signIn, issueIdOrKey, body) {
       const path = issuePath(issueIdOrKey, '/comment');
       return addedCommentOf(await jira(signIn, { method: 'POST', path, body: { body: jiraBody(body) } }));
@@ -125,22 +157,8 @@ export function jiraApi(request: Request): JiraApi {
       await jira(signIn, { method: 'POST', path, body: { transition: { id: transitionId } } });
     },
     async createIssue(signIn, issue) {
-      const fields = {
-        project: { key: issue.projectKey },
-        issuetype: { name: issue.issueTypeName },
-        summary: issue.summary,
-        ...(issue.description === undefined ? {} : { description: jiraBody(issue.description) }),
-        ...(issue.labels === undefined ? {} : { labels: issue.labels }),
-        ...(issue.priority === undefined ? {} : { priority: { name: issue.priority } }),
-        ...(issue.components === undefined ? {} : { components: issue.components.map((name) => ({ name })) }),
-        ...(issue.parent === undefined ? {} : { parent: { key: issue.parent } }),
-        ...(issue.assigneeAccountId === undefined
-          ? {}
-          : { assignee: { accountId: issue.assigneeAccountId } }),
-      };
-      const raw = recordOf(
-        await jira(signIn, { method: 'POST', path: '/rest/api/3/issue', body: { fields } }),
-      );
+      const body = { fields: createFields(issue) };
+      const raw = recordOf(await jira(signIn, { method: 'POST', path: '/rest/api/3/issue', body }));
       const key = text(raw.key);
       return { id: text(raw.id), key, url: `https://${signIn.site}/browse/${key}` };
     },
@@ -153,4 +171,10 @@ export function jiraApi(request: Request): JiraApi {
       await jira(signIn, { method: 'PUT', path: issuePath(issueIdOrKey), body: { fields } });
     },
   };
+}
+
+/** The Jira half of the port on `request`. */
+export function jiraApi(request: Request): JiraApi {
+  const jira: Jira = (signIn, call) => request(signIn, { product: 'Jira', ...call });
+  return { ...jiraReads(jira), ...jiraChanges(jira) };
 }

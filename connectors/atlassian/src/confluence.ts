@@ -105,10 +105,10 @@ type ConfluenceApi = Pick<
 
 const pagePath = (pageId: string) => `/wiki/api/v2/pages/${encodeURIComponent(pageId)}`;
 
-/** The Confluence half of the port on `request`. */
-export function confluenceApi(request: Request): ConfluenceApi {
-  const wiki = (signIn: AtlassianSignIn, call: Omit<Call, 'product'>) =>
-    request(signIn, { product: 'Confluence', ...call });
+type Wiki = (signIn: AtlassianSignIn, call: Omit<Call, 'product'>) => Promise<unknown>;
+
+/** Confluence's reads: search, a page, a space, the spaces, a space's pages. */
+function confluenceReads(wiki: Wiki): Omit<ConfluenceApi, 'createPage' | 'updatePage'> {
   return {
     async searchConfluence(signIn, query) {
       const raw = await wiki(signIn, {
@@ -149,6 +149,12 @@ export function confluenceApi(request: Request): ConfluenceApi {
       });
       return paged(raw, (page) => pageRefOf(page, signIn.site));
     },
+  };
+}
+
+/** Confluence's writes: a new page, a page's next version. */
+function confluenceWrites(wiki: Wiki): Pick<ConfluenceApi, 'createPage' | 'updatePage'> {
+  return {
     async createPage(signIn, page) {
       const body = {
         spaceId: page.spaceId,
@@ -170,4 +176,10 @@ export function confluenceApi(request: Request): ConfluenceApi {
       return pageRefOf(await wiki(signIn, { method: 'PUT', path: pagePath(page.pageId), body }), signIn.site);
     },
   };
+}
+
+/** The Confluence half of the port on `request`. */
+export function confluenceApi(request: Request): ConfluenceApi {
+  const wiki: Wiki = (signIn, call) => request(signIn, { product: 'Confluence', ...call });
+  return { ...confluenceReads(wiki), ...confluenceWrites(wiki) };
 }

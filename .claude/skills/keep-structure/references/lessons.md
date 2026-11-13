@@ -28,6 +28,27 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-13: S7.1c's server tools: a port for outside tools, a connector, and a module that answers a turn's calls
+
+- **What happened:** the agents' Atlassian tools needed a port (`packages/tools-core`, `AtlassianApi` and `AtlassianError`,
+  242 + 61 lines; no fake: the server's tests drive the real connector through the fake provider), a connector
+  (`connectors/atlassian`, 9 files, all under 200 lines; `jiraApi` and `confluenceApi` split into reads and changes
+  before commit, 89 and 65 lines), and the map's planned `modules/integrations/` (its first files: `repo.ts`,
+  `schemas/atlassian.ts` 242 lines, `rules/atlassian/{rights,query,render,words}.ts`, `service/atlassian/{hook,call,
+  context,jira,confluence}.ts`). The placement table has no row for "tools a turn gets that the server defines and
+  answers": the chats module defines the port (`chats/service/server-tools.ts`, `ServerToolsHook`), the integrations
+  module implements it and `app.ts` passes it, as `TaskTurnHook`; the connector is made in `platform/atlassian.ts`.
+  `chats/service/live.ts` went 286 → 289 lines (near its limit), `turns.ts` 247 → 264, `runner-frames.ts` 284 → 286
+  (`caps.serverTools`). The runner's side went to `turns/ask/server-tools.ts`. Test helpers: a new top-level
+  `test/fixtures/integrations/atlassian.ts`, and `FakeProvider.route` (an address whatever its query).
+- **Where:** the `atlassian-tools` branch.
+- **What was done:** as above.
+- **Suggested change:** placement rows "a port for an outside tool the agents use through the server →
+  `packages/tools-core`, its connector in `connectors/<system>`, wired in `platform/<system>.ts`" and "tools a turn gets
+  that the server defines and answers → a port the chats module defines (`ServerToolsHook`), implemented by the module
+  that owns the outside system"; at the next review, split `chats/service/live.ts` (its sink's parts) before it passes 300.
+- **Status:** `open`.
+
 ### 2026-11-13: A column map for a table's repeated parts, which the schema's barrel cannot hold
 
 - **What happened:** a generic profile's parts (`access_profiles.claude_*`, `openai_*`, `github_*`, `atlassian_*`) needed
