@@ -28,7 +28,7 @@ describe('agents_list', () => {
       roleTitle: 'Coder',
       status: 'active',
       harness: 'claude_code',
-      runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
+      runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', mode: 'manual', provider: 'claude' },
       maxConcurrentRuns: 1,
       reportsTo: w.principals.olga,
       reportsToName: 'Olga',

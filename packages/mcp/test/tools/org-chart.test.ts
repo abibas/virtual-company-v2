@@ -62,7 +62,7 @@ describe('org_chart', () => {
           slug: 'slop-box',
           roleTitle: 'Coder',
           status: 'active',
-          runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', provider: 'claude' },
+          runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', mode: 'manual', provider: 'claude' },
         },
         expect.objectContaining({ principalId: lost, kind: 'agent', orphan: true, name: 'Lost' }),
       ],
