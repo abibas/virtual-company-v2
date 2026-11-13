@@ -544,7 +544,7 @@ told.
 - **Rights** (`GitHubRights`, `AtlassianRights` of `@mwc/shared/credentials`, in `credentials/tool-rights.ts`), unchanged
   from S7.1b: zod schemas the API, the agents' views and the briefing all parse with; stored rights that do not parse as
   their tool's count as none at all (`storedRights`), so a damaged row never grants anything. The tools check them on
-  every call (Atlassian's since S7.1c, "Atlassian tools" below; GitHub's in S7.1d).
+  every call (Atlassian's since S7.1c, "Atlassian tools" below; GitHub's since S7.1d, "GitHub tools" below).
 
   | Part      | Right              | Values                                                                                         |
   | --------- | ------------------ | ---------------------------------------------------------------------------------------------- |
@@ -561,11 +561,12 @@ told.
   end (`defaultRights`): GitHub reaches no repository and only reads; Atlassian reads Jira and Confluence everywhere and
   writes nowhere.
 - **The briefing:** an agent's briefing ends with one line per tool part of its profile (`toolBriefingLine` of
-  `credentials/tool-words.ts`, GitHub's then Atlassian's), what it may do there and as whom; GitHub's says the access is
-  configured while its tools come later (S7.1d), Atlassian's names its tools (S7.1c):
+  `credentials/tool-words.ts`, GitHub's then Atlassian's), what it may do there and as whom, and which of Most Wanted's
+  tools use it: Atlassian's since S7.1c, GitHub's since S7.1d (until then it said the access was configured and its tools
+  would come), with git and gh on the machine when the part may push:
 
   ```
-  - GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never merges, force-pushes, deletes or pushes to a default branch. Configured; the tools that use it arrive with Most Wanted’s tools.
+  - GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never merges, force-pushes, deletes or pushes to a default branch. Use it with your Most Wanted tools, named as on GitHub’s MCP server (search_pull_requests, pull_request_read, create_pull_request, …); in your turns git and gh on your machine use it too.
   - Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: may read, create and update pages in ENG; never deletes or archives. Use it with your Most Wanted tools, named as on Atlassian’s remote MCP (searchJiraIssuesUsingJql, getJiraIssue, getConfluencePage, …).
   ```
 
@@ -686,6 +687,104 @@ storage format by default, as the remote MCP's, or `markdown`, or `adf`); Markdo
    profile's projects) and answers with five keys and summaries.
 5. Ask: "read AP-301". It calls `getJiraIssue` and answers with its status, description and latest comments; with
    `AP` outside the profile's projects it says the issue is outside them.
+
+## GitHub tools
+
+Built in S7.1d (2026-11-13; before it, TEST DEV, asked about Ihor's pull requests in `airia-platform`, had no GitHub tool
+and no `gh`, and Auto mode rightly refused its search of git's configuration for credentials). An agent whose turn runs
+on a profile with a GitHub part reads GitHub and, by its rights, opens and updates pull requests through tools the
+**server** answers, with the sign-in's token opened on the server for each call; and when the part may push, git and gh
+on the agent's machine get the sign-in for that one turn ("git and gh in a turn" below). Ihor's own Claude Code reaches
+GitHub through GitHub's MCP server, so the tools keep its names and inputs as its README listed them on 2026-11-13. That
+server reads one pull request or issue with one tool and a `method` (`pull_request_read`, `issue_read`): what older
+copies called `get_pull_request`, `get_pull_request_diff`, `get_pull_request_files`, `get_pull_request_reviews`,
+`get_pull_request_comments` and `get_issue` are its methods `get`, `get_diff`, `get_files`, `get_reviews`,
+`get_comments` (and `get_review_comments`) and `issue_read`'s `get`. They reach the turn through the runner's MCP bridge
+as the server's own tools (docs/harness.md, "Server tools"), for Claude Code and Codex alike.
+
+| Rights | Tools |
+| --- | --- |
+| a sign-in and at least one repository (`repos` `all` or a list) | `search_pull_requests {query, owner?, repo?, sort?, order?, page?, perPage?}`, `list_pull_requests {owner, repo, state?, head?, base?, sort?, direction?, page?, perPage?}`, `pull_request_read {method, owner, repo, pullNumber, page?, perPage?}` (`get`, `get_diff`, `get_status`, `get_files`, `get_commits`, `get_review_comments`, `get_reviews`, `get_comments`, `get_check_runs`), `search_issues {query, owner?, repo?, sort?, order?, page?, perPage?}`, `issue_read {method, owner, repo, issue_number, page?, perPage?}` (`get`, `get_comments`, `get_sub_issues`, `get_labels`), `list_commits {owner, repo, sha?, author?, path?, since?, until?, page?, perPage?}`, `get_commit {owner, repo, sha, detail?, page?, perPage?}`, `get_file_contents {owner, repo, path?, ref?, sha?}`, `list_branches {owner, repo, page?, perPage?}`, `search_repositories {query, sort?, order?, page?, perPage?}` |
+| `pullRequests` | `create_pull_request {owner, repo, title, head, base, body?, draft?, maintainer_can_modify?}`, `update_pull_request {owner, repo, pullNumber, title?, body?, base?, draft?}` (draft through GitHub's GraphQL, as REST cannot), `add_issue_comment {owner, repo, issue_number, body}` (on a pull request only), `request_copilot_review {owner, repo, pullNumber}` |
+| `push` | no tool: git and gh on the machine get the sign-in in the turn ("git and gh in a turn" below) |
+
+Nothing merges, closes or deletes anything: there is no such tool (no `merge_pull_request`, no `delete_*`). Arguments of
+GitHub's MCP server that would do something not offered are refused by name: `update_pull_request`'s `state` (closing),
+`reviewers` and `maintainer_can_modify`, `create_pull_request`'s `reviewers`, `add_issue_comment`'s `comment_id` and
+`reaction`; others that change nothing here (`fields`, `after`, `minimal_output`) are taken and ignored.
+
+- **Offered.** A message turn whose profile (the chat's own, else the agent's) has a GitHub part with a sign-in that
+  reaches a repository gets the read tools, and the pull request tools with `pullRequests`, on a runner that says
+  `caps.serverTools`; with an Atlassian part too, Atlassian's come first (15 and 14: the 32 a turn's spec carries hold
+  both). The turn's standing instructions get one line after them (after Atlassian's), ending with what git and gh get:
+
+  ```
+  GitHub tools (from Most Wanted): as ihorherasko, in AiriaLLC/*: read, and open and update pull requests. Your tools, by the names of GitHub's MCP server: search_pull_requests, list_pull_requests, pull_request_read, …; owner and repo name the repository; they never merge, close or delete. git and gh on this machine use this sign-in in this turn (GH_TOKEN; git@github.com remotes go over https): push your branches to those repositories, never to a default branch and never with force; the tools above are preferred for reading and for pull requests.
+  ```
+
+  Without `push` the end says pushing is off and git and gh get no sign-in from Most Wanted; on a runner without
+  `caps.github` that the runner is too old to give git the sign-in (and the chat's notice says "git push"); when the
+  sign-in could not be opened, why. A runner without `caps.serverTools` gets the S7.1c "runner too old" line, naming
+  "GitHub" (or "Jira, Confluence and GitHub").
+- **Checked on every call** (`modules/integrations/service/github/call.ts`), whatever the runner relayed: the tool is one
+  of them; the turn's profile is read again and its rights give the tool ("Pull requests are off for this agent's
+  profile: it may only read.", "This agent's profile reaches no GitHub repository."); it has a sign-in; no refused
+  argument; the input passes its schema; the repository a tool names (`owner`, `repo`) is in the allowlist ("other/x is
+  outside the GitHub repositories this agent's profile reaches (AiriaLLC/*).").
+- **The allowlist and searches** (`rules/github/query.ts`). `owner/name` and `owner/*`, case ignored. A search's own
+  scope qualifiers (`repo:`, `user:`, `org:`, not negated) and its `owner` and `repo` must each be inside it (an owner
+  only when it holds `owner/*`: "Name the repositories with repo: instead."); a search that names none gets the
+  allowlist's as qualifiers (`user:AiriaLLC` for `AiriaLLC/*`, `repo:abibas/sandbox` for one; GitHub ORs them), nothing
+  with `all`. `search_pull_requests` adds `is:pr` and `search_issues` `is:issue` unless the query says so, and every
+  result outside the allowlist is dropped, so a query that slips past the scope still answers nothing outside it. The
+  answer shows the query as sent.
+- **Answers** are JSON trimmed to what an agent needs (`rules/github/render.ts`): a pull request's number, title, state,
+  draft, address, author, head and base, labels, dates, head commit, mergeability, counts and requested reviewers, its
+  body cut at 20 000 characters (500 in a list or search); a comment at 2 000, a file's patch at 3 000, a diff and a
+  file's text at 40 000; empty fields left out; the whole under the tool result's limit (`rules/answer.ts`, shared with
+  Atlassian's).
+- **Records.** Each call opens the sign-in for `tool:<name>` and each turn's git sign-in for `tool:git`
+  (`credential_uses` rows with the company, the agent, the chat and who sent the turn's prompt). Each change is audited
+  in the company as the agent, with the turn as its request: action `tool:<name>`, entity `github_pull_request`
+  `owner/repo#n` (a new one's title, head, base, draft and body's start; a change's fields with what they were; a
+  comment's id and start; Copilot as reviewer), and shows in the turn as its tool call.
+- **GitHub's refusals** in words (the connector, `connectors/github`: `https://api.github.com` with `Authorization:
+  Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, through the server's provider
+  client with redirects refused): 401 says to sign in again and marks the sign-in `needs_sign_in`, as its check would (by
+  the system); 403 "no permission" with GitHub's words; 404 "found nothing there, or the account cannot see it"; 400 and
+  422 with GitHub's words (a pull request that already exists); 409 conflict; a redirect "renamed or moved". A rate
+  limit (429, or a 403 with `Retry-After` or no requests left until `X-RateLimit-Reset`) is retried twice when its wait
+  is at most 5 s, else refused with when to try again ("GitHub is limiting requests. Try again in 3 s."); a 403 that
+  says "secondary rate limit" with no header waits a minute, so it is refused at once. No answer in 15 s, a 5xx or a
+  network failure: "did not answer".
+
+### git and gh in a turn
+
+When the profile's GitHub part may push (`push`) and reaches a repository, a message turn on a runner that says
+`caps.github` gets the sign-in's token in its spec (`TurnSpec.github {token, repos}`, opened for `tool:git`); the runner
+puts it in that turn's process environment only, with git's settings, so `git push` (also to an existing
+`git@github.com:` remote, rewritten to https) and the agent's habitual `gh pr …` act as the sign-in's account, and a
+pre-push hook refuses a push to the default branch, a non-fast-forward, a deletion and a repository outside the
+allowlist. The details, and what the hook can and cannot guarantee, are docs/harness.md "git in a turn". With `push`
+off no token reaches the machine at all. The server tools stay available either way and are preferred for reading and
+for pull requests. The Docker runner's image carries `gh` (2.103.3, pinned and checksum-checked as the sign-in image's);
+on other machines gh is the machine's own (the Machines page's Install covers Claude Code and Codex only: gh is no npm
+package).
+
+### How to test it (Ihor)
+
+1. Merge, then `pnpm --filter @mwc/runner build` and restart the dev API (`pnpm dev`). No migration.
+2. **Machines** → the Docker runner's card → **Update container**: it rebuilds the image from the sources, so the
+   container gets the new runner (`caps.github`) and gh. Another machine's runner: **Update runner** (gh is its own).
+3. **Profiles** → "Claude Code 2nd" (TEST DEV's): its GitHub part with your GitHub sign-in, **Repositories** `AiriaLLC/*`
+   and the sandbox repository you choose (`owner/name`), **Push branches** and **Pull requests** on.
+4. **Agents** → TEST DEV → its chat: "what's my latest PR in AiriaLLC/airia-platform?". It calls `search_pull_requests`
+   (`author:@me repo:AiriaLLC/airia-platform is:pr`, sorted by updated) or `list_pull_requests`, and answers with the
+   number, title, state and address. The tool rows in the thread show the calls.
+5. Then: "in /work/test-dev, clone <sandbox> into scratch, make a branch test-push-1 with an empty commit, push it, and
+   list the sandbox's pull requests with gh". The clone and push work over https with your sign-in (an SSH address
+   too); `gh pr list` answers. Asking it to push to main, or to force-push, ends in the hook's
+   "Most Wanted: refused: …" line.
 
 ## Security
 

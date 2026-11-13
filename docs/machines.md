@@ -418,7 +418,8 @@ endpoint (127.0.0.1:9953) says, and exits 0 only when it is connected; `uninstal
 installed copy and keeps `runner.json` (`--purge` removes it and the state folder); the machine stays on the server until
 it is removed on the Machines page.
 
-**The container** (`deploy/Dockerfile.runner`): Node 24 slim, git, tini as PID 1, the bundle, the user `runner`, its
+**The container** (`deploy/Dockerfile.runner`): Node 24 slim, git, gh (pinned and checksum-checked as the sign-in image's, for
+turns whose profile may push: S7.1d, docs/harness.md "git in a turn"), tini as PID 1, the bundle, the user `runner`, its
 state and `runner.json` in the volume `/var/lib/mwc-runner`, its agents' home folders in the volume `/work`. Started without a `runner.json` and with
 `MWC_ENROLL_TOKEN` and `MWC_SERVER_URL`, the runner enrolls itself (kind `container`, named by `MWC_RUNNER_NAME`,
 `runner-local` in compose), then runs; later starts reuse the enrollment. The `runner-local` service is behind the
@@ -860,7 +861,9 @@ installs or updates Claude Code or Codex through the runner; the chat header and
   Machines**.
 - **No self-updates in our runs.** Turns and terminals turn the CLIs' own update checks off (docs/harness.md): Codex
   gets `-c check_for_update_on_startup=false`, Claude Code `DISABLE_AUTOUPDATER=1`. Updates happen from the card.
-- Not here: installing anything else (git, gh, Docker), uninstalling, signing in to the CLIs.
+- Not here: installing anything else (git, gh, Docker), uninstalling, signing in to the CLIs. gh is no npm package, so it
+  is not installed the same way: the Docker runner's image carries it (S7.1d), elsewhere it is the machine's own, and a
+  turn whose profile may push gives it the profile's GitHub sign-in as `GH_TOKEN` (docs/harness.md "git in a turn").
 
 ## Logos
 

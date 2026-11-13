@@ -976,10 +976,13 @@ model is unchanged.
 
 ## Server tools
 
-Built in S7.1c (2026-11-13; what the first ones do is docs/subscriptions.md, "Atlassian tools"). The server's own tools
-are defined and answered whole by the server, so the runner lists and relays them without knowing them: a new server
-tool needs no new runner. The first are the Atlassian tools, which keep the names and inputs of Atlassian's remote MCP
-(`searchJiraIssuesUsingJql`, `getJiraIssue`, …), so they may be camelCase.
+Built in S7.1c (2026-11-13; what they do is docs/subscriptions.md, "Atlassian tools" and "GitHub tools"). The server's
+own tools are defined and answered whole by the server, so the runner lists and relays them without knowing them: a new
+server tool needs no new runner. The first are the Atlassian tools, which keep the names and inputs of Atlassian's remote
+MCP (`searchJiraIssuesUsingJql`, `getJiraIssue`, …), so they may be camelCase; the GitHub tools (S7.1d) keep GitHub's MCP
+server's (`search_pull_requests`, `pull_request_read`, …). The integrations module's one hook (`service/tools.ts`) asks
+Atlassian's and GitHub's in turn and merges their plans: tools one after the other, lines one under the other, labels in
+one sentence ("Jira, Confluence and GitHub").
 
 - **Which turns.** A message turn whose profile (the chat's own, else the agent's: the one the turn runs on) offers them,
   on a runner that says `caps.serverTools`: the chats module asks its `ServerToolsHook` (`chats/service/server-tools.ts`,
@@ -1006,6 +1009,63 @@ tool needs no new runner. The first are the Atlassian tools, which keep the name
   the wider `--allowedTools`) is new in S7.1c: a machine's runner must be rebuilt and updated once (its card's Update,
   or `docker compose … up --build` for a container runner) before its turns get any server tool. After that, new server
   tools need no runner change.
+
+## git in a turn
+
+Built in S7.1d (2026-11-13; the GitHub tools on the server are docs/subscriptions.md "GitHub tools"). Ihor's Mac pushes
+over SSH with its own key and has `gh` signed in through GitHub's device sign-in; an agent's machine has neither, so a
+turn whose profile may push gets the profile's GitHub sign-in for that turn only.
+
+- **When.** A message turn (a chat's or a task step's) whose profile's GitHub part has a sign-in, reaches a repository
+  and has `push` on, on a runner that says `caps.github`: the integrations module opens the sign-in for `tool:git` (a
+  `credential_uses` row) and the spec carries `TurnSpec.github {token, repos}` (the allowlist lower-case). With `push`
+  off no token reaches the machine at all; an older runner never receives it (it has no `caps.github`) and the turn's
+  line says the runner must be updated; a Compact or a Clear gets none; the chat terminal gets none.
+- **The environment** (`apps/runner/src/turns/git/env.ts`), added to the turn's process environment after the
+  driver's, never anywhere else:
+
+  | Variable | Value |
+  | --- | --- |
+  | `GH_TOKEN` | the token: gh uses it for github.com |
+  | `GH_PROMPT_DISABLED`, `GIT_TERMINAL_PROMPT` | `1`, `0`: neither ever waits for a prompt |
+  | `MWC_GIT_REPOS` | `all`, or the allowlist comma-joined (`airiallc/*,abibas/sandbox`), for the hook |
+  | `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_VALUE_<n>` | git's settings, numbered after any the machine's environment sets: `credential.https://github.com.helper` empty (the machine's own helpers, its keychain or `gh auth git-credential`, are passed over for github.com), then `!f() { test "$1" = get \|\| exit 0; echo username=x-access-token; echo "password=$GH_TOKEN"; }; f` (git runs it with `sh`; it answers `get` only, so git never stores the token); `url.https://github.com/.insteadOf` `git@github.com:` and again `ssh://git@github.com/` (an existing SSH remote pushes over https with the token); `core.hooksPath` the runner's hooks folder |
+
+  The token is in no setting (the helper reads `$GH_TOKEN` when git asks), on no command line, in no file, in neither
+  the run folder's meta nor the runner's log. Like Claude Code's own token, it is readable while the turn lives by the
+  machine's root and by the same user (a process's environment); the runner's machine is the agent's.
+- **The hooks** (`turns/git/hooks.ts`): one POSIX `sh` script (git and `awk` only) written as each client-side hook's
+  name (`pre-commit`, `commit-msg`, `pre-push`, …, not `reference-transaction`) into `<runner state>/git-hooks/`, files
+  and folder 0555, rewritten before a turn when the runner's version changed; when they cannot be written the turn runs
+  without the sign-in (logged), so no push goes unguarded. `pre-push` reads the remote's name and address and each ref
+  pushed, and refuses with a line on stderr ("Most Wanted: refused: …"):
+  - a push to the remote's **default branch**: its `refs/remotes/<remote>/HEAD`, else what `git ls-remote --symref`
+    says now, else `main` and `master`;
+  - a **non-fast-forward** update (the remote's commit not an ancestor of the one pushed, or not here: "fetch and
+    rebase or merge first; never force"), so `--force` fails too;
+  - a **deletion** (`--delete`, `:branch`);
+  - a **GitHub repository outside the allowlist**, read from the remote's address (`https://github.com/o/n`, with a user
+    in it, `git@github.com:o/n`, `ssh://git@github.com/o/n`, `.git` or not, case ignored); another host is not checked
+    (the sign-in is not sent there).
+
+  Since `core.hooksPath` replaces the repository's own hooks, each hook then runs the repository's own of the same name:
+  its own `core.hooksPath` from any scope but the turn's (Husky's `.husky`), else its git folder's `hooks/`; `pre-push`
+  passes on what it read. **It prevents mistakes, not malice:** `git push --no-verify` skips it, and an agent can change
+  its own environment. The hard guarantee is GitHub's: branch protection or a ruleset on each default branch (require a
+  pull request, block force pushes and deletions), and a fine-grained token limited to the repositories that may be
+  pushed to.
+- **The machine's own sign-ins.** Without the turn's sign-in (push off, or no GitHub part) a turn's git and gh are the
+  machine's as they are: a Local runner on Ihor's Mac still has his SSH key and his gh. A profile's rights govern what
+  Most Wanted hands over, not what a machine already has.
+- **Codex.** Claude Code's commands inherit its environment. Codex runs commands under its own shell environment policy,
+  whose default drops variables whose names contain `KEY`, `SECRET` or `TOKEN`, and its Ask and Auto sandboxes keep the
+  network off, so a Codex agent's push and gh are expected to work only in Full trust, and only if its policy keeps
+  `GH_TOKEN`: not verified (no real Codex turn is run). The server tools work for both harnesses.
+- **gh** is in the Docker runner's image (2.103.3, checksum-pinned as the sign-in image's, prompts and update notices
+  off); elsewhere it is the machine's own (`caps.tools.gh` reports it). The briefing and the turn's line say the server
+  tools are preferred for reading and pull requests.
+- **Rebuilding the runner.** The runner changed in S7.1d (`caps.github`, the environment, the hooks): each machine's
+  runner must be rebuilt and updated once, and the Docker runner needs **Update container** for gh.
 
 ## Delivery while a turn runs
 

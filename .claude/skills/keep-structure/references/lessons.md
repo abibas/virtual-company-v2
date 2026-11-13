@@ -28,6 +28,25 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-13: S7.1d's GitHub tools beside Atlassian's, and a shell script the runner carries
+
+- **What happened:** GitHub's server tools reused Atlassian's answer and reply helpers, which lived under
+  `rules/atlassian/render.ts` and `service/atlassian/context.ts`; they moved to `integrations/rules/answer.ts` and
+  `service/reply.ts` (re-exported where they were, so S7.1c's tests kept their imports), and a second provider needed one
+  hook merging both plans (`service/tools.ts`, `rules/plans.ts`). The port `tools-core/src/github.ts` reached 298 lines
+  and its result shapes moved to `github/results.ts` (171 + 167). The runner's pre-push hook is a POSIX `sh` script kept
+  as a string constant in `apps/runner/src/turns/git/hooks.ts` and tested with real git in temporary repositories
+  (process starts, as the brief asked); `turns/turns.ts` went 291 → 293 lines (`HarnessHost.gitHooks`), and
+  `runner-protocol/runner-frames.ts` 288 → 290 (`caps.github`).
+- **Where:** the `github-turns` branch.
+- **What was done:** as above.
+- **Suggested change:** placement rows "helpers several outside tools' server tools share → `integrations/rules/` and
+  `service/` at the module's level, not under one provider's folder" and "a script the runner writes for a harness's
+  tools (git hooks) → a string constant in the runner's `turns/<tool>/`, tested by running it"; at the next review, split
+  `runner-frames.ts` (its caps into `runner-protocol/caps.ts`) and `turns/turns.ts` (the `HarnessHost` into its own file)
+  before they pass 300.
+- **Status:** `open`.
+
 ### 2026-11-13: S7.1c's server tools: a port for outside tools, a connector, and a module that answers a turn's calls
 
 - **What happened:** the agents' Atlassian tools needed a port (`packages/tools-core`, `AtlassianApi` and `AtlassianError`,

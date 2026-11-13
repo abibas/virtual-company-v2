@@ -133,7 +133,7 @@ Full map and rules: `docs/ports.md`.
 ```
 apps/        server, web, runner
 packages/    shared, db, identity-core, machines-core, harness-core, tools-core, testkit, cli, mcp
-connectors/  identity-clerk, machine-airia-devbox, harness-claude-code, harness-codex, atlassian (now); github, gateway (S7)
+connectors/  identity-clerk, machine-airia-devbox, harness-claude-code, harness-codex, atlassian, github (now); gateway (S7)
 deploy/      compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper)
 docs/        plan, architecture, roadmap, ports, testing, structure, clerk-setup, mcp, harness, schema (generated)
 ```

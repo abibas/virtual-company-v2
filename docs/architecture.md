@@ -62,7 +62,8 @@ connectors/identity-clerk   @mwc/identity-clerk  Clerk implementation of Identit
 connectors/identity-oidc    @mwc/identity-oidc   other identity providers (OIDC) and user sync (SCIM), later
 connectors/harness-claude-code, harness-codex   the HarnessDriver for each CLI
 connectors/atlassian        @mwc/atlassian       Jira v3 and Confluence v2 for tools-core's AtlassianApi (S7.1c: the agents' Atlassian tools)
-connectors/github, gateway  the outside systems of S7
+connectors/github           @mwc/github          api.github.com for tools-core's GitHubApi (S7.1d: the agents' GitHub tools)
+connectors/gateway          the outside systems of S7
 deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper), later Dockerfile.runner and Kubernetes
 docs/                       architecture, roadmap, ports, structure, testing, clerk-setup, mcp (adding @mwc/mcp to your own Claude Code), schema (generated); later runner-protocol, harness
 ```

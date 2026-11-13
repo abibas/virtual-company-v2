@@ -812,6 +812,37 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          credential uses and audit, the offer per profile for Claude Code and Codex, the runner's listing and relay.
      - **S7.1d** GitHub in a turn: the per-turn token, the credential helper, the SSH rewrite and the repository
        allowlist. Test: an agent pushes a branch to a sandbox repo and lists its PRs.
+       **Built 2026-11-13** (docs/subscriptions.md "GitHub tools", docs/harness.md "git in a turn"; waiting for his live
+       test), after TEST DEV, asked about his pull requests, had no GitHub tool and no `gh`:
+       - Server tools by the names and inputs of GitHub's MCP server as its README listed them that day (reads of one pull
+         request or issue are one tool with a `method`, so `get_pull_request*` and `get_issue` are `pull_request_read` and
+         `issue_read`): `search_pull_requests`, `list_pull_requests`, `pull_request_read` (get, get_diff, get_status,
+         get_files, get_commits, get_review_comments, get_reviews, get_comments, get_check_runs), `search_issues`,
+         `issue_read` (get, get_comments, get_sub_issues, get_labels), `list_commits`, `get_commit`, `get_file_contents`,
+         `list_branches`, `search_repositories`; with `pullRequests` `create_pull_request`, `update_pull_request` (title,
+         body, base, draft through GraphQL), `add_issue_comment` (pull requests only), `request_copilot_review`. Nothing
+         merges, closes or deletes; `state`, `reviewers`, `maintainer_can_modify`, `comment_id` and `reaction` are refused by
+         name. 14 tools, which fit beside Atlassian's 15 in a spec's 32.
+       - Every call checked again: rights, input, the repositories allowlist (`owner/name`, `owner/*`, case ignored);
+         searches get `repo:`/`user:` qualifiers when they name no scope, a scope outside is refused, and results outside
+         are dropped. Uses `tool:<name>`, changes audited as the agent on `github_pull_request` `owner/repo#n`, a 401 marks
+         the sign-in `needs_sign_in`.
+       - The port `GitHubApi`/`GitHubError` in `@mwc/tools-core` and `connectors/github` (bearer, `X-GitHub-Api-Version`,
+         redirects refused, rate limits retried after `Retry-After` or the reset when short, else refused with when),
+         wired through `platform/github.ts`; the integrations module's one hook merges Atlassian's and GitHub's plans.
+       - git and gh: with `push`, a runner that says `caps.github` gets `TurnSpec.github {token, repos}` (opened for
+         `tool:git`); the runner puts it in the turn's environment only (`GH_TOKEN`; `GIT_CONFIG_*` with a credential
+         helper reading `$GH_TOKEN`, `git@github.com:` and `ssh://git@github.com/` rewritten to https, `core.hooksPath`),
+         never on disk. A read-only pre-push hook refuses the default branch, non-fast-forwards, deletions and repositories
+         outside the allowlist, then runs the repository's own hooks; best effort (`--no-verify` skips it), GitHub's branch
+         protection being the guarantee. Without push no token reaches the machine. The Docker runner's image carries gh
+         2.103.3 (checksum-pinned as the sign-in image's); the Machines page's installs stay npm-only (Claude Code, Codex).
+       - Tests: the connector on a fake fetch, every tool through a live turn on a fake runner and the fake provider, the
+         rights, scoping, refusals, uses and audit; the offer and the git sign-in per case and harness; the runner's
+         environment, nothing persisted, the hook with real git in temporary repositories, `caps.github`, the image's pin.
+       - **The runner changed**: every runner needs rebuilding and updating once, and the Docker runner **Update container**
+         (for gh too). Codex's push and gh are expected only in Full trust (its shell drops `*TOKEN*` variables by default
+         and its sandboxes keep the network off): not verified.
      - **S7.1e Slack** (Ihor, 2026-11-12: "i wan to add SLACK TOOL as well.. I have a bot"):
        - **The sign-in:** his Slack bot's token (`xoxb-…`, kind `slack_bot_token`), checked with `auth.test`, which
          shows the workspace, the bot's name and its scopes.
