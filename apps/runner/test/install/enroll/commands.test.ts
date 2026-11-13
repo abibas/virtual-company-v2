@@ -65,6 +65,13 @@ describe('the container that enrolls on its first start', () => {
       expect(dockerfile).toContain(env);
     }
     expect(dockerfile).toContain('VOLUME /var/lib/mwc-runner /work');
+    // Claude Code's store (its conversations and, through CLAUDE_CONFIG_DIR, its .claude.json) and Codex's home are
+    // volumes too, made and owned by the runner user, so a rebuild keeps the chats' conversations.
+    expect(dockerfile).toMatch(/^VOLUME .* \/home\/runner\/\.claude \/home\/runner\/\.codex$/m);
+    expect(dockerfile).toContain('mkdir -p /home/runner/.local/bin /home/runner/.claude /home/runner/.codex');
+    expect(dockerfile).toContain('chown -R runner:runner /home/runner/.local /home/runner/.claude /home/runner/.codex');
+    expect(dockerfile).toContain('CLAUDE_CONFIG_DIR=/home/runner/.claude');
+    expect(dockerfile).toContain('CODEX_HOME=/home/runner/.codex');
     // The work volume's folder, owned by the runner user, so a new named volume starts writable by it.
     expect(dockerfile).toContain('mkdir -p /opt/mwc-runner /var/lib/mwc-runner /work');
     expect(dockerfile).toContain('chown runner:runner /var/lib/mwc-runner /work');
@@ -86,6 +93,9 @@ describe('the container that enrolls on its first start', () => {
     expect(service).toContain('- runner-state:/var/lib/mwc-runner');
     // Agents' home folders survive restarts and rebuilds in the work volume.
     expect(service).toContain('- runner-work:/work');
+    // So do the harnesses' own stores: a chat resumes its conversation after Update container.
+    expect(service).toContain('- runner-claude:/home/runner/.claude');
+    expect(service).toContain('- runner-codex:/home/runner/.codex');
     expect(service).toContain("fetch('http://127.0.0.1:9953/healthz')");
     expect(service).toContain('stop_grace_period: 90s');
     // The limits the add sheet chooses (2 CPUs, 4 GB and 2 runs at once by default), and a cap on processes.
@@ -95,6 +105,8 @@ describe('the container that enrolls on its first start', () => {
     expect(service).toMatch(/^ {4}pids_limit: \d+$/m);
     expect(compose).toMatch(/^ {2}runner-state:$/m);
     expect(compose).toMatch(/^ {2}runner-work:$/m);
+    expect(compose).toMatch(/^ {2}runner-claude:$/m);
+    expect(compose).toMatch(/^ {2}runner-codex:$/m);
     // The dev Postgres is the only service without a profile: plain `docker compose up` starts just it.
     expect(compose.match(/^ {2}[a-z-]+:$/gm)?.slice(0, 2)).toEqual(['  postgres:', '  runner-local:']);
     expect(compose.slice(0, compose.indexOf('  runner-local:'))).not.toContain('profiles:');

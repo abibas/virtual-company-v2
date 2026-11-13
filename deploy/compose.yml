@@ -6,7 +6,8 @@
 #   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
 #     docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner up -d runner-local
 #   docker compose -p mwc-runner-docker-runner -f deploy/compose.yml --profile runner down -v   # removes that runner
-#   (-v also drops its volumes: its runner key, its agents' home folders in /work and the CLIs it installed)
+#   (-v also drops its volumes: its runner key, its agents' home folders in /work, the CLIs it installed and Claude
+#   Code's and Codex's own stores with the chats' conversations)
 #
 # The prod-like stack (server image, migrate step, its own Postgres) is deploy/compose.prod.yml.
 name: mwc-v2
@@ -39,7 +40,9 @@ services:
   # sheet chooses its CPUs, memory (Docker caps it there) and runs at once (MWC_RUNNER_SLOTS, read when it enrolls).
   # Its agents' home folders live in the runner-work volume at /work, the only folders it browses and makes, so they
   # survive restarts and image rebuilds (down -v removes them with the runner). The CLIs its card installs or updates
-  # live in the runner-cli volume (/home/runner/.local, first on the PATH), so they outlast rebuilds too.
+  # live in the runner-cli volume (/home/runner/.local, first on the PATH), so they outlast rebuilds too. Claude Code's
+  # store (CLAUDE_CONFIG_DIR, the image's: its conversations and .claude.json) is the runner-claude volume and Codex's
+  # home (CODEX_HOME) the runner-codex volume, so a chat resumes its conversation after Update container.
   runner-local:
     profiles: [runner]
     image: mwc-v2/runner:local
@@ -63,6 +66,8 @@ services:
       - runner-state:/var/lib/mwc-runner
       - runner-work:/work
       - runner-cli:/home/runner/.local
+      - runner-claude:/home/runner/.claude
+      - runner-codex:/home/runner/.codex
     healthcheck:
       test:
         [
@@ -84,3 +89,5 @@ volumes:
   runner-state:
   runner-work:
   runner-cli:
+  runner-claude:
+  runner-codex:

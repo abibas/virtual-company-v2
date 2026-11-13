@@ -11,7 +11,11 @@
 # home folders live in the volume /work, owned by runner: the only folders its folder browser reads and makes (a named
 # volume copies this ownership when it is first mounted), so they survive restarts and image rebuilds. The CLIs the
 # card's Install / Update puts there (npm, `--prefix ~/.local`) live in the volume /home/runner/.local, first on the
-# PATH, so an updated Claude Code or Codex comes before the image's own and outlasts rebuilds too.
+# PATH, so an updated Claude Code or Codex comes before the image's own and outlasts rebuilds too. Claude Code's own
+# store (its conversations, which a chat resumes, and its .claude.json) is the volume /home/runner/.claude, named by
+# CLAUDE_CONFIG_DIR (so .claude.json lives inside it too), and Codex's home for a person's own `codex` in the terminal is
+# the volume /home/runner/.codex (CODEX_HOME; a turn's Codex runs in the runner's own folder under the state volume),
+# so a rebuild keeps both (docs/machines.md, "The Docker runner's volumes").
 #
 #   docker build -f deploy/Dockerfile.runner -t mwc-v2/runner:local .
 #   MWC_ENROLL_TOKEN=mwc_et_... MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MWC_RUNNER_MEMORY=4g MWC_RUNNER_SLOTS=2 \
@@ -50,8 +54,9 @@ RUN apt-get update \
  && npm cache clean --force \
  && command -v claude codex \
  && useradd --create-home --uid 10001 --user-group runner \
- && mkdir -p /home/runner/.local/bin \
- && chown -R runner:runner /home/runner/.local \
+ && mkdir -p /home/runner/.local/bin /home/runner/.claude /home/runner/.codex \
+ && chown -R runner:runner /home/runner/.local /home/runner/.claude /home/runner/.codex \
+ && chmod 0700 /home/runner/.claude /home/runner/.codex \
  && mkdir -p /opt/mwc-runner /var/lib/mwc-runner /work \
  && chown runner:runner /var/lib/mwc-runner /work \
  && chmod 0700 /var/lib/mwc-runner \
@@ -64,13 +69,15 @@ ENV NODE_ENV=production \
     MWC_RUNNER_IN_CONTAINER=1 \
     MWC_RUNNER_STATE_DIR=/var/lib/mwc-runner \
     MWC_RUNNER_CONFIG=/var/lib/mwc-runner/runner.json \
-    MWC_RUNNER_HOLD=none
+    MWC_RUNNER_HOLD=none \
+    CLAUDE_CONFIG_DIR=/home/runner/.claude \
+    CODEX_HOME=/home/runner/.codex
 COPY --from=bundle /app/apps/runner/dist/runner.mjs /opt/mwc-runner/runner.mjs
 COPY --from=bundle /app/apps/runner/dist/runner.json /opt/mwc-runner/runner.json
 COPY --from=bundle /out/node_modules /opt/mwc-runner/node_modules
 USER runner
 WORKDIR /home/runner
-VOLUME /var/lib/mwc-runner /work /home/runner/.local
+VOLUME /var/lib/mwc-runner /work /home/runner/.local /home/runner/.claude /home/runner/.codex
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:9953/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 # tini forwards SIGTERM to the runner (which stops its runs and releases its hold) and reaps what it leaves.

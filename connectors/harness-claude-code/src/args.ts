@@ -19,9 +19,12 @@ export const CLAUDE_COMMAND = 'claude';
 export const TURN_ARGS = ['-p', '--output-format', 'stream-json', '--verbose'] as const;
 
 /**
- * The variables that pick Claude Code's account, endpoint and config folder. The ones a turn does not set are removed
- * from the runner's own environment, so the access profile alone decides: an `ANTHROPIC_API_KEY` left on the machine
- * would otherwise win over the profile's subscription.
+ * The variables that pick Claude Code's account and endpoint. The ones a turn does not set are removed from the
+ * runner's own environment, so the access profile alone decides: an `ANTHROPIC_API_KEY` left on the machine would
+ * otherwise win over the profile's subscription. `CLAUDE_CONFIG_DIR` is not one of them (since 2026-11-13): the
+ * machine's own value is where its Claude Code keeps its conversations (`~/.claude` without one), so a turn keeps it
+ * unless the placement names its own folder. The Docker runner's image sets it to a volume, so its conversations
+ * outlast a rebuild; a login file there never wins over the turn's own credential variable.
  */
 export const CLAUDE_ACCOUNT_VARS = [
   'CLAUDE_CODE_OAUTH_TOKEN',
@@ -32,7 +35,6 @@ export const CLAUDE_ACCOUNT_VARS = [
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CODE_USE_FOUNDRY',
-  'CLAUDE_CONFIG_DIR',
 ] as const;
 
 /**

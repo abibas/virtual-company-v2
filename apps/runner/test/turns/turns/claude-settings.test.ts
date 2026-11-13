@@ -60,4 +60,17 @@ describe("a Claude Code turn's settings file", () => {
     expect(w.spawn.calls[0]?.options.env).not.toHaveProperty('ANTHROPIC_BASE_URL');
     expect(host.dirs.inUse).toEqual([]);
   });
+  it("keeps the machine's own CLAUDE_CONFIG_DIR (the Docker runner's volume), and a placement's folder over it", async () => {
+    const env = { PATH: '/usr/bin', CLAUDE_CONFIG_DIR: '/home/runner/.claude', ANTHROPIC_API_KEY: 'stray' };
+    const drivers = { claude_code: new ClaudeCodeDriver({ command: FAKE_COMMAND }) };
+    const { host, cwd } = fakeHarnessHost({ drivers, env });
+    const w = turnsWorld({ host });
+    w.spawn.when(FAKE_COMMAND, (child) => child.finish('', 0));
+    start(w, fakeTurnSpec('claude_code', { cwd }));
+    start(w, fakeTurnSpec('claude_code', { cwd, configDir: '/home/runner/.claude-slop' }));
+    await vi.waitFor(() => expect(w.ends()).toHaveLength(2));
+    expect(w.spawn.calls[0]?.options.env).toMatchObject({ CLAUDE_CONFIG_DIR: '/home/runner/.claude' });
+    expect(w.spawn.calls[1]?.options.env).toMatchObject({ CLAUDE_CONFIG_DIR: '/home/runner/.claude-slop' });
+    for (const call of w.spawn.calls) expect(call.options.env).not.toHaveProperty('ANTHROPIC_API_KEY');
+  });
 });
