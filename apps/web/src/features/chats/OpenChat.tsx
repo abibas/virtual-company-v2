@@ -27,6 +27,7 @@ import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx
 import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
 import { chatMachine, fixOf } from './machine-context.ts';
+import { RunnerUpdateNotice } from './RunnerUpdateNotice.tsx';
 import { chatRunsMenus } from './runs/chat-runs.tsx';
 import { useThreadAuthors } from './thread/authors.ts';
 import { ChatThread } from './thread/ChatThread.tsx';
@@ -224,6 +225,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   };
   const closed = closedWhy(chat, admin, placement);
   const placeholder = asking(thread) ? 'Answer above, or write your answer here' : `Message ${agent.name}`;
+  const runnerUpdate = admin ? live.detail.data?.runnerUpdateFor : null;
   return (
     <>
       <ChatHeader {...header} stream={live.stream} onMode={setMode} onProfile={actions.changeProfile} />
@@ -244,6 +246,9 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
               history={{ live: live.earlier, folds }}
               {...branchView(calls, live, chat, admin, rest)}
             />
+            {runnerUpdate && (
+              <RunnerUpdateNotice companyId={companyId} machineId={chat.machineId} tools={runnerUpdate} />
+            )}
             <Composer
               running={running !== undefined}
               choices={choices}

@@ -58,6 +58,11 @@ export function machineToolsHref(machinesHref: string, machineId: string): strin
   return `${machinesHref}?machine=${encodeURIComponent(machineId)}#tools`;
 }
 
+/** A machine's card on the Machines page: `<machines>?machine=<id>`. */
+export function machineCardHref(machinesHref: string, machineId: string): string {
+  return `${machinesHref}?machine=${encodeURIComponent(machineId)}`;
+}
+
 /** The ids the deep link scrolls to: a machine's card, and its Tools part. */
 export const machineCardId = (machineId: string) => `machine-${machineId}`;
 export const machineToolsId = (machineId: string) => `machine-${machineId}-tools`;
