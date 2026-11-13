@@ -49,7 +49,7 @@ const branchRoute = (deps: ServerDeps) => {
   });
 };
 
-export function branchRoutes(deps: ServerDeps, changed: ChatChanged = () => undefined) {
+export function branchRoutes(deps: ServerDeps, changed: ChatChanged) {
   return newRouter().openapi(branchRoute(deps), async (c) => {
     const { chatId } = c.req.valid('param');
     const result = await branchChat(c.var.tenant, chatCaller(c.var), chatId, c.req.valid('json').turnId);

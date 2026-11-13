@@ -157,11 +157,7 @@ const archiveRoute = (deps: ServerDeps) => {
 /** Tells the chats' activity that a chat was begun, renamed or archived (the bus's `changed`). */
 export type ChatChanged = (chatId: string) => void;
 
-export function chatRoutes(
-  deps: ServerDeps,
-  live: ChatDetailLive = {},
-  changed: ChatChanged = () => undefined,
-) {
+export function chatRoutes(deps: ServerDeps, live: ChatDetailLive, changed: ChatChanged) {
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
       const result = await listChats(c.var.tenant, c.req.valid('param').agentId);
