@@ -67,6 +67,8 @@ export interface SlackUser {
   readonly isBot: boolean;
   readonly deleted: boolean;
   readonly timeZone: string | null;
+  /** Their avatar's address (72 px), when Slack gives one. */
+  readonly image: string | null;
 }
 
 /** A message search's hit. */
@@ -150,6 +152,8 @@ export interface SlackApi {
   ): Promise<SlackPage<SlackUser>>;
   /** `users.info`: one person by their id. */
   userInfo(signIn: SlackSignIn, user: string): Promise<SlackUser>;
+  /** `users.lookupByEmail` (`users:read.email`): one person by their email. */
+  lookupUserByEmail(signIn: SlackSignIn, email: string): Promise<SlackUser>;
   /** `chat.postMessage`: posts a message (`link_names` off, links not unfurled). */
   postMessage(signIn: SlackSignIn, post: SlackPost): Promise<SlackPosted>;
   /** `reactions.add`: adds an emoji reaction (its name without colons) to a message. */

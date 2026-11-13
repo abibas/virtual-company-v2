@@ -44,6 +44,9 @@ export function slackClient(options: HttpOptions): SlackApi {
     async userInfo(signIn, user) {
       return userOf(obj((await call(signIn, 'users.info', { user })).user));
     },
+    async lookupUserByEmail(signIn, email) {
+      return userOf(obj((await call(signIn, 'users.lookupByEmail', { email })).user));
+    },
     async postMessage(signIn, post) {
       const body = await call(signIn, 'chat.postMessage', {
         channel: post.channel,

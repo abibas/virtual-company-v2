@@ -65,6 +65,14 @@ export type {
   SearchQuery,
 } from './github.ts';
 export type {
+  SlackInboundMessage,
+  SlackSocket,
+  SlackSocketHandlers,
+  SlackSocketState,
+  SlackSocketStatus,
+  SlackSockets,
+} from './slack/socket.ts';
+export type {
   SlackApi,
   SlackChannel,
   SlackConversationType,

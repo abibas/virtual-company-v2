@@ -76,6 +76,7 @@ describe('the Slack answers', () => {
       isBot: false,
       deleted: true,
       timeZone: null,
+      image: null,
     };
     expect(userView(user)).toEqual({ id: 'U1', name: 'ihor', deleted: true });
     expect(userName(user)).toBe('ihor');

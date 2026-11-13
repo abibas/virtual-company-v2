@@ -79,6 +79,7 @@ export function userOf(raw: Raw): SlackUser {
     isBot: bool(raw.is_bot),
     deleted: bool(raw.deleted),
     timeZone: str(raw.tz),
+    image: str(profile.image_72) ?? str(profile.image_48),
   };
 }
 

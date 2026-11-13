@@ -97,19 +97,25 @@ describe('the Slack connector', () => {
     expect(calls[1]?.form).toEqual({ channel: 'C0123ABCD', ts: '1731490000.000100', limit: '50' });
   });
 
-  it('lists the people and reads one', async () => {
+  it('lists the people, reads one and finds one by email', async () => {
     const user = {
       id: 'U01',
       name: 'ihor',
       real_name: 'Ihor Herasko',
       tz: 'Europe/Kyiv',
-      profile: { display_name: 'Ihor', title: 'CEO' },
+      profile: { display_name: 'Ihor', title: 'CEO', image_72: 'https://avatars.slack-edge.com/u01_72.png' },
     };
-    const { api } = client({
-      'users.list': ok({
-        members: [user, { id: 'U02', name: 'ci', is_bot: true, deleted: true, profile: { real_name: 'CI' } }],
-      }),
+    const ci = {
+      id: 'U02',
+      name: 'ci',
+      is_bot: true,
+      deleted: true,
+      profile: { real_name: 'CI', image_48: 'x' },
+    };
+    const { api, calls } = client({
+      'users.list': ok({ members: [user, ci] }),
       'users.info': ok({ user }),
+      'users.lookupByEmail': ok({ user }),
     });
     const page = await api.listUsers(SIGN_IN, { limit: 100 });
     expect(page.items).toEqual([
@@ -122,6 +128,7 @@ describe('the Slack connector', () => {
         isBot: false,
         deleted: false,
         timeZone: 'Europe/Kyiv',
+        image: 'https://avatars.slack-edge.com/u01_72.png',
       },
       {
         id: 'U02',
@@ -132,9 +139,12 @@ describe('the Slack connector', () => {
         isBot: true,
         deleted: true,
         timeZone: null,
+        image: 'x',
       },
     ]);
     expect((await api.userInfo(SIGN_IN, 'U01')).title).toBe('CEO');
+    expect((await api.lookupUserByEmail(SIGN_IN, 'ihor@airia.com')).id).toBe('U01');
+    expect(calls.at(-1)).toMatchObject({ method: 'users.lookupByEmail', form: { email: 'ihor@airia.com' } });
   });
 
   it('posts with no mention parsing or unfurls, as the name and icon given, as plain text', async () => {
