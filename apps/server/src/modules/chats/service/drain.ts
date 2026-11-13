@@ -100,9 +100,7 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
   const used = { credentialId, ownerUserId, kind };
   const where = { machineId: chat.machineId, agent: target.agent };
   const sent = await launch(deps, t, row, where, used, spec.data, draft);
-  if (sent.ok && sent.turn.status !== 'failed') return 'started';
-  if (sent.ok) deps.live.bus.publish(chatId, { kind: 'turn', turn: sent.turn });
-  return 'failed';
+  return sent.ok && sent.turn.status !== 'failed' ? 'started' : 'failed';
 }
 
 /** Starts waiting turns until one runs or none waits. */

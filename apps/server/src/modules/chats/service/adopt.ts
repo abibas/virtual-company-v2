@@ -8,6 +8,7 @@ import { chatsRepo } from '../repo.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { endedAway, reclaim, SERVER_RESTARTED } from './reclaim.ts';
 import { type TaskTurnHook, taskContext, taskDraft } from './task-hook.ts';
+import { turnView } from './views.ts';
 
 export { SERVER_RESTARTED };
 
@@ -16,7 +17,7 @@ export { SERVER_RESTARTED };
  * still running in the database, of a chat on its machine and held by no sink of this process, gets a sink built from
  * the turn's row (the credential it runs on, its task's step and round) and its stored events. Since 2026-11-12 so does
  * a turn the server already failed because its runner was away, when `reclaim` takes it back (nothing else started in
- * its chat, its task did not move). Once the grace after the start is over, every running turn a stopped server left
+ * its chat, its task did not move), told to the chat's stream as running again. Once the grace after the start is over, every running turn a stopped server left
  * that no runner took back ends through such a sink with `server_restarted`, so its task is blocked and the chat's
  * waiting messages start, as any turn's end.
  */
@@ -62,6 +63,7 @@ async function sinkOf(
   const taskTurn = chat.taskId !== null && chat.taskStepId !== null && found.kind === 'message';
   const turn = late ? await reclaim(deps, t, found, { task, taskTurn }) : found;
   if (turn === undefined) return undefined;
+  if (late) deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(turn) });
   const context = { task, agentPrincipalId: agent?.principalId };
   return deps.live.sink(t, turn, await usedOf(t, turn), context, true);
 }

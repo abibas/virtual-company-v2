@@ -227,7 +227,8 @@ export const specIssues = (error: {
 
 /**
  * Sends the recorded turn to its machine's runner and tells the stream (and, for a task's turn, the tasks module); one
- * gone in the meantime fails it at once (`machine_offline`). Its sink knows the chat's agent, whose tools it answers.
+ * gone in the meantime fails it at once (`machine_offline`), told to the stream too: a turn Most Wanted started has no
+ * page waiting for the answer. Its sink knows the chat's agent, whose tools it answers.
  */
 export async function launch(
   deps: TurnsDeps,
@@ -245,7 +246,9 @@ export async function launch(
   if (channel === undefined) {
     deps.live.forget(turn.id);
     const ended = { status: 'failed', error: MACHINE_OFFLINE.code, endedAt: deps.clock() } as const;
-    return { ok: true, turn: turnView((await turnsRepo.updateLive(t, turn.id, ended)) ?? turn) };
+    const failed = turnView((await turnsRepo.updateLive(t, turn.id, ended)) ?? turn);
+    deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: failed });
+    return { ok: true, turn: failed };
   }
   deps.live.started(turn.id, channel);
   deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(turn) });

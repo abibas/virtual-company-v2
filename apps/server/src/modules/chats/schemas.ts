@@ -6,6 +6,7 @@ import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
 import { ChatContextSchema } from './schemas/context.ts';
 import { ChatEarlierSchema } from './schemas/history.ts';
 import { ChatOverridesSchema, ProfileRunsSchema, turnRunFields } from './schemas/overrides.ts';
+import { turnSenderFields } from './schemas/sender.ts';
 
 export { ChatContextSchema, type ChatContextView } from './schemas/context.ts';
 
@@ -114,6 +115,7 @@ export const ChatTurnSchema = z
       description:
         "Queued by Most Wanted itself, not by a person (S6c: a Lead's wake-up); `createdBy` is then the agent",
     }),
+    ...turnSenderFields,
     profileId: z.string().nullable(),
     credentialId: z
       .string()

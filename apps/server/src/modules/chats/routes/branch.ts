@@ -7,7 +7,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { BranchChatSchema } from '../schemas/branch.ts';
 import { ChatParamsSchema, ChatSchema } from '../schemas.ts';
 import { branchChat } from '../service/branch.ts';
-import { chatCaller } from './chats.ts';
+import { type ChatChanged, chatCaller } from './chats.ts';
 
 /**
  * Branching a conversation (docs/harness.md "Branching"): `POST /api/companies/{companyId}/chats/{chatId}/branch`
@@ -49,11 +49,12 @@ const branchRoute = (deps: ServerDeps) => {
   });
 };
 
-export function branchRoutes(deps: ServerDeps) {
+export function branchRoutes(deps: ServerDeps, changed: ChatChanged = () => undefined) {
   return newRouter().openapi(branchRoute(deps), async (c) => {
     const { chatId } = c.req.valid('param');
     const result = await branchChat(c.var.tenant, chatCaller(c.var), chatId, c.req.valid('json').turnId);
     if (!result.ok) return errorJson(c, result.status as 404 | 409, result.code, result.message);
+    changed(result.chat.id);
     return c.json(result.chat, 201);
   });
 }

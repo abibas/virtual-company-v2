@@ -1,4 +1,4 @@
-import type { TenantDb } from '@mwc/db';
+import type { Chat, TenantDb } from '@mwc/db';
 import type { ServerDeps } from '../../platform/env.ts';
 import { newRouter } from '../../platform/http/router.ts';
 import { SYSTEM_TIMERS } from '../../platform/jobs/runner.ts';
@@ -6,6 +6,7 @@ import type { Keyring } from '../../platform/secrets/keyring.ts';
 import { credentialsForHarness, providerFetchFor } from '../credentials/index.ts';
 import type { MachineWake, RunnerHub, TerminalTickets } from '../machines/index.ts';
 import { standingReader } from '../org/index.ts';
+import { activityRoutes } from './routes/activity.ts';
 import { answerRoutes } from './routes/answers.ts';
 import { branchRoutes } from './routes/branch.ts';
 import { chatRoutes } from './routes/chats.ts';
@@ -105,26 +106,27 @@ export type ChatsRuntime = ReturnType<typeof chatsRuntime>;
  * The chats module's routes (S5.1b, docs/harness.md "How a turn runs"): chats with an agent (with their own mode, model
  * and effort since 2026-11-13), their turns (the older
  * ones a page at a time), a branch from a reply, Compact and Clear (S5.2), answers to the agent's questions (S5.2 step
- * 4), the messages that wait for a running turn (S5.2 step 6), the chat's stream and its terminal, your direct reports'
+ * 4), the messages that wait for a running turn (S5.2 step 6), the chat's stream and its terminal, the company's chats'
+ * activity (2026-11-13: every chat begun, changed or with a turn that moved, live), your direct reports'
  * main chats with you (the right rail's Chats), on the app's runtime
  * (`chatsRuntime`, one of its own when none is given).
  */
 export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntime(deps)) {
   const { turns, queue, live } = runtime;
   const queued = { ...turns, queue };
+  const changed = (chatId: string) => live.bus.changed(chatId);
+  const detail = { awayOf: live.awayOf, runnerUpdateFor: (t: TenantDb, chat: Chat) => runnerUpdateFor(deps, t, chat) };
   return newRouter()
-    .route(
-      '/',
-      chatRoutes(deps, { awayOf: live.awayOf, runnerUpdateFor: (t, chat) => runnerUpdateFor(deps, t, chat) }),
-    )
+    .route('/', chatRoutes(deps, detail, changed))
     .route('/', overrideRoutes(deps))
     .route('/', reportChatRoutes(deps))
-    .route('/', branchRoutes(deps))
+    .route('/', branchRoutes(deps, changed))
     .route('/', turnRoutes(queued))
     .route('/', historyRoutes(deps))
     .route('/', queueRoutes(queued))
     .route('/', conversationRoutes(turns))
     .route('/', answerRoutes(turns))
     .route('/', streamRoutes(deps, { bus: live.bus }))
+    .route('/', activityRoutes(deps, { bus: live.bus }))
     .route('/', chatTerminalRoutes({ ...turns, tickets: deps.tickets }));
 }

@@ -8,7 +8,7 @@ import {
   type TenantSet,
   type TenantValues,
 } from '@mwc/db';
-import { and, asc, eq, gt, gte, inArray, isNotNull, max } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, max } from 'drizzle-orm';
 
 /** A chat's turns and their events (S5.1b), through the company's tenant only. */
 
@@ -38,6 +38,12 @@ async function liveOf(t: TenantDb, chatId: string): Promise<ChatTurn | undefined
     chatTurns,
     and(eq(chatTurns.chatId, chatId), inArray(chatTurns.status, ['queued', 'running'])),
   );
+  return row;
+}
+
+/** The chat's latest turn (its highest number), undefined before its first. */
+async function lastOf(t: TenantDb, chatId: string): Promise<ChatTurn | undefined> {
+  const [row] = await t.select(chatTurns, eq(chatTurns.chatId, chatId)).orderBy(desc(chatTurns.seq)).limit(1);
   return row;
 }
 
@@ -114,6 +120,7 @@ export const turnsRepo = {
   byId,
   ofChat,
   liveOf,
+  lastOf,
   lastSeq,
   insert,
   updateLive,

@@ -27,7 +27,8 @@ import {
 /**
  * A chat with an agent (S5.1b): `GET|POST /api/companies/{companyId}/agents/{agentId}/chats` and
  * `GET|PATCH|DELETE /api/companies/{companyId}/chats/{chatId}`. Members and above read; admins and owners begin, change
- * and archive chats. Another company's agent or chat is the same 404 as an unknown one.
+ * and archive chats. Another company's agent or chat is the same 404 as an unknown one. Each change is told to the
+ * chats' activity (`changed`, 2026-11-13).
  */
 
 const AGENT_CHATS = '/api/companies/{companyId}/agents/{agentId}/chats' as const;
@@ -153,7 +154,10 @@ const archiveRoute = (deps: ServerDeps) => {
   });
 };
 
-export function chatRoutes(deps: ServerDeps, live: ChatDetailLive = {}) {
+/** Tells the chats' activity that a chat was begun, renamed or archived (the bus's `changed`). */
+export type ChatChanged = (chatId: string) => void;
+
+export function chatRoutes(deps: ServerDeps, live: ChatDetailLive = {}, changed: ChatChanged = () => undefined) {
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
       const result = await listChats(c.var.tenant, c.req.valid('param').agentId);
@@ -165,6 +169,7 @@ export function chatRoutes(deps: ServerDeps, live: ChatDetailLive = {}) {
       const result = await createChat(c.var.tenant, chatCaller(c.var), agentId, c.req.valid('json'));
       if (!result.ok)
         return errorJson(c, result.status as 403 | 404 | 409 | 422, result.code, result.message);
+      changed(result.chat.id);
       return c.json(result.chat, 201);
     })
     .openapi(getChatRoute(deps), async (c) => {
@@ -176,12 +181,14 @@ export function chatRoutes(deps: ServerDeps, live: ChatDetailLive = {}) {
       const { chatId } = c.req.valid('param');
       const result = await updateChat(c.var.tenant, chatCaller(c.var), chatId, c.req.valid('json'));
       if (!result.ok) return errorJson(c, result.status as 403 | 404 | 422, result.code, result.message);
+      changed(result.chat.id);
       return c.json(result.chat, 200);
     })
     .openapi(archiveRoute(deps), async (c) => {
       const { chatId } = c.req.valid('param');
       const result = await archiveChat(c.var.tenant, chatCaller(c.var), chatId, c.var.clock());
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
+      changed(chatId);
       return c.body(null, 204);
     });
 }

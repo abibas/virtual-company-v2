@@ -74,6 +74,7 @@ export function teamTitle(flowName: string): string {
 
 /** The flow's team chat with the Lead agent (see above), made when there is none that can go on; or why not. */
 async function teamChat(
+  deps: QueueDeps,
   t: TenantDb,
   request: Pick<LeadWakeRequest, 'flowId' | 'flowName' | 'agentPrincipalId'>,
 ): Promise<Chat | Refusal> {
@@ -96,6 +97,7 @@ async function teamChat(
     createdBy: agent.principalId,
   });
   await auditChat(t, null, chat, 'create', null);
+  deps.live.bus.changed(chat.id);
   return chat;
 }
 
@@ -133,7 +135,7 @@ const failedAtOnce = (error: string | null) =>
 export function teamChats(deps: QueueDeps): TeamChats {
   return {
     async wake(t, request) {
-      const chat = await teamChat(t, request);
+      const chat = await teamChat(deps, t, request);
       if (!('id' in chat)) return chat;
       const joined = await joinWaiting(deps, t, chat, request.prompt);
       if (joined !== undefined) return { ok: true, chatId: chat.id, turnId: joined.id, merged: true };
@@ -146,7 +148,7 @@ export function teamChats(deps: QueueDeps): TeamChats {
       return { ok: true, chatId: chat.id, turnId: sent.turn.id, merged: false };
     },
     async say(t, request) {
-      const chat = await teamChat(t, request);
+      const chat = await teamChat(deps, t, request);
       if (!('id' in chat)) return chat;
       const joined = await joinRoomTurn(deps, t, chat, request);
       if (joined !== undefined) return { ok: true, chatId: chat.id, turnId: joined.id, merged: true };

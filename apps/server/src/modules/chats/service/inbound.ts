@@ -18,7 +18,7 @@ import type { SystemTurnEnd } from './task-hook.ts';
  * messages"), the chats module's side, which the integrations module asks through `InboundChats` (passed in by
  * `app.ts`). The conversation's chat goes on while it can (not archived, the agent's harness and machine unchanged),
  * else a new one with the title given is made by Most Wanted (audited as the system); it is one of the agent's own
- * chats, so it shows in its chat list. The message goes there as a turn Most Wanted queued (`system`, the agent as its
+ * chats, so it shows in its chat list, at once (told to the chats' activity). The message goes there as a turn Most Wanted queued (`system`, the agent as its
  * sender), "after this turn": at once while nothing runs there, else behind the running turn. Every check of a turn
  * holds (the placement, the runner, the profile); a paused agent is not woken. A stopped machine starts when its policy
  * starts it for a message, and the turn waits for it. Its end, as every system turn's, is told to `InboundTurnHook`.
@@ -65,6 +65,7 @@ export async function tellInbound(
 
 /** The conversation's chat if it can go on, else a new one; or why the agent cannot take a turn. */
 async function conversationChat(
+  deps: QueueDeps,
   t: TenantDb,
   request: InboundTurnRequest,
 ): Promise<{ readonly chat: Chat; readonly created: boolean } | Refusal> {
@@ -92,6 +93,7 @@ async function conversationChat(
     createdBy: agent.principalId,
   });
   await auditChat(t, null, chat, 'create', null);
+  deps.live.bus.changed(chat.id);
   return { chat, created: true };
 }
 
@@ -99,7 +101,7 @@ async function conversationChat(
 export function inboundChats(deps: QueueDeps): InboundChats {
   return {
     async send(t, request) {
-      const found = await conversationChat(t, request);
+      const found = await conversationChat(deps, t, request);
       if (!('chat' in found)) return found;
       const { chat, created } = found;
       const wake = { trigger: 'message' as const, reason: request.reason };
