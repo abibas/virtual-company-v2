@@ -1,20 +1,24 @@
 import type { ChatTurn, TenantDb } from '@mwc/db';
-import type { CredentialKind } from '@mwc/shared/enums';
 import type { TurnEvent } from '@mwc/shared/harness';
 import type { TurnEventItem } from '@mwc/shared/runner-protocol';
 import type { Logger } from 'pino';
-import type { CredentialsForHarness } from '../../credentials/index.ts';
-import type { TurnChannel, TurnEnding, TurnSink } from '../../machines/index.ts';
+import type { TurnChannel, TurnSink } from '../../machines/index.ts';
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
-import { endedTurn, type TurnOutcome, withEvent } from '../rules.ts';
+import { type TurnOutcome, withEvent } from '../rules.ts';
 import { noticeQuestion } from './ask-notice.ts';
 import { type ChatBus, chatBus } from './bus.ts';
-import { heldForSlot } from './live-slot.ts';
+import {
+  ended,
+  type Live,
+  type LiveDeps,
+  type LiveTurn,
+  type StartAfresh,
+  type TurnCredential,
+} from './live-end.ts';
 import { NO_TOOLS_HERE, toolCall } from './live-tools.ts';
-import type { ServerToolsHook } from './server-tools.ts';
-import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
+import type { TaskTurnContext } from './task-hook.ts';
 import { streamEvent, turnView } from './views.ts';
 
 /**
@@ -31,32 +35,12 @@ import { streamEvent, turnView } from './views.ts';
  * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events. An agent's
  * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end. A
  * turn the runner refuses for a full machine (`busy`) waits for a free slot instead of ending (`live-slot.ts`). A turn
- * Most Wanted queued tells the tasks module's hook its end too (`systemEnded`: the team room posts its reply).
+ * Most Wanted queued tells the tasks module's hook its end too (`systemEnded`: the team room posts its reply). How an end
+ * closes the turn, or starts it again on a fresh conversation when the harness lost its own (S7, 2026-11-13), is
+ * `live-end.ts`'s.
  */
 
-/** The subscription a turn runs on: which credential, whose, of which kind (a Codex login is sealed again). */
-export interface TurnCredential {
-  readonly credentialId: string;
-  readonly ownerUserId: string;
-  readonly kind: CredentialKind;
-}
-
-export interface LiveDeps {
-  readonly logger: Logger;
-  readonly clock: () => Date;
-  readonly credentials: CredentialsForHarness;
-  /** The tasks module's side of a task's conversation (S5.3b). */
-  readonly tasks?: TaskTurnHook | undefined;
-  /** The server's own tools (S7.1c), whose calls skip the write queue. */
-  readonly serverTools?: ServerToolsHook | undefined;
-}
-
-interface LiveTurn {
-  channel: TurnChannel | undefined;
-  stopRequested: boolean;
-  /** Since when its runner is away and the turn waits for it (S5.4); undefined while attached. */
-  detachedAt: Date | undefined;
-}
+export type { LiveDeps, TurnCredential } from './live-end.ts';
 
 /** A running turn's runner is away: since when, when this process saw it go. */
 export interface TurnAway {
@@ -70,25 +54,6 @@ export interface SinkContext {
 }
 
 export { NO_TOOLS_HERE };
-
-/** One turn's end as `ended` writes it. */
-interface Ending {
-  readonly ending: TurnEnding;
-  readonly outcome: TurnOutcome;
-  readonly used: TurnCredential;
-  readonly task: TaskTurnContext | undefined;
-}
-
-/** What the steps of a turn's sink share: the deps, the stream's bus and the live turns. */
-interface Live {
-  readonly deps: LiveDeps;
-  readonly bus: ChatBus;
-  readonly turns: Map<string, LiveTurn>;
-  /** What runs once a turn's end is written (the chats' queue starts the next waiting turn). */
-  ended?: (t: TenantDb, chatId: string) => Promise<void>;
-  /** What runs once a turn the runner refused for a full machine waits for a slot (`live-slot.ts`). */
-  busy?: (t: TenantDb, turn: ChatTurn) => Promise<void>;
-}
 
 /** One turn's writes, in order; a failure is logged and the next write still runs. */
 function queue(logger: Logger, turnId: string) {
@@ -130,41 +95,6 @@ async function stored(
 async function taken(l: Live, t: TenantDb, chatId: string, inputId: string): Promise<void> {
   const gone = await queueRepo.deleteQueued(t, chatId, inputId);
   if (gone !== undefined) l.bus.publish(chatId, { kind: 'removed', turnId: gone.id });
-}
-
-/** Closes the turn's row from its end, and seals again a Codex login the process rewrote. */
-async function ended(l: Live, t: TenantDb, turn: ChatTurn, end: Ending): Promise<void> {
-  const { ending, outcome, used } = end;
-  const hold = { bus: l.bus, clock: l.deps.clock, busy: l.busy };
-  if (await heldForSlot(hold, t, turn, ending)) {
-    l.turns.delete(turn.id);
-    return;
-  }
-  if (ending.authJson !== undefined && used.kind === 'codex_oauth') {
-    await l.deps.credentials.rewriteCodexLogin(
-      used.credentialId,
-      used.ownerUserId,
-      ending.authJson,
-      'chat_turn',
-    );
-  }
-  const stopRequested = l.turns.get(turn.id)?.stopRequested ?? false;
-  l.turns.delete(turn.id);
-  const how = ending.error === undefined ? { ok: ending.ok } : { ok: ending.ok, error: ending.error };
-  const row = await turnsRepo.updateLive(t, turn.id, {
-    ...endedTurn(how, outcome, stopRequested, used.kind),
-    endedAt: l.deps.clock(),
-  });
-  if (row === undefined) return;
-  await chatsRepo.update(t, turn.chatId, { updatedAt: l.deps.clock() });
-  l.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(row) });
-  const { status, resultText, error } = row;
-  if (end.task !== undefined) await l.deps.tasks?.ended(t, end.task, { status, resultText, error });
-  if (row.system && row.kind === 'message') {
-    const which = { chatId: row.chatId, turnId: row.id, roomMessageId: row.roomMessageId };
-    await l.deps.tasks?.systemEnded?.(t, { ...which, status, resultText, error });
-  }
-  await l.ended?.(t, turn.chatId);
 }
 
 export function chatsLive(deps: LiveDeps) {
@@ -213,7 +143,13 @@ export function chatsLive(deps: LiveDeps) {
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
         tool: (call) => toolCall(deps, run, t, { turn, context }, call),
-        end: (ending) => run(() => ended(l, t, turn, { ending, outcome, used, task })),
+        end: async (ending) => {
+          let after: (() => void) | undefined;
+          await run(async () => {
+            after = await ended(l, t, turn, { ending, outcome, used, task });
+          });
+          return after;
+        },
         lastSeq: async () => {
           let seq = 0;
           await run(async () => {
@@ -273,6 +209,10 @@ export function chatsLive(deps: LiveDeps) {
     /** What runs once a turn the runner refused for a full machine waits for a slot. */
     onBusy(then: (t: TenantDb, turn: ChatTurn) => Promise<void>): void {
       l.busy = then;
+    },
+    /** What starts a turn whose conversation the harness lost again on a fresh one (`session-lost.ts`). */
+    onSessionLost(then: StartAfresh): void {
+      l.afresh = then;
     },
     /** Asks the turn's runner to stop it; false when this process has no such live turn. */
     stop(turnId: string): boolean {

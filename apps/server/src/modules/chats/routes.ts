@@ -22,6 +22,7 @@ import { type ChatQueue, chatQueue } from './service/drain.ts';
 import { chatsLive } from './service/live.ts';
 import { machineWaits } from './service/machine-wait.ts';
 import { runnerUpdateFor, type ServerToolsHook } from './service/server-tools.ts';
+import { startAfresh } from './service/session-lost.ts';
 import { slotWaits, slotWordsOf } from './service/slot-wait.ts';
 import type { TaskTurnHook } from './service/task-hook.ts';
 import { taskTurns } from './service/tasks.ts';
@@ -50,7 +51,8 @@ export interface ChatsDeps extends ServerDeps {
  * start is over ends those no runner took back (`server_restarted`). Since S6c it wakes a flow's Lead agent in its team
  * chat for the tasks module (`teamChats`). A turn for a stopped machine waits for it (`machineWaits`): the machine's
  * runner connecting starts its chats' waiting turns, and a start that failed ends them. A turn for a machine with every
- * slot taken waits for a free one (`slotWaits`): each turn's end starts the chats waiting on its machine.
+ * slot taken waits for a free one (`slotWaits`): each turn's end starts the chats waiting on its machine. A turn whose
+ * conversation the harness lost starts again on a fresh one with a recap (`startAfresh`, 2026-11-13).
  */
 export function chatsRuntime(deps: ChatsDeps) {
   const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
@@ -70,6 +72,7 @@ export function chatsRuntime(deps: ChatsDeps) {
     await slots.freed(t, chatId);
   });
   live.onBusy((t, turn) => slots.held(t, turn));
+  live.onSessionLost((t, turn, lost) => startAfresh(turns, t, turn, lost));
   deps.hub.onConnect((runner) => void waits.connected(runner));
   deps.wake.onFailed((failure) => void waits.failed(failure));
   const adopt = { db: deps.db, logger: deps.logger, live, tasks: deps.tasks };

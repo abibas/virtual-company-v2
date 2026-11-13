@@ -16,11 +16,18 @@ import type { TurnToolCall, TurnToolReply } from './tools.ts';
  * back (a channel), who takes a turn back after a restart (the adopter), and a turn's binding to its connection.
  */
 
-/** A turn to start: the server's id and the spec with its credential. */
+/**
+ * A turn to start: the server's id and the spec with its credential; `afterSeq` when the server keeps events of the turn
+ * already (a turn started again on a fresh conversation, `turn.start.afterSeq`), so the runner numbers its own after them.
+ */
 export interface TurnRequest {
   readonly turnId: string;
   readonly spec: TurnSpec;
+  readonly afterSeq?: number | undefined;
 }
+
+/** What runs once the runner heard a turn's `turn.ack` (its run folder gone): the same turn started again. */
+export type AfterAck = () => void;
 
 /** How a turn ended: `turn.end` without its type and turn id. */
 export type TurnEnding = Omit<TurnEnd, 'type' | 'turnId'>;
@@ -42,8 +49,11 @@ export interface TurnSink {
   artifacts?(collected: TurnCollected): void;
   /** An agent's tool call (S6a): the answer the tool returns. */
   tool?(call: TurnToolCall): Promise<TurnToolReply>;
-  /** The end; nothing follows it. Resolves once it is recorded (then the runner hears `turn.ack`). */
-  end(ending: TurnEnding): void | Promise<void>;
+  /**
+   * The end; nothing follows it. Resolves once it is recorded (then the runner hears `turn.ack`), with what runs after
+   * that ack when the turn starts again in its place (a lost conversation started afresh, 2026-11-13).
+   */
+  end(ending: TurnEnding): void | Promise<void | AfterAck>;
   /** The highest event number stored so far, once what came before is stored (S5.4). */
   lastSeq?(): Promise<number>;
   /** Its runner went away (true: it waits for it) or came back with it (false) (S5.4). */

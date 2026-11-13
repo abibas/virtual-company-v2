@@ -40,7 +40,8 @@ export type {
  * in its chat). A hello that leaves out a detached turn of its machine, the grace (30 minutes) running out, and the
  * close of an older runner's connection end the turn (`machine_disconnected: <words>` naming the machine, `awayError`).
  * A stop asked while detached ends the turn at once (a runner that comes back with it hears it is gone and stops it).
- * Once a sink recorded a turn's end, the runner hears `turn.ack`. A task step's collected files
+ * Once a sink recorded a turn's end, the runner hears `turn.ack`, then what the sink said runs after it (the turn
+ * started again on a fresh conversation, under the same id, which the runner frees with the ack). A task step's collected files
  * (S5.3b) are put together here (`artifacts.ts`) and handed to the sink whole, with what the runner left out. An agent's
  * tool call (S6a, `tools.ts`) goes to the sink and its answer back to the runner. The contracts are `turn-types.ts`'s,
  * taking turns back on a hello `turn-resume.ts`'s.
@@ -82,8 +83,9 @@ export function turnBoard(options: TurnBoardOptions = {}) {
     tools.drop(binding.turnId);
     void Promise.resolve(ending)
       .then((last) => binding.sink.end(last))
-      .then(() => {
+      .then((after) => {
         if (ack?.hello?.caps.reattach) send(ack, { type: 'turn.ack', turnId: binding.turnId });
+        after?.();
       });
   };
   /** Ends a turn whose runner went away for good, in words that name its machine (`awayError`). */
@@ -123,7 +125,8 @@ export function turnBoard(options: TurnBoardOptions = {}) {
       const companyId = connection.runner.companyId;
       const binding: Binding = { turnId, companyId, machineId, sink, connection, grace: undefined };
       bindings.set(turnId, binding);
-      send(connection, { type: 'turn.start', turnId, spec: request.spec });
+      const after = request.afterSeq ? { afterSeq: request.afterSeq } : {};
+      send(connection, { type: 'turn.start', turnId, spec: request.spec, ...after });
       return channelOf(binding);
     },
     /** A turn frame from the connection's runner; one of a turn it does not carry is dropped. */

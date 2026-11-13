@@ -118,4 +118,25 @@ describe("the hub's turns", () => {
     expect(board.count('m1')).toBe(1);
     board.close();
   });
+
+  it('start a turn again under its id only after its runner heard the ack, numbering after the server’s events', async () => {
+    const board = turnBoard();
+    const { conn, sent } = connection('m1', true);
+    const turnId = newId();
+    const { sink: again } = sinkOf();
+    const first: TurnSink = {
+      events: () => {},
+      question: () => {},
+      end: async () => () => void board.start(conn, { turnId, spec, afterSeq: 3 }, again),
+    };
+    board.start(conn, { turnId, spec }, first);
+    expect(sent[0]).not.toHaveProperty('afterSeq');
+    board.record(conn, { type: 'turn.end', turnId, ok: false, exitCode: 1, error: 'session_missing: gone' });
+    await settle();
+    expect(sent.slice(1)).toEqual([
+      { type: 'turn.ack', turnId },
+      { type: 'turn.start', turnId, spec, afterSeq: 3 },
+    ]);
+    expect(board.count('m1')).toBe(1);
+  });
 });
