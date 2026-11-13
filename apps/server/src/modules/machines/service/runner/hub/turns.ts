@@ -6,6 +6,7 @@ import { type ArtifactAssembler, artifactAssembler } from './artifacts.ts';
 import { toolCalls } from './tools.ts';
 import { resume } from './turn-resume.ts';
 import {
+  type AfterAck,
   type Binding,
   endingOf,
   sendFrame as send,
@@ -82,7 +83,8 @@ export function turnBoard(options: TurnBoardOptions = {}) {
     files.delete(binding.turnId);
     tools.drop(binding.turnId);
     void Promise.resolve(ending)
-      .then((last) => binding.sink.end(last))
+      // A sink that starts the turn again says what runs after the ack; any other gives nothing.
+      .then(async (last) => (await binding.sink.end(last)) as AfterAck | undefined)
       .then((after) => {
         if (ack?.hello?.caps.reattach) send(ack, { type: 'turn.ack', turnId: binding.turnId });
         after?.();

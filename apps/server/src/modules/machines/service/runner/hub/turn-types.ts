@@ -53,7 +53,7 @@ export interface TurnSink {
    * The end; nothing follows it. Resolves once it is recorded (then the runner hears `turn.ack`), with what runs after
    * that ack when the turn starts again in its place (a lost conversation started afresh, 2026-11-13).
    */
-  end(ending: TurnEnding): void | Promise<void | AfterAck>;
+  end(ending: TurnEnding): void | Promise<void> | Promise<AfterAck | undefined>;
   /** The highest event number stored so far, once what came before is stored (S5.4). */
   lastSeq?(): Promise<number>;
   /** Its runner went away (true: it waits for it) or came back with it (false) (S5.4). */

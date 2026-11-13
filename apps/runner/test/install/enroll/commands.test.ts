@@ -69,7 +69,9 @@ describe('the container that enrolls on its first start', () => {
     // volumes too, made and owned by the runner user, so a rebuild keeps the chats' conversations.
     expect(dockerfile).toMatch(/^VOLUME .* \/home\/runner\/\.claude \/home\/runner\/\.codex$/m);
     expect(dockerfile).toContain('mkdir -p /home/runner/.local/bin /home/runner/.claude /home/runner/.codex');
-    expect(dockerfile).toContain('chown -R runner:runner /home/runner/.local /home/runner/.claude /home/runner/.codex');
+    expect(dockerfile).toContain(
+      'chown -R runner:runner /home/runner/.local /home/runner/.claude /home/runner/.codex',
+    );
     expect(dockerfile).toContain('CLAUDE_CONFIG_DIR=/home/runner/.claude');
     expect(dockerfile).toContain('CODEX_HOME=/home/runner/.codex');
     // The work volume's folder, owned by the runner user, so a new named volume starts writable by it.
