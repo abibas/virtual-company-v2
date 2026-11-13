@@ -312,8 +312,8 @@ server-side use names. S3.4's `access_profiles` is personal too, and company row
 `memberships.default_claude_profile_id` and `default_openai_profile_id`), so `@mwc/db` bridges the two layers in one transaction: `ownedIn(t, userId)` (a
 person's layer on a tenant's connection), `ownersOf(t, table, ids)` (whose personal rows these are, nothing more; the
 rows are then read through their owner's layer) and `o.tenant(companyId)` (a company's tenant on a person's
-connection). The org module reads the profiles its agents point at this way (since S7.1b also the profile's subscription
-and its tool parts' sign-ins, their account details only); the credentials module asks the org
+connection). The org module reads the profiles its agents point at this way (since S7.1b also its tool parts' sign-ins,
+their account details only); the credentials module asks the org
 module's service for the agents using a profile and for the audit rows its removal leaves. The chats module (S5.1b)
 reads the profile a turn runs on the same way and opens its subscriptions through the credentials module's service
 (`credentialsForHarness`). Its one raw access is `modules/chats/repo/reaper.ts` (in the Biome exemption, as the

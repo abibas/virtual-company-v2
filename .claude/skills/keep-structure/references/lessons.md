@@ -30,12 +30,13 @@ Newest first, one entry per lesson:
 
 ### 2026-11-13: A column map for a table's repeated parts, which the schema's barrel cannot hold
 
-- **What happened:** the profile's tool parts (`access_profiles.github_*`, `atlassian_*`) needed one map of each part's
-  columns that the credentials and org modules both read (`PROFILE_TOOL_COLUMNS`). Exported from
-  `schema/credentials.ts`, it broke the diagram test, which treats every export of `schema/index.ts` as a table
-  (`getTableConfig` on a plain object). It went to `packages/db/src/profile-tools.ts` (16 lines), exported by
-  `src/index.ts` beside the schema barrel; its test is in `test/schema/access-profiles-tools.test.ts`.
-- **Where:** the `one-profile` branch, 936d8ae.
+- **What happened:** a generic profile's parts (`access_profiles.claude_*`, `openai_*`, `github_*`, `atlassian_*`) needed
+  one map of each part's columns that the credentials, org and chats modules all read (`PROFILE_AI_COLUMNS`,
+  `PROFILE_TOOL_COLUMNS`, `aiPartOf`). Exported from `schema/credentials.ts`, the first map broke the diagram test,
+  which treats every export of `schema/index.ts` as a table (`getTableConfig` on a plain object). They went to
+  `packages/db/src/profile-parts.ts` (64 lines), exported by `src/index.ts` beside the schema barrel; tested in
+  `test/schema/access-profiles-parts.test.ts`.
+- **Where:** the `one-profile` branch, 32adcd9.
 - **What was done:** as above.
 - **Suggested change:** a placement row "a constant about a table's columns that several modules share → `packages/db/src/
   <table-part>.ts`, exported by `src/index.ts`; `schema/` holds tables and their types only".
