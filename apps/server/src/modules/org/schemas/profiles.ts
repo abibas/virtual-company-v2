@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { AtlassianRights, GitHubRights } from '@mwc/shared/credentials';
+import { AtlassianRights, GitHubRights, SlackRights } from '@mwc/shared/credentials';
 import { Effort, PermissionMode, ProfileProvider } from '@mwc/shared/enums';
 
 /**
@@ -36,8 +36,15 @@ const toolPart = <R extends z.ZodType>(rights: R, name: string) =>
       site: z
         .string()
         .nullable()
-        .openapi({ description: "Atlassian's site; null for GitHub", example: null }),
+        .openapi({ description: "Atlassian's site, Slack's workspace; null for GitHub", example: null }),
       rights,
+      asUser: z.boolean().optional().openapi({
+        description: 'Slack only: true for a user token, whose posts show as that person',
+      }),
+      scopes: z
+        .array(z.string())
+        .optional()
+        .openapi({ description: "Slack only: the token's scopes, which cap the rights" }),
     })
     .openapi(name);
 
@@ -48,6 +55,7 @@ const AgentProfilePartsSchema = z
     openai: aiPart('AgentOpenaiPart').nullable(),
     github: toolPart(GitHubRights.clone(), 'AgentGitHubPart').nullable(),
     atlassian: toolPart(AtlassianRights.clone(), 'AgentAtlassianPart').nullable(),
+    slack: toolPart(SlackRights.clone(), 'AgentSlackPart').nullable(),
   })
   .openapi('AgentProfileParts');
 
@@ -59,7 +67,7 @@ export const AgentProfileSchema = z
     ownerUserId: z.string(),
     /** The owner's first and last name, else their email. */
     ownerName: z.string().openapi({ example: 'Ihor Herasko' }),
-    /** Its Claude, OpenAI, GitHub and Atlassian parts. */
+    /** Its Claude, OpenAI, GitHub, Atlassian and Slack parts. */
     parts: AgentProfilePartsSchema,
   })
   .openapi('AgentProfile');

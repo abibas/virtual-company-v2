@@ -4,6 +4,7 @@ import {
   GITHUB_TOKEN_PREFIXES,
   SECRET_MAX,
   SECRET_PREFIXES,
+  SLACK_TOKEN_PREFIXES,
 } from '@mwc/shared/credentials';
 import type { CredentialKind } from '@mwc/shared/enums';
 import { z } from 'zod';
@@ -142,6 +143,21 @@ export const AtlassianSecret = z.object({
   token: AtlassianToken,
 });
 
+/**
+ * A pasted Slack token (S7.1e): a bot's (`xoxb-`) or a user's (`xoxp-`), letters, digits and dashes. Which one it is
+ * decides the sign-in's kind.
+ */
+export const SlackToken = oneWord('A Slack token')
+  .regex(/^[A-Za-z0-9-]+$/, 'A Slack token is letters, digits and - only')
+  .refine(
+    (token) => Object.values(SLACK_TOKEN_PREFIXES).some((prefix) => token.startsWith(prefix)),
+    'A Slack token starts with xoxb- (a bot’s) or xoxp- (a user’s)',
+  );
+const slackSecret = (prefix: string) =>
+  z.object({ token: SlackToken.refine((token) => token.startsWith(prefix), `It starts with ${prefix}`) });
+export const SlackBotSecret = slackSecret(SLACK_TOKEN_PREFIXES.slack_bot_token);
+export const SlackUserSecret = slackSecret(SLACK_TOKEN_PREFIXES.slack_user_token);
+
 /** Each kind's secret shape. */
 export const SECRET_SCHEMAS = {
   claude_oauth: ClaudeOauthSecret,
@@ -153,6 +169,8 @@ export const SECRET_SCHEMAS = {
   github_oauth: GitHubOauthSecret,
   github_token: GitHubTokenSecret,
   atlassian_api_token: AtlassianSecret,
+  slack_bot_token: SlackBotSecret,
+  slack_user_token: SlackUserSecret,
 } as const satisfies Record<CredentialKind, z.ZodType>;
 
 /** The secret of one kind. */

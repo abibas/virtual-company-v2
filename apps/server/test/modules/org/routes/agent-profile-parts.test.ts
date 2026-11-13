@@ -15,6 +15,7 @@ import {
   noSecret,
   PROFILES,
   placedMember,
+  SLACK_BOT_SCOPES,
   seedProfile,
 } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld, type Person } from '../../../fixtures/platform/auth.ts';
@@ -37,6 +38,7 @@ afterAll(() => w.t.close());
 
 const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
 const WIKI = { jira: 'read', jiraProjects: ['AP'], confluence: 'write', confluenceSpaces: ['ENG'] };
+const CHAT = { read: true, post: true, channels: ['general'], dms: 'off', search: false, react: false };
 
 /** A Claude setup token of the person's whose account says this email, sealed as the store does. */
 const subscription = (person: Person, accountEmail: string) =>
@@ -53,12 +55,15 @@ async function fullProfile(person: Person) {
   const claude = await subscription(person, 'ihorherasko@airia.test');
   const github = await addSignIn(w, keyring, person.userId, 'github_oauth');
   const atlassian = await addSignIn(w, keyring, person.userId, 'atlassian_api_token');
+  const slack = await addSignIn(w, keyring, person.userId, 'slack_bot_token');
   return seedProfile(w.t.db, person.userId, {
     credentialId: claude.id,
     githubCredentialId: github.id,
     githubRights: PUSH,
     atlassianCredentialId: atlassian.id,
     atlassianRights: WIKI,
+    slackCredentialId: slack.id,
+    slackRights: CHAT,
   });
 }
 
@@ -79,6 +84,13 @@ describe('an agent’s profile with its tool parts', () => {
         openai: null,
         github: { account: 'ihor-fake', site: null, rights: PUSH },
         atlassian: { account: 'Ihor Herasko', site: 'airia-fake.atlassian.net', rights: WIKI },
+        slack: {
+          account: 'mw-bot',
+          site: 'Airia Fake',
+          rights: CHAT,
+          asUser: false,
+          scopes: SLACK_BOT_SCOPES,
+        },
       },
     };
     expect(agent.profile).toEqual(shown);
@@ -101,6 +113,7 @@ describe('an agent’s profile with its tool parts', () => {
       openai: null,
       github: null,
       atlassian: null,
+      slack: null,
     });
   });
 

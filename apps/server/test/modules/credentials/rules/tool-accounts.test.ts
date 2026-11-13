@@ -7,6 +7,8 @@ import {
   githubScopes,
   githubTokenType,
   includedAnswer,
+  slackAccount,
+  slackMeta,
 } from '../../../../src/modules/credentials/rules/tool-accounts.ts';
 
 describe('GitHub', () => {
@@ -111,6 +113,43 @@ describe('Atlassian', () => {
       site: 'x.atlassian.net',
       jira: false,
       confluence: true,
+    });
+  });
+});
+
+describe('Slack', () => {
+  const auth = { ok: true, team: 'Airia', team_id: 'T1', user: 'mw-bot', user_id: 'U1', bot_id: 'B1' };
+
+  it('reads auth.test and its scopes header, and nothing without a workspace or user', () => {
+    expect(slackAccount(auth, 'chat:write, channels:read')).toEqual({
+      team: 'Airia',
+      teamId: 'T1',
+      url: null,
+      user: 'mw-bot',
+      userId: 'U1',
+      botId: 'B1',
+      enterpriseId: null,
+      scopes: ['chat:write', 'channels:read'],
+    });
+    expect(slackAccount({ ...auth, bot_id: undefined, enterprise_id: 'E1' }, null)).toMatchObject({
+      botId: null,
+      enterpriseId: 'E1',
+      scopes: [],
+    });
+    expect(slackAccount({ ...auth, team: '' }, null)).toBeUndefined();
+    expect(slackAccount({ ...auth, user_id: 7 }, null)).toBeUndefined();
+  });
+
+  it('keeps the set details only', () => {
+    const account = slackAccount({ ...auth, url: 'https://airia.slack.com/' }, null);
+    expect(account && slackMeta(account)).toEqual({
+      team: 'Airia',
+      teamId: 'T1',
+      url: 'https://airia.slack.com/',
+      user: 'mw-bot',
+      userId: 'U1',
+      botId: 'B1',
+      scopes: [],
     });
   });
 });

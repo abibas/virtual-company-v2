@@ -5,7 +5,7 @@ import { type CheckActor, recordToolCheck } from './tools/check.ts';
 
 /**
  * Tool sign-ins opened for the agents' server tools (S7.1c, docs/subscriptions.md "Atlassian tools" and "GitHub tools"),
- * for the integrations module: the secret is opened as its owner for `tool:<name>` (a `credential_uses` row naming the
+ * for the integrations module (Slack's since S7.1e): the secret is opened as its owner for `tool:<name>` (a `credential_uses` row naming the
  * company, the agent, the chat and who sent the turn's prompt), never leaving the server but for `tool:git` (S7.1d: a
  * GitHub sign-in's token for git and gh in one turn); and a sign-in its provider refused (401) is marked as needing a
  * sign-in, as its check would (`recordToolCheck`, by the system).
@@ -22,6 +22,11 @@ export type OpenedAtlassian =
       readonly ok: true;
       readonly signIn: { readonly site: string; readonly email: string; readonly token: string };
     }
+  | { readonly ok: false; readonly message: string };
+
+/** A Slack sign-in opened for one call (S7.1e): its token, and whether it is a user's (posting as that person). */
+export type OpenedSlack =
+  | { readonly ok: true; readonly signIn: { readonly token: string; readonly asUser: boolean } }
   | { readonly ok: false; readonly message: string };
 
 /** A GitHub sign-in opened for one call (or one turn's git), or why not. */
@@ -41,6 +46,11 @@ export const GITHUB_SIGN_IN_GONE =
 export const GITHUB_SIGN_IN_REVOKED =
   "The GitHub sign-in of this agent's profile was revoked: its owner signs in again on the Subscriptions page.";
 export const NOT_GITHUB = "The sign-in in this agent's profile's GitHub part is not a GitHub one.";
+export const SLACK_SIGN_IN_GONE =
+  "The Slack sign-in of this agent's profile is gone: its owner adds one on the Subscriptions page.";
+export const SLACK_SIGN_IN_REVOKED =
+  "The Slack sign-in of this agent's profile was revoked: its owner adds a token again on the Subscriptions page.";
+export const NOT_SLACK = "The sign-in in this agent's profile's Slack part is not a Slack one.";
 
 /** The tool sign-ins' side for the agents' tools on these deps. */
 export function credentialsForTools(deps: SecretDeps & { readonly logger: Logger }) {
@@ -68,6 +78,19 @@ export function credentialsForTools(deps: SecretDeps & { readonly logger: Logger
       if (used.kind !== 'github_oauth' && used.kind !== 'github_token')
         return { ok: false, message: NOT_GITHUB };
       return { ok: true, signIn: { token: used.secret.token } };
+    },
+    /** Opens the owner's Slack sign-in for the use (S7.1e); a revoked or gone one is refused, recording nothing. */
+    async slack(credentialId: string, ownerUserId: string, use: ToolUse): Promise<OpenedSlack> {
+      const { purpose, ...context } = use;
+      const used = await secrets.useCredentialSecret(credentialId, ownerUserId, purpose, context);
+      if (!used.ok)
+        return {
+          ok: false,
+          message: used.code === 'credential_revoked' ? SLACK_SIGN_IN_REVOKED : SLACK_SIGN_IN_GONE,
+        };
+      if (used.kind !== 'slack_bot_token' && used.kind !== 'slack_user_token')
+        return { ok: false, message: NOT_SLACK };
+      return { ok: true, signIn: { token: used.secret.token, asUser: used.kind === 'slack_user_token' } };
     },
     /** The provider refused the sign-in (401): it needs signing in again, as its check would say. */
     async needsSignIn(credentialId: string, ownerUserId: string): Promise<void> {

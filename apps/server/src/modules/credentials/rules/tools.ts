@@ -8,14 +8,15 @@ import type { CredentialKind, CredentialStatus, ToolCheckError } from '@mwc/shar
 import type { AccountMeta } from '../schemas.ts';
 
 /**
- * The tool sign-ins' pure rules (S7.1a, docs/subscriptions.md "Tool sign-ins"): what a check with GitHub or Atlassian
- * found, how an answer's status reads, when the daily check is due, and the refusals in plain words.
+ * The tool sign-ins' pure rules (S7.1a, docs/subscriptions.md "Tool sign-ins"): what a check with GitHub, Atlassian or
+ * Slack (S7.1e) found, how an answer's status reads, when the daily check is due, and the refusals in plain words.
  */
 
 /** The tool's name in what the person reads. */
 export const TOOL_NAMES: Readonly<Record<ToolProvider, string>> = {
   github: 'GitHub',
   atlassian: 'Atlassian',
+  slack: 'Slack',
 };
 
 /** The name of the tool a kind signs in to. */
@@ -132,7 +133,7 @@ export const TOOL_NOT_FOUND: ToolRefusal<404> = refusal(404, 'credential_not_fou
 export const NOT_A_TOOL: ToolRefusal<422> = refusal(
   422,
   'not_a_tool',
-  'Only a GitHub or Atlassian sign-in is checked here',
+  'Only a GitHub, Atlassian or Slack sign-in is checked here',
 );
 
 /** A renewal with a token of another kind than the sign-in it renews. */

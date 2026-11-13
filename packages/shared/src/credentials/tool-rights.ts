@@ -192,7 +192,7 @@ export interface ToolAccount {
   /** Slack only: true for a user token (`xoxp-`), which posts as that person, false for a bot's. */
   readonly asUser?: boolean;
   /** Slack only: the scopes Slack granted the token (`x-oauth-scopes`), which cap the part's rights. */
-  readonly scopes?: readonly string[];
+  readonly scopes?: string[];
 }
 
 /** Who a tool sign-in acts as, from its non-secret details (`account_email`, `account_meta`); nothing for another kind. */

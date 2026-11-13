@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi';
-import { ACCESS_PROFILE_NAME, AtlassianRights, GitHubRights } from '@mwc/shared/credentials';
+import { ACCESS_PROFILE_NAME, AtlassianRights, GitHubRights, SlackRights } from '@mwc/shared/credentials';
 import { ClaudeMode, CodexMode, CredentialKind, CredentialStatus, Effort } from '@mwc/shared/enums';
 import { MODEL_ID_MAX, MODEL_ID_PATTERN } from '@mwc/shared/models';
 
@@ -55,9 +55,16 @@ export const ProfileSubscriptionSchema = z
       example: 'ihorherasko',
     }),
     site: z.string().nullable().openapi({
-      description: "An Atlassian sign-in's site; null for any other kind",
+      description: "An Atlassian sign-in's site, a Slack sign-in's workspace; null for any other kind",
       example: 'airia.atlassian.net',
     }),
+    asUser: z.boolean().optional().openapi({
+      description: 'A Slack sign-in only: true for a user token (`xoxp-`), which posts as that person',
+    }),
+    scopes: z
+      .array(z.string())
+      .optional()
+      .openapi({ description: "A Slack sign-in only: the token's scopes, which cap the part's rights" }),
   })
   .openapi('ProfileSubscription');
 
@@ -87,6 +94,15 @@ const AtlassianRightsSchema = AtlassianRights.clone().openapi('AtlassianRights',
     '`jira` (off, read, changes) in `jiraProjects`, `confluence` (off, read, write) in `confluenceSpaces`, each `all` ' +
     'or keys; it never deletes or archives',
   example: { jira: 'read', jiraProjects: 'all', confluence: 'write', confluenceSpaces: ['ENG'] },
+});
+
+/** The Slack part's rights (the whole set): what it may do and in which channels; capped by its token's scopes. */
+const SlackRightsSchema = SlackRights.clone().openapi('SlackRights', {
+  description:
+    '`read` (history, threads, channels, users), `post` (channels and threads), `channels` (`all`, or names and ids), ' +
+    "`dms` (off, read, post), `search` (a user token's `search:read`), `react`; each right the token's scopes do not " +
+    'allow is refused; it never mentions @here, @channel or @everyone, deletes, edits others’ messages or administers',
+  example: { read: true, post: true, channels: ['general'], dms: 'off', search: false, react: false },
 });
 
 /** Each AI part's modes, cloned so the copies follow zod-openapi's zod. */
@@ -130,6 +146,7 @@ export const ProfilePartsSchema = z
     openai: aiPartView('ProfileOpenaiPart', PART_MODES.openai).nullable(),
     github: toolPartView(GitHubRightsSchema, 'ProfileGitHubPart').nullable(),
     atlassian: toolPartView(AtlassianRightsSchema, 'ProfileAtlassianPart').nullable(),
+    slack: toolPartView(SlackRightsSchema, 'ProfileSlackPart').nullable(),
   })
   .openapi('ProfileParts');
 
@@ -162,6 +179,7 @@ const PartsChoiceSchema = z
     openai: aiPartChoice(PART_MODES.openai).nullable().optional(),
     github: toolPartChoice(GitHubRightsSchema).nullable().optional(),
     atlassian: toolPartChoice(AtlassianRightsSchema).nullable().optional(),
+    slack: toolPartChoice(SlackRightsSchema).nullable().optional(),
   })
   .strict()
   .openapi('ProfilePartsChoice');
@@ -170,7 +188,7 @@ export const AccessProfileSchema = z
   .object({
     id: z.string(),
     name: z.string().openapi({ example: 'Work' }),
-    /** Its Claude, OpenAI, GitHub and Atlassian parts. */
+    /** Its Claude, OpenAI, GitHub, Atlassian and Slack parts. */
     parts: ProfilePartsSchema,
     /** The agents that use it, in your companies. */
     agents: z.array(ProfileAgentSchema),

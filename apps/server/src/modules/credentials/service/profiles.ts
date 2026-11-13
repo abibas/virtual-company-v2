@@ -24,6 +24,7 @@ import {
 } from '../rules/profiles.ts';
 import type { AccessProfileView, CreateAccessProfile, UpdateAccessProfile } from '../schemas/profiles.ts';
 import type { Caller } from '../service.ts';
+import { slackRefused } from './profiles/slack.ts';
 import { agentsByProfile, companiesOfUser, type ProfileUser, views } from './profiles/views.ts';
 
 type Saved<S extends 404 | 409 | 422> =
@@ -130,7 +131,9 @@ async function createProfile(
   if (refused) return refused;
   const saved = await namedWrite(body.name, () =>
     owned(deps.db, caller.userId).transaction(async (o) => {
-      const refusal = await choiceRefusal(o, {}, set);
+      const refusal =
+        (await choiceRefusal(o, {}, set)) ??
+        (await slackRefused(o, undefined, set, body.parts?.slack?.rights));
       if (refusal) return refusal;
       const row = await repo.insertProfile(o, { name: body.name, ...set });
       await o.audit(entry(caller, row.id, 'create', diffFields(null, auditedProfile(row))));
@@ -164,7 +167,9 @@ async function updateProfile(
         ...(patch.name === undefined ? {} : { name: patch.name }),
         ...partColumns(row, patch.parts),
       };
-      const refusal = await choiceRefusal(o, row, wanted);
+      const refusal =
+        (await choiceRefusal(o, row, wanted)) ??
+        (await slackRefused(o, row, wanted, patch.parts?.slack?.rights));
       if (refusal) return refusal;
       const set = profileChanges(row, wanted);
       if (Object.keys(set).length === 0) return row;
@@ -204,8 +209,8 @@ async function removeProfile(
  * The profiles API's logic (S3.4; generic since 2026-11-13), always as the caller (the personal layer): list their
  * profiles, create one, change one, remove one. A profile is a name and optional parts: a Claude or an OpenAI part, not
  * both (one of the caller's subscriptions of that provider, any of their gateways, never a revoked one, a model of that
- * provider and an effort it takes) and a GitHub and an Atlassian part (one of their sign-ins of that tool and its
- * rights); 422 otherwise; an AI part agents run on is not removed (422). A name is unique among theirs (409); another
+ * provider and an effort it takes) and a GitHub, an Atlassian and a Slack part (one of their sign-ins of that tool and its
+ * rights; a Slack right turned on that its token's scopes do not allow is 422 `slack_scope_missing`); 422 otherwise; an AI part agents run on is not removed (422). A name is unique among theirs (409); another
  * person's profile is the same 404 as none. Every change writes its `access_profile` audit rows; removing one also
  * writes, in each of the caller's companies, the rows of the agents and defaults it leaves (the org module's
  * `auditProfileRemoval`), before the foreign keys detach it.

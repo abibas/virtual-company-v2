@@ -14,6 +14,8 @@ describe('the secret shapes', () => {
       'github_oauth',
       'github_token',
       'openai_api_key',
+      'slack_bot_token',
+      'slack_user_token',
     ]);
   });
 

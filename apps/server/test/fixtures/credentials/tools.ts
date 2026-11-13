@@ -1,5 +1,5 @@
 /**
- * The tool sign-ins' tests' world (S7.1a): fake GitHub and Atlassian answers on the limits tests' fake provider, so no
+ * The tool sign-ins' tests' world (S7.1a): fake GitHub, Atlassian and (S7.1e) Slack answers on the limits tests' fake provider, so no
  * test reaches a real one; made-up tokens that no response, row or log line may contain; and the tool routes as
  * someone. Every token, account and id here is fake.
  */
@@ -21,9 +21,41 @@ export const CLASSIC_TOKEN = 'ghp_FAKEclassicTOKENneverSHOWN0123456789';
 export const FINE_TOKEN = 'github_pat_11FAKEfineGRAINEDtokenNEVERshown_0123456789';
 export const ATLASSIAN_TOKEN = 'ATATT3xFAKEatlassianTOKENneverSHOWN0123456789';
 export const EMAIL = 'ihor@example.test';
+export const SLACK_AUTH_TEST = 'https://slack.com/api/auth.test';
+export const SLACK_BOT_TOKEN = 'xoxb-1-FAKEslackBOTtokenNEVERshown';
+export const SLACK_USER_TOKEN = 'xoxp-1-FAKEslackUSERtokenNEVERshown';
 
 /** The tokens no response, row or log may carry. */
-export const TOOL_SECRETS = [CLASSIC_TOKEN, FINE_TOKEN, ATLASSIAN_TOKEN];
+export const TOOL_SECRETS = [CLASSIC_TOKEN, FINE_TOKEN, ATLASSIAN_TOKEN, SLACK_BOT_TOKEN, SLACK_USER_TOKEN];
+
+/** Slack's `auth.test` for the fake workspace: a bot's (with its bot id) or a user's, and the token's scopes. */
+export const slackAuth = (
+  as: 'bot' | 'user' = 'bot',
+  scopes: string | null = 'channels:read,channels:history,chat:write',
+): Answer =>
+  json(
+    200,
+    {
+      ok: true,
+      url: 'https://airia-fake.slack.com/',
+      team: 'Airia Fake',
+      team_id: 'T0FAKE',
+      user: as === 'bot' ? 'mw-bot' : 'ihor',
+      user_id: as === 'bot' ? 'U0BOT' : 'U0IHOR',
+      ...(as === 'bot' ? { bot_id: 'B0BOT' } : {}),
+    },
+    scopes === null ? {} : { 'x-oauth-scopes': scopes },
+  );
+
+/** Slack's refusal: HTTP 200 and `{ok: false, error}`. */
+export const slackRefusal = (error: string): Answer => json(200, { ok: false, error });
+
+/** The body of a pasted Slack token, as the web sends it. */
+export const slackToken = (token = SLACK_BOT_TOKEN, extra: Record<string, unknown> = {}) => ({
+  kind: 'slack',
+  token,
+  ...extra,
+});
 
 /** GitHub's `GET /user` for a fake account, with the token's scopes (none: a fine-grained token). */
 export const githubUser = (scopes: string | null = 'repo, read:org, workflow', login = 'ihor-fake'): Answer =>

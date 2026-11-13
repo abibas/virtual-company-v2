@@ -114,6 +114,7 @@ describe('GET /api/companies/:companyId/org/chart', () => {
               openai: null,
               github: null,
               atlassian: null,
+              slack: null,
             },
           },
           runsWith: { model: 'claude-opus-5-5', effort: 'xhigh', mode: 'manual', provider: 'claude' },

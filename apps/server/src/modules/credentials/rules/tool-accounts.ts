@@ -116,3 +116,48 @@ export function atlassianMeta(site: string, account: AtlassianAccount): AccountM
     displayName: account.displayName,
   });
 }
+
+/** A Slack token's account (S7.1e): its workspace, who it acts as, the bot's id (a bot token), and its scopes. */
+export interface SlackAccount {
+  readonly team: string;
+  readonly teamId: string;
+  readonly url: string | null;
+  /** The bot's or the person's name. */
+  readonly user: string;
+  readonly userId: string;
+  /** A bot token's bot; null for a user token. */
+  readonly botId: string | null;
+  readonly enterpriseId: string | null;
+  /** The scopes Slack granted the token (`x-oauth-scopes`); none when it sends no header. */
+  readonly scopes: string[];
+}
+
+/**
+ * Slack's `auth.test` answer (`ok: true`) and its `X-OAuth-Scopes` header as the account; undefined when it names no
+ * workspace or user.
+ */
+export function slackAccount(
+  body: Record<string, unknown>,
+  scopes: string | null | undefined,
+): SlackAccount | undefined {
+  const team = text(body.team);
+  const teamId = text(body.team_id);
+  const user = text(body.user);
+  const userId = text(body.user_id);
+  if (team === null || teamId === null || user === null || userId === null) return undefined;
+  return {
+    team,
+    teamId,
+    url: text(body.url),
+    user,
+    userId,
+    botId: text(body.bot_id),
+    enterpriseId: text(body.enterprise_id),
+    scopes: githubScopes(scopes) ?? [],
+  };
+}
+
+/** A Slack sign-in's account details: the workspace, its address, who it acts as and the token's scopes. */
+export function slackMeta(account: SlackAccount): AccountMeta {
+  return present({ ...account });
+}

@@ -47,6 +47,8 @@ const SECRETS: Readonly<Record<CredentialKind, unknown>> = {
     email: 'ihor@example.com',
     token: 'ATATT3ATLASSIANtokenNEVERshown',
   },
+  slack_bot_token: { token: 'xoxb-1-SLACKBOTtokenNEVERshown' },
+  slack_user_token: { token: 'xoxp-1-SLACKUSERtokenNEVERshown' },
 };
 
 /** Asserts a body (or rows) carry no secret of the subscriptions these helpers seal. */
@@ -62,6 +64,8 @@ export function noSecret(value: unknown): void {
     'GHLOGINtoken',
     'GHPASTEDtoken',
     'ATLASSIANtoken',
+    'SLACKBOTtoken',
+    'SLACKUSERtoken',
   ]) {
     expect(text).not.toContain(secret);
   }
@@ -79,7 +83,22 @@ export function addSubscription(
   return credentialSecrets({ db: w.t.db, keyring, clock: w.clock }).storeCredential(input);
 }
 
-/** The fake account each tool sign-in acts as: GitHub's login, Atlassian's name, email and site. */
+/** A Slack bot's scopes in the tests: every right's but search's (a user token's). */
+export const SLACK_BOT_SCOPES = [
+  'channels:read',
+  'channels:history',
+  'groups:read',
+  'groups:history',
+  'users:read',
+  'chat:write',
+  'chat:write.customize',
+  'im:read',
+  'im:history',
+  'im:write',
+  'reactions:write',
+];
+
+/** The fake account each tool sign-in acts as: GitHub's login, Atlassian's name, email and site, Slack's workspace. */
 export const TOOL_ACCOUNTS = {
   github_oauth: {
     accountEmail: null,
@@ -98,9 +117,31 @@ export const TOOL_ACCOUNTS = {
       displayName: 'Ihor Herasko',
     },
   },
+  slack_bot_token: {
+    accountEmail: null,
+    accountMeta: {
+      team: 'Airia Fake',
+      teamId: 'T0FAKE',
+      url: 'https://airia-fake.slack.com/',
+      user: 'mw-bot',
+      userId: 'U0BOT',
+      botId: 'B0BOT',
+      scopes: SLACK_BOT_SCOPES,
+    },
+  },
+  slack_user_token: {
+    accountEmail: null,
+    accountMeta: {
+      team: 'Airia Fake',
+      teamId: 'T0FAKE',
+      user: 'ihor',
+      userId: 'U0IHOR',
+      scopes: [...SLACK_BOT_SCOPES, 'search:read'],
+    },
+  },
 } as const;
 
-/** Seals a GitHub or Atlassian sign-in for a person with its fake account's details (`TOOL_ACCOUNTS`), as the store does. */
+/** Seals a GitHub, Atlassian or Slack sign-in for a person with its fake account's details (`TOOL_ACCOUNTS`), as the store does. */
 export function addSignIn(
   w: AuthWorld,
   keyring: Keyring,

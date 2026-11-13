@@ -63,7 +63,7 @@ const shown = (view: { id: string; kind: string; label: string; status: string }
   site: null,
 });
 
-const NO_PARTS = { claude: null, openai: null, github: null, atlassian: null };
+const NO_PARTS = { claude: null, openai: null, github: null, atlassian: null, slack: null };
 
 describe('POST /api/me/access-profiles', () => {
   it('makes a profile of a name alone, with no parts', async () => {

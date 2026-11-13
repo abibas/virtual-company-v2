@@ -77,7 +77,13 @@ function partsOf(row: AccessProfile, shownAs: Shown): ProfilePartsView {
       ? null
       : { signIn: shownAs(row[at.credential]), rights: storedRights(provider, rights) };
   };
-  return { claude: ai('claude'), openai: ai('openai'), github: tool('github'), atlassian: tool('atlassian') };
+  return {
+    claude: ai('claude'),
+    openai: ai('openai'),
+    github: tool('github'),
+    atlassian: tool('atlassian'),
+    slack: tool('slack'),
+  };
 }
 
 /** An agent of a profile as the API shows it: without its harness. */

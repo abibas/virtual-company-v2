@@ -57,7 +57,13 @@ function partsOf(row: AccessProfile, signIns: ReadonlyMap<string, SignInDetails>
       : { account: null, site: null };
     return { ...account, rights: storedRights(provider, rights) };
   };
-  return { claude: ai('claude'), openai: ai('openai'), github: tool('github'), atlassian: tool('atlassian') };
+  return {
+    claude: ai('claude'),
+    openai: ai('openai'),
+    github: tool('github'),
+    atlassian: tool('atlassian'),
+    slack: tool('slack'),
+  };
 }
 
 /**

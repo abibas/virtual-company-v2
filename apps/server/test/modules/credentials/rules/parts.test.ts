@@ -34,6 +34,8 @@ const empty = {
   githubRights: null,
   atlassianCredentialId: null,
   atlassianRights: null,
+  slackCredentialId: null,
+  slackRights: null,
 } satisfies Partial<AccessProfile>;
 const withClaude = { ...empty, claudePart: true, claudeCredentialId: 'c1', claudeModel: 'claude-opus-5-5' };
 const withGithub = { ...empty, githubCredentialId: 's1', githubRights: PUSH };

@@ -103,6 +103,7 @@ const A_PART: Readonly<Record<ProfilePart, string>> = {
   ...A_PROVIDER,
   github: 'a GitHub',
   atlassian: 'an Atlassian',
+  slack: 'a Slack',
 };
 
 export const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);

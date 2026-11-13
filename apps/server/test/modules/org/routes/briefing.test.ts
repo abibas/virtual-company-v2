@@ -1,7 +1,7 @@
 import { companies } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { BRIEFING_HEADING, briefingVersion } from '@mwc/shared/agent-briefing';
-import { GITHUB_PUSH_NOTE, GITHUB_TOOLS_NOTE } from '@mwc/shared/credentials';
+import { GITHUB_PUSH_NOTE, GITHUB_TOOLS_NOTE, SLACK_TOOLS_NOTE } from '@mwc/shared/credentials';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
@@ -108,6 +108,26 @@ describe('GET /api/companies/:companyId/agents/:agentId/briefing', () => {
     );
     await as(w, owner)('PATCH', agentsPath(company, coder.id), { profileId: null });
     expect((await read()).split('\n').at(-1)).toBe('- Nobody reports to you.');
+  });
+
+  it('ends with its Slack part: the bot and workspace, what it may read and post where, capped by the token’s scopes', async () => {
+    const company = await membersCompany(w);
+    const owner = company.owner;
+    const signIn = await addSignIn(w, keyring, owner.userId, 'slack_bot_token');
+    const slackRights = {
+      read: true,
+      post: true,
+      channels: ['general'],
+      dms: 'off',
+      search: true,
+      react: false,
+    };
+    const profile = await seedProfile(w.t.db, owner.userId, { slackCredentialId: signIn.id, slackRights });
+    const scout = await makeAgent(w, company, owner, { name: 'Scout', profileId: profile.id });
+    const res = await as(w, owner)('GET', briefingPath(company, scout.id));
+    expect((res.body as { briefing: string }).briefing.split('\n').at(-1)).toBe(
+      `- Slack: as mw-bot in Airia Fake; may read #general; may post in #general. ${SLACK_TOOLS_NOTE}`,
+    );
   });
 
   it('is a 404 for an unknown agent and for another company’s', async () => {

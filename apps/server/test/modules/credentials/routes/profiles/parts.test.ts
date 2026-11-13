@@ -53,7 +53,13 @@ const WIKI = { jira: 'changes', jiraProjects: ['AP'], confluence: 'write', confl
 
 describe('a profile’s tool parts when it is made', () => {
   it('are none unless given', async () => {
-    expect((await made()).parts).toEqual({ claude: null, openai: null, github: null, atlassian: null });
+    expect((await made()).parts).toEqual({
+      claude: null,
+      openai: null,
+      github: null,
+      atlassian: null,
+      slack: null,
+    });
   });
 
   it('hold a sign-in of each tool with its rights, shown with the account and site, audited, never a secret', async () => {
@@ -235,7 +241,8 @@ describe('what a tool part refuses', () => {
       { parts: { github: { rights: { ...PUSH, repos: ['not a repo'] } } } },
       { parts: { atlassian: { rights: { ...WIKI, delete: true } } } },
       { parts: { github: { credentialId: null, push: true } } },
-      { parts: { slack: {} } },
+      { parts: { gitlab: {} } },
+      { parts: { slack: { rights: { read: true } } } },
       { parts: { github: { model: 'x' } } },
     ]) {
       const res = await post(body);

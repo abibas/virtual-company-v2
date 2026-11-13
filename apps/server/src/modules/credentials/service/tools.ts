@@ -1,5 +1,5 @@
 import { owned } from '@mwc/db';
-import { isToolKind } from '@mwc/shared/credentials';
+import { isToolKind, slackKindOf } from '@mwc/shared/credentials';
 import { credentialsRepo } from '../repo.ts';
 import { defaultLabel } from '../rules/login-files.ts';
 import {
@@ -19,7 +19,7 @@ import { checkStoredTool, checkTool, type ToolDeps, type ToolSecret } from './to
 
 /**
  * The tool sign-ins' logic (S7.1a, docs/subscriptions.md "Tool sign-ins"), always as the caller: add a pasted GitHub
- * token or an Atlassian site and API token once its provider accepts it (or put a new one into one of theirs in place),
+ * token, an Atlassian site and API token or a Slack token (S7.1e) once its provider accepts it (or put a new one into one of theirs in place),
  * and Check again. Sign in with GitHub is the sign-in service's. Another person's sign-in is the same 404 as none.
  */
 
@@ -27,9 +27,17 @@ type Answer<S extends 404 | 422 | 502> =
   | { readonly ok: true; readonly signIn: SubscriptionView }
   | ToolRefusal<S>;
 
+/** A Slack token's kind by its prefix (the schema took only `xoxb-` and `xoxp-`): a user's, else a bot's. */
+const slackKind = (token: string) =>
+  slackKindOf(token) === 'slack_user_token' ? ('slack_user_token' as const) : ('slack_bot_token' as const);
+
+/** The kind a body adds: its own, or a Slack token's by its prefix. */
+const kindOf = (body: AddTool) => (body.kind === 'slack' ? slackKind(body.token) : body.kind);
+
 /** The secret a body carries: the token, or Atlassian's site, email and token. */
 function secretOf(body: AddTool): ToolSecret {
   if (body.kind === 'github_token') return { kind: body.kind, secret: { token: body.token } };
+  if (body.kind === 'slack') return { kind: slackKind(body.token), secret: { token: body.token } };
   return { kind: body.kind, secret: { site: body.site, email: body.email, token: body.token } };
 }
 
@@ -37,14 +45,14 @@ function secretOf(body: AddTool): ToolSecret {
 async function renewalRefusal(deps: ToolDeps, caller: Caller, credentialId: string, body: AddTool) {
   const row = await credentialsRepo().get(owned(deps.db, caller.userId), credentialId);
   if (row === undefined) return TOOL_NOT_FOUND;
-  if (row.kind !== body.kind) return TOOL_KIND_MISMATCH;
+  if (row.kind !== kindOf(body)) return TOOL_KIND_MISMATCH;
   return row.status === 'revoked' ? TOOL_REVOKED : undefined;
 }
 
-/** A new sign-in's name when none is given: "GitHub · <login>", "Atlassian · <site>". */
+/** A new sign-in's name when none is given: "GitHub · <login>", "Atlassian · <site>", "Slack · <workspace>". */
 function labelOf(body: AddTool, meta: Readonly<Record<string, unknown>>): string {
-  const detail = body.kind === 'github_token' ? meta.login : body.site;
-  return defaultLabel(toolNameOf(body.kind), typeof detail === 'string' ? detail : null);
+  const detail = body.kind === 'github_token' ? meta.login : body.kind === 'slack' ? meta.team : body.site;
+  return defaultLabel(toolNameOf(kindOf(body)), typeof detail === 'string' ? detail : null);
 }
 
 /**
@@ -58,7 +66,7 @@ async function addTool(deps: ToolDeps, caller: Caller, body: AddTool): Promise<A
   if (refused !== undefined) return refused;
   const tool = secretOf(body);
   const outcome = await checkTool(deps.providerFetch, tool);
-  if (!outcome.ok) return addRefusal(body.kind, outcome.code, 'site' in body ? body.site : undefined);
+  if (!outcome.ok) return addRefusal(tool.kind, outcome.code, 'site' in body ? body.site : undefined);
   const checked = { at: deps.clock(), used: true };
   const login = { ...tool, accountEmail: outcome.accountEmail, accountMeta: outcome.accountMeta, checked };
   const secrets = credentialSecrets(deps);

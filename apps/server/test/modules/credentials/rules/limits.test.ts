@@ -32,6 +32,8 @@ describe('usageSourceOf', () => {
       github_oauth: 'none',
       github_token: 'none',
       atlassian_api_token: 'none',
+      slack_bot_token: 'none',
+      slack_user_token: 'none',
     });
   });
 });

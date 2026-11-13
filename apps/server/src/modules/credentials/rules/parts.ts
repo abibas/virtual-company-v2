@@ -5,6 +5,7 @@ import {
   type GitHubRights,
   PART_NAMES,
   PROFILE_PROVIDERS,
+  type SlackRights,
   TOOL_PROVIDERS,
 } from '@mwc/shared/credentials';
 import type { Effort, PermissionMode, ProfileProvider } from '@mwc/shared/enums';
@@ -40,6 +41,7 @@ export interface PartsChoice {
   readonly openai?: AiPartChoice | null | undefined;
   readonly github?: ToolPartChoice<GitHubRights> | null | undefined;
   readonly atlassian?: ToolPartChoice<AtlassianRights> | null | undefined;
+  readonly slack?: ToolPartChoice<SlackRights> | null | undefined;
 }
 
 type Stored = Pick<AccessProfile, Exclude<keyof ProfileChange, 'name'>>;

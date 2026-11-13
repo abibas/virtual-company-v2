@@ -1,10 +1,11 @@
 import { z } from '@hono/zod-openapi';
 import { atlassianSite, CREDENTIAL_LABEL } from '@mwc/shared/credentials';
-import { AtlassianToken, GitHubToken } from './secrets.ts';
+import { AtlassianToken, GitHubToken, SlackToken } from './secrets.ts';
 
 /**
- * The tool sign-ins API's shapes (`/api/me/subscriptions/tools`, S7.1a): a pasted GitHub token, or an Atlassian site,
- * account email and API token, each checked with its provider before it is stored. Sign in with GitHub is the sign-in
+ * The tool sign-ins API's shapes (`/api/me/subscriptions/tools`, S7.1a): a pasted GitHub token, an Atlassian site,
+ * account email and API token, or (S7.1e) a Slack token, a bot's or a user's by its prefix, each checked with its
+ * provider before it is stored. Sign in with GitHub is the sign-in
  * API's (`schemas/sign-in.ts`). A response is the stored sign-in's metadata, never its secret.
  */
 
@@ -14,7 +15,10 @@ const label = z
   .min(CREDENTIAL_LABEL.min, 'A name is required')
   .max(CREDENTIAL_LABEL.max, `A name is at most ${CREDENTIAL_LABEL.max} characters`)
   .optional()
-  .openapi({ description: 'By default "GitHub · <login>" or "Atlassian · <site>"', example: 'Work GitHub' });
+  .openapi({
+    description: 'By default "GitHub · <login>", "Atlassian · <site>" or "Slack · <workspace>"',
+    example: 'Work GitHub',
+  });
 
 const credentialId = z
   .string()
@@ -56,6 +60,14 @@ export const AddToolSchema = z
         .pipe(z.email('An email address is required'))
         .openapi({ example: 'ihor@example.com' }),
       token: AtlassianToken,
+    }),
+    z.object({
+      kind: z.literal('slack').openapi({
+        description: 'A Slack token: `xoxb-` is stored as `slack_bot_token`, `xoxp-` as `slack_user_token`',
+      }),
+      label,
+      credentialId,
+      token: SlackToken,
     }),
   ])
   .openapi('AddToolSignIn');

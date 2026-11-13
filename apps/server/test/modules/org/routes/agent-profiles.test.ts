@@ -57,6 +57,7 @@ describe('giving an access profile to an agent', () => {
         openai: null,
         github: null,
         atlassian: null,
+        slack: null,
       },
     };
     expect(res).toMatchObject({ status: 200, body: { profile: shown } });

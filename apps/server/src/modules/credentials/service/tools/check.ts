@@ -11,6 +11,7 @@ import { credentialSecrets, type SecretDeps } from '../secrets.ts';
 import type { ProviderFetch } from '../usage/http.ts';
 import { checkAtlassian } from './atlassian.ts';
 import { checkGitHub } from './github.ts';
+import { checkSlack } from './slack.ts';
 
 /**
  * A stored tool sign-in's check (S7.1a), for Check again and the daily check: its secret opened for `tool_check` (one
@@ -40,6 +41,9 @@ export function checkTool(fetchFn: ProviderFetch, tool: ToolSecret): Promise<Too
       return checkGitHub(fetchFn, tool.secret.token, true);
     case 'atlassian_api_token':
       return checkAtlassian(fetchFn, tool.secret);
+    case 'slack_bot_token':
+    case 'slack_user_token':
+      return checkSlack(fetchFn, tool.kind, tool.secret);
   }
 }
 
