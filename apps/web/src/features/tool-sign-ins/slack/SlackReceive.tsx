@@ -146,59 +146,65 @@ function Cap({
   );
 }
 
-/** The settings once the token is set: who may wake agents, the default agent, the cap. */
-function Settings({
-  inbound,
-  save,
-}: {
-  readonly inbound: SlackInbound;
-  readonly save: (change: SlackInboundChange) => void;
-}) {
-  const choices = inbound.agents.map((agent) => ({
-    value: `${agent.companyId}/${agent.agentId}`,
-    label: inbound.agents.some((other) => other.companyId !== agent.companyId)
-      ? `${agent.agentName} · ${agent.companyName}`
-      : agent.agentName,
-  }));
-  const current = inbound.defaultAgent
-    ? `${inbound.defaultAgent.companyId}/${inbound.defaultAgent.agentId}`
-    : '';
+type SaveChange = (change: SlackInboundChange) => void;
+
+/** Who can wake agents: anyone in the allowed channels, or only the people chosen. */
+function WakeChoice({ inbound, save }: { readonly inbound: SlackInbound; readonly save: SaveChange }) {
   return (
-    <>
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold text-dim">Who can wake agents</span>
-        <SegmentedControl
-          size="sm"
-          label="Who can wake agents"
-          value={inbound.wake}
-          onChange={(wake) => save({ wake })}
-          options={[
-            { value: 'anyone', label: 'Anyone in the allowed channels' },
-            { value: 'listed', label: 'Only these people' },
-          ]}
-        />
-        {inbound.wake === 'listed' && (
-          <SlackPeoplePicker
-            credentialId={inbound.credentialId}
-            people={inbound.people}
-            onChange={(people) => save({ people })}
-          />
-        )}
-      </div>
-      <SelectField
-        label="Default agent"
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold text-dim">Who can wake agents</span>
+      <SegmentedControl
         size="sm"
-        value={current}
-        onChange={(event) => {
-          const [companyId, agentId] = event.target.value.split('/');
-          save({ defaultAgent: companyId && agentId ? { companyId, agentId } : null });
-        }}
+        label="Who can wake agents"
+        value={inbound.wake}
+        onChange={(wake) => save({ wake })}
         options={[
-          { value: '', label: choices.length === 0 ? 'No agent uses this sign-in' : 'None' },
-          ...choices,
+          { value: 'anyone', label: 'Anyone in the allowed channels' },
+          { value: 'listed', label: 'Only these people' },
         ]}
       />
+      {inbound.wake === 'listed' && (
+        <SlackPeoplePicker
+          credentialId={inbound.credentialId}
+          people={inbound.people}
+          onChange={(people) => save({ people })}
+        />
+      )}
+    </div>
+  );
+}
 
+/** The default agent, among the agents whose profile's Slack part uses this sign-in (with their company if several). */
+function DefaultAgent({ inbound, save }: { readonly inbound: SlackInbound; readonly save: SaveChange }) {
+  const several = new Set(inbound.agents.map((agent) => agent.companyId)).size > 1;
+  const choices = inbound.agents.map((agent) => ({
+    value: `${agent.companyId}/${agent.agentId}`,
+    label: several ? `${agent.agentName} · ${agent.companyName}` : agent.agentName,
+  }));
+  const { defaultAgent } = inbound;
+  return (
+    <SelectField
+      label="Default agent"
+      size="sm"
+      value={defaultAgent ? `${defaultAgent.companyId}/${defaultAgent.agentId}` : ''}
+      onChange={(event) => {
+        const [companyId, agentId] = event.target.value.split('/');
+        save({ defaultAgent: companyId && agentId ? { companyId, agentId } : null });
+      }}
+      options={[
+        { value: '', label: choices.length === 0 ? 'No agent uses this sign-in' : 'None' },
+        ...choices,
+      ]}
+    />
+  );
+}
+
+/** The settings once the token is set: who may wake agents, the default agent, the cap. */
+function Settings({ inbound, save }: { readonly inbound: SlackInbound; readonly save: SaveChange }) {
+  return (
+    <>
+      <WakeChoice inbound={inbound} save={save} />
+      <DefaultAgent inbound={inbound} save={save} />
       <Cap
         key={inbound.maxPerHour}
         value={inbound.maxPerHour}

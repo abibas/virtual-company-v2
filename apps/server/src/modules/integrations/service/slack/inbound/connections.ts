@@ -1,6 +1,6 @@
 import { owned, type SlackConnection } from '@mwc/db';
 import type { SlackInboundStatus } from '@mwc/shared/enums';
-import type { SlackSocket, SlackSockets } from '@mwc/tools-core';
+import type { SlackSocket, SlackSocketHandlers, SlackSockets } from '@mwc/tools-core';
 import type { Timers } from '../../../../../platform/jobs/runner.ts';
 import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
 import { receivingConnections } from '../../../repo/slack-inbound-all.ts';
@@ -50,43 +50,85 @@ interface Live {
   statuses: Promise<void>;
 }
 
-/** The connections on these deps (see above). */
-export function slackInbound(deps: ConnectionsDeps): SlackInbound {
-  const live = new Map<string, Live>();
-  let timer: unknown;
-  let stopped = false;
-  const failed = (what: string) => (error: unknown) =>
-    deps.logger.error({ err: error }, `slack inbound: ${what}`);
+const logged = (deps: ConnectionsDeps, what: string) => (error: unknown) =>
+  deps.logger.error({ err: error }, `slack inbound: ${what}`);
 
-  const writeStatus = (
+/** The connections of this process (see above), one per sign-in. */
+class Connections implements SlackInbound {
+  readonly #deps: ConnectionsDeps;
+  readonly #live = new Map<string, Live>();
+  #timer: unknown;
+  #stopped = false;
+
+  constructor(deps: ConnectionsDeps) {
+    this.#deps = deps;
+  }
+
+  async start(): Promise<void> {
+    await this.#resync().catch(logged(this.#deps, 'could not sync the connections'));
+    if (!this.#stopped) this.#schedule();
+  }
+
+  async sync(credentialId: string, ownerUserId: string): Promise<void> {
+    const row = await repo.connectionOf(owned(this.#deps.db, ownerUserId), credentialId);
+    const current = this.#live.get(credentialId);
+    if (row === undefined || !row.inbound || this.#stopped) {
+      this.#close(credentialId);
+      if (row !== undefined && row.status !== 'off') await this.#status(row, 'off', null);
+      return;
+    }
+    if (
+      current !== undefined &&
+      current.version === appTokenVersion(row) &&
+      !(await this.#changed(row, current))
+    )
+      return;
+    this.#close(credentialId);
+    await this.#open(row);
+  }
+
+  stop(): void {
+    this.#stopped = true;
+    this.#deps.timers.clearTimeout(this.#timer);
+    for (const credentialId of [...this.#live.keys()]) this.#close(credentialId);
+  }
+
+  #status(
     owner: Pick<SlackConnection, 'credentialId' | 'ownerUserId'>,
     status: SlackInboundStatus,
     message: string | null,
-  ) =>
-    repo.setStatus(deps.db, owner, {
+  ) {
+    return repo.setStatus(this.#deps.db, owner, {
       status,
       statusMessage: message === null ? null : oneLine(message, 300),
-      statusAt: deps.clock(),
+      statusAt: this.#deps.clock(),
     });
-
-  function close(credentialId: string): void {
-    live.get(credentialId)?.socket?.close();
-    live.delete(credentialId);
   }
 
-  async function open(row: SlackConnection): Promise<void> {
+  #close(credentialId: string): void {
+    this.#live.get(credentialId)?.socket?.close();
+    this.#live.delete(credentialId);
+  }
+
+  /** Opens the row's connection: its app token, its bot sign-in (`socket_mode`), then Socket Mode; or says why not. */
+  async #open(row: SlackConnection): Promise<void> {
+    const deps = this.#deps;
     const owner = { credentialId: row.credentialId, ownerUserId: row.ownerUserId };
     let appToken: string | undefined;
     try {
       appToken = openAppToken(deps.keyring, row);
     } catch {
-      return writeStatus(owner, 'error', 'The app-level token does not open on this server: paste it again.');
+      return this.#status(
+        owner,
+        'error',
+        'The app-level token does not open on this server: paste it again.',
+      );
     }
     if (appToken === undefined) return;
     const opened = await deps.credentials.slackBot(row.credentialId, row.ownerUserId, {
       purpose: 'socket_mode',
     });
-    if (!opened.ok) return writeStatus(owner, 'error', opened.message);
+    if (!opened.ok) return this.#status(owner, 'error', opened.message);
     const conn: Connection = {
       ...owner,
       signIn: { token: opened.token },
@@ -101,72 +143,55 @@ export function slackInbound(deps: ConnectionsDeps): SlackInbound {
       messages: Promise.resolve(),
       statuses: Promise.resolve(),
     };
-    live.set(row.credentialId, entry);
-    entry.socket = deps.sockets.open(appToken, {
+    this.#live.set(row.credentialId, entry);
+    entry.socket = deps.sockets.open(appToken, this.#handlers(entry));
+  }
+
+  /** A connection's handlers: its statuses written in order while it is the sign-in's, its messages one at a time. */
+  #handlers(entry: Live): SlackSocketHandlers {
+    const { conn } = entry;
+    return {
       onStatus: (status) => {
-        if (live.get(row.credentialId) !== entry) return;
+        if (this.#live.get(conn.credentialId) !== entry) return;
         entry.statuses = entry.statuses
-          .then(() => writeStatus(owner, status.state, status.message))
-          .catch(failed('could not record a connection’s status'));
+          .then(() => this.#status(conn, status.state, status.message))
+          .catch(logged(this.#deps, 'could not record a connection’s status'));
       },
       onMessage: (message) => {
         entry.messages = entry.messages
-          .then(() => handleMessage(deps, conn, message))
-          .catch(failed('could not handle a message'));
+          .then(() => handleMessage(this.#deps, conn, message))
+          .catch(logged(this.#deps, 'could not handle a message'));
         return entry.messages;
       },
-    });
+    };
   }
 
   /** True when the sign-in changed since the connection opened it (or is gone). */
-  async function signInChanged(row: SlackConnection, entry: Live): Promise<boolean> {
-    const sign = await repo.signInOf(owned(deps.db, row.ownerUserId), row.credentialId);
+  async #changed(row: SlackConnection, entry: Live): Promise<boolean> {
+    const sign = await repo.signInOf(owned(this.#deps.db, row.ownerUserId), row.credentialId);
     return sign === undefined || sign.updatedAt.toISOString() !== entry.signedAt;
   }
 
-  async function sync(credentialId: string, ownerUserId: string): Promise<void> {
-    const row = await repo.connectionOf(owned(deps.db, ownerUserId), credentialId);
-    const current = live.get(credentialId);
-    if (row === undefined || !row.inbound || stopped) {
-      close(credentialId);
-      if (row !== undefined && row.status !== 'off') await writeStatus(row, 'off', null);
-      return;
-    }
-    if (
-      current !== undefined &&
-      current.version === appTokenVersion(row) &&
-      !(await signInChanged(row, current))
-    )
-      return;
-    close(credentialId);
-    await open(row);
-  }
-
-  async function resync(): Promise<void> {
-    const rows = await receivingConnections(deps.db);
+  async #resync(): Promise<void> {
+    const rows = await receivingConnections(this.#deps.db);
     const wanted = new Set(rows.map((row) => row.credentialId));
-    for (const credentialId of [...live.keys()]) if (!wanted.has(credentialId)) close(credentialId);
+    for (const credentialId of [...this.#live.keys()])
+      if (!wanted.has(credentialId)) this.#close(credentialId);
     for (const row of rows)
-      await sync(row.credentialId, row.ownerUserId).catch(failed('could not open a connection'));
+      await this.sync(row.credentialId, row.ownerUserId).catch(
+        logged(this.#deps, 'could not open a connection'),
+      );
   }
 
-  function schedule(): void {
-    timer = deps.timers.setTimeout(async () => {
-      await resync().catch(failed('could not sync the connections'));
-      if (!stopped) schedule();
+  #schedule(): void {
+    this.#timer = this.#deps.timers.setTimeout(async () => {
+      await this.#resync().catch(logged(this.#deps, 'could not sync the connections'));
+      if (!this.#stopped) this.#schedule();
     }, RESYNC_MS);
   }
+}
 
-  return {
-    async start() {
-      await resync().catch(failed('could not sync the connections'));
-      if (!stopped) schedule();
-    },
-    sync,
-    stop() {
-      stopped = true;
-      deps.timers.clearTimeout(timer);
-      for (const credentialId of [...live.keys()]) close(credentialId);
-    },
-  };
+/** The connections on these deps (see above). */
+export function slackInbound(deps: ConnectionsDeps): SlackInbound {
+  return new Connections(deps);
 }

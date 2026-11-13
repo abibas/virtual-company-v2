@@ -71,6 +71,27 @@ function checkedInput(
   };
 }
 
+/** How a call records the messages it posted (2026-11-13: a reply in their thread comes back to this agent). */
+function postRecorder(
+  deps: Pick<SlackCallDeps, 'clock'>,
+  t: TenantDb,
+  who: { readonly part: SlackPart; readonly agentId: string; readonly turn: ServerToolTurn },
+): NonNullable<SlackContext['recordPost']> {
+  const { part, agentId, turn } = who;
+  return (posted) =>
+    slackInboundRepo.recordPost(ownedIn(t, part.ownerUserId), {
+      credentialId: part.credentialId as string,
+      channelId: posted.channel,
+      ts: posted.ts,
+      threadTs: posted.threadTs,
+      companyId: t.companyId,
+      agentId,
+      chatId: turn.chatId,
+      turnId: turn.turnId,
+      at: deps.clock(),
+    });
+}
+
 /** One call (see above). */
 export async function callSlack(
   deps: SlackCallDeps,
@@ -113,19 +134,7 @@ export async function callSlack(
       action: `tool:${tool}`,
       changes: change.changes.map((c) => ({ field: c.field, old: null, new: c.new })),
     });
-  const credentialId = part.credentialId;
-  const recordPost: SlackContext['recordPost'] = (posted) =>
-    slackInboundRepo.recordPost(ownedIn(t, part.ownerUserId), {
-      credentialId,
-      channelId: posted.channel,
-      ts: posted.ts,
-      threadTs: posted.threadTs,
-      companyId: t.companyId,
-      agentId: agent.id,
-      chatId: turn.chatId,
-      turnId: turn.turnId,
-      at: deps.clock(),
-    });
+  const recordPost = postRecorder(deps, t, { part, agentId: agent.id, turn });
   const ctx: SlackContext = {
     api: deps.api,
     signIn: { token: opened.signIn.token },
