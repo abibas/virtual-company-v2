@@ -155,15 +155,16 @@ const toolPartChecks = (tool: ToolProvider, credential: AnyPgColumn, rights: Any
  * Claude/GH/Jira etc."), each in its own columns:
  * - **Claude** and **OpenAI** (`<part>_part` says it is there): a subscription of that provider, an optional gateway (any
  *   of the owner's: one address serves Claude Code and Codex), and the model and effort its turns run, each null for the
- *   provider's default (`@mwc/shared/models`). A Claude Code agent runs on its profile's Claude part, a Codex agent on its
- *   OpenAI part; a profile with both serves either.
+ *   provider's default (`@mwc/shared/models`). A profile has one of them at most (Ihor, 2026-11-13: "EITHER 1 harness
+ *   EITHER 2nd one... NOT BOTH"), and an agent's harness follows it: Claude Code on a Claude part, Codex on an OpenAI
+ *   part. A profile with neither (only tool parts) is given to no agent.
  * - **GitHub** and **Atlassian** (there when `<tool>_rights` is): one sign-in of that tool and the rights the agents
  *   given the profile have there (`GitHubRights`, `AtlassianRights` of `@mwc/shared/credentials`).
  *
  * Its credentials are its owner's, of kinds that fit each part (`PROVIDER_KINDS`, `GATEWAY_KINDS`, `TOOL_KINDS`), never
  * revoked ones: the credentials module checks that, since SQL cannot read another row's owner or kind here. SQL keeps
- * that a part's fields are set only while the part is there, a model's length, the stored efforts, and that a tool
- * part's rights are an object. Removing a credential empties its place in the part; removing a profile takes it off its
+ * one AI part at most, a part's fields set only while the part is there, a model's length, the stored efforts, and a
+ * tool part's rights an object. Removing a credential empties its place in the part; removing a profile takes it off its
  * agents, chats and defaults (all `on delete set null`). `PROFILE_PART_COLUMNS` (`src/profile-parts.ts`) maps each part
  * to its columns; Slack (S7.1e) is a tool part's two more columns and an entry there.
  */
@@ -210,6 +211,7 @@ export const accessProfiles = pgTable(
   (t) => [
     unique('access_profiles_owner_user_id_name_unique').on(t.ownerUserId, t.name),
     check('access_profiles_name_check', lengthWithin(t.name, ACCESS_PROFILE_NAME)),
+    check('access_profiles_one_ai_part_check', sql`not (${t.claudePart} and ${t.openaiPart})`),
     ...aiPartChecks('claude', t.claudePart, [
       t.claudeCredentialId,
       t.claudeGatewayCredentialId,

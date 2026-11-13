@@ -9,10 +9,10 @@ import { pgError, type TestDb } from '../../src/testing.ts';
 import { insertUser, MISSING_ID, migratedTestDb, unique } from '../fixtures/rows.ts';
 
 /**
- * A generic profile's parts (migration `0032_generic_profiles`, 2026-11-13): a Claude and an OpenAI part (a presence
- * flag, a subscription, a gateway, a model and an effort) and a GitHub and an Atlassian part (a sign-in and its rights).
- * Which credential fits a part, and the rights' shape, are the credentials module's rules; SQL keeps an AI part's fields
- * off while the part is not there, a model's length, the stored efforts, a tool part's sign-in only with its rights,
+ * A generic profile's parts (migration `0032_generic_profiles`, 2026-11-13): a Claude or an OpenAI part (a presence
+ * flag, a subscription, a gateway, a model and an effort; one at most since `0033_one_ai_part`) and a GitHub and an
+ * Atlassian part (a sign-in and its rights). Which credential fits a part, and the rights' shape, are the credentials
+ * module's rules; SQL keeps one AI part at most, an AI part's fields off while the part is not there, a model's length, the stored efforts, a tool part's sign-in only with its rights,
  * and its rights an object. The data step is `access-profiles-parts-backfill.test.ts`'s.
  */
 
@@ -63,29 +63,32 @@ const profileRow = async (id: string) =>
   (await handle.db.select().from(accessProfiles).where(eq(accessProfiles.id, id)))[0];
 
 describe('a profile’s AI parts', () => {
-  it('hold a subscription, a gateway, a model and an effort each, both on one profile', async () => {
+  it('hold a subscription, a gateway, a model and an effort each', async () => {
     const claude = await signIn('claude_oauth');
     const openai = await signIn('codex_oauth');
     const gateway = await signIn('gateway');
-    const both = await profile({
+    const work = await profile({
       claudePart: true,
       claudeCredentialId: claude.id,
       claudeGatewayCredentialId: gateway.id,
       claudeModel: 'claude-opus-5-5',
       claudeEffort: 'max',
+    });
+    expect(aiPartOf(work, 'claude')).toEqual({
+      credentialId: claude.id,
+      gatewayCredentialId: gateway.id,
+      model: 'claude-opus-5-5',
+      effort: 'max',
+    });
+    expect(aiPartOf(work, 'openai')).toBeUndefined();
+    const codex = await profile({
       openaiPart: true,
       openaiCredentialId: openai.id,
       openaiGatewayCredentialId: gateway.id,
       openaiModel: 'm'.repeat(100),
       openaiEffort: 'ultra',
     });
-    expect(aiPartOf(both, 'claude')).toEqual({
-      credentialId: claude.id,
-      gatewayCredentialId: gateway.id,
-      model: 'claude-opus-5-5',
-      effort: 'max',
-    });
-    expect(aiPartOf(both, 'openai')).toMatchObject({ credentialId: openai.id, effort: 'ultra' });
+    expect(aiPartOf(codex, 'openai')).toMatchObject({ credentialId: openai.id, effort: 'ultra' });
     const empty = await profile({ claudePart: true });
     expect(aiPartOf(empty, 'claude')).toEqual({
       credentialId: null,
@@ -94,6 +97,23 @@ describe('a profile’s AI parts', () => {
       effort: null,
     });
     expect(aiPartOf(empty, 'openai')).toBeUndefined();
+  });
+
+  it('are one at most: a profile with a Claude part takes no OpenAI part, and none is fine', async () => {
+    expect(await pgError(profile({ claudePart: true, openaiPart: true }))).toMatchObject({
+      code: '23514',
+      constraint: 'access_profiles_one_ai_part_check',
+    });
+    const claude = await profile({ claudePart: true });
+    const both = handle.db
+      .update(accessProfiles)
+      .set({ openaiPart: true })
+      .where(eq(accessProfiles.id, claude.id));
+    expect(await pgError(both)).toMatchObject({ constraint: 'access_profiles_one_ai_part_check' });
+    expect(await profile({ githubRights: GITHUB_RIGHTS })).toMatchObject({
+      claudePart: false,
+      openaiPart: false,
+    });
   });
 
   it.each([

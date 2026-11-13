@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 39. Migrations: 33, the last is `0032_generic_profiles`.
+Tables: 39. Migrations: 34, the last is `0033_one_ai_part`.
 
 ```mermaid
 erDiagram
@@ -697,6 +697,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `access_profiles_owner_user_id_name_unique` (`owner_user_id`, `name`)
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
+  - `access_profiles_one_ai_part_check`: `not ("claude_part" and "openai_part")`
   - `access_profiles_claude_check`: `"claude_part" or ("claude_credential_id" is null and "claude_gateway_credential_id" is null and "claude_model" is null and "claude_effort" is null)`
   - `access_profiles_claude_model_check`: `char_length("claude_model") between 1 and 100`
   - `access_profiles_claude_effort_check`: `claude_effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
