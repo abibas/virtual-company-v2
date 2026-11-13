@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   RESERVED_TOOL_NAMES,
   SERVER_TOOL_LIMITS,
+  SERVER_TOOLS_MAX,
   ServerToolDef,
   ServerToolDefs,
   ServerToolName,
+  serverToolsLimit,
 } from '../../src/harness/server-tools.ts';
+import { RunnerCaps } from '../../src/runner-protocol/runner-frames.ts';
 import { TurnTool } from '../../src/runner-protocol/turns.ts';
 
 const TOOL = {
@@ -32,14 +35,27 @@ describe('the server’s own tools (S7.1c)', () => {
     expect(ServerToolDef.safeParse({ ...TOOL, inputSchema: big }).success).toBe(false);
   });
 
-  it('come each once, at most 32, never with a reserved name', () => {
+  it('come each once, at most 64 (S7.1e), never with a reserved name', () => {
     expect(RESERVED_TOOL_NAMES).toContain('ask_user_question');
     expect(RESERVED_TOOL_NAMES).toContain('task_hand_on');
     expect(ServerToolDefs.safeParse([TOOL, { ...TOOL, name: 'getConfluencePage' }]).success).toBe(true);
     expect(ServerToolDefs.safeParse([TOOL, TOOL]).success).toBe(false);
     expect(ServerToolDefs.safeParse([{ ...TOOL, name: 'team_board' }]).success).toBe(false);
-    const many = Array.from({ length: 33 }, (_, i) => ({ ...TOOL, name: `tool${i}` }));
-    expect(ServerToolDefs.safeParse(many).success).toBe(false);
+    const tools = (length: number) => Array.from({ length }, (_, i) => ({ ...TOOL, name: `tool${i}` }));
+    expect(SERVER_TOOLS_MAX).toBe(64);
+    expect(ServerToolDefs.safeParse(tools(64)).success).toBe(true);
+    expect(ServerToolDefs.safeParse(tools(65)).success).toBe(false);
+  });
+
+  it('go to an older runner at most 32 at a time: what a runner says, at most 64', () => {
+    expect(serverToolsLimit({})).toBe(32);
+    expect(serverToolsLimit({ serverToolsMax: 64 })).toBe(64);
+    expect(serverToolsLimit({ serverToolsMax: 128 })).toBe(64);
+    expect(serverToolsLimit({ serverToolsMax: 10 })).toBe(10);
+    const caps = { harnesses: {}, slots: 1, hold: 'none', power: [] };
+    expect(RunnerCaps.parse(caps).serverToolsMax).toBeUndefined();
+    expect(RunnerCaps.parse({ ...caps, serverToolsMax: 64 }).serverToolsMax).toBe(64);
+    expect(RunnerCaps.safeParse({ ...caps, serverToolsMax: -1 }).success).toBe(false);
   });
 
   it('are called by a turn.tool frame by their name', () => {

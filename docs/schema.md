@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 39. Migrations: 36, the last is `0035_profile_mode`.
+Tables: 39. Migrations: 37, the last is `0036_slack_part`.
 
 ```mermaid
 erDiagram
@@ -27,6 +27,8 @@ erDiagram
     jsonb github_rights "nullable"
     uuid atlassian_credential_id FK "nullable"
     jsonb atlassian_rights "nullable"
+    uuid slack_credential_id FK "nullable"
+    jsonb slack_rights "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -200,7 +202,7 @@ erDiagram
   credentials {
     uuid id PK "not null, default newId() (app-side)"
     uuid owner_user_id FK "not null"
-    text kind "not null, claude_oauth|claude_setup_token|codex_oauth|anthropic_api_key|openai_api_key|gateway|github_oauth|github_token|atlassian_api_token"
+    text kind "not null, claude_oauth|claude_setup_token|codex_oauth|anthropic_api_key|openai_api_key|gateway|github_oauth|github_token|atlassian_api_token|slack_bot_token|slack_user_token"
     text label "not null"
     text account_email "nullable"
     jsonb account_meta "not null, default '{}'"
@@ -558,6 +560,7 @@ erDiagram
   access_profiles }o--o| credentials : "openai_gateway_credential_id"
   access_profiles }o--o| credentials : "github_credential_id"
   access_profiles }o--o| credentials : "atlassian_credential_id"
+  access_profiles }o--o| credentials : "slack_credential_id"
   agent_icons }o--|| companies : "company_id"
   agent_icons |o--|| agents : "company_id, agent_id"
   agent_icons }o--o| principals : "company_id, updated_by_principal_id"
@@ -691,6 +694,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `github_rights` | `jsonb` | yes |  |  |  |
 | `atlassian_credential_id` | `uuid` | yes |  | FK |  |
 | `atlassian_rights` | `jsonb` | yes |  |  |  |
+| `slack_credential_id` | `uuid` | yes |  | FK |  |
+| `slack_rights` | `jsonb` | yes |  |  |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 
@@ -703,6 +708,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `openai_gateway_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_openai_gateway_credential_id_credentials_id_fk`)
   - `github_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_github_credential_id_credentials_id_fk`)
   - `atlassian_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_atlassian_credential_id_credentials_id_fk`)
+  - `slack_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_slack_credential_id_credentials_id_fk`)
 - **Unique:**
   - `access_profiles_owner_user_id_name_unique` (`owner_user_id`, `name`)
 - **Checks:**
@@ -720,6 +726,8 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `access_profiles_github_rights_check`: `jsonb_typeof("github_rights") = 'object'`
   - `access_profiles_atlassian_check`: `"atlassian_credential_id" is null or "atlassian_rights" is not null`
   - `access_profiles_atlassian_rights_check`: `jsonb_typeof("atlassian_rights") = 'object'`
+  - `access_profiles_slack_check`: `"slack_credential_id" is null or "slack_rights" is not null`
+  - `access_profiles_slack_rights_check`: `jsonb_typeof("slack_rights") = 'object'`
 - **Indexes:** none
 
 ### `agent_icons`
@@ -1107,7 +1115,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | ------ | ---- | -------- | ------- | --- | -------------- |
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `owner_user_id` | `uuid` | no |  | FK |  |
-| `kind` | `text` | no |  |  | `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`, `github_oauth`, `github_token`, `atlassian_api_token` |
+| `kind` | `text` | no |  |  | `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`, `github_oauth`, `github_token`, `atlassian_api_token`, `slack_bot_token`, `slack_user_token` |
 | `label` | `text` | no |  |  |  |
 | `account_email` | `text` | yes |  |  |  |
 | `account_meta` | `jsonb` | no | `'{}'` |  |  |
@@ -1128,7 +1136,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `owner_user_id` → `users` (`id`), on delete no action (`credentials_owner_user_id_users_id_fk`)
 - **Unique:** none
 - **Checks:**
-  - `credentials_kind_check`: `kind` is one of `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`, `github_oauth`, `github_token`, `atlassian_api_token`
+  - `credentials_kind_check`: `kind` is one of `claude_oauth`, `claude_setup_token`, `codex_oauth`, `anthropic_api_key`, `openai_api_key`, `gateway`, `github_oauth`, `github_token`, `atlassian_api_token`, `slack_bot_token`, `slack_user_token`
   - `credentials_status_check`: `status` is one of `active`, `needs_sign_in`, `revoked`
   - `credentials_label_check`: `char_length("label") between 1 and 80`
   - `credentials_key_version_check`: `"key_version" >= 1`

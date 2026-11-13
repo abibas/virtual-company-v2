@@ -253,6 +253,13 @@
       "when": 1794567578126,
       "tag": "0035_profile_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794587436951,
+      "tag": "0036_slack_part",
+      "breakpoints": true
     }
   ]
 }

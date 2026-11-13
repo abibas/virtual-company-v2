@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { AtlassianRights, GitHubRights } from '../../src/credentials/tool-rights.ts';
+import type { AtlassianRights, GitHubRights, SlackRights } from '../../src/credentials/tool-rights.ts';
 import {
   ATLASSIAN_TOOLS_NOTE,
   BRIEFING_NAMES_MAX,
   GITHUB_PUSH_NOTE,
   GITHUB_TOOLS_NOTE,
   rightsSummary,
+  SLACK_TOOLS_NOTE,
   toolBriefingLine,
 } from '../../src/credentials/tool-words.ts';
 
@@ -23,7 +24,25 @@ const atlassian = (rights: Partial<AtlassianRights> = {}): AtlassianRights => ({
   ...rights,
 });
 
+const slack = (rights: Partial<SlackRights> = {}): SlackRights => ({
+  read: true,
+  post: false,
+  channels: ['general', 'C0123ABCD'],
+  dms: 'off',
+  search: false,
+  react: false,
+  ...rights,
+});
+
 describe('rightsSummary', () => {
+  it('says what a Slack part may do and in which channels', () => {
+    expect(rightsSummary(slack())).toBe('read · #general, C0123ABCD');
+    expect(
+      rightsSummary(slack({ post: true, react: true, search: true, dms: 'read', channels: 'all' })),
+    ).toBe('read, post, react, search, DMs read · all channels');
+    expect(rightsSummary(slack({ read: false, channels: [] }))).toBe('off · no channels');
+  });
+
   it('says what a GitHub part does besides reading, and where', () => {
     expect(rightsSummary(github())).toBe('push, PRs · AiriaLLC/*');
     expect(rightsSummary(github({ pullRequests: false, repos: 'all' }))).toBe('push · all repositories');
@@ -116,6 +135,39 @@ describe('toolBriefingLine', () => {
     );
     expect(toolBriefingLine({ ...odd, account: ' \n ', rights: atlassian() })).toBe(
       '- Atlassian: your profile has no sign-in for it now, so no access.',
+    );
+  });
+
+  it('tells a Slack part’s bot and workspace, what it may read and post where, and its tools', () => {
+    const tool = { provider: 'slack', account: 'MW Bot', site: 'Airia' } as const;
+    expect(toolBriefingLine({ ...tool, rights: slack({ channels: ['a', 'b'], post: true }) })).toBe(
+      `- Slack: as MW Bot in Airia; may read #a, #b; may post in #a, #b. ${SLACK_TOOLS_NOTE}`,
+    );
+    const everything = slack({ channels: 'all', post: true, react: true, search: true, dms: 'post' });
+    expect(toolBriefingLine({ ...tool, rights: everything, asUser: true })).toBe(
+      "- Slack: as MW Bot's own account (posts show as that person) in Airia; may read every channel; may post in " +
+        'every channel; may add reactions there; may search messages; may read and send direct messages. ' +
+        SLACK_TOOLS_NOTE,
+    );
+    expect(toolBriefingLine({ ...tool, site: ' ', rights: slack({ read: false, channels: [] }) })).toBe(
+      `- Slack: as MW Bot; may do nothing there. ${SLACK_TOOLS_NOTE}`,
+    );
+    expect(toolBriefingLine({ ...tool, rights: slack({ dms: 'read', channels: [] }) })).toContain(
+      'may read no channel; may read direct messages.',
+    );
+    const many = Array.from({ length: BRIEFING_NAMES_MAX + 2 }, (_, i) => `c${i}`);
+    expect(toolBriefingLine({ ...tool, rights: slack({ channels: many }) })).toContain('and 2 more.');
+  });
+
+  it('caps a Slack part’s rights by its token’s scopes when it knows them', () => {
+    const tool = { provider: 'slack', account: 'MW Bot', site: 'Airia' } as const;
+    const rights = slack({ post: true });
+    const scopes = ['channels:read', 'channels:history'];
+    expect(toolBriefingLine({ ...tool, rights, scopes })).toBe(
+      `- Slack: as MW Bot in Airia; may read #general, C0123ABCD. ${SLACK_TOOLS_NOTE}`,
+    );
+    expect(toolBriefingLine({ ...tool, account: null, rights })).toBe(
+      '- Slack: your profile has no sign-in for it now, so no access.',
     );
   });
 });

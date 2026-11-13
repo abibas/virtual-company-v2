@@ -1,12 +1,13 @@
 import type { ToolProvider } from '../enums.ts';
-import type { AtlassianRights, GitHubRights, ToolRights } from './tool-rights.ts';
+import { effectiveSlackRights, slackChannelWords } from './slack.ts';
+import type { AtlassianRights, GitHubRights, SlackRights, ToolRights } from './tool-rights.ts';
 
 /**
  * A profile's tool parts' rights in words (S7.1b, one profile since 2026-11-13): the short summary the pages show beside
  * the profile ("push, PRs · AiriaLLC/*", "Jira read (AP) · Confluence write") and the line each tool part adds to the
  * agent's briefing, what it may do there and as whom, and which of Most Wanted's tools use it (Atlassian's since S7.1c,
- * GitHub's since S7.1d, with git and gh on the machine when it may push). Pure, so the server and the web write the same
- * words.
+ * GitHub's since S7.1d, with git and gh on the machine when it may push; Slack's since S7.1e). Pure, so the server and the
+ * web write the same words.
  */
 
 /** The most names a summary shows; the rest are counted ("+3"). */
@@ -27,6 +28,10 @@ export const GITHUB_PUSH_NOTE = '; in your turns git and gh on your machine use 
 export const ATLASSIAN_TOOLS_NOTE =
   'Use it with your Most Wanted tools, named as on Atlassian’s remote MCP (searchJiraIssuesUsingJql, ' +
   'getJiraIssue, getConfluencePage, …).';
+
+/** What ends Slack's briefing line (S7.1e): its tools, by the names of the Slack MCP servers. */
+export const SLACK_TOOLS_NOTE =
+  'Your Most Wanted tools: slack_get_channel_history, slack_post_message, …; never @here, @channel or @everyone.';
 
 type Scope = 'all' | readonly string[];
 
@@ -62,9 +67,25 @@ function atlassianSummary(rights: AtlassianRights): string {
   return products.length === 0 ? 'off' : products.join(' · ');
 }
 
+/** "read, post · #general, #dev": what it may do (else "off"), and in which channels. */
+function slackSummary(rights: SlackRights): string {
+  const can = [
+    rights.read ? 'read' : '',
+    rights.post ? 'post' : '',
+    rights.react ? 'react' : '',
+    rights.search ? 'search' : '',
+    rights.dms === 'off' ? '' : `DMs ${rights.dms}`,
+  ].filter((word) => word !== '');
+  const channels =
+    rights.channels === 'all' ? rights.channels : rights.channels.map((one) => slackChannelWords(one));
+  const where = shortScope(channels, { all: 'all channels', none: 'no channels' });
+  return `${can.length === 0 ? 'off' : can.join(', ')} · ${where}`;
+}
+
 /** A tool part's rights in a few words, as the pages show them beside the profile. */
 export function rightsSummary(rights: ToolRights): string {
-  return 'repos' in rights ? githubSummary(rights) : atlassianSummary(rights);
+  if ('repos' in rights) return githubSummary(rights);
+  return 'channels' in rights ? slackSummary(rights) : atlassianSummary(rights);
 }
 
 /** A profile's tool part as an agent's briefing reads it: its tool, who its sign-in acts as and where, and its rights. */
@@ -75,6 +96,10 @@ export interface BriefingTool {
   /** The Atlassian site; null for GitHub. */
   readonly site: string | null;
   readonly rights: ToolRights;
+  /** Slack: a user token, which posts as that person (`toolAccountOf`). */
+  readonly asUser?: boolean | undefined;
+  /** Slack: the token's scopes, which cap its rights; left out, the rights are read as given. */
+  readonly scopes?: readonly string[] | undefined;
 }
 
 /** Words in a sentence: "a", "a and b", "a, b and c"; past `BRIEFING_NAMES_MAX` names, "a, b and 3 more". */
@@ -121,6 +146,36 @@ function atlassianLine(account: string, rights: AtlassianRights): string {
   return `as ${account}; ${jira}; ${confluence}; never deletes or archives`;
 }
 
+/** Names in a list: "#a, #b"; past `BRIEFING_NAMES_MAX`, "#a, #b and 3 more". */
+function listed(items: readonly string[]): string {
+  const shown = items.slice(0, BRIEFING_NAMES_MAX).join(', ');
+  const more = items.length - BRIEFING_NAMES_MAX;
+  return more > 0 ? `${shown} and ${more} more` : shown;
+}
+
+/** Slack's line: as whom and where, then what it may read and post and where, DMs, search and reactions. */
+function slackLine(tool: BriefingTool, account: string): string {
+  const kind = tool.asUser ? 'slack_user_token' : 'slack_bot_token';
+  const given = tool.rights as SlackRights;
+  const rights = tool.scopes === undefined ? given : effectiveSlackRights(given, kind, tool.scopes);
+  const who = tool.asUser ? `${account}'s own account (posts show as that person)` : account;
+  const where = tool.site === null ? '' : ` in ${tool.site}`;
+  const channels =
+    rights.channels === 'all'
+      ? 'every channel'
+      : rights.channels.length === 0
+        ? 'no channel'
+        : listed(rights.channels.map(slackChannelWords));
+  const may = [
+    rights.read ? `may read ${channels}` : '',
+    rights.post ? `may post in ${channels}` : '',
+    rights.react ? 'may add reactions there' : '',
+    rights.search ? 'may search messages' : '',
+    rights.dms === 'off' ? '' : `may ${rights.dms === 'post' ? 'read and send' : 'read'} direct messages`,
+  ].filter((part) => part !== '');
+  return `as ${who}${where}; ${may.length === 0 ? 'may do nothing there' : may.join('; ')}`;
+}
+
 /**
  * The briefing's line for one tool part: "- GitHub: as ihorherasko; may read, push branches and open and update pull
  * requests in AiriaLLC/*; never merges, ...", then which tools use it (and, for a GitHub part that pushes, git and gh in
@@ -128,10 +183,18 @@ function atlassianLine(account: string, rights: AtlassianRights): string {
  */
 export function toolBriefingLine(tool: BriefingTool): string {
   const name =
-    tool.provider === 'github' ? 'GitHub' : `Atlassian${tool.site === null ? '' : ` (${tool.site})`}`;
+    tool.provider === 'github'
+      ? 'GitHub'
+      : tool.provider === 'slack'
+        ? 'Slack'
+        : `Atlassian${tool.site === null ? '' : ` (${tool.site})`}`;
   // One line of words: a name with a newline in it cannot start a line of its own.
   const account = tool.account?.replace(/\s+/g, ' ').trim() ?? '';
   if (account === '') return `- ${name}: your profile has no sign-in for it now, so no access.`;
+  if (tool.provider === 'slack') {
+    const site = tool.site?.replace(/\s+/g, ' ').trim() || null;
+    return `- ${name}: ${slackLine({ ...tool, site }, account)}. ${SLACK_TOOLS_NOTE}`;
+  }
   if (!('repos' in tool.rights))
     return `- ${name}: ${atlassianLine(account, tool.rights as AtlassianRights)}. ${ATLASSIAN_TOOLS_NOTE}`;
   const rights = tool.rights as GitHubRights;

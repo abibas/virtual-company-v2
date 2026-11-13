@@ -1,6 +1,7 @@
 import type { CredentialKind, Harness, ProfileProvider, ToolProvider } from './enums.ts';
 
 /** A profile's tool parts' rights (S7.1b) and who a sign-in acts as: `credentials/tool-rights.ts`; in words: `tool-words.ts`. */
+export * from './credentials/slack.ts';
 export * from './credentials/tool-rights.ts';
 export * from './credentials/tool-words.ts';
 export type { ToolProvider } from './enums.ts';
@@ -41,7 +42,8 @@ export const SECRET_MAX = 4096;
 
 /**
  * The tool sign-ins (S7.1a, docs/subscriptions.md "Tool sign-ins"): Sign in with GitHub (the GitHub CLI's device
- * sign-in), a pasted GitHub token, and an Atlassian site with its API token (Jira and Confluence). They live in the same
+ * sign-in), a pasted GitHub token, an Atlassian site with its API token (Jira and Confluence), and (S7.1e) a Slack
+ * app's bot or user token (`credentials/slack.ts`). They live in the same
  * personal store as the AI subscriptions, but never power an AI turn and have no plan limits: an access profile holds
  * them in its tool parts (`TOOL_KINDS`), never as its subscription or gateway.
  */
@@ -49,23 +51,28 @@ export const TOOL_CREDENTIAL_KINDS = [
   'github_oauth',
   'github_token',
   'atlassian_api_token',
+  'slack_bot_token',
+  'slack_user_token',
 ] as const satisfies readonly CredentialKind[];
 export type ToolCredentialKind = (typeof TOOL_CREDENTIAL_KINDS)[number];
 
 /** The tools they sign in to, which are also a profile's tool parts, in the order the pages show them. */
-export const TOOL_PROVIDERS = ['github', 'atlassian'] as const satisfies readonly ToolProvider[];
+export const TOOL_PROVIDERS = ['github', 'atlassian', 'slack'] as const satisfies readonly ToolProvider[];
 
 /** The tool each tool sign-in is for. */
 export const TOOL_PROVIDER_OF = {
   github_oauth: 'github',
   github_token: 'github',
   atlassian_api_token: 'atlassian',
+  slack_bot_token: 'slack',
+  slack_user_token: 'slack',
 } as const satisfies Record<ToolCredentialKind, ToolProvider>;
 
 /** The sign-ins each tool part of a profile takes (S7.1b, one profile since 2026-11-13). */
 export const TOOL_KINDS = {
   github: ['github_oauth', 'github_token'],
   atlassian: ['atlassian_api_token'],
+  slack: ['slack_bot_token', 'slack_user_token'],
 } as const satisfies Record<ToolProvider, readonly ToolCredentialKind[]>;
 
 /** True for a tool sign-in, false for an AI subscription, key or gateway. */
@@ -143,6 +150,7 @@ export const PART_NAMES = {
   openai: 'OpenAI',
   github: 'GitHub',
   atlassian: 'Atlassian',
+  slack: 'Slack',
 } as const satisfies Record<ProfilePart, string>;
 
 /** True for a Claude or an OpenAI part, false for a tool part. */

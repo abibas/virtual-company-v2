@@ -98,13 +98,14 @@ describe('the credential store contract', () => {
   });
 
   it('lists a profile’s parts, AI ones first, each with its name', () => {
-    expect(PROFILE_PARTS).toEqual(['claude', 'openai', 'github', 'atlassian']);
+    expect(PROFILE_PARTS).toEqual(['claude', 'openai', 'github', 'atlassian', 'slack']);
     expect(PROFILE_PARTS.filter(isAiPart)).toEqual(['claude', 'openai']);
     expect(PROFILE_PARTS.map((part) => PART_NAMES[part])).toEqual([
       'Claude',
       'OpenAI',
       'GitHub',
       'Atlassian',
+      'Slack',
     ]);
   });
 });
@@ -185,17 +186,26 @@ describe('a universal gateway', () => {
 });
 
 describe('the tool sign-ins', () => {
-  it('are GitHub’s two and Atlassian’s, each for its own tool part, and never a profile’s subscription', () => {
-    expect(TOOL_CREDENTIAL_KINDS).toEqual(['github_oauth', 'github_token', 'atlassian_api_token']);
+  it('are GitHub’s two, Atlassian’s and Slack’s two, each for its own tool part, and never a profile’s subscription', () => {
+    expect(TOOL_CREDENTIAL_KINDS).toEqual([
+      'github_oauth',
+      'github_token',
+      'atlassian_api_token',
+      'slack_bot_token',
+      'slack_user_token',
+    ]);
     expect(TOOL_PROVIDERS).toEqual(ToolProvider.options);
     expect(TOOL_KINDS).toEqual({
       github: ['github_oauth', 'github_token'],
       atlassian: ['atlassian_api_token'],
+      slack: ['slack_bot_token', 'slack_user_token'],
     });
     expect(TOOL_PROVIDER_OF).toEqual({
       github_oauth: 'github',
       github_token: 'github',
       atlassian_api_token: 'atlassian',
+      slack_bot_token: 'slack',
+      slack_user_token: 'slack',
     });
     expect(CredentialKind.options.filter(isToolKind)).toEqual([...TOOL_CREDENTIAL_KINDS]);
     for (const kind of TOOL_CREDENTIAL_KINDS) {

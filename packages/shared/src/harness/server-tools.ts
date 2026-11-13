@@ -11,6 +11,17 @@ import { JsonObject, protocolObject } from '../runner-protocol/common.ts';
  * their input but that it is an object: the server checks it, with who may do what.
  */
 
+/**
+ * The most server tools a turn's spec carries (since S7.1e: GitHub's, Atlassian's and Slack's together pass 32). A runner
+ * older than it parses at most 32 (`TURN_TOOLS_MAX`) and says no `caps.serverToolsMax`, so the server sends it at most
+ * those (`serverToolsLimit`).
+ */
+export const SERVER_TOOLS_MAX = 64;
+
+/** How many server tools a runner takes: what it says (at most `SERVER_TOOLS_MAX`), else an older runner's 32. */
+export const serverToolsLimit = (caps: { readonly serverToolsMax?: number | undefined }): number =>
+  Math.min(caps.serverToolsMax ?? TURN_TOOLS_MAX, SERVER_TOOLS_MAX);
+
 /** A server tool's name: a letter, then letters, digits and `_`, up to 64 (one plain word on any harness). */
 export const SERVER_TOOL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 export const ServerToolName = z.string().regex(SERVER_TOOL_NAME_PATTERN, 'a tool name');
@@ -34,10 +45,10 @@ export const ServerToolDef = protocolObject({
 });
 export type ServerToolDef = z.infer<typeof ServerToolDef>;
 
-/** A turn's server tools: at most `TURN_TOOLS_MAX`, each name once and none of the reserved ones. */
+/** A turn's server tools: at most `SERVER_TOOLS_MAX`, each name once and none of the reserved ones. */
 export const ServerToolDefs = z
   .array(ServerToolDef)
-  .max(TURN_TOOLS_MAX)
+  .max(SERVER_TOOLS_MAX)
   .refine((tools) => new Set(tools.map((tool) => tool.name)).size === tools.length, 'each tool once')
   .refine(
     (tools) => tools.every((tool) => !RESERVED_TOOL_NAMES.includes(tool.name)),

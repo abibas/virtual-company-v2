@@ -70,6 +70,8 @@ describe('enums', () => {
       'github_oauth',
       'github_token',
       'atlassian_api_token',
+      'slack_bot_token',
+      'slack_user_token',
     ]);
     expect(ToolCheckError.options).toEqual([
       'provider_unavailable',

@@ -108,10 +108,10 @@ export const ProfileProvider = z.enum(['claude', 'openai']);
 export type ProfileProvider = z.infer<typeof ProfileProvider>;
 
 /**
- * The tool parts a profile may have (S7.1b, generic profiles since 2026-11-13): GitHub, and Atlassian for Jira and
- * Confluence. Each holds one of its owner's sign-ins of that tool and the rights it gives.
+ * The tool parts a profile may have (S7.1b, generic profiles since 2026-11-13): GitHub, Atlassian for Jira and
+ * Confluence, and Slack (S7.1e). Each holds one of its owner's sign-ins of that tool and the rights it gives.
  */
-export const ToolProvider = z.enum(['github', 'atlassian']);
+export const ToolProvider = z.enum(['github', 'atlassian', 'slack']);
 export type ToolProvider = z.infer<typeof ToolProvider>;
 
 /**
@@ -125,8 +125,9 @@ export type Effort = z.infer<typeof Effort>;
 /**
  * `credentials.kind`: what a person's subscription or tool sign-in is (docs/subscriptions.md). The AI logins are written
  * by the sign-in helper (S3.2); the other AI kinds are pasted. The tool sign-ins (S7.1a): `github_oauth` (Sign in with
- * GitHub, the GitHub CLI's device sign-in in the helper), `github_token` (a pasted personal access token) and
- * `atlassian_api_token` (a site, an account email and an API token, for Jira and Confluence).
+ * GitHub, the GitHub CLI's device sign-in in the helper), `github_token` (a pasted personal access token),
+ * `atlassian_api_token` (a site, an account email and an API token, for Jira and Confluence), and (S7.1e) Slack's
+ * `slack_bot_token` (`xoxb-`) and `slack_user_token` (`xoxp-`).
  */
 export const CredentialKind = z.enum([
   'claude_oauth',
@@ -138,6 +139,8 @@ export const CredentialKind = z.enum([
   'github_oauth',
   'github_token',
   'atlassian_api_token',
+  'slack_bot_token',
+  'slack_user_token',
 ]);
 export type CredentialKind = z.infer<typeof CredentialKind>;
 

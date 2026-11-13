@@ -69,6 +69,8 @@ export const RunnerCaps = protocolObject({
   agentTools: z.boolean().default(false),
   /** True when its turns list and relay the server's own tools (S7.1c, `TurnSpec.serverTools`); false from older ones. */
   serverTools: z.boolean().default(false),
+  /** How many server tools a turn's spec may carry (S7.1e: 64); left out by older runners, which parse 32. */
+  serverToolsMax: z.int().min(0).optional(),
   /** True when its turns put a GitHub sign-in in git's and gh's way (S7.1d, `TurnSpec.github`); false from older ones. */
   github: z.boolean().default(false),
   /**

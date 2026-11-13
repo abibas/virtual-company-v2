@@ -43,7 +43,7 @@ const lengthWithin = (column: AnyPgColumn, range: { readonly min: number; readon
 
 /**
  * Personal credentials (S3.1, docs/subscriptions.md): a person's subscriptions, API keys and gateways, and since S7.1a
- * their tool sign-ins (GitHub, Atlassian). A personal table, owned by a user and never by a company, so it has no
+ * their tool sign-ins (GitHub, Atlassian; Slack since S7.1e). A personal table, owned by a user and never by a company, so it has no
  * `company_id`; code reaches it only through `owned(db, userId)` of `@mwc/db`, which scopes every statement to its owner.
  *
  * The secret is sealed by the server with AES-256-GCM (`key_version` names the master key, `iv` is 12 random bytes per
@@ -189,15 +189,15 @@ const toolPartChecks = (tool: ToolProvider, credential: AnyPgColumn, rights: Any
  *   null for the default, Manual or Ask). A profile has one of them at most (Ihor, 2026-11-13: "EITHER 1 harness
  *   EITHER 2nd one... NOT BOTH"), and an agent's harness follows it: Claude Code on a Claude part, Codex on an OpenAI
  *   part. A profile with neither (only tool parts) is given to no agent.
- * - **GitHub** and **Atlassian** (there when `<tool>_rights` is): one sign-in of that tool and the rights the agents
- *   given the profile have there (`GitHubRights`, `AtlassianRights` of `@mwc/shared/credentials`).
+ * - **GitHub**, **Atlassian** and **Slack** (there when `<tool>_rights` is): one sign-in of that tool and the rights the
+ *   agents given the profile have there (`GitHubRights`, `AtlassianRights`, `SlackRights` of `@mwc/shared/credentials`).
  *
  * Its credentials are its owner's, of kinds that fit each part (`PROVIDER_KINDS`, `GATEWAY_KINDS`, `TOOL_KINDS`), never
  * revoked ones: the credentials module checks that, since SQL cannot read another row's owner or kind here. SQL keeps
  * one AI part at most, a part's fields set only while the part is there, a model's length, the stored efforts, and a
  * tool part's rights an object. Removing a credential empties its place in the part; removing a profile takes it off its
  * agents, chats and defaults (all `on delete set null`). `PROFILE_PART_COLUMNS` (`src/profile-parts.ts`) maps each part
- * to its columns; Slack (S7.1e) is a tool part's two more columns and an entry there.
+ * to its columns; Slack's part (S7.1e, migration `0036_slack_part`) is a tool part's two columns and an entry there.
  */
 export const accessProfiles = pgTable(
   'access_profiles',
@@ -240,6 +240,10 @@ export const accessProfiles = pgTable(
     atlassianCredentialId: held('atlassian_credential_id'),
     /** Its Atlassian part's rights (`AtlassianRights`); null: it has no Atlassian part. */
     atlassianRights: jsonb('atlassian_rights').$type<Record<string, unknown>>(),
+    /** Its Slack part's sign-in (`slack_bot_token` or `slack_user_token`); null without one. */
+    slackCredentialId: held('slack_credential_id'),
+    /** Its Slack part's rights (`SlackRights`); null: it has no Slack part. */
+    slackRights: jsonb('slack_rights').$type<Record<string, unknown>>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -263,6 +267,7 @@ export const accessProfiles = pgTable(
     ]),
     ...toolPartChecks('github', t.githubCredentialId, t.githubRights),
     ...toolPartChecks('atlassian', t.atlassianCredentialId, t.atlassianRights),
+    ...toolPartChecks('slack', t.slackCredentialId, t.slackRights),
   ],
 );
 

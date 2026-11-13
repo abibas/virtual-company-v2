@@ -82,6 +82,8 @@ describe('credentials', () => {
       'github_oauth',
       'github_token',
       'atlassian_api_token',
+      'slack_bot_token',
+      'slack_user_token',
     ] as const) {
       await insert({ kind });
     }
@@ -348,8 +350,9 @@ describe('access_profiles', () => {
         held('openai_gateway_credential_id'),
         held('github_credential_id'),
         held('atlassian_credential_id'),
+        held('slack_credential_id'),
       ]),
     );
-    expect(refs).toHaveLength(7);
+    expect(refs).toHaveLength(8);
   });
 });

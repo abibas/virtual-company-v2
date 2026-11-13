@@ -10,8 +10,8 @@ import { insertUser, MISSING_ID, migratedTestDb, unique } from '../fixtures/rows
 
 /**
  * A generic profile's parts (migration `0032_generic_profiles`, 2026-11-13): a Claude or an OpenAI part (a presence
- * flag, a subscription, a gateway, a model, an effort and, since 2026-11-13, a mode; one at most since `0033_one_ai_part`) and a GitHub and an
- * Atlassian part (a sign-in and its rights). Which credential fits a part, and the rights' shape, are the credentials
+ * flag, a subscription, a gateway, a model, an effort and, since 2026-11-13, a mode; one at most since `0033_one_ai_part`) and a GitHub, an
+ * Atlassian and (since `0036_slack_part`) a Slack part (a sign-in and its rights). Which credential fits a part, and the rights' shape, are the credentials
  * module's rules; SQL keeps one AI part at most, an AI part's fields off while the part is not there, a model's length, the stored efforts, each part's own modes, a tool part's sign-in only with its rights,
  * and its rights an object. The data step is `access-profiles-parts-backfill.test.ts`'s.
  */
@@ -33,6 +33,15 @@ const ATLASSIAN_RIGHTS = {
   jiraProjects: 'all',
   confluence: 'write',
   confluenceSpaces: ['ENG'],
+};
+
+const SLACK_RIGHTS = {
+  read: true,
+  post: false,
+  channels: ['general'],
+  dms: 'off',
+  search: false,
+  react: false,
 };
 
 const signIn = async (kind: CredentialKind) => {
@@ -198,19 +207,31 @@ describe('a profile’s tool parts', () => {
       atlassianCredentialId: atlassian.id,
     });
     expect(await profile({ githubRights: GITHUB_RIGHTS })).toMatchObject({ githubCredentialId: null });
+    const slack = await signIn('slack_bot_token');
+    const withSlack = await profile({ slackCredentialId: slack.id, slackRights: SLACK_RIGHTS });
+    expect(withSlack).toMatchObject({ slackCredentialId: slack.id, slackRights: SLACK_RIGHTS });
+    expect(await profile({ slackRights: SLACK_RIGHTS })).toMatchObject({ slackCredentialId: null });
+    expect(await profile()).toMatchObject({ slackCredentialId: null, slackRights: null });
   });
 
   it.each([
     ['github', 'githubCredentialId', 'access_profiles_github_check'],
     ['atlassian', 'atlassianCredentialId', 'access_profiles_atlassian_check'],
+    ['slack', 'slackCredentialId', 'access_profiles_slack_check'],
   ] as const)('refuses a %s sign-in without its rights', async (tool, column, constraint) => {
-    const held = await signIn(tool === 'github' ? 'github_token' : 'atlassian_api_token');
+    const kinds = {
+      github: 'github_token',
+      atlassian: 'atlassian_api_token',
+      slack: 'slack_user_token',
+    } as const;
+    const held = await signIn(kinds[tool]);
     expect(await pgError(profile({ [column]: held.id }))).toMatchObject({ code: '23514', constraint });
   });
 
   it.each([
     ['githubRights', 'access_profiles_github_rights_check'],
     ['atlassianRights', 'access_profiles_atlassian_rights_check'],
+    ['slackRights', 'access_profiles_slack_rights_check'],
   ] as const)('refuses %s that are no object', async (column, constraint) => {
     const rights = ['push'] as unknown as Record<string, unknown>;
     expect(await pgError(profile({ [column]: rights }))).toMatchObject({ code: '23514', constraint });
@@ -221,6 +242,10 @@ describe('a profile’s tool parts', () => {
     const row = await profile({ githubCredentialId: github.id, githubRights: GITHUB_RIGHTS });
     await handle.db.delete(credentials).where(eq(credentials.id, github.id));
     expect(await profileRow(row.id)).toMatchObject({ githubCredentialId: null, githubRights: GITHUB_RIGHTS });
+    const slack = await signIn('slack_bot_token');
+    const other = await profile({ slackCredentialId: slack.id, slackRights: SLACK_RIGHTS });
+    await handle.db.delete(credentials).where(eq(credentials.id, slack.id));
+    expect(await profileRow(other.id)).toMatchObject({ slackCredentialId: null, slackRights: SLACK_RIGHTS });
   });
 });
 
@@ -238,6 +263,7 @@ describe('the parts’ column maps', () => {
     expect(PROFILE_TOOL_COLUMNS).toEqual({
       github: { credential: 'githubCredentialId', rights: 'githubRights' },
       atlassian: { credential: 'atlassianCredentialId', rights: 'atlassianRights' },
+      slack: { credential: 'slackCredentialId', rights: 'slackRights' },
     });
   });
 });
