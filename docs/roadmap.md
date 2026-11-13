@@ -717,6 +717,16 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          picker listing each profile's parts, misfits disabled, with the parts line under it.
        - Tests: the parts' rules and routes, giving and harness changes, defaults, the agent's and chart's view, turns
          and chats on the harness's part, the briefing, the migration's parts, copies and each refusal.
+       **One AI part, 2026-11-13** (Ihor: "we have to LOCK in Profile, that we can Choose EITHER 1 harness EITHER 2nd
+       one... NOT BOTH simultaneously! this should simplify this selector as well!"; docs/subscriptions.md, "Profiles"):
+       - A profile holds Claude or OpenAI, never both: migration `0033_one_ai_part` adds the CHECK (it refuses, naming
+         the profile, if one has both), the server a second AI part with 422 `one_ai_part`. Tool-only profiles stay;
+         they are given to no agent (422 `profile_no_ai_part`).
+       - An agent's harness follows its profile's AI part, set by the server on hire and update (`harness` left the
+         agent routes; the column stays, derived); taking the profile off keeps it; chats on the old harness say
+         `harness_changed` as before. A hire without a profile takes the hirer's Claude default, else the OpenAI one.
+       - Web: no Harness control; the Profile picker lists "name · Claude", tool-only ones disabled ("No AI part"), one
+         parts line under it; the Profiles page offers Add Claude and Add OpenAI only while a profile has neither.
        **Built 2026-11-12** (docs/subscriptions.md, "Tool profiles"; waiting for his live test):
        - Profile providers `github` and `atlassian` (`ProfileProvider`; `AiProvider` keeps Claude and OpenAI for models,
          defaults and harnesses), each holding one sign-in of its tool and its rights, with no gateway, model or effort.

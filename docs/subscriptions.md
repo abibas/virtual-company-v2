@@ -198,7 +198,8 @@ A gateway has no provider any more: the `accountMeta.provider` that gateways bri
 
 Since 2026-11-13 a profile is **generic** (Ihor: "I wanted to have PROFILES not Claude Profiles... i.e. GENERIC
 profile, which has under the hood, assigning Claude/GH/Jira etc... Profile on our end serves full config"): a person's
-named profile with optional **parts**, any of which can be added or removed:
+named profile with optional **parts**, any of which can be added or removed, and **one AI part at most** (Ihor, the
+same day: "we have to LOCK in Profile, that we can Choose EITHER 1 harness EITHER 2nd one... NOT BOTH simultaneously!"):
 
 | Part      | Holds                                                                                              |
 | --------- | -------------------------------------------------------------------------------------------------- |
@@ -207,13 +208,14 @@ named profile with optional **parts**, any of which can be added or removed:
 | GitHub    | one GitHub sign-in (`github_oauth`, `github_token`) and its rights ("Tool parts" below)            |
 | Atlassian | one Atlassian sign-in (`atlassian_api_token`) and its rights                                       |
 
-Slack comes later (S7.1e) as a third tool part. An agent gets one profile (`agents.profile_id`) and runs on the part
-its harness runs on: a Claude Code agent on the Claude part, a Codex agent on the OpenAI part, so one profile with both
-serves either. Its GitHub and Atlassian access are the profile's tool parts. A person makes as many profiles as they
+Slack comes later (S7.1e) as a third tool part. A profile has a Claude part or an OpenAI part, or neither (a GitHub-only
+or Atlassian-only profile), never both. An agent gets one profile (`agents.profile_id`) with an AI part, and its harness
+follows that part: Claude Code on a Claude part, Codex on an OpenAI part. Its GitHub and Atlassian access are the
+profile's tool parts. A person makes as many profiles as they
 like; a profile never moves a credential into a company: it is a reference the server resolves at run time. Each
 person has a default per AI part and company for the agents they hire. Built first in S3.4 (bundles), one provider per
 profile from 2026-11-10 (migration `0015_profile_provider`), with separate GitHub and Atlassian profiles in S7.1b, and
-generic since migration `0032_generic_profiles`.
+generic since migration `0032_generic_profiles`, with one AI part since `0033_one_ai_part`.
 
 - **The row.** `access_profiles` is personal (an owner, no company): `name` (1–80, unique per owner) and its parts'
   columns, with no provider:
@@ -223,7 +225,8 @@ generic since migration `0032_generic_profiles`.
   - each tool part: `<tool>_credential_id` and `<tool>_rights` (jsonb), for `github` and `atlassian`; the part is
     there when its rights are.
 
-  CHECKs keep an AI part's fields off while the part is not there, a model's length, the stored efforts, a tool sign-in
+  CHECKs keep one AI part at most (`access_profiles_one_ai_part_check`: `not (claude_part and openai_part)`), an AI
+  part's fields off while the part is not there, a model's length, the stored efforts, a tool sign-in
   only with its rights, and rights an object. `PROFILE_AI_COLUMNS`, `PROFILE_TOOL_COLUMNS` and `aiPartOf` (`@mwc/db`,
   `src/profile-parts.ts`) map the parts to their columns. **Why typed columns rather than one jsonb or a parts table:**
   every credential needs a real column for its foreign key, so removing a credential lets go of it; typed columns keep
@@ -242,27 +245,35 @@ generic since migration `0032_generic_profiles`.
 
   Refusals, all 422: none of the owner's credential (`credential_not_found`), a kind its place does not take
   (`credential_kind_mismatch`: an AI part's subscription is its provider's, a gateway any gateway, a tool part's
-  sign-in its tool's), a revoked one (`credential_revoked`), a model of the other provider (`model_provider_mismatch`),
-  an effort the model does not take (`effort_unsupported`, checked against what the part runs after the change),
-  removing an AI part agents run on (`profile_part_in_use`, naming them: "Developer and QA run on this profile's Claude
-  part: give them another profile first"). A model id that does not look like one, an unknown part or field, rights of
+  sign-in its tool's), a revoked one (`credential_revoked`), a second AI part (`one_ai_part`: "This profile already has
+  a Claude part; a profile runs one AI"; a new profile given both: "A profile runs one AI: give it a Claude part or an
+  OpenAI part, not both"; removing one and adding the other in one change is a swap, and fine), a model of the other
+  provider (`model_provider_mismatch`), an effort the model does not take (`effort_unsupported`, checked against what
+  the part runs after the change), removing an AI part agents run on (`profile_part_in_use`, naming them: "Developer
+  and QA run on this profile's Claude part: give them another profile first"; a swap too, since it would change their
+  harness). A model id that does not look like one, an unknown part or field, rights of
   the other tool's shape are 400; a taken name 409. Every profile shows `parts` (each null or the part with its
   credentials as metadata, never a secret) and the agents using it in the owner's companies.
 - **Giving one to an agent:** `profileId` on `POST`/`PATCH /api/companies/:companyId/agents`. Only the profile's owner
   gives it, signed in (an API key: 403 `session_required`), in a company where they are an admin or owner; someone
-  else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`, one without the part the agent's harness runs
-  on 422 `profile_part_missing` ("This profile has no Claude part, which a Claude Code agent runs on"). Any admin or
-  owner takes a profile off (`null`), with a session or an API key. Agents and the chart show `profile: {id, name,
+  else's profile is 403 `profile_not_yours`, none 422 `profile_not_found`, one with no AI part 422 `profile_no_ai_part`
+  ("This profile has no AI part"). Any admin or owner takes a profile off (`null`), with a session or an API key. Agents and the chart show `profile: {id, name,
   ownerUserId, ownerName, parts}`: each AI part's model and effort, each tool part's account, site and rights; never a
-  subscription, its account or a secret. `runsWith: {model, effort, provider}` is what the agent runs: its harness's
-  part's model and effort (null without a profile or without that part).
-- **Changing an agent's harness** to one its profile has no part for is refused (422 `profile_part_missing`); the same
-  change may take the profile off (`profileId: null`) or give another.
+  subscription, its account or a secret. `runsWith: {model, effort, provider}` is what the agent runs: its profile's AI
+  part's model and effort (null without a profile).
+- **The harness follows the profile** (since 2026-11-13): giving a profile, on hire or with `PATCH`, sets
+  `agents.harness` from its AI part on the server (`claude_code` for Claude, `codex` for OpenAI), audited like any
+  field. `harness` is no longer a field of the agent routes (one sent is ignored); it stays a stored column, always
+  derived. Taking the profile off keeps the harness; an agent hired without a profile runs `claude_code` until it gets
+  one. A new harness leaves the agent's chats as they were, as a harness change always did: each keeps the harness it
+  began on and its next prompt is refused with `harness_changed` ("start a new chat"); a turn already running finishes.
+  Nothing refuses the change while a turn runs (the old harness change did not either).
 - **The defaults:** `memberships.default_claude_profile_id` and `default_openai_profile_id` stay, each pointing at a
   generic profile with that part (the simplest shape, and no data lost). `PUT /api/companies/:companyId/me/default-profile`
   with `{ provider, profileId }` sets the caller's own default for that AI part's agents (the rule of giving, and 422
   `profile_part_missing` for a profile without the part; clearing one is any active member's). An agent hired without
-  `profileId` gets the hirer's default for its harness, when that profile still has the part (else none).
+  `profileId` gets the hirer's Claude default, else their OpenAI default, each only while it still has its part (else
+  none), and the harness that follows from it. The Hire page starts from the same.
 - **A chat's own profile** (S5.1b) follows the same rules: only the owner's, with the part of the chat's harness
   (`profile_part_missing`); a turn refuses a profile without that part the same way, and a part without a subscription
   with `profile_empty`. The part's gateway goes with every turn and terminal of its harness, and its model and effort are
@@ -280,16 +291,20 @@ generic since migration `0032_generic_profiles`.
     then its parts as sections in a fixed order (Claude, OpenAI, GitHub, Atlassian), each with **Remove**: an AI part's
     **Subscription**, **Gateway**, **Model** and **Effort**; a tool part's **Sign-in** and rights ("Tool parts" below);
     each saved as it changes. A row of **Add Claude**, **Add OpenAI**, **Add GitHub** and **Add Atlassian** adds the
-    missing ones (each with the person's first credential of that kind), and "Used by: Developer, QA" names the agents.
+    missing ones (each with the person's first credential of that kind); Add Claude and Add OpenAI show only while the
+    profile has neither, so once one is added the other's button is gone, and removing it brings both back (still
+    refused while agents run on it). "Used by: Developer, QA" names the agents.
     No descriptions under the fields, no lede under the title.
   - **New profile** asks for a name only. `?new=1` (an agent form's **Make one**) opens it.
   - **Defaults for agents I hire** has a select per company for Claude Code agents and for Codex agents, each listing
     the profiles with that part.
-  - The agent form has a **Harness** choice (Claude Code, Codex; on the Hire page a change takes the hirer's default for
-    the new one) and one **Profile** picker: each profile with its parts in short, those without the harness's part
-    disabled ("No Claude part"). Under it one line of the profile's parts (`profileLine`): "Claude · Opus 5.5 · High ·
-    GitHub: push, PRs · AiriaLLC/* · Atlassian: Jira read (AP) · Confluence write" (a model and effort only when not the
-    defaults; never the subscription's account). The agent page's facts show it as **Access**; agent cards, the agents
+  - The agent form has no harness choice (since 2026-11-13: the profile decides it) and one **Profile** picker: each
+    profile as its name and its AI in short ("Claude Code 2nd · Claude"), those without an AI part disabled ("Work
+    tools · No AI part"); choosing one sets the harness, and the Hire page starts from the hirer's Claude default, else
+    their OpenAI one. Under it, once, a quiet line of the chosen profile's parts (`profileLine`): "Claude · Opus 5.5 ·
+    High · GitHub: push, PRs · AiriaLLC/* · Atlassian: Jira read (AP) · Confluence write" (a model and effort only when
+    not the defaults; never the subscription's account), and **Your profiles** as the link. The agent page's facts show
+    it once, as **Access**; agent cards, the agents
     table, the header and the chart show the model and effort the agent runs, and a chat's picker lists the profiles
     with the part of its harness.
 
@@ -529,12 +544,16 @@ each part copied in and each agent's tool profile taken off, by the system, with
 3. On the profile your DEVBOX agents use, **Add GitHub**: it takes your GitHub sign-in; under **Repositories** type
    `AiriaLLC/*` and Enter, switch on **Push branches** and **Pull requests**. **Add Atlassian**: **Jira** Read,
    **Confluence** Read or Write. Each change saves at once. (Or delete the two tool-only profiles, or keep them.)
-4. **Add OpenAI** on the same profile: the one profile now serves a Claude Code agent and a Codex agent.
+4. The same profile has no **Add OpenAI** any more: a profile runs one AI (since `0033_one_ai_part`). A Codex agent
+   gets a profile of its own with an OpenAI part.
 5. **Remove** on its Claude section while Claude Code agents use it: refused, naming them.
-6. **Agents** → a DEVBOX agent → **How it works**: **Harness**, then one **Profile** picker; profiles without the
-   harness's part are greyed out ("No Claude part"). Under it: "Claude · … · GitHub: push, PRs · AiriaLLC/* · Atlassian:
-   Jira read · Confluence …". The facts at the top show the same line as **Access**, and **Instructions** → **From the
-   company** ends with the GitHub and Atlassian lines.
+6. **Agents** → a DEVBOX agent → **How it works**: no Harness, one **Profile** picker listing "name · Claude" or
+   "name · OpenAI"; the tool-only profiles are greyed out ("No AI part"). Under it, once: "Claude · … · GitHub: push,
+   PRs · AiriaLLC/* · Atlassian: Jira read · Confluence …". Picking an OpenAI profile makes it a Codex agent on Save.
+   The facts at the top show that line once, as **Access**, and **Instructions** → **From the company** ends with the
+   GitHub and Atlassian lines.
+7. Merge, restart the dev API: migration `0033_one_ai_part` runs on start, adds the CHECK and changes no row (it refuses,
+   naming the profile, if one had both parts).
 
 ## Atlassian tools
 

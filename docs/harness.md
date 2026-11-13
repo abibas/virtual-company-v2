@@ -476,8 +476,8 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    naming what to fix: the chat not archived, no turn of it running; the agent's placement (none, `container` mode: S5
    proper), its machine's runner connected (a stopped machine may be started and waited for: "When the machine is
    stopped"), newer than chats (`caps.harnesses` with versions) and with the harness's
-   CLI; the profile (the chat's, else the agent's), of the provider the harness runs on (Claude Code: a Claude profile;
-   Codex: an OpenAI profile; else `profile_harness_mismatch`), with its gateway (its address with the route's path, by
+   CLI; the profile (the chat's, else the agent's), with the part the harness runs on (Claude Code: a Claude part;
+   Codex: an OpenAI part; else `profile_part_missing`), with its gateway (its address with the route's path, by
    the harness and the credential's kind), and its subscription (`profile_empty`
    when it has none). The spec's model and effort are that profile's (since 2026-11-10; docs/subscriptions.md "Model
    and effort"): none for the provider's default, and Codex's old marker `codex-default`, a Claude id on Codex or an
