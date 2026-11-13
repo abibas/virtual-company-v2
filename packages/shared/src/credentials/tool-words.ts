@@ -2,10 +2,10 @@ import type { ToolProvider } from '../enums.ts';
 import type { AtlassianRights, GitHubRights, ToolRights } from './tool-rights.ts';
 
 /**
- * Tool profiles' rights in words (S7.1b): the short summary an agent's page shows beside the profile ("push, PRs ·
- * AiriaLLC/*", "Jira read · AP; Confluence write · ENG") and the line each tool profile adds to the agent's briefing,
- * what it may do there and as whom. The tools themselves arrive later (S7.1c, S7.1d), so the line says the access is
- * configured, never that a tool exists. Pure, so the server and the web write the same words.
+ * A profile's tool parts' rights in words (S7.1b, one profile since 2026-11-13): the short summary the pages show beside
+ * the profile ("push, PRs · AiriaLLC/*", "Jira read (AP) · Confluence write") and the line each tool part adds to the
+ * agent's briefing, what it may do there and as whom. The tools themselves arrive later (S7.1c, S7.1d), so the line says
+ * the access is configured, never that a tool exists. Pure, so the server and the web write the same words.
  */
 
 /** The most names a summary shows; the rest are counted ("+3"). */
@@ -34,28 +34,32 @@ function githubSummary(rights: GitHubRights): string {
   return `${can.length === 0 ? 'read' : can.join(', ')} · ${where}`;
 }
 
-/** "Jira read · AP; Confluence write · ENG", a product that is off as "Jira off". */
-function atlassianSummary(rights: AtlassianRights): string {
-  const jira =
-    rights.jira === 'off'
-      ? 'Jira off'
-      : `Jira ${rights.jira} · ${shortScope(rights.jiraProjects, { all: 'all projects', none: 'no projects' })}`;
-  const confluence =
-    rights.confluence === 'off'
-      ? 'Confluence off'
-      : `Confluence ${rights.confluence} · ${shortScope(rights.confluenceSpaces, { all: 'all spaces', none: 'no spaces' })}`;
-  return `${jira}; ${confluence}`;
+/** One Atlassian product's level, with where it reaches unless that is everywhere: "Jira read", "Confluence write (ENG)". */
+function productSummary(product: string, level: string, scope: Scope, none: string): string | null {
+  if (level === 'off') return null;
+  return scope === 'all'
+    ? `${product} ${level}`
+    : `${product} ${level} (${shortScope(scope, { all: '', none })})`;
 }
 
-/** A tool profile's rights in a few words, as an agent's page shows them beside the profile's name. */
+/** "Jira read (AP) · Confluence write": the products it may use, and "off" when it may use neither. */
+function atlassianSummary(rights: AtlassianRights): string {
+  const products = [
+    productSummary('Jira', rights.jira, rights.jiraProjects, 'no projects'),
+    productSummary('Confluence', rights.confluence, rights.confluenceSpaces, 'no spaces'),
+  ].filter((product) => product !== null);
+  return products.length === 0 ? 'off' : products.join(' · ');
+}
+
+/** A tool part's rights in a few words, as the pages show them beside the profile. */
 export function rightsSummary(rights: ToolRights): string {
   return 'repos' in rights ? githubSummary(rights) : atlassianSummary(rights);
 }
 
-/** A tool profile as an agent's briefing reads it: its tool, who its sign-in acts as and where, and its rights. */
+/** A profile's tool part as an agent's briefing reads it: its tool, who its sign-in acts as and where, and its rights. */
 export interface BriefingTool {
   readonly provider: ToolProvider;
-  /** Who the sign-in acts as (`toolAccountOf`); null when the profile has no sign-in now. */
+  /** Who the sign-in acts as (`toolAccountOf`); null when the part has no sign-in now. */
   readonly account: string | null;
   /** The Atlassian site; null for GitHub. */
   readonly site: string | null;
@@ -104,8 +108,8 @@ function atlassianLine(account: string, rights: AtlassianRights): string {
 }
 
 /**
- * The briefing's line for one tool profile: "- GitHub: as ihorherasko; may read, push branches and open and update pull
- * requests in AiriaLLC/*; never merges, ...", then that it is configured and its tools come later; a profile with no
+ * The briefing's line for one tool part: "- GitHub: as ihorherasko; may read, push branches and open and update pull
+ * requests in AiriaLLC/*; never merges, ...", then that it is configured and its tools come later; a part with no
  * sign-in says it gives no access.
  */
 export function toolBriefingLine(tool: BriefingTool): string {
@@ -113,7 +117,7 @@ export function toolBriefingLine(tool: BriefingTool): string {
     tool.provider === 'github' ? 'GitHub' : `Atlassian${tool.site === null ? '' : ` (${tool.site})`}`;
   // One line of words: a name with a newline in it cannot start a line of its own.
   const account = tool.account?.replace(/\s+/g, ' ').trim() ?? '';
-  if (account === '') return `- ${name}: its profile has no sign-in now, so no access.`;
+  if (account === '') return `- ${name}: your access profile has no sign-in for it now, so no access.`;
   const rights =
     'repos' in tool.rights ? githubLine(account, tool.rights) : atlassianLine(account, tool.rights);
   return `- ${name}: ${rights}. ${TOOL_ACCESS_NOTE}`;

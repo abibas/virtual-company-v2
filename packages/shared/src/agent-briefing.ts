@@ -8,8 +8,8 @@ import { AGENT_INSTRUCTIONS_MAX } from './org.ts';
  * chain up to the top), placed before the agent's own instructions. Pure, so the server (which sends it) and the web
  * (which shows it, and previews it on the Hire page) write the same text from the same chart. Archived agents are not
  * on the chart, so they are left out; paused ones are listed, marked paused. People show their display name only,
- * never an email; nobody's id is shown. Since S7.1b it ends with a line per tool profile the agent has (GitHub,
- * Atlassian): what it may do there and as whom (`toolBriefingLine`).
+ * never an email; nobody's id is shown. Since S7.1b it ends with a line per tool part of the agent's access profile
+ * (GitHub, Atlassian): what it may do there and as whom (`toolBriefingLine`).
  */
 
 /** A principal as the briefing reads the chart: the `GET /org/chart` node's fields it needs. */
@@ -36,7 +36,7 @@ export interface BriefingInput {
   readonly nodes: readonly BriefingNode[];
   /** The agent the briefing is for. */
   readonly principalId: string;
-  /** Its tool profiles, GitHub's then Atlassian's (S7.1b); none when left out. */
+  /** Its access profile's tool parts, GitHub's then Atlassian's (S7.1b); none when left out. */
   readonly tools?: readonly BriefingTool[];
 }
 
@@ -161,7 +161,7 @@ export function briefingVersion(text: string): string {
 
 /**
  * The agent's briefing (see above): the heading, then one line each for who it is, its manager, the chain up (when the
- * manager has one of their own), its teammates, its reports and each of its tool profiles. An agent not on the chart
+ * manager has one of their own), its teammates, its reports and each tool part of its profile. An agent not on the chart
  * (archived) is told only that.
  */
 export function agentBriefing(input: BriefingInput): Briefing {

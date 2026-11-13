@@ -139,7 +139,7 @@ describe('agentBriefing', () => {
     ]);
   });
 
-  it('ends with a line per tool profile, GitHub’s then Atlassian’s, and none for an agent off the chart', () => {
+  it('ends with a line per tool part of its profile, GitHub’s then Atlassian’s, and none for an agent off the chart', () => {
     const tools: BriefingTool[] = [
       {
         provider: 'github',

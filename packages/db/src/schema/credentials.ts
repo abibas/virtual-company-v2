@@ -1,12 +1,11 @@
 import { ACCESS_PROFILE_NAME, CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
 import {
-  AiProvider,
   CredentialKind,
   CredentialStatus,
   Effort,
   ProfileProvider,
   ToolCheckError,
-  ToolProvider,
+  type ToolProvider,
 } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { MODEL_ID_MAX } from '@mwc/shared/models';
@@ -124,6 +123,12 @@ export const credentialUses = pgTable(
 /** A credential an access profile holds: one of its owner's, let go when that credential is removed. */
 const held = (name: string) => uuid(name).references(() => credentials.id, { onDelete: 'set null' });
 
+/** A tool part's CHECKs: a sign-in only with its rights (the part is there when its rights are), rights an object. */
+const toolPartChecks = (tool: ToolProvider, credential: AnyPgColumn, rights: AnyPgColumn) => [
+  check(`access_profiles_${tool}_check`, sql`${credential} is null or ${rights} is not null`),
+  check(`access_profiles_${tool}_rights_check`, sql`jsonb_typeof(${rights}) = 'object'`),
+];
+
 /**
  * Access profiles (S3.4, one provider each since 2026-11-10, docs/subscriptions.md): a person's named choice of one of
  * their own subscriptions, which they give to agents (`agents.profile_id`) and choose as their default for the agents
@@ -135,20 +140,23 @@ const held = (name: string) => uuid(name).references(() => credentials.id, { onD
  * agents), an OpenAI profile an OpenAI subscription (for `codex` agents), and either an optional gateway, any of its
  * owner's (gateways are universal since 2026-11-10: one address serves Claude Code and Codex, each at its own path;
  * migration `0016_gateway_provider` dropped the CHECK that kept gateways on Claude profiles). Its credentials are its
- * owner's, of kinds that fit (`PROVIDER_KINDS`, `GATEWAY_KINDS` of `@mwc/shared/credentials`), never revoked ones: the
- * credentials module checks that, since SQL cannot read another row's owner or kind here. Removing a credential empties the profile (it cannot run until its
- * owner chooses another); removing a profile takes it off its agents, chats and defaults (all `on delete set null`).
+ * owner's, of kinds that fit (`PROVIDER_KINDS`, `GATEWAY_KINDS`, `TOOL_KINDS` of `@mwc/shared/credentials`), never
+ * revoked ones: the credentials module checks that, since SQL cannot read another row's owner or kind here. Removing a
+ * credential empties its part (the profile cannot run until its owner chooses another subscription); removing a profile
+ * takes it off its agents, chats and defaults (all `on delete set null`).
  *
  * Since migration `0017_profile_model` a profile also says what its runs run: a `model` (one of the catalogue's of its
  * provider or another id, `@mwc/shared/models`) and an `effort`, each null for the provider's default. Agents have no
  * model or effort of their own any more. SQL keeps only the stored levels and the id's length: which levels a model
  * takes is the credentials module's rule.
  *
- * Since migration `0030_tool_profiles` (S7.1b) a profile may also be a tool profile, `github` or `atlassian`: its
- * credential is one GitHub or Atlassian sign-in of its owner's, it has no gateway, model or effort, and it holds the
- * `rights` the agents given it have there (`agents.github_profile_id`, `atlassian_profile_id`), which only tool
- * profiles have. Their shape (`ToolRights` of `@mwc/shared/credentials`) is checked by the credentials module; SQL
- * keeps that they are an object.
+ * Since migration `0032_profile_tool_parts` (S7.1b reshaped on 2026-11-13: one profile, not one per tool) a profile also
+ * has optional tool parts, GitHub and Atlassian: each one of its owner's sign-ins of that tool
+ * (`<tool>_credential_id`) and the rights the agents given the profile have there (`<tool>_rights`, jsonb). A part is
+ * there when its rights are; its sign-in may be null (none chosen, or removed). The rights' shape (`GitHubRights`,
+ * `AtlassianRights` of `@mwc/shared/credentials`) is the credentials module's rule; SQL keeps that they are an object and
+ * that a sign-in comes with them. A later tool (Slack, S7.1e) is two more columns and an entry in `PROFILE_TOOL_COLUMNS`
+ * (`src/profile-tools.ts`).
  */
 export const accessProfiles = pgTable(
   'access_profiles',
@@ -159,12 +167,11 @@ export const accessProfiles = pgTable(
       .references(() => users.id),
     /** What its owner calls it ("Work"), unique among theirs. */
     name: text('name').notNull(),
-    /** What it holds: a `claude` or `openai` subscription, or a `github` or `atlassian` sign-in; fixed when it is made. */
+    /** Whose subscription it holds, `claude` or `openai`; fixed when it is made. */
     provider: text('provider').$type<ProfileProvider>().notNull(),
     /**
      * The subscription: `claude_oauth`, `claude_setup_token` or `anthropic_api_key` for Claude; `codex_oauth` or
-     * `openai_api_key` for OpenAI; for a tool profile its sign-in, `github_oauth` or `github_token` for GitHub,
-     * `atlassian_api_token` for Atlassian. Null while it has none (made empty, or its credential removed).
+     * `openai_api_key` for OpenAI. Null while it has none (made empty, or its subscription removed).
      */
     credentialId: held('credential_id'),
     /** The profile's optional gateway (any of its owner's), which its runs send their AI requests through. */
@@ -173,11 +180,14 @@ export const accessProfiles = pgTable(
     model: text('model'),
     /** The reasoning effort its runs use, one its model takes; null for its provider's default. */
     effort: text('effort').$type<Effort>(),
-    /**
-     * A tool profile's rights (`GitHubRights` or `AtlassianRights` of `@mwc/shared/credentials`); null for an AI
-     * profile, which has none.
-     */
-    rights: jsonb('rights').$type<Record<string, unknown>>(),
+    /** Its GitHub part's sign-in (`github_oauth` or `github_token`); null without one. */
+    githubCredentialId: held('github_credential_id'),
+    /** Its GitHub part's rights (`GitHubRights`); null: it has no GitHub part. */
+    githubRights: jsonb('github_rights').$type<Record<string, unknown>>(),
+    /** Its Atlassian part's sign-in (`atlassian_api_token`), for Jira and Confluence; null without one. */
+    atlassianCredentialId: held('atlassian_credential_id'),
+    /** Its Atlassian part's rights (`AtlassianRights`); null: it has no Atlassian part. */
+    atlassianRights: jsonb('atlassian_rights').$type<Record<string, unknown>>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -187,15 +197,8 @@ export const accessProfiles = pgTable(
     check('access_profiles_provider_check', oneOf(t.provider, ProfileProvider.options)),
     check('access_profiles_model_check', lengthWithin(t.model, { min: 1, max: MODEL_ID_MAX })),
     check('access_profiles_effort_check', oneOf(t.effort, Effort.options)),
-    check(
-      'access_profiles_rights_check',
-      sql`(${oneOf(t.provider, ToolProvider.options)}) = (${t.rights} is not null)`,
-    ),
-    check('access_profiles_rights_object_check', sql`jsonb_typeof(${t.rights}) = 'object'`),
-    check(
-      'access_profiles_tool_check',
-      sql`${oneOf(t.provider, AiProvider.options)} or (${t.gatewayCredentialId} is null and ${t.model} is null and ${t.effort} is null)`,
-    ),
+    ...toolPartChecks('github', t.githubCredentialId, t.githubRights),
+    ...toolPartChecks('atlassian', t.atlassianCredentialId, t.atlassianRights),
   ],
 );
 

@@ -1,4 +1,4 @@
-import type { AiProvider } from '../enums.ts';
+import type { ProfileProvider } from '../enums.ts';
 import { CODEX_LARGE_WINDOW, CODEX_WINDOW, catalogueModel, DEFAULT_WINDOWS } from '../models.ts';
 
 /**
@@ -64,7 +64,7 @@ export function contextWindowOf(model: string | null | undefined): number | null
  * The window of what an access profile runs: its model's (`contextWindowOf`), or for none (the provider's default) the
  * window every current model of its provider has.
  */
-export function profileWindowOf(provider: AiProvider, model: string | null | undefined): number | null {
+export function profileWindowOf(provider: ProfileProvider, model: string | null | undefined): number | null {
   return model == null ? DEFAULT_WINDOWS[provider] : contextWindowOf(model);
 }
 

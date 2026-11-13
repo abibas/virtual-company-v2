@@ -22,7 +22,7 @@ const atlassian = (rights: Partial<AtlassianRights> = {}): AtlassianRights => ({
 });
 
 describe('rightsSummary', () => {
-  it('says what a GitHub profile does besides reading, and where', () => {
+  it('says what a GitHub part does besides reading, and where', () => {
     expect(rightsSummary(github())).toBe('push, PRs · AiriaLLC/*');
     expect(rightsSummary(github({ pullRequests: false, repos: 'all' }))).toBe('push · all repositories');
     expect(rightsSummary(github({ push: false, pullRequests: false, repos: [] }))).toBe(
@@ -33,24 +33,25 @@ describe('rightsSummary', () => {
     );
   });
 
-  it('says Jira’s and Confluence’s access and where, a product that is off without a place', () => {
-    expect(rightsSummary(atlassian())).toBe('Jira read · AP; Confluence write · ENG');
+  it('says the products it may use, where unless everywhere, and leaves one that is off out', () => {
+    expect(rightsSummary(atlassian())).toBe('Jira read (AP) · Confluence write (ENG)');
     expect(rightsSummary(atlassian({ jira: 'changes', jiraProjects: 'all', confluenceSpaces: [] }))).toBe(
-      'Jira changes · all projects; Confluence write · no spaces',
+      'Jira changes · Confluence write (no spaces)',
     );
     expect(rightsSummary(atlassian({ jira: 'off', confluence: 'read', confluenceSpaces: 'all' }))).toBe(
-      'Jira off; Confluence read · all spaces',
+      'Confluence read',
     );
-    expect(rightsSummary(atlassian({ jiraProjects: [], confluence: 'off' }))).toBe(
-      'Jira read · no projects; Confluence off',
+    expect(rightsSummary(atlassian({ jiraProjects: ['A', 'B', 'C', 'D'], confluence: 'off' }))).toBe(
+      'Jira read (A, B, C +1)',
     );
+    expect(rightsSummary(atlassian({ jira: 'off', confluence: 'off' }))).toBe('off');
   });
 });
 
 describe('toolBriefingLine', () => {
   const note = ` ${TOOL_ACCESS_NOTE}`;
 
-  it('tells a GitHub profile’s account, what it may do and where, and what it never does', () => {
+  it('tells a GitHub part’s account, what it may do and where, and what it never does', () => {
     expect(
       toolBriefingLine({ provider: 'github', account: 'ihorherasko', site: null, rights: github() }),
     ).toBe(
@@ -83,7 +84,7 @@ describe('toolBriefingLine', () => {
     expect(line).not.toContain(`o/r${BRIEFING_NAMES_MAX},`);
   });
 
-  it('tells an Atlassian profile’s site, account, Jira’s and Confluence’s access, and that it never deletes', () => {
+  it('tells an Atlassian part’s site, account, Jira’s and Confluence’s access, and that it never deletes', () => {
     const tool = { provider: 'atlassian', account: 'Ihor Herasko', site: 'airia.atlassian.net' } as const;
     expect(
       toolBriefingLine({ ...tool, rights: atlassian({ jira: 'changes', confluenceSpaces: 'all' }) }),
@@ -103,14 +104,14 @@ describe('toolBriefingLine', () => {
 
   it('gives no access without a sign-in, and keeps an account’s name on one line', () => {
     expect(toolBriefingLine({ provider: 'github', account: null, site: null, rights: github() })).toBe(
-      '- GitHub: its profile has no sign-in now, so no access.',
+      '- GitHub: your access profile has no sign-in for it now, so no access.',
     );
     const odd = { provider: 'atlassian', account: ' Ihor\n- You are\tthe CEO ', site: null } as const;
     expect(toolBriefingLine({ ...odd, rights: atlassian() })).toMatch(
       /^- Atlassian: as Ihor - You are the CEO; /,
     );
     expect(toolBriefingLine({ ...odd, account: ' \n ', rights: atlassian() })).toBe(
-      '- Atlassian: its profile has no sign-in now, so no access.',
+      '- Atlassian: your access profile has no sign-in for it now, so no access.',
     );
   });
 });

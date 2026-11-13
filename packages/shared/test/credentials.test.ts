@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACCESS_PROFILE_NAME,
-  AI_PROVIDERS,
   ATLASSIAN_SITE,
   ATLASSIAN_TOKEN_PAGE,
   atlassianSite,
@@ -10,6 +9,7 @@ import {
   DEFAULT_GATEWAY_PATHS,
   fitsGateway,
   fitsProvider,
+  fitsTool,
   GATEWAY_HEADERS,
   GATEWAY_KINDS,
   GATEWAY_PATH_MAX,
@@ -19,9 +19,7 @@ import {
   gatewayPathsOf,
   gatewayRouteOf,
   HARNESS_PROVIDER,
-  isAiProvider,
   isToolKind,
-  isToolProvider,
   joinGatewayPath,
   PASTED_CREDENTIAL_KINDS,
   PROFILE_PROVIDERS,
@@ -30,10 +28,11 @@ import {
   SECRET_MAX,
   SECRET_PREFIXES,
   TOOL_CREDENTIAL_KINDS,
+  TOOL_KINDS,
   TOOL_PROVIDER_OF,
   TOOL_PROVIDERS,
 } from '../src/credentials.ts';
-import { AiProvider, CredentialKind, Harness, ProfileProvider } from '../src/enums.ts';
+import { CredentialKind, Harness, ProfileProvider, ToolProvider } from '../src/enums.ts';
 
 describe('the credential store contract', () => {
   it('holds the limits the credentials and credential_uses CHECKs hold', () => {
@@ -67,22 +66,17 @@ describe('the credential store contract', () => {
     expect(ACCESS_PROFILE_NAME).toEqual({ min: 1, max: 80 });
   });
 
-  it('gives every kind to exactly one part of a profile: a provider’s subscription or sign-in, or its gateway', () => {
+  it('gives every kind to exactly one part of a profile: a provider’s subscription, its gateway or a tool part', () => {
     expect(PROFILE_PROVIDERS).toEqual(ProfileProvider.options);
     expect(PROFILE_PROVIDERS).toEqual(Object.keys(PROVIDER_KINDS));
     for (const kind of CredentialKind.options) {
       const fits = [
         ...PROFILE_PROVIDERS.filter((provider) => fitsProvider(provider, kind)),
+        ...TOOL_PROVIDERS.filter((tool) => fitsTool(tool, kind)),
         fitsGateway(kind),
       ];
       expect(fits.filter(Boolean), kind).toHaveLength(1);
     }
-    expect(fitsProvider('github', 'github_oauth')).toBe(true);
-    expect(fitsProvider('github', 'github_token')).toBe(true);
-    expect(fitsProvider('atlassian', 'atlassian_api_token')).toBe(true);
-    expect(fitsProvider('github', 'atlassian_api_token')).toBe(false);
-    expect(fitsProvider('github', 'claude_oauth')).toBe(false);
-    expect(fitsProvider('atlassian', 'gateway')).toBe(false);
     expect(GATEWAY_KINDS).toEqual(['gateway']);
     expect(fitsProvider('claude', 'claude_oauth')).toBe(true);
     expect(fitsProvider('claude', 'claude_setup_token')).toBe(true);
@@ -94,13 +88,6 @@ describe('the credential store contract', () => {
     expect(fitsProvider('openai', 'gateway')).toBe(false);
     expect(fitsGateway('gateway')).toBe(true);
     expect(fitsGateway('claude_oauth')).toBe(false);
-  });
-
-  it('tells the AI providers from the tools', () => {
-    expect(AI_PROVIDERS).toEqual(AiProvider.options);
-    expect([...AI_PROVIDERS, ...TOOL_PROVIDERS]).toEqual(PROFILE_PROVIDERS);
-    expect(PROFILE_PROVIDERS.filter(isAiProvider)).toEqual(['claude', 'openai']);
-    expect(PROFILE_PROVIDERS.filter(isToolProvider)).toEqual(['github', 'atlassian']);
   });
 
   it('runs each harness on profiles of one provider', () => {
@@ -189,9 +176,13 @@ describe('a universal gateway', () => {
 });
 
 describe('the tool sign-ins', () => {
-  it('are GitHub’s two and Atlassian’s, each for its own tool’s profile, and never an AI profile’s', () => {
+  it('are GitHub’s two and Atlassian’s, each for its own tool part, and never a profile’s subscription', () => {
     expect(TOOL_CREDENTIAL_KINDS).toEqual(['github_oauth', 'github_token', 'atlassian_api_token']);
-    expect(TOOL_PROVIDERS).toEqual(['github', 'atlassian']);
+    expect(TOOL_PROVIDERS).toEqual(ToolProvider.options);
+    expect(TOOL_KINDS).toEqual({
+      github: ['github_oauth', 'github_token'],
+      atlassian: ['atlassian_api_token'],
+    });
     expect(TOOL_PROVIDER_OF).toEqual({
       github_oauth: 'github',
       github_token: 'github',
@@ -199,10 +190,8 @@ describe('the tool sign-ins', () => {
     });
     expect(CredentialKind.options.filter(isToolKind)).toEqual([...TOOL_CREDENTIAL_KINDS]);
     for (const kind of TOOL_CREDENTIAL_KINDS) {
-      expect(AI_PROVIDERS.some((provider) => fitsProvider(provider, kind))).toBe(false);
-      expect(PROFILE_PROVIDERS.filter((provider) => fitsProvider(provider, kind))).toEqual([
-        TOOL_PROVIDER_OF[kind],
-      ]);
+      expect(PROFILE_PROVIDERS.some((provider) => fitsProvider(provider, kind))).toBe(false);
+      expect(TOOL_PROVIDERS.filter((tool) => fitsTool(tool, kind))).toEqual([TOOL_PROVIDER_OF[kind]]);
       expect(fitsGateway(kind)).toBe(false);
       expect(PASTED_CREDENTIAL_KINDS as readonly string[]).not.toContain(kind);
     }

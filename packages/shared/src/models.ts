@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { type AiProvider, Effort } from './enums.ts';
+import { Effort, type ProfileProvider } from './enums.ts';
 
 /**
  * The model catalogue (docs/subscriptions.md, "Model and effort"): for each provider of an access profile, the models
@@ -32,7 +32,7 @@ export const OpenaiEffort = Effort.extract(['low', 'medium', 'high', 'xhigh', 'm
 export type OpenaiEffort = z.infer<typeof OpenaiEffort>;
 
 /** Each provider's levels, low to high. */
-export const PROVIDER_EFFORTS: Readonly<Record<AiProvider, readonly Effort[]>> = {
+export const PROVIDER_EFFORTS: Readonly<Record<ProfileProvider, readonly Effort[]>> = {
   claude: ClaudeEffort.options,
   openai: OpenaiEffort.options,
 };
@@ -75,7 +75,7 @@ const openai = (
 ): CatalogueModel => ({ id, label, window, efforts });
 
 /** The models each provider offers by name, in the order the forms list them. */
-export const MODEL_CATALOGUE: Readonly<Record<AiProvider, readonly CatalogueModel[]>> = {
+export const MODEL_CATALOGUE: Readonly<Record<ProfileProvider, readonly CatalogueModel[]>> = {
   claude: [
     claude('claude-opus-5-5', 'Opus 5.5'),
     claude('claude-sonnet-5-5', 'Sonnet 5.5'),
@@ -99,7 +99,7 @@ export const MODEL_CATALOGUE: Readonly<Record<AiProvider, readonly CatalogueMode
  * The window of a profile that names no model: every current Claude model's; for OpenAI, the window of the first model
  * Codex lists (GPT-6.1 Sol, its default for a ChatGPT sign-in). A turn's reading names the model Codex really ran.
  */
-export const DEFAULT_WINDOWS: Readonly<Record<AiProvider, number>> = {
+export const DEFAULT_WINDOWS: Readonly<Record<ProfileProvider, number>> = {
   claude: MILLION,
   openai: CODEX_LARGE_WINDOW,
 };
@@ -107,7 +107,7 @@ export const DEFAULT_WINDOWS: Readonly<Record<AiProvider, number>> = {
 const normal = (id: string) => id.trim().toLowerCase();
 
 /** The catalogue's model of this id (any case), of one provider or of either; undefined for another id. */
-export function catalogueModel(id: string, provider?: AiProvider): CatalogueModel | undefined {
+export function catalogueModel(id: string, provider?: ProfileProvider): CatalogueModel | undefined {
   const wanted = normal(id);
   const providers = provider === undefined ? (['claude', 'openai'] as const) : [provider];
   for (const each of providers) {
@@ -118,20 +118,20 @@ export function catalogueModel(id: string, provider?: AiProvider): CatalogueMode
 }
 
 /** Ids that name a Claude model (its ids and Claude Code's aliases) or an OpenAI one (GPT, the o-series, Codex's). */
-const PROVIDER_IDS: readonly (readonly [AiProvider, RegExp])[] = [
+const PROVIDER_IDS: readonly (readonly [ProfileProvider, RegExp])[] = [
   ['claude', /^(?:claude|opus|sonnet|haiku|fable)/],
   ['openai', /^(?:gpt-|o\d|codex-)/],
 ];
 
 /** The provider whose model an id names, by the catalogue and the id's own prefix; null when it does not say. */
-export function modelProvider(id: string): AiProvider | null {
+export function modelProvider(id: string): ProfileProvider | null {
   const wanted = normal(id);
   for (const [provider, pattern] of PROVIDER_IDS) if (pattern.test(wanted)) return provider;
   return null;
 }
 
 /** The efforts a profile of `provider` may run `model` at: the model's own when the catalogue knows it, else the provider's. */
-export function effortsOf(provider: AiProvider, model: string | null): readonly Effort[] {
+export function effortsOf(provider: ProfileProvider, model: string | null): readonly Effort[] {
   const known = model === null ? undefined : catalogueModel(model, provider);
   return known?.efforts ?? PROVIDER_EFFORTS[provider];
 }

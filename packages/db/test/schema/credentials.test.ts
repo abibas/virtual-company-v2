@@ -376,7 +376,7 @@ describe('access_profiles', () => {
     }
   });
 
-  it('is a personal table: an owner, no company, a subscription, a gateway, a model and an effort', () => {
+  it('is a personal table: an owner, no company, a subscription, a gateway, a model, an effort and tool parts', () => {
     const config = getTableConfig(accessProfiles);
     expect(config.columns.some((c) => c.name === 'company_id')).toBe(false);
     expect(config.columns.find((c) => c.name === 'owner_user_id')?.notNull).toBe(true);
@@ -392,8 +392,10 @@ describe('access_profiles', () => {
         [['owner_user_id'], 'users', 'no action'],
         [['credential_id'], 'credentials', 'set null'],
         [['gateway_credential_id'], 'credentials', 'set null'],
+        [['github_credential_id'], 'credentials', 'set null'],
+        [['atlassian_credential_id'], 'credentials', 'set null'],
       ]),
     );
-    expect(refs).toHaveLength(3);
+    expect(refs).toHaveLength(5);
   });
 });

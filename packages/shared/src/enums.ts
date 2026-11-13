@@ -101,23 +101,18 @@ export const Harness = z.enum(['claude_code', 'codex']);
 export type Harness = z.infer<typeof Harness>;
 
 /**
- * The AI providers of access profiles (docs/subscriptions.md): Claude's subscriptions for `claude_code` agents, OpenAI's
- * for `codex` agents. Only their profiles have a model, an effort, a gateway and a member's default.
+ * `access_profiles.provider` (docs/subscriptions.md): whose subscription an access profile's AI part holds, Claude's
+ * for `claude_code` agents or OpenAI's for `codex` agents. Fixed when the profile is made.
  */
-export const AiProvider = z.enum(['claude', 'openai']);
-export type AiProvider = z.infer<typeof AiProvider>;
-
-/** The tools of tool profiles (S7.1b): GitHub, and Atlassian for Jira and Confluence. */
-export const ToolProvider = z.enum(['github', 'atlassian']);
-export type ToolProvider = z.infer<typeof ToolProvider>;
+export const ProfileProvider = z.enum(['claude', 'openai']);
+export type ProfileProvider = z.infer<typeof ProfileProvider>;
 
 /**
- * `access_profiles.provider` (docs/subscriptions.md): what an access profile holds, fixed when it is made. An AI
- * profile (`AiProvider`) holds the subscription an agent's turns run on; a tool profile (`ToolProvider`, S7.1b) holds a
- * GitHub or an Atlassian sign-in and the rights an agent has there.
+ * The tool parts an access profile may have besides its AI part (S7.1b, one profile since 2026-11-13): GitHub, and
+ * Atlassian for Jira and Confluence. Each holds one of its owner's sign-ins of that tool and the rights it gives.
  */
-export const ProfileProvider = z.enum([...AiProvider.options, ...ToolProvider.options]);
-export type ProfileProvider = z.infer<typeof ProfileProvider>;
+export const ToolProvider = z.enum(['github', 'atlassian']);
+export type ToolProvider = z.infer<typeof ToolProvider>;
 
 /**
  * `access_profiles.effort` (docs/subscriptions.md, "Model and effort"): the reasoning effort a profile's harness runs its

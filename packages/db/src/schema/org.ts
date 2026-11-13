@@ -72,17 +72,10 @@ export const agents = pgTable(
     /**
      * The access profile its runs use (S3.4): a person's subscription of the provider its harness runs on, given by
      * its owner, who is an admin or owner here; none by default. A personal row, so a plain key: it goes when the
-     * profile does. Its model and effort are the profile's (migration `0017_profile_model`).
+     * profile does. Its model and effort are the profile's (migration `0017_profile_model`), and so are its GitHub and
+     * Atlassian access (the profile's tool parts, migration `0032_profile_tool_parts`).
      */
     profileId: uuid('profile_id').references(() => accessProfiles.id, { onDelete: 'set null' }),
-    /**
-     * Its tool profiles (S7.1b, migration `0030_tool_profiles`): a person's GitHub profile and Atlassian profile, given
-     * by their owner as the AI profile is (the org service checks the provider); none by default, and no member's default.
-     */
-    githubProfileId: uuid('github_profile_id').references(() => accessProfiles.id, { onDelete: 'set null' }),
-    atlassianProfileId: uuid('atlassian_profile_id').references(() => accessProfiles.id, {
-      onDelete: 'set null',
-    }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -103,8 +96,6 @@ export const agents = pgTable(
     check('agents_icon_emoji_kind_check', sql`(${t.iconKind} = 'emoji') = (${t.iconEmoji} is not null)`),
     check('agents_icon_emoji_check', sql`char_length(${t.iconEmoji}) between 1 and ${n(AGENT_EMOJI_MAX)}`),
     index('agents_profile_idx').on(t.profileId),
-    index('agents_github_profile_idx').on(t.githubProfileId),
-    index('agents_atlassian_profile_idx').on(t.atlassianProfileId),
   ],
 );
 

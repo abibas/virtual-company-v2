@@ -4,7 +4,6 @@ import {
   defaultRights,
   GitHubRights,
   noRights,
-  rightsProviderOf,
   storedRights,
   TOOL_RIGHTS,
   TOOL_SCOPE_MAX,
@@ -88,10 +87,10 @@ describe('Atlassian rights', () => {
   });
 });
 
-describe('a tool profile’s rights', () => {
+describe('a tool part’s rights', () => {
   it('are either tool’s, told apart by their keys, never a mix', () => {
-    expect(rightsProviderOf(ToolRights.parse(github()))).toBe('github');
-    expect(rightsProviderOf(ToolRights.parse(atlassian()))).toBe('atlassian');
+    expect('repos' in ToolRights.parse(github())).toBe(true);
+    expect('jira' in ToolRights.parse(atlassian())).toBe(true);
     expect(ToolRights.safeParse({ ...github(), jira: 'read' }).success).toBe(false);
     expect(Object.keys(TOOL_RIGHTS)).toEqual(ToolProvider.options);
   });

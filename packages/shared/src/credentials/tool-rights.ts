@@ -2,18 +2,19 @@ import { z } from 'zod';
 import type { CredentialKind, ToolProvider } from '../enums.ts';
 
 /**
- * What a tool profile lets the agents given it do with its sign-in (S7.1b, docs/subscriptions.md "Tool profiles"): its
- * rights, stored on the profile (`access_profiles.rights`, jsonb) and parsed with these schemas wherever they are read,
- * so the API, the database and the agents' briefing agree. The server checks them on each tool call once the tools
- * arrive (S7.1c for Atlassian, S7.1d for GitHub). New profiles start at the safe end: a GitHub profile reaches no
- * repository until some are chosen, an Atlassian profile reads Jira and Confluence and writes nowhere.
+ * What an access profile's tool part lets the agents given the profile do with its sign-in (S7.1b, one profile with tool
+ * parts since 2026-11-13, docs/subscriptions.md "Tool parts"): its rights, stored on the profile
+ * (`access_profiles.github_rights`, `atlassian_rights`, jsonb) and parsed with these schemas wherever they are read, so
+ * the API, the database and the agents' briefing agree. The server checks them on each tool call once the tools arrive
+ * (S7.1c for Atlassian, S7.1d for GitHub). A new part starts at the safe end: GitHub reaches no repository until some
+ * are chosen, Atlassian reads Jira and Confluence and writes nowhere.
  */
 
-/** The most repositories, Jira projects or Confluence spaces a profile lists. */
+/** The most repositories, Jira projects or Confluence spaces a part lists. */
 export const TOOL_SCOPE_MAX = 100;
 
 /**
- * A GitHub repository as a profile names it: `owner/name`, or `owner/*` for every repository of the owner. The owner is
+ * A GitHub repository as a profile's GitHub part names it: `owner/name`, or `owner/*` for every repository of the owner. The owner is
  * 1 to 39 letters, digits and dashes; the name 1 to 100 letters, digits, `.`, `_` and `-` (not `.` or `..`).
  */
 export const GITHUB_REPO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?:\*|(?!\.\.?$)[A-Za-z0-9._-]{1,100})$/;
@@ -58,10 +59,10 @@ const ConfluenceSpace = z
   .regex(CONFLUENCE_SPACE_PATTERN, 'A Confluence space key is letters, digits, _, : and -');
 
 /**
- * A GitHub profile's rights. Reading is always on, in the repositories it reaches (`repos`: `all` it can see, or a list
+ * A profile's GitHub rights. Reading is always on, in the repositories it reaches (`repos`: `all` it can see, or a list
  * of `owner/name` and `owner/*`; empty reaches none). `push` pushes branches; `pullRequests` opens and updates pull
- * requests. A GitHub profile never merges, deletes (a branch, a repository, anything), force-pushes, or pushes to a
- * repository's default branch: those are no options, and the tools (S7.1d) refuse them whatever a profile says.
+ * requests. It never merges, deletes (a branch, a repository, anything), force-pushes, or pushes to a repository's
+ * default branch: those are no options, and the tools (S7.1d) refuse them whatever a profile says.
  */
 export const GitHubRights = z.strictObject({
   repos: scope(GitHubRepo, (repo) => repo.toLowerCase()),
@@ -70,17 +71,17 @@ export const GitHubRights = z.strictObject({
 });
 export type GitHubRights = z.infer<typeof GitHubRights>;
 
-/** Jira through an Atlassian profile: none, reading, or reading and changes (comment, transition, create). */
+/** Jira through a profile's Atlassian part: none, reading, or reading and changes (comment, transition, create). */
 export const JiraAccess = z.enum(['off', 'read', 'changes']);
 export type JiraAccess = z.infer<typeof JiraAccess>;
 
-/** Confluence through an Atlassian profile: none, reading, or reading and writing (create and update pages). */
+/** Confluence through a profile's Atlassian part: none, reading, or reading and writing (create and update pages). */
 export const ConfluenceAccess = z.enum(['off', 'read', 'write']);
 export type ConfluenceAccess = z.infer<typeof ConfluenceAccess>;
 
 /**
- * An Atlassian profile's rights: Jira's access in its projects (`all`, or project keys), Confluence's in its spaces
- * (`all`, or space keys). An Atlassian profile never deletes or archives anything, in Jira or in Confluence.
+ * A profile's Atlassian rights: Jira's access in its projects (`all`, or project keys), Confluence's in its spaces
+ * (`all`, or space keys). It never deletes or archives anything, in Jira or in Confluence.
  */
 export const AtlassianRights = z.strictObject({
   jira: JiraAccess,
@@ -90,7 +91,7 @@ export const AtlassianRights = z.strictObject({
 });
 export type AtlassianRights = z.infer<typeof AtlassianRights>;
 
-/** A tool profile's rights, either tool's; the keys tell them apart (`rightsProviderOf`). */
+/** A tool part's rights, either tool's; the keys tell them apart (GitHub's name repositories). */
 export const ToolRights = z.union([GitHubRights, AtlassianRights]);
 export type ToolRights = z.infer<typeof ToolRights>;
 
@@ -100,11 +101,7 @@ export type RightsOf<P extends ToolProvider> = P extends 'github' ? GitHubRights
 /** Each tool's schema. */
 export const TOOL_RIGHTS = { github: GitHubRights, atlassian: AtlassianRights } as const;
 
-/** The tool these rights are for: GitHub's name repositories, Atlassian's Jira and Confluence. */
-export const rightsProviderOf = (rights: ToolRights): ToolProvider =>
-  'repos' in rights ? 'github' : 'atlassian';
-
-/** A new profile's rights, the safe end: GitHub reaches no repository and only reads; Atlassian reads everywhere. */
+/** A new part's rights, the safe end: GitHub reaches no repository and only reads; Atlassian reads everywhere. */
 export function defaultRights<P extends ToolProvider>(provider: P): RightsOf<P> {
   const rights: ToolRights =
     provider === 'github'
@@ -122,7 +119,7 @@ export function noRights<P extends ToolProvider>(provider: P): RightsOf<P> {
   return rights as RightsOf<P>;
 }
 
-/** A profile's stored rights as its tool's (`noRights` when they do not parse as that tool's). */
+/** A part's stored rights as its tool's (`noRights` when they do not parse as that tool's). */
 export function storedRights<P extends ToolProvider>(provider: P, stored: unknown): RightsOf<P> {
   const parsed = TOOL_RIGHTS[provider].safeParse(stored);
   return parsed.success ? (parsed.data as RightsOf<P>) : noRights(provider);

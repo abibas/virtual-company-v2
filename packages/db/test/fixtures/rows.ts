@@ -191,6 +191,36 @@ export async function insertAgentBefore0030(handle: RawDbHandle, companyId: stri
   return { id, principalId, companyId } as Agent;
 }
 
+/** What an agent row held before migration `0032_profile_tool_parts`: its access profile and its tool profiles. */
+export interface AgentBefore0032 {
+  readonly profileId?: string | null;
+  readonly githubProfileId?: string | null;
+  readonly atlassianProfileId?: string | null;
+  readonly status?: Agent['status'];
+}
+
+/**
+ * An agent written with the columns `agents` had from migration `0030_tool_profiles` to `0032_profile_tool_parts` (a
+ * GitHub and an Atlassian profile beside its access profile), for a data-step test seeded at `0031`.
+ */
+export async function insertAgentBefore0032(
+  handle: RawDbHandle,
+  companyId: string,
+  values: AgentBefore0032 = {},
+): Promise<{ id: string }> {
+  const principalId = (await insertPrincipal(handle, companyId, 'agent')).id;
+  const slug = unique('agent');
+  const [row] = await queryRows<{ id: string }>(
+    handle,
+    sql`insert into agents (id, company_id, principal_id, name, slug, role_title, status, profile_id,
+          github_profile_id, atlassian_profile_id)
+        values (${newId()}, ${companyId}, ${principalId}, ${slug}, ${slug}, 'Coder', ${values.status ?? 'active'},
+                ${values.profileId ?? null}, ${values.githubProfileId ?? null}, ${values.atlassianProfileId ?? null})
+        returning id`,
+  );
+  return one(row ? [row] : []);
+}
+
 /**
  * A sealed credential written with the columns `credentials` had before migration `0029_tool_sign_ins` (no last check),
  * for a data-step test seeded at an older migration; random bytes stand in for a seal.

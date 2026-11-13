@@ -225,6 +225,13 @@
       "when": 1794519361723,
       "tag": "0031_team_room",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794558325265,
+      "tag": "0032_profile_tool_parts",
+      "breakpoints": true
     }
   ]
 }
