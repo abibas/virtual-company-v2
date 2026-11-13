@@ -12,7 +12,7 @@ import { providerFetchFor } from '../service/usage/http.ts';
 
 /**
  * The tool sign-ins (S7.1a, docs/subscriptions.md "Tool sign-ins"): `POST /api/me/subscriptions/tools` adds a pasted
- * GitHub token or an Atlassian site and API token once its provider accepts it, and `POST
+ * GitHub token, an Atlassian site and API token or a Slack token (S7.1e) once its provider accepts it, and `POST
  * /api/me/subscriptions/:credentialId/check` is Check again. They are listed, renamed and removed with the
  * subscriptions; Sign in with GitHub is the sign-in API's. Personal and session-only: an API key is 403
  * `session_required`.
@@ -30,11 +30,13 @@ const addRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'post',
-    summary: 'Add a GitHub token or an Atlassian sign-in, checked with GitHub or Atlassian first',
+    summary: 'Add a GitHub token, an Atlassian sign-in or a Slack token, checked with its provider first',
     description:
       'A GitHub token (classic `ghp_` or fine-grained `github_pat_`) is checked with `GET api.github.com/user`; an ' +
       'Atlassian site (`<name>.atlassian.net`), account email and API token with Jira `GET /rest/api/3/myself` and ' +
-      'Confluence `GET /wiki/rest/api/user/current`, both with basic auth. Once the provider names the account, the ' +
+      'Confluence `GET /wiki/rest/api/user/current`, both with basic auth; a Slack token (`kind: slack`: `xoxb-` a ' +
+      "bot's, stored as `slack_bot_token`, `xoxp-` a user's, `slack_user_token`) with `auth.test`, keeping its " +
+      'workspace, who it is and its scopes. Once the provider names the account, the ' +
       'secret is sealed and never shown again, and that check is recorded as a use. With `credentialId` the new ' +
       "secret replaces that sign-in's in place.",
     request: { body: jsonBody(AddToolSchema) },
@@ -60,7 +62,7 @@ const checkRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'post',
-    summary: 'Check again: ask GitHub or Atlassian now who one of your tool sign-ins acts as',
+    summary: 'Check again: ask GitHub, Atlassian or Slack now who one of your tool sign-ins acts as',
     description:
       'A working check sets it `active` with the account the provider names; a 401 sets it `needs_sign_in`; a check ' +
       'that does not finish keeps its status and says why in `checkError`. Each check is recorded as a use. The ' +

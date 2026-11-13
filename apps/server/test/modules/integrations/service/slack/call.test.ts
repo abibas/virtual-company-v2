@@ -1,11 +1,14 @@
-import { credentials } from '@mwc/db';
+import { credentials, type TenantDb } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { SlackRights } from '@mwc/shared/credentials';
 import type { TurnStart } from '@mwc/shared/runner-protocol';
+import { captureLogger } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SLACK_SIGN_IN_REVOKED } from '../../../../../src/modules/credentials/service/tool-use.ts';
+import { TOOL_FAILED } from '../../../../../src/modules/integrations/service/reply.ts';
 import { callSlack, NO_PROFILE } from '../../../../../src/modules/integrations/service/slack/call.ts';
+import { slackTools } from '../../../../../src/modules/integrations/service/slack/hook.ts';
 import { type ChatsWorld, chatsWorld, turnRow, usesOf } from '../../../../fixtures/chats/world.ts';
 import { status } from '../../../../fixtures/credentials/tools.ts';
 import {
@@ -161,6 +164,38 @@ describe('a Slack call’s checks', () => {
     expect((await history()).text).toBe('Slack is limiting requests. Try again in 30 s.');
     answerSlack(w, { 'conversations.info': slackError('missing_scope', { needed: 'channels:read' }) });
     expect((await history()).text).toContain('lacks the scope channels:read');
+  });
+});
+
+describe('the Slack hook', () => {
+  it('owns its tools only, and answers a failure on the server in words, never throwing', async () => {
+    const down = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new Error('the database is down');
+        },
+      },
+    ) as TenantDb;
+    const { logger, lines } = captureLogger();
+    const hook = slackTools({
+      db: {} as never,
+      keyring: {} as never,
+      clock: () => new Date(),
+      logger,
+      slack: {} as never,
+    });
+    expect(hook.owns('slack_post_message')).toBe(true);
+    expect(hook.owns('pull_request_read')).toBe(false);
+    const profileId = '0195f0a0-0000-7000-8000-000000000001';
+    const turn = { turnId: 't', chatId: 'c', agentPrincipalId: 'a', profileId, by: 'b' };
+    expect(await hook.toolsFor(down, { profileId })).toEqual({ tools: [] });
+    const failed = await hook.tool(down, turn, { callId: 'x', tool: 'slack_get_users', input: {} });
+    expect(failed).toEqual({ ok: false, text: TOOL_FAILED });
+    expect(lines.map((line) => line.msg)).toEqual([
+      'integrations: could not offer the Slack tools',
+      'integrations: a Slack tool failed',
+    ]);
   });
 });
 

@@ -111,7 +111,7 @@ describe('a Slack part’s rights', () => {
     expect(SlackRights.safeParse(rights({ channels: ['two words'] })).success).toBe(false);
     expect(SlackRights.safeParse(rights({ channels: ['#'] })).success).toBe(false);
     expect(SlackRights.safeParse(rights({ channels: ['x'.repeat(81)] })).success).toBe(false);
-    expect(SlackRights.safeParse(rights({ dms: 'write' })).success).toBe(false);
+    expect(SlackRights.safeParse(rights({ dms: 'write' as never })).success).toBe(false);
     expect(SlackRights.safeParse({ ...rights(), admin: true }).success).toBe(false);
     expect('channels' in ToolRights.parse(rights())).toBe(true);
   });
