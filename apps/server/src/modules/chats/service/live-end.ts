@@ -7,6 +7,7 @@ import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome } from '../rules.ts';
 import type { ChatBus } from './bus.ts';
+import { type InboundTurnHook, tellInbound } from './inbound.ts';
 import { heldForSlot } from './live-slot.ts';
 import type { ServerToolsHook } from './server-tools.ts';
 import type { TaskTurnContext, TaskTurnHook } from './task-hook.ts';
@@ -14,7 +15,7 @@ import { turnView } from './views.ts';
 
 /**
  * A live turn's end (`live.ts`): its row closed (done, failed or stopped, with the reply and the usage), a Codex login
- * the process rewrote sealed again, the tasks module told, then the chat's next waiting turn. Two ends do not close it: a
+ * the process rewrote sealed again, the tasks module told (and, for a turn Most Wanted queued, the inbound hook), then the chat's next waiting turn. Two ends do not close it: a
  * full machine's refusal (`busy`) puts it back to wait for a slot (`live-slot.ts`), and a conversation the harness no
  * longer has (`session_missing`, 2026-11-13) starts it again on a fresh one with a recap (`session-lost.ts`), unless a
  * stop was asked: what that start sends runs once the runner heard the end's ack.
@@ -35,6 +36,8 @@ export interface LiveDeps {
   readonly tasks?: TaskTurnHook | undefined;
   /** The server's own tools (S7.1c), whose calls skip the write queue. */
   readonly serverTools?: ServerToolsHook | undefined;
+  /** What hears the end of a turn Most Wanted queued for a message from outside (a Slack message, 2026-11-13). */
+  readonly inbound?: InboundTurnHook | undefined;
 }
 
 export interface LiveTurn {
@@ -137,6 +140,7 @@ export async function ended(
     const which = { chatId: row.chatId, turnId: row.id, roomMessageId: row.roomMessageId };
     await l.deps.tasks?.systemEnded?.(t, { ...which, status, resultText, error });
   }
+  await tellInbound(l.deps.inbound, t, row);
   await l.ended?.(t, turn.chatId);
   return undefined;
 }

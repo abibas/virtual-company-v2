@@ -72,6 +72,7 @@
         "apps/server/src/modules/credentials/repo/checks-due.ts",
         "apps/server/src/modules/identity/repo.ts",
         "apps/server/src/modules/identity/repo/**",
+        "apps/server/src/modules/integrations/repo/slack-inbound-all.ts",
         "apps/server/src/modules/machines/repo/upkeep.ts",
         "apps/server/src/modules/notifications/repo/delivery.ts",
         "apps/server/src/modules/tasks/repo/wakes-due.ts"

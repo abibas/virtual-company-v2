@@ -13,7 +13,7 @@ import {
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { inboxRoutes } from './modules/inbox/index.ts';
-import { integrationTools } from './modules/integrations/index.ts';
+import { integrationsRoutes, integrationTools, slackReceiving } from './modules/integrations/index.ts';
 import {
   createPowerControl,
   createRunnerHub,
@@ -47,7 +47,7 @@ import type { LocalPower } from './platform/processes/power/local.ts';
 import { speechFromConfig } from './platform/processes/speech/select.ts';
 import { ephemeralKeyring } from './platform/secrets/keyring.ts';
 import { envKeyring } from './platform/secrets/master-key.ts';
-import { slackFor } from './platform/slack.ts';
+import { slackFor, slackSocketsFor } from './platform/slack.ts';
 
 export {
   createPowerControl,
@@ -90,7 +90,9 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * step's run, a Lead's wake-up); the tasks (S5.3b) run their steps through the chats' runtime, whose task
  * conversations report back to the tasks module's hook, and (S6c) wake their agent Leads in its team chats. A turn's
  * profile brings the server's own tools: the integrations module's Atlassian (S7.1c), GitHub (S7.1d) and Slack (S7.1e) tools, on
- * their connectors, with the GitHub sign-in for git on the machine when the profile may push.
+ * their connectors, with the GitHub sign-in for git on the machine when the profile may push. Slack messages wake agents
+ * (2026-11-13): Socket Mode connections (`slackReceiving`, the sockets passed in or the connector's) start turns
+ * through the chats' runtime, whose ends post the answers back (`slackReplies`).
  * Dictation transcribes through the speech passed in (tests: a fake; undefined: off), else this computer's whisper.cpp
  * when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
  * Container runners are rebuilt with the Docker CLI passed in (tests: a fake; undefined: none), else the one
@@ -123,9 +125,14 @@ export function createApp(deps: AppOptions) {
   const fetch = deps.providerFetch ?? providerFetchFor(deps.config);
   const tools = { atlassian: atlassianFor(fetch), github: githubFor(fetch), slack: slackFor(fetch) };
   const serverTools = integrationTools({ ...server, keyring, ...tools });
-  const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook, serverTools, wake: power.wake };
+  // Slack messages wake agents (2026-11-13); a turn's end posts its answer back, through the same Slack connector.
+  const slack = slackReceiving({ ...server, keyring, slack: tools.slack });
+  const inbound = slack.answers;
+  const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook, serverTools, inbound, wake: power.wake };
   const chats = chatsRuntime(chatsDeps);
   startLeadWakes(server, chats.teamChats, deps.leadWakeTimers);
+  const sockets = deps.slackSockets ?? slackSocketsFor(fetch);
+  const receiving = slack.start(chats.inboundChats, sockets, deps.slackInboundTimers);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
   app.use(requestId({ limitLength: REQUEST_ID_MAX_LENGTH, generator: () => newId() }));
@@ -154,7 +161,8 @@ export function createApp(deps: AppOptions) {
     .route('/', speechRoutes({ ...server, speech }))
     .route('/', notificationsRoutes(server))
     .route('/', tasksRoutes({ ...server, steps: chats.taskTurns, team: chats.teamChats }))
-    .route('/', inboxRoutes(server));
+    .route('/', inboxRoutes(server))
+    .route('/', integrationsRoutes({ ...server, keyring, slack: tools.slack, receiving }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.
   if (deps.webDist) mountWeb(app, deps.webDist, deps.logger);

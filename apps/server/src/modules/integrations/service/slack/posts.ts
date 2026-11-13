@@ -11,7 +11,8 @@ import { inChannel, type SlackContext } from './context.ts';
  * The Slack write tools (S7.1e): a post, a thread reply and a reaction, once the conversation is resolved and the
  * profile may write there. A post's text loses every mention of many people (`stripMentions`) and goes as plain text with no
  * footer; on a bot token with `chat:write.customize` it shows under the agent's name and emoji icon, without it as the
- * bot, and a user token posts as its person. Each is audited as the agent on the message.
+ * bot, and a user token posts as its person. Each is audited as the agent on the message, and a post is recorded
+ * (2026-11-13), so a reply in its thread comes back to this agent.
  */
 
 /** How a post shows: the agent's name and icon on a bot that may take them; else as the token's bot or person. */
@@ -48,6 +49,8 @@ async function post(ctx: SlackContext, channel: ResolvedChannel, text: string, t
         ...(stripped.length === 0 ? [] : [{ field: 'mentionsStripped', new: stripped }]),
       ],
     });
+    if (posted.ts !== '')
+      await ctx.recordPost?.({ channel: posted.channel, ts: posted.ts, threadTs: threadTs ?? null });
     return done({
       posted: true,
       channel: channelWords(channel),

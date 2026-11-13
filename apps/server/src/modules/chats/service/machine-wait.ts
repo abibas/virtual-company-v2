@@ -18,6 +18,7 @@ import {
 } from '../rules/machine.ts';
 import { MACHINE_OFFLINE, type Refusal } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
+import { type InboundTurnHook, tellInbound } from './inbound.ts';
 import type { ChatsLive } from './live.ts';
 import { type TaskTurnHook, taskContext, taskDraft } from './task-hook.ts';
 import { turnView } from './views.ts';
@@ -141,6 +142,8 @@ export interface MachineWaitsDeps {
   readonly clock: () => Date;
   readonly live: ChatsLive;
   readonly tasks?: TaskTurnHook | undefined;
+  /** What hears that a turn Most Wanted queued for a message from outside ended while it waited. */
+  readonly inbound?: InboundTurnHook | undefined;
   readonly wake: MachineWake;
   readonly timers: Timers;
   readonly startNext: (t: TenantDb, chatId: string) => Promise<void>;
@@ -170,6 +173,7 @@ async function endWaiting(
   if (row === undefined) return undefined;
   deps.live.bus.publish(row.chatId, { kind: 'turn', turn: turnView(row) });
   await reportTask(deps, t, row);
+  await tellInbound(deps.inbound, t, row);
   return row;
 }
 

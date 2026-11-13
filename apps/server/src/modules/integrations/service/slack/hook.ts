@@ -40,7 +40,7 @@ export async function slackToolsFor(
 /** The hook on these deps. */
 export function slackTools(deps: SlackToolsDeps): ServerToolsHook {
   const repo = integrationsRepo;
-  const call = { api: deps.slack, credentials: credentialsForTools(deps), repo };
+  const call = { api: deps.slack, credentials: credentialsForTools(deps), repo, clock: deps.clock };
   return {
     async toolsFor(t, turn) {
       try {

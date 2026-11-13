@@ -18,6 +18,7 @@ import {
   titleOf,
 } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
+import type { InboundTurnHook } from './inbound.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
 import { type ServerToolsHook, serverToolsOf } from './server-tools.ts';
@@ -55,6 +56,8 @@ export interface TurnsDeps extends TargetDeps {
   readonly serverTools?: ServerToolsHook | undefined;
   /** The waits for a stopped machine (the runtime's); none: a stopped machine refuses the turn (`machine_offline`). */
   readonly waits?: MachineWaits | undefined;
+  /** What hears the end of a turn Most Wanted queued for a message from outside, one that never started too. */
+  readonly inbound?: InboundTurnHook | undefined;
 }
 
 /**

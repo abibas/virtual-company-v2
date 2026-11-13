@@ -1,5 +1,5 @@
-import { slackClient } from '@mwc/slack';
-import type { SlackApi } from '@mwc/tools-core';
+import { slackClient, slackSockets } from '@mwc/slack';
+import type { SlackApi, SlackSockets } from '@mwc/tools-core';
 
 /**
  * The Slack connector for the agents' Slack tools (S7.1e), wired here so no module imports it: Slack's Web API through the
@@ -15,5 +15,16 @@ export function slackFor(fetch: typeof globalThis.fetch): SlackApi {
     fetch: (url, init) => fetch(url, init),
     timeoutMs: SLACK_TIMEOUT_MS,
     maxWaitMs: SLACK_MAX_WAIT_MS,
+  });
+}
+
+/**
+ * Socket Mode for receiving Slack messages (2026-11-13): `apps.connections.open` through the provider client (refused
+ * under NODE_ENV=test, so no test opens one) and the platform's WebSocket, with the connector's backoff and hello wait.
+ */
+export function slackSocketsFor(fetch: typeof globalThis.fetch): SlackSockets {
+  return slackSockets({
+    fetch: (url, init) => fetch(url, init),
+    webSocket: (url) => new WebSocket(url),
   });
 }

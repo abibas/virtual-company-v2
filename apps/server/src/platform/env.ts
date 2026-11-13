@@ -1,6 +1,7 @@
 import type { DbHandle, JournalEntry } from '@mwc/db';
 import type { IdentityProvider } from '@mwc/identity-core';
 import type { Config } from '@mwc/shared/config';
+import type { SlackSockets } from '@mwc/tools-core';
 import type { Logger } from 'pino';
 import type { EmailSender } from './email/port.ts';
 import type { Timers } from './jobs/runner.ts';
@@ -85,6 +86,16 @@ export interface AppDeps {
    * by hand. Omitted, Node's.
    */
   readonly machineWaitTimers?: Timers;
+  /**
+   * How the server opens Slack's Socket Mode to receive messages (2026-11-13; tests pass a fake). Omitted, the Slack
+   * connector over the provider client and the platform's WebSocket.
+   */
+  readonly slackSockets?: SlackSockets;
+  /**
+   * The timers of the Slack connections' sync (every 5 minutes); tests pass ones they fire by hand, which also start the
+   * connections. Omitted, Node's, and the connections run only when the server runs its background work (MWC_JOBS).
+   */
+  readonly slackInboundTimers?: Timers;
   /**
    * Registers what a module ends when the server shuts down, before the database closes (`platform/start.ts` runs
    * them): the sign-ins in progress and their sandboxes. Omitted (tests), nothing is registered.

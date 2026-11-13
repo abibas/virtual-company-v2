@@ -7,6 +7,7 @@ import { chatsRepo } from '../repo.ts';
 import { ranWith } from '../rules/overrides.ts';
 import { nextQueued, startSeq } from '../rules/queue.ts';
 import { CHAT_ARCHIVED, MACHINE_OFFLINE, type Refusal, titleOf } from '../rules.ts';
+import { tellInbound } from './inbound.ts';
 import { holdForSlot, slotCheck } from './slot-wait.ts';
 import { resolveTarget, type Target } from './target.ts';
 import { artifactsOf, taskDraft } from './task-hook.ts';
@@ -58,13 +59,15 @@ async function claim(deps: DrainDeps, t: TenantDb, chat: Chat, id: string, targe
   }
 }
 
-/** Ends a turn that could not start, and tells the stream. */
+/** Ends a turn that could not start, and tells the stream (and the inbound hook of a turn Most Wanted queued). */
 async function failed(deps: DrainDeps, t: TenantDb, turn: ChatTurn, error: string, live: boolean) {
   const set = { status: 'failed', error, endedAt: deps.clock() } as const;
   const row = live
     ? await turnsRepo.updateLive(t, turn.id, set)
     : await queueRepo.updateQueued(t, turn.chatId, turn.id, set);
-  if (row !== undefined) deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(row) });
+  if (row === undefined) return;
+  deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(row) });
+  await tellInbound(deps.inbound, t, row);
 }
 
 /** Starts one waiting turn (see above). */

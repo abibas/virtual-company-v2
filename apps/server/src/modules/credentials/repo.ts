@@ -8,7 +8,7 @@ import {
   type OwnedSet,
   type OwnedValues,
 } from '@mwc/db';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, gte } from 'drizzle-orm';
 
 /**
  * The credentials module's data access, through the personal layer only (`owned(db, userId)` of `@mwc/db`): every
@@ -48,11 +48,14 @@ async function remove(o: OwnedDb, id: string): Promise<Credential | undefined> {
   return row;
 }
 
-/** What a use was for in a company (a chat's turn or terminal): the company, the agent, the chat and who asked. */
+/**
+ * What a use was for in a company (a chat's turn or terminal): the company, the agent, the chat and who asked; a Slack
+ * message's wake (2026-11-13) may name no chat yet.
+ */
 export interface UseContext {
   readonly companyId: string;
   readonly agentId: string;
-  readonly chatId: string;
+  readonly chatId: string | null;
   readonly principalId: string;
 }
 
@@ -78,6 +81,19 @@ async function insertUse(o: OwnedDb, credentialId: string, purpose: string, at: 
   await o.insert(credentialUses, { credentialId, purpose, at });
 }
 
+/** How many uses of a credential for `purpose` were recorded since `since` (a Slack connection's wakes an hour). */
+async function usesSince(o: OwnedDb, credentialId: string, purpose: string, since: Date): Promise<number> {
+  const rows = await o.select(
+    credentialUses,
+    and(
+      eq(credentialUses.credentialId, credentialId),
+      eq(credentialUses.purpose, purpose),
+      gte(credentialUses.at, since),
+    ),
+  );
+  return rows.length;
+}
+
 export function credentialsRepo() {
   return {
     list,
@@ -87,6 +103,7 @@ export function credentialsRepo() {
     remove,
     recordUse,
     insertUse,
+    usesSince,
     audit: (o: OwnedDb, entry: OwnedAuditEntry) => o.audit(entry),
   };
 }

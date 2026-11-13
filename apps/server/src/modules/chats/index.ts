@@ -3,8 +3,15 @@
 // (S5.3b: `taskTurns`, with the tasks module's `TaskTurnHook` passed in); platform/start.ts fails the turns a stopped
 // server left waiting (reapTurns), and the runtime takes back the running ones from their runners (S5.4). Since S6c the
 // runtime's `teamChats` wakes a flow's Lead agent in its team chat for the tasks module. Since S7.1c a turn gets the
-// server's own tools of its profile through `ServerToolsHook`, which the integrations module implements.
+// server's own tools of its profile through `ServerToolsHook`, which the integrations module implements. Since
+// 2026-11-13 a Slack message asks an agent for a turn through `InboundChats`, and its end comes back by `InboundTurnHook`.
 export { type ChatsDeps, type ChatsRuntime, chatsRoutes, chatsRuntime } from './routes.ts';
+export type {
+  InboundChats,
+  InboundTurnHook,
+  InboundTurnRequest,
+  InboundTurnSent,
+} from './service/inbound.ts';
 export { reapTurns, SERVER_RESTARTED } from './service/reaper.ts';
 export type { GitUse, ServerToolsHook, ServerToolsPlan, ServerToolTurn } from './service/server-tools.ts';
 export type {

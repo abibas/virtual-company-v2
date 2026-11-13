@@ -19,6 +19,7 @@ import { chatTerminalRoutes } from './routes/terminal.ts';
 import { turnRoutes } from './routes/turns.ts';
 import { failLeftTurns, turnAdopter } from './service/adopt.ts';
 import { type ChatQueue, chatQueue } from './service/drain.ts';
+import { type InboundTurnHook, inboundChats } from './service/inbound.ts';
 import { chatsLive } from './service/live.ts';
 import { machineWaits } from './service/machine-wait.ts';
 import { runnerUpdateFor, type ServerToolsHook } from './service/server-tools.ts';
@@ -39,6 +40,8 @@ export interface ChatsDeps extends ServerDeps {
   readonly tasks?: TaskTurnHook | undefined;
   /** The server's own tools (S7.1c: the Atlassian tools), offered by a turn's profile. */
   readonly serverTools?: ServerToolsHook | undefined;
+  /** What hears the end of a turn a Slack message started (2026-11-13: the integrations module posts its answer). */
+  readonly inbound?: InboundTurnHook | undefined;
   readonly wake: MachineWake;
 }
 
@@ -52,13 +55,15 @@ export interface ChatsDeps extends ServerDeps {
  * chat for the tasks module (`teamChats`). A turn for a stopped machine waits for it (`machineWaits`): the machine's
  * runner connecting starts its chats' waiting turns, and a start that failed ends them. A turn for a machine with every
  * slot taken waits for a free one (`slotWaits`): each turn's end starts the chats waiting on its machine. A turn whose
- * conversation the harness lost starts again on a fresh one with a recap (`startAfresh`, 2026-11-13).
+ * conversation the harness lost starts again on a fresh one with a recap (`startAfresh`, 2026-11-13). A message from
+ * outside (a Slack message, 2026-11-13) asks an agent for a turn in its conversation's chat (`inboundChats`), and every
+ * turn Most Wanted queued tells its end to the inbound hook.
  */
 export function chatsRuntime(deps: ChatsDeps) {
   const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
   const credentials = credentialsForHarness({ ...deps, providerFetch });
-  const { logger, clock, tasks, serverTools } = deps;
-  const live = chatsLive({ logger, clock, credentials, tasks, serverTools });
+  const { logger, clock, tasks, serverTools, inbound } = deps;
+  const live = chatsLive({ logger, clock, credentials, tasks, serverTools, inbound });
   const later = {} as { queue: ChatQueue };
   const timers = deps.machineWaitTimers ?? SYSTEM_TIMERS;
   const startNext = (t: TenantDb, chatId: string) => later.queue.startNext(t, chatId);
@@ -84,7 +89,14 @@ export function chatsRuntime(deps: ChatsDeps) {
   );
   sweep.unref();
   deps.onShutdown?.(async () => clearTimeout(sweep));
-  return { turns, queue, live, taskTurns: taskTurns(turns), teamChats: teamChats({ ...turns, queue }) };
+  return {
+    turns,
+    queue,
+    live,
+    taskTurns: taskTurns(turns),
+    teamChats: teamChats({ ...turns, queue }),
+    inboundChats: inboundChats({ ...turns, queue }),
+  };
 }
 
 export type ChatsRuntime = ReturnType<typeof chatsRuntime>;

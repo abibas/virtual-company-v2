@@ -1,5 +1,6 @@
+import { owned } from '@mwc/db';
 import type { Logger } from 'pino';
-import type { UseContext } from '../repo.ts';
+import { credentialsRepo, type UseContext } from '../repo.ts';
 import { credentialSecrets, type SecretDeps } from './secrets.ts';
 import { type CheckActor, recordToolCheck } from './tools/check.ts';
 
@@ -33,6 +34,29 @@ export type OpenedSlack =
 export type OpenedGitHub =
   | { readonly ok: true; readonly signIn: { readonly token: string } }
   | { readonly ok: false; readonly message: string };
+
+/**
+ * A Slack connection's opening of its bot sign-in (2026-11-13, docs/subscriptions.md "Slack: receiving messages"):
+ * for Socket Mode (`socket_mode`: the connection holds the token for its messages' reads and notices, and records each
+ * message's wake of an agent as `inbound`, which the hourly cap counts), an agent's answer (`inbound_reply`, with the
+ * company, the agent, its chat and the agent as the one asking), a search of the workspace's people (`slack_people`).
+ */
+export type SlackConnectionUse =
+  | { readonly purpose: 'socket_mode' | 'slack_people' }
+  | ({ readonly purpose: 'inbound_reply' } & UseContext);
+
+/** A Slack bot sign-in opened for its connection: its token and its account details (the bot, the workspace, scopes). */
+export type OpenedSlackBot =
+  | {
+      readonly ok: true;
+      readonly token: string;
+      readonly meta: Readonly<Record<string, unknown>>;
+      /** When the sign-in last changed (Sign in again puts a new token in): a holder opens it again after. */
+      readonly updatedAt: string;
+    }
+  | { readonly ok: false; readonly message: string };
+
+export const NOT_A_SLACK_BOT = 'This sign-in is not a Slack bot token (xoxb-).';
 
 const SYSTEM: CheckActor = { kind: 'system' };
 
@@ -92,6 +116,44 @@ export function credentialsForTools(deps: SecretDeps & { readonly logger: Logger
         return { ok: false, message: NOT_SLACK };
       return { ok: true, signIn: { token: used.secret.token, asUser: used.kind === 'slack_user_token' } };
     },
+    /** Opens the owner's Slack bot sign-in for its connection's use (see `SlackConnectionUse`). */
+    async slackBot(
+      credentialId: string,
+      ownerUserId: string,
+      use: SlackConnectionUse,
+    ): Promise<OpenedSlackBot> {
+      const { purpose, ...context } = use;
+      const companyContext = 'companyId' in context ? (context as UseContext) : undefined;
+      const used = await secrets.useCredentialSecret(credentialId, ownerUserId, purpose, companyContext);
+      if (!used.ok)
+        return {
+          ok: false,
+          message: used.code === 'credential_revoked' ? SLACK_SIGN_IN_REVOKED : SLACK_SIGN_IN_GONE,
+        };
+      if (used.kind !== 'slack_bot_token') return { ok: false, message: NOT_A_SLACK_BOT };
+      const { accountMeta: meta, updatedAt } = used.credential;
+      return { ok: true, token: used.secret.token, meta, updatedAt };
+    },
+    /**
+     * Records a use of the token a connection opened for Socket Mode and holds (a message's wake): false when the
+     * sign-in is gone or revoked meanwhile, recording nothing.
+     */
+    async recordSlackUse(
+      credentialId: string,
+      ownerUserId: string,
+      use: { readonly purpose: 'inbound' } & UseContext,
+    ): Promise<boolean> {
+      const { purpose, ...context } = use;
+      const o = owned(deps.db, ownerUserId);
+      const repo = credentialsRepo();
+      const row = await repo.get(o, credentialId);
+      if (row === undefined || row.status === 'revoked') return false;
+      await repo.recordUse(o, row, purpose, deps.clock(), context);
+      return true;
+    },
+    /** How many uses of the owner's sign-in for `purpose` since `since` (a connection's wakes in the last hour). */
+    usesSince: (credentialId: string, ownerUserId: string, purpose: string, since: Date): Promise<number> =>
+      credentialsRepo().usesSince(owned(deps.db, ownerUserId), credentialId, purpose, since),
     /** The provider refused the sign-in (401): it needs signing in again, as its check would say. */
     async needsSignIn(credentialId: string, ownerUserId: string): Promise<void> {
       await recordToolCheck(deps, credentialId, ownerUserId, { ok: false, code: 'needs_sign_in' }, SYSTEM);

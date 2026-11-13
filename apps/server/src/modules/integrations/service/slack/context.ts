@@ -27,6 +27,12 @@ export interface SlackContext {
   /** The agent a post is made for: its name and icon. */
   readonly agent: { readonly name: string; readonly iconKind: string; readonly iconEmoji: string | null };
   readonly audit: (change: SlackChange) => Promise<void>;
+  /** Records a message it posted (2026-11-13: a reply in its thread comes back to this agent). */
+  readonly recordPost?: (posted: {
+    readonly channel: string;
+    readonly ts: string;
+    readonly threadTs: string | null;
+  }) => Promise<void>;
 }
 
 /** A tool's run in a conversation: Slack's `not_in_channel` said with the channel, and how to invite the bot. */

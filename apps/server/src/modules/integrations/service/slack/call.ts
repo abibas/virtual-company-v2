@@ -1,9 +1,10 @@
-import type { TenantDb } from '@mwc/db';
+import { ownedIn, type TenantDb } from '@mwc/db';
 import { issueLines } from '@mwc/shared/flows';
 import { isSlackError, type SlackApi } from '@mwc/tools-core';
 import type { ServerToolTurn } from '../../../chats/index.ts';
 import type { CredentialsForTools } from '../../../credentials/index.ts';
 import type { TurnToolCall } from '../../../machines/index.ts';
+import { slackInboundRepo } from '../../repo/slack-inbound.ts';
 import type { IntegrationsRepo, SlackPart } from '../../repo.ts';
 import { type SlackAccess, slackToolRefusal, workingRights } from '../../rules/slack/rights.ts';
 import { REFUSED_ARGUMENTS, SLACK_INPUTS, SlackTool } from '../../schemas/slack.ts';
@@ -27,6 +28,7 @@ export interface SlackCallDeps {
   readonly api: SlackApi;
   readonly credentials: CredentialsForTools;
   readonly repo: IntegrationsRepo;
+  readonly clock: () => Date;
 }
 
 export const NO_PROFILE = 'This turn runs on no profile, so it has no Slack tools.';
@@ -111,6 +113,19 @@ export async function callSlack(
       action: `tool:${tool}`,
       changes: change.changes.map((c) => ({ field: c.field, old: null, new: c.new })),
     });
+  const credentialId = part.credentialId;
+  const recordPost: SlackContext['recordPost'] = (posted) =>
+    slackInboundRepo.recordPost(ownedIn(t, part.ownerUserId), {
+      credentialId,
+      channelId: posted.channel,
+      ts: posted.ts,
+      threadTs: posted.threadTs,
+      companyId: t.companyId,
+      agentId: agent.id,
+      chatId: turn.chatId,
+      turnId: turn.turnId,
+      at: deps.clock(),
+    });
   const ctx: SlackContext = {
     api: deps.api,
     signIn: { token: opened.signIn.token },
@@ -119,6 +134,7 @@ export async function callSlack(
     account: part.account,
     agent,
     audit,
+    recordPost,
   };
   try {
     return await TOOLS[tool](ctx, checked.input);
