@@ -230,10 +230,14 @@ environment values or `auth.json`.
   `home_missing` (the spec's `cwd` is not a folder on the machine; a container runner first makes a missing one under
   `/work`, `fs.mkdirp`'s rules), `invalid_spec: …` (the driver refused the spec),
   `spawn_failed: …` (the process or its private folder could not start), `runner_stopping`. A repeated `turn.start` of
-  a live turn and a `turn.stop` of a turn it does not have are ignored.
+  a live turn and a `turn.stop` of a turn it does not have are ignored. `afterSeq` (2026-11-13, optional): the turn's
+  events are numbered after it, since the server keeps events of the turn already (the same turn started again on a
+  fresh conversation after `session_missing`, under its id once the runner heard `turn.ack`; docs/harness.md "A lost
+  conversation").
 - **The end.** `ok` is the turn's result's (false whenever there is an `error`), `exitCode` the process's (null after a
   signal), `error` `stopped` after `turn.stop`, `spawn_failed: …` when the harness could not start, and `process_lost`
-  when its keeper ended without recording the exit (killed while no runner watched; S5.4). `runner_stopping` refuses a
+  when its keeper ended without recording the exit (killed while no runner watched; S5.4), `session_missing: <the
+  harness's line>` when the conversation it resumed is not on the machine (2026-11-13; no failing result is sent). `runner_stopping` refuses a
   new turn only: a runner that stops leaves its turns running. `authJson` comes when a Codex process rewrote its `auth.json` (its own token refresh); the server seals it
   into the credential again.
 - **Batching.** Events go about 100 ms after the first of a batch (`TURN_EVENTS_BATCH_MS`), or at once from 32 KB

@@ -126,8 +126,12 @@ split into several `text` events, each keeping its `parentId`.
 
 Every account variable a turn does not set is in `unsetEnv`, so the access profile alone decides: Claude Code's
 `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`,
-`CLAUDE_CODE_USE_BEDROCK|VERTEX|FOUNDRY`, `CLAUDE_CONFIG_DIR` (an API key left in the machine's environment would win over
-the profile's subscription); Codex's `CODEX_API_KEY`, `OPENAI_API_KEY`, `CODEX_ACCESS_TOKEN`, `OPENAI_BASE_URL`.
+`CLAUDE_CODE_USE_BEDROCK|VERTEX|FOUNDRY` (an API key left in the machine's environment would win over the profile's
+subscription); Codex's `CODEX_API_KEY`, `OPENAI_API_KEY`, `CODEX_ACCESS_TOKEN`, `OPENAI_BASE_URL`.
+`CLAUDE_CONFIG_DIR` is not removed since 2026-11-13: the machine's own value is where its Claude Code keeps its
+conversations (`~/.claude` without one; the Docker runner's image sets a volume, docs/machines.md "The Docker runner's
+volumes"), so turns, the chat terminal and a person's own `claude --resume` there use one store; a placement's
+`configDir` still wins over it, and a login file in that folder never wins over the turn's credential variable.
 
 The profile's gateway (docs/subscriptions.md, "Gateways"; universal since 2026-11-10: any profile takes any gateway)
 decides where a turn's and a terminal's AI requests go, over the machine's own settings (since 2026-11-10). The server
@@ -170,7 +174,8 @@ both:      with standing instructions, after those: --system-prompt-snapshot off
            and always, last:  --settings <runner state>/claude_code/<16 hex of sha256(cwd)>/settings-<12 hex>.json
            with standing instructions, then:  --append-system-prompt-file <same folder>/instructions-<12 hex>.md
            (the asking line then goes at the end of that file, not in --append-system-prompt)
-env:       DISABLE_AUTOUPDATER=1; the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set; with a gateway
+env:       DISABLE_AUTOUPDATER=1; the credential's variable; CLAUDE_CONFIG_DIR=<configDir> when set (else the
+           machine's own, kept); with a gateway
            ANTHROPIC_BASE_URL=<baseUrl> and ANTHROPIC_CUSTOM_HEADERS="Name: value" one per line
 ```
 
@@ -598,12 +603,14 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    text event over 16 KB is split, a result's text cut to fit. When the keeper ends, `parser.end` gives the last events,
    then `turn.end {ok, exitCode, error?, authJson?}`: `ok` is the result's, `exitCode` the harness's (null after a
    signal), `error` is `stopped` after `turn.stop` (SIGINT to the group, SIGTERM 10 s later, SIGKILL 20 s after the
-   SIGINT), `spawn_failed: …` when the harness could not start, or `process_lost` when the keeper ended without the exit
-   recorded. The server answers `turn.ack` once it recorded the end, and the run folder goes. Live turns hold the machine
+   SIGINT), `spawn_failed: …` when the harness could not start, `process_lost` when the keeper ended without the exit
+   recorded, or `session_missing: <the harness's line>` when the conversation it resumed is not on the machine (no
+   failing result then: "A lost conversation"). The server answers `turn.ack` once it recorded the end, and the run folder goes. Live turns hold the machine
    as live runs do; since S5.4 they no longer make the self-update say `busy` (they outlive the restart).
 7. **The private folder** (`turns/private-dir.ts`): Codex's is the placement's `configDir` when it has one, else
    `<runner state dir>/<harness>/<first 16 hex of sha256(home)>/`, never the machine's `~/.codex`; Claude Code's is always
-   the runner's own (`<state>/claude_code/<16 hex>/`), never `CLAUDE_CONFIG_DIR`; made 0700. `auth.json` and Claude
+   the runner's own (`<state>/claude_code/<16 hex>/`), never `CLAUDE_CONFIG_DIR` (Claude Code's conversations stay in
+   the machine's own store: `CLAUDE_CONFIG_DIR` when the machine sets one, else `~/.claude`); made 0700. `auth.json` and Claude
    Code's `settings-<12 hex>.json` are written 0600 before the process (a marker file first; a file of that name the
    runner did not write is set aside and put back), the settings file named on the command line (`--settings <path>`,
    `withPrivateDir`), and removed when the last process using the folder ends (since S5.4, when its turn's end is sent:
@@ -1070,10 +1077,50 @@ a Docker runner:            docker exec -it <container> sh -lc "cd '<folder>' &&
 Codex:                      codex resume <sessionId> in the same places
 ```
 
-Paths are single-quoted (`'` as `'\''`) and a command that crosses a second shell is double-quoted once more (`\`, `"`,
+A Docker runner's `docker exec` gets the image's `CLAUDE_CONFIG_DIR`, the same store its turns use (docs/machines.md
+"The Docker runner's volumes"). Paths are single-quoted (`'` as `'\''`) and a command that crosses a second shell is double-quoted once more (`\`, `"`,
 `$` and backquotes escaped); a test reads them back through `/bin/sh`. The popover says it uses that machine's own
 login, not the chat's access profile, and that typing there spends it; a Codex chat's thread lives in the runner's
 own folder unless the agent has a config folder, which it says too.
+
+## A lost conversation
+
+Built 2026-11-13 (Ihor's Docker runner was updated with **Update container**; the rebuild kept `/work`, the state and
+the CLIs' volumes but not Claude Code's own store, and his next message in an existing chat failed at once with "No
+conversation found with session ID: bbd9c214-…"). A chat's conversation lives in the harness's store on its machine
+(Claude Code: `$CLAUDE_CONFIG_DIR/projects/`, else `~/.claude/projects/`; Codex: its `CODEX_HOME`, the runner's private
+folder). Where that store survives a rebuild is docs/machines.md "The Docker runner's volumes"; when it still loses a
+conversation (a wiped home, another config folder, a rebuild before those volumes), the chat no longer fails for good:
+
+- **The runner tells it apart** (`turns/turn/end.ts`, `missingSession`). Each driver knows its CLI's own words
+  (`HarnessDriver.sessionMissing`): Claude Code 2.1.323 prints `No conversation found with session ID: <id>` and exits 1
+  (read from its own code); Codex 0.167.0 prints `Error: thread/resume: thread/resume failed: no rollout found for
+  thread id <id> (code -32600)` and exits 1 (seen by running `codex exec resume` on an unknown id with an empty home and
+  no login: nothing reached a model). When a turn's process exits with a failure, gave no good result, and the driver
+  finds its words in the end of stderr or in a failing result, the runner sends no failing result and ends the turn
+  `session_missing: <that line>` (`TURN_ERRORS`). The detection is the runner's because only it sees the harness's
+  stderr and holds the drivers; the server branches on the typed code, never on the harness's words. The stderr stays
+  in the run folder until the end's ack, so a runner restarted meanwhile ends the turn the same way.
+- **The server starts the same turn again, once** (`modules/chats/service/session-lost.ts`, called from the turn's end
+  in `live-end.ts`), for a message turn whose chat still names a session and which nobody asked to stop: resolved as any
+  turn is (the person who sent it, the chat's profile, the agent's machine, a task step's outputs folder and tools), but
+  with no session and no branch's fork. Its prompt is a recap, then the person's message (`rules/recap.ts`): the chat's
+  own finished message turns since its last Clear (a branch whose fork never ran: its parent's, up to the reply it
+  branched from), the latest 20, each the prompt and the final reply only (no tool calls, no thinking), each part cut
+  at 3 000 characters and the oldest dropped until they fit 16 000. The chat forgets the lost session (`session_id`
+  null, `fork_pending` false), and the thread gets a quiet `notice` as the turn's next event: "The saved conversation on
+  <machine> was gone, so this chat started a fresh one with a recap of the last messages." (without a recap: "…started
+  a fresh one."). The new `turn.start` goes under the same turn id once the runner heard the end's `turn.ack` (the
+  sink's end returns what runs after the ack, `hub/turns.ts`), with `afterSeq` = that notice's number, so the runner
+  numbers its events after it (kept in the run folder's meta for a restart). The new `session` event saves the new
+  session, and the turn ends as any turn does. A task step's conversation (Keep context too) goes the same way with its
+  own turns, and the task hears one start and one end.
+- **Once.** The fresh start resumes nothing, so it cannot say `session_missing`; if it does anyway, or anything refuses
+  the fresh start (the agent moved, the profile went, the spec does not parse, a failure is logged), or a Compact said
+  it, or a stop was asked, the turn fails as before with `session_missing: …`. A runner older than this sends no such
+  code, so its turns fail as before too: the recovery needs the runner's update.
+- **Not covered.** The chat terminal (a TUI resuming a lost session shows Claude Code's own error; a message turn first
+  starts the chat afresh), and whatever only the lost conversation's tool calls said.
 
 ## When the machine is stopped
 

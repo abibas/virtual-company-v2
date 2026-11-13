@@ -632,6 +632,19 @@ audited, 200 there, 409 `runner_outdated` for an older runner); a container runn
 `/work` before it starts; elsewhere the chat's `home_missing` offers Create folder, then Send again, and the agent form
 says "Not on the machine yet" with Create. Runners need the rebuild and update (a Docker runner: Update container).
 
+### Between S6 and S7: a chat outlives a lost conversation (Ihor, 2026-11-13)
+
+After **Update container** on the Docker runner, his next message in an existing chat failed with "No conversation found
+with session ID": the rebuild kept `/work`, the state and the CLIs' volumes, but Claude Code's store lived in the
+container's own layer. **Built 2026-11-13** (branch `session-survive`): the image sets `CLAUDE_CONFIG_DIR` and
+`CODEX_HOME` to the new volumes `runner-claude` and `runner-codex`, and a turn keeps the machine's own
+`CLAUDE_CONFIG_DIR` (docs/machines.md "The Docker runner's volumes"); Codex's turns already kept their threads under the
+state volume. On any machine, a turn whose resumed conversation the harness no longer has ends `session_missing` (the
+runner reads the CLI's own words), and the server starts it again once, after the end's ack, on a fresh conversation
+whose prompt recaps the chat's last 20 exchanges, with a notice in the thread and the new session stored; task steps'
+conversations too (docs/harness.md "A lost conversation"). Runners need the rebuild and update; the Docker runner needs
+Update container for the volumes, and that first rebuild still starts with an empty Claude Code store.
+
 ### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
 Reshaped on 2026-11-12 with Ihor ("GitHub LOGIN and Confluence Login. I do wanna have SIMILAR profile to push data as

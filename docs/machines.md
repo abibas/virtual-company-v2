@@ -282,6 +282,25 @@ MWC_ENROLL_TOKEN=mwc_et_… MWC_RUNNER_NAME='Docker runner' MWC_RUNNER_CPUS=2 MW
   the only folder the runner browses or makes ("The folder browser"), and agents' home folders default to
   `/work/<slug>`. A container added before S5.1d gets it with the same `up` command plus `--build` (no token): the
   rebuilt image has `/work`, and compose creates the volume.
+- **The Docker runner's volumes** (2026-11-13, after an **Update container** dropped Claude Code's conversations: the
+  next message of a chat failed with "No conversation found with session ID"). Everything a rebuild must keep is a
+  named volume of the container's compose project (`deploy/compose.yml`, each declared with `VOLUME` in
+  `deploy/Dockerfile.runner` and made by the image owned by `runner`, which a new named volume copies when first
+  mounted):
+
+  | Volume          | Mounted at                | Holds                                                                    |
+  | --------------- | ------------------------- | ------------------------------------------------------------------------ |
+  | `runner-state`  | `/var/lib/mwc-runner`     | `runner.json` (the runner key), the turns' run folders, and the runner's private folders per harness and agent (Codex's `CODEX_HOME` for turns and chat terminals: its threads; Claude Code's settings and instructions files while a process runs) |
+  | `runner-work`   | `/work`                   | the agents' home folders                                                 |
+  | `runner-cli`    | `/home/runner/.local`     | the CLIs the card's Install / Update put there, first on the PATH        |
+  | `runner-claude` | `/home/runner/.claude`    | Claude Code's own store: the image sets `CLAUDE_CONFIG_DIR` to it, so its conversations (`projects/`, what a chat resumes) and its `.claude.json` (inside the folder when the variable is set) live there; a turn keeps the machine's `CLAUDE_CONFIG_DIR` (docs/harness.md "Credentials and gateways") |
+  | `runner-codex`  | `/home/runner/.codex`     | `CODEX_HOME` for a person's own `codex` in the container's terminal (a turn's Codex runs in the runner's folder under `runner-state`) |
+
+  A container made before 2026-11-13 gets `runner-claude` and `runner-codex` on its next **Update container** (the
+  rebuild runs this server's `deploy/compose.yml`, and compose creates the new volumes); that first rebuild still starts
+  with an empty Claude Code store, since the old one lived in the container's own layer, so a chat whose conversation was
+  there starts afresh with a recap (docs/harness.md "A lost conversation"). Every later rebuild keeps them. `down -v`
+  removes them with the runner.
 - **Stats inside the container.** `os.cpus()` and `/proc/meminfo` describe the Docker VM, so a runner that knows it is
   in a container (Linux, with `MWC_RUNNER_IN_CONTAINER=1` as the image sets, or `/.dockerenv`) reads its cgroup v2 files
   (`apps/runner/src/stats/cgroup.ts`): CPUs from `cpu.max` (quota over period, to a tenth), CPU use from `cpu.stat`'s
