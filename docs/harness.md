@@ -971,7 +971,10 @@ tool needs no new runner. The first are the Atlassian tools, which keep the name
   implemented by the integrations module and passed by `app.ts`) and puts them in the spec whole
   (`TurnSpec.serverTools`: `{name, title, description, inputSchema, readOnly}`, at most 32, each name once and never the
   question tool's or an agents' tool's, `ServerToolDefs` of `@mwc/shared/harness`), with the hook's line after the
-  standing instructions (left out when it would not fit). A Compact, a Clear or an older runner gets none.
+  standing instructions (left out when it would not fit). A Compact, a Clear or an older runner gets none; a message
+  turn on an older runner gets instead one line saying its tools (the plan's `label`, "Jira and Confluence") are
+  configured but this machine's runner is too old to provide them, and the chat's detail names them
+  (`runnerUpdateFor`), which admins see as a line above the composer linking to the machine's card.
 - **The runner** (`turns/ask/server-tools.ts`) writes them to the turn's private folder (`server-tools.json`, 0600, next
   to `ask.sock`) and names that file to its MCP server (`MWC_SERVER_TOOLS`, among the variables Claude Code's `mcp.json`
   and Codex's `env_vars` carry). The MCP server lists them after the agents' tools, as written (`readOnlyHint` from
