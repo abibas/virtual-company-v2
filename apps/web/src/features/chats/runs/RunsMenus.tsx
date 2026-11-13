@@ -22,6 +22,13 @@ import {
   type RunsView,
 } from './runs-state.ts';
 
+/** The Mode pill's words show from a 24rem composer; below, its icon alone. */
+const MODE_LABEL = 'hidden @sm/composer:inline';
+/** The model's effort, the first to go: from a 32rem composer. */
+const EFFORT_SUFFIX = 'hidden @lg/composer:inline';
+/** The pills' arrows, from a 24rem composer: below, the icon and the model's name say it is a menu. */
+const CHEVRON = 'hidden shrink-0 opacity-70 @sm/composer:block';
+
 /**
  * A pill in the composer's footer: an icon (the Mode's), the current choice and an arrow; blue while the chat overrides
  * its profile. Its label and the muted suffix hide by the composer's width (`labelClass`, `suffixClass`: container
@@ -57,7 +64,7 @@ function Pill({
       aria-label={name}
       disabled={disabled}
       className={cx(
-        'inline-flex h-8 min-w-0 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold whitespace-nowrap transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue disabled:cursor-not-allowed disabled:opacity-60 aria-expanded:bg-surface-2',
+        'inline-flex h-8 min-w-0 cursor-pointer items-center gap-1 rounded-full px-1.5 text-xs font-semibold whitespace-nowrap transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue disabled:cursor-not-allowed disabled:opacity-60 aria-expanded:bg-surface-2 @sm/composer:px-2',
         overridden ? 'text-blue' : 'text-dim hover:text-ink-2',
       )}
     >
@@ -70,15 +77,10 @@ function Pill({
           </span>
         )}
       </span>
-      <ChevronDown size={12} strokeWidth={2.5} aria-hidden="true" className="shrink-0 opacity-70" />
+      <ChevronDown size={12} strokeWidth={2.5} aria-hidden="true" className={CHEVRON} />
     </button>
   );
 }
-
-/** The Mode pill's words show from a 24rem composer; below, its icon alone. */
-const MODE_LABEL = 'hidden @sm/composer:inline';
-/** The model's effort, the first to go: from a 32rem composer. */
-const EFFORT_SUFFIX = 'hidden @lg/composer:inline';
 
 interface MenuProps {
   readonly view: RunsView;
@@ -195,7 +197,7 @@ function ModelMenu({ view, busy, change }: MenuProps) {
  * The composer's Mode and Model menus (2026-11-13): the chat's own mode, model and effort for its next turns, each
  * marked as the profile's until changed; a change is saved at once (a running turn keeps what it started with), and a
  * refusal shows beside them. The menus open upward. By the composer's width (its card is the `composer` container):
- * the model's effort shows from 32rem, the mode's short label from 24rem, its icon always.
+ * the model's effort shows from 32rem, the mode's short label and the arrows from 24rem, the mode's icon always.
  */
 export function RunsMenus({
   view,

@@ -60,7 +60,7 @@ function RoundAction({
         tone: danger ? 'soft' : 'primary',
         size: 'sm',
         round: true,
-        className: cx('size-9', danger && 'text-failed hover:text-failed'),
+        className: cx('size-8 @sm/composer:size-9', danger && 'text-failed hover:text-failed'),
       })}
     >
       {busy ? (
@@ -177,12 +177,12 @@ export function Composer({
             placeholder={running ? 'Write while the agent works…' : placeholder}
             className="block max-h-60 min-h-14 w-full resize-none bg-transparent px-4.5 pt-3.5 pb-1 text-[0.9375rem] leading-relaxed text-ink outline-none placeholder:text-faint [field-sizing:content]"
           />
-          <div className="flex min-h-12 flex-nowrap items-center gap-1 py-1.5 pr-2 pl-2">
+          <div className="flex min-h-12 flex-nowrap items-center gap-1 px-1.5 py-1.5 @sm/composer:px-2">
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
               <DictationButton value={text} onChange={setText} />
               {runs}
             </div>
-            <div className="flex max-w-[60%] min-w-0 items-center justify-end gap-1.5">
+            <div className="flex max-w-[60%] min-w-0 items-center justify-end gap-1 @sm/composer:gap-1.5">
               <div className="flex min-w-0 items-center">{meter}</div>
               {running && (
                 <RoundAction

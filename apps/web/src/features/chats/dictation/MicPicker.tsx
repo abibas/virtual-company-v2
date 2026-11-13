@@ -35,7 +35,7 @@ export function MicPicker({
           label="Microphone"
           icon={ChevronDown}
           size="sm"
-          className="w-5 rounded-full"
+          className="max-w-5 rounded-full"
           disabled={disabled}
         />
       )}

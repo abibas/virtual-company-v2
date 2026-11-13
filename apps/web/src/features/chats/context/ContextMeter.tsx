@@ -88,7 +88,7 @@ export function ContextMeter({
           busy={controls.busy === 'compact'}
           onClick={controls.compact}
           aria-label="Compact the conversation"
-          className="h-7 px-2 @md/composer:px-3"
+          className="h-7 pr-1.5 pl-1.5 @md/composer:pr-3 @md/composer:pl-3"
         >
           <span className="hidden @md/composer:inline">Compact</span>
         </GatedButton>
