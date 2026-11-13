@@ -15,6 +15,7 @@ import {
 } from '../../../../../fixtures/chats/world.ts';
 import { callTool } from '../../../../../fixtures/integrations/slack.ts';
 import {
+  answerSlack,
   answerTurn,
   GENERAL,
   type InboundScene,
@@ -24,9 +25,11 @@ import {
   message,
   postRows,
   postsOf,
+  slackError,
   threadRows,
 } from '../../../../../fixtures/integrations/slack-inbound.ts';
 import { as } from '../../../../../fixtures/members/members.ts';
+import { revokeSubscription } from '../../../../../fixtures/org.ts';
 
 /**
  * A Slack message's turn and its answer (2026-11-13): a fresh mention wakes the default agent in a chat of its own for
@@ -166,6 +169,29 @@ describe('the answer', () => {
       'One.',
       expect.stringMatching(/^Couldn't answer: /),
     ]);
+  });
+});
+
+describe('an answer that cannot be posted', () => {
+  it('is logged: a sign-in revoked meanwhile, or Slack refusing the post', async () => {
+    const s = await inboundScene(w);
+    await s.conn.deliver(message());
+    const start = await runnerOf(s).frames.next('turn.start');
+    await revokeSubscription(w.t.db, s.signIn.id);
+    answerTurn(runnerOf(s), start, 'Here.');
+    await ended(w.t.db, start.turnId);
+    await eventually('the refusal is logged', () =>
+      w.logs.some((line) => String(line.msg).startsWith('slack inbound: no answer posted:')),
+    );
+    const other = await inboundScene(w);
+    await other.conn.deliver(message());
+    const next = await runnerOf(other).frames.next('turn.start');
+    answerSlack(w, { 'chat.postMessage': slackError('not_in_channel') });
+    answerTurn(runnerOf(other), next, 'Here.');
+    await eventually('the refusal is logged', () =>
+      w.logs.some((line) => line.msg === 'slack inbound: the answer was not posted'),
+    );
+    expect(postsOf(w).map((post) => post.text)).toEqual(['Here.']);
   });
 });
 

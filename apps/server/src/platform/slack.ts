@@ -1,4 +1,4 @@
-import { slackClient, slackSockets } from '@mwc/slack';
+import { type SocketLike, slackClient, slackSockets } from '@mwc/slack';
 import type { SlackApi, SlackSockets } from '@mwc/tools-core';
 
 /**
@@ -18,13 +18,17 @@ export function slackFor(fetch: typeof globalThis.fetch): SlackApi {
   });
 }
 
+/** A WebSocket as the connector opens one: the platform's, or another class tests pass. */
+export type WebSocketClass = new (url: string) => SocketLike;
+
 /**
  * Socket Mode for receiving Slack messages (2026-11-13): `apps.connections.open` through the provider client (refused
- * under NODE_ENV=test, so no test opens one) and the platform's WebSocket, with the connector's backoff and hello wait.
+ * under NODE_ENV=test, so no test opens one) and the platform's WebSocket (or the class given), with the connector's
+ * backoff and hello wait.
  */
-export function slackSocketsFor(fetch: typeof globalThis.fetch): SlackSockets {
-  return slackSockets({
-    fetch: (url, init) => fetch(url, init),
-    webSocket: (url) => new WebSocket(url),
-  });
+export function slackSocketsFor(
+  fetch: typeof globalThis.fetch,
+  Socket: WebSocketClass = WebSocket,
+): SlackSockets {
+  return slackSockets({ fetch: (url, init) => fetch(url, init), webSocket: (url) => new Socket(url) });
 }
