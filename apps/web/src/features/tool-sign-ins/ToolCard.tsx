@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button.tsx';
 import { Card } from '../../components/ui/Card.tsx';
 import { IconTile } from '../../components/ui/IconTile.tsx';
 import { kindIcon, kindLabel } from '../subscriptions/KindBadge.tsx';
+import { SlackReceive } from './slack/SlackReceive.tsx';
 import { type ToolSignIn, toolAccount, toolReach, toolSite } from './tools.ts';
 
 interface ToolCardProps {
@@ -115,7 +116,8 @@ function Actions({
 
 /**
  * One tool sign-in on the Subscriptions page: its logo and kind, its status, its name (renamed in place), who it acts as,
- * its scopes or products, its last check; Check again, Sign in again and Remove.
+ * its scopes or products, its last check; Check again, Sign in again and Remove. A Slack bot's card receives messages too
+ * (`SlackReceive`, 2026-11-13).
  */
 export function ToolCard({ tool, rename, remove, check, signInAgain, highlighted = false }: ToolCardProps) {
   const card = useRef<HTMLDivElement>(null);
@@ -163,6 +165,9 @@ export function ToolCard({ tool, rename, remove, check, signInAgain, highlighted
       <Reach tool={tool} />
       {(tool.checkError || checking.error) && (
         <p className="text-xs text-blocked">{checking.error ?? tool.checkError?.message}</p>
+      )}
+      {tool.kind === 'slack_bot_token' && tool.status !== 'revoked' && (
+        <SlackReceive credentialId={tool.id} />
       )}
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <Checked at={tool.checkedAt} />
