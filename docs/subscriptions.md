@@ -382,7 +382,7 @@ on a Claude one). A profile no agent used kept both null. Then `agents.model` an
 Since 2026-11-13 (Ihor: "I would love to set it in the PROFILE, with an ability to change in the CHAT") whether an
 agent's turns ask before a tool is its profile's AI part's **mode**, no longer the agent's placement (its old
 Permissions: Ask me / Skip prompts). The modes are `@mwc/shared/modes` (`MODES`, `DEFAULT_MODES`), each with a label,
-a short label and one line:
+a short label (the composer's Mode pill: Manual's is "Ask") and one line:
 
 | Part | Mode (stored) | Label | What it does | Default |
 | --- | --- | --- | --- | --- |

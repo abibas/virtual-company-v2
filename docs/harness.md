@@ -526,8 +526,16 @@ The turn's view has them, and the thread's footer reads them ("Plan · Sonnet 5.
 chat has none of its own, then each mode with its line, as Claude's own mode menu) and a **Model** menu (the profile's,
 then the provider's catalogue, with Effort as a sub-choice listing the levels the model takes); each has **Reset to
 profile** once the chat overrides it, and a pill turns blue while it does. Choosing a model the chat's effort does not
-fit clears that effort. The full chat and the rail's docked chat both have them (short labels there), opening upward;
-they show in message chats while the composer is open. The Profiles page's AI part has the **Mode** control.
+fit clears that effort. The full chat and the rail's docked chat both have them, opening upward; they show in message
+chats while the composer is open. The Profiles page's AI part has the **Mode** control.
+
+Since 2026-11-13 (Ihor: the footer "100% requires redesign") the composer's footer is one row that never wraps: the
+microphone, the Mode pill (an icon per mode and its short label: Ask, Edits, Plan, Auto, Full trust) and the Model pill
+("Opus 5.5 · X-high", the effort muted) on the left; the context ring (a 20 px donut, green, amber past 70% and red
+past 90%, "Context 20k / 1M · 2% used" in its tooltip, its popover on a click, Compact beside it past 70%), Stop and
+Send on the right. The card is a CSS container: the effort shows from 32rem, the ring's share and Compact's word from
+28rem, the Mode's word and the pills' arrows from 24rem. No keyboard hint. The design gallery's Composer section shows
+it at the full chat's, a phone's and the docked chat's widths.
 
 ## How a turn runs
 
