@@ -317,6 +317,15 @@ Done when: a message to a task assigned to an agent starts a run on its machine,
    paths" fold; gateway cards show the derived addresses; every profile's gateway slot lists all gateways. Tests: the
    derived-address rule, gateway add and update with and without paths, any profile taking any gateway, the turn spec's
    gateway address for Claude and Codex chats (ChatGPT and API key) through one gateway; no frontend tests.
+   **Gateway header previews and editing: done 2026-11-13** (docs/subscriptions.md "Gateways"; Ihor: "I do not see
+   HEADERS... can I edit??"). Each gateway's view has `headers: [{ name, preview }]` (`agk-NTE5••••MHx8`; a scheme word
+   kept), made when the headers are sealed and stored in `credentials.header_previews` (migration
+   `0033_gateway_header_previews`, no data step: a gateway sealed before it gets its previews on its first list, one
+   `preview` use). `PATCH /:id` takes `headers`, the list the gateway keeps (`{ name, from?, value? }`: kept, renamed,
+   new value, added; left out removed), sealed again, audited by names only (422 `header_not_found`,
+   `header_value_required`). Web: cards list `name: preview`; **Edit** changes the address, headers and paths in place.
+   Tests: the preview rules, stored and made-later previews, edit semantics, refusals, the audit without values, no
+   value in any response; no frontend tests.
    **Machine tools: done 2026-11-10** (docs/machines.md "Tools", docs/runner-protocol.md "Tools"; Ihor: "Can we have
    some link, and some automation/verification in the MACHINES management?", then the versions and "if it requires
    update"). The runner reports `caps.tools` (Claude Code, Codex, git, gh, Docker: each found one's `--version`, asked

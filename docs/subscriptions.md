@@ -176,11 +176,30 @@ A gateway has no provider any more: the `accountMeta.provider` that gateways bri
   (`GATEWAY_PATH_MAX`). A `provider` sent by an older client is dropped. The web's form asks the name, the address
   ("Your gateway's root, e.g. http://127.0.0.1:8300; each CLI's path is added for it") and the headers, with an
   **Advanced: paths** fold showing the three paths with their defaults as placeholders (an empty one keeps its default).
-- **Changing one:** `PATCH /api/me/subscriptions/:id` takes `label`, and for a gateway `baseUrl` and `paths` (given
-  paths replace its own; `{}` goes back to the defaults); an address or paths for another kind is 422 `not_a_gateway`.
-  The headers stay sealed as they are. The web renames in place (no edit form for the address or paths yet).
+- **Header previews** (2026-11-13, Ihor: "I do not see HEADERS... at least see in the way [like Airia's own key card]
+  to understand if proper one configured"): every gateway in the API has `headers: [{ name, preview }]` in its order
+  (null for the other kinds). The name is shown in full; the preview never holds the value: 16 characters or more show
+  the first 8 and the last 4 (`agk-NTE5••••MHx8`), 8 to 15 the first 2 and the last 2, fewer only `••••`, and a scheme
+  word (Bearer, Basic, Token, Bot, Digest, ApiKey, Key, DPoP, in any case) stays in front of its token's preview
+  (`Bearer eyJhbGci••••abcd`). The server makes them when it seals the headers and stores them beside the sealed value
+  (`credentials.header_previews`, migration `0033_gateway_header_previews`), so a list opens no secret. A gateway sealed
+  before that migration has no previews: SQL cannot open a sealed value, so the first `GET /api/me/subscriptions` opens it
+  once, records a `preview` use and stores them; one that does not open is listed with `headers: null`.
+- **Changing one:** `PATCH /api/me/subscriptions/:id` takes `label`, and for a gateway `baseUrl`, `paths` (given paths
+  replace its own; `{}` goes back to the defaults) and `headers`, the whole list the gateway keeps, in order, each
+  `{ name, from?, value? }`: a stored header keeps its value while no `value` is given; `from` renames a stored one; a
+  name not stored is new and needs a value; a stored header left out is removed. Names differ in any case, 20 at most.
+  A `from` the gateway has not is 422 `header_not_found`, a new header without a value 422 `header_value_required`, an
+  address, paths or headers for another kind 422 `not_a_gateway`. Changing headers opens the stored ones (an
+  `edit_headers` use), seals the new set with its previews, and writes per change an `update` audit row with names only
+  (`header`: old name → new name, null for added or removed; `header_value`: that header's value replaced), and a
+  `replace_secret` row (purpose `edit_headers`); the same headers write nothing. The `preview` and `edit_headers` uses
+  leave `last_used_at` as it was: they send nothing anywhere.
 - **On the page:** each gateway card shows the address and, in small text, the derived addresses ("Claude Code → …",
-  "Codex (ChatGPT) → …", "Codex (API key) → …"), and the profiles that include it.
+  "Codex (ChatGPT) → …", "Codex (API key) → …"), each header as `name: preview` in monospace, and the profiles that
+  include it. The name is renamed in place; **Edit** opens the address, the header rows (name, a value field showing
+  "unchanged" until a new value is typed, remove; **Add header**) and the paths fold in place, with Save and Cancel. A
+  value is never shown or copied in full: the store stays write-only.
 - **In a profile:** any profile takes any of its owner's gateways, Claude and OpenAI profiles alike (the provider check
   and its 422 `gateway_provider_mismatch` are gone); nothing in the database enforces a provider match (migration
   `0016_gateway_provider` dropped the last CHECK). Every profile's gateway select lists all the person's gateways.
@@ -638,8 +657,8 @@ storage format by default, as the remote MCP's, or `markdown`, or `adf`); Markdo
   master key can rotate. The master key is `MWC_MASTER_KEY` in production (a cloud key service later) and a generated
   `.data/master.key` (0600, git-ignored) in development; tests use a key in memory (S3.1). It is never logged or
   printed.
-- **Write-only:** the API returns metadata (kind, label, account email, plan, status, last checked), never the secret,
-  not even to its owner. Adding, renaming, removing and assigning need the owner's Clerk session; API keys are refused.
+- **Write-only:** the API returns metadata (kind, label, account email, plan, status, last checked, a gateway's header
+  names and previews), never the secret, not even to its owner. Adding, renaming, removing and assigning need the owner's Clerk session; API keys are refused.
 - **On machines:** nothing at rest. How a run receives its credential is decided in S5, starting with a short test of a
   relay: the run would get a short-lived run token and the server would swap in the real credential, so SSH into a
   container or a box finds nothing reusable. The fallback hands the credential to the run's environment over the
@@ -648,7 +667,7 @@ storage format by default, as the remote MCP's, or `markdown`, or `adf`); Markdo
   the server first; on disk only while its process runs: Codex's `auth.json`, and Claude Code's settings file with the
   gateway's headers (0600, in a 0700 folder of the runner's; docs/harness.md, "How a turn runs").
 - **Audit:** every add, change, removal and assignment, and every server-side use of a secret (a usage check, a tool
-  sign-in's check, a run), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
+  sign-in's check, a run, a gateway's previews made or headers edited), with who or what used it. The uses are `credential_uses` rows, kept, like the audit rows, after a
   subscription is removed (S3.1).
 
 ## The limits widget
