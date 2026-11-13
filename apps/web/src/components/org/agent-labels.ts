@@ -1,5 +1,4 @@
 import {
-  HARNESS_PROVIDER,
   PART_NAMES,
   PROFILE_PROVIDERS,
   rightsSummary,
@@ -48,12 +47,6 @@ const HARNESS_WORDS: Readonly<Record<Harness, string>> = { claude_code: 'Claude 
 
 /** What runs the agent, as people read it. */
 export const harnessLabel = (harness: Harness): string => HARNESS_WORDS[harness];
-
-/** The harnesses: Claude Code now, Codex shown and kept for later (S7). */
-export const HARNESS_OPTIONS: readonly SegmentOption<Harness>[] = [
-  { value: 'claude_code', label: HARNESS_WORDS.claude_code },
-  { value: 'codex', label: HARNESS_WORDS.codex },
-];
 
 /** What an agent runs: its access profile's model and effort (null each for the provider's default). */
 export type RunsWith = NonNullable<Agent['runsWith']>;
@@ -116,12 +109,24 @@ export function profileLine(profile: { readonly parts: Parts }): string {
   return pieces.length === 0 ? 'No parts' : pieces.join(' · ');
 }
 
-/** True when a profile has the AI part a harness runs on (a Claude part for Claude Code, an OpenAI part for Codex). */
-export const hasPartFor = (profile: { readonly parts: Parts }, harness: Harness): boolean =>
-  profile.parts[HARNESS_PROVIDER[harness]] !== null;
+/** A profile's one AI part (one at most since 2026-11-13), which decides an agent's harness; undefined for none. */
+export const profileAiPart = (profile: { readonly parts: Parts }): ProfileProvider | undefined =>
+  PROFILE_PROVIDERS.find((provider) => profile.parts[provider] !== null);
 
-/** "No Claude part": why a profile cannot serve an agent on `harness`. */
-export const missingPart = (harness: Harness): string => `No ${PART_NAMES[HARNESS_PROVIDER[harness]]} part`;
+/** The harness each AI part runs: Claude Code on a Claude part, Codex on an OpenAI part. */
+const PART_HARNESS: Readonly<Record<ProfileProvider, Harness>> = { claude: 'claude_code', openai: 'codex' };
+
+/** The harness a profile gives the agents it is given to; undefined for a profile without an AI part. */
+export function profileHarness(profile: { readonly parts: Parts }): Harness | undefined {
+  const part = profileAiPart(profile);
+  return part === undefined ? undefined : PART_HARNESS[part];
+}
+
+/** A profile as an agent form's picker lists it: its name and its AI in short ("Work · Claude"), or "No AI part". */
+export function profileOption(profile: { readonly name: string; readonly parts: Parts }): string {
+  const part = profileAiPart(profile);
+  return `${profile.name} · ${part === undefined ? 'No AI part' : PART_NAMES[part]}`;
+}
 
 /** An agent as the feed and the quick-create dock show it: its name, its role and its drawn face. */
 export function agentRef(agent: Pick<Agent, 'id' | 'name' | 'roleTitle' | 'face'>): AgentRef {

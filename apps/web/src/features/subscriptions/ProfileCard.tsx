@@ -1,4 +1,4 @@
-import { isAiPart, PROFILE_PARTS, type ProfilePart } from '@mwc/shared/credentials';
+import { isAiPart, PROFILE_PARTS, PROFILE_PROVIDERS, type ProfilePart } from '@mwc/shared/credentials';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
@@ -13,14 +13,15 @@ import { firstSignIn, firstSubscription } from './profile-options.ts';
 import { ToolPartSection, toolPartChange } from './ToolPartSection.tsx';
 
 /**
- * "Add Claude · Add OpenAI · Add GitHub · Add Atlassian" for the parts the profile does not have: each adds its part with
- * the person's first credential of that kind (an AI part its provider's subscription, a tool part its sign-in and its
- * tool's safe rights).
+ * "Add Claude · Add OpenAI · Add GitHub · Add Atlassian" for the parts the profile does not have, Claude and OpenAI only
+ * while it has neither (a profile runs one AI): each adds its part with the person's first credential of that kind (an
+ * AI part its provider's subscription, a tool part its sign-in and its tool's safe rights).
  */
 function AddParts({ profile, subscriptions, update }: Omit<CardProps, 'remove'>) {
   const [busy, setBusy] = useState<ProfilePart>();
   const [error, setError] = useState<string>();
-  const missing = PROFILE_PARTS.filter((part) => profile.parts[part] === null);
+  const hasAi = PROFILE_PROVIDERS.some((provider) => profile.parts[provider] !== null);
+  const missing = PROFILE_PARTS.filter((part) => profile.parts[part] === null && !(hasAi && isAiPart(part)));
   if (missing.length === 0) return null;
   const add = async (part: ProfilePart) => {
     setBusy(part);
@@ -92,7 +93,8 @@ function FoldedProfile({ profile, onToggle }: Pick<CardProps, 'profile'> & Pick<
 /**
  * One profile (generic since 2026-11-13). Folded, one row: its name, its parts in a line and how many agents use it.
  * Open: its name (renamed in place) and Delete; its parts as sections in a fixed order (Claude, OpenAI, GitHub,
- * Atlassian), each saved as it changes and removable; Add for the parts it does not have; and which agents use it.
+ * Atlassian; Claude or OpenAI, never both), each saved as it changes and removable; Add for the parts it does not have;
+ * and which agents use it.
  */
 export function ProfileCard({
   profile,

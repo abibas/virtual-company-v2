@@ -1,4 +1,3 @@
-import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
 import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import {
   AGENT_DEFAULTS,
@@ -20,7 +19,10 @@ export interface AgentValues {
   readonly face: number | null;
   /** What stands for it: its face, an emoji or an image (`icon-draft.ts`), sent apart from the fields. */
   readonly icon: IconDraft;
-  /** What runs it: its access profile's provider's harness (its model and effort are the profile's). */
+  /**
+   * What runs it: its profile's AI part's harness, set with the profile (the server sets it the same way); its model
+   * and effort are the profile's too.
+   */
   readonly harness: Harness;
   readonly maxConcurrentRuns: number;
   /** The manager's principal id. */
@@ -35,8 +37,6 @@ export type ProfileDefaults = Readonly<Record<ProfileProvider, string | null>>;
 
 export interface AgentDraft {
   readonly values: AgentValues;
-  /** The hirer's defaults a new agent starts from, and a harness change picks from; none on an agent's page. */
-  readonly profileDefaults: ProfileDefaults | undefined;
   set<K extends keyof AgentValues>(key: K, value: AgentValues[K]): void;
   /** The slug the name makes, as the server derives it for a new agent. */
   readonly slug: string;
@@ -51,37 +51,48 @@ export interface AgentDraft {
 const within = (text: string, limits: { readonly min: number; readonly max: number }) =>
   text.trim().length >= limits.min && text.trim().length <= limits.max;
 
-/** The form's start: the agent's own values, or a new agent's defaults under `reportsTo` with `profileId`. */
-function startOf(agent: AgentDetail | undefined, reportsTo: string, profileId: string | null): AgentValues {
+/** Where a new agent starts: the hirer's Claude default, else their OpenAI one (as the server picks), or none. */
+interface Start {
+  readonly profileId: string | null;
+  readonly harness: Harness;
+}
+
+function startFrom(defaults: ProfileDefaults | undefined): Start {
+  if (defaults?.claude) return { profileId: defaults.claude, harness: 'claude_code' };
+  if (defaults?.openai) return { profileId: defaults.openai, harness: 'codex' };
+  return { profileId: null, harness: AGENT_DEFAULTS.harness };
+}
+
+/** The form's start: the agent's own values, or a new agent's defaults under `reportsTo` from `start`. */
+function startOf(agent: AgentDetail | undefined, reportsTo: string, start: Start): AgentValues {
   return {
     name: agent?.name ?? '',
     roleTitle: agent?.roleTitle ?? '',
     face: agent?.face ?? null,
     icon: iconStart(agent),
-    harness: agent?.harness ?? AGENT_DEFAULTS.harness,
+    harness: agent?.harness ?? start.harness,
     maxConcurrentRuns: agent?.maxConcurrentRuns ?? AGENT_DEFAULTS.maxConcurrentRuns,
     // An archived agent has no place (and no manager) until it is restored.
     reportsTo: agent ? (agent.reportsTo ?? '') : reportsTo,
     instructions: agent?.instructions ?? AGENT_DEFAULTS.instructions,
-    profileId: agent ? (agent.profile?.id ?? null) : profileId,
+    profileId: agent ? (agent.profile?.id ?? null) : start.profileId,
   };
 }
 
 /**
  * The agent form's state: its values, the slug and face they lead to, and whether the API would take them. A new
- * agent starts with the hirer's default access profile of its harness's provider (`profileDefaults`).
+ * agent starts with the hirer's Claude default profile, else their OpenAI one (`profileDefaults`), and its harness.
  */
 export function useAgentDraft(
   agent: AgentDetail | undefined,
   reportsTo: string,
   profileDefaults?: ProfileDefaults,
 ): AgentDraft {
-  const defaultProfileId = profileDefaults?.[HARNESS_PROVIDER[AGENT_DEFAULTS.harness]] ?? null;
-  const [values, setValues] = useState(() => startOf(agent, reportsTo, defaultProfileId));
+  const start = startFrom(profileDefaults);
+  const [values, setValues] = useState(() => startOf(agent, reportsTo, start));
   const slug = slugify(values.name, 'agent');
   return {
     values,
-    profileDefaults,
     set: (key, value) => setValues((current) => ({ ...current, [key]: value })),
     slug,
     face: values.face ?? agentFace(slug),
@@ -90,18 +101,20 @@ export function useAgentDraft(
       within(values.roleTitle, AGENT_ROLE_TITLE) &&
       values.instructions.length <= AGENT_INSTRUCTIONS_MAX &&
       iconValid(values.icon, agent),
-    reset: () => setValues(startOf(agent, reportsTo, defaultProfileId)),
+    reset: () => setValues(startOf(agent, reportsTo, start)),
   };
 }
 
-/** The new agent as `POST /agents` takes it: every field, the face as shown, its manager and its access profile. */
+/**
+ * The new agent as `POST /agents` takes it: every field, the face as shown, its manager and its access profile (whose
+ * AI part sets its harness on the server).
+ */
 export function newAgentOf(draft: AgentDraft): NewAgent {
   const { values } = draft;
   return {
     name: values.name.trim(),
     roleTitle: values.roleTitle.trim(),
     face: draft.face,
-    harness: values.harness,
     maxConcurrentRuns: values.maxConcurrentRuns,
     instructions: values.instructions,
     reportsToPrincipalId: values.reportsTo,
@@ -116,7 +129,6 @@ export function changesOf(draft: AgentDraft, agent: AgentDetail): Partial<AgentC
     name: values.name.trim(),
     roleTitle: values.roleTitle.trim(),
     face: draft.face,
-    harness: values.harness,
     maxConcurrentRuns: values.maxConcurrentRuns,
     instructions: values.instructions,
   };

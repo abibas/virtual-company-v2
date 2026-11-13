@@ -31,10 +31,7 @@ export interface HireAgentProps {
   readonly chart: Loaded<OrgChart>;
   readonly meUserId: string;
   readonly links: AgentLinks;
-  /**
-   * The hirer's default profile for each harness in the company: the form starts with the one of its harness, and a
-   * harness change takes the other's; none by default.
-   */
+  /** The hirer's default profile for each harness here: the form starts with the Claude one, else the OpenAI one. */
   readonly defaults?: ProfileDefaults | undefined;
   /** Hired: refresh the team and open its page. */
   readonly onHired: (agent: AgentDetail) => void;
@@ -150,7 +147,7 @@ function useHire(companyId: string, drafts: Pick<HireFormProps, 'draft' | 'place
 function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired }: HireFormProps) {
   const { busy, error, submit } = useHire(companyId, { draft, placement, onHired });
   const profiles = useAccessProfiles();
-  const runsWith = runsOf(draft.values.profileId, draft.values.harness, profiles.data?.profiles) ?? null;
+  const runsWith = runsOf(draft.values.profileId, profiles.data?.profiles) ?? null;
   const company = useCompany().membership.name;
   const where = (
     <WhereItRuns
@@ -212,7 +209,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
 
 /**
  * The draft starts under the manager chosen on the chart, else the signed-in person, else the chart's first top, with
- * the hirer's default access profile of its harness's provider, once the chart is known.
+ * the hirer's Claude default profile, else their OpenAI one, once the chart is known.
  */
 function HireWithChart({
   defaults,

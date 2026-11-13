@@ -6,7 +6,7 @@ import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
 import { Field, SelectField, TextField } from '../../components/forms/Field.tsx';
 import { Input } from '../../components/forms/Input.tsx';
-import { hasPartFor, missingPart, profileLabel, profileLine } from '../../components/org/agent-labels.ts';
+import { profileHarness, profileLabel, profileOption } from '../../components/org/agent-labels.ts';
 import { Button } from '../../components/ui/Button.tsx';
 import type { AgentDraft } from './agent-draft.ts';
 
@@ -34,23 +34,19 @@ function ProfileHint({ count, error }: { readonly count: number | undefined; rea
 }
 
 /**
- * One of the signed-in person's own profiles, or None: each listed with its parts in short; one without the part the
- * agent's harness runs on is shown but not choosable ("No Claude part").
+ * One of the signed-in person's own profiles, or None: each listed with its AI in short ("Work · Claude"); one without
+ * an AI part is shown but not choosable ("No AI part"). Choosing one sets the agent's harness from its AI part.
  */
 function MyProfileSelect({ draft, profiles }: { readonly draft: AgentDraft; readonly profiles: MyProfiles }) {
   const all = profiles.data?.profiles ?? [];
-  const { harness } = draft.values;
   const value = draft.values.profileId ?? '';
   const options = [
     { value: '', label: 'None' },
-    ...all.map((p) => {
-      const fits = hasPartFor(p, harness);
-      return {
-        value: p.id,
-        label: `${p.name} · ${fits ? profileLine(p) : missingPart(harness)}`,
-        disabled: !fits && p.id !== value,
-      };
-    }),
+    ...all.map((p) => ({
+      value: p.id,
+      label: profileOption(p),
+      disabled: profileHarness(p) === undefined && p.id !== value,
+    })),
   ];
   if (value && !all.some((p) => p.id === value)) {
     options.push({
@@ -58,13 +54,19 @@ function MyProfileSelect({ draft, profiles }: { readonly draft: AgentDraft; read
       label: profiles.data ? 'A profile that no longer exists' : 'Loading your profiles…',
     });
   }
+  const choose = (profileId: string | null) => {
+    draft.set('profileId', profileId);
+    const chosen = all.find((p) => p.id === profileId);
+    const harness = chosen && profileHarness(chosen);
+    if (harness) draft.set('harness', harness);
+  };
   return (
     <SelectField
       label="Profile"
       value={value}
       options={options}
       disabled={profiles.loading && profiles.data === undefined}
-      onChange={(event) => draft.set('profileId', event.target.value || null)}
+      onChange={(event) => choose(event.target.value || null)}
       hint={<ProfileHint count={profiles.data && all.length} error={profiles.error} />}
     />
   );
@@ -106,8 +108,8 @@ export interface ProfileProps {
 }
 
 /**
- * The profile the agent runs on: an admin picks one of their own with the part its harness runs on (or None); an agent
- * with someone else's shows it with its owner and a Remove; everyone else reads it.
+ * The profile the agent runs on: an admin picks one of their own with an AI part (or None); an agent with someone
+ * else's shows it with its owner and a Remove; everyone else reads it.
  */
 export function ProfileChoice({
   draft,
