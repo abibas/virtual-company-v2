@@ -417,6 +417,12 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  connectors/slack:
+    dependencies:
+      '@mwc/tools-core':
+        specifier: workspace:*
+        version: link:../../packages/tools-core
+
   packages/cli:
     dependencies:
       '@mwc/shared':

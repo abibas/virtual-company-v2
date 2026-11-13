@@ -1,0 +1,16 @@
+{
+  "name": "@mwc/slack",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Slack connector: implements @mwc/tools-core's SlackApi over Slack's Web API (slack.com/api) with a bot or user token as a bearer, an injected fetch, retries on rate limits after Retry-After, timeouts and Slack's errors in words.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/tools-core": "workspace:*"
+  }
+}

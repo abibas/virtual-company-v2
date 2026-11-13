@@ -32,6 +32,11 @@ export {
   type GitHubErrorCode,
   isAtlassianError,
   isGitHubError,
+  isSlackError,
+  SLACK_ERROR_CODES,
+  SLACK_ERROR_MESSAGES,
+  SlackError,
+  type SlackErrorCode,
 } from './errors.ts';
 export type {
   CommitFilter,
@@ -59,3 +64,16 @@ export type {
   SearchPage,
   SearchQuery,
 } from './github.ts';
+export type {
+  SlackApi,
+  SlackChannel,
+  SlackConversationType,
+  SlackHit,
+  SlackMessage,
+  SlackPage,
+  SlackPost,
+  SlackPosted,
+  SlackSearchPage,
+  SlackSignIn,
+  SlackUser,
+} from './slack.ts';

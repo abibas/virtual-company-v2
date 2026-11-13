@@ -94,3 +94,51 @@ export class GitHubError extends Error {
 }
 
 export const isGitHubError = (error: unknown): error is GitHubError => error instanceof GitHubError;
+
+/**
+ * What went wrong in a Slack call (S7.1e): Atlassian's codes and `not_in_channel` (a bot reading or posting in a channel
+ * it was not invited to). Slack answers most refusals with HTTP 200 and `{ok: false, error}`; the connector maps that
+ * error here and keeps it as `slackError` (`missing_scope`, `channel_not_found`, …).
+ */
+export const SLACK_ERROR_CODES = [...ATLASSIAN_ERROR_CODES, 'not_in_channel'] as const;
+export type SlackErrorCode = (typeof SLACK_ERROR_CODES)[number];
+
+/** The words for each code, the start of a Slack error's message. */
+export const SLACK_ERROR_MESSAGES: Readonly<Record<SlackErrorCode, string>> = {
+  needs_sign_in:
+    'Slack refused the token (invalid or revoked): its owner needs to add it again on the Subscriptions page.',
+  forbidden: 'Slack says the token may not do this.',
+  not_found: 'Slack found nothing there, or the token cannot see it.',
+  bad_request: 'Slack refused the request as written.',
+  conflict: 'Slack says it conflicts with how things are now.',
+  rate_limited: 'Slack is limiting requests.',
+  unavailable: 'Slack did not answer; try again shortly.',
+  invalid_response: 'Slack gave an answer that could not be read.',
+  not_in_channel: 'The bot is not in this channel: invite the bot to it in Slack (/invite), then try again.',
+};
+
+/** The one error every `SlackApi` method rejects with: its code, Slack's own error, HTTP status and words. */
+export class SlackError extends Error {
+  readonly code: SlackErrorCode;
+  /** Slack's own `error` (`missing_scope`, `channel_not_found`); null when Slack said none (an outage). */
+  readonly slackError: string | null;
+  readonly status: number | null;
+
+  constructor(
+    code: SlackErrorCode,
+    options: {
+      readonly slackError?: string | null;
+      readonly status?: number | null;
+      readonly detail?: string | undefined;
+    } = {},
+  ) {
+    const words = SLACK_ERROR_MESSAGES[code];
+    super(options.detail ? `${words} ${options.detail}` : words);
+    this.name = 'SlackError';
+    this.code = code;
+    this.slackError = options.slackError ?? null;
+    this.status = options.status ?? null;
+  }
+}
+
+export const isSlackError = (error: unknown): error is SlackError => error instanceof SlackError;

@@ -6,6 +6,9 @@ import {
   GitHubError,
   isAtlassianError,
   isGitHubError,
+  isSlackError,
+  SLACK_ERROR_CODES,
+  SlackError,
 } from '../src/errors.ts';
 
 describe('AtlassianError', () => {
@@ -39,5 +42,25 @@ describe('GitHubError', () => {
     expect(refused.status).toBe(422);
     expect(isGitHubError(refused)).toBe(true);
     expect(isGitHubError(new AtlassianError('not_found', 'Jira'))).toBe(false);
+  });
+});
+
+describe('SlackError', () => {
+  it('says each code in words, keeps Slack’s own error, and is told apart', () => {
+    for (const code of SLACK_ERROR_CODES) {
+      const error = new SlackError(code);
+      expect(error.message).toMatch(/^(Slack|The bot) /);
+      expect(error).toMatchObject({ code, status: null, slackError: null, name: 'SlackError' });
+    }
+    const refused = new SlackError('forbidden', {
+      slackError: 'missing_scope',
+      status: 200,
+      detail: 'It lacks chat:write.',
+    });
+    expect(refused.message).toBe('Slack says the token may not do this. It lacks chat:write.');
+    expect(refused).toMatchObject({ slackError: 'missing_scope', status: 200 });
+    expect(new SlackError('not_in_channel').message).toContain('invite the bot');
+    expect(isSlackError(refused)).toBe(true);
+    expect(isSlackError(new GitHubError('not_found'))).toBe(false);
   });
 });
