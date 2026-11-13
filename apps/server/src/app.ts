@@ -13,7 +13,7 @@ import {
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { inboxRoutes } from './modules/inbox/index.ts';
-import { atlassianTools } from './modules/integrations/index.ts';
+import { integrationTools } from './modules/integrations/index.ts';
 import {
   createPowerControl,
   createRunnerHub,
@@ -32,6 +32,7 @@ import { leadWakes, tasksRoutes, taskTurnHook } from './modules/tasks/index.ts';
 import { atlassianFor } from './platform/atlassian.ts';
 import { emailFromConfig } from './platform/email/select.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
+import { githubFor } from './platform/github.ts';
 import { mountDocs } from './platform/http/docs.ts';
 import { errorHandler, notFoundHandler, validationHook } from './platform/http/errors.ts';
 import { requestLog } from './platform/http/request-log.ts';
@@ -87,7 +88,8 @@ export const REQUEST_ID_MAX_LENGTH = 128;
  * share the machines' terminal tickets and wake a stopped machine through the machines' power runtime (a message, a
  * step's run, a Lead's wake-up); the tasks (S5.3b) run their steps through the chats' runtime, whose task
  * conversations report back to the tasks module's hook, and (S6c) wake their agent Leads in its team chats. A turn's
- * profile brings the server's own tools (S7.1c): the integrations module's Atlassian tools, on the Atlassian connector.
+ * profile brings the server's own tools: the integrations module's Atlassian tools (S7.1c) and GitHub tools (S7.1d), on
+ * their connectors, with the GitHub sign-in for git on the machine when the profile may push.
  * Dictation transcribes through the speech passed in (tests: a fake; undefined: off), else this computer's whisper.cpp
  * when MWC_WHISPER finds it, stopped on shutdown; `/api/config` says so (`speech`).
  * Container runners are rebuilt with the Docker CLI passed in (tests: a fake; undefined: none), else the one
@@ -115,9 +117,11 @@ export function createApp(deps: AppOptions) {
   // task's conversation reports its turns to the tasks module's hook. Neither module imports the other. The hook runs
   // the next step after an agent's decision or a Lead's move (S6a) through the runtime, asked when needed.
   const hook = taskTurnHook({ ...server, steps: () => chats.taskTurns });
-  // The server's own tools (S7.1c): the Atlassian tools, answered here through the connector; the token stays here.
-  const atlassian = atlassianFor(deps.providerFetch ?? providerFetchFor(deps.config));
-  const serverTools = atlassianTools({ ...server, keyring, atlassian });
+  // The server's own tools: Atlassian's (S7.1c) and GitHub's (S7.1d), answered here through their connectors; the tokens
+  // stay here, but for a GitHub sign-in's that a turn's git and gh get when its profile may push.
+  const fetch = deps.providerFetch ?? providerFetchFor(deps.config);
+  const tools = { atlassian: atlassianFor(fetch), github: githubFor(fetch) };
+  const serverTools = integrationTools({ ...server, keyring, ...tools });
   const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook, serverTools, wake: power.wake };
   const chats = chatsRuntime(chatsDeps);
   startLeadWakes(server, chats.teamChats, deps.leadWakeTimers);

@@ -181,7 +181,8 @@ export async function startTurn(
 
 /**
  * What a turn's spec adds for the tools when its runner offers them: the agents' tools' names (S6a), the server's own
- * tools of its profile (S7.1c), and its instructions with each one's line.
+ * tools of its profile (S7.1c) with, on a runner that takes it, the GitHub sign-in for git and gh (S7.1d), and its
+ * instructions with each one's line.
  */
 export async function specTools(
   deps: TurnsDeps,
@@ -204,11 +205,13 @@ export async function specTools(
   });
   const instructions = agent.instructions ?? target.spec.instructions;
   const offers = target.serverTools;
+  const git = target.github ? { chatId: turn.chat.id, agentId: target.agent.id, by: target.by } : undefined;
   const server = await serverToolsOf(deps.serverTools, t, {
     profileId: target.profileId,
     kind,
     offers,
     instructions,
+    git,
   });
   return { ...agent, ...server };
 }

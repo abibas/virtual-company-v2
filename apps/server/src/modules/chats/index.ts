@@ -6,7 +6,7 @@
 // server's own tools of its profile through `ServerToolsHook`, which the integrations module implements.
 export { type ChatsDeps, type ChatsRuntime, chatsRoutes, chatsRuntime } from './routes.ts';
 export { reapTurns, SERVER_RESTARTED } from './service/reaper.ts';
-export type { ServerToolsHook, ServerToolsPlan, ServerToolTurn } from './service/server-tools.ts';
+export type { GitUse, ServerToolsHook, ServerToolsPlan, ServerToolTurn } from './service/server-tools.ts';
 export type {
   AgentToolsPlan,
   AgentToolTurn,

@@ -18,6 +18,7 @@
     "@hono/zod-openapi": "1.6.3",
     "@mwc/atlassian": "workspace:*",
     "@mwc/db": "workspace:*",
+    "@mwc/github": "workspace:*",
     "@mwc/identity-clerk": "workspace:*",
     "@mwc/identity-core": "workspace:*",
     "@mwc/machine-airia-devbox": "workspace:*",

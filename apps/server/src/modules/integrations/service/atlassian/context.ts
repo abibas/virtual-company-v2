@@ -1,6 +1,5 @@
 import type { AtlassianRights } from '@mwc/shared/credentials';
 import type { AtlassianApi, AtlassianSignIn, TextBody } from '@mwc/tools-core';
-import { answer } from '../../rules/atlassian/render.ts';
 import { inScope, outsideProjects, outsideSpaces } from '../../rules/atlassian/rights.ts';
 
 /**
@@ -23,17 +22,7 @@ export interface ToolContext {
   readonly audit: (change: ToolChange) => Promise<void>;
 }
 
-/** A tool's answer: what it did or found, or why not, in words. */
-export interface ToolReply {
-  readonly ok: boolean;
-  readonly text: string;
-}
-
-export const done = (value: unknown): ToolReply => ({ ok: true, text: answer(value) });
-export const refused = (text: string): ToolReply => ({ ok: false, text });
-
-/** What an audit row keeps of a long text: its start. */
-export const excerpt = (text: string) => (text.length <= 500 ? text : `${text.slice(0, 499)}…`);
+export { done, excerpt, refused, type ToolReply } from '../reply.ts';
 
 /** A Jira body in the format the call says (Markdown by default). */
 export const jiraText = (text: string, format: 'markdown' | 'adf' | undefined): TextBody => ({

@@ -70,6 +70,10 @@ export interface Target {
   readonly agentTools: boolean;
   /** True when it lists and relays the server's own tools (S7.1c, `caps.serverTools`). */
   readonly serverTools: boolean;
+  /** True when its turns take a GitHub sign-in for git and gh (S7.1d, `caps.github`). */
+  readonly github: boolean;
+  /** Who asked: the principal the turn's uses of credentials are recorded for. */
+  readonly by: string;
 }
 
 /** Who asks, and for what. */
@@ -101,6 +105,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
     placement,
     agentTools: caps.agentTools === true,
     serverTools: caps.serverTools,
+    github: caps.github === true,
   };
 }
 
@@ -192,5 +197,7 @@ export async function resolveTarget(
     kind: credential.kind,
     agentTools: place.agentTools,
     serverTools: place.serverTools,
+    github: place.github,
+    by: request.principalId,
   };
 }

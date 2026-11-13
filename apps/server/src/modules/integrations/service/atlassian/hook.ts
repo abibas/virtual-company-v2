@@ -8,6 +8,7 @@ import { type IntegrationsRepo, integrationsRepo } from '../../repo.ts';
 import { offeredTools } from '../../rules/atlassian/rights.ts';
 import { atlassianLabel, atlassianLine, toolDef } from '../../rules/atlassian/words.ts';
 import { AtlassianTool } from '../../schemas/atlassian.ts';
+import { TOOL_FAILED } from '../reply.ts';
 import { callAtlassian } from './call.ts';
 
 /**
@@ -23,7 +24,7 @@ export interface AtlassianToolsDeps extends SecretDeps {
   readonly atlassian: AtlassianApi;
 }
 
-export const TOOL_FAILED = 'The tool could not be carried out on the server; nothing was changed.';
+export { TOOL_FAILED } from '../reply.ts';
 
 /** The tools a turn on this profile gets (see above). */
 export async function atlassianToolsFor(

@@ -1,4 +1,7 @@
 import type { ConfluencePage, JiraIssue } from '@mwc/tools-core';
+import { compact, cut } from '../answer.ts';
+
+export { ANSWER_BYTES, ANSWER_MAX, answer, compact, cut } from '../answer.ts';
 
 /**
  * What an Atlassian tool answers (S7.1c): JSON an agent reads, trimmed to what it needs. Empty fields are left out; a
@@ -18,30 +21,6 @@ export const TEXT_LIMITS = {
   /** Another field Jira gave, as JSON. */
   extra: 1_000,
 } as const;
-
-/** The longest answer: under the tool result's 50 000 characters, with room for its note. */
-export const ANSWER_MAX = 48_000;
-
-/** The most bytes an answer takes as a JSON string in UTF-8: under the runner's 64 KB socket line, with room. */
-export const ANSWER_BYTES = 56_000;
-
-/** A text cut to `max` characters, saying how many more there were. */
-export function cut(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max)}\n…[cut: ${text.length - max} more characters]`;
-}
-
-const isEmpty = (value: unknown) =>
-  value === null ||
-  value === undefined ||
-  value === '' ||
-  (Array.isArray(value) && value.length === 0) ||
-  (typeof value === 'object' && !Array.isArray(value) && Object.keys(value as object).length === 0);
-
-/** An object without its empty fields. */
-export function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
-  return Object.fromEntries(Object.entries(value).filter(([, field]) => !isEmpty(field))) as Partial<T>;
-}
 
 /** Another field's value, short: a string as it is, anything else as JSON, cut. */
 const extraValue = (value: unknown): unknown => {
@@ -71,17 +50,3 @@ export function issueView(issue: JiraIssue, listed = false) {
 /** A page as an answer shows it. */
 export const pageView = (page: ConfluencePage) =>
   compact({ ...page, body: cut(page.body, TEXT_LIMITS.body) });
-
-/** True when a text fits an answer: its characters, and its bytes as a JSON string. */
-const fits = (text: string) =>
-  text.length <= ANSWER_MAX && Buffer.byteLength(JSON.stringify(text)) <= ANSWER_BYTES;
-
-/** The answer's text: its JSON, cut to fit (`ANSWER_MAX`, `ANSWER_BYTES`), saying so: ask for less, or a page at a time. */
-export function answer(value: unknown): string {
-  const text = JSON.stringify(value, null, 1);
-  if (fits(text)) return text;
-  const note = `\n…[cut: the answer was ${text.length} characters; ask for fewer results or fields]`;
-  let keep = Math.min(text.length, ANSWER_MAX);
-  while (keep > 0 && !fits(text.slice(0, keep) + note)) keep = Math.floor(keep * 0.9);
-  return text.slice(0, keep) + note;
-}

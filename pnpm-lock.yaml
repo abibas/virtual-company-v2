@@ -248,6 +248,9 @@ importers:
       '@mwc/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@mwc/github':
+        specifier: workspace:*
+        version: link:../../connectors/github
       '@mwc/identity-clerk':
         specifier: workspace:*
         version: link:../../connectors/identity-clerk
