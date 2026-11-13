@@ -102,7 +102,7 @@ export function DockedThread({
         }}
         onStop={actions.stop}
         queue={<QueuedMessages queue={view.queue} actions={queueActions(calls, live, chat, view.running)} />}
-        runs={chatRunsMenus({ calls, live, chat, closed, dense: true })}
+        runs={chatRunsMenus({ calls, live, chat, closed })}
       />
     </ChatMachineContext.Provider>
   );

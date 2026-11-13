@@ -57,6 +57,16 @@ export function meterLine(
   return `Context ${size} / ${short(window)} · ${percent}% used`;
 }
 
+/**
+ * The meter's word beside its ring, when the composer has room: the share used ("2%"), else the size alone ("20k",
+ * "≈45k" for an estimate), "—" before any reading.
+ */
+export function meterWord(used: number | undefined, percent: number | undefined, estimate = false): string {
+  if (used === undefined) return '—';
+  if (percent !== undefined) return `${percent}%`;
+  return `${estimate ? '≈' : ''}${short(used)}`;
+}
+
 const REFUSALS: Readonly<Record<string, string>> = {
   nothing_to_compact: "There's nothing to compact yet: send a message first.",
   compact_unsupported: 'Codex compacts its conversation by itself: use Clear to start over.',

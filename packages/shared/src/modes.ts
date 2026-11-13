@@ -14,7 +14,7 @@ import { catalogueModel, effortsOf } from './models.ts';
  * The permission modes (2026-11-13, docs/subscriptions.md "Mode", docs/harness.md "Modes"): each AI part of a profile
  * runs its turns in one, and a chat may run its next turns in another (its override). Claude Code's are its own
  * `--permission-mode` values; Codex's are three steps of its approvals and sandbox. Each with the label the pages show,
- * a short one for narrow places (the docked chat), and one line of what it does, as Claude's own mode menu words them.
+ * a short one for the composer's Mode pill, and one line of what it does, as Claude's own mode menu words them.
  * In a chat turn nobody answers a prompt: what would ask is refused, and the model and the thread are told.
  */
 
@@ -22,14 +22,14 @@ import { catalogueModel, effortsOf } from './models.ts';
 export interface ModeChoice<M extends PermissionMode = PermissionMode> {
   readonly id: M;
   readonly label: string;
-  /** For narrow places: the docked chat's composer. */
+  /** The composer's Mode pill, beside its icon (Manual is "Ask": it asks before each edit and command). */
   readonly short: string;
   readonly description: string;
 }
 
 /** Claude Code's modes, in the order the menus list them. */
 const CLAUDE_MODES: readonly ModeChoice<ClaudeMode>[] = [
-  { id: 'manual', label: 'Manual', short: 'Manual', description: 'Asks before each edit and command' },
+  { id: 'manual', label: 'Manual', short: 'Ask', description: 'Asks before each edit and command' },
   {
     id: 'acceptEdits',
     label: 'Accept edits',

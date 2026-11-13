@@ -99,7 +99,7 @@ export function Menu({
   }, [open, floating]);
 
   return (
-    <div ref={root} className="relative inline-flex">
+    <div ref={root} className="relative inline-flex min-w-0">
       {trigger({
         ref: button,
         'aria-expanded': open,

@@ -10,6 +10,7 @@ import { FlowsMock } from './flows/FlowsMock.tsx';
 import { BadgesSection } from './gallery/Badges.tsx';
 import { ButtonsSection } from './gallery/Buttons.tsx';
 import { CardsSection } from './gallery/Cards.tsx';
+import { ComposersSection } from './gallery/Composers.tsx';
 import { FormsSection } from './gallery/Forms.tsx';
 import { ListsSection } from './gallery/Lists.tsx';
 import { NewCompanyMock } from './NewCompanyMock.tsx';
@@ -37,6 +38,7 @@ const SECTIONS = [
   ['badges', 'Badges and avatars'],
   ['forms', 'Forms'],
   ['lists', 'Lists and feed'],
+  ['composer', 'Composer'],
 ] as const;
 
 function ViewTabs({ pathname, size }: { readonly pathname: string; readonly size: 'sm' | 'md' }) {
@@ -88,6 +90,7 @@ function Components({ pathname }: { readonly pathname: string }) {
         <BadgesSection />
         <FormsSection />
         <ListsSection />
+        <ComposersSection />
       </div>
     </div>
   );

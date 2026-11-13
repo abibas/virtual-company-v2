@@ -14,7 +14,6 @@ export function chatRunsMenus({
   live,
   chat,
   closed,
-  dense = false,
   agent,
   mine,
 }: {
@@ -23,7 +22,6 @@ export function chatRunsMenus({
   readonly chat: Chat;
   /** Why the composer is closed; the menus show only while it is open. */
   readonly closed: string | undefined;
-  readonly dense?: boolean;
   readonly agent?: Pick<AgentDetail, 'runsWith'> | undefined;
   readonly mine?: readonly AccessProfile[] | undefined;
 }): ReactNode {
@@ -32,7 +30,6 @@ export function chatRunsMenus({
   return (
     <RunsMenus
       view={view}
-      dense={dense}
       onChange={async (patch) => live.putChat(await calls.overrides(chat.id, patch))}
     />
   );

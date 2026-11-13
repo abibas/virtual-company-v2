@@ -13,6 +13,7 @@ import type { RailReport, ReportDot } from '../../features/report-chats/standing
 import { RoomFaces, RoomView } from '../../features/room/RoomView.tsx';
 import { sampleTurns } from './flows/conversation-sample.ts';
 import { NO_EARLIER, SAMPLE_CONFIG } from './flows/SampleThread.tsx';
+import { sampleComposerParts } from './gallery/Composers.tsx';
 import { SAMPLE_NODES } from './org-sample.ts';
 import { SAMPLE_SESSION, sampleApi } from './records.ts';
 import { SAMPLE_AGENTS } from './sample.ts';
@@ -93,6 +94,7 @@ function SampleDockBody({ face, team }: { readonly face: AgentRef; readonly team
           placeholder={`Message ${name}`}
           onSend={refuse}
           onStop={refuse}
+          {...sampleComposerParts(20_400)}
         />
       </PublicConfigContext>
     </ApiContext>

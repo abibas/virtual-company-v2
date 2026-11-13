@@ -78,8 +78,10 @@ function RoundAction({
 }
 
 /**
- * The message box under the thread (S5.1c): a rounded card with the text on top and its toolbar inside it (dictation,
- * the chat's Mode and Model menus, the context meter, the hint, Stop and the round Send). Enter sends, Shift+Enter makes a new line. While a turn runs
+ * The message box under the thread (S5.1c): a rounded card with the text on top and its footer inside it, one row that
+ * never wraps: dictation and the chat's Mode and Model pills on the left, the context ring, Stop and the round Send on
+ * the right. The card is the `composer` container: the pills and the ring drop their words by its width (the full chat,
+ * the rail's docked chat, a phone), so the row fits as it is. Enter sends, Shift+Enter makes a new line. While a turn runs
  * (S5.2 step 6) it stays open with a strip above it that says how the message reaches the agent (Now, After this turn,
  * Interrupt; the last choice remembered in this browser), Stop beside Send, and the waiting messages above it. A
  * refusal (the machine offline, the runner too old, an empty slot) shows above it in plain words, and the text stays so
@@ -112,11 +114,11 @@ export function Composer({
   readonly onStop: () => Promise<void>;
   /** The waiting messages (S5.2 step 6), above the box. */
   readonly queue?: ReactNode;
-  /** The context meter (S5.2), in the card's toolbar, and beside the reason when the box is closed. */
+  /** The context meter (S5.2), in the card's footer, and beside the reason when the box is closed. */
   readonly meter?: ReactNode;
-  /** The chat's Mode and Model menus (2026-11-13), in the card's toolbar after the microphone. */
+  /** The chat's Mode and Model menus (2026-11-13), in the card's footer after the microphone. */
   readonly runs?: ReactNode;
-  /** Narrow (the right rail's docked chat): tighter margins, no keyboard hint. */
+  /** Narrow (the right rail's docked chat): tighter margins. */
   readonly dense?: boolean;
 }) {
   const [text, setText] = useState('');
@@ -136,7 +138,7 @@ export function Composer({
         <div
           className={cx(
             THREAD_WIDTH,
-            'flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-2 px-4 py-3',
+            '@container/composer flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-2 px-4 py-3',
           )}
         >
           <p className="text-sm text-dim">{disabled}</p>
@@ -164,7 +166,7 @@ export function Composer({
           )
         )}
         {choices && running && how && <DeliveryStrip choices={choices} value={how} onChange={choose} />}
-        <div className="rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-shadow ring-inset focus-within:ring-blue/60">
+        <div className="@container/composer rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-shadow ring-inset focus-within:ring-blue/60">
           <textarea
             aria-label="Message"
             value={text}
@@ -175,14 +177,13 @@ export function Composer({
             placeholder={running ? 'Write while the agent works…' : placeholder}
             className="block max-h-60 min-h-14 w-full resize-none bg-transparent px-4.5 pt-3.5 pb-1 text-[0.9375rem] leading-relaxed text-ink outline-none placeholder:text-faint [field-sizing:content]"
           />
-          <div className="flex min-h-12 items-center gap-1 py-1.5 pr-2 pl-2.5">
-            <DictationButton value={text} onChange={setText} />
-            {runs}
-            <div className="min-w-0">{meter}</div>
-            <p className={cx('ml-auto hidden pr-1.5 text-2xs text-faint', !dense && 'xl:block')}>
-              Enter sends · Shift+Enter for a new line
-            </p>
-            <div className={cx('ml-auto flex shrink-0 items-center gap-1.5', !dense && 'xl:ml-0')}>
+          <div className="flex min-h-12 flex-nowrap items-center gap-1 py-1.5 pr-2 pl-2">
+            <div className="flex min-w-0 flex-1 items-center gap-0.5">
+              <DictationButton value={text} onChange={setText} />
+              {runs}
+            </div>
+            <div className="flex max-w-[60%] min-w-0 items-center justify-end gap-1.5">
+              <div className="flex min-w-0 items-center">{meter}</div>
               {running && (
                 <RoundAction
                   label="Stop the agent"
