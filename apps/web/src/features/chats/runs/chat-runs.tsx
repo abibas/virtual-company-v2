@@ -28,9 +28,6 @@ export function chatRunsMenus({
   if (closed !== undefined || !overridable(chat)) return undefined;
   const view = runsView(chat, profileRunsFor(chat, live.detail.data?.profileRuns, agent, mine));
   return (
-    <RunsMenus
-      view={view}
-      onChange={async (patch) => live.putChat(await calls.overrides(chat.id, patch))}
-    />
+    <RunsMenus view={view} onChange={async (patch) => live.putChat(await calls.overrides(chat.id, patch))} />
   );
 }

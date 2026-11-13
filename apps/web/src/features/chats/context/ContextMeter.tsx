@@ -125,7 +125,9 @@ export function ContextMeter({
             WORD[tone],
           )}
         >
-          <span className="hidden pr-0.5 @md/composer:inline">{meterWord(view.used, view.percent, view.estimate)}</span>
+          <span className="hidden pr-0.5 @md/composer:inline">
+            {meterWord(view.used, view.percent, view.estimate)}
+          </span>
         </button>
       </div>
       <div
