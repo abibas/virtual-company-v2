@@ -8,7 +8,15 @@ import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { AgentIconSubject } from '../../components/feed/AgentIcon.tsx';
 import { Composer } from '../chats/Composer.tsx';
 import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
-import { asking, chatActions, chatMachine, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
+import {
+  asking,
+  chatActions,
+  chatMachine,
+  closedWhy,
+  fixOf,
+  queueActions,
+  queueView,
+} from '../chats/OpenChat.tsx';
 import { useThreadAuthors } from '../chats/thread/authors.ts';
 import { ChatThread } from '../chats/thread/ChatThread.tsx';
 import { ChatMachineContext } from '../chats/thread/status/MachineWait.tsx';
@@ -75,7 +83,9 @@ export function DockedThread({
   const view = queueView(live, chat);
   const closed = closedWhy(chat, admin, placement);
   return (
-    <ChatMachineContext.Provider value={chatMachine(calls, live, chat, companyId)}>
+    <ChatMachineContext.Provider
+      value={chatMachine(calls, live, chat, companyId, fixOf(closed, placement, actions.send))}
+    >
       <ChatThread
         dense
         turns={view.thread}

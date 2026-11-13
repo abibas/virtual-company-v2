@@ -174,8 +174,9 @@ export function machineCalls(api: Api, companyId: string) {
     /** The folders in `path` (the runner's default start when left out). */
     folders: (machineId: string, path?: string) =>
       call(one.folders.$get({ ...param(machineId), query: path === undefined ? {} : { path } })),
-    makeFolder: (machineId: string, path: string) =>
-      call(one.folders.$post({ ...param(machineId), json: { path } })),
+    /** Makes `path` (its parent must exist), or with `parents` the folder and its missing parents. */
+    makeFolder: (machineId: string, path: string, parents = false) =>
+      call(one.folders.$post({ ...param(machineId), json: parents ? { path, parents } : { path } })),
     /** Has the runner look for its CLIs again. */
     checkTools: (machineId: string) => call(one.tools.check.$post(param(machineId))),
     /** Installs (or updates) Claude Code or Codex at the server's pin; its output through `toolInstall`. */

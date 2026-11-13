@@ -13,6 +13,7 @@ import { PromptMessage } from './PromptMessage.tsx';
 import { type Answering, QuestionCard } from './question/QuestionCard.tsx';
 import { questionStatus } from './question/question-model.ts';
 import { ReplyParts } from './ReplyParts.tsx';
+import { HomeMissingActions } from './status/HomeMissing.tsx';
 import { MachineWaitStatus } from './status/MachineWait.tsx';
 import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
 import { TurnFooter } from './status/TurnFooter.tsx';
@@ -29,14 +30,18 @@ import { TodoCard } from './todo/TodoCard.tsx';
  * question's receipt stands for it). The authors and the faces' size come from the thread (`ThreadLookContext`).
  */
 
-function FailedBox({ error }: { readonly error: string }) {
+/** A turn's failure; the last turn's missing folder offers Create folder and Send again (`HomeMissingActions`). */
+function FailedBox({ error, fix }: { readonly error: string; readonly fix: string | undefined }) {
   return (
     <div
       role="alert"
       className="flex items-start gap-2 rounded-lg bg-failed-soft px-3 py-2 text-sm leading-relaxed text-ink"
     >
       <CircleAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-failed" />
-      <span className="min-w-0 break-words whitespace-pre-wrap">{turnErrorText(error)}</span>
+      <div className="min-w-0 flex-1">
+        <span className="break-words whitespace-pre-wrap">{turnErrorText(error)}</span>
+        {fix !== undefined && <HomeMissingActions prompt={fix} />}
+      </div>
     </div>
   );
 }
@@ -92,7 +97,12 @@ function Reply({
             answering={place.answering}
           />
         )}
-        {model.error !== undefined && <FailedBox error={model.error} />}
+        {model.error !== undefined && (
+          <FailedBox
+            error={model.error}
+            fix={model.error === 'home_missing' && place.last ? turn.prompt : undefined}
+          />
+        )}
         {running && <WorkingStatus turn={turn} model={model} runsOn={runsOn} />}
         {turn.status === 'queued' &&
           (turn.machineWaitAt === null ? <QueuedStatus /> : <MachineWaitStatus turn={turn} />)}

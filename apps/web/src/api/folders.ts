@@ -23,6 +23,37 @@ export function useFolderStart(
   );
 }
 
+/**
+ * Whether a saved home folder is missing on its machine (2026-11-13): false when the runner lists it, true when it says
+ * there is no such folder (`folder_not_found`), undefined while not wanted or when it cannot tell (offline, an old
+ * runner). `create` makes it with its parents (`POST …/folders`, `parents`) and asks again.
+ */
+export function useFolderMissing(
+  companyId: string,
+  machineId: string,
+  path: string,
+  wanted: boolean,
+): { readonly missing: boolean | undefined; create(): Promise<void> } {
+  const api = useApi();
+  const calls = useMemo(() => machineCalls(api, companyId), [api, companyId]);
+  const asked = useLoad(`folder-missing:${companyId}:${machineId}:${path}:${wanted}`, () =>
+    wanted
+      ? calls.folders(machineId, path).then(
+          () => false,
+          (error: unknown) =>
+            error instanceof ApiError && error.code === 'folder_not_found' ? true : undefined,
+        )
+      : Promise.resolve(undefined),
+  );
+  return {
+    missing: asked.data,
+    create: async () => {
+      await calls.makeFolder(machineId, path, true);
+      asked.reload();
+    },
+  };
+}
+
 export interface FolderBrowserState {
   /** The folder shown, once one loaded. */
   readonly listing: FolderList | undefined;

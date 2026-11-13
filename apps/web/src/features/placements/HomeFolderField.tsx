@@ -10,6 +10,7 @@ import { Input } from '../../components/forms/Input.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { FolderBrowser } from './FolderBrowser.tsx';
 import { suggestedHome } from './folder-path.ts';
+import { HomeMissingLine } from './HomeMissingLine.tsx';
 import type { PlacementDraft } from './placement-draft.ts';
 
 /** The suggested home folder: in the runner's agents folder, or in /work for a container before its runner answers. */
@@ -52,6 +53,17 @@ export function HomeFolderField(props: HomeFolderFieldProps) {
   const suggestion =
     home === '' && !readOnly ? suggestionOf(start.data, machine?.kind, agentSlug) : undefined;
   const error = home !== '' && !draft.valid ? 'Give an absolute path, starting with /.' : undefined;
+  const saved = draft.saved;
+  // Once saved, a home folder that is not on its online machine yet says so, with Create.
+  const savedHere =
+    !readOnly &&
+    machine?.status === 'online' &&
+    saved?.machineId === values.machineId &&
+    saved.home === home &&
+    home !== '';
+  const missing = savedHere ? (
+    <HomeMissingLine companyId={companyId} machineId={values.machineId} path={home} wanted />
+  ) : undefined;
   const hint = suggestion ? (
     <>
       Suggested: <span className="font-mono text-ink-2">{suggestion}</span>{' '}
@@ -63,7 +75,9 @@ export function HomeFolderField(props: HomeFolderFieldProps) {
         Use suggested
       </button>
     </>
-  ) : undefined;
+  ) : (
+    missing
+  );
   return (
     <Field label="Home folder" id={id} hint={hint} error={error}>
       <div className="flex items-center gap-2">
