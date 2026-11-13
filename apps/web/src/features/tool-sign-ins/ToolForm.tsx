@@ -1,4 +1,4 @@
-import { ATLASSIAN_TOKEN_PAGE, CREDENTIAL_LABEL } from '@mwc/shared/credentials';
+import { ATLASSIAN_TOKEN_PAGE, CREDENTIAL_LABEL, SLACK_APPS_PAGE } from '@mwc/shared/credentials';
 import { ExternalLink } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { useApi } from '../../api/context.ts';
@@ -9,8 +9,8 @@ import { SecretField, TextField } from '../../components/forms/Field.tsx';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
 import { Notice } from '../../components/ui/Notice.tsx';
 
-/** The pasted tool sign-ins: a GitHub token, or an Atlassian site, email and API token. */
-export type PastedTool = 'github_token' | 'atlassian_api_token';
+/** The pasted tool sign-ins: a GitHub token, an Atlassian site, email and API token, or a Slack token (S7.1e). */
+export type PastedTool = 'github_token' | 'atlassian_api_token' | 'slack';
 
 /** What a renewal starts from: the sign-in it replaces the secret of, and (Atlassian) its site and email. */
 export interface Renewal {
@@ -31,13 +31,35 @@ function bodyOf(kind: PastedTool, values: Values, renew: Renewal | undefined): N
   const label = values.label.trim();
   const named = renew ? { credentialId: renew.credentialId } : label === '' ? {} : { label };
   const token = values.token.trim();
-  if (kind === 'github_token') return { kind, token, ...named };
+  if (kind === 'github_token' || kind === 'slack') return { kind, token, ...named };
   return { kind, site: values.site.trim(), email: values.email.trim(), token, ...named };
 }
 
 const isReady = (kind: PastedTool, values: Values) =>
   values.token.trim() !== '' &&
-  (kind === 'github_token' || (values.site.trim() !== '' && values.email.trim() !== ''));
+  (kind !== 'atlassian_api_token' || (values.site.trim() !== '' && values.email.trim() !== ''));
+
+/** Each form's words: the name's placeholder, the token's label and hint, and where to make one. */
+const WORDS: Readonly<
+  Record<PastedTool, { name: string; token: string; hint?: string; page?: readonly [string, string] }>
+> = {
+  github_token: {
+    name: 'GitHub · your login',
+    token: 'Token',
+    hint: 'Classic (ghp_) or fine-grained (github_pat_).',
+  },
+  atlassian_api_token: {
+    name: 'Atlassian · your site',
+    token: 'API token',
+    page: [ATLASSIAN_TOKEN_PAGE, 'Create an API token'],
+  },
+  slack: {
+    name: 'Slack · your workspace',
+    token: 'Token',
+    hint: 'A bot token (xoxb-), or a user token (xoxp-), which posts as you.',
+    page: [SLACK_APPS_PAGE, 'Your Slack apps'],
+  },
+};
 
 interface ToolFormProps {
   readonly kind: PastedTool;
@@ -104,12 +126,12 @@ function AtlassianFields({ values, set }: { readonly values: Values; readonly se
 }
 
 /**
- * Paste a GitHub token, or add Atlassian: the server checks it with GitHub or Atlassian before it stores it, and a
- * refusal shows here in plain words.
+ * Paste a GitHub token, add Atlassian, or paste a Slack token (a bot's or a user's, told by its prefix): the server
+ * checks it with GitHub, Atlassian or Slack before it stores it, and a refusal shows here in plain words.
  */
 export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
   const { values, set, busy, error, submit } = useToolForm({ kind, renew, onAdded });
-  const github = kind === 'github_token';
+  const words = WORDS[kind];
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       {!renew && (
@@ -118,27 +140,27 @@ export function ToolForm({ kind, renew, onAdded, onBack }: ToolFormProps) {
           value={values.label}
           onChange={set('label')}
           maxLength={CREDENTIAL_LABEL.max}
-          placeholder={github ? 'GitHub · your login' : 'Atlassian · your site'}
+          placeholder={words.name}
         />
       )}
-      {!github && <AtlassianFields values={values} set={set} />}
+      {kind === 'atlassian_api_token' && <AtlassianFields values={values} set={set} />}
       <SecretField
-        label={github ? 'Token' : 'API token'}
+        label={words.token}
         value={values.token}
         onChange={set('token')}
         required
-        hint={github ? 'Classic (ghp_) or fine-grained (github_pat_).' : undefined}
+        hint={words.hint}
       />
-      {!github && (
+      {words.page && (
         <ButtonLink
-          href={ATLASSIAN_TOKEN_PAGE}
+          href={words.page[0]}
           newTab
           tone="quiet"
           size="sm"
           icon={ExternalLink}
           className="self-start"
         >
-          Create an API token
+          {words.page[1]}
         </ButtonLink>
       )}
       {error && <Notice tone="error">{error}</Notice>}

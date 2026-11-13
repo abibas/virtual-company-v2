@@ -26,6 +26,7 @@ export {
   type LogoProvider,
   OpenAIMark,
   ProviderLogo,
+  SlackMark,
 } from './ProviderLogo.tsx';
 export { Skeleton, SkeletonRow, SkeletonRows, SkeletonText } from './Skeleton.tsx';
 export { Tooltip, type TooltipSide } from './Tooltip.tsx';

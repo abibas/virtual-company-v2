@@ -2,8 +2,8 @@ import type { ToolCredentialKind } from '@mwc/shared/credentials';
 import type { Subscription } from '../../api/types.ts';
 
 /**
- * How a tool sign-in reads on its card (S7.1a): who it acts as, and what it reaches, GitHub's scopes or which Atlassian
- * products answered, from the account details the server keeps (`accountMeta`).
+ * How a tool sign-in reads on its card (S7.1a): who it acts as, and what it reaches, GitHub's scopes, which Atlassian
+ * products answered, or a Slack token's scopes (S7.1e), from the account details the server keeps (`accountMeta`).
  */
 
 /** A tool sign-in: a subscription of a tool kind. */
@@ -12,9 +12,13 @@ export type ToolSignIn = Subscription & { readonly kind: ToolCredentialKind };
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;
 
-/** Who it acts as: GitHub's "@login · Name", Atlassian's "Name · email". */
+/** Who it acts as: GitHub's "@login · Name", Atlassian's "Name · email", Slack's "Bot · mw-bot" or "User · ihor". */
 export function toolAccount(tool: ToolSignIn): string {
   const meta = tool.accountMeta;
+  if (tool.kind === 'slack_bot_token' || tool.kind === 'slack_user_token') {
+    const who = text(meta.user);
+    return who === undefined ? '' : `${tool.kind === 'slack_bot_token' ? 'Bot' : 'User'} · ${who}`;
+  }
   const parts =
     tool.kind === 'atlassian_api_token'
       ? [text(meta.displayName), tool.accountEmail ?? undefined]
@@ -41,5 +45,6 @@ export function toolReach(tool: ToolSignIn): readonly Reach[] {
   return meta.tokenType === 'fine_grained' ? [{ name: 'Fine-grained', on: true }] : [];
 }
 
-/** The Atlassian site it signs in to. */
-export const toolSite = (tool: ToolSignIn): string | undefined => text(tool.accountMeta.site);
+/** The Atlassian site it signs in to, or the Slack workspace. */
+export const toolSite = (tool: ToolSignIn): string | undefined =>
+  text(tool.accountMeta.site) ?? text(tool.accountMeta.team);

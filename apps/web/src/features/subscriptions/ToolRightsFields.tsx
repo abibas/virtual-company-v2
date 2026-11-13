@@ -6,63 +6,16 @@ import {
   type GitHubRights,
   JIRA_PROJECT_PATTERN,
   type JiraAccess,
+  type SlackRights,
   type ToolRights,
 } from '@mwc/shared/credentials';
-import { ChipsInput } from '../../components/forms/ChipsInput.tsx';
 import { ChoiceField } from '../../components/forms/Field.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
 import { Switch } from '../../components/forms/Switch.tsx';
+import { ScopeControl, type ScopeProps } from './ScopeControl.tsx';
+import { SlackRightsFields, type SlackSignInFacts } from './SlackRightsFields.tsx';
 
-/** Where a right reaches: all, or the names listed (none yet: nowhere). */
-type Scope = 'all' | string[];
-
-interface ScopeProps {
-  readonly label: string;
-  /** The switch's label: "All repositories". */
-  readonly all: string;
-  readonly scope: Scope;
-  readonly onChange: (scope: Scope) => void;
-  readonly pattern: RegExp;
-  readonly normalize?: (entry: string) => string;
-  readonly placeholder: string;
-  readonly disabled: boolean;
-}
-
-/** A scope: the All switch, else the names as chips. */
-function ScopeControl({
-  label,
-  all,
-  scope,
-  onChange,
-  pattern,
-  normalize,
-  placeholder,
-  disabled,
-}: ScopeProps) {
-  return (
-    <div className="flex w-full flex-col gap-2">
-      <Switch
-        label={all}
-        checked={scope === 'all'}
-        disabled={disabled}
-        onChange={(on) => onChange(on ? 'all' : [])}
-      />
-      {scope !== 'all' && (
-        <ChipsInput
-          label={label}
-          values={scope}
-          onChange={onChange}
-          valid={(entry) => pattern.test(entry)}
-          normalize={normalize}
-          placeholder={placeholder}
-          disabled={disabled}
-        />
-      )}
-    </div>
-  );
-}
-
-interface RightsProps<R> {
+export interface RightsProps<R> {
   readonly rights: R;
   readonly onChange: (rights: R) => void;
   readonly disabled: boolean;
@@ -180,21 +133,32 @@ function AtlassianRightsFields({ rights, onChange, disabled }: RightsProps<Atlas
 
 /**
  * A tool part's rights as compact controls (S7.1b): GitHub's repositories (All, or chips) with Push branches and Pull
- * requests; Atlassian's Jira (Off, Read, Changes) and Confluence (Off, Read, Write), each with its projects or spaces.
- * Each change hands back the whole set.
+ * requests; Atlassian's Jira (Off, Read, Changes) and Confluence (Off, Read, Write), each with its projects or spaces;
+ * Slack's (S7.1e) channels, Read, Post, Search, React and DMs, gated by its sign-in's scopes. Each change hands back the
+ * whole set.
  */
 export function ToolRightsFields({
   rights,
   onChange,
   disabled = false,
+  signIn = null,
 }: {
   readonly rights: ToolRights;
   readonly onChange: (rights: ToolRights) => void;
   readonly disabled?: boolean;
+  /** Slack: the part's sign-in, whose scopes decide which rights can be turned on. */
+  readonly signIn?: SlackSignInFacts | null;
 }) {
-  return 'repos' in rights ? (
-    <GitHubRightsFields rights={rights} onChange={onChange} disabled={disabled} />
-  ) : (
-    <AtlassianRightsFields rights={rights} onChange={onChange} disabled={disabled} />
-  );
+  if ('repos' in rights)
+    return <GitHubRightsFields rights={rights} onChange={onChange} disabled={disabled} />;
+  if ('channels' in rights)
+    return (
+      <SlackRightsFields
+        rights={rights as SlackRights}
+        onChange={onChange}
+        disabled={disabled}
+        signIn={signIn}
+      />
+    );
+  return <AtlassianRightsFields rights={rights} onChange={onChange} disabled={disabled} />;
 }

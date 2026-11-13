@@ -93,7 +93,7 @@ function FoldedProfile({ profile, onToggle }: Pick<CardProps, 'profile'> & Pick<
 /**
  * One profile (generic since 2026-11-13). Folded, one row: its name, its parts in a line and how many agents use it.
  * Open: its name (renamed in place) and Delete; its parts as sections in a fixed order (Claude, OpenAI, GitHub,
- * Atlassian; Claude or OpenAI, never both), each saved as it changes and removable; Add for the parts it does not have;
+ * Atlassian, Slack; Claude or OpenAI, never both), each saved as it changes and removable; Add for the parts it does not have;
  * and which agents use it.
  */
 export function ProfileCard({
@@ -105,7 +105,7 @@ export function ProfileCard({
   onToggle,
 }: CardProps & FoldProps) {
   if (!open) return <FoldedProfile profile={profile} onToggle={onToggle} />;
-  const { claude, openai, github, atlassian } = profile.parts;
+  const { claude, openai, github, atlassian, slack } = profile.parts;
   const shared = { subscriptions, update };
   return (
     <Card as="article" aria-label={profile.name} className="flex flex-col gap-4">
@@ -127,6 +127,7 @@ export function ProfileCard({
       {openai && <AiPartSection key={`openai-${profile.id}`} provider="openai" part={openai} {...shared} />}
       {github && <ToolPartSection tool="github" part={github} {...shared} />}
       {atlassian && <ToolPartSection tool="atlassian" part={atlassian} {...shared} />}
+      {slack && <ToolPartSection tool="slack" part={slack} {...shared} />}
       <AddParts profile={profile} {...shared} />
       <ProfileAgents agents={profile.agents} />
     </Card>

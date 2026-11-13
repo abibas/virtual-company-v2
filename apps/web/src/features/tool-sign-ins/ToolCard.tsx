@@ -148,7 +148,16 @@ export function ToolCard({ tool, rename, remove, check, signInAgain, highlighted
             <span className="text-md font-bold tracking-[-0.01em] text-ink">{tool.label}</span>
           </InlineEdit>
           {account && <p className="truncate text-sm text-dim">{account}</p>}
-          {site && <p className="truncate font-mono text-sm text-ink-2">{site}</p>}
+          {site && (
+            <p
+              className={cx(
+                'truncate text-sm text-ink-2',
+                tool.kind === 'atlassian_api_token' && 'font-mono',
+              )}
+            >
+              {site}
+            </p>
+          )}
         </div>
       </header>
       <Reach tool={tool} />

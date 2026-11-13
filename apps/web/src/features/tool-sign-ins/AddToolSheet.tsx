@@ -5,7 +5,7 @@ import { List, ListRow } from '../../components/data/List.tsx';
 import { Sheet } from '../../components/layout/Drawer.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
 import type { IconComponent } from '../../components/ui/icon.ts';
-import { AtlassianMark, GitHubMark } from '../../components/ui/ProviderLogo.tsx';
+import { AtlassianMark, GitHubMark, SlackMark } from '../../components/ui/ProviderLogo.tsx';
 import { SignInFlow } from '../subscriptions/SignInFlow.tsx';
 import { type SignInControl, useSignIn } from '../subscriptions/sign-in.ts';
 import { type PastedTool, type Renewal, ToolForm } from './ToolForm.tsx';
@@ -100,6 +100,7 @@ function Group({ heading, children }: { readonly heading: string; readonly child
 const TITLES: Readonly<Record<PastedTool, readonly [add: string, again: string]>> = {
   github_token: ['Paste a GitHub token', 'New GitHub token'],
   atlassian_api_token: ['Add Atlassian', 'New Atlassian API token'],
+  slack: ['Add Slack', 'New Slack token'],
 };
 
 function titleOf(step: ToolStep): string {
@@ -109,8 +110,8 @@ function titleOf(step: ToolStep): string {
 }
 
 /**
- * Add a tool sign-in, in a sheet beside the page: GitHub (Sign in with GitHub, or paste a token) and Atlassian (site,
- * email, API token); also Sign in again for a card. Closing it cancels a sign-in in progress.
+ * Add a tool sign-in, in a sheet beside the page: GitHub (Sign in with GitHub, or paste a token), Atlassian (site,
+ * email, API token) and Slack (a bot's or a user's token); also Sign in again for a card. Closing it cancels a sign-in in progress.
  */
 export function AddToolSheet({
   adding,
@@ -139,6 +140,9 @@ export function AddToolSheet({
               title="Jira and Confluence"
               onClick={() => adding.form('atlassian_api_token')}
             />
+          </Group>
+          <Group heading="Slack">
+            <Choice icon={SlackMark} title="Bot or user token" onClick={() => adding.form('slack')} />
           </Group>
         </div>
       )}

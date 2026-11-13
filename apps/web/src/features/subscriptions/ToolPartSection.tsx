@@ -5,6 +5,7 @@ import { friendlyMessage } from '../../api/errors.ts';
 import type { AccessProfileChanges } from '../../api/types.ts';
 import { usePersonalHref } from '../../app/company.ts';
 import { Link } from '../../app/router.tsx';
+import { Badge } from '../../components/ui/Badge.tsx';
 import { type CardProps, PartFrame, SavedSelect } from './ProfileParts.tsx';
 import { PART_STYLES } from './Providers.tsx';
 import { signInOptions } from './profile-options.ts';
@@ -46,7 +47,12 @@ function SavedRights({
   };
   return (
     <div className="flex flex-col gap-2">
-      <ToolRightsFields rights={rights} onChange={(next) => void change(next)} disabled={busy} />
+      <ToolRightsFields
+        rights={rights}
+        onChange={(next) => void change(next)}
+        disabled={busy}
+        signIn={part.signIn}
+      />
       {error && (
         <p role="alert" className="text-xs font-medium text-failed">
           {error}
@@ -57,8 +63,8 @@ function SavedRights({
 }
 
 /**
- * A profile's GitHub or Atlassian part on its card (S7.1b, generic profiles since 2026-11-13): its sign-in and its rights,
- * each saved as it changes, and Remove.
+ * A profile's GitHub, Atlassian or Slack part on its card (S7.1b, generic profiles since 2026-11-13; Slack since S7.1e):
+ * its sign-in and its rights, each saved as it changes, and Remove. A Slack user token says it posts as you.
  */
 export function ToolPartSection({
   tool,
@@ -85,6 +91,11 @@ export function ToolPartSection({
           options={options}
           save={(credentialId) => update(toolPartChange(tool, { credentialId }))}
         />
+        {part.signIn?.asUser && (
+          <Badge tone="input" size="sm" className="self-end justify-self-start">
+            Posts as you
+          </Badge>
+        )}
       </div>
       <SavedRights key={JSON.stringify(part.rights)} tool={tool} part={part} update={update} />
     </PartFrame>

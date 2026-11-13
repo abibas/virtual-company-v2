@@ -16,6 +16,8 @@ import { type ToolSignIn, toolSite } from './tools.ts';
 function signInAgain(adding: AddTool, tool: ToolSignIn): void {
   if (tool.kind === 'github_oauth') adding.signInWithGitHub(tool.id);
   else if (tool.kind === 'github_token') adding.form('github_token', { credentialId: tool.id });
+  else if (tool.kind === 'slack_bot_token' || tool.kind === 'slack_user_token')
+    adding.form('slack', { credentialId: tool.id });
   else {
     const renew = { credentialId: tool.id, site: toolSite(tool), email: tool.accountEmail ?? undefined };
     adding.form('atlassian_api_token', renew);
@@ -23,7 +25,7 @@ function signInAgain(adding: AddTool, tool: ToolSignIn): void {
 }
 
 /**
- * The Subscriptions page's Tools part (S7.1a): the person's GitHub and Atlassian sign-ins, one card each, and Add a
+ * The Subscriptions page's Tools part (S7.1a): the person's GitHub, Atlassian and Slack sign-ins, one card each, and Add a
  * tool in a sheet beside the page. `onChanged` reads the subscriptions again.
  */
 export function ToolsSection({
@@ -58,7 +60,7 @@ export function ToolsSection({
             icon={Wrench}
             tone="blue"
             size="sm"
-            title="No GitHub or Atlassian sign-ins yet"
+            title="No GitHub, Atlassian or Slack sign-ins yet"
             action={
               <Button tone="primary" icon={Plus} onClick={adding.choose}>
                 Add a tool

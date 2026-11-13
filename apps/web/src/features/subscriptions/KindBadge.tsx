@@ -2,12 +2,18 @@ import { Waypoints } from 'lucide-react';
 import type { SignInProvider, Subscription, SubscriptionKind } from '../../api/types.ts';
 import { Badge, type Tone } from '../../components/ui/Badge.tsx';
 import type { IconComponent } from '../../components/ui/icon.ts';
-import { AtlassianMark, ClaudeMark, GitHubMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
+import {
+  AtlassianMark,
+  ClaudeMark,
+  GitHubMark,
+  OpenAIMark,
+  SlackMark,
+} from '../../components/ui/ProviderLogo.tsx';
 
 /**
  * What each kind of subscription is called and looks like: Anthropic's kinds in violet, OpenAI's in teal, gateways
  * neutral, each provider's kinds with its logo; the logins and the setup-token have plan limits, keys and gateways
- * are pay as you go. The tool sign-ins (GitHub, Atlassian) have no limits.
+ * are pay as you go. The tool sign-ins (GitHub, Atlassian, Slack) have no limits.
  */
 interface KindStyle {
   readonly label: string;
@@ -41,6 +47,8 @@ const KINDS: Readonly<Record<SubscriptionKind, KindStyle>> = {
   github_oauth: { label: 'GitHub', tone: 'neutral', icon: GitHubMark, limited: false, signIn: 'github' },
   github_token: { label: 'GitHub token', tone: 'neutral', icon: GitHubMark, limited: false },
   atlassian_api_token: { label: 'Atlassian', tone: 'blue', icon: AtlassianMark, limited: false },
+  slack_bot_token: { label: 'Slack bot', tone: 'neutral', icon: SlackMark, limited: false },
+  slack_user_token: { label: 'Slack user', tone: 'neutral', icon: SlackMark, limited: false },
 };
 
 /** The kind as people read it ("Claude subscription"). */
