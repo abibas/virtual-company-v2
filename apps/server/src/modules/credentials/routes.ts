@@ -42,7 +42,8 @@ const listRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'get',
-    summary: 'Your subscriptions, as metadata: never a secret',
+    summary:
+      'Your subscriptions, as metadata: never a secret (a gateway shows its header names and previews)',
     responses: { 200: jsonResponse('Your subscriptions, oldest first', SubscriptionListSchema), ...refusals },
   });
 };
@@ -72,17 +73,23 @@ const updateRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'patch',
-    summary: "Rename one of your subscriptions, or change a gateway's address or paths",
+    summary: "Rename one of your subscriptions, or change a gateway's address, paths or headers",
     description:
-      "A gateway's headers stay sealed as they are. Given paths replace the gateway's own (`{}` goes back to the " +
-      'defaults); an address or paths for a subscription that is not a gateway is 422 `not_a_gateway`.',
+      "Given paths replace the gateway's own (`{}` goes back to the defaults). Given headers are the whole list the " +
+      'gateway keeps, in order: each new (with a value), renamed (`from` the stored name) or given a new value; one ' +
+      'without a value keeps its stored value, and a stored header left out is removed. The headers are sealed again ' +
+      'and audited by name only; no value is ever shown, only previews. An address, paths or headers for a ' +
+      'subscription that is not a gateway is 422 `not_a_gateway`.',
     request: { params: SubscriptionParamsSchema, body: jsonBody(UpdateSubscriptionSchema) },
     responses: {
       200: jsonResponse('The subscription, changed', SubscriptionSchema),
       400: INVALID,
       ...refusals,
       404: NOT_FOUND,
-      422: errorResponse('An address or paths for a subscription that is not a gateway (`not_a_gateway`)'),
+      422: errorResponse(
+        'An address, paths or headers for a subscription that is not a gateway (`not_a_gateway`); a `from` the ' +
+          'gateway has no header of (`header_not_found`); a new header without a value (`header_value_required`)',
+      ),
     },
   });
 };

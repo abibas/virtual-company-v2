@@ -1,4 +1,9 @@
-import { ACCESS_PROFILE_NAME, CREDENTIAL_LABEL, CREDENTIAL_PURPOSE } from '@mwc/shared/credentials';
+import {
+  ACCESS_PROFILE_NAME,
+  CREDENTIAL_LABEL,
+  CREDENTIAL_PURPOSE,
+  type GatewayHeaderPreview,
+} from '@mwc/shared/credentials';
 import {
   CredentialKind,
   CredentialStatus,
@@ -74,6 +79,12 @@ export const credentials = pgTable(
     checkedAt: timestamp('checked_at', { withTimezone: true }),
     /** Why that check did not finish (`ToolCheckError`); null when it worked or set the sign-in `needs_sign_in`. */
     checkError: text('check_error').$type<ToolCheckError>(),
+    /**
+     * A gateway's headers as its page shows them, in order (2026-11-13): each name and a preview of its value made from
+     * the value when it was sealed (`agk-NTE5••••MHx8`), never the value. Null for the other kinds, and for a gateway
+     * sealed before the previews until the server makes them on its first list.
+     */
+    headerPreviews: jsonb('header_previews').$type<GatewayHeaderPreview[]>(),
   },
   (t) => [
     check('credentials_kind_check', oneOf(t.kind, CredentialKind.options)),
@@ -84,6 +95,10 @@ export const credentials = pgTable(
     check('credentials_auth_tag_check', sql`octet_length(${t.authTag}) = 16`),
     check('credentials_account_meta_check', sql`jsonb_typeof(${t.accountMeta}) = 'object'`),
     check('credentials_check_error_check', oneOf(t.checkError, ToolCheckError.options)),
+    check(
+      'credentials_header_previews_check',
+      sql`${t.headerPreviews} is null or (${t.kind} = 'gateway' and jsonb_typeof(${t.headerPreviews}) = 'array')`,
+    ),
     index('credentials_owner_idx').on(t.ownerUserId, t.createdAt),
   ],
 );
@@ -101,7 +116,7 @@ export const credentialUses = pgTable(
     ownerUserId: uuid('owner_user_id')
       .notNull()
       .references(() => users.id),
-    /** What opened it: `usage_check`, `chat_turn`, `chat_terminal`, `tool_check`. */
+    /** What opened it: `usage_check`, `chat_turn`, `chat_terminal`, `tool_check`, `preview` (a gateway's header previews). */
     purpose: text('purpose').notNull(),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
     /** The company a chat's use was for; null for the owner's own (a usage check). */

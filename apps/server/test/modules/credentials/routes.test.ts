@@ -73,6 +73,7 @@ describe('POST /api/me/subscriptions', () => {
       lastUsedAt: null,
       checkedAt: null,
       checkError: null,
+      headers: null,
     });
     noSecret(res.body);
     const [row] = await rawDb(w.t.db).select().from(credentials).where(eq(credentials.id, view.id));
@@ -226,6 +227,7 @@ describe('GET /api/me/subscriptions', () => {
         'checkError',
         'checkedAt',
         'createdAt',
+        'headers',
         'id',
         'kind',
         'label',

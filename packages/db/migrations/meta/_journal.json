@@ -239,6 +239,13 @@
       "when": 1794564721538,
       "tag": "0033_one_ai_part",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794567357190,
+      "tag": "0034_gateway_header_previews",
+      "breakpoints": true
     }
   ]
 }

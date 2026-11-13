@@ -79,13 +79,13 @@ export function updatedGatewayMeta(before: AccountMeta, change: UpdateSubscripti
   return gatewayMeta(baseUrl, change.paths ?? kept);
 }
 
-/** True when a change names a gateway's address or paths. */
+/** True when a change names a gateway's address, paths or headers. */
 export const changesGateway = (change: UpdateSubscription): boolean =>
-  change.baseUrl !== undefined || change.paths !== undefined;
+  change.baseUrl !== undefined || change.paths !== undefined || change.headers !== undefined;
 
 /**
- * A credential as the API shows it: metadata only (a gateway's address and paths, a tool sign-in's account and last
- * check), never its secret or sealed columns.
+ * A credential as the API shows it: metadata only (a gateway's address, paths and header previews, a tool sign-in's
+ * account and last check), never its secret or sealed columns.
  */
 export function credentialView(row: Credential): SubscriptionView {
   return {
@@ -103,6 +103,7 @@ export function credentialView(row: Credential): SubscriptionView {
       row.checkError !== null && isToolKind(row.kind)
         ? { code: row.checkError, message: toolCheckMessage(row.kind, row.checkError) }
         : null,
+    headers: row.kind === 'gateway' ? row.headerPreviews : null,
   };
 }
 
@@ -122,12 +123,12 @@ export const CREDENTIAL_NOT_FOUND: Refusal = {
   message: 'No such subscription',
 };
 
-/** An address or paths for a subscription that is not a gateway. */
+/** An address, paths or headers for a subscription that is not a gateway. */
 export const NOT_A_GATEWAY: Refusal<422> = {
   ok: false,
   status: 422,
   code: 'not_a_gateway',
-  message: 'Only a gateway has an address and paths',
+  message: 'Only a gateway has an address, paths and headers',
 };
 
 /** Why a server-side use did not open a secret: none of this owner's, or one revoked at the provider. */

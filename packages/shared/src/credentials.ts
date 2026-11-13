@@ -101,6 +101,15 @@ export const ATLASSIAN_TOKEN_PAGE = 'https://id.atlassian.com/manage-profile/sec
 /** How many headers a gateway sends with each request: none (a local proxy needs none) to 20. */
 export const GATEWAY_HEADERS = { min: 0, max: 20 } as const;
 
+/**
+ * A gateway's header as its page shows it: the name in full and a preview of the value (`agk-NTE5••••MHx8`), made by
+ * the server when the value is sealed; never the value itself.
+ */
+export interface GatewayHeaderPreview {
+  readonly name: string;
+  readonly preview: string;
+}
+
 /** An access profile's name ("Work"), after trimming: 1 to 80 characters, unique per owner (`access_profiles_name_check`). */
 export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;
 

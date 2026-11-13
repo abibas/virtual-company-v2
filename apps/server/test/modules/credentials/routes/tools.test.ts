@@ -70,6 +70,7 @@ describe('POST /api/me/subscriptions/tools: a GitHub token', () => {
       lastUsedAt: now,
       checkedAt: now,
       checkError: null,
+      headers: null,
     });
     expect(w.provider.callsTo(GITHUB_USER)).toHaveLength(1);
     noToolSecret(res.body);

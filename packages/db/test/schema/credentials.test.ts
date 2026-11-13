@@ -64,6 +64,7 @@ describe('credentials', () => {
       lastUsedAt: null,
       checkedAt: null,
       checkError: null,
+      headerPreviews: null,
     });
     expect(row?.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Uint8Array(row?.ciphertext ?? [])).toEqual(values.ciphertext);
@@ -109,7 +110,27 @@ describe('credentials', () => {
     }
   });
 
+  it("keeps a gateway's header previews in order, and none for a gateway without headers", async () => {
+    const headerPreviews = [
+      { name: 'x-api-key', preview: 'agk-NTE5••••MHx8' },
+      { name: 'Authorization', preview: 'Bearer ••••' },
+    ];
+    const [row] = await insert({ kind: 'gateway', headerPreviews });
+    expect(row?.headerPreviews).toEqual(headerPreviews);
+    expect((await insert({ kind: 'gateway', headerPreviews: [] }))[0]?.headerPreviews).toEqual([]);
+  });
+
   it.each([
+    [
+      'header previews on a subscription that is not a gateway',
+      { headerPreviews: [] },
+      'credentials_header_previews_check',
+    ],
+    [
+      'header previews that are not a list',
+      { kind: 'gateway' as const, headerPreviews: { name: 'x' } as never },
+      'credentials_header_previews_check',
+    ],
     ['an unknown kind', { kind: 'password' as never }, 'credentials_kind_check'],
     ['an unknown check error', { checkError: 'timeout' as never }, 'credentials_check_error_check'],
     ['an unknown status', { status: 'expired' as never }, 'credentials_status_check'],

@@ -9,6 +9,7 @@ import {
   USE_REVOKED,
   type UseRefusal,
 } from '../rules.ts';
+import { previewColumns } from '../rules/gateway-headers.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
 import { type FirstCheck, firstCheckColumns, recordFirstCheck } from './first-check.ts';
@@ -24,7 +25,8 @@ import type { SecretDeps } from './secrets.ts';
 export type AnySecret = KindSecret['secret'];
 
 /**
- * Seals `secret` into the owner's credential in place of the one it had (S3.3: a login's refreshed token set), under
+ * Seals `secret` into the owner's credential in place of the one it had (S3.3: a login's refreshed token set; a
+ * gateway's header previews made again), under
  * the current master key and the same id, owner and kind, with an audit row that says the secret was replaced and why,
  * never what it was (the system acting for the owner). A credential that is not this owner's (or is gone) and one
  * revoked at the provider are refused, with nothing changed; a secret of another shape throws a `ZodError`.
@@ -43,12 +45,14 @@ export async function replaceCredentialSecret(
     const row = await repo.get(tx, credentialId);
     if (row === undefined) return USE_NOT_FOUND;
     if (row.status === 'revoked') return USE_REVOKED;
-    const sealed = deps.keyring.seal(parseSecret(row.kind, secret), credentialAad(row));
+    const parsed = { kind: row.kind, secret: parseSecret(row.kind, secret) } as KindSecret;
+    const sealed = deps.keyring.seal(parsed.secret, credentialAad(row));
     const after = (await repo.update(tx, row.id, {
       keyVersion: sealed.keyVersion,
       iv: sealed.iv,
       authTag: sealed.tag,
       ciphertext: sealed.ciphertext,
+      ...previewColumns(parsed),
       updatedAt: deps.clock(),
     })) as Credential;
     await repo.audit(tx, {

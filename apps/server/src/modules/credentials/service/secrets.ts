@@ -13,6 +13,7 @@ import {
   USE_REVOKED,
   type UseRefusal,
 } from '../rules.ts';
+import { previewColumns } from '../rules/gateway-headers.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
 import { type FirstCheck, firstCheckColumns, recordFirstCheck } from './first-check.ts';
@@ -41,7 +42,8 @@ export interface SecretDeps {
   readonly clock: () => Date;
 }
 
-const sealedOf = (row: Credential): Sealed => ({
+/** A row's sealed columns, as the keyring opens them. */
+export const sealedOf = (row: Credential): Sealed => ({
   keyVersion: row.keyVersion,
   iv: row.iv,
   tag: row.authTag,
@@ -68,7 +70,7 @@ export type UsedCredential =
 
 /**
  * Checks the secret against its kind's shape, seals it under the current master key with the new id, owner and kind
- * as additional data, and saves it with its `create` audit rows (the owner acting; no secret in them) in one
+ * as additional data, and saves it (a gateway with its header previews) with its `create` audit rows (the owner acting; no secret in them) in one
  * transaction. Throws a `RangeError` for a name that does not fit and a `ZodError` for a secret of another shape.
  */
 async function storeCredential(
@@ -95,6 +97,7 @@ async function storeCredential(
       iv: sealed.iv,
       authTag: sealed.tag,
       ciphertext: sealed.ciphertext,
+      ...previewColumns({ kind: input.kind, secret } as KindSecret),
       ...firstCheckColumns(input.checked),
     });
     await repo.audit(tx, {

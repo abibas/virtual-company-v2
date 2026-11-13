@@ -1,7 +1,19 @@
 import { z } from '@hono/zod-openapi';
-import { CREDENTIAL_LABEL, DEFAULT_GATEWAY_PATHS, GATEWAY_PATH_MAX } from '@mwc/shared/credentials';
+import {
+  CREDENTIAL_LABEL,
+  DEFAULT_GATEWAY_PATHS,
+  GATEWAY_HEADERS,
+  GATEWAY_PATH_MAX,
+} from '@mwc/shared/credentials';
 import { CredentialKind, CredentialStatus, ToolCheckError } from '@mwc/shared/enums';
-import { AnthropicApiKey, GatewayHeaders, OpenAiApiKey, SetupToken } from './schemas/secrets.ts';
+import {
+  AnthropicApiKey,
+  GatewayHeaderName,
+  GatewayHeaders,
+  GatewayHeaderValue,
+  OpenAiApiKey,
+  SetupToken,
+} from './schemas/secrets.ts';
 
 /**
  * The subscriptions API's shapes (`/api/me/subscriptions`). A response never carries a secret, not even to its
@@ -27,6 +39,14 @@ export const AccountMetaSchema = z
   .record(z.string(), z.unknown())
   .openapi('SubscriptionAccount', { example: { baseUrl: 'http://127.0.0.1:8300' } });
 
+/** A gateway's header as the API shows it: its name and a preview of its value, never the value. */
+export const GatewayHeaderPreviewSchema = z
+  .object({
+    name: z.string().openapi({ example: 'x-api-key' }),
+    preview: z.string().openapi({ example: 'agk-NTE5••••MHx8' }),
+  })
+  .openapi('GatewayHeaderPreview');
+
 /** A subscription as the API shows it: what it is, whose account, its state. Never its secret. */
 export const SubscriptionSchema = z
   .object({
@@ -50,6 +70,15 @@ export const SubscriptionSchema = z
       .object({ code: ToolCheckError, message: z.string() })
       .nullable()
       .openapi({ description: 'Why that check did not finish, in plain words; null when it worked' }),
+    headers: z
+      .array(GatewayHeaderPreviewSchema)
+      .nullable()
+      .openapi({
+        description:
+          "A gateway's headers in order, each its name and a preview of its value (16 characters or more: the first 8 " +
+          'and the last 4; 8 to 15: the first 2 and the last 2; fewer: none; a scheme word such as Bearer kept); null ' +
+          'for the other kinds',
+      }),
   })
   .openapi('Subscription');
 
@@ -105,12 +134,40 @@ export const AddSubscriptionSchema = z
   ])
   .openapi('AddSubscription');
 
+/** One header a gateway keeps after an edit (`editHeaders` of `rules/gateway-headers.ts`). */
+export const GatewayHeaderEditSchema = z
+  .strictObject({
+    name: GatewayHeaderName,
+    from: GatewayHeaderName.optional().openapi({
+      description:
+        'The stored header it continues under a new name (a rename); left out, the one of its own name',
+    }),
+    value: GatewayHeaderValue.optional().openapi({
+      description: 'A new value; left out, the stored value stays (required for a new header)',
+    }),
+  })
+  .openapi('GatewayHeaderEdit', { example: { name: 'x-api-key', from: 'x-key' } });
+
+/** The headers a gateway keeps, in order: names that differ (in any case), at most 20. */
+const GatewayHeaderEdits = z
+  .array(GatewayHeaderEditSchema)
+  .max(GATEWAY_HEADERS.max, `A gateway takes at most ${GATEWAY_HEADERS.max} headers`)
+  .refine(
+    (edits) => new Set(edits.map((edit) => edit.name.toLowerCase())).size === edits.length,
+    'Each header has its own name',
+  );
+
 /**
- * A change of a subscription: its name, and for a gateway its address and paths (given paths replace its own; `{}`
- * goes back to the defaults). At least one of them.
+ * A change of a subscription: its name, and for a gateway its address, paths (given paths replace its own; `{}` goes
+ * back to the defaults) and headers (the whole list it keeps; a stored header left out is removed). At least one of them.
  */
 export const UpdateSubscriptionSchema = z
-  .object({ label: label.optional(), baseUrl: GatewayUrl.optional(), paths: GatewayPathsSchema.optional() })
+  .object({
+    label: label.optional(),
+    baseUrl: GatewayUrl.optional(),
+    paths: GatewayPathsSchema.optional(),
+    headers: GatewayHeaderEdits.optional(),
+  })
   .refine((body) => Object.values(body).some((value) => value !== undefined), 'Nothing to change')
   .openapi('UpdateSubscription');
 

@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 39. Migrations: 34, the last is `0033_one_ai_part`.
+Tables: 39. Migrations: 35, the last is `0034_gateway_header_previews`.
 
 ```mermaid
 erDiagram
@@ -207,6 +207,7 @@ erDiagram
     timestamptz last_used_at "nullable"
     timestamptz checked_at "nullable"
     text check_error "nullable, provider_unavailable|rate_limited|refused|invalid_response|no_products|check_failed"
+    jsonb header_previews "nullable"
   }
   enrollment_tokens {
     uuid id PK "not null, default newId() (app-side)"
@@ -1099,6 +1100,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `last_used_at` | `timestamp with time zone` | yes |  |  |  |
 | `checked_at` | `timestamp with time zone` | yes |  |  |  |
 | `check_error` | `text` | yes |  |  | `provider_unavailable`, `rate_limited`, `refused`, `invalid_response`, `no_products`, `check_failed` |
+| `header_previews` | `jsonb` | yes |  |  |  |
 
 - **Primary key:** `id`
 - **Foreign keys:**
@@ -1113,6 +1115,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `credentials_auth_tag_check`: `octet_length("auth_tag") = 16`
   - `credentials_account_meta_check`: `jsonb_typeof("account_meta") = 'object'`
   - `credentials_check_error_check`: `check_error` is one of `provider_unavailable`, `rate_limited`, `refused`, `invalid_response`, `no_products`, `check_failed`
+  - `credentials_header_previews_check`: `"header_previews" is null or ("kind" = 'gateway' and jsonb_typeof("header_previews") = 'array')`
 - **Indexes:**
   - `credentials_owner_idx` on (`owner_user_id`, `created_at`)
 

@@ -1,0 +1,2 @@
+ALTER TABLE "credentials" ADD COLUMN "header_previews" jsonb;--> statement-breakpoint
+ALTER TABLE "credentials" ADD CONSTRAINT "credentials_header_previews_check" CHECK ("credentials"."header_previews" is null or ("credentials"."kind" = 'gateway' and jsonb_typeof("credentials"."header_previews") = 'array'));
