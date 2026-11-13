@@ -3,8 +3,9 @@ import type { AtlassianRights, GitHubRights } from '../../src/credentials/tool-r
 import {
   ATLASSIAN_TOOLS_NOTE,
   BRIEFING_NAMES_MAX,
+  GITHUB_PUSH_NOTE,
+  GITHUB_TOOLS_NOTE,
   rightsSummary,
-  TOOL_ACCESS_NOTE,
   toolBriefingLine,
 } from '../../src/credentials/tool-words.ts';
 
@@ -50,7 +51,8 @@ describe('rightsSummary', () => {
 });
 
 describe('toolBriefingLine', () => {
-  const note = ` ${TOOL_ACCESS_NOTE}`;
+  const note = ` ${GITHUB_TOOLS_NOTE}.`;
+  const pushNote = ` ${GITHUB_TOOLS_NOTE}${GITHUB_PUSH_NOTE}.`;
   const atlassianNote = ` ${ATLASSIAN_TOOLS_NOTE}`;
 
   it('tells a GitHub part’s account, what it may do and where, and what it never does', () => {
@@ -58,7 +60,7 @@ describe('toolBriefingLine', () => {
       toolBriefingLine({ provider: 'github', account: 'ihorherasko', site: null, rights: github() }),
     ).toBe(
       '- GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
-        `merges, force-pushes, deletes or pushes to a default branch.${note}`,
+        `merges, force-pushes, deletes or pushes to a default branch.${pushNote}`,
     );
     const readOnly = github({ push: false, pullRequests: false, repos: 'all' });
     expect(toolBriefingLine({ provider: 'github', account: 'me', site: null, rights: readOnly })).toBe(

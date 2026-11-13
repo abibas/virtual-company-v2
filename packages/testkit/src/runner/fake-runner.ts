@@ -131,6 +131,7 @@ export class FakeRunner {
       reattach: false,
       agentTools: false,
       serverTools: false,
+      github: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;

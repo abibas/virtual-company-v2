@@ -68,6 +68,7 @@ describe('which runners the hub has', () => {
         reattach: false,
         agentTools: false,
         serverTools: false,
+        github: false,
       },
       connectedAt: w.clock(),
     });

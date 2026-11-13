@@ -4,9 +4,9 @@ import type { AtlassianRights, GitHubRights, ToolRights } from './tool-rights.ts
 /**
  * A profile's tool parts' rights in words (S7.1b, one profile since 2026-11-13): the short summary the pages show beside
  * the profile ("push, PRs · AiriaLLC/*", "Jira read (AP) · Confluence write") and the line each tool part adds to the
- * agent's briefing, what it may do there and as whom. GitHub's tools arrive later (S7.1d), so its line says the access
- * is configured, never that a tool exists; Atlassian's are built (S7.1c), so its line names them. Pure, so the server and
- * the web write the same words.
+ * agent's briefing, what it may do there and as whom, and which of Most Wanted's tools use it (Atlassian's since S7.1c,
+ * GitHub's since S7.1d, with git and gh on the machine when it may push). Pure, so the server and the web write the same
+ * words.
  */
 
 /** The most names a summary shows; the rest are counted ("+3"). */
@@ -15,8 +15,13 @@ export const SUMMARY_NAMES_MAX = 3;
 /** The most names a briefing line lists; the rest are counted ("and 3 more"). */
 export const BRIEFING_NAMES_MAX = 25;
 
-/** What ends GitHub's briefing line: the access is set, the tools come later. */
-export const TOOL_ACCESS_NOTE = 'Configured; the tools that use it arrive with Most Wanted’s tools.';
+/** What ends GitHub's briefing line (S7.1d): its tools are Most Wanted's, by the names of GitHub's MCP server. */
+export const GITHUB_TOOLS_NOTE =
+  'Use it with your Most Wanted tools, named as on GitHub’s MCP server (search_pull_requests, pull_request_read, ' +
+  'create_pull_request, …)';
+
+/** What GitHub's line adds when the part may push: git and gh on the machine get the sign-in in its turns (S7.1d). */
+export const GITHUB_PUSH_NOTE = '; in your turns git and gh on your machine use it too';
 
 /** What ends Atlassian's briefing line (S7.1c): its tools are Most Wanted's, by the names of Atlassian's remote MCP. */
 export const ATLASSIAN_TOOLS_NOTE =
@@ -118,8 +123,8 @@ function atlassianLine(account: string, rights: AtlassianRights): string {
 
 /**
  * The briefing's line for one tool part: "- GitHub: as ihorherasko; may read, push branches and open and update pull
- * requests in AiriaLLC/*; never merges, ...", then that it is configured and its tools come later (GitHub) or which
- * tools use it (Atlassian); a part with no sign-in says it gives no access.
+ * requests in AiriaLLC/*; never merges, ...", then which tools use it (and, for a GitHub part that pushes, git and gh in
+ * its turns); a part with no sign-in says it gives no access.
  */
 export function toolBriefingLine(tool: BriefingTool): string {
   const name =
@@ -127,9 +132,9 @@ export function toolBriefingLine(tool: BriefingTool): string {
   // One line of words: a name with a newline in it cannot start a line of its own.
   const account = tool.account?.replace(/\s+/g, ' ').trim() ?? '';
   if (account === '') return `- ${name}: your profile has no sign-in for it now, so no access.`;
-  const github = 'repos' in tool.rights;
-  const rights = github
-    ? githubLine(account, tool.rights as GitHubRights)
-    : atlassianLine(account, tool.rights as AtlassianRights);
-  return `- ${name}: ${rights}. ${github ? TOOL_ACCESS_NOTE : ATLASSIAN_TOOLS_NOTE}`;
+  if (!('repos' in tool.rights))
+    return `- ${name}: ${atlassianLine(account, tool.rights as AtlassianRights)}. ${ATLASSIAN_TOOLS_NOTE}`;
+  const rights = tool.rights as GitHubRights;
+  const pushes = rights.push && (rights.repos === 'all' || rights.repos.length > 0);
+  return `- ${name}: ${githubLine(account, rights)}. ${GITHUB_TOOLS_NOTE}${pushes ? GITHUB_PUSH_NOTE : ''}.`;
 }

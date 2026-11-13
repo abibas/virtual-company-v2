@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { STANDING_INSTRUCTIONS_MAX } from '../agent-briefing.ts';
-import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
+import {
+  GATEWAY_HEADERS,
+  GITHUB_REPO_PATTERN,
+  PROVIDER_KINDS,
+  SECRET_MAX,
+  TOOL_SCOPE_MAX,
+} from '../credentials.ts';
 import { type CredentialKind, Effort, Harness, PermissionMode, PermissionPolicy } from '../enums.ts';
 import { ArtifactsDir } from '../flows/artifacts.ts';
 import { AgentToolName, TURN_TOOLS_MAX } from '../flows/tools.ts';
@@ -150,12 +156,29 @@ export const TurnToolNames = z
   .refine((names) => new Set(names).size === names.length, 'each tool once');
 
 /**
+ * The GitHub sign-in a turn's git and gh use on the machine (S7.1d, docs/harness.md "git in a turn"): the token of the
+ * profile's GitHub part, opened for this turn only when the part may push, and the repositories its pushes may reach
+ * (`all`, or `owner/name` and `owner/*`, lower-case), which the runner's pre-push hook checks. The runner puts the token
+ * in the turn's process environment only (`GH_TOKEN`, with git's credential helper and settings in `GIT_CONFIG_*`): never
+ * in a file, a log or the run folder's meta. Sent only to a runner that says `caps.github`.
+ */
+export const TurnGitHub = protocolObject({
+  token: Secret,
+  repos: z.union([
+    z.literal('all'),
+    z.array(z.string().regex(GITHUB_REPO_PATTERN, 'owner/name or owner/*')).max(TOOL_SCOPE_MAX),
+  ]),
+});
+export type TurnGitHub = z.infer<typeof TurnGitHub>;
+
+/**
  * One chat turn: `prompt` (the message, verbatim) sent to the conversation, as one process. A branch's first turn
  * (docs/harness.md "Branching") resumes `sessionId` forked (`forkSession`: a new conversation from a copy, the original
  * untouched), with Claude Code up to `resumeAt` (a message id) when it continues from an earlier reply; absent: false,
  * none. A turn of a task's step (S5.3b) names its outputs' folder (`artifacts`); one with the agents' tools (S6a) names
  * them (`tools`); one with the server's own tools (S7.1c, only to a runner that says `caps.serverTools`) carries them
- * whole (`serverTools`).
+ * whole (`serverTools`); one whose profile may push to GitHub carries the sign-in for git and gh (S7.1d, `github`, only
+ * to a runner that says `caps.github`).
  */
 export const TurnSpec = protocolObject({
   ...sessionFields,
@@ -165,5 +188,6 @@ export const TurnSpec = protocolObject({
   artifacts: TurnArtifactsSpec.optional(),
   tools: TurnToolNames.optional(),
   serverTools: ServerToolDefs.optional(),
+  github: TurnGitHub.optional(),
 });
 export type TurnSpec = z.infer<typeof TurnSpec>;

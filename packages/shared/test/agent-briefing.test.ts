@@ -157,8 +157,9 @@ describe('agentBriefing', () => {
     const text = agentBriefing({ company: 'X', nodes: chart, principalId: 'dev', tools }).text;
     expect(lines(text).slice(-2)).toEqual([
       '- GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
-        'merges, force-pushes, deletes or pushes to a default branch. Configured; the tools that use it arrive with ' +
-        'Most Wanted’s tools.',
+        'merges, force-pushes, deletes or pushes to a default branch. Use it with your Most Wanted tools, named as on ' +
+        'GitHub’s MCP server (search_pull_requests, pull_request_read, create_pull_request, …); in your turns git and gh ' +
+        'on your machine use it too.',
       '- Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: none; never ' +
         'deletes or archives. Use it with your Most Wanted tools, named as on Atlassian’s remote MCP ' +
         '(searchJiraIssuesUsingJql, getJiraIssue, getConfluencePage, …).',

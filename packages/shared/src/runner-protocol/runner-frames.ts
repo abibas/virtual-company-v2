@@ -69,6 +69,8 @@ export const RunnerCaps = protocolObject({
   agentTools: z.boolean().default(false),
   /** True when its turns list and relay the server's own tools (S7.1c, `TurnSpec.serverTools`); false from older ones. */
   serverTools: z.boolean().default(false),
+  /** True when its turns put a GitHub sign-in in git's and gh's way (S7.1d, `TurnSpec.github`); false from older ones. */
+  github: z.boolean().default(false),
   /**
    * The CLIs it found, each one's version or null (`tools.ts`); left out by a runner older than the tools, which knows
    * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).

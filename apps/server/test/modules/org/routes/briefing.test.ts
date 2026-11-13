@@ -1,7 +1,7 @@
 import { companies } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { BRIEFING_HEADING, briefingVersion } from '@mwc/shared/agent-briefing';
-import { TOOL_ACCESS_NOTE } from '@mwc/shared/credentials';
+import { GITHUB_PUSH_NOTE, GITHUB_TOOLS_NOTE } from '@mwc/shared/credentials';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ephemeralKeyring } from '../../../../src/platform/secrets/keyring.ts';
@@ -99,7 +99,7 @@ describe('GET /api/companies/:companyId/agents/:agentId/briefing', () => {
       ((await as(w, owner)('GET', briefingPath(company, coder.id))).body as { briefing: string }).briefing;
     expect((await read()).split('\n').at(-1)).toBe(
       '- GitHub: as ihor-fake; may read, push branches and open and update pull requests in AiriaLLC/*; never ' +
-        `merges, force-pushes, deletes or pushes to a default branch. ${TOOL_ACCESS_NOTE}`,
+        `merges, force-pushes, deletes or pushes to a default branch. ${GITHUB_TOOLS_NOTE}${GITHUB_PUSH_NOTE}.`,
     );
     const change = { parts: { github: null, atlassian: {} } };
     expect((await as(w, owner)('PATCH', `${PROFILES}/${profile.id}`, change)).status).toBe(200);

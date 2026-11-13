@@ -37,6 +37,11 @@ describe('runner.hello caps.harnesses', () => {
     }
   });
 
+  it('reads caps.github (S7.1d) as false from a runner older than it', () => {
+    expect(RunnerHello.parse(hello).caps.github).toBe(true);
+    expect(RunnerHello.parse({ ...hello, caps: without(hello.caps, 'github') }).caps.github).toBe(false);
+  });
+
   it('refuses an empty or too long version', () => {
     expect(issuesOf(HarnessVersions, { claude_code: '' })).toEqual(['claude_code']);
     expect(issuesOf(HarnessVersions, { codex: 'x'.repeat(101) })).toEqual(['codex']);

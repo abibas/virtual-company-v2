@@ -207,3 +207,16 @@ describe('the server’s own tools on a spec (S7.1c)', () => {
     ).toBe(false);
   });
 });
+
+describe('the GitHub sign-in on a spec (S7.1d)', () => {
+  const GITHUB = { token: 'ghp_FAKEtoken', repos: ['airiallc/*', 'abibas/sandbox'] };
+
+  it('is optional, a token and the repositories its pushes reach (all, or owner/name and owner/*)', () => {
+    expect(TurnSpec.parse(turn).github).toBeUndefined();
+    expect(TurnSpec.parse({ ...turn, github: GITHUB }).github).toEqual(GITHUB);
+    expect(TurnSpec.parse({ ...turn, github: { ...GITHUB, repos: 'all' } }).github?.repos).toBe('all');
+    expect(TurnSpec.safeParse({ ...turn, github: { ...GITHUB, token: '' } }).success).toBe(false);
+    expect(TurnSpec.safeParse({ ...turn, github: { ...GITHUB, repos: ['no-slash'] } }).success).toBe(false);
+    expect(TurnSpec.safeParse({ ...turn, github: { ...GITHUB, repos: 'some' } }).success).toBe(false);
+  });
+});
