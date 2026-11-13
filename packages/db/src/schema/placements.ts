@@ -1,4 +1,4 @@
-import { PermissionPolicy, PlacementMode } from '@mwc/shared/enums';
+import { PlacementMode } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { PLACEMENT_PATH } from '@mwc/shared/machines';
 import { type SQL, sql } from 'drizzle-orm';
@@ -25,9 +25,10 @@ const absolutePath = (column: AnyPgColumn): SQL =>
 
 /**
  * Where an agent runs (S4.7, docs/machines.md "Placements"): a machine of the company and a mode, its home folder there
- * (its CLAUDE.md, skills and memory load from it), its Claude configuration folder and worktree root when they are not
- * the defaults, and whether its runs ask before a tool outside their rules. At most one default placement per agent;
- * runs use it from S5. A machine's removal deletes its placements; an archived agent keeps its own.
+ * (its CLAUDE.md, skills and memory load from it), and its Claude configuration folder and worktree root when they are not
+ * the defaults. At most one default placement per agent; runs use it from S5. A machine's removal deletes its
+ * placements; an archived agent keeps its own. Until 2026-11-13 it also said whether its runs ask before a tool
+ * (`permission_policy`); the profile's mode says that now (migration 0035).
  */
 export const agentPlacements = pgTable(
   'agent_placements',
@@ -43,7 +44,6 @@ export const agentPlacements = pgTable(
     configDir: text('config_dir'),
     /** Where its task worktrees go; null for the default under its home. */
     worktreeRoot: text('worktree_root'),
-    permissionPolicy: text('permission_policy').$type<PermissionPolicy>().notNull().default('ask'),
     isDefault: boolean('is_default').notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -53,7 +53,6 @@ export const agentPlacements = pgTable(
     tenantForeignKey('agent_placements_agent_fk', t.companyId, t.agentId, agents),
     tenantForeignKey('agent_placements_machine_fk', t.companyId, t.machineId, machines),
     check('agent_placements_mode_check', oneOf(t.mode, PlacementMode.options)),
-    check('agent_placements_permission_policy_check', oneOf(t.permissionPolicy, PermissionPolicy.options)),
     check('agent_placements_home_check', absolutePath(t.home)),
     check('agent_placements_config_dir_check', absolutePath(t.configDir)),
     check('agent_placements_worktree_root_check', absolutePath(t.worktreeRoot)),

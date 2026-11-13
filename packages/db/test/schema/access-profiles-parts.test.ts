@@ -10,9 +10,9 @@ import { insertUser, MISSING_ID, migratedTestDb, unique } from '../fixtures/rows
 
 /**
  * A generic profile's parts (migration `0032_generic_profiles`, 2026-11-13): a Claude or an OpenAI part (a presence
- * flag, a subscription, a gateway, a model and an effort; one at most since `0033_one_ai_part`) and a GitHub and an
+ * flag, a subscription, a gateway, a model, an effort and, since 2026-11-13, a mode; one at most since `0033_one_ai_part`) and a GitHub and an
  * Atlassian part (a sign-in and its rights). Which credential fits a part, and the rights' shape, are the credentials
- * module's rules; SQL keeps one AI part at most, an AI part's fields off while the part is not there, a model's length, the stored efforts, a tool part's sign-in only with its rights,
+ * module's rules; SQL keeps one AI part at most, an AI part's fields off while the part is not there, a model's length, the stored efforts, each part's own modes, a tool part's sign-in only with its rights,
  * and its rights an object. The data step is `access-profiles-parts-backfill.test.ts`'s.
  */
 
@@ -73,12 +73,14 @@ describe('a profile’s AI parts', () => {
       claudeGatewayCredentialId: gateway.id,
       claudeModel: 'claude-opus-5-5',
       claudeEffort: 'max',
+      claudeMode: 'plan',
     });
     expect(aiPartOf(work, 'claude')).toEqual({
       credentialId: claude.id,
       gatewayCredentialId: gateway.id,
       model: 'claude-opus-5-5',
       effort: 'max',
+      mode: 'plan',
     });
     expect(aiPartOf(work, 'openai')).toBeUndefined();
     const codex = await profile({
@@ -87,16 +89,23 @@ describe('a profile’s AI parts', () => {
       openaiGatewayCredentialId: gateway.id,
       openaiModel: 'm'.repeat(100),
       openaiEffort: 'ultra',
+      openaiMode: 'full',
     });
-    expect(aiPartOf(codex, 'openai')).toMatchObject({ credentialId: openai.id, effort: 'ultra' });
+    expect(aiPartOf(codex, 'openai')).toMatchObject({
+      credentialId: openai.id,
+      effort: 'ultra',
+      mode: 'full',
+    });
     const empty = await profile({ claudePart: true });
     expect(aiPartOf(empty, 'claude')).toEqual({
       credentialId: null,
       gatewayCredentialId: null,
       model: null,
       effort: null,
+      mode: 'manual',
     });
     expect(aiPartOf(empty, 'openai')).toBeUndefined();
+    expect(aiPartOf(await profile({ openaiPart: true }), 'openai')?.mode).toBe('ask');
   });
 
   it('are one at most: a profile with a Claude part takes no OpenAI part, and none is fine', async () => {
@@ -120,6 +129,8 @@ describe('a profile’s AI parts', () => {
     ['claude', { claudeModel: 'claude-opus-5-5' }, 'access_profiles_claude_check'],
     ['claude', { claudeEffort: 'high' as const }, 'access_profiles_claude_check'],
     ['openai', { openaiModel: 'gpt-6.1-sol' }, 'access_profiles_openai_check'],
+    ['claude', { claudeMode: 'plan' as const }, 'access_profiles_claude_check'],
+    ['openai', { openaiMode: 'full' as const }, 'access_profiles_openai_check'],
   ] as const)('refuses a %s field without its part', async (_, values, constraint) => {
     expect(await pgError(profile(values))).toMatchObject({ code: '23514', constraint });
   });
@@ -135,6 +146,16 @@ describe('a profile’s AI parts', () => {
       'an unknown effort',
       { claudePart: true, claudeEffort: 'turbo' as 'high' },
       'access_profiles_claude_effort_check',
+    ],
+    [
+      'a Codex mode on a Claude part',
+      { claudePart: true, claudeMode: 'full' as 'plan' },
+      'access_profiles_claude_mode_check',
+    ],
+    [
+      'a Claude mode on an OpenAI part',
+      { openaiPart: true, openaiMode: 'acceptEdits' as 'auto' },
+      'access_profiles_openai_mode_check',
     ],
   ])('refuses %s', async (_, values, constraint) => {
     expect(await pgError(profile(values))).toMatchObject({ code: '23514', constraint });
@@ -212,6 +233,7 @@ describe('the parts’ column maps', () => {
       gateway: 'openaiGatewayCredentialId',
       model: 'openaiModel',
       effort: 'openaiEffort',
+      mode: 'openaiMode',
     });
     expect(PROFILE_TOOL_COLUMNS).toEqual({
       github: { credential: 'githubCredentialId', rights: 'githubRights' },

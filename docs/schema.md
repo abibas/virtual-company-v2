@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 39. Migrations: 35, the last is `0034_gateway_header_previews`.
+Tables: 39. Migrations: 36, the last is `0035_profile_mode`.
 
 ```mermaid
 erDiagram
@@ -16,11 +16,13 @@ erDiagram
     uuid claude_gateway_credential_id FK "nullable"
     text claude_model "nullable"
     text claude_effort "nullable, low|medium|high|xhigh|max|ultra"
+    text claude_mode "nullable, manual|acceptEdits|plan|auto|bypassPermissions"
     boolean openai_part "not null, default false"
     uuid openai_credential_id FK "nullable"
     uuid openai_gateway_credential_id FK "nullable"
     text openai_model "nullable"
     text openai_effort "nullable, low|medium|high|xhigh|max|ultra"
+    text openai_mode "nullable, ask|auto|full"
     uuid github_credential_id FK "nullable"
     jsonb github_rights "nullable"
     uuid atlassian_credential_id FK "nullable"
@@ -48,7 +50,6 @@ erDiagram
     text home "not null"
     text config_dir "nullable"
     text worktree_root "nullable"
-    text permission_policy "not null, default 'ask', ask|bypass"
     boolean is_default "not null, default true"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -125,6 +126,9 @@ erDiagram
     uuid room_message_id FK "nullable"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
+    text mode "nullable, manual|acceptEdits|plan|auto|bypassPermissions|ask|full"
+    text model "nullable"
+    text effort "nullable, low|medium|high|xhigh|max|ultra"
     timestamptz started_at "nullable"
     timestamptz ended_at "nullable"
     text result_text "nullable"
@@ -150,6 +154,9 @@ erDiagram
     uuid task_step_id "nullable"
     integer task_round "nullable"
     uuid flow_id FK "nullable"
+    text mode "nullable, manual|acceptEdits|plan|auto|bypassPermissions|ask|full"
+    text model "nullable"
+    text effort "nullable, low|medium|high|xhigh|max|ultra"
     uuid created_by FK "not null"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
@@ -673,11 +680,13 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `claude_gateway_credential_id` | `uuid` | yes |  | FK |  |
 | `claude_model` | `text` | yes |  |  |  |
 | `claude_effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
+| `claude_mode` | `text` | yes |  |  | `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions` |
 | `openai_part` | `boolean` | no | `false` |  |  |
 | `openai_credential_id` | `uuid` | yes |  | FK |  |
 | `openai_gateway_credential_id` | `uuid` | yes |  | FK |  |
 | `openai_model` | `text` | yes |  |  |  |
 | `openai_effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
+| `openai_mode` | `text` | yes |  |  | `ask`, `auto`, `full` |
 | `github_credential_id` | `uuid` | yes |  | FK |  |
 | `github_rights` | `jsonb` | yes |  |  |  |
 | `atlassian_credential_id` | `uuid` | yes |  | FK |  |
@@ -699,12 +708,14 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
   - `access_profiles_one_ai_part_check`: `not ("claude_part" and "openai_part")`
-  - `access_profiles_claude_check`: `"claude_part" or ("claude_credential_id" is null and "claude_gateway_credential_id" is null and "claude_model" is null and "claude_effort" is null)`
+  - `access_profiles_claude_check`: `"claude_part" or ("claude_credential_id" is null and "claude_gateway_credential_id" is null and "claude_model" is null and "claude_effort" is null and "claude_mode" is null)`
   - `access_profiles_claude_model_check`: `char_length("claude_model") between 1 and 100`
   - `access_profiles_claude_effort_check`: `claude_effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
-  - `access_profiles_openai_check`: `"openai_part" or ("openai_credential_id" is null and "openai_gateway_credential_id" is null and "openai_model" is null and "openai_effort" is null)`
+  - `access_profiles_claude_mode_check`: `claude_mode` is one of `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`
+  - `access_profiles_openai_check`: `"openai_part" or ("openai_credential_id" is null and "openai_gateway_credential_id" is null and "openai_model" is null and "openai_effort" is null and "openai_mode" is null)`
   - `access_profiles_openai_model_check`: `char_length("openai_model") between 1 and 100`
   - `access_profiles_openai_effort_check`: `openai_effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - `access_profiles_openai_mode_check`: `openai_mode` is one of `ask`, `auto`, `full`
   - `access_profiles_github_check`: `"github_credential_id" is null or "github_rights" is not null`
   - `access_profiles_github_rights_check`: `jsonb_typeof("github_rights") = 'object'`
   - `access_profiles_atlassian_check`: `"atlassian_credential_id" is null or "atlassian_rights" is not null`
@@ -749,7 +760,6 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `home` | `text` | no |  |  |  |
 | `config_dir` | `text` | yes |  |  |  |
 | `worktree_root` | `text` | yes |  |  |  |
-| `permission_policy` | `text` | no | `'ask'` |  | `ask`, `bypass` |
 | `is_default` | `boolean` | no | `true` |  |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -763,7 +773,6 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `agent_placements_company_id_id_unique` (`company_id`, `id`)
 - **Checks:**
   - `agent_placements_mode_check`: `mode` is one of `host`, `container`
-  - `agent_placements_permission_policy_check`: `permission_policy` is one of `ask`, `bypass`
   - `agent_placements_home_check`: `char_length("home") between 1 and 500 and left("home", 1) = '/'`
   - `agent_placements_config_dir_check`: `char_length("config_dir") between 1 and 500 and left("config_dir", 1) = '/'`
   - `agent_placements_worktree_root_check`: `char_length("worktree_root") between 1 and 500 and left("worktree_root", 1) = '/'`
@@ -917,6 +926,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `room_message_id` | `uuid` | yes |  | FK |  |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
+| `mode` | `text` | yes |  |  | `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full` |
+| `model` | `text` | yes |  |  |  |
+| `effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
 | `started_at` | `timestamp with time zone` | yes |  |  |  |
 | `ended_at` | `timestamp with time zone` | yes |  |  |  |
 | `result_text` | `text` | yes |  |  |  |
@@ -938,6 +950,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_room_message_check`: `"room_message_id" is null or "system"`
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
   - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
+  - `chat_turns_mode_check`: `mode` is one of `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full`
+  - `chat_turns_model_check`: `char_length("model") between 1 and 100`
+  - `chat_turns_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - `chat_turns_delivery_check`: `delivery` is one of `now`, `after`, `interrupt`
   - `chat_turns_machine_wait_check`: `machine_wait` is one of `stopped`, `slots`
   - `chat_turns_machine_wait_at_check`: `"machine_wait" is null or "machine_wait_at" is not null`
@@ -969,6 +984,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `task_step_id` | `uuid` | yes |  |  |  |
 | `task_round` | `integer` | yes |  |  |  |
 | `flow_id` | `uuid` | yes |  | FK |  |
+| `mode` | `text` | yes |  |  | `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full` |
+| `model` | `text` | yes |  |  |  |
+| `effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
 | `created_by` | `uuid` | no |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
@@ -997,6 +1015,9 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chats_fork_pending_check`: `not "fork_pending" or "session_id" is not null`
   - `chats_task_check`: `("task_id" is null) = ("task_step_id" is null) and ("task_id" is null) = ("task_round" is null) and ("task_round" is null or "task_round" >= 1)`
   - `chats_flow_check`: `"flow_id" is null or "task_id" is null`
+  - `chats_mode_check`: `mode` is one of `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full`
+  - `chats_model_check`: `char_length("model") between 1 and 100`
+  - `chats_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
 - **Indexes:**
   - `chats_agent_idx` on (`company_id`, `agent_id`, `updated_at`)
   - `chats_profile_idx` on (`profile_id`)

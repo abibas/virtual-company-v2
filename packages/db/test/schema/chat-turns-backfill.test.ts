@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
-import { type Chat, chats, chatTurns } from '../../src/schema/index.ts';
+import { type Chat, chatTurns } from '../../src/schema/index.ts';
 import { createTestDb, pgError, type TestDb, testDbKind } from '../../src/testing.ts';
 import { migrateUpTo } from '../fixtures/migrations.ts';
 import { insertAgentBefore0030, insertCompany, insertMachine } from '../fixtures/rows.ts';
@@ -26,17 +26,14 @@ beforeAll(async () => {
   const company = await insertCompany(handle);
   const agent = await insertAgentBefore0030(handle, company.id);
   const machine = await insertMachine(handle, company.id);
-  const [row] = await handle.db
-    .insert(chats)
-    .values({
-      companyId: company.id,
-      agentId: agent.id,
-      harness: 'claude_code',
-      machineId: machine.id,
-      createdBy: agent.principalId,
-    })
-    .returning();
-  chat = row as Chat;
+  // Written with the columns `chats` had at `0027` (a later migration adds its own, which drizzle would name).
+  const id = newId();
+  await queryRows(
+    handle,
+    sql`insert into chats (id, company_id, agent_id, harness, machine_id, created_by)
+        values (${id}, ${company.id}, ${agent.id}, 'claude_code', ${machine.id}, ${agent.principalId})`,
+  );
+  chat = { id, companyId: company.id, createdBy: agent.principalId } as Chat;
 });
 afterAll(() => testDb.close());
 

@@ -1,9 +1,10 @@
-import type { ProfileProvider, ToolProvider } from '@mwc/shared/enums';
+import type { PermissionMode, ProfileProvider, ToolProvider } from '@mwc/shared/enums';
+import { DEFAULT_MODES } from '@mwc/shared/modes';
 import type { AccessProfile } from './schema/credentials.ts';
 
 /**
  * Each part's columns on `access_profiles` (migration `0032_generic_profiles`): an AI part's presence, subscription,
- * gateway, model and effort; a tool part's sign-in and rights. The credentials, org and chats modules read and write the
+ * gateway, model, effort and mode (since 2026-11-13); a tool part's sign-in and rights. The credentials, org and chats modules read and write the
  * parts through these maps, so a later tool (Slack, S7.1e) is its two columns and an entry in `PROFILE_TOOL_COLUMNS`.
  * Kept out of the schema's barrel, which holds tables only.
  */
@@ -14,6 +15,7 @@ export const PROFILE_AI_COLUMNS = {
     gateway: 'claudeGatewayCredentialId',
     model: 'claudeModel',
     effort: 'claudeEffort',
+    mode: 'claudeMode',
   },
   openai: {
     part: 'openaiPart',
@@ -21,6 +23,7 @@ export const PROFILE_AI_COLUMNS = {
     gateway: 'openaiGatewayCredentialId',
     model: 'openaiModel',
     effort: 'openaiEffort',
+    mode: 'openaiMode',
   },
 } as const satisfies Record<
   ProfileProvider,
@@ -30,6 +33,7 @@ export const PROFILE_AI_COLUMNS = {
     readonly gateway: keyof AccessProfile;
     readonly model: keyof AccessProfile;
     readonly effort: keyof AccessProfile;
+    readonly mode: keyof AccessProfile;
   }
 >;
 
@@ -48,6 +52,8 @@ export interface AiPartRow {
   readonly gatewayCredentialId: string | null;
   readonly model: string | null;
   readonly effort: AccessProfile['claudeEffort'];
+  /** Its permission mode: the stored one, else the part's default (Manual, Ask). */
+  readonly mode: PermissionMode;
 }
 
 /** A profile's AI part of `provider` (the one a harness runs on), or undefined when it has none. */
@@ -59,5 +65,6 @@ export function aiPartOf(profile: AccessProfile, provider: ProfileProvider): AiP
     gatewayCredentialId: profile[columns.gateway],
     model: profile[columns.model],
     effort: profile[columns.effort],
+    mode: profile[columns.mode] ?? DEFAULT_MODES[provider],
   };
 }

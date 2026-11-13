@@ -1,6 +1,15 @@
 import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
-import { ChatTurnDelivery, ChatTurnKind, ChatTurnStatus, Harness, MachineWait } from '@mwc/shared/enums';
+import {
+  ChatTurnDelivery,
+  ChatTurnKind,
+  ChatTurnStatus,
+  Effort,
+  Harness,
+  MachineWait,
+  PermissionMode,
+} from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
+import { MODEL_ID_MAX } from '@mwc/shared/models';
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
@@ -36,7 +45,9 @@ import { users } from './users.ts';
  * another's conversation from one of its replies: it names that chat and turn, and its first turn forks the session.
  * A task's conversation at a step (migration 0023, S5.3b) is a chat too: it names the task, the step and the round it
  * began in, and stays out of the agent's own chat list. A flow's team chat (migration 0025, S6c) names the flow whose
- * Lead it is with: the chat where Most Wanted wakes that Lead agent with its team's events.
+ * Lead it is with: the chat where Most Wanted wakes that Lead agent with its team's events. Since 2026-11-13 a message
+ * chat may run its next turns in another mode, model or effort than its profile's (its overrides, docs/harness.md
+ * "Modes"), each null for the profile's.
  */
 
 const n = (value: number) => sql.raw(String(value));
@@ -77,6 +88,12 @@ export const chats = pgTable(
     taskRound: integer('task_round'),
     /** A flow's team chat with its Lead agent (S6c): the flow; null for any other chat. */
     flowId: uuid('flow_id'),
+    /** The permission mode its next turns run in, one of its harness's; null: the profile's. */
+    mode: text('mode').$type<PermissionMode>(),
+    /** The model its next turns run, one of the catalogue's for its harness; null: the profile's. */
+    model: text('model'),
+    /** The effort its next turns run at, one the model takes; null: the profile's. */
+    effort: text('effort').$type<Effort>(),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -108,6 +125,9 @@ export const chats = pgTable(
     index('chats_profile_idx').on(t.profileId),
     index('chats_branched_from_idx').on(t.companyId, t.branchedFromChatId),
     check('chats_flow_check', sql`${t.flowId} is null or ${t.taskId} is null`),
+    check('chats_mode_check', oneOf(t.mode, PermissionMode.options)),
+    check('chats_model_check', sql`char_length(${t.model}) between 1 and ${n(MODEL_ID_MAX)}`),
+    check('chats_effort_check', oneOf(t.effort, Effort.options)),
     index('chats_task_idx').on(t.companyId, t.taskId, t.taskStepId, t.createdAt),
     index('chats_flow_idx').on(t.companyId, t.flowId, t.createdAt),
   ],
@@ -148,6 +168,12 @@ export const chatTurns = pgTable(
     roomMessageId: uuid('room_message_id'),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
+    /** The permission mode it ran in; null for a turn that has not started, a Clear, or one before 2026-11-13. */
+    mode: text('mode').$type<PermissionMode>(),
+    /** The model it ran; null for the harness's default (or not started). */
+    model: text('model'),
+    /** The effort it ran at; null for the default (or not started). */
+    effort: text('effort').$type<Effort>(),
     startedAt: at('started_at'),
     endedAt: at('ended_at'),
     /** The reply: the result event's text. */
@@ -167,6 +193,9 @@ export const chatTurns = pgTable(
     check('chat_turns_room_message_check', sql`${t.roomMessageId} is null or ${t.system}`),
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
     check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),
+    check('chat_turns_mode_check', oneOf(t.mode, PermissionMode.options)),
+    check('chat_turns_model_check', sql`char_length(${t.model}) between 1 and ${n(MODEL_ID_MAX)}`),
+    check('chat_turns_effort_check', oneOf(t.effort, Effort.options)),
     check('chat_turns_delivery_check', oneOf(t.delivery, ChatTurnDelivery.options)),
     check('chat_turns_machine_wait_check', oneOf(t.machineWait, MachineWait.options)),
     check(

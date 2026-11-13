@@ -136,6 +136,16 @@ describe('chats', () => {
     expect(after).toMatchObject({ profileId: null, profileSetBy: owner.user.id });
   });
 
+  it('keeps its own mode, model and effort for its next turns, each null for the profile’s (2026-11-13)', async () => {
+    expect(await insertChat()).toMatchObject({ mode: null, model: null, effort: null });
+    const own = { mode: 'plan', model: 'claude-sonnet-5-5', effort: 'low' } as const;
+    expect(await insertChat(own)).toMatchObject(own);
+    expect(await constraint(insertChat({ mode: 'yolo' as never }))).toBe('chats_mode_check');
+    expect(await constraint(insertChat({ model: '' }))).toBe('chats_model_check');
+    expect(await constraint(insertChat({ model: 'm'.repeat(101) }))).toBe('chats_model_check');
+    expect(await constraint(insertChat({ effort: 'turbo' as never }))).toBe('chats_effort_check');
+  });
+
   it("refuses another company's agent, machine or principal (composite keys)", async () => {
     const theirs = await insertAgent(handle, globex.id);
     const theirMachine = await insertMachine(handle, globex.id);
@@ -222,6 +232,20 @@ describe('chat_turns', () => {
     });
     const other = await insertChat();
     expect(await insertTurn(other, { status: 'running' })).toMatchObject({ status: 'running' });
+  });
+
+  it('records the mode, model and effort it ran with, each known', async () => {
+    const chat = await insertChat();
+    const ran = { mode: 'full', model: 'gpt-6.1-sol', effort: 'ultra' } as const;
+    expect(await insertTurn(chat, { status: 'done', ...ran })).toMatchObject(ran);
+    expect(await insertTurn(chat, { seq: 2 })).toMatchObject({ mode: null, model: null, effort: null });
+    expect(await constraint(insertTurn(chat, { seq: 3, mode: 'default' as never }))).toBe(
+      'chat_turns_mode_check',
+    );
+    expect(await constraint(insertTurn(chat, { seq: 3, model: '' }))).toBe('chat_turns_model_check');
+    expect(await constraint(insertTurn(chat, { seq: 3, effort: 'none' as never }))).toBe(
+      'chat_turns_effort_check',
+    );
   });
 
   it('takes only the known deliveries', async () => {

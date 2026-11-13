@@ -5,6 +5,8 @@ import {
   type GatewayHeaderPreview,
 } from '@mwc/shared/credentials';
 import {
+  ClaudeMode,
+  CodexMode,
   CredentialKind,
   CredentialStatus,
   Effort,
@@ -139,9 +141,21 @@ export const credentialUses = pgTable(
 /** A credential an access profile holds: one of its owner's, let go when that credential is removed. */
 const held = (name: string) => uuid(name).references(() => credentials.id, { onDelete: 'set null' });
 
-/** An AI part's CHECKs: its fields only while the part is there, a model of 1 to 100 characters, a known effort. */
+/** Each AI part's modes, as its mode's CHECK takes them. */
+const PART_MODES = { claude: ClaudeMode.options, openai: CodexMode.options } as const;
+
+/**
+ * An AI part's CHECKs: its fields only while the part is there, a model of 1 to 100 characters, a known effort, one of
+ * its harness's modes.
+ */
 const aiPartChecks = (part: ProfileProvider, present: AnyPgColumn, fields: readonly AnyPgColumn[]) => {
-  const [, , model, effort] = fields as [AnyPgColumn, AnyPgColumn, AnyPgColumn, AnyPgColumn];
+  const [, , model, effort, mode] = fields as [
+    AnyPgColumn,
+    AnyPgColumn,
+    AnyPgColumn,
+    AnyPgColumn,
+    AnyPgColumn,
+  ];
   const empty = sql.join(
     fields.map((field) => sql`${field} is null`),
     sql` and `,
@@ -150,6 +164,7 @@ const aiPartChecks = (part: ProfileProvider, present: AnyPgColumn, fields: reado
     check(`access_profiles_${part}_check`, sql`${present} or (${empty})`),
     check(`access_profiles_${part}_model_check`, lengthWithin(model, { min: 1, max: MODEL_ID_MAX })),
     check(`access_profiles_${part}_effort_check`, oneOf(effort, Effort.options)),
+    check(`access_profiles_${part}_mode_check`, oneOf(mode, PART_MODES[part])),
   ];
 };
 
@@ -169,8 +184,9 @@ const toolPartChecks = (tool: ToolProvider, credential: AnyPgColumn, rights: Any
  * A profile is a name and optional parts (Ihor, 2026-11-13: "GENERIC profile, which has under the hood, assigning
  * Claude/GH/Jira etc."), each in its own columns:
  * - **Claude** and **OpenAI** (`<part>_part` says it is there): a subscription of that provider, an optional gateway (any
- *   of the owner's: one address serves Claude Code and Codex), and the model and effort its turns run, each null for the
- *   provider's default (`@mwc/shared/models`). A profile has one of them at most (Ihor, 2026-11-13: "EITHER 1 harness
+ *   of the owner's: one address serves Claude Code and Codex), the model and effort its turns run, each null for the
+ *   provider's default (`@mwc/shared/models`), and the permission mode they run in (since 2026-11-13, `@mwc/shared/modes`;
+ *   null for the default, Manual or Ask). A profile has one of them at most (Ihor, 2026-11-13: "EITHER 1 harness
  *   EITHER 2nd one... NOT BOTH"), and an agent's harness follows it: Claude Code on a Claude part, Codex on an OpenAI
  *   part. A profile with neither (only tool parts) is given to no agent.
  * - **GitHub** and **Atlassian** (there when `<tool>_rights` is): one sign-in of that tool and the rights the agents
@@ -202,6 +218,8 @@ export const accessProfiles = pgTable(
     claudeModel: text('claude_model'),
     /** The effort its Claude turns run at, one the model takes; null for the default. */
     claudeEffort: text('claude_effort').$type<Effort>(),
+    /** The permission mode its Claude turns run in (`--permission-mode`); null for the default, Manual. */
+    claudeMode: text('claude_mode').$type<ClaudeMode>(),
     /** It has an OpenAI part. */
     openaiPart: boolean('openai_part').notNull().default(false),
     /** The OpenAI part's subscription (`codex_oauth`, `openai_api_key`); null for none. */
@@ -212,6 +230,8 @@ export const accessProfiles = pgTable(
     openaiModel: text('openai_model'),
     /** The effort its Codex turns run at; null for the default. */
     openaiEffort: text('openai_effort').$type<Effort>(),
+    /** The mode its Codex turns run in (Ask, Auto, Full trust); null for the default, Ask. */
+    openaiMode: text('openai_mode').$type<CodexMode>(),
     /** Its GitHub part's sign-in (`github_oauth` or `github_token`); null without one. */
     githubCredentialId: held('github_credential_id'),
     /** Its GitHub part's rights (`GitHubRights`); null: it has no GitHub part. */
@@ -232,12 +252,14 @@ export const accessProfiles = pgTable(
       t.claudeGatewayCredentialId,
       t.claudeModel,
       t.claudeEffort,
+      t.claudeMode,
     ]),
     ...aiPartChecks('openai', t.openaiPart, [
       t.openaiCredentialId,
       t.openaiGatewayCredentialId,
       t.openaiModel,
       t.openaiEffort,
+      t.openaiMode,
     ]),
     ...toolPartChecks('github', t.githubCredentialId, t.githubRights),
     ...toolPartChecks('atlassian', t.atlassianCredentialId, t.atlassianRights),

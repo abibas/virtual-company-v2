@@ -50,23 +50,22 @@ async function insertPlacement(
 }
 
 describe('agent_placements', () => {
-  it('stores a default placement that asks, with no configuration folder or worktree root', async () => {
+  it('stores a default placement with no configuration folder or worktree root (the profile says whether it asks)', async () => {
     const agent = await insertAgent(handle, acme.id);
     expect(await insertPlacement(agent)).toMatchObject({
       mode: 'host',
       home: '/Users/ihor/agents/slop-box',
       configDir: null,
       worktreeRoot: null,
-      permissionPolicy: 'ask',
       isDefault: true,
     });
     const box = await insertPlacement(await insertAgent(handle, acme.id), {
       mode: 'container',
       configDir: '/home/ihor/.claude-slop',
       worktreeRoot: '/home/ihor/airia-dev/worktrees',
-      permissionPolicy: 'bypass',
     });
-    expect(box).toMatchObject({ mode: 'container', permissionPolicy: 'bypass' });
+    expect(box).toMatchObject({ mode: 'container', worktreeRoot: '/home/ihor/airia-dev/worktrees' });
+    expect(box).not.toHaveProperty('permissionPolicy');
   });
 
   it('keeps at most one default per agent, and any number of others', async () => {
@@ -79,14 +78,12 @@ describe('agent_placements', () => {
     expect(rows.map((row) => row.isDefault).sort()).toEqual([false, false, true]);
   });
 
-  it('refuses a bad mode, policy or folder', async () => {
+  it('refuses a bad mode or folder', async () => {
     const agent = await insertAgent(handle, acme.id);
     const bad = (values: Partial<NewAgentPlacement>) =>
       constraint(insertPlacement(agent, { isDefault: false, ...values }));
     // @ts-expect-error mode is typed as PlacementMode; the database refuses it as well
     expect(await bad({ mode: 'vm' })).toBe('agent_placements_mode_check');
-    // @ts-expect-error permissionPolicy is typed as PermissionPolicy
-    expect(await bad({ permissionPolicy: 'yolo' })).toBe('agent_placements_permission_policy_check');
     for (const home of ['', 'relative/path', '~/airia-dev', `/${'a'.repeat(500)}`]) {
       expect(await bad({ home })).toBe('agent_placements_home_check');
     }

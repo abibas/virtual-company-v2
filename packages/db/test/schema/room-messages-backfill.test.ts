@@ -3,7 +3,7 @@ import { asc, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
-import { chats, chatTurns, flows, roomMessages } from '../../src/schema/index.ts';
+import { chatTurns, flows, roomMessages } from '../../src/schema/index.ts';
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
 import { migrateUpTo } from '../fixtures/migrations.ts';
 import { insertAgent, insertCompany, insertMachine, insertPrincipal } from '../fixtures/rows.ts';
@@ -73,30 +73,27 @@ async function seed(): Promise<Seeded> {
     sql`insert into tasks (id, company_id, number, flow_id, title, created_by)
         values (${taskId}, ${company.id}, 12, ${flowId}, 'Fix the login', ${person})`,
   );
-  const chat = (values: Partial<typeof chats.$inferInsert>) =>
-    handle.db
-      .insert(chats)
-      .values({
-        companyId: company.id,
-        agentId: lead.id,
-        harness: 'claude_code',
-        machineId: machine.id,
-        createdBy: lead.principalId,
-        ...values,
-      })
-      .returning();
-  const [team] = await chat({ flowId, title: 'DEVBOX delivery: team' });
-  const [task] = await chat({
-    taskId,
-    taskStepId: newId(),
-    taskRound: 1,
-    title: 'T-12 · Develop · Fix the login',
-  });
+  // Written with the columns `chats` had at `0030` (a later migration adds its own, which drizzle would name).
+  const chat = async (title: string, task: { readonly flowId?: string; readonly taskId?: string }) => {
+    const id = newId();
+    const step = task.taskId === undefined ? null : newId();
+    const round = task.taskId === undefined ? null : 1;
+    await queryRows(
+      handle,
+      sql`insert into chats (id, company_id, agent_id, harness, machine_id, created_by, title, flow_id, task_id,
+            task_step_id, task_round)
+          values (${id}, ${company.id}, ${lead.id}, 'claude_code', ${machine.id}, ${lead.principalId}, ${title},
+                  ${task.flowId ?? null}, ${task.taskId ?? null}, ${step}, ${round})`,
+    );
+    return id;
+  };
+  const team = await chat('DEVBOX delivery: team', { flowId });
+  const task = await chat('T-12 · Develop · Fix the login', { taskId });
   return {
     companyId: company.id,
     flowId,
-    teamChat: team?.id as string,
-    taskChat: task?.id as string,
+    teamChat: team,
+    taskChat: task,
     person,
     lead: lead.principalId,
   };
