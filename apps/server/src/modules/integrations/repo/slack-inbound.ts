@@ -30,16 +30,17 @@ async function connectionOf(o: OwnedDb, credentialId: string): Promise<SlackConn
   return row;
 }
 
-/** Writes the sign-in's settings: its row made with these values, or changed. */
+/** Writes the sign-in's settings: its row changed, or made with these values (a CHECK reads the row as a whole). */
 async function saveConnection(
   o: OwnedDb,
   credentialId: string,
   set: OwnedSet<typeof slackConnections>,
 ): Promise<SlackConnection> {
-  const [row] = await o
-    .insert(slackConnections, { ...set, credentialId })
-    .onConflictDoUpdate({ target: slackConnections.credentialId, set: { ...set, updatedAt: new Date() } })
+  const [updated] = await o
+    .update(slackConnections, set, eq(slackConnections.credentialId, credentialId))
     .returning();
+  if (updated !== undefined) return updated;
+  const [row] = await o.insert(slackConnections, { ...set, credentialId }).returning();
   return row as SlackConnection;
 }
 
