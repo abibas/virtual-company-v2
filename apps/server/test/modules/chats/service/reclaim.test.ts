@@ -1,6 +1,7 @@
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CARRIED_ON } from '../../../../src/modules/tasks/rules/runs.ts';
+import { openActivity } from '../../../fixtures/chats/activity.ts';
 import { seedTurns } from '../../../fixtures/chats/history.ts';
 import {
   ANSWER,
@@ -69,12 +70,16 @@ describe('a chat turn its runner comes back with after the grace', () => {
     sendEvents(runner, start.turnId, ANSWER.slice(0, 2));
     await eventually('two events stored', async () => (await eventRows(w.t.db, start.turnId)).length === 2);
     await awayTooLong(runner, start.turnId);
+    const live = await openActivity(w.t.app, s.company.companyId, s.company.owner);
     expect(await comeBackWith(runner, start.turnId, 4)).toEqual([{ turnId: start.turnId, lastSeq: 2 }]);
     expect(await turnRow(w.t.db, start.turnId)).toMatchObject({
       status: 'running',
       error: null,
       endedAt: null,
     });
+    // Told as running again, so an open chat drops its failure.
+    await live.next('running again', (v) => v.lastTurn?.id === start.turnId && v.lastTurn.status === 'running');
+    await live.close();
     sendEvents(runner, start.turnId, ANSWER);
     endTurn(runner, start.turnId);
     expect(await ended(w.t.db, start.turnId)).toMatchObject({ status: 'done', resultText: '4' });

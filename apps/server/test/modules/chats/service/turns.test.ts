@@ -42,14 +42,13 @@ describe('startTurn', () => {
   it('fails the turn at once when the runner went away before it could be sent', async () => {
     const s = await scene(w);
     const t = await tenant(w.t.db, s.company.companyId);
-    const result = await startTurn(
-      depsWith(() => undefined),
-      t,
-      caller(s),
-      s.chat.id,
-      'hi',
-    );
+    const deps = depsWith(() => undefined);
+    const heard: string[] = [];
+    deps.live.bus.subscribe(s.chat.id, (m) => void (m.kind === 'turn' && heard.push(m.turn.status)));
+    const result = await startTurn(deps, t, caller(s), s.chat.id, 'hi');
     expect(result).toMatchObject({ ok: true, turn: { status: 'failed', error: 'machine_offline' } });
+    // Told to the chat's stream too: a turn Most Wanted started has no page waiting for the answer.
+    expect(heard).toEqual(['failed']);
   });
 
   it('takes one of two prompts sent at the same moment, and refuses the other as turn_running', async () => {
