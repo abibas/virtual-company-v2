@@ -6,7 +6,10 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { credentialsForTools, type ToolUse } from '../../../../src/modules/credentials/index.ts';
 import {
+  GITHUB_SIGN_IN_GONE,
+  GITHUB_SIGN_IN_REVOKED,
   NOT_ATLASSIAN,
+  NOT_GITHUB,
   SIGN_IN_GONE,
   SIGN_IN_REVOKED,
 } from '../../../../src/modules/credentials/service/tool-use.ts';
@@ -16,7 +19,7 @@ import { addUser, type LinkedUser } from '../../../fixtures/companies/companies.
 import { addSignIn, auditRows, revokeSubscription } from '../../../fixtures/org.ts';
 import { type AuthWorld, authWorld } from '../../../fixtures/platform/auth.ts';
 
-/** Tool sign-ins opened for the agents' tools (S7.1c), and a 401's mark. */
+/** Tool sign-ins opened for the agents' tools (S7.1c; GitHub's and git's since S7.1d), and a 401's mark. */
 
 const keyring = ephemeralKeyring();
 const { logger, lines } = captureLogger();
@@ -67,6 +70,29 @@ describe('an Atlassian sign-in opened for a tool', () => {
       message: SIGN_IN_REVOKED,
     });
     expect(await usesOf(w.t.db, signIn.id)).toEqual([]);
+  });
+
+  it('opens a GitHub sign-in, either kind, for a tool or for git, and refuses the rest in words', async () => {
+    const login = await addSignIn(w, keyring, ihor.userId, 'github_oauth');
+    const git = { ...USE, purpose: 'tool:git' } as const;
+    expect(await tools.github(login.id, ihor.userId, git)).toEqual({
+      ok: true,
+      signIn: { token: 'gho_GHLOGINtokenNEVERshown' },
+    });
+    expect((await usesOf(w.t.db, login.id)).map((use) => use.purpose)).toEqual(['tool:git']);
+    const pasted = await addSignIn(w, keyring, ihor.userId, 'github_token');
+    expect(await tools.github(pasted.id, ihor.userId, USE)).toMatchObject({ ok: true });
+    expect(await tools.github(newId(), ihor.userId, USE)).toEqual({
+      ok: false,
+      message: GITHUB_SIGN_IN_GONE,
+    });
+    const atlassian = await addSignIn(w, keyring, ihor.userId, 'atlassian_api_token');
+    expect(await tools.github(atlassian.id, ihor.userId, USE)).toEqual({ ok: false, message: NOT_GITHUB });
+    await revokeSubscription(w.t.db, login.id);
+    expect(await tools.github(login.id, ihor.userId, USE)).toEqual({
+      ok: false,
+      message: GITHUB_SIGN_IN_REVOKED,
+    });
   });
 
   it('marks a sign-in Atlassian refused as needing a sign-in, audited by the system', async () => {
