@@ -95,6 +95,7 @@ export {
   FolderName,
   FsList,
   FsMkdir,
+  FsMkdirp,
   FsResult,
   folderErrorCode,
   ResolvedPath,

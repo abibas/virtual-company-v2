@@ -53,6 +53,8 @@ export const RunnerCaps = protocolObject({
   selfUpdate: z.boolean().default(false),
   /** True when it answers `fs.list` and `fs.mkdir` (S5.1d); false from a runner older than the folder browser. */
   folders: z.boolean().default(false),
+  /** True when it answers `fs.mkdirp` (2026-11-13); false from an older runner, which the server tells to update. */
+  mkdirp: z.boolean().default(false),
   /** True when its drivers fork a conversation for a branch (`TurnSpec.forkSession`); false from an older runner. */
   forks: z.boolean().default(false),
   /**
@@ -204,7 +206,7 @@ export type AttentionCreate = z.infer<typeof AttentionCreate>;
 
 /**
  * The answer to every server frame that has a `cmdId`, except `power.command`, `runner.update`, `fs.list`, `fs.mkdir`,
- * `tools.check` and `tools.install` (each answered by its own result frame).
+ * `fs.mkdirp`, `tools.check` and `tools.install` (each answered by its own result frame).
  */
 export const CmdAck = frame('cmd.ack', {
   cmdId: Uuid,

@@ -111,6 +111,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       terminal: true,
       selfUpdate: true,
       folders: true,
+      mkdirp: true,
       forks: true,
       reattach: true,
       agentTools: true,
@@ -130,6 +131,7 @@ export const RUNNER_EXAMPLES: { readonly [T in RunnerFrameType]: Extract<RunnerF
       terminal: true,
       selfUpdate: true,
       folders: true,
+      mkdirp: true,
       forks: true,
       reattach: true,
       agentTools: true,
@@ -329,6 +331,7 @@ export const SERVER_EXAMPLES: { readonly [T in ServerFrameType]: Extract<ServerF
   },
   'fs.list': { type: 'fs.list', cmdId: IDS.cmd, path: '~/agents' },
   'fs.mkdir': { type: 'fs.mkdir', cmdId: IDS.cmd, path: '/Users/ihor/agents/scout' },
+  'fs.mkdirp': { type: 'fs.mkdirp', cmdId: IDS.cmd, path: '/work/test-dev' },
   'tools.check': { type: 'tools.check', cmdId: IDS.cmd },
   'tools.install': { type: 'tools.install', cmdId: IDS.cmd, tool: 'codex', version: '0.163.0' },
 };

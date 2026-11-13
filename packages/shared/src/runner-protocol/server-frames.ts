@@ -14,7 +14,7 @@ import { RunnerUpdate } from './update.ts';
 /**
  * The frames the server sends to a runner (docs/runner-protocol.md, "Server to runner"). Every one with a `cmdId` is
  * a command: the runner answers it once with `cmd.ack` (`power.command` with `power.result`, `runner.update` with
- * `runner.update.result`, `fs.list` and `fs.mkdir` with `fs.result`, `tools.check` and `tools.install` with
+ * `runner.update.result`, `fs.list`, `fs.mkdir` and `fs.mkdirp` with `fs.result`, `tools.check` and `tools.install` with
  * `tools.result`), and acks a repeat of a `cmdId` it already ran without running it again.
  */
 

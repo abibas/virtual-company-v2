@@ -5,6 +5,7 @@ import {
   FolderName,
   FsList,
   FsMkdir,
+  FsMkdirp,
   FsResult,
   folderErrorCode,
 } from '../../src/runner-protocol/folders.ts';
@@ -25,6 +26,15 @@ describe('runner.hello caps.folders', () => {
   });
 });
 
+describe('runner.hello caps.mkdirp', () => {
+  const hello = RUNNER_EXAMPLES['runner.hello'];
+
+  it('reads an old runner without it as one that does not make parents', () => {
+    expect(RunnerHello.parse({ ...hello, caps: without(hello.caps, 'mkdirp') }).caps.mkdirp).toBe(false);
+    expect(RunnerHello.parse(hello).caps.mkdirp).toBe(true);
+  });
+});
+
 describe('fs.list and fs.mkdir', () => {
   it('take an absolute path or one under ~, and fs.list null for the default start', () => {
     expect(issuesOf(FsList, SERVER_EXAMPLES['fs.list'])).toEqual([]);
@@ -33,6 +43,8 @@ describe('fs.list and fs.mkdir', () => {
     expect(issuesOf(FsMkdir, SERVER_EXAMPLES['fs.mkdir'])).toEqual([]);
     expect(issuesOf(FsMkdir, { type: 'fs.mkdir', cmdId: IDS.cmd, path: null })).toEqual(['path']);
     expect(issuesOf(FsMkdir, { type: 'fs.mkdir', cmdId: 'x', path: '/a' })).toEqual(['cmdId']);
+    expect(issuesOf(FsMkdirp, SERVER_EXAMPLES['fs.mkdirp'])).toEqual([]);
+    expect(issuesOf(FsMkdirp, { type: 'fs.mkdirp', cmdId: IDS.cmd, path: 'work' })).toEqual(['path']);
   });
 });
 
@@ -42,6 +54,9 @@ describe('fs.result', () => {
   it('answers a listing, a made folder, or a refusal', () => {
     expect(issuesOf(FsResult, result)).toEqual([]);
     expect(issuesOf(FsResult, { type: 'fs.result', cmdId: IDS.cmd, ok: true, path: '/w/a' })).toEqual([]);
+    const made = { type: 'fs.result', cmdId: IDS.cmd, ok: true, path: '/w/a', created: false };
+    expect(issuesOf(FsResult, made)).toEqual([]);
+    expect(issuesOf(FsResult, { ...made, created: 'no' })).toEqual(['created']);
     const refused = { type: 'fs.result', cmdId: IDS.cmd, ok: false, error: 'not_found: /nope' };
     expect(issuesOf(FsResult, refused)).toEqual([]);
   });
