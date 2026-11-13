@@ -14,8 +14,15 @@ import {
   CreateChatSchema,
   UpdateChatSchema,
 } from '../schemas.ts';
-import type { TurnAway } from '../service/live.ts';
-import { archiveChat, type ChatCaller, createChat, getChat, listChats, updateChat } from '../service.ts';
+import {
+  archiveChat,
+  type ChatCaller,
+  type ChatDetailLive,
+  createChat,
+  getChat,
+  listChats,
+  updateChat,
+} from '../service.ts';
 
 /**
  * A chat with an agent (S5.1b): `GET|POST /api/companies/{companyId}/agents/{agentId}/chats` and
@@ -104,7 +111,9 @@ const getChatRoute = (deps: ServerDeps) => {
       'current conversation (page them with `GET …/turns?beforeSeq=`), and `conversations`, the conversations before ' +
       'each Clear, newest first, with their size and time span. `init` is the last `init` event of the current ' +
       'conversation (model, effort, folder, slash commands) and `context` how full it is (`usedTokens`, `window`, ' +
-      '`model`, `at`), both read from all of it, left-out turns too; null before anything said so since the last Clear.',
+      '`model`, `at`), both read from all of it, left-out turns too; null before anything said so since the last Clear. ' +
+      "`runnerUpdateFor` names the server's tools the chat's profile gives that its machine's runner is too old to " +
+      'provide (its turns are told so instead of getting them).',
     request: { params: ChatParamsSchema },
     responses: { 200: jsonResponse('The chat', ChatDetailSchema), ...refusals, 404: NO_CHAT },
   });
@@ -144,7 +153,7 @@ const archiveRoute = (deps: ServerDeps) => {
   });
 };
 
-export function chatRoutes(deps: ServerDeps, awayOf?: (turnId: string) => TurnAway | undefined) {
+export function chatRoutes(deps: ServerDeps, live: ChatDetailLive = {}) {
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
       const result = await listChats(c.var.tenant, c.req.valid('param').agentId);
@@ -159,7 +168,7 @@ export function chatRoutes(deps: ServerDeps, awayOf?: (turnId: string) => TurnAw
       return c.json(result.chat, 201);
     })
     .openapi(getChatRoute(deps), async (c) => {
-      const result = await getChat(c.var.tenant, c.req.valid('param').chatId, awayOf);
+      const result = await getChat(c.var.tenant, c.req.valid('param').chatId, live);
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
       return c.json(result.chat, 200);
     })

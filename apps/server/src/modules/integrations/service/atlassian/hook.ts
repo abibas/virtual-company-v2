@@ -6,15 +6,15 @@ import { credentialsForTools, type SecretDeps } from '../../../credentials/index
 import type { TurnToolCall, TurnToolReply } from '../../../machines/index.ts';
 import { type IntegrationsRepo, integrationsRepo } from '../../repo.ts';
 import { offeredTools } from '../../rules/atlassian/rights.ts';
-import { atlassianLine, toolDef } from '../../rules/atlassian/words.ts';
+import { atlassianLabel, atlassianLine, toolDef } from '../../rules/atlassian/words.ts';
 import { AtlassianTool } from '../../schemas/atlassian.ts';
 import { callAtlassian } from './call.ts';
 
 /**
  * The Atlassian tools as the chats module's `ServerToolsHook` (S7.1c): a message turn on a profile whose Atlassian part
  * has a sign-in gets the tools its rights give (only Jira's and Confluence's read tools, or with their changes and
- * writes), with one line for its standing instructions; each call is `call.ts`'s. It never throws: a failure is logged
- * and answered in words.
+ * writes), with one line for its standing instructions and the products they reach (`label`); each call is `call.ts`'s.
+ * It never throws: a failure is logged and answered in words.
  */
 
 export interface AtlassianToolsDeps extends SecretDeps {
@@ -35,7 +35,11 @@ export async function atlassianToolsFor(
   if (part === undefined || part.credentialId === null) return { tools: [] };
   const tools = offeredTools(part.rights);
   if (tools.length === 0) return { tools: [] };
-  return { tools: tools.map(toolDef), instructions: atlassianLine(part, part.rights, tools) };
+  return {
+    tools: tools.map(toolDef),
+    instructions: atlassianLine(part, part.rights, tools),
+    label: atlassianLabel(tools),
+  };
 }
 
 /** The hook on these deps. */

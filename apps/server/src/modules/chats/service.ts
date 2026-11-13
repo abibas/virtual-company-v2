@@ -87,16 +87,27 @@ export async function createChat(
 }
 
 /**
+ * What a chat's detail reads of the live runners: whether a running turn's runner is away, and what the chat's profile
+ * gives that its runner is too old to provide (`runnerUpdateFor` of `service/server-tools.ts`); neither by default.
+ */
+export interface ChatDetailLive {
+  readonly awayOf?: ((turnId: string) => TurnAway | undefined) | undefined;
+  readonly runnerUpdateFor?: ((t: TenantDb, chat: Chat) => Promise<string | null>) | undefined;
+}
+
+/**
  * One chat (archived ones too) with its current conversation: the turns since its last Clear, the latest 30 with their
  * events, and what is left out (`service/history.ts`); what that conversation runs on and how full it is (the last
  * `init`, its size), its open question and its waiting turns in the order they start; a running turn whose runner is
- * away says `detached` and since when (S5.4, `awayOf`); 404 for an unknown one.
+ * away says `detached` and since when (S5.4, `awayOf`), and what waits for its runner's update (`runnerUpdateFor`); 404
+ * for an unknown one.
  */
 export async function getChat(
   t: TenantDb,
   chatId: string,
-  awayOf: (turnId: string) => TurnAway | undefined = () => undefined,
+  live: ChatDetailLive = {},
 ): Promise<{ ok: true; chat: ChatDetailView } | Refusal> {
+  const { awayOf = () => undefined, runnerUpdateFor = async () => null } = live;
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
   const current = await currentConversation(t, chat);
@@ -111,7 +122,8 @@ export async function getChat(
   const branchedFrom = await branchedFromOf(t, chat);
   const profileRuns = await profileRunsOf(t, chat);
   const detail = { ...chatView(chat), turns, earlier, branchedFrom, ...state, profileRuns, question };
-  return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id) } };
+  const update = await runnerUpdateFor(t, chat);
+  return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id), runnerUpdateFor: update } };
 }
 
 /** Renames a chat and chooses its profile (see above); an unchanged field writes nothing. */

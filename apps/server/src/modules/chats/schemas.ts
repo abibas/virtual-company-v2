@@ -202,6 +202,15 @@ export const ChatDetailSchema = ChatSchema.extend({
       "The latest question of the chat's last turn while it is not answered; null when there is none (a newer turn " +
       'or a plain message closes it)',
   }),
+  runnerUpdateFor: z
+    .string()
+    .nullable()
+    .openapi({
+      example: 'Jira and Confluence',
+      description:
+        "What the chat's profile gives of the server's tools that its machine's runner is too old to provide (no " +
+        '`caps.serverTools`), in a few words; null when nothing waits for a runner update or the runner is offline',
+    }),
 }).openapi('ChatDetail');
 
 /** A page of older turns (`GET …/chats/{chatId}/turns`), in order, and whether older ones exist in its range. */

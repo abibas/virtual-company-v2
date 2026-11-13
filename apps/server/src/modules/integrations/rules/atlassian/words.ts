@@ -132,3 +132,12 @@ export function atlassianLine(
     `the names of Atlassian's remote MCP: ${tools.join(', ')}; cloudId is not needed; they never delete or archive.`
   );
 }
+
+/**
+ * What the offered tools are for, in a few words ("Jira and Confluence", "Jira"): the products they reach, for the line a
+ * turn on a runner too old for them gets and the chat's notice.
+ */
+export function atlassianLabel(tools: readonly AtlassianTool[]): string {
+  const products = ['Jira', 'Confluence'].filter((product) => tools.some((tool) => tool.includes(product)));
+  return products.join(' and ');
+}

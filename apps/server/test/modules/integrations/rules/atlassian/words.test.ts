@@ -1,6 +1,10 @@
 import { ServerToolDefs } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { atlassianLine, toolDef } from '../../../../../src/modules/integrations/rules/atlassian/words.ts';
+import {
+  atlassianLabel,
+  atlassianLine,
+  toolDef,
+} from '../../../../../src/modules/integrations/rules/atlassian/words.ts';
 import { AtlassianTool } from '../../../../../src/modules/integrations/schemas/atlassian.ts';
 
 describe('the Atlassian tools’ words', () => {
@@ -36,5 +40,11 @@ describe('the Atlassian tools’ words', () => {
     expect(unnamed).toContain(
       'on your Atlassian site, Jira: off; Confluence: read, create and update pages in ENG, OPS.',
     );
+  });
+
+  it('names the products the offered tools reach, for a runner too old for them', () => {
+    expect(atlassianLabel(['getJiraIssue', 'getConfluencePage'])).toBe('Jira and Confluence');
+    expect(atlassianLabel(['getJiraIssue', 'addCommentToJiraIssue'])).toBe('Jira');
+    expect(atlassianLabel(['searchConfluenceUsingCql'])).toBe('Confluence');
   });
 });

@@ -1,18 +1,30 @@
+import { agents } from '@mwc/db';
+import { rawDb } from '@mwc/db/system';
 import { TEST_NOW } from '@mwc/testkit';
+import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { runnerTooOldLine } from '../../../../../src/modules/chats/service/server-tools.ts';
 import {
   CONFLUENCE_READ_TOOLS,
   CONFLUENCE_WRITE_TOOLS,
   JIRA_CHANGE_TOOLS,
   JIRA_READ_TOOLS,
 } from '../../../../../src/modules/integrations/schemas/atlassian.ts';
-import { type ChatsWorld, chatsWorld, scene, startedTurn } from '../../../../fixtures/chats/world.ts';
+import {
+  type ChatsWorld,
+  chatPath,
+  chatsWorld,
+  type Scene,
+  scene,
+  startedTurn,
+} from '../../../../fixtures/chats/world.ts';
 import {
   atlassianScene,
   atlassianTurn,
   putAtlassianPart,
   serverToolNames,
 } from '../../../../fixtures/integrations/atlassian.ts';
+import { as } from '../../../../fixtures/members/members.ts';
 
 /** The Atlassian tools a turn is offered (S7.1c): by its profile's Atlassian part, to a runner that takes them. */
 
@@ -100,5 +112,50 @@ describe('the Atlassian tools a turn gets', () => {
     const again = await atlassianScene(w);
     await putAtlassianPart(w.t.db, again.profile.id, { credentialId: null, rights: null });
     expect((await atlassianTurn(w, again)).spec.serverTools).toBeUndefined();
+  });
+});
+
+/** The chat's detail as its owner reads it: what waits for its runner's update. */
+async function runnerUpdateOf(s: Scene): Promise<unknown> {
+  const res = await as(w, s.company.owner)('GET', chatPath(s.company, s.chat.id));
+  expect(res.status).toBe(200);
+  return (res.body as { runnerUpdateFor: unknown }).runnerUpdateFor;
+}
+
+describe('the Atlassian tools on a runner too old for them', () => {
+  const OLD = { caps: { serverTools: false } } as const;
+
+  it('tells the turn plainly that its tools are not on this machine, and gives it none', async () => {
+    const s = await atlassianScene(w, { ...OLD, rights: { jira: 'changes', confluence: 'write' } });
+    const start = await atlassianTurn(w, s);
+    expect(start.spec.serverTools).toBeUndefined();
+    expect(start.spec.instructions?.split('\n\n').at(-1)).toBe(runnerTooOldLine('Jira and Confluence'));
+    expect(start.spec.instructions).toContain('Jira and Confluence: configured, but this machine');
+  });
+
+  it('names only the products its rights reach, and says nothing for a profile without tools', async () => {
+    const jira = await atlassianScene(w, { ...OLD, rights: { confluence: 'off' } });
+    expect((await atlassianTurn(w, jira)).spec.instructions).toContain(runnerTooOldLine('Jira'));
+    await w.disconnectAll();
+    const plain = await scene(w, OLD);
+    expect((await startedTurn(w, plain)).spec.instructions).not.toContain('runner is too old');
+  });
+
+  it('shows the chat what waits for its runner’s update, and nothing once the runner takes the tools', async () => {
+    const old = await atlassianScene(w, OLD);
+    expect(await runnerUpdateOf(old)).toBe('Jira and Confluence');
+    await w.disconnectAll();
+    expect(await runnerUpdateOf(old)).toBeNull();
+    const current = await atlassianScene(w);
+    expect(await runnerUpdateOf(current)).toBeNull();
+  });
+
+  it('shows nothing for a profile without tools, or an agent with no profile', async () => {
+    const plain = await scene(w, OLD);
+    expect(await runnerUpdateOf(plain)).toBeNull();
+    await w.disconnectAll();
+    const none = await atlassianScene(w, OLD);
+    await rawDb(w.t.db).update(agents).set({ profileId: null }).where(eq(agents.id, none.agentId));
+    expect(await runnerUpdateOf(none)).toBeNull();
   });
 });

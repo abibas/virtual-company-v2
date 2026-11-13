@@ -21,7 +21,7 @@ import { failLeftTurns, turnAdopter } from './service/adopt.ts';
 import { type ChatQueue, chatQueue } from './service/drain.ts';
 import { chatsLive } from './service/live.ts';
 import { machineWaits } from './service/machine-wait.ts';
-import type { ServerToolsHook } from './service/server-tools.ts';
+import { runnerUpdateFor, type ServerToolsHook } from './service/server-tools.ts';
 import { slotWaits, slotWordsOf } from './service/slot-wait.ts';
 import type { TaskTurnHook } from './service/task-hook.ts';
 import { taskTurns } from './service/tasks.ts';
@@ -98,7 +98,10 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
   const { turns, queue, live } = runtime;
   const queued = { ...turns, queue };
   return newRouter()
-    .route('/', chatRoutes(deps, live.awayOf))
+    .route(
+      '/',
+      chatRoutes(deps, { awayOf: live.awayOf, runnerUpdateFor: (t, chat) => runnerUpdateFor(deps, t, chat) }),
+    )
     .route('/', overrideRoutes(deps))
     .route('/', reportChatRoutes(deps))
     .route('/', branchRoutes(deps))
