@@ -90,7 +90,7 @@ function postsAs(access: SlackAccess, account: string | null): string {
 }
 
 /**
- * The line a turn's standing instructions get with the tools: "Slack tools (from Most Wanted): in Airia as mw-bot: read
+ * The line a turn's standing instructions get with the tools: "Slack tools (from Most Wanted): as mw-bot in Airia: read
  * #general; post in #general. Your tools, by the names of the Slack MCP servers: …; posts show under your name, … ".
  */
 export function slackLine(
@@ -100,13 +100,16 @@ export function slackLine(
 ): string {
   const one = (text: string | null) => (text === null ? null : text.replace(/\s+/g, ' ').trim());
   const [account, site] = [one(part.account), one(part.site)];
-  const where = `${site === null ? '' : ` in ${site}`}${account === null ? '' : ` as ${account}`}`;
+  const who = [account === null ? '' : `as ${account}`, site === null ? '' : `in ${site}`].filter(
+    (w) => w !== '',
+  );
+  const where = who.length === 0 ? '' : ` ${who.join(' ')}:`;
   const posting = tools.some((tool) => tool === 'slack_post_message')
     ? ` Posts show ${postsAs(access, account)} and end with "via Most Wanted · <your name>"; @here, @channel and ` +
       '@everyone are stripped.'
     : '';
   return (
-    `Slack tools (from Most Wanted):${where}: ${mayWords(workingRights(access))}. Your tools, by the names of the ` +
+    `Slack tools (from Most Wanted):${where} ${mayWords(workingRights(access))}. Your tools, by the names of the ` +
     `Slack MCP servers: ${tools.join(', ')}; channel_id takes a channel's id or #name.${posting} They never delete, ` +
     "edit others' messages, invite or kick."
   );

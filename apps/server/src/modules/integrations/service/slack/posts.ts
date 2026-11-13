@@ -30,8 +30,7 @@ function shownAs(ctx: SlackContext, shown: { readonly username?: string }): stri
 /** Posts `text` in a resolved conversation (a thread when `threadTs`), audited. */
 async function post(ctx: SlackContext, channel: ResolvedChannel, text: string, threadTs?: string) {
   const { text: plain, stripped } = stripMentions(text);
-  if (plain.trim() === '')
-    return refused('The message is empty once its mentions of everyone are taken out.');
+  if (plain.trim() === '') return refused('The message has no text: write what to post.');
   return inChannel(ctx, channel, async () => {
     const shown = postedAs(ctx);
     const posted = await ctx.api.postMessage(ctx.signIn, {
@@ -45,7 +44,7 @@ async function post(ctx: SlackContext, channel: ResolvedChannel, text: string, t
       entityId: `${posted.channel}/${posted.ts}`,
       changes: [
         { field: 'channel', new: channelWords(channel) },
-        ...(threadTs === undefined ? [] : [{ field: 'thread', new: threadTs }]),
+        ...(threadTs === undefined ? [] : [{ field: 'thread', new: `${posted.channel}/${threadTs}` }]),
         { field: 'text', new: excerpt(plain) },
         ...(stripped.length === 0 ? [] : [{ field: 'mentionsStripped', new: stripped }]),
       ],

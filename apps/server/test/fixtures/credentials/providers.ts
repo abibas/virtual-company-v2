@@ -42,6 +42,15 @@ export const json =
       headers: { 'content-type': 'application/json', ...headers },
     });
 
+/** A call's body: its JSON, or its text as sent (Slack's form-encoded arguments, S7.1e). */
+function bodyOf(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 export class FakeProvider {
   readonly calls: ProviderCall[] = [];
   readonly #queued = new Map<string, Answer[]>();
@@ -90,7 +99,7 @@ export class FakeProvider {
 
   readonly fetch: typeof fetch = async (input, init) => {
     const url = String(input);
-    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+    const body = typeof init?.body === 'string' ? bodyOf(init.body) : undefined;
     const headers = Object.fromEntries(new Headers(init?.headers).entries());
     const call = {
       url,
