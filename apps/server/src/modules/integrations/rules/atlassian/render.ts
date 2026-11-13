@@ -3,7 +3,9 @@ import type { ConfluencePage, JiraIssue } from '@mwc/tools-core';
 /**
  * What an Atlassian tool answers (S7.1c): JSON an agent reads, trimmed to what it needs. Empty fields are left out; a
  * long description, page body or comment is cut with a note of how much was left out; other fields Jira gave are kept
- * short; the whole answer stays under the turn's tool result limit.
+ * short; the whole answer stays under the turn's tool result limit, and under the runner's socket line once it is
+ * escaped as JSON and written as UTF-8 (64 KB: a long answer in Cyrillic or full of quotes would pass the characters'
+ * limit and not that one).
  */
 
 /** How much of each long text an answer keeps. */
@@ -19,6 +21,9 @@ export const TEXT_LIMITS = {
 
 /** The longest answer: under the tool result's 50 000 characters, with room for its note. */
 export const ANSWER_MAX = 48_000;
+
+/** The most bytes an answer takes as a JSON string in UTF-8: under the runner's 64 KB socket line, with room. */
+export const ANSWER_BYTES = 56_000;
 
 /** A text cut to `max` characters, saying how many more there were. */
 export function cut(text: string, max: number): string {
@@ -67,9 +72,16 @@ export function issueView(issue: JiraIssue, listed = false) {
 export const pageView = (page: ConfluencePage) =>
   compact({ ...page, body: cut(page.body, TEXT_LIMITS.body) });
 
-/** The answer's text: its JSON, cut to `ANSWER_MAX` (ask for less, or a page at a time). */
+/** True when a text fits an answer: its characters, and its bytes as a JSON string. */
+const fits = (text: string) =>
+  text.length <= ANSWER_MAX && Buffer.byteLength(JSON.stringify(text)) <= ANSWER_BYTES;
+
+/** The answer's text: its JSON, cut to fit (`ANSWER_MAX`, `ANSWER_BYTES`), saying so: ask for less, or a page at a time. */
 export function answer(value: unknown): string {
   const text = JSON.stringify(value, null, 1);
-  if (text.length <= ANSWER_MAX) return text;
-  return `${text.slice(0, ANSWER_MAX)}\n…[cut: the answer was ${text.length} characters; ask for fewer results or fields]`;
+  if (fits(text)) return text;
+  const note = `\n…[cut: the answer was ${text.length} characters; ask for fewer results or fields]`;
+  let keep = Math.min(text.length, ANSWER_MAX);
+  while (keep > 0 && !fits(text.slice(0, keep) + note)) keep = Math.floor(keep * 0.9);
+  return text.slice(0, keep) + note;
 }

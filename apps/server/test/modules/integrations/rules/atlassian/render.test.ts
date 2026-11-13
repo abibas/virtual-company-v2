@@ -1,6 +1,7 @@
 import type { JiraIssue } from '@mwc/tools-core';
 import { describe, expect, it } from 'vitest';
 import {
+  ANSWER_BYTES,
   ANSWER_MAX,
   answer,
   compact,
@@ -93,5 +94,13 @@ describe('what an Atlassian tool answers', () => {
     const long = answer({ text: 'x'.repeat(ANSWER_MAX) });
     expect(long.length).toBeLessThan(ANSWER_MAX + 100);
     expect(long).toContain('ask for fewer results or fields');
+  });
+
+  it('keeps an answer under the runner’s socket line, escaped and in UTF-8 (Cyrillic, quotes)', () => {
+    for (const text of ['ж'.repeat(40_000), '"'.repeat(40_000)]) {
+      const cutText = answer({ text });
+      expect(Buffer.byteLength(JSON.stringify(cutText))).toBeLessThanOrEqual(ANSWER_BYTES);
+      expect(cutText).toContain('ask for fewer results or fields');
+    }
   });
 });
