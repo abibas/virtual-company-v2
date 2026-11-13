@@ -8,18 +8,20 @@ import { type Connection, type InboundDeps, postIn } from './context.ts';
  * What receiving a Slack message reads of Slack and says back (2026-11-13): where the message is, who wrote it and the
  * names its mentions stand for (with `users:read`), the 👀 reaction before a turn (with `reactions:write`), and a short
  * notice in the message's thread, each kind at most once an hour. Slack's refusals are logged, never thrown: a notice
- * or a name is not worth failing a message for, but a token Slack no longer takes marks the sign-in.
+ * or a name is not worth failing a message for.
  */
 
 export const NOTICE_EVERY_MS = 60 * 60_000;
 /** The most people one message's names are looked up for. */
 export const NAMES_MAX = 10;
 
-/** Logs Slack's refusal (and marks a sign-in Slack no longer takes); anything else is thrown. */
+/**
+ * Logs Slack's refusal; anything else is thrown. A refused token is not marked here: the connection may still hold the
+ * token a renewal just replaced (it opens the new one at its next sync); the daily check and the tools mark it.
+ */
 async function slackFailed(deps: InboundDeps, conn: Connection, error: unknown, what: string) {
   if (!isSlackError(error)) throw error;
   deps.logger.warn({ credentialId: conn.credentialId, code: error.code, slackError: error.slackError }, what);
-  if (error.code === 'needs_sign_in') await deps.credentials.needsSignIn(conn.credentialId, conn.ownerUserId);
 }
 
 /** Where the message is: a DM by its id, else the conversation Slack describes (its name; a group DM). */

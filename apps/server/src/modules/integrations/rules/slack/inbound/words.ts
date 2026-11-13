@@ -14,9 +14,12 @@ export interface Place {
   readonly dm: boolean;
 }
 
-/** A place in words: `#general`, `a DM`, `a group DM`. */
-export const placeWords = (place: Place) =>
-  place.name !== null ? `#${place.name}` : place.id.startsWith('D') ? 'a DM' : 'a group DM';
+/** A place in words: `#general`, `a DM`, `a group DM`; a channel Slack did not name, by its id. */
+export const placeWords = (place: Place) => {
+  if (place.name !== null) return `#${place.name}`;
+  if (place.id.startsWith('D')) return 'a DM';
+  return place.dm ? 'a group DM' : `#${place.id}`;
+};
 
 /** Where an agent may not post, in a notice: `#general`, or `direct messages`. */
 const postWhere = (place: Place) => (place.dm ? 'direct messages' : placeWords(place));
@@ -29,7 +32,8 @@ export function oneLine(text: string, max: number): string {
 
 /** A Slack conversation's chat title: "Slack · #general · <first words>", "Slack · DM · <first words>". */
 export function slackChatTitle(place: Place, asked: string): string {
-  const where = place.name !== null ? `#${place.name}` : place.id.startsWith('D') ? 'DM' : 'group DM';
+  const where =
+    place.name === null && place.dm ? (place.id.startsWith('D') ? 'DM' : 'group DM') : placeWords(place);
   const head = `Slack · ${where}`;
   const words = oneLine(asked, CHAT_TITLE.max);
   return words === '' ? oneLine(head, CHAT_TITLE.max) : oneLine(`${head} · ${words}`, CHAT_TITLE.max);

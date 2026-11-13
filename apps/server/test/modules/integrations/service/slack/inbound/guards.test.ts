@@ -21,6 +21,7 @@ import {
   postsOf,
   putInbound,
   rawChannel,
+  slackError,
 } from '../../../../../fixtures/integrations/slack-inbound.ts';
 import {
   boxDriver,
@@ -167,6 +168,32 @@ describe('the agent’s profile', () => {
     const fresh = { ...s, conn: w.sockets.latest() };
     expect(await woke(fresh)).toBe(true);
     expect(callsOf(w, 'reactions.add')).toHaveLength(1);
+  });
+});
+
+describe('Slack refusing', () => {
+  it('its reads and the reaction still wakes the agent, by the names and ids it has; a notice it refuses is logged', async () => {
+    const s = await inboundScene(w, { rights: { channels: 'all' } });
+    answerSlack(w, {
+      'conversations.info': slackError('channel_not_found'),
+      'users.info': slackError('user_not_found'),
+      'reactions.add': slackError('already_reacted'),
+    });
+    await s.conn.deliver(message());
+    const start = await runnerOf(s).frames.next('turn.start');
+    expect(start.spec.prompt.split('\n')[0]).toContain(`Slack message from Ihor Herasko in #${GENERAL} (`);
+    endTurn(runnerOf(s), start.turnId);
+    expect(w.logs.map((line) => line.msg)).toEqual(
+      expect.arrayContaining([
+        'slack inbound: could not read a conversation',
+        'slack inbound: could not read a person',
+        'slack inbound: could not react to a message',
+      ]),
+    );
+    const named = await inboundScene(w, { rights: { post: false } });
+    answerSlack(w, { 'chat.postMessage': slackError('not_in_channel') });
+    expect(await woke(named)).toBe(false);
+    expect(w.logs.some((line) => line.msg === 'slack inbound: could not post a notice')).toBe(true);
   });
 });
 

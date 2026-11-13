@@ -107,8 +107,12 @@ export function recorder() {
     statuses,
     messages,
     handlers: {
-      onStatus: (s: SlackSocketStatus) => statuses.push(s),
-      onMessage: (m: SlackInboundMessage) => messages.push(m),
+      onStatus: (s: SlackSocketStatus) => {
+        statuses.push(s);
+      },
+      onMessage: (m: SlackInboundMessage) => {
+        messages.push(m);
+      },
     },
     /** The states told so far. */
     states: () => statuses.map((s) => s.state),

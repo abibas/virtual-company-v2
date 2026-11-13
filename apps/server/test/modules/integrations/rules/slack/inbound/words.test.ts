@@ -19,8 +19,15 @@ const DM = { id: 'D0DM', name: null, dm: true };
 const GROUP = { id: 'G0GROUP', name: null, dm: true };
 
 describe('a place', () => {
-  it('is a channel’s name, a DM or a group DM', () => {
-    expect([GENERAL, DM, GROUP].map(placeWords)).toEqual(['#general', 'a DM', 'a group DM']);
+  it('is a channel’s name, a DM, a group DM, or a channel’s id when Slack did not name it', () => {
+    const unnamed = { id: 'C0SECRET1', name: null, dm: false };
+    expect([GENERAL, DM, GROUP, unnamed].map(placeWords)).toEqual([
+      '#general',
+      'a DM',
+      'a group DM',
+      '#C0SECRET1',
+    ]);
+    expect(slackChatTitle(unnamed, 'hi')).toBe('Slack · #C0SECRET1 · hi');
   });
 });
 
