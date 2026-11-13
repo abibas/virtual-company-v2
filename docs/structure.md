@@ -70,7 +70,7 @@ Most_Wanted_corp_v2/
 │   ├── harness-codex/              Codex HarnessDriver, its parser, fixtures (built) S5.1a
 │   ├── atlassian/                  Jira v3 and Confluence v2 for the AtlassianApi, ADF ⇄ Markdown (built) S7.1c
 │   ├── github/                     api.github.com for the GitHubApi (built)    S7.1d
-│   ├── slack/                      slack.com/api for the SlackApi (built)      S7.1e
+│   ├── slack/                      slack.com/api for the SlackApi, Socket Mode (built) S7.1e
 │   └── gateway/                                                                S7
 ├── deploy/                         Dockerfiles, compose, later Kubernetes
 └── docs/                           architecture, roadmap, ports, schema, testing, structure, subscriptions, harness
@@ -328,7 +328,10 @@ module's (S6c) is `modules/tasks/repo/wakes-due.ts`, in the same exemption: the 
 events and finds the flows whose window passed (and the sign-offs waiting too long) in any company, then reads, tells and
 marks each flow's events through that company's tenant. The credentials module's (S7.1a) is
 `modules/credentials/repo/checks-due.ts`, in the same exemption: the jobs loop finds the tool sign-ins due for their
-daily check across every person, then opens, checks and changes each through its owner's personal layer.
+daily check across every person, then opens, checks and changes each through its owner's personal layer. The
+integrations module's (2026-11-13) is `modules/integrations/repo/slack-inbound-all.ts`, in the same exemption: the
+server's Slack connections find every bot sign-in whose receiving is on, then read and change each through its owner's
+personal layer.
 
 Raw, unscoped access (`createDb`, `migrateToLatest`, `queryRows`, `rawDb(handle)`, and `tenantOf(rawDb, companyId)`,
 a tenant on a raw database or an open transaction) is `@mwc/db/system`, for the

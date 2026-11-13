@@ -808,7 +808,8 @@ tools the **server** answers; the token is opened on the server for each call an
 - **One form** (Subscriptions → Tools → Add a tool → Slack, **Bot or user token**): `POST /api/me/subscriptions/tools`
   with `{ kind: 'slack', label?, token }`. The prefix decides the kind: `xoxb-` is `slack_bot_token`, `xoxp-`
   `slack_user_token` (`slackKindOf` of `@mwc/shared/credentials`); anything else (an app-level `xapp-` token, a legacy
-  token, spaces, other characters) is a 400 before Slack is asked. A renewal (`credentialId`) keeps its kind: a user token
+  token, spaces, other characters) is a 400 before Slack is asked. An app-level token goes on the bot's card, under
+  Receive messages ("Slack: receiving messages" below). A renewal (`credentialId`) keeps its kind: a user token
   for a bot's sign-in is 422 `tool_kind_mismatch`.
 - **The check:** `POST https://slack.com/api/auth.test` with the token as the bearer. Slack answers 200 with `{ok: true}`
   and the workspace (`team`, `team_id`, `url`), who the token is (`user`, `user_id`) and a bot's id (`bot_id`); the scopes
@@ -947,6 +948,163 @@ a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as
    agent's profile reaches".
 6. Back on **Profiles**, switch **Post** on. In the chat: "post a test message in #<channel>". It calls
    `slack_post_message`; the message shows under TEST DEV's name, with no footer.
+
+## Slack: receiving messages
+
+Built 2026-11-13 (Ihor: his bot, "Airia BRO", posted for TEST DEV; he replied in Slack ("Thx brother! Tell me a joke")
+and mentioned it ("@Airia BRO Bro are you there?"), and nothing answered: "please enable it… we have to think how to
+natively link it… so we have an agent sitting and monitoring for things like that"). A Slack bot sign-in can now
+**receive** messages: a DM to the bot, a mention of it, or a reply in an agent's thread wakes an agent, whose final reply
+is posted back in that thread under its name. No public address is needed: the server keeps a Socket Mode connection.
+
+### The Slack app's setup
+
+In the Slack app (api.slack.com/apps → the app):
+
+1. **Settings → Socket Mode** → Enable Socket Mode, and create an app-level token with the scope `connections:write`
+   (it starts with `xapp-`). Copy it.
+2. **Event Subscriptions** → Enable Events → **Subscribe to bot events**: `app_mention`, `message.im`,
+   `message.channels`, `message.groups`. (With Socket Mode on, no request URL is asked for.)
+3. **App Home** → **Messages Tab** on, and tick **Allow users to send Slash commands and messages from the messages
+   tab**, so people can DM the bot.
+4. **OAuth & Permissions** → Bot Token Scopes: `app_mentions:read`, `im:history`, `channels:history`,
+   `groups:history`, besides the ones the agents' rights use ("The Slack app's scopes" above: `chat:write`,
+   `chat:write.customize` to answer under the agent's name, `reactions:write` for the 👀, `users:read` for people's
+   names, `users:read.email` to find a person by email).
+5. **Reinstall to Workspace** (Slack asks after a scope or an event changes), then on the Slack card **Check again**
+   so the new scopes are kept. Invite the bot to the channels it should hear (`/invite @<bot>`).
+
+### On the card (Subscriptions → Tools, a Slack bot's card)
+
+- **Receive messages**: the switch, the connection's status (Connecting, Connected, Disconnected or Error, with Slack's
+  words under it: "Slack refused the app-level token (invalid_auth): create a new one with connections:write and paste
+  it.", "Socket Mode is off for this Slack app: …"), and the **app-level token** field (`xapp-`, sealed, never shown
+  again: then "App-level token set", Replace, Remove). The switch needs the token; removing the token stops receiving.
+- **Who can wake agents**: **Anyone in the allowed channels** (the channels the answering agent's profile reaches) or
+  **Only these people** (the default): Slack people as chips with their avatars, added by a search of the workspace
+  (a name among `users.list`'s people, an email with `users.lookupByEmail`; no bots or deactivated people). Before the
+  settings are first saved, the list holds the owner's own Slack person when one of their user tokens of the same
+  workspace names it (its `auth.test`'s user); else it starts empty, and nobody wakes an agent until someone is added.
+- **Default agent**: any agent of the owner's companies whose profile's Slack part uses this sign-in.
+- **At most N answers an hour** (1 to 500, 30 by default), with the last hour's count.
+
+The API: `GET`/`PUT /api/me/subscriptions/{credentialId}/slack-inbound` (`appToken`, write-only, null removes it;
+`inbound`, `wake`, `people`, `defaultAgent`, `maxPerHour`; 422 `app_token_missing`, `agent_not_eligible`,
+`not_a_slack_bot`, `credential_revoked`), `GET …/slack-people?q=` (a use `slack_people`; 422 `slack_refused` with
+Slack's words, 502 `provider_unavailable`). Personal and session-only like the sign-ins; audited per field, the token
+as `set`, never its value.
+
+### Socket Mode (`connectors/slack`, `socket.ts`)
+
+`apps.connections.open` with the app-level token gives a `wss://…slack.com` address (any other is refused); Slack says
+`hello`, then sends envelopes. Each envelope is **acked at once** (`{envelope_id}`, within Slack's 3 s), before anything
+else; one seen before (its envelope id, or its event's id, since Slack sends an event again when an ack came late) is
+acked and dropped. A `disconnect` (Slack refreshes connections every few hours, and warns first) opens a new connection
+at once; `link_disabled` (Socket Mode turned off) stops it in words. A connection that closes or says no hello in 30 s
+is opened again after a backoff (1 s, doubling to a minute, back to 1 s after a hello). A refused token stops it in
+words; Slack being away retries. The connector reads the message events into `SlackInboundMessage` (`@mwc/tools-core`,
+`slack/socket.ts`); `fetch`, the WebSocket and the timers are injected.
+
+The server (`modules/integrations/service/slack/inbound/connections.ts`) keeps one connection per bot sign-in whose
+receiving is on, in the process that runs the chats and its background work (MWC_JOBS): opened at start, synced every
+5 minutes (the one raw read, `repo/slack-inbound-all.ts`, in the Biome exemption) and at once when the settings are
+saved; reopened for a new app token or a renewed sign-in (Sign in again); closed when receiving is turned off or the
+sign-in goes. It opens the bot sign-in for Socket Mode (a use `socket_mode`) and holds the token for its messages' reads
+and notices. Its status is written on its row (`slack_connections.status`, `status_message`) for the card. A server
+without background work stores the settings and says it keeps no connection (`receiving: false`).
+
+### Which messages wake an agent (`handle.ts`, rules `rules/slack/inbound/`)
+
+- **Wakes:** a DM to the bot (`message.im`), a mention of the bot (`app_mention`, or a channel message holding
+  `<@bot>`), and a reply in a thread (`message.channels`, `message.groups`) when an agent of ours is in that thread.
+  A mention comes as two events (`app_mention` and `message`): handled once, by `<channel>/<ts>`.
+- **Never:** the bot's own messages, other bots', edits and deletions (`edited`, `message_changed`,
+  `message_deleted`), other subtypes (joins, topics; a thread broadcast and a file share are a person's message), and a
+  person the wake rule does not allow (logged, nothing said). Messages are handled one at a time per connection, so two
+  in one thread go to one chat.
+- **Who answers**, in this order: the agent named right after the bot's mention (**`@Bot @Developer …`**, its name or
+  slug, any case, the longest that fits, among the owner's companies' agents, the default agent's company first); for
+  **a reply in a thread**, the agent that last posted there through this sign-in (`slack_posts`: its tools' posts and
+  replies, and its answers), else an agent whose chat that thread is (woken there before it answered), else the agent
+  whose name the bot posted the thread's first message under (`conversations.replies`, for posts made before this);
+  else the connection's **default agent** (a fresh mention or a DM). A reply in a thread no agent of ours is in is left
+  alone; a mention there goes to the default agent. No default agent: "No agent answers here yet: choose a default
+  agent on this Slack sign-in's card in Most Wanted (Subscriptions → Tools)." once an hour.
+- **The agent's profile** must have a Slack part on this sign-in, as its token's scopes let its rights work: a channel
+  outside its channels, or a DM while its DMs are off, is **ignored**; a channel in them without read and post, a DM
+  with DMs `read`, or no Slack part on this bot is answered once an hour: "TEST DEV isn't allowed to post in #x." ("…
+  in direct messages.").
+- **The hourly cap**: the connection's wakes in the last hour (`credential_uses` purpose `inbound`) at its cap is said
+  once ("This Slack connection is at its 30 answers an hour: agents answer here again within the hour."), then silence
+  for that hour.
+- **No loops**: nothing the bot or another bot posts wakes anyone.
+
+### The turn and its answer
+
+- **👀** on the message first, when the bot has `reactions:write`.
+- **The chat**: one per agent and Slack conversation, a channel's thread (a fresh mention's own message starts it) or a
+  DM itself for its messages in no thread (`slack_threads`), kept across its messages (Keep context): the turn resumes
+  its conversation. It is one of the agent's own chats, in its chat list, titled "Slack · #channel · <first words>"
+  ("Slack · DM · …"), made by Most Wanted (audited as the system); one that cannot go on (archived, the agent moved to
+  another machine or harness) is replaced by a new one (the chats module's `InboundChats`).
+- **The prompt**: one header line, then the message with its mentions rendered as names (`users.info`, with
+  `users:read`), channels as `#name` and links as `label (address)`: "Slack message from Ihor Herasko in #general
+  (https://airia.slack.com/archives/C…/p…). Your final reply is posted in that thread under your name."
+- **The turn** is one Most Wanted queues (`system`, the agent as its sender), after any turn running there; slots are
+  waited for as usual. **Machines**: a Slack message counts as a message for the machine's power policy (its "start for
+  a message" switch decides), and the power log says "Started for a Slack message from Ihor Herasko in #general".
+- **The answer**: when the turn ends done, its final reply is posted in the same thread (or DM) under the agent's name
+  and emoji icon (a bot with `chat:write.customize`, as its tools post; mentions of many people stripped), unless the
+  agent already posted there in that turn with `slack_reply_to_thread` or `slack_post_message`. A failed turn, or one
+  that could not start (a paused agent, no placement, a stopped machine its policy does not start, a turn that waited
+  and could not start) answers "Couldn't answer: <short reason>"; a stopped turn says nothing (the chats module's
+  `InboundTurnHook`, told of every system turn's end).
+- **Records**: each wake is a `credential_uses` row `inbound` (the company, the agent, the chat, the agent as the one
+  asking) and audited in the company by the system on `slack_message` `<channel>/<ts>` (action `slack_inbound`: from,
+  place, agent, chat, text); each answer opens the sign-in for `inbound_reply` and is audited as the agent
+  (`slack_reply`, `slack_reply_failed`); the agents' posts are kept in `slack_posts`.
+
+### The data (migration `0037_slack_inbound`)
+
+- `slack_connections` (personal, one per bot sign-in, gone with it): the app token sealed in `app_key_version`,
+  `app_iv`, `app_auth_tag`, `app_ciphertext` (AES-256-GCM, the additional data `slack_app_token|<credential>|<owner>`;
+  all or none), `inbound` (only with a token), `wake`, `people` (at most 50), `default_company_id` and
+  `default_agent_id` (both or neither), `max_per_hour` (1 to 500), `status` and `status_message`, `status_at`.
+- `slack_posts` (personal, gone with the sign-in): an agent's message in Slack (`channel_id`, `ts`, `thread_ts`, the
+  company, agent, chat and turn as plain ids), one per message.
+- `slack_threads` (a company's): an agent's chat for a Slack conversation through a sign-in (`channel_id`, `thread_ts`,
+  null for a DM itself, `place` in words), unique per agent, sign-in, channel and thread (nulls not distinct).
+
+### Tests
+
+`connectors/slack/test/socket.test.ts` and `socket/frames.test.ts` (a fake Socket Mode server and a fake fetch: acks,
+dedupe, refreshes, `link_disabled`, the backoff and its reset, the hello timeout, refused tokens, close);
+`apps/server/test/modules/integrations/service/slack/inbound/` on a fake Socket Mode (`FakeSockets`), the fake provider
+and the fake runner: `reply.test.ts` (the turn, its chat and prompt, the answer, the same chat for the thread, no double
+post, failures, a stop, a DM, an archived chat), `route.test.ts` (`@Bot @Agent`, a thread's poster and first message,
+a thread not ours, the default agent, none), `guards.test.ts` (the wake rule, ignored senders, bots and self, the
+double event, channel and DM rights, 👀, the cap, a stopped machine, the audit), `connections.test.ts` (opening with
+the sealed token, statuses, off and on, a new token, the sync, a renewed or revoked sign-in); `routes.test.ts` (the
+settings, their refusals and audit, the people search); the rules; `packages/db/test/schema/slack.test.ts`.
+
+### How to test it (Ihor)
+
+1. Merge, then restart the dev API (`pnpm dev`): migration `0037_slack_inbound` runs on start. The runner did not
+   change.
+2. Set up the Slack app as "The Slack app's setup" above (Socket Mode and its `xapp-` token, the four bot events, the
+   Messages Tab, the four scopes, reinstall), then **Check again** on the Slack card.
+3. **Subscriptions** → **Tools** → the Slack bot's card → **Receive messages**: paste the `xapp-` token and **Save**,
+   switch **Receive messages** on (it shows Connected), keep **Only these people** with yourself listed, and pick
+   **TEST DEV** as the **Default agent**. TEST DEV's profile needs its Slack part with **Read** and **Post** on in
+   that channel (Profiles).
+4. In Slack, reply in the thread under TEST DEV's earlier post ("Thx brother! Tell me a joke"): 👀 appears, then TEST
+   DEV answers in the thread. Its chat "Slack · #… · …" shows in TEST DEV's chats.
+5. Mention the bot fresh in the channel ("@Airia BRO Bro are you there?"): the default agent answers in a thread under
+   your message.
+6. `@Airia BRO @Developer hi`: Developer answers, if its profile has a Slack part on this bot; else the bot says
+   "Developer isn't allowed to post in #…".
+
+**Later**: Slack may mirror the team structure (a channel per team), and a team's room could hear its channel.
 
 ## Security
 

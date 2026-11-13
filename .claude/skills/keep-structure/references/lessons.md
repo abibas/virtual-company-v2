@@ -28,6 +28,27 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-13: Receiving Slack messages: a module that holds sockets, and a second end hook in the chats
+
+- **What happened:** the server keeps a Socket Mode connection per Slack bot sign-in. The client went to the connector
+  (`connectors/slack/src/socket.ts` 187 lines, `socket/frames.ts`, `socket/options.ts`) behind a port in
+  `tools-core/src/slack/socket.ts`; the connections themselves (start, a 5-minute sync, status rows) went to the
+  integrations module's `service/slack/inbound/connections.ts` (171), with a raw read across people
+  (`repo/slack-inbound-all.ts`, in the Biome exemption) and a second repo file (`repo/slack-inbound.ts`, 205). The
+  placement table has no row for "a long-lived connection to an outside system that a module owns". `app.ts` reached
+  307 lines composing it, so the composition moved to the module (`service/slack/inbound/start.ts`, `slackReceiving`)
+  and `app.ts` is 264. The chats module got `InboundChats` (a turn in an agent's chat for an outside conversation) and
+  `InboundTurnHook` beside `TaskTurnHook.systemEnded`, told from `live-end.ts`, `drain.ts` and `machine-wait.ts`
+  (229 lines); `turns.ts` went 270 → 273.
+- **Where:** the `slack-inbound` branch.
+- **What was done:** as above.
+- **Suggested change:** placement rows "a long-lived connection to an outside system (a socket) → its client in the
+  connector behind a `*-core` port, its lifecycle in the owning module's `service/<system>/`, started by a
+  `start.ts` the module exports to `app.ts`" and "an outside message that starts an agent's turn → the chats module's
+  `InboundChats`, its end through `InboundTurnHook`"; at the next review, consider one list of system-turn listeners
+  in the chats module instead of `systemEnded` plus `InboundTurnHook`.
+- **Status:** `open`.
+
 ### 2026-11-13: S7.1d's GitHub tools beside Atlassian's, and a shell script the runner carries
 
 - **What happened:** GitHub's server tools reused Atlassian's answer and reply helpers, which lived under

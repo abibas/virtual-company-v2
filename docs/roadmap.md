@@ -887,6 +887,20 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          limits, `invalid_auth`, uses and audit), the tool limit with old and new runners, the migration.
        - **Later** (Ihor, 2026-11-13): Slack may help mirror the team structure, a channel per team for example. Not
          built.
+       - **Receiving messages, built 2026-11-13** (Ihor: "please enable it… we have to think how to natively link it… so
+         we have an agent sitting and monitoring for things like that"; docs/subscriptions.md "Slack: receiving
+         messages"; waiting for his live test): a Slack bot sign-in's app-level token (`xapp-`, sealed in
+         `slack_connections`, migration `0037_slack_inbound`) keeps a **Socket Mode** connection (the connector acks
+         every envelope at once, drops Slack's repeats, reconnects with a backoff and on Slack's refresh), in the server
+         that runs the chats (MWC_JOBS). A DM to the bot, a mention, or a reply in an agent's thread from someone allowed
+         (only the people listed by default, the owner's own Slack person first; or anyone in the profile's channels)
+         wakes `@Bot @Agent`'s agent, the thread's agent (its recorded posts, `slack_posts`), or the default agent, in a
+         chat of its own for that thread (`slack_threads`, Keep context, in its chat list), with 👀 first; its final
+         reply is posted in the thread under its name unless it posted there itself, "Couldn't answer: …" on a failure.
+         Guards: the agent's profile's channels and DM rights (outside ignored, without post said once), the hourly cap
+         (30, said once), no bots or self, a stopped machine started only by its policy for a message; each wake an
+         `inbound` use, audited. Web: the Slack card's Receive messages (the token, the switch and status, who can wake
+         agents with a people picker, the default agent, the cap). The runner did not change.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.

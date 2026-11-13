@@ -1419,6 +1419,15 @@ checks and refusals, the credential's use, the standing instructions, the stream
   server's start, a waiting message of a task's conversation where nothing runs fails (`app.ts`'s `reapTurns`) and is
   reported to the hook the same way.
 
+## Slack conversations
+
+Since 2026-11-13 a Slack message can start an agent's turn (docs/subscriptions.md "Slack: receiving messages"): the
+integrations module asks the chats module's `InboundChats` for a turn in the agent's chat for that Slack conversation
+(kept while it can go on, else a new one with the title given, made by Most Wanted), sent as a turn Most Wanted queued
+(`system`, the agent as its sender) "after this turn", with the machine-wake trigger `message`. Every system message
+turn's end is told to `InboundTurnHook` (from the live end, and for a turn that failed while it waited for its machine
+or in the queue), which posts the answer back in Slack.
+
 ## Your direct reports in the rail
 
 Built 2026-11-12 (Ihor's ask: "a chat to PM … in shortcuts for me … chats with my direct reports"). The chats he has all

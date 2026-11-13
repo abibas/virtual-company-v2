@@ -63,7 +63,7 @@ connectors/identity-oidc    @mwc/identity-oidc   other identity providers (OIDC)
 connectors/harness-claude-code, harness-codex   the HarnessDriver for each CLI
 connectors/atlassian        @mwc/atlassian       Jira v3 and Confluence v2 for tools-core's AtlassianApi (S7.1c: the agents' Atlassian tools)
 connectors/github           @mwc/github          api.github.com for tools-core's GitHubApi (S7.1d: the agents' GitHub tools)
-connectors/slack            @mwc/slack           slack.com/api for tools-core's SlackApi (S7.1e: the agents' Slack tools)
+connectors/slack            @mwc/slack           slack.com/api for tools-core's SlackApi (S7.1e: the agents' Slack tools) and Socket Mode (receiving messages)
 connectors/gateway          the outside systems of S7
 deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper), later Dockerfile.runner and Kubernetes
 docs/                       architecture, roadmap, ports, structure, testing, clerk-setup, mcp (adding @mwc/mcp to your own Claude Code), schema (generated); later runner-protocol, harness
