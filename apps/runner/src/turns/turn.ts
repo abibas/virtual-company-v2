@@ -8,6 +8,7 @@ import { type Kept, spawnKeeper } from './runs/kept.ts';
 import {
   endFrame,
   metaOf,
+  missingSession,
   rewrittenLogin,
   sendArtifacts,
   startFailure,
@@ -34,8 +35,9 @@ export { TOOL_ENDING, TOOL_LOST, TOOL_NO_ANSWER, TOOL_OFFLINE, TOOL_REPLY_MS } f
  * the output again up to where its log got; a dropped link only holds its frames back until the server says where to
  * resume (`attach`). When the keeper ends: the parser's last events, then the task step's files and `turn.end` once the
  * turn is attached (the Codex login the process rewrote goes back as `authJson`); the run folder goes when the server
- * acknowledges the end. `stop` walks the ladder on the keeper's process group: SIGINT, SIGTERM 10 s later, SIGKILL 20 s
- * after the SIGINT, each only while the keeper is still there (never a pid that may no longer be the turn's). The agent's
+ * acknowledges the end; a conversation it resumed that is not here ends it `session_missing`, with no failing
+ * result (`missingSession`), and a start's `afterSeq` numbers its events after the server's. `stop` walks the ladder on
+ * the keeper's process group: SIGINT, SIGTERM 10 s later, SIGKILL 20 s after the SIGINT, each only while the keeper is still there (never a pid that may no longer be the turn's). The agent's
  * calls of the agents' tools (S6a) go to the server and back through `turn/tools.ts`; a call still waiting when the turn
  * ends, is let go of or loses its link is answered that it may not have taken effect.
  */
@@ -102,6 +104,8 @@ export class TurnProcess {
   start(launch: TurnLaunch): void {
     const { process } = launch;
     const { folder, cwd } = this.#parts;
+    const afterSeq = launch.afterSeq ?? 0;
+    this.#events.resumeAfter(afterSeq);
     const kept = spawnKeeper(this.#deps.spawn, launch.keeper, {
       dir: folder.dir,
       command: process.command,
@@ -109,7 +113,8 @@ export class TurnProcess {
       cwd,
       env: launch.env,
     });
-    if (kept.pid !== undefined) this.#writeMeta(metaOf(this.turnId, this.#parts, kept.pid, launch.startedAt));
+    if (kept.pid !== undefined)
+      this.#writeMeta(metaOf(this.turnId, { ...this.#parts, afterSeq }, kept.pid, launch.startedAt));
     this.#hold(kept);
     this.#input.begin(process.stdin);
     this.#output.push(process.notices);
@@ -127,7 +132,7 @@ export class TurnProcess {
     this.#events.detach();
     const { folder } = this.#parts;
     const log = logState(folder.events());
-    this.#events.resumeAfter(log.lastSeq);
+    this.#events.resumeAfter(Math.max(log.lastSeq, meta.afterSeq ?? 0));
     this.#input.restore(folder.inputs());
     this.#deps.log.info('turn taken back', {
       turnId: this.turnId,
@@ -235,7 +240,9 @@ export class TurnProcess {
     const detail =
       startFailure(this.#spawnError, this.#exit) ??
       stderrTail(this.#deps.readAt, this.#parts.folder.path('err'));
-    this.#output.end(this.#exit?.code ?? null, detail);
+    this.#output.drain();
+    // A conversation that is not here gives no failing result: the server starts the turn afresh instead.
+    if (this.#missing() === undefined) this.#output.close(this.#exit?.code ?? null, detail);
     this.#input.close();
     this.#events.finish();
     this.#deps.ended(this.turnId);
@@ -258,10 +265,17 @@ export class TurnProcess {
       stopping: this.#stopping,
       result: this.#output.result,
       authJson: this.#login.authJson,
+      sessionMissing: this.#missing(),
     });
     send(end);
     const { ok, exitCode, error } = end;
     log.info('turn ended', { turnId, ok, exitCode, error, events: this.#events.lastSeq });
+  }
+
+  /** The harness's line saying the conversation it resumed is not here, read from its run folder (`missingSession`). */
+  #missing(): string | undefined {
+    const ended = { exit: this.#exit, spawnError: this.#spawnError, result: this.#output.result };
+    return missingSession(this.#parts, this.#deps.readAt, ended);
   }
 
   #done(): void {

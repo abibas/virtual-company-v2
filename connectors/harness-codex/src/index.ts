@@ -18,7 +18,7 @@ export {
 } from './args.ts';
 export { type CodexChild, readChild, scanChild } from './children.ts';
 export { configArg, configFlagArg, configListArg, configTableArg } from './config.ts';
-export { CodexDriver, type CodexDriverOptions } from './driver.ts';
+export { CODEX_SESSION_MISSING, CodexDriver, type CodexDriverOptions } from './driver.ts';
 export { type LiveOptions, LiveSubagents } from './follow/live.ts';
 export {
   DIRECT_PROVIDER_ID,

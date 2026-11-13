@@ -12,6 +12,7 @@ import type {
 } from './driver.ts';
 import type { HarnessError } from './errors.ts';
 import { failedResult, parseJsonLine } from './lines.ts';
+import { lineMatching } from './missing.ts';
 
 export {
   FAKE_HARNESS_BIN,
@@ -41,6 +42,9 @@ export interface FakeHarnessDriverOptions {
   readonly liveInput?: boolean;
 }
 
+/** The words a fake harness's process writes when the conversation it was to resume is not there. */
+export const FAKE_SESSION_MISSING = 'fake-harness: no saved conversation';
+
 /** The stdin line the fake driver gives a message mid-turn. */
 export const fakeInputLine = (text: string, id: string): string =>
   `${JSON.stringify({ type: 'fake_input', id, text })}\n`;
@@ -54,7 +58,7 @@ export const FAKE_TOOLS_FILE = 'tools.json';
  * options; with tools, a turn gets `--tools <dir>`, the tools' variables and `tools.json` (the MCP server's command) to
  * write in the turn's folder. Its parser reads lines that are `TurnEvent`s themselves (`fakeLines`), so the fake binary
  * can play any turn; with `liveInput` a turn keeps stdin open and takes messages as `fakeInputLine`s, its parser settled
- * after a result.
+ * after a result. A process that writes `FAKE_SESSION_MISSING` lost the conversation it resumed (`sessionMissing`).
  */
 export class FakeHarnessDriver implements HarnessDriver {
   readonly harness: Harness;
@@ -107,6 +111,10 @@ export class FakeHarnessDriver implements HarnessDriver {
 
   inputLine(text: string, id: string): string {
     return fakeInputLine(text, id);
+  }
+
+  sessionMissing(output: string): string | undefined {
+    return lineMatching(output, new RegExp(FAKE_SESSION_MISSING));
   }
 
   #throwQueued(): void {

@@ -336,3 +336,14 @@ describe('CodexDriver', () => {
     ]);
   });
 });
+
+describe('CodexDriver.sessionMissing', () => {
+  it("finds Codex's own words for a thread its home does not have, and nothing in any other failure", () => {
+    const driver = new CodexDriver();
+    const id = '019a0000-0000-7000-8000-000000000000';
+    const stderr = `Error: thread/resume: thread/resume failed: no rollout found for thread id ${id} (code -32600)\n`;
+    expect(driver.sessionMissing(stderr)).toBe(stderr.trim());
+    expect(driver.sessionMissing(`no rollout found for conversation id ${id}`)).toBeDefined();
+    expect(driver.sessionMissing('Error: unexpected status 401 Unauthorized')).toBeUndefined();
+  });
+});

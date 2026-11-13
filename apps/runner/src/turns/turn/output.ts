@@ -70,9 +70,19 @@ export class TurnOutput {
 
   /** The process ended: the rest of the output, a last line without its newline, then the parser's last events. */
   end(exitCode: number | null, detail: string): void {
+    this.drain();
+    this.close(exitCode, detail);
+  }
+
+  /** The rest of the output of a process that ended, a last line without its newline too. */
+  drain(): void {
     this.read();
     const rest = this.#journal.rest();
     if (rest !== undefined) this.#line(rest);
+  }
+
+  /** The parser's last events, once the output is drained (a failing result when the output gave none). */
+  close(exitCode: number | null, detail: string): void {
     this.push(this.#parser.end(exitCode, detail));
   }
 

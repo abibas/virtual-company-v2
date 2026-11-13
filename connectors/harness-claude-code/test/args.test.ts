@@ -193,7 +193,7 @@ describe('the runner’s tools', () => {
 });
 
 describe('unsetFor', () => {
-  it('removes every account variable the turn does not set, never the machine\'s own config folder', () => {
+  it("removes every account variable the turn does not set, never the machine's own config folder", () => {
     expect(unsetFor({})).toEqual([...CLAUDE_ACCOUNT_VARS]);
     expect(unsetFor({})).not.toContain('CLAUDE_CONFIG_DIR');
     expect(unsetFor({ CLAUDE_CODE_OAUTH_TOKEN: 't', CLAUDE_CONFIG_DIR: '/c' })).toEqual([

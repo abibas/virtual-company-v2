@@ -154,4 +154,11 @@ export interface HarnessDriver {
    * harness's echo of it once it takes it is an `input` event with `inputId` = `id`. Left out: no message mid-turn.
    */
   inputLine?(text: string, id: string): string;
+  /**
+   * The harness's own line saying a resumed conversation is not on this machine (Claude Code's "No conversation found
+   * with session ID: <id>", Codex's "no rollout found for thread id <id>"), found in what a failed process wrote (the end
+   * of its stderr, its failing result); undefined otherwise. The runner then ends the turn `session_missing`. Left out:
+   * such a failure is not told apart.
+   */
+  sessionMissing?(output: string): string | undefined;
 }

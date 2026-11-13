@@ -63,7 +63,8 @@ export const TURN_STOP_KILL_MS = 20_000;
  * Why a runner ended a turn by itself, the code at the start of `turn.end.error` (optionally followed by `: ` and
  * words): no such harness here, every slot taken, the agent's home folder missing, the driver refused the spec, the
  * process could not start, a person stopped it, the runner stopping (a new turn refused), the process ended without
- * its end being recorded (killed while the runner was away, S5.4).
+ * its end being recorded (killed while the runner was away, S5.4), the conversation it resumed is not on this machine
+ * (`session_missing: <the harness's own line>`, 2026-11-13: the server starts the chat afresh with a recap, once).
  */
 export const TURN_ERRORS = [
   'unsupported',
@@ -74,13 +75,19 @@ export const TURN_ERRORS = [
   'stopped',
   'runner_stopping',
   'process_lost',
+  'session_missing',
 ] as const;
 export type TurnError = (typeof TURN_ERRORS)[number];
 
-/** Server to runner: run one chat turn (`spec`, with its credential); `turn.events` and one `turn.end` follow. */
+/**
+ * Server to runner: run one chat turn (`spec`, with its credential); `turn.events` and one `turn.end` follow. `afterSeq`
+ * (2026-11-13): the turn's events are numbered after it, because the server keeps events of the turn already (its
+ * start again on a fresh conversation after `session_missing`, with the server's notice); absent: from 1.
+ */
 export const TurnStart = frame('turn.start', {
   turnId: Uuid,
   spec: TurnSpec,
+  afterSeq: z.int().min(0).optional(),
 });
 export type TurnStart = z.infer<typeof TurnStart>;
 

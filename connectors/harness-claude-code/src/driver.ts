@@ -4,6 +4,7 @@ import {
   checkTurn,
   type HarnessDriver,
   type LineParser,
+  lineMatching,
   type PrivateFile,
   type ProcessSpec,
   type TurnTools,
@@ -25,6 +26,12 @@ import { INPUT_ARGS, userLine } from './input.ts';
 import { instructionsFile } from './instructions.ts';
 import { ClaudeLineParser } from './parser.ts';
 import { settingsDir } from './settings.ts';
+
+/**
+ * Claude Code's words when `--resume <id>` names a conversation its config folder does not have (2.1.323, printed as it
+ * exits with 1): "No conversation found with session ID: <id>".
+ */
+export const CLAUDE_SESSION_MISSING = /No conversation found with session ID/;
 
 export interface ClaudeCodeDriverOptions {
   /** The `claude` program's full path, when the runner found it; `claude` on PATH otherwise. */
@@ -84,6 +91,10 @@ export class ClaudeCodeDriver implements HarnessDriver {
 
   inputLine(text: string, id: string): string {
     return userLine(text, id);
+  }
+
+  sessionMissing(output: string): string | undefined {
+    return lineMatching(output, CLAUDE_SESSION_MISSING);
   }
 
   #process(args: string[], spec: TerminalSpec, stdin: string | null, standing?: PrivateFile): ProcessSpec {

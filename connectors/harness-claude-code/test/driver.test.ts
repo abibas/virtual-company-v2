@@ -328,3 +328,15 @@ describe('ClaudeCodeDriver', () => {
     expect(driver.parser()).not.toBe(parser);
   });
 });
+
+describe('ClaudeCodeDriver.sessionMissing', () => {
+  it("finds Claude Code's own words for a conversation it does not have, and nothing in any other failure", () => {
+    const driver = new ClaudeCodeDriver();
+    const stderr = 'No conversation found with session ID: bbd9c214-eb92-4dc6-9aed-3c0ed9a71b67\n';
+    expect(driver.sessionMissing(stderr)).toBe(
+      'No conversation found with session ID: bbd9c214-eb92-4dc6-9aed-3c0ed9a71b67',
+    );
+    expect(driver.sessionMissing('API Error: 401 {"type":"error"}')).toBeUndefined();
+    expect(driver.sessionMissing('')).toBeUndefined();
+  });
+});

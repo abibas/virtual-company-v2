@@ -51,6 +51,8 @@ export interface TurnParts {
   readonly stdinOpen: boolean;
   /** A task step's outputs folder (S5.3b), collected when the process ends, before `turn.end`. */
   readonly artifacts?: ArtifactCollector | undefined;
+  /** The driver's reading of a failed process's words: the line saying its resumed conversation is not here. */
+  readonly sessionMissing?: ((output: string) => string | undefined) | undefined;
 }
 
 /** What starts a fresh turn's process. */
@@ -59,6 +61,8 @@ export interface TurnLaunch {
   readonly env: Readonly<Record<string, string>>;
   readonly keeper: KeeperCommand;
   readonly startedAt: number;
+  /** The number its events come after (`turn.start.afterSeq`); 0 or absent: from 1. */
+  readonly afterSeq?: number | undefined;
 }
 
 /**

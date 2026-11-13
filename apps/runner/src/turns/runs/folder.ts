@@ -70,6 +70,8 @@ export const RunMeta = z.object({
   ask: z.object({ dir: z.string().min(1), tokenSha256: Sha256 }).nullable(),
   /** Set once a stop began: a turn that ends without its exit recorded was stopped, not lost. */
   stopping: z.boolean().optional(),
+  /** The number its events come after (`turn.start.afterSeq`): a restarted runner never numbers one again. */
+  afterSeq: z.int().nonnegative().optional(),
 });
 export type RunMeta = z.infer<typeof RunMeta>;
 

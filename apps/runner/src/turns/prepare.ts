@@ -98,9 +98,10 @@ export function prepareTurn(
   );
   const artifacts = openArtifacts(host, frame, log);
   const { harness, cwd } = spec;
+  const sessionMissing = driver.sessionMissing?.bind(driver);
   return {
-    parts: { folder, harness, cwd, parser, lease, bridge, inputLine, stdinOpen, artifacts },
-    launch: { process, env, keeper, startedAt: now },
+    parts: { folder, harness, cwd, parser, lease, bridge, inputLine, stdinOpen, artifacts, sessionMissing },
+    launch: { process, env, keeper, startedAt: now, afterSeq: frame.afterSeq },
   };
 }
 
@@ -132,5 +133,6 @@ export function takeBackParts(host: HarnessHost, run: FoundRun, log: Log): TurnP
   const inputLine = meta.stdinOpen ? driver.inputLine?.bind(driver) : undefined;
   const bridge = reopenBridge(host, run, log);
   const { harness, cwd, stdinOpen } = meta;
-  return { folder, harness, cwd, parser, lease, bridge, inputLine, stdinOpen, artifacts };
+  const sessionMissing = driver.sessionMissing?.bind(driver);
+  return { folder, harness, cwd, parser, lease, bridge, inputLine, stdinOpen, artifacts, sessionMissing };
 }

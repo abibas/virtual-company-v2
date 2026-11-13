@@ -15,6 +15,7 @@ import { type PrivateLease, releaseLogin } from '../private-dir.ts';
 import type { RunExit, RunMeta } from '../runs/folder.ts';
 import type { ReadAt } from '../runs/journal.ts';
 import type { Kept } from '../runs/kept.ts';
+import type { TurnParts } from './parts.ts';
 
 /**
  * How a turn ends and what its run folder records (S5.4): the stop ladder, the `turn.end` from the keeper's exit, a
@@ -51,7 +52,8 @@ export function startFailure(spawnError: string | undefined, exit: RunExit | und
 
 /**
  * The turn's end: `spawn_failed`, else `stopped` after a stop, else `process_lost` when the keeper ended without its
- * exit recorded (killed with the harness while nobody stopped it); `ok` is the result's when nothing failed.
+ * exit recorded (killed with the harness while nobody stopped it), else `session_missing: <the harness's line>` when
+ * the conversation it resumed is not on this machine (`missingSession`); `ok` is the result's when nothing failed.
  */
 export function endFrame(turn: {
   readonly turnId: string;
@@ -60,9 +62,11 @@ export function endFrame(turn: {
   readonly stopping: boolean;
   readonly result: Extract<TurnEvent, { type: 'result' }> | undefined;
   readonly authJson: string | undefined;
+  readonly sessionMissing?: string | undefined;
 }): TurnEnd {
   const lost = turn.exit === undefined && !turn.stopping ? 'process_lost' : undefined;
-  const error = startFailure(turn.spawnError, turn.exit) ?? (turn.stopping ? 'stopped' : lost);
+  const missing = turn.sessionMissing === undefined ? undefined : `session_missing: ${turn.sessionMissing}`;
+  const error = startFailure(turn.spawnError, turn.exit) ?? (turn.stopping ? 'stopped' : (lost ?? missing));
   return {
     type: 'turn.end',
     turnId: turn.turnId,
@@ -109,6 +113,28 @@ export function sendArtifacts(
   }
 }
 
+/**
+ * The harness's own line saying the conversation the turn resumed is not on this machine (docs/harness.md "A lost
+ * conversation"), when the process started, exited with a failure and gave no good result, and the driver finds its
+ * words in the end of stderr or in a failing result the output gave; undefined otherwise.
+ */
+export function missingSession(
+  parts: Pick<TurnParts, 'sessionMissing' | 'folder'>,
+  readAt: ReadAt,
+  turn: {
+    readonly exit: RunExit | undefined;
+    readonly spawnError: string | undefined;
+    readonly result: Extract<TurnEvent, { type: 'result' }> | undefined;
+  },
+): string | undefined {
+  const { exit, result } = turn;
+  if (parts.sessionMissing === undefined || turn.spawnError !== undefined) return undefined;
+  if (exit === undefined || exit.code === 0 || exit.error !== undefined || result?.ok === true)
+    return undefined;
+  const stderr = stderrTail(readAt, parts.folder.path('err'));
+  return parts.sessionMissing([stderr, result?.error ?? '', result?.text ?? ''].join('\n'));
+}
+
 /** The last `STDERR_TAIL_BYTES` of a file (the harness's stderr), as text. */
 export function stderrTail(readAt: ReadAt, path: string): string {
   const size = readAt(path, 0, 0)?.size ?? 0;
@@ -126,12 +152,14 @@ export function metaOf(
     readonly lease: PrivateLease | undefined;
     readonly artifacts?: ArtifactCollector | undefined;
     readonly bridge?: AskBridge | undefined;
+    readonly afterSeq?: number | undefined;
   },
   pid: number,
   startedAt: number,
 ): RunMeta {
   const { lease, bridge } = turn;
   const snapshot = turn.artifacts?.snapshot();
+  const after = turn.afterSeq ?? 0;
   return {
     v: 1,
     turnId,
@@ -144,5 +172,6 @@ export function metaOf(
     artifacts:
       snapshot === undefined ? null : { root: snapshot.root, before: snapshot.before.map((e) => [...e]) },
     ask: bridge === undefined ? null : { dir: bridge.dir, tokenSha256: bridge.tokenSha256 },
+    ...(after > 0 ? { afterSeq: after } : {}),
   };
 }

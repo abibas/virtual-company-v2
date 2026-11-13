@@ -3,6 +3,7 @@ import {
   checkTurn,
   type HarnessDriver,
   type LineParser,
+  lineMatching,
   type ParserContext,
   type ProcessSpec,
   type TurnTools,
@@ -15,6 +16,13 @@ import { gatewayEnv } from './gateway.ts';
 import { codexInstructionsFiles } from './instructions.ts';
 import { CodexLineParser } from './parser.ts';
 import { type RolloutFs, readRollout } from './rollout.ts';
+
+/**
+ * Codex's words when `codex exec resume <id>` (or `fork`) names a thread its home does not have (0.167.0, on stderr as
+ * it exits with 1): "Error: thread/resume: thread/resume failed: no rollout found for thread id <id> (code -32600)";
+ * its app server also says "conversation id".
+ */
+export const CODEX_SESSION_MISSING = /no rollout found for (thread|conversation) id/i;
 
 export interface CodexDriverOptions {
   /** The `codex` program's full path, when the runner found it; `codex` on PATH otherwise. */
@@ -78,6 +86,10 @@ export class CodexDriver implements HarnessDriver {
       (thread) => readChild(fs, home, thread),
       (state) => new LiveSubagents({ fs, home, since }, state),
     );
+  }
+
+  sessionMissing(output: string): string | undefined {
+    return lineMatching(output, CODEX_SESSION_MISSING);
   }
 
   #process(args: string[], spec: TerminalSpec, mode: 'exec' | 'tui', stdin: string | null): ProcessSpec {
