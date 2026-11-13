@@ -1,5 +1,6 @@
 import { isHarnessError } from '@mwc/harness-core';
 import { FAKE_CREDENTIALS, fakeTerminalSpec } from '@mwc/harness-core/fake';
+import type { PermissionMode } from '@mwc/shared/enums';
 import { describe, expect, it } from 'vitest';
 import {
   ASK_PROMPT,
@@ -8,6 +9,7 @@ import {
   claudeEnv,
   credentialEnv,
   mcpConfig,
+  modeArgs,
   sharedArgs,
   toolArgs,
   unsetFor,
@@ -39,6 +41,30 @@ describe('sharedArgs', () => {
     ]);
     expect(sharedArgs(fakeTerminalSpec('claude_code', { model: 'sonnet' }))).toEqual(['--model', 'sonnet']);
     expect(sharedArgs(fakeTerminalSpec('claude_code', { effort: 'low' }))).toEqual(['--effort', 'low']);
+  });
+});
+
+describe('modeArgs', () => {
+  it('adds nothing for Manual, the skip flag for Skip prompts, and --permission-mode for the others', () => {
+    const args = (permissionMode: PermissionMode) =>
+      modeArgs(fakeTerminalSpec('claude_code', { permissionMode }));
+    expect(args('manual')).toEqual([]);
+    expect(args('acceptEdits')).toEqual(['--permission-mode', 'acceptEdits']);
+    expect(args('plan')).toEqual(['--permission-mode', 'plan']);
+    expect(args('auto')).toEqual(['--permission-mode', 'auto']);
+    expect(args('bypassPermissions')).toEqual(['--dangerously-skip-permissions']);
+  });
+
+  it("follows an older server's policy when the spec names no mode", () => {
+    expect(modeArgs(fakeTerminalSpec('claude_code', { permissionPolicy: 'ask' }))).toEqual([]);
+    expect(modeArgs(fakeTerminalSpec('claude_code', { permissionPolicy: 'bypass' }))).toEqual([
+      '--dangerously-skip-permissions',
+    ]);
+  });
+
+  it('puts the mode after the effort', () => {
+    const spec = fakeTerminalSpec('claude_code', { effort: 'high', permissionMode: 'plan' });
+    expect(sharedArgs(spec)).toEqual(['--effort', 'high', '--permission-mode', 'plan']);
   });
 });
 

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { HarnessError, type TurnTools } from '@mwc/harness-core';
+import { HarnessError, specMode, type TurnTools } from '@mwc/harness-core';
 import {
   ASK_SERVER,
   ASK_TOOL,
@@ -36,6 +36,20 @@ export const CLAUDE_ACCOUNT_VARS = [
 ] as const;
 
 /**
+ * The permission mode (docs/harness.md "Modes"): Manual adds nothing (Claude Code's own default, as the old `ask` did,
+ * so an older CLI that knows no `manual` still runs it); Skip prompts is `--dangerously-skip-permissions`, as `bypass`
+ * was; Accept edits, Plan and Auto are `--permission-mode <mode>` (`claude --help` 2.1.323: "acceptEdits", "auto",
+ * "bypassPermissions", "manual", "dontAsk", "plan"). In a turn nobody answers a prompt: what would ask is refused and
+ * the result's denials become notices; in the terminal Claude Code asks the person.
+ */
+export function modeArgs(spec: TerminalSpec): string[] {
+  const mode = specMode(spec);
+  if (mode === 'manual') return [];
+  if (mode === 'bypassPermissions') return ['--dangerously-skip-permissions'];
+  return ['--permission-mode', mode];
+}
+
+/**
  * The resume, model, effort and permission arguments a turn and a terminal share, and the system prompt rendered fresh
  * with standing instructions (`instructions.ts`).
  */
@@ -44,7 +58,7 @@ export function sharedArgs(spec: TerminalSpec): string[] {
     ...(spec.sessionId === null ? [] : ['--resume', spec.sessionId]),
     ...(spec.model === null ? [] : ['--model', spec.model]),
     ...(spec.effort === undefined ? [] : ['--effort', spec.effort]),
-    ...(spec.permissionPolicy === 'bypass' ? ['--dangerously-skip-permissions'] : []),
+    ...modeArgs(spec),
     ...snapshotArgs(spec),
   ];
 }
@@ -83,7 +97,7 @@ const TOOL_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 /**
  * What `--allowedTools` takes for the runner's tools: one argument, every tool its server offers as Claude Code names it
  * (`mcp__mwc__ask_user_question,mcp__mwc__task_read,…`; `claude --help` 2.1.322: "Comma or space-separated list of tool
- * names to allow"), so the `ask` policy does not refuse them in print mode. A name that is not one plain word is passed
+ * names to allow"), so a mode that asks does not refuse them in print mode. A name that is not one plain word is passed
  * over (it could name another tool); the question tool is always there.
  */
 export function allowedTools(tools: TurnTools): string {

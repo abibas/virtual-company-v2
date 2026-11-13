@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkSpec, checkTurn } from '../src/checks.ts';
+import { checkSpec, checkTurn, specMode } from '../src/checks.ts';
 import { isHarnessError } from '../src/errors.ts';
 import { FAKE_CREDENTIALS, fakeTerminalSpec, fakeTurnSpec } from '../src/specs.ts';
 
@@ -61,6 +61,34 @@ describe('checkSpec', () => {
       gateway: { baseUrl: 'http://127.0.0.1:8300', headers: { 'X-Api-Key': 'k' } },
     });
     expect(codeOf(() => checkSpec('claude_code', good))).toBeUndefined();
+  });
+});
+
+describe('the mode', () => {
+  it("takes only the harness's own modes", () => {
+    for (const permissionMode of ['manual', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const) {
+      const spec = fakeTerminalSpec('claude_code', { permissionMode });
+      expect(codeOf(() => checkSpec('claude_code', spec))).toBeUndefined();
+    }
+    for (const permissionMode of ['ask', 'auto', 'full'] as const) {
+      expect(codeOf(() => checkSpec('codex', fakeTerminalSpec('codex', { permissionMode })))).toBeUndefined();
+    }
+    expect(() => checkSpec('codex', fakeTerminalSpec('codex', { permissionMode: 'plan' }))).toThrow(
+      'Codex has no mode plan.',
+    );
+    expect(
+      codeOf(() => checkSpec('claude_code', fakeTerminalSpec('claude_code', { permissionMode: 'full' }))),
+    ).toBe('invalid_spec');
+  });
+
+  it("reads the spec's mode, else the one an older server's policy means", () => {
+    expect(specMode(fakeTerminalSpec('claude_code', { permissionMode: 'plan' }))).toBe('plan');
+    expect(specMode(fakeTerminalSpec('claude_code'))).toBe('manual');
+    expect(specMode(fakeTerminalSpec('claude_code', { permissionPolicy: 'bypass' }))).toBe(
+      'bypassPermissions',
+    );
+    expect(specMode(fakeTerminalSpec('codex'))).toBe('auto');
+    expect(specMode(fakeTerminalSpec('codex', { permissionPolicy: 'bypass' }))).toBe('full');
   });
 });
 

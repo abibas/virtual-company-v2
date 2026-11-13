@@ -34,7 +34,8 @@ export interface ClaudeCodeDriverOptions {
 /**
  * The Claude Code `HarnessDriver` (docs/harness.md, "Claude Code"). A turn is
  * `claude -p --output-format stream-json --verbose --input-format stream-json --replay-user-messages [--resume <id>]
- * [--model <m>] [--effort <e>] [--dangerously-skip-permissions]` (a branch's first turn adds `--fork-session` and maybe
+ * [--model <m>] [--effort <e>] [<mode>]` (the mode: nothing for Manual, `--permission-mode <m>` or
+ * `--dangerously-skip-permissions`, `modeArgs`; a branch's first turn adds `--fork-session` and maybe
  * `--resume-session-at <uuid>`, `forkArgs`) with the prompt as the first user message on stdin,
  * which stays open for the person's messages while the turn runs (`inputLine`, `input.ts`); a terminal is the same
  * without the print-mode arguments, the TUI.

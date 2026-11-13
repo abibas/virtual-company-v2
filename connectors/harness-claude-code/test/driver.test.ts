@@ -110,8 +110,22 @@ describe('ClaudeCodeDriver.turn', () => {
     expect(driver.terminal(fork).args).toEqual(['--resume', SESSION]);
   });
 
-  it('asks (no skip flag) under the ask policy, so -p refuses what needs approval', () => {
+  it('asks (no mode flag) in Manual, so -p refuses what needs approval; the other modes name theirs', () => {
     expect(driver.turn(fakeTurnSpec('claude_code', { permissionPolicy: 'ask' })).args).toEqual(TURN);
+    expect(driver.turn(fakeTurnSpec('claude_code', { permissionMode: 'manual' })).args).toEqual(TURN);
+    expect(driver.turn(fakeTurnSpec('claude_code', { permissionMode: 'plan' })).args).toEqual([
+      ...TURN,
+      '--permission-mode',
+      'plan',
+    ]);
+    const skip = { permissionMode: 'bypassPermissions', permissionPolicy: 'bypass' } as const;
+    expect(driver.terminal(fakeTurnSpec('claude_code', skip)).args).toEqual([
+      '--dangerously-skip-permissions',
+    ]);
+    expect(driver.terminal(fakeTurnSpec('claude_code', { permissionMode: 'acceptEdits' })).args).toEqual([
+      '--permission-mode',
+      'acceptEdits',
+    ]);
   });
 
   it('gives each credential kind its variable, with the config folder and the gateway', () => {

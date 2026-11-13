@@ -111,7 +111,7 @@ const sessionFields = {
   permissionPolicy: PermissionPolicy,
   /**
    * The permission mode (2026-11-13, docs/harness.md "Modes"): one of the harness's (`fitsHarness`), the profile's or the
-   * chat's override. Absent: the one `permissionPolicy` means (`modeOfPolicy`); a runner older than it ignores it.
+   * chat's override. Absent: the one `permissionPolicy` meant (`modeOfPolicy`); a runner older than it ignores it.
    */
   permissionMode: PermissionMode.optional(),
   /** The harness's config folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`); null for the default (docs/harness.md). */

@@ -92,9 +92,12 @@ export function modeChoice(provider: ProfileProvider, mode: string): ModeChoice 
 export const policyOfMode = (mode: PermissionMode): PermissionPolicy =>
   NO_PROMPTS.includes(mode) ? 'bypass' : 'ask';
 
-/** The mode the old setting means on a harness: its no-prompts mode for `bypass`, its default for `ask`. */
+/**
+ * The mode the old setting meant on a harness, for a spec from a server older than the modes: its no-prompts mode for
+ * `bypass`; for `ask`, Manual on Claude Code and Auto on Codex (the old `ask` gave Codex the workspace-write sandbox).
+ */
 export function modeOfPolicy(harness: Harness, policy: PermissionPolicy): PermissionMode {
-  const provider = HARNESS_PROVIDER[harness];
-  if (policy === 'ask') return DEFAULT_MODES[provider];
-  return provider === 'claude' ? 'bypassPermissions' : 'full';
+  const claude = HARNESS_PROVIDER[harness] === 'claude';
+  if (policy === 'ask') return claude ? 'manual' : 'auto';
+  return claude ? 'bypassPermissions' : 'full';
 }

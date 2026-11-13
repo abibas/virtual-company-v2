@@ -17,7 +17,7 @@ import {
 } from '../src/args.ts';
 
 const THREAD = '019a6f2e-8b3c-7d41-9e2a-5c8f1b4d7a63';
-const ASK_EXEC = ['-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"'];
+const AUTO_EXEC = ['-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"'];
 const BYPASS = ['--dangerously-bypass-approvals-and-sandbox'];
 /** No gateway: Codex's built-in OpenAI provider, whatever a config.toml says. */
 const DIRECT = ['-c', 'model_provider="openai"'];
@@ -48,18 +48,40 @@ describe('configArg and modelArgs', () => {
 });
 
 describe('permissionArgs', () => {
-  it('bypasses approvals and the sandbox in both modes', () => {
-    const spec = fakeTerminalSpec('codex', { permissionPolicy: 'bypass' });
-    expect(permissionArgs(spec, 'exec')).toEqual(BYPASS);
-    expect(permissionArgs(spec, 'tui')).toEqual(BYPASS);
+  it('bypasses approvals and the sandbox in both modes for Full trust (an older server: bypass)', () => {
+    for (const spec of [
+      fakeTerminalSpec('codex', { permissionMode: 'full', permissionPolicy: 'bypass' }),
+      fakeTerminalSpec('codex', { permissionPolicy: 'bypass' }),
+    ]) {
+      expect(permissionArgs(spec, 'exec')).toEqual(BYPASS);
+      expect(permissionArgs(spec, 'tui')).toEqual(BYPASS);
+    }
   });
 
-  it('asks: workspace-write with approvals off in a turn, approvals on request in the terminal', () => {
-    const spec = fakeTerminalSpec('codex');
-    expect(permissionArgs(spec, 'exec')).toEqual(ASK_EXEC);
+  it('Auto: workspace-write with approvals off in a turn, approvals on request in the terminal', () => {
+    // An older server's `ask` gave Codex the workspace-write sandbox: Auto.
+    for (const spec of [fakeTerminalSpec('codex', { permissionMode: 'auto' }), fakeTerminalSpec('codex')]) {
+      expect(permissionArgs(spec, 'exec')).toEqual(AUTO_EXEC);
+      expect(permissionArgs(spec, 'tui')).toEqual([
+        '--sandbox',
+        'workspace-write',
+        '--ask-for-approval',
+        'on-request',
+      ]);
+    }
+  });
+
+  it('Ask: the read-only sandbox, with approvals off in a turn and on request in the terminal', () => {
+    const spec = fakeTerminalSpec('codex', { permissionMode: 'ask' });
+    expect(permissionArgs(spec, 'exec')).toEqual([
+      '-c',
+      'sandbox_mode="read-only"',
+      '-c',
+      'approval_policy="never"',
+    ]);
     expect(permissionArgs(spec, 'tui')).toEqual([
       '--sandbox',
-      'workspace-write',
+      'read-only',
       '--ask-for-approval',
       'on-request',
     ]);
@@ -74,7 +96,7 @@ describe('turnArgs', () => {
       '--skip-git-repo-check',
       '-c',
       'check_for_update_on_startup=false',
-      ...ASK_EXEC,
+      ...AUTO_EXEC,
       ...DIRECT,
       '-',
     ]);
@@ -112,7 +134,7 @@ describe('turnArgs', () => {
       '--json',
       '--skip-git-repo-check',
       ...NO_UPDATE_CHECK,
-      ...ASK_EXEC,
+      ...AUTO_EXEC,
       ...DIRECT,
       THREAD,
       '-',
@@ -175,7 +197,7 @@ describe('the runner’s tools', () => {
       '--skip-git-repo-check',
       '-c',
       'check_for_update_on_startup=false',
-      ...ASK_EXEC,
+      ...AUTO_EXEC,
       ...DIRECT,
       ...TOOL_ARGS,
       '-',

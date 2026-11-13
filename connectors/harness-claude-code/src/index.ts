@@ -9,6 +9,7 @@ export {
   credentialEnv,
   MCP_CONFIG_FILE,
   mcpConfig,
+  modeArgs,
   sharedArgs,
   TURN_ARGS,
   toolArgs,

@@ -1,4 +1,4 @@
-import type { Harness } from '@mwc/shared/enums';
+import type { Harness, PermissionMode } from '@mwc/shared/enums';
 import {
   credentialFits,
   HARNESS_MODEL_PATTERN,
@@ -8,6 +8,7 @@ import {
   type TerminalSpec,
   type TurnSpec,
 } from '@mwc/shared/harness';
+import { fitsHarness, modeOfPolicy } from '@mwc/shared/modes';
 import { HarnessError } from './errors.ts';
 import { HARNESS_LABELS } from './lines.ts';
 
@@ -43,7 +44,18 @@ export function checkSpec(harness: Harness, spec: TerminalSpec): void {
       throw new HarnessError('invalid_spec', 'A gateway header is not one line with a plain name.');
     }
   }
+  if (spec.permissionMode !== undefined && !fitsHarness(harness, spec.permissionMode)) {
+    throw new HarnessError('invalid_spec', `${label} has no mode ${spec.permissionMode}.`);
+  }
 }
+
+/**
+ * The permission mode a spec runs in (docs/harness.md "Modes"): its `permissionMode`, else the one its old
+ * `permissionPolicy` meant on its harness (a server older than the modes: Skip prompts or Full trust for `bypass`; for
+ * `ask`, Manual on Claude Code and Auto on Codex, `modeOfPolicy`).
+ */
+export const specMode = (spec: TerminalSpec): PermissionMode =>
+  spec.permissionMode ?? modeOfPolicy(spec.harness, spec.permissionPolicy);
 
 /**
  * Refuses a turn spec the driver of `harness` cannot start safely: the terminal's checks, an empty prompt, and a

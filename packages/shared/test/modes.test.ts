@@ -55,7 +55,7 @@ describe('the permission modes', () => {
     expect(modeChoice('openai', 'plan')).toBeUndefined();
   });
 
-  it('comes to the old two-way setting for an older runner, and back', () => {
+  it('comes to the old two-way setting for an older runner, and back to what it meant (Codex asked in its workspace)', () => {
     expect(PermissionMode.options.filter((mode) => policyOfMode(mode) === 'bypass')).toEqual([
       'bypassPermissions',
       'full',
@@ -63,7 +63,7 @@ describe('the permission modes', () => {
     expect(policyOfMode('auto')).toBe('ask');
     expect(modeOfPolicy('claude_code', 'ask')).toBe('manual');
     expect(modeOfPolicy('claude_code', 'bypass')).toBe('bypassPermissions');
-    expect(modeOfPolicy('codex', 'ask')).toBe('ask');
+    expect(modeOfPolicy('codex', 'ask')).toBe('auto');
     expect(modeOfPolicy('codex', 'bypass')).toBe('full');
   });
 });

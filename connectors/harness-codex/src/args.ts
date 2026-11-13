@@ -1,4 +1,4 @@
-import { HarnessError, type PrivateFile, type TurnTools } from '@mwc/harness-core';
+import { HarnessError, type PrivateFile, specMode, type TurnTools } from '@mwc/harness-core';
 import { ASK_SERVER, type HarnessCredential, type TerminalSpec, type TurnSpec } from '@mwc/shared/harness';
 import { configArg, configFlagArg, configListArg } from './config.ts';
 import { providerArgs } from './gateway.ts';
@@ -47,14 +47,18 @@ export function modelArgs(spec: TerminalSpec): string[] {
 }
 
 /**
- * `bypass`: no sandbox, no approvals. `ask` in a turn: the workspace-write sandbox with approvals off, so what needs
- * more is refused and the model is told (as config overrides, since `codex exec resume` has no `--sandbox`); `ask` in
- * the terminal: the same sandbox, and Codex asks the person on the TUI.
+ * The mode (docs/harness.md "Modes"), as Codex's sandbox and approvals: Full trust is no sandbox and no approvals
+ * (`--dangerously-bypass-approvals-and-sandbox`); Ask is the `read-only` sandbox and Auto the `workspace-write` one. In a
+ * turn approvals are off (`approval_policy="never"`: nobody answers, so what the sandbox does not allow fails and the
+ * model is told), as config overrides since `codex exec resume` has no `--sandbox`; in the terminal Codex asks the person
+ * (`--ask-for-approval on-request`).
  */
 export function permissionArgs(spec: TerminalSpec, mode: 'exec' | 'tui'): string[] {
-  if (spec.permissionPolicy === 'bypass') return ['--dangerously-bypass-approvals-and-sandbox'];
-  if (mode === 'tui') return ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request'];
-  return [...configArg('sandbox_mode', 'workspace-write'), ...configArg('approval_policy', 'never')];
+  const permission = specMode(spec);
+  if (permission === 'full') return ['--dangerously-bypass-approvals-and-sandbox'];
+  const sandbox = permission === 'auto' ? 'workspace-write' : 'read-only';
+  if (mode === 'tui') return ['--sandbox', sandbox, '--ask-for-approval', 'on-request'];
+  return [...configArg('sandbox_mode', sandbox), ...configArg('approval_policy', 'never')];
 }
 
 /**

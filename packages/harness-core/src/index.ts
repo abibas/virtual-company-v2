@@ -10,7 +10,7 @@ export type {
   TurnEventOf,
   TurnSpec,
 } from '@mwc/shared/harness';
-export { checkSpec, checkTurn } from './checks.ts';
+export { checkSpec, checkTurn, specMode } from './checks.ts';
 export {
   ASK_SOCKET_ENV,
   ASK_TOKEN_ENV,
