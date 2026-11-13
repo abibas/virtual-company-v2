@@ -71,7 +71,7 @@ export const GitHubRights = z.strictObject({
 });
 export type GitHubRights = z.infer<typeof GitHubRights>;
 
-/** Jira through a profile's Atlassian part: none, reading, or reading and changes (comment, transition, create). */
+/** Jira through a profile's Atlassian part: none, reading, or reading and changes (comment, transition, create, edit). */
 export const JiraAccess = z.enum(['off', 'read', 'changes']);
 export type JiraAccess = z.infer<typeof JiraAccess>;
 

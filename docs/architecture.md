@@ -60,7 +60,9 @@ packages/cli                @mwc/cli             mwc: check|dev (and dev outbox)
 packages/mcp                @mwc/mcp             MCP server for humans' Claude Code: me, org_chart, agents_list (built in S2.6, stdio, docs/mcp.md), send_message, read_thread, task_status, inbox_list, inbox_answer
 connectors/identity-clerk   @mwc/identity-clerk  Clerk implementation of IdentityProvider (verifyToken, Backend API, verifyWebhook, role map)
 connectors/identity-oidc    @mwc/identity-oidc   other identity providers (OIDC) and user sync (SCIM), later
-connectors/harness-claude-code, harness-codex, jira, github, gateway   the HarnessDriver for each CLI, and the outside systems of S6–S7
+connectors/harness-claude-code, harness-codex   the HarnessDriver for each CLI
+connectors/atlassian        @mwc/atlassian       Jira v3 and Confluence v2 for tools-core's AtlassianApi (S7.1c: the agents' Atlassian tools)
+connectors/github, gateway  the outside systems of S7
 deploy/                     compose.yml (dev Postgres), compose.prod.yml, Dockerfile.server, Dockerfile.login (the sign-in helper), later Dockerfile.runner and Kubernetes
 docs/                       architecture, roadmap, ports, structure, testing, clerk-setup, mcp (adding @mwc/mcp to your own Claude Code), schema (generated); later runner-protocol, harness
 ```

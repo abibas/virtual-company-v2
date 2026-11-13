@@ -888,6 +888,36 @@ model is unchanged.
   the step's prompt, and a Lead's section in its chats' standing instructions. Whether a real turn calls them is not
   verified without one (no test runs a real CLI).
 
+## Server tools
+
+Built in S7.1c (2026-11-13; what the first ones do is docs/subscriptions.md, "Atlassian tools"). The server's own tools
+are defined and answered whole by the server, so the runner lists and relays them without knowing them: a new server
+tool needs no new runner. The first are the Atlassian tools, which keep the names and inputs of Atlassian's remote MCP
+(`searchJiraIssuesUsingJql`, `getJiraIssue`, …), so they may be camelCase.
+
+- **Which turns.** A message turn whose profile (the chat's own, else the agent's: the one the turn runs on) offers them,
+  on a runner that says `caps.serverTools`: the chats module asks its `ServerToolsHook` (`chats/service/server-tools.ts`,
+  implemented by the integrations module and passed by `app.ts`) and puts them in the spec whole
+  (`TurnSpec.serverTools`: `{name, title, description, inputSchema, readOnly}`, at most 32, each name once and never the
+  question tool's or an agents' tool's, `ServerToolDefs` of `@mwc/shared/harness`), with the hook's line after the
+  standing instructions (left out when it would not fit). A Compact, a Clear or an older runner gets none.
+- **The runner** (`turns/ask/server-tools.ts`) writes them to the turn's private folder (`server-tools.json`, 0600, next
+  to `ask.sock`) and names that file to its MCP server (`MWC_SERVER_TOOLS`, among the variables Claude Code's `mcp.json`
+  and Codex's `env_vars` carry). The MCP server lists them after the agents' tools, as written (`readOnlyHint` from
+  `readOnly`, `openWorldHint` true), and relays a call with its arguments as they are, once they are an object (anything
+  else is a tool error); the socket's request line and `turn.tool` take the name (`ServerToolName`: a letter, then
+  letters, digits and `_`, up to 64). The bridge relays any such name for the server to decide, so a turn taken back
+  after a runner's restart keeps its server tools. Claude Code's `--allowedTools` names them too (`mcp__mwc__getJiraIssue`;
+  one plain word of letters, digits and `_`).
+- **The server.** A `turn.tool` of a server tool goes from the turn's sink to the hook (`owns`, then `tool` with the turn,
+  its chat, the chat's agent, the turn's profile and who sent its prompt), off the turn's write queue: it waits on an
+  outside system, which the turn's events must not. The hook checks everything again and answers in words; it never
+  throws.
+- **Rebuilding the runner.** The runner's side (the file, `MWC_SERVER_TOOLS`, the listing and relay, `caps.serverTools`,
+  the wider `--allowedTools`) is new in S7.1c: a machine's runner must be rebuilt and updated once (its card's Update,
+  or `docker compose … up --build` for a container runner) before its turns get any server tool. After that, new server
+  tools need no runner change.
+
 ## Delivery while a turn runs
 
 Built in S5.2 step 6 (2026-11-10): the composer stays open while the agent works, and a message sent then reaches it

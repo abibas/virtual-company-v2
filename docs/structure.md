@@ -42,7 +42,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          what needs a person, computed live (built S6b); permissions S6
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
-│   │   │   │   └── integrations/   Jira intake, PR watch, flows, sprints       S7
+│   │   │   │   └── integrations/   the agents' Atlassian tools (built S7.1c); Jira intake, PR watch, sprints S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
 │   │       └── scenarios/          stories across modules over the HTTP API     S1.12
@@ -56,6 +56,7 @@ Most_Wanted_corp_v2/
 │   ├── identity-core/              identity model and projector                S1
 │   ├── machines-core/              the machine power driver port, its fake, the tunnels' supervisor S4
 │   ├── harness-core/               the harness driver port, its fake and the fake binary (built) S5.1a
+│   ├── tools-core/                 the outside tools' ports: AtlassianApi and AtlassianError (built) S7.1c
 │   ├── testkit/                    test helpers, provider contract
 │   ├── cli/                        mwc; the saved logins (credentials.ts)      S1.9
 │   │                               api/ (client, org, session), org/ (commands.ts, render.ts) S2.6
@@ -67,7 +68,8 @@ Most_Wanted_corp_v2/
 │   ├── machine-airia-devbox/       the Airia devbox's power (airia CLI, gcloud), run by a runner or the server S4
 │   ├── harness-claude-code/        Claude Code HarnessDriver, its parser, fixtures (built) S5.1a
 │   ├── harness-codex/              Codex HarnessDriver, its parser, fixtures (built) S5.1a
-│   └── jira/ github/ gateway/                                                  S7
+│   ├── atlassian/                  Jira v3 and Confluence v2 for the AtlassianApi, ADF ⇄ Markdown (built) S7.1c
+│   └── github/ gateway/                                                        S7
 ├── deploy/                         Dockerfiles, compose, later Kubernetes
 └── docs/                           architecture, roadmap, ports, schema, testing, structure, subscriptions, harness
 ```

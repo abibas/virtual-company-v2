@@ -160,7 +160,8 @@ describe('agentBriefing', () => {
         'merges, force-pushes, deletes or pushes to a default branch. Configured; the tools that use it arrive with ' +
         'Most Wanted’s tools.',
       '- Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: none; never ' +
-        'deletes or archives. Configured; the tools that use it arrive with Most Wanted’s tools.',
+        'deletes or archives. Use it with your Most Wanted tools, named as on Atlassian’s remote MCP ' +
+        '(searchJiraIssuesUsingJql, getJiraIssue, getConfluencePage, …).',
     ]);
     const off = [agent('gone', 'Gone', 'Coder', null, 'archived')];
     expect(lines(agentBriefing({ company: 'X', nodes: off, principalId: 'gone', tools }).text)).toEqual([

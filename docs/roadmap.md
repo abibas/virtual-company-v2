@@ -737,6 +737,29 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
      - **S7.1c** The Atlassian tools for agents: Jira read first, then Confluence read and write, then Jira changes,
        each checked on the server against the profile. Test: an agent reads a real ticket and writes a Confluence
        page in a test space.
+       **Built 2026-11-13** (docs/subscriptions.md, "Atlassian tools"; docs/harness.md, "Server tools"; waiting for his
+       live test), all four at once, with the remote MCP's names in place of the `jira_*` ones planned above:
+       - The tools: `searchJiraIssuesUsingJql`, `getJiraIssue`, `getTransitionsForJiraIssue`, `getVisibleJiraProjects`,
+         `lookupJiraAccountId` (Jira read); `addCommentToJiraIssue`, `transitionJiraIssue`, `createJiraIssue`,
+         `editJiraIssue` (summary, description, labels; Jira changes); `searchConfluenceUsingCql`, `getConfluencePage`,
+         `getConfluenceSpaces`, `getPagesInConfluenceSpace` (Confluence read); `createConfluencePage`,
+         `updateConfluencePage` (Confluence write). Their inputs are the remote MCP's; `cloudId` is ignored. Nothing
+         deletes or archives.
+       - Server tools on the wire: `TurnSpec.serverTools` (whole definitions) to a runner that says `caps.serverTools`;
+         the runner writes them to the turn's folder (`MWC_SERVER_TOOLS`) and its MCP server lists and relays them, so
+         later server tools need no runner change. Claude Code's `--allowedTools` takes camelCase names. **The runner
+         changed: it needs rebuilding and updating once.**
+       - The port `@mwc/tools-core` (`AtlassianApi`, `AtlassianError`) and the connector `connectors/atlassian` (Jira v3,
+         Confluence v2 and the v1 search, basic auth, an injected fetch, 429 retried after `Retry-After`, deadlines,
+         ADF ⇄ Markdown), wired in `app.ts` through `platform/atlassian.ts`.
+       - The integrations module (`modules/integrations/`): the offer by the turn's profile's Atlassian part, a line in
+         the standing instructions, and every call checked again (rights, refused arguments, input, the project and space
+         allowlists with JQL/CQL scoping), the sign-in opened for `tool:<name>` (`credentialsForTools`), changes audited
+         as the agent, a 401 marking the sign-in `needs_sign_in`. The chats module's `ServerToolsHook` routes a call off
+         the turn's write queue. The Atlassian briefing line names the tools.
+       - Tests: the connector on a fake fetch (every endpoint, each refusal, 429, deadlines, ADF both ways), every tool
+         through a live turn on a fake runner and the fake provider, the rights and allowlist paths, the JQL/CQL scoping,
+         credential uses and audit, the offer per profile for Claude Code and Codex, the runner's listing and relay.
      - **S7.1d** GitHub in a turn: the per-turn token, the credential helper, the SSH rewrite and the repository
        allowlist. Test: an agent pushes a branch to a sandbox repo and lists its PRs.
      - **S7.1e Slack** (Ihor, 2026-11-12: "i wan to add SLACK TOOL as well.. I have a bot"):

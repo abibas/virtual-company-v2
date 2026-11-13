@@ -4,8 +4,9 @@ import type { AtlassianRights, GitHubRights, ToolRights } from './tool-rights.ts
 /**
  * A profile's tool parts' rights in words (S7.1b, one profile since 2026-11-13): the short summary the pages show beside
  * the profile ("push, PRs · AiriaLLC/*", "Jira read (AP) · Confluence write") and the line each tool part adds to the
- * agent's briefing, what it may do there and as whom. The tools themselves arrive later (S7.1c, S7.1d), so the line says
- * the access is configured, never that a tool exists. Pure, so the server and the web write the same words.
+ * agent's briefing, what it may do there and as whom. GitHub's tools arrive later (S7.1d), so its line says the access
+ * is configured, never that a tool exists; Atlassian's are built (S7.1c), so its line names them. Pure, so the server and
+ * the web write the same words.
  */
 
 /** The most names a summary shows; the rest are counted ("+3"). */
@@ -14,8 +15,13 @@ export const SUMMARY_NAMES_MAX = 3;
 /** The most names a briefing line lists; the rest are counted ("and 3 more"). */
 export const BRIEFING_NAMES_MAX = 25;
 
-/** What ends each briefing line: the access is set, the tools come later. */
+/** What ends GitHub's briefing line: the access is set, the tools come later. */
 export const TOOL_ACCESS_NOTE = 'Configured; the tools that use it arrive with Most Wanted’s tools.';
+
+/** What ends Atlassian's briefing line (S7.1c): its tools are Most Wanted's, by the names of Atlassian's remote MCP. */
+export const ATLASSIAN_TOOLS_NOTE =
+  'Use it with your Most Wanted tools, named as on Atlassian’s remote MCP (searchJiraIssuesUsingJql, ' +
+  'getJiraIssue, getConfluencePage, …).';
 
 type Scope = 'all' | readonly string[];
 
@@ -91,7 +97,10 @@ function githubLine(account: string, rights: GitHubRights): string {
   return `as ${account}; may ${may} ${where}; never merges, force-pushes, deletes or pushes to a default branch`;
 }
 
-const JIRA_MAY = { read: 'read issues', changes: 'read, comment on, transition and create issues' } as const;
+const JIRA_MAY = {
+  read: 'read issues',
+  changes: 'read, comment on, transition, create and edit issues',
+} as const;
 const CONFLUENCE_MAY = { read: 'read pages', write: 'read, create and update pages' } as const;
 
 /** Atlassian's line: as whom, then Jira's and Confluence's access and where, and what it never does. */
@@ -109,8 +118,8 @@ function atlassianLine(account: string, rights: AtlassianRights): string {
 
 /**
  * The briefing's line for one tool part: "- GitHub: as ihorherasko; may read, push branches and open and update pull
- * requests in AiriaLLC/*; never merges, ...", then that it is configured and its tools come later; a part with no
- * sign-in says it gives no access.
+ * requests in AiriaLLC/*; never merges, ...", then that it is configured and its tools come later (GitHub) or which
+ * tools use it (Atlassian); a part with no sign-in says it gives no access.
  */
 export function toolBriefingLine(tool: BriefingTool): string {
   const name =
@@ -118,7 +127,9 @@ export function toolBriefingLine(tool: BriefingTool): string {
   // One line of words: a name with a newline in it cannot start a line of its own.
   const account = tool.account?.replace(/\s+/g, ' ').trim() ?? '';
   if (account === '') return `- ${name}: your profile has no sign-in for it now, so no access.`;
-  const rights =
-    'repos' in tool.rights ? githubLine(account, tool.rights) : atlassianLine(account, tool.rights);
-  return `- ${name}: ${rights}. ${TOOL_ACCESS_NOTE}`;
+  const github = 'repos' in tool.rights;
+  const rights = github
+    ? githubLine(account, tool.rights as GitHubRights)
+    : atlassianLine(account, tool.rights as AtlassianRights);
+  return `- ${name}: ${rights}. ${github ? TOOL_ACCESS_NOTE : ATLASSIAN_TOOLS_NOTE}`;
 }

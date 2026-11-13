@@ -474,14 +474,14 @@ told.
 - **Rights** (`GitHubRights`, `AtlassianRights` of `@mwc/shared/credentials`, in `credentials/tool-rights.ts`), unchanged
   from S7.1b: zod schemas the API, the agents' views and the briefing all parse with; stored rights that do not parse as
   their tool's count as none at all (`storedRights`), so a damaged row never grants anything. The tools check them on
-  every call once they arrive (S7.1c, S7.1d).
+  every call (Atlassian's since S7.1c, "Atlassian tools" below; GitHub's in S7.1d).
 
   | Part      | Right              | Values                                                                                         |
   | --------- | ------------------ | ---------------------------------------------------------------------------------------------- |
   | GitHub    | `repos`            | `all`, or up to 100 of `owner/name` and `owner/*` (repeats dropped, case ignored); empty reaches none |
   |           | `push`             | push branches                                                                                  |
   |           | `pullRequests`     | open and update pull requests                                                                  |
-  | Atlassian | `jira`             | `off`, `read`, `changes` (comment, transition, create)                                         |
+  | Atlassian | `jira`             | `off`, `read`, `changes` (comment, transition, create, edit summary, description and labels)  |
   |           | `jiraProjects`     | `all`, or project keys (`AP`; typed lower-case, stored upper-case)                             |
   |           | `confluence`       | `off`, `read`, `write` (create and update pages)                                               |
   |           | `confluenceSpaces` | `all`, or space keys (`ENG`, a personal space's `~` key)                                       |
@@ -491,12 +491,12 @@ told.
   end (`defaultRights`): GitHub reaches no repository and only reads; Atlassian reads Jira and Confluence everywhere and
   writes nowhere.
 - **The briefing:** an agent's briefing ends with one line per tool part of its profile (`toolBriefingLine` of
-  `credentials/tool-words.ts`, GitHub's then Atlassian's), what it may do there and as whom, and that the access is
-  configured while its tools come later:
+  `credentials/tool-words.ts`, GitHub's then Atlassian's), what it may do there and as whom; GitHub's says the access is
+  configured while its tools come later (S7.1d), Atlassian's names its tools (S7.1c):
 
   ```
   - GitHub: as ihorherasko; may read, push branches and open and update pull requests in AiriaLLC/*; never merges, force-pushes, deletes or pushes to a default branch. Configured; the tools that use it arrive with Most Wanted’s tools.
-  - Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: may read, create and update pages in ENG; never deletes or archives. Configured; the tools that use it arrive with Most Wanted’s tools.
+  - Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read issues in AP; Confluence: may read, create and update pages in ENG; never deletes or archives. Use it with your Most Wanted tools, named as on Atlassian’s remote MCP (searchJiraIssuesUsingJql, getJiraIssue, getConfluencePage, …).
   ```
 
   A part without a sign-in says "your profile has no sign-in for it now, so no access." Names past 25 are
@@ -535,6 +535,83 @@ each part copied in and each agent's tool profile taken off, by the system, with
    harness's part are greyed out ("No Claude part"). Under it: "Claude · … · GitHub: push, PRs · AiriaLLC/* · Atlassian:
    Jira read · Confluence …". The facts at the top show the same line as **Access**, and **Instructions** → **From the
    company** ends with the GitHub and Atlassian lines.
+
+## Atlassian tools
+
+Built in S7.1c (2026-11-13). An agent whose turn runs on a profile with an Atlassian part reads and, by its rights,
+changes Jira and Confluence through tools the **server** answers: the sign-in's token is opened on the server for each
+call and never reaches the machine. Ihor's habit on his Mac is Atlassian's remote MCP (`mcp.atlassian.com`), so the tools
+keep its names and input shapes, and prompts and skills carry over; `cloudId` is taken and ignored (the profile names the
+site). They reach the turn through the runner's MCP bridge as the server's own tools (docs/harness.md, "Server tools"),
+for Claude Code and Codex alike.
+
+| Rights | Tools |
+| --- | --- |
+| Jira `read` or `changes` | `searchJiraIssuesUsingJql {jql, fields?, maxResults?, nextPageToken?}`, `getJiraIssue {issueIdOrKey, fields?, expand?}`, `getTransitionsForJiraIssue {issueIdOrKey}`, `getVisibleJiraProjects {searchString?, maxResults?}`, `lookupJiraAccountId {searchString}` |
+| Jira `changes` | `addCommentToJiraIssue {issueIdOrKey, commentBody, contentFormat?}`, `transitionJiraIssue {issueIdOrKey, transition: {id}}`, `createJiraIssue {projectKey, issueTypeName, summary, description?, parent?, assignee_account_id?, additional_fields?: {labels, priority, components}}`, `editJiraIssue {issueIdOrKey, fields: {summary?, description?, labels?}}` |
+| Confluence `read` or `write` | `searchConfluenceUsingCql {cql, limit?, cursor?}`, `getConfluencePage {pageId}`, `getConfluenceSpaces {keys?, limit?, cursor?}`, `getPagesInConfluenceSpace {spaceId, limit?, cursor?, title?, sort?}` |
+| Confluence `write` | `createConfluencePage {spaceId (its id or key), title, body, parentId?, contentFormat?}`, `updateConfluencePage {pageId, title?, body, version?, contentFormat?}` |
+
+Nothing deletes or archives, in Jira or Confluence: there is no such tool. Arguments of the remote MCP's that would do
+something not offered are refused by name (updating a comment with `commentId`, a transition's `fields`, a create's
+`transition`, moving a page with `spaceId` or `parentId`); others that change nothing here (`actionSource`,
+`responseContentFormat`) are dropped. Bodies are Markdown by default (Jira: or `adf`; Confluence pages: HTML as the
+storage format by default, as the remote MCP's, or `markdown`, or `adf`); Markdown becomes ADF on the way in.
+
+- **Offered.** A message turn whose profile (the one it runs on: the chat's own, else the agent's) has an Atlassian part
+  with a sign-in gets the tools its rights give, on a runner that says `caps.serverTools`: Jira's read tools while Jira is
+  `read` or `changes` and its change tools only with `changes`; Confluence's read tools while it is `read` or `write` and
+  its write tools only with `write`; a product that is `off`, or with no project or space chosen, gives none. One with no
+  part, no sign-in or an older runner gets none. The turn's standing instructions get one line after them:
+
+  ```
+  Atlassian tools (from Most Wanted): on airia.atlassian.net as Ihor Herasko, Jira: read issues in AP; Confluence: off. Your tools, by the names of Atlassian's remote MCP: searchJiraIssuesUsingJql, getJiraIssue, getTransitionsForJiraIssue, getVisibleJiraProjects, lookupJiraAccountId; cloudId is not needed; they never delete or archive.
+  ```
+- **Checked on every call** (the integrations module, `modules/integrations/`), whatever the runner relayed: the tool is
+  one of them; the turn's profile is read again (a change since the turn began counts) and its rights give the tool
+  ("Jira changes are off for this agent's profile: it may only read.", "Confluence is off for this agent's profile.",
+  "This agent's profile reaches no Jira project."); it has a sign-in; no refused argument; the input passes its schema
+  (each issue said, as the agents' tools do).
+- **The allowlists.** A search's JQL is ANDed with `project in ("AP", …)` and a CQL's with `space in ("ENG", …)` when the
+  scope is not `all`, its `ORDER BY` kept last; the query is read first so it cannot reach past its group (a quote that
+  never ends, a parenthesis it never opened or never closes is refused: `a) OR (b` would otherwise escape), and results
+  outside the scope are dropped as well. An issue's project is read before it is answered, commented on, transitioned or
+  edited; a create's `projectKey` must be one of them; a page's space (by key, read from its space id) before it is read
+  or updated; a new page's space (its id or key) before it is created; a space's before its pages are listed; the spaces
+  list asks only for the profile's keys. A refusal names the scope: "X-9 is in project X, outside the Jira projects this
+  agent's profile reaches (AP)."
+- **Pages' versions.** `updateConfluencePage` writes the page's next version. With `version` (the one the agent read, or
+  that plus one) a page that changed since is refused ("Page 5001 is at version 4 now, not 2: it changed since you read
+  it."); without, the current one is written over. The title stays unless a new one is given.
+- **Answers** are JSON trimmed to what an agent needs: an issue's key, address, summary, status, type, priority, assignee,
+  reporter, dates, labels, components, description as Markdown (from its ADF), parent, sub-tasks, links and its latest 10
+  comments ("the latest 10 of 12"); a page's title, space, version, address and body as Markdown. Empty fields are left
+  out, a description or body is cut at 20 000 characters (a search's at 500), a comment at 2 000, another field Jira gave
+  at 1 000, the whole answer at 48 000, each with a note of what was left out.
+- **Records.** Each call opens the sign-in for `tool:<name>` (a `credential_uses` row with the company, the agent, the
+  chat and who sent the turn's prompt; `credentialsForTools` of the credentials module). Each change is audited in the
+  company as the agent with the turn as its request (`actor_kind` `agent`, action `tool:<name>`, entity `jira_issue` by
+  key or `confluence_page` by id: the comment's id and start, the transition, the new issue's project, type and summary,
+  the fields edited, the page's space, title and version), and shows in the turn as its tool call.
+- **Atlassian's refusals** in words (the connector, `connectors/atlassian`, Jira v3 and Confluence v2 with basic auth
+  through the server's provider client): 401 says to sign in again and marks the sign-in `needs_sign_in`, as its check
+  would (by the system); 403 "no permission", 404 "found nothing there, or the account cannot see it", 400 and 422 with
+  Atlassian's own words (a JQL's mistake), 409 changed meanwhile; a 429 is retried twice after its `Retry-After` (at
+  most 5 s each), then "limiting requests"; no answer in 15 s, a 5xx or a network failure "did not answer". Redirects
+  are refused, and only a site on `atlassian.net` is ever called.
+
+### How to test it (Ihor)
+
+1. Merge, then `pnpm --filter @mwc/runner build` and restart the dev API (`pnpm dev`). No migration.
+2. **Machines** → the Docker runner's card shows **Runner out of date**: **Update runner** (it rebuilds the container
+   from the sources; the runner now says `caps.serverTools`). The new runner is needed once; later server tools need none.
+3. **Profiles** → the profile TEST DEV uses: **Add Atlassian** (or keep its part), **Sign-in** your Atlassian sign-in,
+   **Jira** Read (all projects, or `AP`), **Confluence** Off or Read.
+4. **Agents** → TEST DEV (Claude Code on the Docker runner, home `/work/test-dev`) → its chat. Ask: "what are my last 5
+   Jira tickets?". It calls `searchJiraIssuesUsingJql` (as `assignee = currentUser() ORDER BY updated DESC`, kept to the
+   profile's projects) and answers with five keys and summaries.
+5. Ask: "read AP-301". It calls `getJiraIssue` and answers with its status, description and latest comments; with
+   `AP` outside the profile's projects it says the issue is outside them.
 
 ## Security
 

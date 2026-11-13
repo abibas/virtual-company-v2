@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AtlassianRights, GitHubRights } from '../../src/credentials/tool-rights.ts';
 import {
+  ATLASSIAN_TOOLS_NOTE,
   BRIEFING_NAMES_MAX,
   rightsSummary,
   TOOL_ACCESS_NOTE,
@@ -50,6 +51,7 @@ describe('rightsSummary', () => {
 
 describe('toolBriefingLine', () => {
   const note = ` ${TOOL_ACCESS_NOTE}`;
+  const atlassianNote = ` ${ATLASSIAN_TOOLS_NOTE}`;
 
   it('tells a GitHub part’s account, what it may do and where, and what it never does', () => {
     expect(
@@ -89,12 +91,12 @@ describe('toolBriefingLine', () => {
     expect(
       toolBriefingLine({ ...tool, rights: atlassian({ jira: 'changes', confluenceSpaces: 'all' }) }),
     ).toBe(
-      '- Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read, comment on, transition and create issues ' +
-        `in AP; Confluence: may read, create and update pages in every space; never deletes or archives.${note}`,
+      '- Atlassian (airia.atlassian.net): as Ihor Herasko; Jira: may read, comment on, transition, create and edit ' +
+        `issues in AP; Confluence: may read, create and update pages in every space; never deletes or archives.${atlassianNote}`,
     );
     const rights = atlassian({ jira: 'off', confluence: 'read', jiraProjects: 'all' });
     expect(toolBriefingLine({ ...tool, site: null, rights })).toBe(
-      `- Atlassian: as Ihor Herasko; Jira: none; Confluence: may read pages in ENG; never deletes or archives.${note}`,
+      `- Atlassian: as Ihor Herasko; Jira: none; Confluence: may read pages in ENG; never deletes or archives.${atlassianNote}`,
     );
     const everywhere = atlassian({ jiraProjects: 'all', confluence: 'off' });
     expect(toolBriefingLine({ ...tool, rights: everywhere })).toContain(
