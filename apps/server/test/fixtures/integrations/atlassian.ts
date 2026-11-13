@@ -4,7 +4,7 @@
  * tool relayed as the runner does, and the fake provider's answers at the sealed sign-in's site. Never a real Atlassian:
  * every call goes to the fake provider (`w.provider`).
  */
-import { accessProfiles, auditLog, type DbHandle } from '@mwc/db';
+import { accessProfiles, agents, auditLog, credentials, type DbHandle } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { AtlassianRights } from '@mwc/shared/credentials';
 import type { TurnStart } from '@mwc/shared/runner-protocol';
@@ -107,3 +107,15 @@ export async function toolAudit(db: DbHandle, entityType: string, entityId: stri
     (row) => [row.action, row.actorPrincipalId, row.requestId, row.field, row.newValue] as const,
   );
 }
+
+/** An agent's principal, read straight from the table. */
+export const principalOf = async (db: DbHandle, agentId: string) =>
+  (await rawDb(db).select().from(agents).where(eq(agents.id, agentId)))[0]?.principalId as string;
+
+/** A sign-in's status as stored. */
+export const statusOf = async (db: DbHandle, credentialId: string) =>
+  (await rawDb(db).select().from(credentials).where(eq(credentials.id, credentialId)))[0]?.status;
+
+/** A tool's answer read as JSON (the test fails when it is not). */
+export const answerOf = (result: { readonly ok: boolean; readonly text: string }) =>
+  JSON.parse(result.text) as Record<string, unknown>;
