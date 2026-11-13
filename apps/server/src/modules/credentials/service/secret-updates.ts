@@ -1,6 +1,7 @@
 import { type Credential, diffFields, owned } from '@mwc/db';
 import type { CredentialStatus } from '@mwc/shared/enums';
 import type { CredentialsRepo } from '../repo.ts';
+import { previewColumns } from '../rules/gateway-headers.ts';
 import {
   credentialAad,
   credentialView,
@@ -9,7 +10,6 @@ import {
   USE_REVOKED,
   type UseRefusal,
 } from '../rules.ts';
-import { previewColumns } from '../rules/gateway-headers.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
 import { type FirstCheck, firstCheckColumns, recordFirstCheck } from './first-check.ts';

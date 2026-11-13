@@ -3,6 +3,7 @@ import type { CredentialStatus } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import type { Keyring, Sealed } from '../../../platform/secrets/keyring.ts';
 import { type CredentialsRepo, credentialsRepo, type UseContext } from '../repo.ts';
+import { previewColumns } from '../rules/gateway-headers.ts';
 import {
   audited,
   credentialAad,
@@ -13,7 +14,6 @@ import {
   USE_REVOKED,
   type UseRefusal,
 } from '../rules.ts';
-import { previewColumns } from '../rules/gateway-headers.ts';
 import { type KindSecret, parseSecret } from '../schemas/secrets.ts';
 import type { AccountMeta, SubscriptionView } from '../schemas.ts';
 import { type FirstCheck, firstCheckColumns, recordFirstCheck } from './first-check.ts';

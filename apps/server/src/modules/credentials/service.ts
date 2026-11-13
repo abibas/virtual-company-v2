@@ -1,5 +1,6 @@
 import { type Credential, diffFields, type FieldChange, type OwnedDb, owned } from '@mwc/db';
 import { type CredentialsRepo, credentialsRepo } from './repo.ts';
+import { editHeaders, type HeaderEdit, previewsOf } from './rules/gateway-headers.ts';
 import {
   audited,
   CREDENTIAL_NOT_FOUND,
@@ -11,7 +12,6 @@ import {
   type Refusal,
   updatedGatewayMeta,
 } from './rules.ts';
-import { editHeaders, type HeaderEdit, previewsOf } from './rules/gateway-headers.ts';
 import { parseSecret } from './schemas/secrets.ts';
 import type { AddSubscription, SubscriptionView, UpdateSubscription } from './schemas.ts';
 import { credentialSecrets, type SecretDeps, sealedOf } from './service/secrets.ts';

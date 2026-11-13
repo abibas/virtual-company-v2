@@ -28,7 +28,7 @@ describe('headerPreview', () => {
 
   it('never holds a value of 8 characters or more whole', () => {
     for (let length = 8; length <= 64; length++) {
-      const value = 'v'.repeat(length - 1) + 'z';
+      const value = `${'v'.repeat(length - 1)}z`;
       expect(headerPreview(value)).not.toContain(value);
       expect(headerPreview(value)).toContain('••••');
     }
