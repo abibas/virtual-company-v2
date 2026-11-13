@@ -205,6 +205,9 @@ export type PlacementMode = z.infer<typeof PlacementMode>;
 /** The permission modes (`access_profiles.claude_mode`, `openai_mode`, `chats.mode`, `chat_turns.mode`): `enums/modes.ts`. */
 export * from './enums/modes.ts';
 
+/** Receiving Slack messages (`slack_connections.wake`, `status`): `enums/slack.ts`. */
+export * from './enums/slack.ts';
+
 /**
  * `chat_turns.status` (S5.1b, docs/harness.md): a chat turn waiting in the chat's queue for the running one to end
  * (`queued`, S5.2 step 6), its process running there (`running`), and how it ended: with its result (`done`), failed or

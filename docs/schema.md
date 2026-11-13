@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 39. Migrations: 37, the last is `0036_slack_part`.
+Tables: 42. Migrations: 38, the last is `0037_slack_inbound`.
 
 ```mermaid
 erDiagram
@@ -479,6 +479,50 @@ erDiagram
     text version "not null"
     text remote_ip "nullable"
   }
+  slack_connections {
+    uuid credential_id PK, FK "not null"
+    uuid owner_user_id FK "not null"
+    integer app_key_version "nullable"
+    bytea app_iv "nullable"
+    bytea app_auth_tag "nullable"
+    bytea app_ciphertext "nullable"
+    boolean inbound "not null, default false"
+    text wake "not null, default 'listed', anyone|listed"
+    jsonb people "not null, default '[]'"
+    uuid default_company_id "nullable"
+    uuid default_agent_id "nullable"
+    integer max_per_hour "not null, default 30"
+    text status "not null, default 'off', off|connecting|connected|disconnected|error"
+    text status_message "nullable"
+    timestamptz status_at "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
+  slack_posts {
+    bigserial id PK "not null, default auto-increment"
+    uuid owner_user_id FK "not null"
+    uuid credential_id FK "not null"
+    text channel_id "not null"
+    text ts "not null"
+    text thread_ts "nullable"
+    uuid company_id "not null"
+    uuid agent_id "not null"
+    uuid chat_id "nullable"
+    uuid turn_id "nullable"
+    timestamptz at "not null, default now()"
+  }
+  slack_threads {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid agent_id FK "not null"
+    uuid chat_id FK "not null"
+    uuid credential_id "not null"
+    text channel_id "not null"
+    text thread_ts "nullable"
+    text place "not null"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   task_artifacts {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
@@ -648,6 +692,13 @@ erDiagram
   room_messages }o--o| tasks : "company_id, task_id"
   runner_sessions }o--|| companies : "company_id"
   runner_sessions }o--|| machines : "company_id, machine_id"
+  slack_connections |o--|| credentials : "credential_id"
+  slack_connections }o--|| users : "owner_user_id"
+  slack_posts }o--|| users : "owner_user_id"
+  slack_posts }o--|| credentials : "credential_id"
+  slack_threads }o--|| companies : "company_id"
+  slack_threads }o--|| agents : "company_id, agent_id"
+  slack_threads |o--|| chats : "company_id, chat_id"
   task_artifacts }o--|| companies : "company_id"
   task_artifacts }o--|| tasks : "company_id, task_id"
   task_artifacts }o--o| chats : "company_id, chat_id"
@@ -1758,6 +1809,105 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `runner_sessions_span_check`: `"disconnected_at" >= "connected_at"`
 - **Indexes:**
   - `runner_sessions_machine_idx` on (`company_id`, `machine_id`, `connected_at`)
+
+### `slack_connections`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `credential_id` | `uuid` | no |  | PK, FK |  |
+| `owner_user_id` | `uuid` | no |  | FK |  |
+| `app_key_version` | `integer` | yes |  |  |  |
+| `app_iv` | `bytea` | yes |  |  |  |
+| `app_auth_tag` | `bytea` | yes |  |  |  |
+| `app_ciphertext` | `bytea` | yes |  |  |  |
+| `inbound` | `boolean` | no | `false` |  |  |
+| `wake` | `text` | no | `'listed'` |  | `anyone`, `listed` |
+| `people` | `jsonb` | no | `'[]'` |  |  |
+| `default_company_id` | `uuid` | yes |  |  |  |
+| `default_agent_id` | `uuid` | yes |  |  |  |
+| `max_per_hour` | `integer` | no | `30` |  |  |
+| `status` | `text` | no | `'off'` |  | `off`, `connecting`, `connected`, `disconnected`, `error` |
+| `status_message` | `text` | yes |  |  |  |
+| `status_at` | `timestamp with time zone` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `credential_id`
+- **Foreign keys:**
+  - `credential_id` → `credentials` (`id`), on delete cascade (`slack_connections_credential_id_credentials_id_fk`)
+  - `owner_user_id` → `users` (`id`), on delete no action (`slack_connections_owner_user_id_users_id_fk`)
+- **Unique:** none
+- **Checks:**
+  - `slack_connections_app_token_check`: `("app_key_version" is null) = ("app_ciphertext" is null) and ("app_iv" is null) = ("app_ciphertext" is null) and ("app_auth_tag" is null) = ("app_ciphertext" is null)`
+  - `slack_connections_app_iv_check`: `octet_length("app_iv") = 12`
+  - `slack_connections_app_auth_tag_check`: `octet_length("app_auth_tag") = 16`
+  - `slack_connections_wake_check`: `wake` is one of `anyone`, `listed`
+  - `slack_connections_people_check`: `jsonb_typeof("people") = 'array' and jsonb_array_length("people") <= 50`
+  - `slack_connections_default_agent_check`: `("default_company_id" is null) = ("default_agent_id" is null)`
+  - `slack_connections_max_per_hour_check`: `"max_per_hour" between 1 and 500`
+  - `slack_connections_status_check`: `status` is one of `off`, `connecting`, `connected`, `disconnected`, `error`
+  - `slack_connections_status_message_check`: `char_length("status_message") between 1 and 300`
+  - `slack_connections_inbound_check`: `not "inbound" or "app_ciphertext" is not null`
+- **Indexes:**
+  - `slack_connections_owner_idx` on (`owner_user_id`)
+  - `slack_connections_inbound_idx` on (`inbound`)
+
+### `slack_posts`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `bigserial` | no | `auto-increment` | PK |  |
+| `owner_user_id` | `uuid` | no |  | FK |  |
+| `credential_id` | `uuid` | no |  | FK |  |
+| `channel_id` | `text` | no |  |  |  |
+| `ts` | `text` | no |  |  |  |
+| `thread_ts` | `text` | yes |  |  |  |
+| `company_id` | `uuid` | no |  |  |  |
+| `agent_id` | `uuid` | no |  |  |  |
+| `chat_id` | `uuid` | yes |  |  |  |
+| `turn_id` | `uuid` | yes |  |  |  |
+| `at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `owner_user_id` → `users` (`id`), on delete no action (`slack_posts_owner_user_id_users_id_fk`)
+  - `credential_id` → `credentials` (`id`), on delete cascade (`slack_posts_credential_id_credentials_id_fk`)
+- **Unique:**
+  - `slack_posts_message_unique` (`credential_id`, `channel_id`, `ts`)
+- **Checks:**
+  - `slack_posts_ts_check`: `char_length("ts") between 1 and 40`
+  - `slack_posts_channel_check`: `char_length("channel_id") between 1 and 40`
+- **Indexes:**
+  - `slack_posts_thread_idx` on (`credential_id`, `channel_id`, `thread_ts`)
+  - `slack_posts_turn_idx` on (`turn_id`)
+
+### `slack_threads`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `agent_id` | `uuid` | no |  | FK |  |
+| `chat_id` | `uuid` | no |  | FK |  |
+| `credential_id` | `uuid` | no |  |  |  |
+| `channel_id` | `text` | no |  |  |  |
+| `thread_ts` | `text` | yes |  |  |  |
+| `place` | `text` | no |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`slack_threads_company_id_companies_id_fk`)
+  - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete no action (`slack_threads_agent_fk`)
+  - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`slack_threads_chat_fk`)
+- **Unique:**
+  - `slack_threads_company_id_id_unique` (`company_id`, `id`)
+  - `slack_threads_conversation_unique` (`company_id`, `agent_id`, `credential_id`, `channel_id`, `thread_ts`), nulls not distinct
+  - `slack_threads_chat_unique` (`company_id`, `chat_id`)
+- **Checks:**
+  - `slack_threads_place_check`: `char_length("place") between 1 and 200`
+- **Indexes:** none
 
 ### `task_artifacts`
 

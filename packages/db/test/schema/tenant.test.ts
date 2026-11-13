@@ -8,7 +8,7 @@ import { pgError, type TestDb } from '../../src/testing.ts';
 import { insertCompany, insertPrincipal, MISSING_ID, migratedTestDb } from '../fixtures/rows.ts';
 
 /** Tables that name a company without being tenant rows (no composite keys point at them). */
-const GLOBAL_WITH_COMPANY = ['audit_log', 'credential_uses', 'identity_outbox'];
+const GLOBAL_WITH_COMPANY = ['audit_log', 'credential_uses', 'identity_outbox', 'slack_posts'];
 /** Tenant tables with one row per company: `company_id` is their primary key, they have no `id` and nothing points at them. */
 const ONE_PER_COMPANY = ['company_logos'];
 /** Tenant tables with one row per principal: `(company_id, principal_id)` is their primary key, they have no `id`. */
@@ -60,6 +60,7 @@ describe('the tenant conventions, on every tenant table', () => {
       'principals',
       'room_messages',
       'runner_sessions',
+      'slack_threads',
       'task_artifacts',
       'task_events',
       'tasks',
@@ -156,7 +157,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(60);
+    expect(composite).toBe(62);
   });
 });
 

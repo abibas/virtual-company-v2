@@ -2,6 +2,7 @@ import type { CredentialKind, Harness, ProfileProvider, ToolProvider } from './e
 
 /** A profile's tool parts' rights (S7.1b) and who a sign-in acts as: `credentials/tool-rights.ts`; in words: `tool-words.ts`. */
 export * from './credentials/slack.ts';
+export * from './credentials/slack-inbound.ts';
 export * from './credentials/tool-rights.ts';
 export * from './credentials/tool-words.ts';
 export type { ToolProvider } from './enums.ts';
