@@ -1,3 +1,4 @@
+import { SERVER_TOOLS_MAX } from '@mwc/shared/harness';
 import {
   type HarnessVersions,
   type HeldTurn,
@@ -53,6 +54,7 @@ export interface CapsNow {
 export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
   const { harness, processes, containerId } = options;
   const { tools } = now;
+  const serverTools = harness?.ask !== undefined && processes !== undefined;
   return {
     harnesses: harness && processes ? harness.versions : NO_HARNESSES,
     slots: now.slots,
@@ -65,7 +67,9 @@ export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
     forks: true,
     reattach: harness?.keeper !== undefined && processes !== undefined,
     agentTools: harness?.ask !== undefined && processes !== undefined,
-    serverTools: harness?.ask !== undefined && processes !== undefined,
+    serverTools,
+    // S7.1e: the server's tools a turn carries rise from 32 to 64; an older runner says nothing and is sent 32.
+    ...(serverTools ? { serverToolsMax: SERVER_TOOLS_MAX } : {}),
     github: harness?.gitHooks !== undefined && processes !== undefined,
     ...(tools ? { tools } : {}),
     ...(containerId ? { containerId } : {}),

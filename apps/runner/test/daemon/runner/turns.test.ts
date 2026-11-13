@@ -41,10 +41,13 @@ describe("the runner's chat turns on the wire", () => {
     const tooled = await fakeServer();
     const ask = testAskHost(memoryLog().log, askRoot(root));
     startRunner(tooled, { harness: { ...host, ask }, spawn: new FakeSpawn() });
-    expect((await tooled.frames.next('runner.hello')).caps.agentTools).toBe(true);
+    const caps = (await tooled.frames.next('runner.hello')).caps;
+    expect(caps).toMatchObject({ agentTools: true, serverTools: true, serverToolsMax: 64 });
     const idle = await fakeServer();
     startRunner(idle, { harness: { ...host, ask } });
-    expect((await idle.frames.next('runner.hello')).caps.agentTools).toBe(false);
+    const none = (await idle.frames.next('runner.hello')).caps;
+    expect(none.agentTools).toBe(false);
+    expect(none.serverToolsMax).toBeUndefined();
   });
 
   it('says caps.github (S7.1d) only with its git hooks’ folder and a way to start processes', async () => {
