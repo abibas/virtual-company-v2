@@ -54,6 +54,8 @@ type ProfileRoutes = Api['api']['me']['access-profiles'];
 export type Subscription = InferResponseType<SubscriptionRoutes['$get'], 200>['subscriptions'][number];
 export type SubscriptionKind = Subscription['kind'];
 export type NewSubscription = InferRequestType<SubscriptionRoutes['$post']>['json'];
+/** `PATCH /api/me/subscriptions/:credentialId`: a name, and a gateway's address, paths and headers. */
+export type SubscriptionChanges = InferRequestType<SubscriptionRoutes[':credentialId']['$patch']>['json'];
 export type LimitsList = InferResponseType<SubscriptionRoutes['limits']['$get'], 200>;
 export type SubscriptionLimits = LimitsList['limits'][number];
 export type LimitWindow = SubscriptionLimits['windows'][number];

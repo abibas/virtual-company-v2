@@ -117,7 +117,7 @@ const FRIENDLY: Readonly<Record<string, string>> = {
   sign_in_kind_mismatch: 'This subscription was not added with this sign-in. Sign in with its own provider.',
   credential_not_found: 'This subscription no longer exists. Refresh the page.',
   credential_kind_mismatch: 'That is not a gateway. Choose one of your gateways.',
-  not_a_gateway: 'Only a gateway has an address and paths.',
+  not_a_gateway: 'Only a gateway has an address, paths and headers.',
   credential_revoked: 'That subscription is revoked. Choose another one.',
   access_profile_not_found: 'This access profile no longer exists. Refresh the page.',
   access_profile_name_taken: 'You already have an access profile with this name. Choose another one.',

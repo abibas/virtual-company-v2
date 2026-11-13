@@ -41,7 +41,7 @@ interface ListProps {
   readonly gateways: readonly Subscription[];
   readonly profiles: readonly AccessProfile[] | undefined;
   readonly calls: SubscriptionCalls;
-  /** A card renamed or removed one: read the lists again. */
+  /** A card renamed, edited or removed one: read the lists again. */
   readonly onChanged: () => void;
   readonly onAdd: () => void;
 }
@@ -74,6 +74,7 @@ function GatewayList({ gateways, profiles, calls, onChanged, onAdd }: ListProps)
           gateway={gateway}
           profiles={profilesWith(profiles, gateway.id)}
           rename={(label) => calls.rename(gateway.id, label).then(onChanged)}
+          update={(changes) => calls.update(gateway.id, changes).then(onChanged)}
           remove={() => calls.remove(gateway.id).then(onChanged)}
         />
       ))}
@@ -83,7 +84,7 @@ function GatewayList({ gateways, profiles, calls, onChanged, onAdd }: ListProps)
 
 /**
  * The AI gateways tab: the person's gateways (credentials of kind `gateway`) as cards, with the profiles that include
- * each, rename and remove; Add gateway opens the gateway form in a sheet.
+ * each, rename, edit and remove; Add gateway opens the gateway form in a sheet.
  * `addOnOpen` (`&add=1`, from a profile's Add a gateway) opens that sheet at once, and leaves the address without it. `header` puts Add gateway in the page's
  * header.
  */

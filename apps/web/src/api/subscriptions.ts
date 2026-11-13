@@ -12,6 +12,7 @@ import type {
   NewToolSignIn,
   SignInProvider,
   Subscription,
+  SubscriptionChanges,
 } from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
 
@@ -139,6 +140,9 @@ export function subscriptionCalls(api: Api) {
     add: (subscription: NewSubscription) => call(subscriptions.$post({ json: subscription })),
     rename: (credentialId: string, label: string) =>
       call(one.$patch({ param: { credentialId }, json: { label } })),
+    /** A gateway's address, paths and headers (each header kept, renamed, given a new value, added or left out). */
+    update: (credentialId: string, changes: SubscriptionChanges) =>
+      call(one.$patch({ param: { credentialId }, json: changes })),
     remove: (credentialId: string) => call(one.$delete({ param: { credentialId } })),
     /** Starts a sign-in; with `credentialId` (Sign in again), it renews that subscription in place. */
     startSignIn: (provider: SignInProvider, credentialId?: string) =>

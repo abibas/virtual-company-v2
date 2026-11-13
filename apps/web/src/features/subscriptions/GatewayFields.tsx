@@ -125,15 +125,22 @@ export interface HeaderRow {
   readonly id: number;
   readonly name: string;
   readonly value: string;
+  /** Editing a gateway: the stored header this row continues, whose value stays while none is typed. */
+  readonly from?: string;
 }
 
-/** A gateway's headers: name and value rows (values as secrets), none to 20; an empty row is left out. */
+/**
+ * A gateway's headers: name and value rows (values as secrets), none to 20; an empty row is left out. Editing one
+ * (`editing`), a stored header's value shows "unchanged" until a new one is typed.
+ */
 export function HeaderRows({
   rows,
   onChange,
+  editing = false,
 }: {
   readonly rows: readonly HeaderRow[];
   readonly onChange: (rows: readonly HeaderRow[]) => void;
+  readonly editing?: boolean;
 }) {
   const nextId = useRef(rows.length);
   const set = (id: number, change: Partial<HeaderRow>) =>
@@ -141,7 +148,9 @@ export function HeaderRows({
   const add = () => onChange([...rows, { id: nextId.current++, name: '', value: '' }]);
   return (
     <fieldset className="flex min-w-0 flex-col gap-2">
-      <legend className="mb-1.5 text-sm font-semibold text-ink-2">Headers (optional)</legend>
+      <legend className="mb-1.5 text-sm font-semibold text-ink-2">
+        {editing ? 'Headers' : 'Headers (optional)'}
+      </legend>
       {rows.map((row, index) => (
         <div key={row.id} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-2">
           <Input
@@ -155,7 +164,7 @@ export function HeaderRows({
           <Input
             aria-label={`Header ${index + 1} value`}
             value={row.value}
-            placeholder="Value"
+            placeholder={row.from === undefined ? 'Value' : 'unchanged'}
             {...SECRET_INPUT}
             onChange={(event) => set(row.id, { value: event.target.value })}
           />
@@ -169,10 +178,10 @@ export function HeaderRows({
       ))}
       {rows.length < GATEWAY_HEADERS.max && (
         <Button size="sm" tone="quiet" icon={Plus} onClick={add} className="-ml-2 self-start">
-          Add a header
+          Add header
         </Button>
       )}
-      <p className="text-xs text-dim">The values are stored encrypted and never shown again.</p>
+      {!editing && <p className="text-xs text-dim">The values are stored encrypted and never shown again.</p>}
     </fieldset>
   );
 }
