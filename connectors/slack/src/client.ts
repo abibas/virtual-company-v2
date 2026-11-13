@@ -52,7 +52,6 @@ export function slackClient(options: HttpOptions): SlackApi {
         username: post.username,
         icon_emoji: post.iconEmoji,
         icon_url: post.iconUrl,
-        blocks: post.blocks,
         link_names: false,
         parse: 'none',
         unfurl_links: false,

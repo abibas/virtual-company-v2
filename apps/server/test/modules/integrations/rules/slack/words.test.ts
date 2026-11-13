@@ -40,7 +40,7 @@ describe('the Slack tools’ words', () => {
     expect(posting).toContain(
       '(from Most Wanted): in Airia: read every channel; read and send direct messages.',
     );
-    expect(posting).toContain('Posts show as the bot and end with');
+    expect(posting).toContain('Posts show as the bot;');
     const user = slackLine({ account: null, site: null }, access({ post: true }, true), [
       'slack_post_message',
     ]);

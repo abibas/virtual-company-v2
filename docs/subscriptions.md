@@ -847,7 +847,7 @@ part's defaults, or a new sign-in alone are never refused, so a part can always 
 Profiles page shows such a right disabled, with a tooltip naming what is missing.
 
 **A user token posts as Ihor himself.** It is allowed, since he has one, but the bot is the default; the part's section
-says **Posts as you** beside its sign-in, and its posts still carry the footer naming the agent.
+says **Posts as you** beside its sign-in.
 
 ### The Slack app's scopes
 
@@ -890,9 +890,8 @@ a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as
 - **Offered** to a message turn whose profile (the chat's own, else the agent's) has a Slack part with a sign-in, on a
   runner that says `caps.serverTools`, by its rights as its token's scopes let them work. The standing instructions get
   one line: "Slack tools (from Most Wanted): as mw-bot in Airia: read #general; post in #general. Your tools, by the
-  names of the Slack MCP servers: …; channel_id takes a channel's id or #name. Posts show under your own name on the bot
-  and end with "via Most Wanted · <your name>"; @here, @channel and @everyone are stripped. They never delete, edit
-  others' messages, invite or kick." The briefing's line: "- Slack: as mw-bot in Airia; may read #general; may post in
+  names of the Slack MCP servers: …; channel_id takes a channel's id or #name. Posts show under your own name on the bot;
+  @here, @channel and @everyone are stripped. They never delete, edit others' messages, invite or kick." The briefing's line: "- Slack: as mw-bot in Airia; may read #general; may post in
   #general. Your Most Wanted tools: slack_get_channel_history, slack_post_message, …; never @here, @channel or @everyone."
 - **Checked on every call** (`modules/integrations/service/slack/call.ts`): the tool is one of them; the profile is read
   again; the part has a sign-in and its working rights give the tool; no refused argument; the input passes its schema.
@@ -908,11 +907,10 @@ a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as
 - **Posting** (`service/slack/posts.ts`): every mention of many people is stripped before Slack sees the text
   (`<!here>`, `<!channel>`, `<!everyone>`, user groups `<!subteam^…>`, and `@here`, `@channel`, `@everyone` typed as
   words; the word stays, the mention goes; the answer and the audit row name what was stripped), with `link_names` off,
-  `parse` none and no unfurls. The text goes in Block Kit sections (at most 3000 characters each) with a context line
-  "via Most Wanted · <agent>" under it, and as the notification's text. On a bot token with `chat:write.customize` the
-  post shows under the agent's name, and its icon when the agent's icon is an emoji Slack knows by name (`:robot_face:`
-  for 🤖, about forty common ones); agents' uploaded images have no public address yet, so none is sent as `icon_url`.
-  Without that scope it shows as the bot; a user token's as its person.
+  `parse` none and no unfurls. The text goes as it is, as the post's plain `text`, with no blocks and no footer. On a
+  bot token with `chat:write.customize` the post shows under the agent's name, and its icon when the agent's icon is an
+  emoji Slack knows by name (`:robot_face:` for 🤖, about forty common ones); agents' uploaded images have no public
+  address yet, so none is sent as `icon_url`. Without that scope it shows as the bot; a user token's as its person.
 - **Answers** are trimmed JSON (`rules/slack/render.ts`): a message's `ts`, its time, its author by name (from
   `users.info` with `users:read`, at most 15 a call, else the id), text (cut at 4000), thread and replies, reactions and
   files; a channel's id, `#name`, topic and members; a person's names and title; a hit's channel, text and link.
@@ -948,7 +946,7 @@ a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as
    the latest messages by their authors. Asking about another channel ends in "… is outside the Slack channels this
    agent's profile reaches".
 6. Back on **Profiles**, switch **Post** on. In the chat: "post a test message in #<channel>". It calls
-   `slack_post_message`; the message shows under TEST DEV's name with "via Most Wanted · TEST DEV" under it.
+   `slack_post_message`; the message shows under TEST DEV's name, with no footer.
 
 ## Security
 

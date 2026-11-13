@@ -871,8 +871,8 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          `slack_get_thread_replies`, `slack_get_users`, `slack_get_user_profile`, `slack_post_message`,
          `slack_reply_to_thread`, `slack_add_reaction`, `slack_search_messages`, each checked on the server against the
          rights and scopes, the channel allowlist (names resolved to ids) and the DM rights. Posts on a bot with
-         `chat:write.customize` show under the agent's name and emoji icon, every post with the footer "via Most Wanted ·
-         <agent>". Uses for `tool:<name>`; posts and reactions audited as the agent on `slack_message`. The port
+         `chat:write.customize` show under the agent's name and emoji icon (as the bot without it); posts carry no footer
+         (Ihor, 2026-11-13). Uses for `tool:<name>`; posts and reactions audited as the agent on `slack_message`. The port
          `SlackApi`/`SlackError` in `@mwc/tools-core` and `connectors/slack` (bearer, form arguments, `ratelimited` and
          429 retried after `Retry-After`, `not_in_channel` as "invite the bot to #x"), wired through `platform/slack.ts`.
        - The tool limit: GitHub's 14, Atlassian's 15 and Slack's 9 pass 32. A spec now carries up to 64
@@ -883,7 +883,7 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
        - Web: Subscriptions → Tools → Add a tool → Slack; the Slack card; Profiles → Add Slack with the sign-in, Channels
          (All channels or chips), Read, Post, Search, React and DMs Off/Read/Post. The briefing's Slack line.
        - Tests: the connector on a fake fetch, the check and its routes, the rights × scopes, the profile's refusals, every
-         tool through a live turn (allowlist and name resolution, DMs, mention stripping, customize and footer, rate
+         tool through a live turn (allowlist and name resolution, DMs, mention stripping, customize, rate
          limits, `invalid_auth`, uses and audit), the tool limit with old and new runners, the migration.
        - **Later** (Ihor, 2026-11-13): Slack may help mirror the team structure, a channel per team for example. Not
          built.

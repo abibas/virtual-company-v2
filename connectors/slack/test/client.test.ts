@@ -137,7 +137,7 @@ describe('the Slack connector', () => {
     expect((await api.userInfo(SIGN_IN, 'U01')).title).toBe('CEO');
   });
 
-  it('posts with no mention parsing or unfurls, as the name and icon given, with blocks as JSON', async () => {
+  it('posts with no mention parsing or unfurls, as the name and icon given, as plain text', async () => {
     const { api, calls } = client({ 'chat.postMessage': ok({ channel: 'C0123ABCD', ts: '1731.1' }) });
     const posted = await api.postMessage(SIGN_IN, {
       channel: 'C0123ABCD',
@@ -145,7 +145,6 @@ describe('the Slack connector', () => {
       threadTs: '1731.0',
       username: 'QA',
       iconEmoji: ':robot_face:',
-      blocks: [{ type: 'section', text: { type: 'mrkdwn', text: 'Hello' } }],
     });
     expect(posted).toEqual({ channel: 'C0123ABCD', ts: '1731.1' });
     expect(calls[0]?.form).toEqual({
@@ -154,7 +153,6 @@ describe('the Slack connector', () => {
       thread_ts: '1731.0',
       username: 'QA',
       icon_emoji: ':robot_face:',
-      blocks: '[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]',
       link_names: 'false',
       parse: 'none',
       unfurl_links: 'false',

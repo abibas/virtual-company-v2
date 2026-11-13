@@ -93,7 +93,7 @@ export interface SlackSearchPage {
   readonly items: readonly SlackHit[];
 }
 
-/** A message to post: where, its text (the notification's fallback with blocks), the thread, and how it shows. */
+/** A message to post: where, its text, the thread, and how it shows. */
 export interface SlackPost {
   readonly channel: string;
   readonly text: string;
@@ -102,8 +102,6 @@ export interface SlackPost {
   readonly username?: string | undefined;
   readonly iconEmoji?: string | undefined;
   readonly iconUrl?: string | undefined;
-  /** Block Kit blocks; the text is then the fallback. */
-  readonly blocks?: readonly Record<string, unknown>[] | undefined;
 }
 
 /** Where a posted message landed. */

@@ -27,8 +27,8 @@ import {
 
 /**
  * The Slack write tools through a live turn (S7.1e): a post and a thread reply under the agent's name and emoji icon on
- * a bot with `chat:write.customize` (as the bot without it), always with the footer "via Most Wanted · <agent>" and with
- * every mention of many people taken out; and a reaction. Each is audited as the agent on the message.
+ * a bot with `chat:write.customize` (as the bot without it), as plain text with no footer and
+ * with every mention of many people taken out; and a reaction. Each is audited as the agent on the message.
  */
 
 let w: ChatsWorld;
@@ -68,13 +68,9 @@ afterAll(async () => {
 const GENERAL = { 'conversations.list': ok({ channels: [rawChannel('C0GENERAL1', 'general')] }) };
 const post = (text: string, channel = '#general') =>
   callTool(s, start, 'slack_post_message', { channel_id: channel, text });
-const footer = () => ({
-  type: 'context',
-  elements: [{ type: 'plain_text', text: `via Most Wanted · ${s.agentName}`, emoji: true }],
-});
 
 describe('slack_post_message', () => {
-  it('posts under the agent’s name and icon with the footer, no mentions parsed, audited as the agent', async () => {
+  it('posts its text alone under the agent’s name and icon, no mentions parsed, audited as the agent', async () => {
     answerSlack(w, { ...GENERAL, 'chat.postMessage': ok({ channel: 'C0GENERAL1', ts: '1731.5' }) });
     const result = await post('Test message from *Most Wanted*');
     expect(answerOf(result)).toEqual({
@@ -94,10 +90,7 @@ describe('slack_post_message', () => {
       parse: 'none',
       unfurl_links: 'false',
     });
-    expect(JSON.parse(form.blocks as string)).toEqual([
-      { type: 'section', text: { type: 'mrkdwn', text: 'Test message from *Most Wanted*' } },
-      footer(),
-    ]);
+    expect(form).not.toHaveProperty('blocks');
     expect(await toolAudit(w.t.db, 'slack_message', 'C0GENERAL1/1731.5')).toEqual([
       ['tool:slack_post_message', agentPrincipal, start.turnId, 'channel', '#general'],
       ['tool:slack_post_message', agentPrincipal, start.turnId, 'text', 'Test message from *Most Wanted*'],
@@ -122,7 +115,7 @@ describe('slack_post_message', () => {
     expect((await post(' \n ')).text).toBe('The message has no text: write what to post.');
   });
 
-  it('posts as the bot itself without chat:write.customize, in sections for a long text', async () => {
+  it('posts as the bot itself without chat:write.customize, a long text whole and with no blocks', async () => {
     await setScopes(w.t.db, s.signIn.id, ['channels:read', 'channels:history', 'chat:write']);
     answerSlack(w, { ...GENERAL, 'chat.postMessage': ok({ channel: 'C0GENERAL1', ts: '1731.7' }) });
     const long = `${'a'.repeat(2999)}\n${'b'.repeat(10)}`;
@@ -130,7 +123,8 @@ describe('slack_post_message', () => {
     const form = formOf(callsOf(w, 'chat.postMessage')[0]);
     expect(form).not.toHaveProperty('username');
     expect(form).not.toHaveProperty('icon_emoji');
-    expect(JSON.parse(form.blocks as string)).toHaveLength(3);
+    expect(form.text).toBe(long);
+    expect(form).not.toHaveProperty('blocks');
   });
 
   it('is refused outside the allowlist, and says to invite the bot when it is not in the channel', async () => {

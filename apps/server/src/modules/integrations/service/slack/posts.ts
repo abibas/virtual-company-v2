@@ -1,7 +1,7 @@
 import { slackAllows } from '@mwc/shared/credentials';
 import { postIcon } from '../../rules/slack/icons.ts';
 import { channelWords, type ResolvedChannel } from '../../rules/slack/rights.ts';
-import { postBlocks, postName, stripMentions } from '../../rules/slack/text.ts';
+import { postName, stripMentions } from '../../rules/slack/text.ts';
 import type { SlackInput } from '../../schemas/slack.ts';
 import { done, excerpt, refused, type ToolReply } from '../reply.ts';
 import { resolveChannel } from './channels.ts';
@@ -9,9 +9,9 @@ import { inChannel, type SlackContext } from './context.ts';
 
 /**
  * The Slack write tools (S7.1e): a post, a thread reply and a reaction, once the conversation is resolved and the
- * profile may write there. A post's text loses every mention of many people (`stripMentions`), carries the footer "via
- * Most Wanted · <agent>" and, on a bot token with `chat:write.customize`, shows under the agent's name and emoji icon; a
- * user token posts as its person. Each is audited as the agent on the message.
+ * profile may write there. A post's text loses every mention of many people (`stripMentions`) and goes as plain text with no
+ * footer; on a bot token with `chat:write.customize` it shows under the agent's name and emoji icon, without it as the
+ * bot, and a user token posts as its person. Each is audited as the agent on the message.
  */
 
 /** How a post shows: the agent's name and icon on a bot that may take them; else as the token's bot or person. */
@@ -38,7 +38,6 @@ async function post(ctx: SlackContext, channel: ResolvedChannel, text: string, t
       text: plain,
       threadTs,
       ...shown,
-      blocks: postBlocks(plain, ctx.agent.name),
     });
     await ctx.audit({
       entityId: `${posted.channel}/${posted.ts}`,

@@ -107,7 +107,7 @@ export const SLACK_INPUTS = {
 export type SlackInput<T extends SlackTool> = z.output<(typeof SLACK_INPUTS)[T]>;
 
 const AS_AGENT =
-  'Most Wanted posts under the agent’s own name and icon, with a "via Most Wanted" footer; that is not chosen per post.';
+  'Most Wanted posts under the agent’s own name and icon when the bot may, else as the bot; that is not chosen per post.';
 const PLAIN = 'Posts are plain text (Slack mrkdwn) only.';
 
 /** Arguments that would change who a post shows as, or how far it reaches, refused by name. */

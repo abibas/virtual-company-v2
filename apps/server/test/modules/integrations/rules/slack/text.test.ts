@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { postIcon } from '../../../../../src/modules/integrations/rules/slack/icons.ts';
-import {
-  footerText,
-  postBlocks,
-  postName,
-  SECTION_MAX,
-  sections,
-  stripMentions,
-} from '../../../../../src/modules/integrations/rules/slack/text.ts';
+import { postName, stripMentions } from '../../../../../src/modules/integrations/rules/slack/text.ts';
 
 describe('a Slack post’s text', () => {
   it('loses every mention of many people, keeping the word and a person’s mention', () => {
@@ -26,21 +19,8 @@ describe('a Slack post’s text', () => {
     expect(stripMentions('plain')).toEqual({ text: 'plain', stripped: [] });
   });
 
-  it('goes in sections of at most 3000 characters, cut at a line break when it can be', () => {
-    expect(sections('short')).toEqual(['short']);
-    expect(sections('')).toEqual([]);
-    const lines = sections(`${'a'.repeat(2000)}\n${'b'.repeat(2000)}`);
-    expect(lines).toEqual(['a'.repeat(2000), 'b'.repeat(2000)]);
-    const one = sections('c'.repeat(SECTION_MAX + 5));
-    expect(one.map((piece) => piece.length)).toEqual([SECTION_MAX, 5]);
-  });
-
-  it('ends with the footer naming the agent, on one line', () => {
-    expect(footerText(' QA\n bot ')).toBe('via Most Wanted · QA bot');
-    expect(postBlocks('Hi', 'QA')).toEqual([
-      { type: 'section', text: { type: 'mrkdwn', text: 'Hi' } },
-      { type: 'context', elements: [{ type: 'plain_text', text: 'via Most Wanted · QA', emoji: true }] },
-    ]);
+  it('shows the agent’s name on one line, cut at 80 characters', () => {
+    expect(postName(' QA\n bot ')).toBe('QA bot');
     expect(postName(`  ${'n'.repeat(100)}`)).toHaveLength(80);
   });
 

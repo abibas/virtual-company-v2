@@ -27,13 +27,9 @@ export const SLACK_TOOL_INFO: Readonly<Record<SlackTool, { title: string; descri
   slack_get_user_profile: info('Read a Slack user', 'One person’s names, title and time zone, by their id.'),
   slack_post_message: info(
     'Post in Slack',
-    'Posts a message in a channel (or a DM), under your name with a "via Most Wanted" footer. @here, @channel and ' +
-      '@everyone are never sent.',
+    'Posts a message in a channel (or a DM). @here, @channel and @everyone are never sent.',
   ),
-  slack_reply_to_thread: info(
-    'Reply in a thread',
-    'Replies in a message’s thread, under your name with a "via Most Wanted" footer.',
-  ),
+  slack_reply_to_thread: info('Reply in a thread', 'Replies in a message’s thread.'),
   slack_add_reaction: info('React to a message', 'Adds an emoji reaction to a message.'),
   slack_search_messages: info(
     'Search Slack',
@@ -105,8 +101,7 @@ export function slackLine(
   );
   const where = who.length === 0 ? '' : ` ${who.join(' ')}:`;
   const posting = tools.some((tool) => tool === 'slack_post_message')
-    ? ` Posts show ${postsAs(access, account)} and end with "via Most Wanted · <your name>"; @here, @channel and ` +
-      '@everyone are stripped.'
+    ? ` Posts show ${postsAs(access, account)}; @here, @channel and @everyone are stripped.`
     : '';
   return (
     `Slack tools (from Most Wanted):${where} ${mayWords(workingRights(access))}. Your tools, by the names of the ` +

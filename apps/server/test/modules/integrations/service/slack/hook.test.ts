@@ -63,8 +63,8 @@ describe('the Slack tools a turn gets', () => {
     expect(lastLine(start.spec.instructions)).toBe(
       'Slack tools (from Most Wanted): as mw-bot in Airia Fake: read #general; post in #general; add reactions. Your ' +
         `tools, by the names of the Slack MCP servers: ${serverToolNames(start).join(', ')}; channel_id takes a ` +
-        'channel\'s id or #name. Posts show under your own name on the bot and end with "via Most Wanted · <your ' +
-        'name>"; @here, @channel and @everyone are stripped. They never delete, edit others\' messages, invite or kick.',
+        "channel's id or #name. Posts show under your own name on the bot; @here, @channel and @everyone are " +
+        "stripped. They never delete, edit others' messages, invite or kick.",
     );
     expect(JSON.stringify(start)).not.toContain(BOT_TOKEN);
     expect(await usesOf(w.t.db, s.signIn.id)).toEqual([]);
@@ -78,7 +78,7 @@ describe('the Slack tools a turn gets', () => {
     expect(serverToolNames(start)).toEqual([...READS, 'slack_post_message', 'slack_reply_to_thread']);
     const line = lastLine(start.spec.instructions);
     expect(line).toContain(': read every channel; post in every channel.');
-    expect(line).toContain('Posts show as the bot mw-bot and end with');
+    expect(line).toContain('Posts show as the bot mw-bot;');
   });
 
   it('searches with a user token, posting as its person; Codex gets them too', async () => {
