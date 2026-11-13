@@ -1,0 +1,13 @@
+{
+  "name": "@mwc/tools-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The ports of the outside tools agents use through the server: Atlassian's Jira and Confluence (S7.1c), its result shapes and its one error type.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}

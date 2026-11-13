@@ -1,0 +1,16 @@
+{
+  "name": "@mwc/atlassian",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Atlassian connector: implements @mwc/tools-core's AtlassianApi over Jira Cloud's REST API v3 and Confluence's v2 (search v1) with basic auth, an injected fetch, retries on 429, timeouts and Markdown to and from ADF.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mwc/tools-core": "workspace:*"
+  }
+}
