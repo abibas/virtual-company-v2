@@ -499,8 +499,15 @@ runner's side is `apps/runner/src/turns/` and its terminals.
    the turn.
 6. **The runner** (`turns/turns.ts`, `turn.ts`) refuses at once with `turn.end {ok: false, exitCode: null, error}`
    what it cannot run: `unsupported` (no such CLI, even after searching again, or no way to start processes), `busy` (all `slots` live; the server lets the turn wait for a free slot instead, "Waiting for a free slot"), `home_missing`
-   (the agent's folder is not there), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
-   `runner_stopping`. Otherwise it makes the turn's run folder and starts the turn's **keeper** (`node runner.mjs keep`,
+   (the agent's folder is not there; a container runner makes a missing one under its work volume first, below), `invalid_spec: …` (the driver refused the spec), `spawn_failed: …`,
+   `runner_stopping`. **A missing home folder** (2026-11-13, Ihor, after TEST DEV's first message on the Docker runner
+   failed: "Does it mean it should be created?!"): a container runner makes the agent's home folder before the turn when
+   it is under the work volume, `/work` (`HarnessHost.makeHome`, `fs.mkdirp`'s rules in docs/runner-protocol.md
+   "Folders": no `..` above it, no link out of it, 0755, logged); it is a new agent's fresh folder. A turn stopped
+   meanwhile is not started. On any other machine, and when it cannot be made, the turn is still refused with
+   `home_missing`; the chat's failure then offers admins and owners **Create folder** (`POST …/folders` with `parents`,
+   docs/machines.md "The folder browser"), then **Send again**, which sends the turn's prompt once more. Otherwise it
+   makes the turn's run folder and starts the turn's **keeper** (`node runner.mjs keep`,
    detached: its own session and process group; "Surviving restarts" below), which starts the driver's command with no
    shell in the agent's folder, with the runner's environment less `MWC_*` and the driver's `unsetEnv`, plus `env` and the
    private folder's variable, its stdout and stderr appended to files in the run folder. The prompt goes to the harness's

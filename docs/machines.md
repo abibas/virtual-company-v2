@@ -737,12 +737,16 @@ contents, and nothing is deleted or renamed.
   user's home, or `/work` in a container), its folders sorted without dot-folders (at most 500), the runner user's home,
   the only allowed root (`/work` in a container, else null) and where agents' home folders go by default (`root`, else
   `<home>/agents`).
-- `POST` the same `{ path }` (admin and above) → 201 `{ path }`: one new folder (0755) whose parent exists, audited on
-  the machine (`folder_create`, field `folder`).
+- `POST` the same `{ path, parents? }` (admin and above) → 201 `{ path, created: true }`: one new folder (0755) whose
+  parent exists, audited on the machine (`folder_create`, field `folder`). With `parents: true` (2026-11-13, `fs.mkdirp`)
+  the folder and its missing parents, only inside the runner user's home or a container's `/work`: 201 when made
+  (audited), 200 `{ path, created: false }` when it was there (nothing audited); a runner without `caps.mkdirp` is 409
+  `runner_outdated`, a path outside the home 422 `outside_roots`.
 - Refusals: 400 `invalid_request` (a path that is neither absolute nor `~/…`), 403 below admin, 404 another company's or
   an unknown machine, 409 `machine_offline` (no connected runner) and `runner_outdated` (a runner without
   `caps.folders`), 422 for the runner's refusals in plain words (`folder_not_found`, `not_a_directory`,
-  `permission_denied`, `outside_volume`, `folder_exists`, `invalid_path`, `folder_failed`), 504 `runner_timeout` after
+  `permission_denied`, `outside_volume`, `outside_roots`, `folder_exists`, `invalid_path`, `folder_failed`), 504
+  `runner_timeout` after
   10 s.
 - Web (`features/placements/`): **Browse…** beside the home folder opens a sheet on the chosen machine: breadcrumbs (from
   `/`, or from `/work` in a container), the folders with their git and CLAUDE.md marks, **Up**, **New folder** (a name,
@@ -761,8 +765,13 @@ contents, and nothing is deleted or renamed.
   themselves; a refusal, or 5 minutes without its runner, shows the reason and **Retry**. A start someone else began
   (the box or the container `starting`) is waited for the same way. The draft is never left or reloaded, and an agent
   can be hired or saved on an offline machine (the placement takes any machine of the company).
+- **A home folder not there yet** (2026-11-13): once an agent is saved on an online machine, its home folder is read
+  through the runner; a `folder_not_found` shows "Not on the machine yet" under the field with **Create** (`POST` with
+  `parents`). A container runner makes a missing home under `/work` at the turn's start by itself; elsewhere a turn
+  fails with `home_missing` and the chat offers **Create folder** and **Send again** (docs/harness.md, "How a turn runs").
 - Runners need an update for it (an older one is refused as `runner_outdated`); a Docker runner needs the rebuild that
-  brings its work volume ("A runner in a Docker container").
+  brings its work volume ("A runner in a Docker container"). `fs.mkdirp` needs a runner from
+  2026-11-13 on (`caps.mkdirp`): rebuilt and updated, a Docker runner with Update container.
 
 ## Tools
 

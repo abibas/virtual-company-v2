@@ -613,6 +613,16 @@ collegue. So we are 2 humans 5 agents." He chose:
      - The faces work's two oddities fixed: a person's words never go into a wake-up's turn; step prompts are Most
        Wanted's.
 
+### Between S6 and S7: a missing home folder is made (Ihor, 2026-11-13)
+
+TEST DEV, hired on the Docker runner with the home folder `/work/test-dev`, failed its first message with `home_missing`
+("Does it mean it should be created?!"). **Built 2026-11-13** (branch `make-folder`): the runner frame `fs.mkdirp`
+(`caps.mkdirp`; a folder and its parents only inside `/work` in a container, else the runner user's home, the nearest
+existing folder's real path checked, 0755, `created`), `POST machines/:machineId/folders` with `parents` (201 made and
+audited, 200 there, 409 `runner_outdated` for an older runner); a container runner makes a turn's missing home under
+`/work` before it starts; elsewhere the chat's `home_missing` offers Create folder, then Send again, and the agent form
+says "Not on the machine yet" with Create. Runners need the rebuild and update (a Docker runner: Update container).
+
 ### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
 Reshaped on 2026-11-12 with Ihor ("GitHub LOGIN and Confluence Login. I do wanna have SIMILAR profile to push data as
