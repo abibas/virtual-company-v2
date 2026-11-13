@@ -620,7 +620,7 @@ we are doing with the Profiles for OpenAI and Claude. MAKE it as a next step of 
 it, outside the stage plan: review flows (S5.3, S6), agent chats per agent (S5.1), the devbox's power schedule (S4).
 Each item names the v1 behaviour it replaces and ships with integration tests.
 
-1. **S7.1 Tool sign-ins and tool profiles: GitHub and Atlassian (Jira and Confluence)**, first, Ihor's priority. The
+1. **S7.1 Tool sign-ins and the profile's tool parts: GitHub and Atlassian (Jira and Confluence)**, first, Ihor's priority. The
    same shape as the AI subscriptions and profiles (S3, docs/subscriptions.md):
    - **Sign-ins in the personal store** (Subscriptions page, a Tools part):
      - **Sign in with GitHub:** GitHub CLI's own device sign-in (`gh auth login --web`) in the sign-in helper's
@@ -631,15 +631,15 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
        there is a public address for its callback.
      - Each sign-in is encrypted like the AI logins, write-only, managed only in a Clerk session, and audited. The
        card shows the account it acts as, its scopes or sites, and a check that it still works.
-   - **Tool profiles in Access profiles**, one provider each, as Claude and OpenAI:
-     - **A GitHub profile:** one GitHub sign-in, the repositories it may touch (all, or a list), and what it may do:
+   - **Tool parts in the access profile** (separate tool profiles until 2026-11-13, when Ihor asked for "a SINGLE
+     profile ... with sub accesses to the tooling"):
+     - **A GitHub part:** one GitHub sign-in, the repositories it may touch (all, or a list), and what it may do:
        read, push branches, open pull requests. It never merges, deletes, force-pushes, or pushes to the default
        branch.
-     - **An Atlassian profile:** one Atlassian sign-in, Jira read, Jira changes (comment, transition, create), and
+     - **An Atlassian part:** one Atlassian sign-in, Jira read, Jira changes (comment, transition, create), and
        Confluence read or write, in chosen spaces. It never deletes or archives.
-     - The owner gives profiles to agents on the agent form, next to the AI profile ("GitHub", "Atlassian", none by
-       default), only in companies they administer. The agent's page and its briefing say what it may do there and
-       as whom.
+     - An agent gets them with its one access profile, as before only from the profile's owner in companies they
+       administer. The agent's page and its briefing say what it may do there and as whom.
    - **How a turn uses them:** the secrets stay on the server where they can.
      - **Atlassian:** server-side tools in the agents' `mwc` tools: `jira_search`, `jira_issue`, `jira_comment`,
        `jira_transition`, `jira_create`, `confluence_search`, `confluence_page`, `confluence_create_page` and
@@ -652,7 +652,8 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
      runner's per-turn handover with a fake `gh`. Ihor's first real sign-ins are the live check.
    - **Decided with Ihor (2026-11-12):**
      - Atlassian signs in with an API token for now.
-     - GitHub and Atlassian get separate tool profiles, picked per agent next to the AI profile.
+     - GitHub and Atlassian get separate tool profiles, picked per agent next to the AI profile (reshaped 2026-11-13:
+       they are parts of the one access profile).
      - Work stops after each step below for a live test.
    - **How his Mac does it today**, read on 2026-11-12, as the model to follow:
      - git pushes over SSH with the Mac's key (`git@github.com:AiriaLLC/...`);
@@ -685,6 +686,21 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          secrets, the owner and session rules and the audit.
      - **S7.1b** The tool profiles: GitHub and Atlassian profiles on Access profiles, with their rights; the agent
        form's two pickers; and the agent's page and briefing. Test: he gives his DEVBOX agents profiles.
+       **Reshaped 2026-11-13: one profile with tool parts, at Ihor's request** (docs/subscriptions.md, "Tool parts"; the
+       note below is what was built first, on 2026-11-12):
+       - An access profile is the one thing an agent gets: its AI part (provider, subscription, gateway, model, effort)
+         and optional GitHub and Atlassian parts, each one of the owner's sign-ins of that tool with the S7.1b rights.
+         Profile providers are Claude and OpenAI again; `agents.github_profile_id` and `atlassian_profile_id` are gone.
+       - Migration `0032_profile_tool_parts`: `access_profiles.github_credential_id` / `github_rights` and
+         `atlassian_credential_id` / `atlassian_rights` (keys to credentials, `on delete set null`; a sign-in only with
+         its rights). Its data step deletes tool-only profiles no agent uses (their sign-ins stay) and folds a used one
+         into its agents' access profile, refusing with a named reason when that would change anyone's access.
+       - `/api/me/access-profiles` adds, changes and removes the parts under `tools`; agents and the chart show the
+         profile with its parts; the briefing's tool lines come from the agent's profile.
+       - Web: each profile card has GitHub and Atlassian sections (Add, sign-in, rights, Remove), the filler went from
+         the cards, and the agent form has one picker with the profile's parts in one line under it.
+       - Tests: the parts' rules and routes, the agents' and chart's view, the briefing, the migration's fold, deletes
+         and each refusal.
        **Built 2026-11-12** (docs/subscriptions.md, "Tool profiles"; waiting for his live test):
        - Profile providers `github` and `atlassian` (`ProfileProvider`; `AiProvider` keeps Claude and OpenAI for models,
          defaults and harnesses), each holding one sign-in of its tool and its rights, with no gateway, model or effort.
