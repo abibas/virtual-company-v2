@@ -171,6 +171,23 @@ describe('the machine tools', () => {
     }
   });
 
+  it('install the GitHub CLI the sign-in image pins in the runner image too, checksum-checked (S7.1d)', () => {
+    const ghOf = (file: string) => {
+      const text = readFileSync(new URL(`../../../deploy/${file}`, import.meta.url), 'utf8');
+      return {
+        version: /cli\/cli\/releases\/download\/v(\d+\.\d+\.\d+)\//.exec(text)?.[1],
+        sums: [...text.matchAll(/(amd64|arm64)\) sum=([0-9a-f]{64}) ;;/g)].map(
+          (match) => `${match[1]}=${match[2]}`,
+        ),
+        checked: text.includes('sha256sum --check --strict') && text.includes('gh --version'),
+      };
+    };
+    const login = ghOf('Dockerfile.login');
+    expect(login).toMatchObject({ version: '2.103.3', checked: true });
+    expect(login.sums).toHaveLength(2);
+    expect(ghOf('Dockerfile.runner')).toEqual(login);
+  });
+
   it('read the version a CLI printed and say when it is older than the pinned one', () => {
     expect(toolVersionNumber('2.1.319 (Claude Code)')).toBe('2.1.319');
     expect(toolVersionNumber('codex-cli 0.163.0')).toBe('0.163.0');
