@@ -115,7 +115,10 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
   const { turns, queue, live } = runtime;
   const queued = { ...turns, queue };
   const changed = (chatId: string) => live.bus.changed(chatId);
-  const detail = { awayOf: live.awayOf, runnerUpdateFor: (t: TenantDb, chat: Chat) => runnerUpdateFor(deps, t, chat) };
+  const detail = {
+    awayOf: live.awayOf,
+    runnerUpdateFor: (t: TenantDb, chat: Chat) => runnerUpdateFor(deps, t, chat),
+  };
   return newRouter()
     .route('/', chatRoutes(deps, detail, changed))
     .route('/', overrideRoutes(deps))

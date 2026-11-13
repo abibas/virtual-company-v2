@@ -65,11 +65,7 @@ describe('GET chat-activity', () => {
     const done = await live.next('its end', (v) => v.lastTurn?.status === 'done');
     expect(done.lastTurn?.resultText).toBe('4');
     // The answer's events tell nothing: only the turn's start and end.
-    expect(live.chats().map(brief)).toEqual([
-      '-: none',
-      'What is 2 + 2?: running',
-      'What is 2 + 2?: done',
-    ]);
+    expect(live.chats().map(brief)).toEqual(['-: none', 'What is 2 + 2?: running', 'What is 2 + 2?: done']);
     expect(live.messages[0]?.comment).toBe('open');
   });
 
@@ -89,10 +85,15 @@ describe('GET chat-activity', () => {
     const first = await startedTurn(w, s, 'First');
     const other = await beginChat(w, s.company, s.agentId);
     const live = await listen(s);
-    const res = await as(w, s.company.owner)('POST', chatPath(s.company, other.id, '/turns'), { prompt: 'Second' });
+    const res = await as(w, s.company.owner)('POST', chatPath(s.company, other.id, '/turns'), {
+      prompt: 'Second',
+    });
     const second = res.body as ChatTurnView;
     expect(second).toMatchObject({ status: 'queued', machineWait: 'slots' });
-    await live.next('the waiting turn', (v) => v.lastTurn?.id === second.id && v.lastTurn.status === 'queued');
+    await live.next(
+      'the waiting turn',
+      (v) => v.lastTurn?.id === second.id && v.lastTurn.status === 'queued',
+    );
     endTurn(runner(s), first.turnId);
     await live.next('its start', (v) => v.lastTurn?.id === second.id && v.lastTurn.status === 'running');
   });

@@ -22,7 +22,10 @@ const turnMessage = (chatId: string, status: string) =>
   ({ kind: 'turn', turn: { id: 't', chatId, status } }) as unknown as ChatMessage;
 
 const eventMessage = (type: string) =>
-  ({ kind: 'event', event: { turnId: 't', turnSeq: 1, seq: 1, event: { type }, at: '' } }) as unknown as ChatMessage;
+  ({
+    kind: 'event',
+    event: { turnId: 't', turnSeq: 1, seq: 1, event: { type }, at: '' },
+  }) as unknown as ChatMessage;
 
 /** Timers whose interval the test fires by hand. */
 function handTimers() {
@@ -31,7 +34,10 @@ function handTimers() {
     setInterval: (callback) => callbacks.push(callback),
     clearInterval: () => callbacks.splice(0),
   };
-  return { timers, tick: () => callbacks.forEach((callback) => callback()), count: () => callbacks.length };
+  const tick = () => {
+    for (const callback of callbacks) callback();
+  };
+  return { timers, tick, count: () => callbacks.length };
 }
 
 describe('the bus’s watchers', () => {

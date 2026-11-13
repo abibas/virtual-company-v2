@@ -34,4 +34,5 @@ export async function openActivity(app: App, companyId: string, person: Person):
 }
 
 /** A view's chat and its latest turn's status, in short. */
-export const brief = (view: ChatActivityView) => `${view.chat.title ?? '-'}: ${view.lastTurn?.status ?? 'none'}`;
+export const brief = (view: ChatActivityView) =>
+  `${view.chat.title ?? '-'}: ${view.lastTurn?.status ?? 'none'}`;

@@ -78,7 +78,10 @@ describe('a chat turn its runner comes back with after the grace', () => {
       endedAt: null,
     });
     // Told as running again, so an open chat drops its failure.
-    await live.next('running again', (v) => v.lastTurn?.id === start.turnId && v.lastTurn.status === 'running');
+    await live.next(
+      'running again',
+      (v) => v.lastTurn?.id === start.turnId && v.lastTurn.status === 'running',
+    );
     await live.close();
     sendEvents(runner, start.turnId, ANSWER);
     endTurn(runner, start.turnId);

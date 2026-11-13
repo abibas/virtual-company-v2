@@ -15,7 +15,11 @@ export const CHAT_DOT_WORDS: Readonly<Record<ChatDot, string>> = {
 };
 
 /** One chat's dot, from its latest turn; none for the open chat or without a turn told. */
-export function chatDot(chatId: string, turn: ChatTurn | null | undefined, openId: string | undefined): ChatDot | null {
+export function chatDot(
+  chatId: string,
+  turn: ChatTurn | null | undefined,
+  openId: string | undefined,
+): ChatDot | null {
   if (chatId === openId || turn === null || turn === undefined) return null;
   if (turn.status === 'queued' || turn.status === 'running') return 'working';
   if (turn.endedAt === null) return null;

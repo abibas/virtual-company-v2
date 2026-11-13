@@ -33,7 +33,9 @@ afterAll(async () => {
   await w.close();
 });
 
-type TurnMessage = { readonly turn: { readonly status: string; readonly from: unknown; readonly system: boolean } };
+type TurnMessage = {
+  readonly turn: { readonly status: string; readonly from: unknown; readonly system: boolean };
+};
 
 describe('a Slack message’s turn', () => {
   it('shows its new chat at once, then streams into it like a person’s message', async () => {

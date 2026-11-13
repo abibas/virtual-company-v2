@@ -132,7 +132,16 @@ function ChatRow({
  * The left column (S5.1c): the agent's chats, newest first, with New chat and Archive (admins and owners); live since
  * 2026-11-13 (a new chat on top at once, each with its dot).
  */
-export function ChatList({ chats, openId, hrefOf, admin, cannotStart, onNew, onArchive, dots }: ChatListProps) {
+export function ChatList({
+  chats,
+  openId,
+  hrefOf,
+  admin,
+  cannotStart,
+  onNew,
+  onArchive,
+  dots,
+}: ChatListProps) {
   const { busy, error, run } = useAction();
   return (
     <nav aria-label="Chats" className="flex min-h-0 flex-1 flex-col gap-3">
