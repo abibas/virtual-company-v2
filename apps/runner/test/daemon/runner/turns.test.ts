@@ -47,6 +47,20 @@ describe("the runner's chat turns on the wire", () => {
     expect((await idle.frames.next('runner.hello')).caps.agentTools).toBe(false);
   });
 
+  it('says caps.github (S7.1d) only with its git hooks’ folder and a way to start processes', async () => {
+    const server = await fakeServer();
+    const { host, root } = fakeHarnessHost();
+    startRunner(server, { harness: host, spawn: new FakeSpawn() });
+    expect((await server.frames.next('runner.hello')).caps.github).toBe(false);
+    const hooked = await fakeServer();
+    const gitHooks = `${root}/state/git-hooks`;
+    startRunner(hooked, { harness: { ...host, gitHooks }, spawn: new FakeSpawn() });
+    expect((await hooked.frames.next('runner.hello')).caps.github).toBe(true);
+    const idle = await fakeServer();
+    startRunner(idle, { harness: { ...host, gitHooks } });
+    expect((await idle.frames.next('runner.hello')).caps.github).toBe(false);
+  });
+
   it('has no harness without a way to start processes, and answers every start unsupported', async () => {
     const server = await fakeServer();
     const { host, cwd } = fakeHarnessHost();

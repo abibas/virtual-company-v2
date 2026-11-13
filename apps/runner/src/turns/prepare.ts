@@ -6,6 +6,7 @@ import { knownTools } from './ask/agent-tools.ts';
 import { type AskBridge, turnTools } from './ask/bridge.ts';
 import { serverToolsFile } from './ask/server-tools.ts';
 import { processEnv } from './env.ts';
+import { withGitHub } from './git/env.ts';
 import { type PrivateLease, withPrivateDir } from './private-dir.ts';
 import { RunFolder } from './runs/folder.ts';
 import type { KeeperCommand } from './runs/kept.ts';
@@ -16,8 +17,8 @@ import type { HarnessHost } from './turns.ts';
 /**
  * What a turn runs with (`turns.ts`): a fresh one's driver spec, run folder, private folder, environment, parser,
  * question socket (with the agents' tools the spec names that this runner knows, S6a, and the server's own it carries,
- * S7.1c, written to the turn's folder) and outputs folder, built after
- * the checks; a turn found on the disk at start (S5.4) takes its
+ * S7.1c, written to the turn's folder), outputs folder and, for a profile that may push, git's and gh's GitHub sign-in in
+ * its environment (S7.1d, `git/env.ts`), built after the checks; a turn found on the disk at start (S5.4) takes its
  * driver's parser (from the turn's own start), its private folder adopted, its question socket listening again and its
  * outputs folder as its run folder noted it.
  */
@@ -90,7 +91,7 @@ export function prepareTurn(
     return { refused: `spawn_failed: ${messageOf(error)}` };
   }
   const { process, env: extra } = withPrivateDir(built, lease);
-  const env = processEnv(host.env, process, extra);
+  const env = withGitHub(processEnv(host.env, process, extra), spec.github, host.gitHooks, log, turnId);
   const stdinOpen = process.stdinOpen === true && driver.inputLine !== undefined;
   const inputLine = stdinOpen ? driver.inputLine?.bind(driver) : undefined;
   const parser = driver.parser(

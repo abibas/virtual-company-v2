@@ -66,6 +66,8 @@ export interface HarnessHost {
   readonly ask?: AskHost;
   /** A task step's outputs folder (S5.3b); left out, a turn's `artifacts` is passed over and nothing is collected. */
   readonly artifacts?: ArtifactFs;
+  /** Its git hooks' folder (S7.1d, `git/hooks.ts`) for a turn with a GitHub sign-in; left out, no turn gets one. */
+  readonly gitHooks?: string;
   /**
    * Looks for a harness that has no driver again (no process unless its CLI is found now, then its `--version`); true
    * once it has one. Left out: a missing harness stays missing.

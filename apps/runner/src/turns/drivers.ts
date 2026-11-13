@@ -8,6 +8,7 @@ import type { Log } from '../system/log.ts';
 import type { ArtifactFs } from './artifacts/collect.ts';
 import { askHost } from './ask/bridge.ts';
 import type { Env } from './env.ts';
+import { gitHooksDir } from './git/hooks.ts';
 import { PrivateDirs, type PrivateFs } from './private-dir.ts';
 import { runsRoot } from './runs/folder.ts';
 import type { KeeperCommand } from './runs/kept.ts';
@@ -110,6 +111,7 @@ export function harnessHost(
     dirs: new PrivateDirs({ fs: machine.fs, stateDir: machine.stateDir }),
     isDirectory: (path) => machine.fs.isDirectory(path),
     runs: runsRoot(machine.stateDir),
+    gitHooks: gitHooksDir(machine.stateDir),
     readAt: (path, offset, bytes) => machine.fs.readAt(path, offset, bytes),
     ...(machine.keeper === undefined ? {} : { keeper: machine.keeper }),
     ...(machine.makeHome === undefined ? {} : { makeHome: machine.makeHome }),
