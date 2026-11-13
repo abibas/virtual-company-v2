@@ -29,8 +29,8 @@ function useNewFromAddress(startWith: boolean, open: () => void) {
 }
 
 /**
- * The Profiles tab (generic profiles since 2026-11-13): the person's profiles as one list of cards, each a name with its
- * Claude, OpenAI, GitHub and Atlassian parts and the agents using it, New profile, and their defaults per company, one
+ * The Profiles tab (generic profiles since 2026-11-13): the person's profiles as one list of folded rows (one open at a
+ * time), each a name with its Claude, OpenAI, GitHub and Atlassian parts and the agents using it, New profile, and their defaults per company, one
  * per AI part. `memberships` and `onDefaultChanged` are the session's (the page passes them); `header` puts New profile
  * in the page's header; `startWith` opens New profile at once (`?new=1`).
  */
@@ -50,6 +50,8 @@ export function ProfilesTab({
   const profiles = useAccessProfiles();
   const subscriptions = useSubscriptions();
   const [creating, setCreating] = useState(false);
+  // One profile open at a time; opening one folds the one that was open.
+  const [openId, setOpenId] = useState<string | null>(null);
   const open = useMemo(() => () => setCreating(true), []);
   useNewFromAddress(startWith, open);
   const mine = subscriptions.data?.subscriptions ?? [];
@@ -79,11 +81,13 @@ export function ProfilesTab({
               <EmptyState icon={Layers} tone="teal" title="No profiles yet" />
             </Card>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-3">
               {data.profiles.map((profile) => (
                 <ProfileCard
                   key={profile.id}
                   profile={profile}
+                  open={openId === profile.id}
+                  onToggle={() => setOpenId((was) => (was === profile.id ? null : profile.id))}
                   subscriptions={mine}
                   update={(changes) => calls.update(profile.id, changes).then(profiles.reload)}
                   remove={() => calls.remove(profile.id).then(profiles.reload)}
