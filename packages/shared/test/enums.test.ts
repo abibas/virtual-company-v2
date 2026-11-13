@@ -6,6 +6,8 @@ import {
   ChatTurnDelivery,
   ChatTurnKind,
   ChatTurnStatus,
+  ClaudeMode,
+  CodexMode,
   CompanyStatus,
   CredentialKind,
   CredentialStatus,
@@ -26,6 +28,7 @@ import {
   MembershipStatus,
   NotificationEmailStatus,
   NotificationKind,
+  PermissionMode,
   PermissionPolicy,
   PlacementMode,
   PowerEventAction,
@@ -82,6 +85,9 @@ describe('enums', () => {
     expect(MachineStatus.options).toEqual(['online', 'offline', 'draining']);
     expect(PlacementMode.options).toEqual(['host', 'container']);
     expect(PermissionPolicy.options).toEqual(['ask', 'bypass']);
+    expect(ClaudeMode.options).toEqual(['manual', 'acceptEdits', 'plan', 'auto', 'bypassPermissions']);
+    expect(CodexMode.options).toEqual(['ask', 'auto', 'full']);
+    expect(new Set(PermissionMode.options)).toEqual(new Set([...ClaudeMode.options, ...CodexMode.options]));
     expect(ChatTurnStatus.options).toEqual(['queued', 'running', 'done', 'failed', 'stopped']);
     expect(ChatTurnKind.options).toEqual(['message', 'compact', 'clear']);
     expect(ChatTurnDelivery.options).toEqual(['now', 'after', 'interrupt']);

@@ -21,6 +21,7 @@
     "./logos": "./src/logos.ts",
     "./machines": "./src/machines.ts",
     "./models": "./src/models.ts",
+    "./modes": "./src/modes.ts",
     "./org": "./src/org.ts",
     "./org-chart": "./src/org-chart.ts",
     "./ports": "./src/ports.ts",

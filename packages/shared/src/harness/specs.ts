@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { STANDING_INSTRUCTIONS_MAX } from '../agent-briefing.ts';
 import { GATEWAY_HEADERS, PROVIDER_KINDS, SECRET_MAX } from '../credentials.ts';
-import { type CredentialKind, Effort, Harness, PermissionPolicy } from '../enums.ts';
+import { type CredentialKind, Effort, Harness, PermissionMode, PermissionPolicy } from '../enums.ts';
 import { ArtifactsDir } from '../flows/artifacts.ts';
 import { AgentToolName, TURN_TOOLS_MAX } from '../flows/tools.ts';
 import { PlacementPath } from '../machines.ts';
@@ -104,7 +104,16 @@ const sessionFields = {
   /** Null leaves the harness's own default. */
   model: HarnessModel.nullable(),
   effort: Effort.optional(),
+  /**
+   * The old two-way setting, for a runner older than the modes: `bypass` for a mode that never asks, else `ask`
+   * (`policyOfMode` of `@mwc/shared/modes`).
+   */
   permissionPolicy: PermissionPolicy,
+  /**
+   * The permission mode (2026-11-13, docs/harness.md "Modes"): one of the harness's (`fitsHarness`), the profile's or the
+   * chat's override. Absent: the one `permissionPolicy` means (`modeOfPolicy`); a runner older than it ignores it.
+   */
+  permissionMode: PermissionMode.optional(),
   /** The harness's config folder (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`); null for the default (docs/harness.md). */
   configDir: PlacementPath.nullable(),
   credential: HarnessCredential,

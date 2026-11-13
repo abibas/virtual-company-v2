@@ -127,6 +127,7 @@ describe('TurnSpec and TerminalSpec', () => {
       model: 'opus',
       effort: 'high',
       permissionPolicy: 'bypass',
+      permissionMode: 'bypassPermissions',
       configDir: '/home/agent/.claude-agent',
       gateway: { baseUrl: 'http://127.0.0.1:8300', headers: { 'X-Api-Key': 'k' } },
       later: true,
@@ -135,12 +136,13 @@ describe('TurnSpec and TerminalSpec', () => {
     expect(TerminalSpec.parse(turn)).toMatchObject({ harness: 'claude_code', cwd: '/home/agent/work' });
   });
 
-  it('refuse an empty prompt, a relative folder, an unknown policy, a bad model or session id', () => {
+  it('refuse an empty prompt, a relative folder, an unknown policy or mode, a bad model or session id', () => {
     for (const bad of [
       { prompt: '' },
       { cwd: 'work' },
       { configDir: '~/x' },
       { permissionPolicy: 'never' },
+      { permissionMode: 'default' },
       { model: '-x' },
       { sessionId: '--x' },
       { effort: 'extreme' },
