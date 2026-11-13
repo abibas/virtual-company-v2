@@ -3,6 +3,7 @@ import { newId } from '@mwc/shared/ids';
 import type {
   FsList,
   FsMkdir,
+  FsMkdirp,
   PowerCommand,
   RunnerUpdate,
   ServerFrame,
@@ -25,7 +26,7 @@ function commands(options: { power?: PowerExecutor; saveKey?: (key: string) => v
   const terminals: TerminalServerFrame[] = [];
   const turns: TurnServerFrame[] = [];
   const updates: RunnerUpdate[] = [];
-  const browsed: (FsList | FsMkdir)[] = [];
+  const browsed: (FsList | FsMkdir | FsMkdirp)[] = [];
   const tooled: (ToolsCheck | ToolsInstall)[] = [];
   let drained = 0;
   const logs = memoryLog();
@@ -284,17 +285,21 @@ describe('the folder commands', () => {
     expect(tooled).toEqual([check, install]);
   });
 
-  it('answers fs.list and fs.mkdir with the browser’s fs.result', async () => {
+  it('answers fs.list, fs.mkdir and fs.mkdirp with the browser’s fs.result', async () => {
     const { handler, browsed } = commands();
     const list: FsList = { type: 'fs.list', cmdId: newId(), path: null };
     const made: FsMkdir = { type: 'fs.mkdir', cmdId: newId(), path: '/w/a' };
+    const deep: FsMkdirp = { type: 'fs.mkdirp', cmdId: newId(), path: '/w/a/b' };
     expect(await handler.handle(list)).toEqual([
       { type: 'fs.result', cmdId: list.cmdId, ok: true, path: '/w', entries: [], truncated: false },
     ]);
     expect(await handler.handle(made)).toEqual([
       { type: 'fs.result', cmdId: made.cmdId, ok: true, path: '/w' },
     ]);
-    expect(browsed).toEqual([list, made]);
+    expect(await handler.handle(deep)).toEqual([
+      { type: 'fs.result', cmdId: deep.cmdId, ok: true, path: '/w' },
+    ]);
+    expect(browsed).toEqual([list, made, deep]);
   });
 
   it('reads a repeated listing again instead of keeping it, and answers a repeated mkdir from memory', async () => {
@@ -308,7 +313,7 @@ describe('the folder commands', () => {
   it('refuses a folder frame it cannot read with fs.result invalid_path', () => {
     const { handler } = commands();
     const cmdId = newId();
-    for (const type of ['fs.list', 'fs.mkdir']) {
+    for (const type of ['fs.list', 'fs.mkdir', 'fs.mkdirp']) {
       expect(handler.refuse(JSON.stringify({ type, cmdId, path: 'x' }), 'path: an absolute path')).toEqual([
         { type: 'fs.result', cmdId, ok: false, error: 'invalid_path: path: an absolute path' },
       ]);

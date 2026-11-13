@@ -68,7 +68,7 @@ export const turnsRoot = (stateDir: string) => join(stateDir, 'turns');
  * looked for again when a turn or a terminal needs it (no process unless it is found now): a CLI installed since the
  * runner started is then driven, and its version goes in the next hello. With `tools`, each turn gets the runner's MCP
  * server and its own question socket under the state folder. With `keeper`, turns run through it in run folders under
- * the state folder (S5.4); without it, none runs.
+ * the state folder (S5.4); without it, none runs. With `makeHome` (a container), a turn's missing home folder is made first.
  */
 export function harnessHost(
   machine: {
@@ -82,6 +82,8 @@ export function harnessHost(
     readonly artifacts?: ArtifactFs | undefined;
     /** How a turn's keeper starts (`<node> <runner.mjs> keep`, S5.4). */
     readonly keeper?: KeeperCommand | undefined;
+    /** A container's maker of a missing agent home folder under its work volume (`folders/mkdirp.ts`). */
+    readonly makeHome?: ((path: string) => Promise<boolean>) | undefined;
   },
   log: Log,
 ): HarnessHost {
@@ -110,6 +112,7 @@ export function harnessHost(
     runs: runsRoot(machine.stateDir),
     readAt: (path, offset, bytes) => machine.fs.readAt(path, offset, bytes),
     ...(machine.keeper === undefined ? {} : { keeper: machine.keeper }),
+    ...(machine.makeHome === undefined ? {} : { makeHome: machine.makeHome }),
     ...(machine.artifacts === undefined ? {} : { artifacts: machine.artifacts }),
     ...(machine.tools === undefined
       ? {}

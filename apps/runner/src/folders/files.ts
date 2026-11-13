@@ -31,5 +31,8 @@ export function nodeFoldersFs(): FoldersFs {
     mkdir: async (path) => {
       await mkdir(path, { mode: 0o755 });
     },
+    mkdirp: async (path) => {
+      await mkdir(path, { recursive: true, mode: 0o755 });
+    },
   };
 }

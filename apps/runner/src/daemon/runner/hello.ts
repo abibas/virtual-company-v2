@@ -61,6 +61,7 @@ export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
     terminal: now.terminal,
     selfUpdate: now.selfUpdate,
     folders: options.folders !== undefined,
+    mkdirp: options.folders !== undefined,
     forks: true,
     reattach: harness?.keeper !== undefined && processes !== undefined,
     agentTools: harness?.ask !== undefined && processes !== undefined,

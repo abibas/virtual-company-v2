@@ -35,7 +35,7 @@ export interface MainDeps {
   };
   /** The harnesses' private folders' files (a Codex login while its process runs), and the agent folder's check. */
   readonly privateFs: PrivateFs;
-  /** The folder browser's reads and its one write, a new folder (`fs.list`, `fs.mkdir`). */
+  /** The folder browser's reads and its writes, a new folder (`fs.list`, `fs.mkdir`, `fs.mkdirp`). */
   readonly foldersFs: FoldersFs;
   /** A task step's outputs folders (S5.3b): made before the turn, collected after it; left out, nothing is collected. */
   readonly artifactsFs?: ArtifactFs;

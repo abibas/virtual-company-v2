@@ -35,7 +35,8 @@ import { type TurnParts, TurnProcess } from './turn.ts';
  * (stopped, its folder removed) when the server no longer has it; `turn.ack` removes an ended turn's folder. Live turns
  * count for the runner's own hold. A runner that offers its tools opens each turn's question socket first (a turn whose
  * socket cannot open runs without it, logged), and its MCP server offers the agents' tools the spec names (S6a), whose
- * answers come back as `turn.tool.result`; a task step's turn (S5.3b) gets its outputs folder made and noted first.
+ * answers come back as `turn.tool.result`; a task step's turn (S5.3b) gets its outputs folder made and noted first. A
+ * container runner makes a missing home folder under its work volume before the turn (2026-11-13, `makeHome`).
  */
 
 /** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
@@ -50,6 +51,11 @@ export interface HarnessHost {
   readonly dirs: PrivateDirs;
   /** Whether the agent's folder is there. */
   isDirectory(path: string): boolean;
+  /**
+   * A container runner's: makes an agent's home folder that is not there yet, under its work volume, before the turn
+   * (`folders/mkdirp.ts`); true once it is there, and it never throws. Left out elsewhere: a missing one is `home_missing`.
+   */
+  makeHome?(path: string): Promise<boolean>;
   /** Where the turns' run folders are (`<state>/runs`, S5.4). */
   readonly runs: string;
   /** Reads a file from an offset (a turn's output). */
@@ -175,20 +181,37 @@ export class Turns {
       this.#deps.log.warn('a second turn.start for a live turn; ignored', { turnId });
       return;
     }
-    const { host, processes } = this.#deps;
-    const { harness } = frame.spec;
-    if (host?.findAgain && processes && !this.#stopping && host.drivers[harness] === undefined) {
-      // A harness missing at start may have been installed since: look again before refusing it.
-      this.#searching.set(turnId, false);
-      void host.findAgain(harness).then(() => {
-        const stopped = this.#searching.get(turnId);
-        this.#searching.delete(turnId);
-        if (stopped) this.#refuse(turnId, 'stopped');
-        else this.#launch(frame);
-      });
+    const before = this.#before(frame);
+    if (before === undefined) {
+      this.#launch(frame);
       return;
     }
-    this.#launch(frame);
+    this.#searching.set(turnId, false);
+    void before.then(() => {
+      const stopped = this.#searching.get(turnId);
+      this.#searching.delete(turnId);
+      if (stopped) this.#refuse(turnId, 'stopped');
+      else this.#launch(frame);
+    });
+  }
+
+  /**
+   * What a start waits for, if anything: a harness missing at start looked for again (it may have been installed since),
+   * then a container's missing home folder made (once the harness is there).
+   */
+  #before(frame: TurnStart): Promise<void> | undefined {
+    const { host, processes } = this.#deps;
+    if (host === undefined || processes === undefined || this.#stopping) return undefined;
+    const { harness, cwd } = frame.spec;
+    const search = host.findAgain !== undefined && host.drivers[harness] === undefined;
+    const makeHome = host.makeHome?.bind(host);
+    const runs = search || host.drivers[harness] !== undefined;
+    const make = makeHome !== undefined && runs && !host.isDirectory(cwd);
+    if (!search && !make) return undefined;
+    return (async () => {
+      if (search) await host.findAgain?.(harness);
+      if (make && host.drivers[harness] !== undefined) await makeHome(cwd);
+    })();
   }
 
   #launch(frame: TurnStart): void {

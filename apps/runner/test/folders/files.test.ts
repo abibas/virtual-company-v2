@@ -31,4 +31,17 @@ describe("the folder browser's file system", () => {
     await expect(fs.mkdir(join(dir, 'a', 'b'))).rejects.toMatchObject({ code: 'EEXIST' });
     await expect(fs.mkdir(join(dir, 'x', 'y'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
+
+  it('makes a folder with its missing parents, each 0755 at most, and takes one already there', async () => {
+    const fs = nodeFoldersFs();
+    const dir = tempDir();
+    await fs.mkdirp(join(dir, 'p', 'q', 'r'));
+    await fs.mkdirp(join(dir, 'p', 'q', 'r'));
+    for (const folder of [join(dir, 'p'), join(dir, 'p', 'q', 'r')]) {
+      expect(statSync(folder).mode & 0o777 & ~0o755).toBe(0);
+      expect(statSync(folder).mode & 0o700).toBe(0o700);
+    }
+    writeFileSync(join(dir, 'file'), 'x');
+    await expect(fs.mkdirp(join(dir, 'file'))).rejects.toMatchObject({ code: 'EEXIST' });
+  });
 });

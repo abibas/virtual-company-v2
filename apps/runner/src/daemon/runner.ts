@@ -58,7 +58,7 @@ export interface RunnerOptions {
   readonly harness?: HarnessHost;
   /**
    * The folder browser's file system, home and root (`/work` in a container): with it the runner answers `fs.list` and
-   * `fs.mkdir` (`caps.folders`); without it every one is `unsupported`.
+   * `fs.mkdir` (`caps.folders`) and `fs.mkdirp` (`caps.mkdirp`); without it every one is `unsupported`.
    */
   readonly folders?: FolderHost;
   /**

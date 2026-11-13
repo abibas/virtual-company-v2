@@ -7,6 +7,7 @@ import {
   runnerStateDir,
   writeRunnerConfig,
 } from '../config.ts';
+import { homeMaker } from '../folders/mkdirp.ts';
 import { caffeinateDriver } from '../hold/caffeinate.ts';
 import { devboxDriver } from '../hold/devbox.ts';
 import { detectHoldDriver, type HoldDriver, type HoldDriverKind, noneDriver } from '../hold/driver.ts';
@@ -99,6 +100,8 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
   const { clock, timers } = deps;
   const home = deps.env.HOME || deps.os.homedir();
   const terminal = loadTerminal(deps, home, log);
+  // In a container its folders are only those of its work volume, where a turn makes a missing home folder.
+  const folders = { fs: deps.foldersFs, home, root: inContainer(deps) ? CONTAINER_WORK_ROOT : null };
   return createRunner({
     config: setup.config,
     version: deps.version,
@@ -114,8 +117,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     ...(deps.tools ? { tools: deps.tools } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     ...(terminal ? { terminal } : {}),
-    // In a container its folders are only those of its work volume.
-    folders: { fs: deps.foldersFs, home, root: inContainer(deps) ? CONTAINER_WORK_ROOT : null },
+    folders,
     harness: harnessHost(
       {
         clis: deps.harnesses ?? {},
@@ -126,6 +128,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
         tools: deps.toolServer,
         artifacts: deps.artifactsFs,
         keeper: deps.keeper,
+        makeHome: folders.root === null ? undefined : homeMaker(folders, log),
       },
       log,
     ),

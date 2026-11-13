@@ -2,6 +2,7 @@ import {
   type CmdAck,
   type FsList,
   type FsMkdir,
+  type FsMkdirp,
   type FsResult,
   isTerminalFrame,
   isTurnFrame,
@@ -23,11 +24,11 @@ import type { Log } from '../system/log.ts';
 
 /**
  * The server's commands (docs/runner-protocol.md, "Semantics"): every frame with a `cmdId` is answered once, with
- * `cmd.ack` (`power.command` with `power.result`, `runner.update` with `runner.update.result`, `fs.list` and `fs.mkdir`
- * with `fs.result`, `tools.check` and `tools.install` with `tools.result`), and a repeat of a `cmdId` already run gets
+ * `cmd.ack` (`power.command` with `power.result`, `runner.update` with `runner.update.result`, `fs.list`, `fs.mkdir`
+ * and `fs.mkdirp` with `fs.result`, `tools.check` and `tools.install` with `tools.result`), and a repeat of a `cmdId` already run gets
  * the same answer again without running it again (a folder listing, which may be large, is read again instead of kept).
  * S4.3 carries out `machine.hold`, `power.command` (through the injected executor), `key.rotate` and `runner.drain`,
- * the self-update its `runner.update`, the folder browser `fs.list` and `fs.mkdir` (S5.1d) and the machine's tools
+ * the self-update its `runner.update`, the folder browser `fs.list`, `fs.mkdir` (S5.1d) and `fs.mkdirp` and the machine's tools
  * `tools.check` and `tools.install`; the run commands are refused until S5, and offers are declined.
  * `tunnel.set` is no command (it has no `cmdId`): the controller's tunnels take it as it comes; nor are the terminal and
  * turn frames, which go to the terminals and the turns, whose answers are their own frames.
@@ -55,8 +56,8 @@ export interface CommandDeps {
   turn(frame: TurnServerFrame): void;
   /** `runner.update`: the self-update's answer (it never throws). */
   update(frame: RunnerUpdate): Promise<RunnerUpdateResult>;
-  /** `fs.list` and `fs.mkdir`: the folder browser's answer (it never throws). */
-  folders(frame: FsList | FsMkdir): Promise<FsResult>;
+  /** `fs.list`, `fs.mkdir` and `fs.mkdirp`: the folder browser's answer (it never throws). */
+  folders(frame: FsList | FsMkdir | FsMkdirp): Promise<FsResult>;
   /** `tools.check` and `tools.install`: the machine's tools' answer. */
   tools(frame: ToolsCheck | ToolsInstall): Promise<ToolsResult>;
   readonly log: Log;
@@ -129,7 +130,7 @@ export class Commands {
     const error = why.slice(0, 2000);
     if (type === 'power.command') return [{ type: 'power.result', cmdId, ok: false, error }];
     if (type === 'runner.update') return [{ type: 'runner.update.result', cmdId, ok: false, error }];
-    if (type === 'fs.list' || type === 'fs.mkdir') {
+    if (type === 'fs.list' || type === 'fs.mkdir' || type === 'fs.mkdirp') {
       return [{ type: 'fs.result', cmdId, ok: false, error: `invalid_path: ${why}`.slice(0, 2000) }];
     }
     return [ack(cmdId, error)];
@@ -147,6 +148,7 @@ export class Commands {
           return await this.#deps.update(frame);
         case 'fs.list':
         case 'fs.mkdir':
+        case 'fs.mkdirp':
           return await this.#deps.folders(frame);
         case 'tools.check':
         case 'tools.install':

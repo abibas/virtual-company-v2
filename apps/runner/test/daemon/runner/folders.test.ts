@@ -10,12 +10,22 @@ afterEach(async () => {
 });
 
 describe("the runner's folder browser on the wire", () => {
-  it('says it browses folders and answers fs.list and fs.mkdir with fs.result', async () => {
+  it('says it browses folders and answers fs.list, fs.mkdir and fs.mkdirp with fs.result', async () => {
     const server = await fakeServer();
     const { fs, tree } = fakeFoldersFs(['/', '/work']);
     startRunner(server, { folders: { fs, home: '/home/runner', root: '/work' } });
-    expect((await server.frames.next('runner.hello')).caps.folders).toBe(true);
+    const { caps } = await server.frames.next('runner.hello');
+    expect([caps.folders, caps.mkdirp]).toEqual([true, true]);
     await server.frames.next('runner.heartbeat');
+    const deep = newId();
+    server.send({ type: 'fs.mkdirp', cmdId: deep, path: '/work/team/dev' });
+    expect(await server.frames.next('fs.result')).toEqual({
+      type: 'fs.result',
+      cmdId: deep,
+      ok: true,
+      path: '/work/team/dev',
+      created: true,
+    });
     const made = newId();
     server.send({ type: 'fs.mkdir', cmdId: made, path: '/work/scout' });
     expect(await server.frames.next('fs.result')).toEqual({
@@ -30,9 +40,12 @@ describe("the runner's folder browser on the wire", () => {
       cmdId: listed,
       ok: true,
       path: '/work',
-      entries: [{ name: 'scout', git: false, claudeMd: false }],
+      entries: [
+        { name: 'scout', git: false, claudeMd: false },
+        { name: 'team', git: false, claudeMd: false },
+      ],
     });
-    expect(tree.made).toEqual(['/work/scout']);
+    expect(tree.made).toEqual(['/work/team', '/work/team/dev', '/work/scout']);
   });
 
   it('without a folder host says so and answers unsupported', async () => {

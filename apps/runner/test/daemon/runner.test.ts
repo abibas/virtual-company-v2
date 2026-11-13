@@ -51,6 +51,7 @@ describe('the runner on the wire', () => {
         terminal: false,
         selfUpdate: false,
         folders: false,
+        mkdirp: false,
         forks: true,
         reattach: false,
         agentTools: false,
