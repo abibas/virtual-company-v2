@@ -1,4 +1,4 @@
-import type { AiProvider } from '@mwc/shared/enums';
+import type { ProfileProvider } from '@mwc/shared/enums';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
@@ -164,7 +164,7 @@ export function profileCalls(api: Api) {
     update: (profileId: string, changes: AccessProfileChanges) =>
       call(profiles[':profileId'].$patch({ param: { profileId }, json: changes })),
     remove: (profileId: string) => call(profiles[':profileId'].$delete({ param: { profileId } })),
-    setDefault: (companyId: string, provider: AiProvider, profileId: string | null) =>
+    setDefault: (companyId: string, provider: ProfileProvider, profileId: string | null) =>
       call(
         api.api.companies[':companyId'].me['default-profile'].$put({
           param: { companyId },

@@ -1,5 +1,5 @@
 import { agentBriefing } from '@mwc/shared/agent-briefing';
-import { type BriefingTool, isToolProvider } from '@mwc/shared/credentials';
+import { type BriefingTool, TOOL_PROVIDERS } from '@mwc/shared/credentials';
 import { ChevronRight, Lock } from 'lucide-react';
 import type { AccessProfile, ChartNode } from '../../api/types.ts';
 import { Badge } from '../../components/ui/Badge.tsx';
@@ -25,22 +25,24 @@ export function CompanyBriefing({ text }: { readonly text: string | undefined })
   );
 }
 
-/** The chosen GitHub and Atlassian profiles (of the person's own, `mine`) as the briefing reads them. */
+/** The tool parts of the chosen profile (one of the person's own, `mine`) as the briefing reads them. */
 export function briefingTools(
-  ids: readonly (string | null)[],
+  profileId: string | null,
   mine: readonly AccessProfile[] | undefined,
 ): BriefingTool[] {
-  return ids.flatMap((id) => {
-    const profile = mine?.find((own) => own.id === id);
-    if (!profile || profile.rights === null || !isToolProvider(profile.provider)) return [];
-    const { account = null, site = null } = profile.subscription ?? {};
-    return [{ provider: profile.provider, account, site, rights: profile.rights }];
+  const profile = mine?.find((own) => own.id === profileId);
+  if (!profile) return [];
+  return TOOL_PROVIDERS.flatMap((provider): BriefingTool[] => {
+    const part = profile.tools[provider];
+    if (part === null) return [];
+    const { account = null, site = null } = part.signIn ?? {};
+    return [{ provider, account, site, rights: part.rights }];
   });
 }
 
 /**
  * What a new agent will be told of its place once its manager is chosen (the Hire page): the chart with its card added
- * and its chosen tool profiles, written by the same function as the server's.
+ * and its profile's tool parts (`briefingTools`), written by the same function as the server's.
  */
 export function previewBriefing(
   company: string,

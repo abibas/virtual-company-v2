@@ -1,5 +1,5 @@
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
-import type { AiProvider, Harness } from '@mwc/shared/enums';
+import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import {
   AGENT_DEFAULTS,
   AGENT_INSTRUCTIONS_MAX,
@@ -28,13 +28,10 @@ export interface AgentValues {
   readonly instructions: string;
   /** The access profile its runs use (the signed-in person's, or another's it already has); null for none. */
   readonly profileId: string | null;
-  /** Its GitHub profile and its Atlassian profile (S7.1b), the same way; null for none (no default). */
-  readonly githubProfileId: string | null;
-  readonly atlassianProfileId: string | null;
 }
 
 /** The hirer's default access profile of each provider in the company (the hire form only). */
-export type ProfileDefaults = Readonly<Record<AiProvider, string | null>>;
+export type ProfileDefaults = Readonly<Record<ProfileProvider, string | null>>;
 
 export interface AgentDraft {
   readonly values: AgentValues;
@@ -67,8 +64,6 @@ function startOf(agent: AgentDetail | undefined, reportsTo: string, profileId: s
     reportsTo: agent ? (agent.reportsTo ?? '') : reportsTo,
     instructions: agent?.instructions ?? AGENT_DEFAULTS.instructions,
     profileId: agent ? (agent.profile?.id ?? null) : profileId,
-    githubProfileId: agent?.githubProfile?.id ?? null,
-    atlassianProfileId: agent?.atlassianProfile?.id ?? null,
   };
 }
 
@@ -99,7 +94,7 @@ export function useAgentDraft(
   };
 }
 
-/** The new agent as `POST /agents` takes it: every field, the face as shown, its manager and its access profiles. */
+/** The new agent as `POST /agents` takes it: every field, the face as shown, its manager and its access profile. */
 export function newAgentOf(draft: AgentDraft): NewAgent {
   const { values } = draft;
   return {
@@ -111,8 +106,6 @@ export function newAgentOf(draft: AgentDraft): NewAgent {
     instructions: values.instructions,
     reportsToPrincipalId: values.reportsTo,
     profileId: values.profileId,
-    githubProfileId: values.githubProfileId,
-    atlassianProfileId: values.atlassianProfileId,
   };
 }
 
@@ -130,13 +123,6 @@ export function changesOf(draft: AgentDraft, agent: AgentDetail): Partial<AgentC
   const changed = Object.fromEntries(
     Object.entries(next).filter(([key, value]) => agent[key as keyof typeof next] !== value),
   ) as Partial<AgentChanges>;
-  const held = {
-    profileId: agent.profile?.id ?? null,
-    githubProfileId: agent.githubProfile?.id ?? null,
-    atlassianProfileId: agent.atlassianProfile?.id ?? null,
-  };
-  for (const key of ['profileId', 'githubProfileId', 'atlassianProfileId'] as const) {
-    if (values[key] !== held[key]) changed[key] = values[key];
-  }
-  return changed;
+  const profileId = agent.profile?.id ?? null;
+  return values.profileId === profileId ? changed : { ...changed, profileId: values.profileId };
 }

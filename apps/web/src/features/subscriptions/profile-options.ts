@@ -1,5 +1,12 @@
-import { fitsGateway, fitsProvider, GATEWAY_KINDS, PROVIDER_KINDS } from '@mwc/shared/credentials';
-import type { ProfileProvider } from '@mwc/shared/enums';
+import {
+  fitsGateway,
+  fitsProvider,
+  fitsTool,
+  GATEWAY_KINDS,
+  PROVIDER_KINDS,
+  TOOL_KINDS,
+} from '@mwc/shared/credentials';
+import type { ProfileProvider, ToolProvider } from '@mwc/shared/enums';
 import type { AccessProfile, Subscription } from '../../api/types.ts';
 import type { SelectOption } from '../../components/forms/Input.tsx';
 import { kindLabel } from './KindBadge.tsx';
@@ -44,6 +51,18 @@ export const subscriptionOptions = (
     { kinds: PROVIDER_KINDS[provider], fits: (s) => fitsProvider(provider, s.kind) },
     none,
   );
+
+/** The choices of a profile's `tool` part's sign-in: None, then the person's sign-ins of that tool. */
+export const signInOptions = (
+  tool: ToolProvider,
+  subscriptions: readonly Subscription[],
+  current: Held = null,
+): SelectOption[] =>
+  options(subscriptions, current, { kinds: TOOL_KINDS[tool], fits: (s) => fitsTool(tool, s.kind) }, 'None');
+
+/** The first sign-in a new `tool` part takes: the person's first of that tool that is not revoked, else none. */
+export const firstSignIn = (tool: ToolProvider, subscriptions: readonly Subscription[]): string | null =>
+  subscriptions.find((s) => fitsTool(tool, s.kind) && s.status !== 'revoked')?.id ?? null;
 
 /** The choices of any profile's gateway, Claude or OpenAI alike (gateways are universal): None, then every gateway. */
 export const gatewayOptions = (

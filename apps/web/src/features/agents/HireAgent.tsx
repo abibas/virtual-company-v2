@@ -185,10 +185,7 @@ function HireForm({ companyId, chart, draft, placement, meUserId, links, onHired
             company,
             chart.nodes,
             previewNode(draft, runsWith),
-            briefingTools(
-              [draft.values.githubProfileId, draft.values.atlassianProfileId],
-              profiles.data?.profiles,
-            ),
+            briefingTools(draft.values.profileId, profiles.data?.profiles),
           )}
         />
         <FormActions status="" error={error}>

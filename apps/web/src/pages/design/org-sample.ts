@@ -146,8 +146,6 @@ const detailOf = (agent: SampleAgent): AgentDetail => ({
   reportsTo: agent.reportsTo,
   title: null,
   profile: null,
-  githubProfile: null,
-  atlassianProfile: null,
   placement: agent.slug === 'mason' ? { machineId: 'm-mac', machineName: 'This Mac', mode: 'host' } : null,
   createdAt: days(-agent.hired),
   updatedAt: days(-1),

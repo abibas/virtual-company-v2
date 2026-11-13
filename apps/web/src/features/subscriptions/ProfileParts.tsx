@@ -91,31 +91,24 @@ export function ProfileHeader({ profile, update, remove }: Omit<CardProps, 'subs
   );
 }
 
-/** The agents that use the profile, each a link to its page in its company; `none` (or nothing) when none does. */
-export function ProfileAgents({
-  agents,
-  none,
-}: {
-  readonly agents: AccessProfile['agents'];
-  readonly none?: string;
-}) {
-  if (agents.length === 0) return none ? <p className="text-xs text-dim">{none}</p> : null;
+/** "Used by: Developer, QA": the agents that use the profile, each a link to its page in its company; nothing when none does. */
+export function ProfileAgents({ agents }: { readonly agents: AccessProfile['agents'] }) {
+  if (agents.length === 0) return null;
   return (
-    <div>
-      <p className="text-xs font-semibold text-dim">Used by {count(agents.length, 'agent')}</p>
-      <ul className="mt-1.5 flex flex-wrap gap-1.5">
-        {agents.map((agent) => (
-          <li key={agent.agentId}>
-            <Link
-              to={companyAgentLinks(agent.companySlug).agent({ slug: agent.agentSlug, id: agent.agentId })}
-              className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-ink-2 hover:text-teal focus-visible:text-teal"
-            >
-              <span className="font-medium text-dim">{agent.companyName} /</span>
-              {agent.agentName}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <p className="text-xs text-dim">
+      Used by:{' '}
+      {agents.map((agent, index) => (
+        <span key={agent.agentId}>
+          {index > 0 && ', '}
+          <Link
+            to={companyAgentLinks(agent.companySlug).agent({ slug: agent.agentSlug, id: agent.agentId })}
+            title={agent.companyName}
+            className="font-semibold text-ink-2 hover:text-teal focus-visible:text-teal"
+          >
+            {agent.agentName}
+          </Link>
+        </span>
+      ))}
+    </p>
   );
 }

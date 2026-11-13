@@ -1,4 +1,4 @@
-import type { AiProvider, Effort } from '@mwc/shared/enums';
+import type { Effort, ProfileProvider } from '@mwc/shared/enums';
 import {
   catalogueModel,
   effortsOf,
@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { friendlyMessage } from '../../api/errors.ts';
 import { ChoiceField, SelectField, TextField } from '../../components/forms/Field.tsx';
 import { SegmentedControl, type SegmentOption } from '../../components/forms/Segmented.tsx';
-import { defaultModelLabel, EFFORT_HINTS, effortOptions } from '../../components/org/agent-labels.ts';
+import { defaultModelLabel, effortOptions } from '../../components/org/agent-labels.ts';
 
 /** What a profile runs: a model and an effort, each null for the provider's default. */
 export interface Runs {
@@ -23,29 +23,20 @@ const ANOTHER = 'another';
 const DEFAULT_EFFORT = 'default';
 
 /** The model's choices: the provider's default, its models by name, and another id typed in. */
-const modelOptions = (provider: AiProvider) => [
+const modelOptions = (provider: ProfileProvider) => [
   { value: DEFAULT_MODEL, label: defaultModelLabel(provider) },
   ...MODEL_CATALOGUE[provider].map((model) => ({ value: model.id, label: model.label })),
   { value: ANOTHER, label: 'Another model (type its id)' },
 ];
 
 /** The change a new model makes: the model, and the effort back to the default when the new model does not take it. */
-export function withModel(provider: AiProvider, runs: Runs, model: string | null): Partial<Runs> {
+export function withModel(provider: ProfileProvider, runs: Runs, model: string | null): Partial<Runs> {
   const keeps = runs.effort === null || effortsOf(provider, model).includes(runs.effort);
   return keeps ? { model } : { model, effort: null };
 }
 
-/** The harness each provider's profiles run, as the hints name it. */
-const HARNESS_NAMES: Readonly<Record<AiProvider, string>> = { claude: 'Claude Code', openai: 'Codex' };
-
-/** The effort's hint: what the chosen level does, or who decides by default. */
-function effortHint(provider: AiProvider, effort: Effort | null): string {
-  if (effort !== null) return EFFORT_HINTS[effort];
-  return `${HARNESS_NAMES[provider]} picks its own. More effort thinks longer and costs more.`;
-}
-
 interface RunsFieldsProps {
-  readonly provider: AiProvider;
+  readonly provider: ProfileProvider;
   readonly runs: Runs;
   /** A change of the model or the effort (both when a new model does not take the effort); a refusal shows here. */
   readonly onChange: (change: Partial<Runs>) => unknown;
@@ -86,7 +77,7 @@ function ModelIdField({
   onType,
   commit,
 }: {
-  readonly provider: AiProvider;
+  readonly provider: ProfileProvider;
   readonly typed: string;
   readonly live: boolean;
   readonly onType: (text: string) => void;
@@ -120,7 +111,7 @@ function EffortChoice({
   busy,
   onPick,
 }: {
-  readonly provider: AiProvider;
+  readonly provider: ProfileProvider;
   readonly runs: Runs;
   readonly busy: boolean;
   readonly onPick: (effort: Effort | null) => void;
@@ -130,7 +121,7 @@ function EffortChoice({
     ...effortOptions(provider, runs.model),
   ];
   return (
-    <ChoiceField label="Effort" hint={effortHint(provider, runs.effort)} className="sm:col-span-2">
+    <ChoiceField label="Effort" className="sm:col-span-2">
       <SegmentedControl
         label="Effort"
         size="sm"
@@ -146,7 +137,7 @@ function EffortChoice({
 
 /**
  * A profile's Model (the provider's models, "<Provider>'s default", or another id typed in) and Effort (the levels the
- * model takes, or the default, with a short hint). A change goes out at once (a typed id when the field is left or
+ * model takes, or the default). A change goes out at once (a typed id when the field is left or
  * Enter is pressed, unless `live`); a refusal of it shows under the model.
  */
 export function RunsFields({ provider, runs, onChange, live = false }: RunsFieldsProps) {
@@ -178,7 +169,6 @@ export function RunsFields({ provider, runs, onChange, live = false }: RunsField
         disabled={busy}
         error={error}
         onChange={(event) => pick(event.target.value)}
-        hint={`What ${HARNESS_NAMES[provider]} runs for its agents`}
       />
       {typing && <ModelIdField provider={provider} typed={typed} live={live} onType={type} commit={commit} />}
       <EffortChoice

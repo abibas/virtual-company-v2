@@ -1,5 +1,4 @@
-import { isAiProvider } from '@mwc/shared/credentials';
-import type { AiProvider, Harness, ProfileProvider } from '@mwc/shared/enums';
+import type { Harness, ProfileProvider } from '@mwc/shared/enums';
 import type { AccessProfile, AgentDetail } from '../../api/types.ts';
 import type { RunsWith } from '../../components/org/agent-labels.ts';
 import type { AgentDraft } from './agent-draft.ts';
@@ -9,14 +8,13 @@ import type { AgentDraft } from './agent-draft.ts';
  * Claude, Codex for OpenAI), and the model and effort its runs use. The agent form asks for neither; the profile
  * decides them. Pure.
  */
-export const PROVIDER_HARNESS: Readonly<Record<AiProvider, Harness>> = {
+export const PROVIDER_HARNESS: Readonly<Record<ProfileProvider, Harness>> = {
   claude: 'claude_code',
   openai: 'codex',
 };
 
-/** Puts the draft on the harness of a picked profile's provider (a tool profile has none). */
+/** Puts the draft on the harness of a picked profile's provider. */
 export function followProvider(draft: AgentDraft, provider: ProfileProvider): void {
-  if (!isAiProvider(provider)) return;
   const harness = PROVIDER_HARNESS[provider];
   if (draft.values.harness !== harness) draft.set('harness', harness);
 }
@@ -32,7 +30,6 @@ export function runsOf(
 ): RunsWith | null | undefined {
   if (profileId === null) return null;
   const own = mine?.find((profile) => profile.id === profileId);
-  if (own && isAiProvider(own.provider))
-    return { model: own.model, effort: own.effort, provider: own.provider };
+  if (own) return { model: own.model, effort: own.effort, provider: own.provider };
   return agent?.profile?.id === profileId ? agent.runsWith : undefined;
 }

@@ -1,4 +1,4 @@
-import { isToolProvider, PROFILE_PROVIDERS } from '@mwc/shared/credentials';
+import { PROFILE_PROVIDERS } from '@mwc/shared/credentials';
 import type { ProfileProvider } from '@mwc/shared/enums';
 import { Layers, Plus } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -23,7 +23,6 @@ import { ProfileCard } from './ProfileCard.tsx';
 import { PROVIDER_STYLES } from './Providers.tsx';
 import { profilesOf } from './profile-options.ts';
 import type { TabHeader } from './SubscriptionsTab.tsx';
-import { ToolProfileCard } from './ToolProfileCard.tsx';
 
 const SKELETON = <Skeleton className="h-48 rounded-2xl" />;
 
@@ -45,16 +44,12 @@ function ProviderGroup({
   onNew,
 }: ListProps & { readonly provider: ProfileProvider; readonly profiles: readonly AccessProfile[] }) {
   const style = PROVIDER_STYLES[provider];
-  const ShownCard = isToolProvider(provider) ? ToolProfileCard : ProfileCard;
   return (
     <section aria-label={`${style.name} profiles`} className="flex flex-col gap-3">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <IconTile icon={style.icon} size="sm" />
-          <div>
-            <h2 className="text-sm font-bold text-ink">{style.name} profiles</h2>
-            {style.agents && <p className="text-xs text-dim">For {style.agents}</p>}
-          </div>
+          <h2 className="text-sm font-bold text-ink">{style.name} profiles</h2>
         </div>
         <Button size="sm" tone="quiet" icon={Plus} onClick={() => onNew(provider)}>
           New {style.name} profile
@@ -66,7 +61,7 @@ function ProviderGroup({
         </p>
       ) : (
         profiles.map((profile) => (
-          <ShownCard
+          <ProfileCard
             key={profile.id}
             profile={profile}
             subscriptions={subscriptions}
@@ -79,7 +74,7 @@ function ProviderGroup({
   );
 }
 
-/** The profiles in groups, Claude, OpenAI, GitHub then Atlassian; the invitation to make the first one. */
+/** The profiles in groups, Claude then OpenAI; the invitation to make the first one. */
 function ProfileList({ profiles, ...rest }: ListProps & { readonly profiles: readonly AccessProfile[] }) {
   if (profiles.length === 0) {
     return (
@@ -136,10 +131,10 @@ function useNewFromAddress(startWith: Creating | undefined, open: (creating: Cre
 
 /**
  * The Access profiles tab: the person's profiles, Claude ones (a Claude subscription and an optional gateway, for Claude
- * Code agents), OpenAI ones (an OpenAI subscription, for Codex agents), and GitHub and Atlassian ones (a sign-in and its
- * rights, S7.1b), the agents using each, New profile, and their defaults per company, one per AI provider. `memberships`
- * and `onDefaultChanged` are the session's (the page passes them); `header` puts New profile in the page's header;
- * `startWith` opens New profile at once (`?new=claude`, `?new=github`).
+ * Code agents) and OpenAI ones (an OpenAI subscription, for Codex agents), each with its GitHub and Atlassian parts
+ * (S7.1b, one profile since 2026-11-13) and the agents using it, New profile, and their defaults per company, one per
+ * provider. `memberships` and `onDefaultChanged` are the session's (the page passes them); `header` puts New profile in
+ * the page's header; `startWith` opens New profile at once (`?new=claude`).
  */
 export function ProfilesTab({
   memberships,

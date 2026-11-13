@@ -15,10 +15,10 @@ import type { AgentDraft } from './agent-draft.ts';
 import { followProvider } from './harness-from-profile.ts';
 
 /** The person's own access profiles, as the form loads them once. */
-export type MyProfiles = Loaded<{ readonly profiles: readonly AccessProfile[] }>;
+type MyProfiles = Loaded<{ readonly profiles: readonly AccessProfile[] }>;
 
 /** The address of New profile for a provider on the person's profiles page. */
-export function newProfileHref(profilesHref: string, provider: ProfileProvider): string {
+function newProfileHref(profilesHref: string, provider: ProfileProvider): string {
   return `${profilesHref}${profilesHref.includes('?') ? '&' : '?'}new=${provider}`;
 }
 
@@ -90,18 +90,16 @@ function MyProfileSelect({ draft, profiles }: { readonly draft: AgentDraft; read
 }
 
 /** Someone else's profile: shown with its owner, not changeable here; an admin takes it off with Remove. */
-export function TheirProfile({
-  label = 'Access profile',
+function TheirProfile({
   profile,
   onRemove,
 }: {
-  readonly label?: string;
-  readonly profile: Pick<AgentProfile, 'name' | 'ownerName'>;
+  readonly profile: AgentProfile;
   readonly onRemove: () => void;
 }) {
   const id = useId();
   return (
-    <Field label={label} id={id} hint="Someone else's profile.">
+    <Field label="Access profile" id={id} hint="Someone else's profile.">
       <div className="flex items-center gap-2">
         <Input
           id={id}

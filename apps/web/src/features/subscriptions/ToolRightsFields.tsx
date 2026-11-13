@@ -179,7 +179,7 @@ function AtlassianRightsFields({ rights, onChange, disabled }: RightsProps<Atlas
 }
 
 /**
- * A tool profile's rights as compact controls (S7.1b): GitHub's repositories (All, or chips) with Push branches and Pull
+ * A tool part's rights as compact controls (S7.1b): GitHub's repositories (All, or chips) with Push branches and Pull
  * requests; Atlassian's Jira (Off, Read, Changes) and Confluence (Off, Read, Write), each with its projects or spaces.
  * Each change hands back the whole set.
  */

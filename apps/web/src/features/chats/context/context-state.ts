@@ -1,4 +1,3 @@
-import { isAiProvider } from '@mwc/shared/credentials';
 import { contextPercent, contextWindowOf } from '@mwc/shared/harness';
 import type {
   AccessProfile,
@@ -230,7 +229,5 @@ export function chatRuns(
   mine: readonly AccessProfile[] | undefined,
 ): ChatRuns | undefined {
   if (chat.profileId === null) return agent.runsWith ?? undefined;
-  const own = mine?.find((profile) => profile.id === chat.profileId);
-  // A chat's profile is an AI one: a tool profile never powers a chat.
-  return own && isAiProvider(own.provider) ? { model: own.model, provider: own.provider } : undefined;
+  return mine?.find((profile) => profile.id === chat.profileId);
 }

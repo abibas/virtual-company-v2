@@ -1,5 +1,5 @@
 import { PROFILE_PROVIDERS } from '@mwc/shared/credentials';
-import type { ProfileProvider } from '@mwc/shared/enums';
+import type { ProfileProvider, ToolProvider } from '@mwc/shared/enums';
 import { ChevronRight } from 'lucide-react';
 import { Badge, type Tone } from '../../components/ui/Badge.tsx';
 import { Button } from '../../components/ui/Button.tsx';
@@ -8,19 +8,20 @@ import type { IconComponent } from '../../components/ui/icon.ts';
 import { AtlassianMark, ClaudeMark, GitHubMark, OpenAIMark } from '../../components/ui/ProviderLogo.tsx';
 
 /**
- * The access profile providers as the pages show them: how each looks and, for the AI ones, what it is for (Claude in
- * violet, Anthropic's subscriptions' tone, for Claude Code agents; OpenAI in teal, for Codex agents; either with any
- * gateway); the tools (S7.1b) by their names only. Its badge, and New profile's first step, the choice between them.
+ * The access profile providers as the pages show them: how each looks and what it is for (Claude in violet,
+ * Anthropic's subscriptions' tone, for Claude Code agents; OpenAI in teal, for Codex agents; either with any gateway).
+ * Its badge, and New profile's first step, the choice between them. A profile's tool parts (S7.1b) look like their tool
+ * (`TOOL_STYLES`).
  */
 interface ProviderStyle {
   readonly name: string;
   readonly tone: Tone;
   /** Its logo (tiles show it on a neutral tile). */
   readonly icon: IconComponent;
-  /** The agents its profiles power (the AI providers). */
-  readonly agents?: string;
-  /** What a profile of it holds, as New profile's choice says it (the AI providers). */
-  readonly holds?: string;
+  /** The agents its profiles power. */
+  readonly agents: string;
+  /** What a profile of it holds, as New profile's choice says it. */
+  readonly holds: string;
 }
 
 export const PROVIDER_STYLES: Readonly<Record<ProfileProvider, ProviderStyle>> = {
@@ -29,17 +30,23 @@ export const PROVIDER_STYLES: Readonly<Record<ProfileProvider, ProviderStyle>> =
     tone: 'review',
     icon: ClaudeMark,
     agents: 'Claude Code agents',
-    holds: 'One Claude subscription, and a gateway if you want one.',
+    holds: 'One Claude subscription, a gateway if you want one, and GitHub and Atlassian access.',
   },
   openai: {
     name: 'OpenAI',
     tone: 'teal',
     icon: OpenAIMark,
     agents: 'Codex agents',
-    holds: 'One OpenAI subscription, and a gateway if you want one.',
+    holds: 'One OpenAI subscription, a gateway if you want one, and GitHub and Atlassian access.',
   },
-  github: { name: 'GitHub', tone: 'neutral', icon: GitHubMark },
-  atlassian: { name: 'Atlassian', tone: 'blue', icon: AtlassianMark },
+};
+
+/** A profile's tool parts as its card shows them: each tool's name and logo. */
+export const TOOL_STYLES: Readonly<
+  Record<ToolProvider, { readonly name: string; readonly icon: IconComponent }>
+> = {
+  github: { name: 'GitHub', icon: GitHubMark },
+  atlassian: { name: 'Atlassian', icon: AtlassianMark },
 };
 
 /** A profile's provider as a small badge with its icon ("Claude", "OpenAI"). */
@@ -52,7 +59,7 @@ export function ProviderBadge({ provider }: { readonly provider: ProfileProvider
   );
 }
 
-/** The first step of New profile: Claude, OpenAI, GitHub or Atlassian, as big choices. */
+/** The first step of New profile: Claude or OpenAI, as big choices. */
 export function ProviderChoice({
   onChoose,
   onCancel,
@@ -84,10 +91,8 @@ export function ProviderChoice({
               <IconTile icon={style.icon} size="xl" />
               <span className="min-w-0 flex-1">
                 <span className="block text-md font-bold text-ink">{style.name}</span>
-                {style.agents && (
-                  <span className="block text-xs font-semibold text-ink-2">For {style.agents}</span>
-                )}
-                {style.holds && <span className="mt-1 block text-xs text-dim">{style.holds}</span>}
+                <span className="block text-xs font-semibold text-ink-2">For {style.agents}</span>
+                <span className="mt-1 block text-xs text-dim">{style.holds}</span>
               </span>
               <ChevronRight
                 size={18}
