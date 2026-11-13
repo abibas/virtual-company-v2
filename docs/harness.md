@@ -1426,7 +1426,39 @@ integrations module asks the chats module's `InboundChats` for a turn in the age
 (kept while it can go on, else a new one with the title given, made by Most Wanted), sent as a turn Most Wanted queued
 (`system`, the agent as its sender) "after this turn", with the machine-wake trigger `message`. Every system message
 turn's end is told to `InboundTurnHook` (from the live end, and for a turn that failed while it waited for its machine
-or in the queue), which posts the answer back in Slack.
+or in the queue), which posts the answer back in Slack. The turn's view names its sender (`from`: `{name, via:
+'slack'}`, read from the prompt's header line by `rules/sender.ts`), so the thread shows it as that person's message via
+Slack, not as Most Wanted's.
+
+## Live chat lists
+
+Built 2026-11-13 (Ihor: a Slack reply reached his agent, but his open chat page showed it only after a refresh). Every
+path that makes a turn already told the chat's own stream (`live.bus.publish`): a person's message, a Slack message, a
+Lead's wake-up and check-in, the team room, a step's prompt, a waiting turn starting after its machine or a slot. What
+did not follow was the agent's chat list (read once, so a new chat, a Slack conversation's, never showed) and the rail
+(read every 15 seconds). Two silent paths were also fixed: a turn whose runner went away between its checks and its
+send failed without telling the stream, and so did a turn taken back after the grace (running again).
+
+- **The activity.** `GET /api/companies/{companyId}/chat-activity` (members and above, Server-Sent Events read with the
+  Bearer header, as a chat's stream): an `event: chat` with `{chat, lastTurn}`, the chat as it is now and its latest turn,
+  each time a chat is begun, renamed or archived (`archivedAt` set) or one of its turns is queued, starts, changes status
+  or goes, or its agent asks a question; a `: heartbeat` every 20 s; nothing replayed. The bus's watchers hear every
+  chat's messages and `changed(chatId)` (a chat made or changed, which a chat's own listeners never hear); each
+  connection reads a chat once per burst of its messages, through the caller's tenant, so another company's chat is
+  never sent (nor read again), and a task's conversation is left out, as from the agent's list (`service/activity.ts`,
+  `routes/activity.ts`).
+- **The web.** One connection per company in the page (`api/chat-activity.ts`), shared by the lists, back after a drop
+  (1 s doubling to 15 s) and read again on each open. The agent's chat list (`api/use-agent-chats-live.ts`) puts each
+  told chat in place, newest first, archived ones out, with a dot (`features/chats/chat-dots.ts`): green while a turn
+  waits or runs, blue for a turn that ended after what this browser has seen of the chat (the rail's marks); never on
+  the open chat, whose ends count as seen. Without `?chat=`, the chat open stays the one that was newest when the list
+  came. The rail's direct reports read again 300 ms after a change in one of their agents' chats, and every minute
+  otherwise.
+
+Tests: `apps/server/test/modules/chats/routes/activity.test.ts` (a person's chat and turn, rename, archive, a slot and a
+machine wait, members only, one company), `routes/activity/slack.test.ts` (a Slack message's new chat at once, its
+sender, the next reply in the chat's own stream), `routes/activity/wakes.test.ts` (a Lead's wake-up and the team room,
+never a task's conversation), `service/activity.test.ts` and `rules/sender.test.ts`.
 
 ## Your direct reports in the rail
 
@@ -1464,8 +1496,9 @@ the time sit in the right rail of every company page, beside the Inbox (docs/pro
   yet" before the first wake-up). Under it the chat page's thread and composer, narrow (`dense`): the stream, tool
   calls, subagents, questions and their answers, copy, delivery while the agent works, Stop and the waiting messages,
   without the context meter. The agent open last is remembered per company in this browser
-  (`mwc.railChats.agent.<companyId>`). The list is read every 15 seconds while the page is visible, when the tab comes
-  back, after a message and when the open chat's turn starts or ends.
+  (`mwc.railChats.agent.<companyId>`). The list is read again as soon as one of the reports' chats changes (the chats'
+  activity, "Live chat lists"), every minute while the page is visible, when the tab comes back, after a message and
+  when the open chat's turn starts or ends.
 - **Narrow screens.** Under 80rem the rail is the top bar's drawer; the same Chats tab works there (no strip).
 
 The parts: `apps/web/src/api/report-chats.ts` (`useReportChats`), `features/report-chats/` (`use-report-rail.tsx`, the

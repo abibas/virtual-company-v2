@@ -907,6 +907,13 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          use per load), ranked by `rules/slack/inbound/people.ts`; the picker warms it on focus with a progress bar and
          lists matches as you type (keyboard, the typed part marked). The port's `SlackUser.email` and
          `SlackError.retryAfterMs` came with it.
+       - **Live chat lists, built 2026-11-13** (Ihor: the Slack replies reached TEST DEV but his open chat page showed
+         them only after a refresh; docs/harness.md "Live chat lists"; branch `live-chats`): the agent's chat list was
+         read once and the rail every 15 seconds. Now `GET …/chat-activity` (members and above) streams each chat
+         begun, renamed or archived and each turn that moves, whatever made it; the chat list puts a Slack
+         conversation's chat on top at once with a dot, the rail reads again at once, and a Slack message's turn shows
+         as its sender's, via Slack. A turn whose runner went away just before its start, and one taken back after the
+         grace, are now told to the chat's stream.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
