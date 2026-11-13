@@ -2,22 +2,17 @@ import { auditLog } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { chatsWorld, usesOf } from '../../fixtures/chats/world.ts';
+import { chatsWorld } from '../../fixtures/chats/world.ts';
 import { call } from '../../fixtures/companies/companies.ts';
-import { rawUser, slackScene } from '../../fixtures/integrations/slack.ts';
+import { slackScene } from '../../fixtures/integrations/slack.ts';
 import {
   APP_TOKEN,
-  answerSlack,
-  callsOf,
-  formOf,
   type InboundWorld,
   inboundPath,
   inboundScene,
   inboundWorld,
-  ok,
   otherAgent,
   putInbound,
-  slackError,
 } from '../../fixtures/integrations/slack-inbound.ts';
 import { as } from '../../fixtures/members/members.ts';
 import { addSignIn, revokeSubscription } from '../../fixtures/org.ts';
@@ -27,7 +22,7 @@ import { seedApiKey } from '../../fixtures/platform/auth.ts';
  * A Slack bot sign-in's inbound settings and its people search (2026-11-13): the defaults before they are saved (only
  * listed people, the owner's own Slack person from their user token first), the default agent's choices, the checks of a
  * change (receiving needs the app token, the default agent one of the choices, a bot sign-in of the caller's), its audit
- * without the token, and a search by name or email with Slack's refusals in words; personal and session-only.
+ * without the token; personal and session-only. The people search is in `routes/slack-people.test.ts`.
  */
 
 let w: InboundWorld;
@@ -137,72 +132,6 @@ describe('the settings', () => {
     const s = await inboundScene(w, { settings: { maxPerHour: 5 } });
     const res = await as(w, s.company.owner)('GET', inboundPath(s.signIn.id));
     expect(res.body).toMatchObject({ lastHour: 0, maxPerHour: 5, inbound: true, appToken: true });
-  });
-});
-
-describe('the people search', () => {
-  const search = (s: Awaited<ReturnType<typeof slackScene>>, q: string) =>
-    as(w, s.company.owner)('GET', `${inboundPath(s.signIn.id, 'slack-people')}?q=${encodeURIComponent(q)}`);
-
-  it('finds people by name among the workspace’s, without bots or deactivated people', async () => {
-    const s = await slackScene(w);
-    answerSlack(w, {
-      'users.list': [
-        ok({
-          members: [
-            rawUser('U0IHOR', 'ihor', {
-              real_name: 'Ihor Herasko',
-              profile: { image_72: 'https://a.slack-edge.com/i.png' },
-            }),
-            rawUser('U0BOTX', 'ihorbot', { is_bot: true }),
-          ],
-          response_metadata: { next_cursor: 'next' },
-        }),
-        ok({ members: [rawUser('U0GONE', 'ihor-old', { deleted: true }), rawUser('U0ANNA', 'anna')] }),
-      ],
-    });
-    const res = await search(s, 'IHOR');
-    expect(res).toMatchObject({
-      status: 200,
-      body: { people: [{ id: 'U0IHOR', name: 'Ihor Herasko', image: 'https://a.slack-edge.com/i.png' }] },
-    });
-    expect(callsOf(w, 'users.list').map(formOf)).toEqual([
-      { limit: '200' },
-      { limit: '200', cursor: 'next' },
-    ]);
-    expect((await usesOf(w.t.db, s.signIn.id)).map((use) => use.purpose)).toContain('slack_people');
-  });
-
-  it('finds one person by email, none when Slack knows no such person', async () => {
-    const s = await slackScene(w);
-    answerSlack(w, {
-      'users.lookupByEmail': [
-        ok({ user: rawUser('U0IHOR', 'ihor', { profile: { image_72: 'http://x' } }) }),
-        slackError('users_not_found'),
-      ],
-    });
-    expect((await search(s, 'ihor@airia.com')).body).toEqual({
-      people: [{ id: 'U0IHOR', name: 'ihor', image: null }],
-    });
-    expect((await search(s, 'nobody@airia.com')).body).toEqual({ people: [] });
-  });
-
-  it('says Slack’s refusals and outages in words', async () => {
-    const s = await slackScene(w);
-    answerSlack(w, {
-      'users.list': [slackError('missing_scope', { needed: 'users:read' }), slackError('fatal_error')],
-    });
-    expect(await search(s, 'ihor')).toMatchObject({
-      status: 422,
-      body: { error: { code: 'slack_refused' } },
-    });
-    expect(await search(s, 'ihor')).toMatchObject({
-      status: 502,
-      body: { error: { code: 'provider_unavailable' } },
-    });
-    expect((await search(s, ' ')).status).toBe(400);
-    await revokeSubscription(w.t.db, s.signIn.id);
-    expect((await search(s, 'ihor')).status).toBe(422);
   });
 });
 

@@ -10,7 +10,7 @@ import { SlackInboundStatus, SlackWake } from '@mwc/shared/enums';
 /**
  * Receiving Slack messages' API shapes (2026-11-13, `/api/me/subscriptions/{credentialId}/slack-inbound` and
  * `slack-people`): a bot sign-in's inbound settings as shown (never the app token: only whether it is set), a change to
- * them (the app token is write-only), and a search of the workspace's people.
+ * them (the app token is write-only), and a search of the workspace's people (and its reload).
  */
 
 export const SlackSignInParamsSchema = z.object({
@@ -91,10 +91,35 @@ export const SlackInboundChangeSchema = z
   .openapi('SlackInboundChange');
 
 export const SlackPeopleQuerySchema = z.object({
-  q: z.string().trim().min(1).max(100).openapi({ description: 'A name, or an email', example: 'ihor' }),
+  q: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .openapi({ description: 'A name, or an email; none only warms the directory', example: 'ihor' }),
 });
 
-export const SlackPeopleSchema = z.object({ people: z.array(SlackPersonSchema) }).openapi('SlackPeople');
+/** A person found: as listed, with their title and their email (only with `users:read.email`). */
+export const SlackFoundSchema = SlackPersonSchema.extend({
+  title: z.string().nullable().openapi({ example: 'CEO' }),
+  email: z.string().nullable().openapi({ example: 'ihor@airia.com' }),
+}).openapi('SlackFound');
+
+export const SlackPeopleSchema = z
+  .object({
+    people: z.array(SlackFoundSchema),
+    loading: z
+      .boolean()
+      .openapi({ description: "The workspace's people are still loading: `people` are from those so far" }),
+    loaded: z.number().int().openapi({ description: 'The people loaded so far (all of them once loaded)' }),
+    loadedAt: z.string().nullable().openapi({
+      format: 'date-time',
+      description: 'When the list was loaded whole; null while it first loads',
+    }),
+  })
+  .openapi('SlackPeople');
+
+export type SlackFound = z.infer<typeof SlackFoundSchema>;
 
 export type SlackInboundView = z.infer<typeof SlackInboundSchema>;
 export type SlackInboundChange = z.infer<typeof SlackInboundChangeSchema>;
