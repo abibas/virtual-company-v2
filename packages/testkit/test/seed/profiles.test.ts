@@ -11,15 +11,16 @@ beforeAll(async () => {
 afterAll(() => testDb.close());
 
 describe('seedProfile', () => {
-  it("makes a person's Claude profile on the provider's defaults, or what it is given, for an agent to use", async () => {
+  it("makes a person's profile with a Claude part on its defaults, or the part it is given, for an agent to use", async () => {
     const { company, owner } = await seedCompany(testDb.handle);
     const plain = await seedProfile(testDb.handle, owner.user.id);
     expect(plain).toMatchObject({
       ownerUserId: owner.user.id,
-      provider: 'claude',
-      credentialId: null,
-      model: null,
-      effort: null,
+      claudePart: true,
+      claudeCredentialId: null,
+      claudeModel: null,
+      claudeEffort: null,
+      openaiPart: false,
     });
     expect(plain.name).toMatch(/^Profile [0-9a-f]{8}$/);
     const codex = await seedProfile(testDb.handle, owner.user.id, {
@@ -28,7 +29,15 @@ describe('seedProfile', () => {
       model: 'gpt-6.1-sol',
       effort: 'ultra',
     });
-    expect(codex).toMatchObject({ name: 'Codex', provider: 'openai', model: 'gpt-6.1-sol', effort: 'ultra' });
+    expect(codex).toMatchObject({
+      name: 'Codex',
+      claudePart: false,
+      openaiPart: true,
+      openaiModel: 'gpt-6.1-sol',
+      openaiEffort: 'ultra',
+    });
+    const none = await seedProfile(testDb.handle, owner.user.id, { provider: null, githubRights: {} });
+    expect(none).toMatchObject({ claudePart: false, openaiPart: false, githubRights: {} });
     const { agent } = await seedAgent(testDb.handle, company.id, { reportsTo: null, profileId: codex.id });
     expect(agent.profileId).toBe(codex.id);
   });

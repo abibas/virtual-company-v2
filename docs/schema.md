@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 39. Migrations: 33, the last is `0032_profile_tool_parts`.
+Tables: 39. Migrations: 33, the last is `0032_generic_profiles`.
 
 ```mermaid
 erDiagram
@@ -11,11 +11,16 @@ erDiagram
     uuid id PK "not null, default newId() (app-side)"
     uuid owner_user_id FK "not null"
     text name "not null"
-    text provider "not null, claude|openai"
-    uuid credential_id FK "nullable"
-    uuid gateway_credential_id FK "nullable"
-    text model "nullable"
-    text effort "nullable, low|medium|high|xhigh|max|ultra"
+    boolean claude_part "not null, default false"
+    uuid claude_credential_id FK "nullable"
+    uuid claude_gateway_credential_id FK "nullable"
+    text claude_model "nullable"
+    text claude_effort "nullable, low|medium|high|xhigh|max|ultra"
+    boolean openai_part "not null, default false"
+    uuid openai_credential_id FK "nullable"
+    uuid openai_gateway_credential_id FK "nullable"
+    text openai_model "nullable"
+    text openai_effort "nullable, low|medium|high|xhigh|max|ultra"
     uuid github_credential_id FK "nullable"
     jsonb github_rights "nullable"
     uuid atlassian_credential_id FK "nullable"
@@ -539,8 +544,10 @@ erDiagram
     timestamptz updated_at "not null, default now()"
   }
   access_profiles }o--|| users : "owner_user_id"
-  access_profiles }o--o| credentials : "credential_id"
-  access_profiles }o--o| credentials : "gateway_credential_id"
+  access_profiles }o--o| credentials : "claude_credential_id"
+  access_profiles }o--o| credentials : "claude_gateway_credential_id"
+  access_profiles }o--o| credentials : "openai_credential_id"
+  access_profiles }o--o| credentials : "openai_gateway_credential_id"
   access_profiles }o--o| credentials : "github_credential_id"
   access_profiles }o--o| credentials : "atlassian_credential_id"
   agent_icons }o--|| companies : "company_id"
@@ -660,11 +667,16 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `id` | `uuid` | no | `newId() (app-side)` | PK |  |
 | `owner_user_id` | `uuid` | no |  | FK |  |
 | `name` | `text` | no |  |  |  |
-| `provider` | `text` | no |  |  | `claude`, `openai` |
-| `credential_id` | `uuid` | yes |  | FK |  |
-| `gateway_credential_id` | `uuid` | yes |  | FK |  |
-| `model` | `text` | yes |  |  |  |
-| `effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
+| `claude_part` | `boolean` | no | `false` |  |  |
+| `claude_credential_id` | `uuid` | yes |  | FK |  |
+| `claude_gateway_credential_id` | `uuid` | yes |  | FK |  |
+| `claude_model` | `text` | yes |  |  |  |
+| `claude_effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
+| `openai_part` | `boolean` | no | `false` |  |  |
+| `openai_credential_id` | `uuid` | yes |  | FK |  |
+| `openai_gateway_credential_id` | `uuid` | yes |  | FK |  |
+| `openai_model` | `text` | yes |  |  |  |
+| `openai_effort` | `text` | yes |  |  | `low`, `medium`, `high`, `xhigh`, `max`, `ultra` |
 | `github_credential_id` | `uuid` | yes |  | FK |  |
 | `github_rights` | `jsonb` | yes |  |  |  |
 | `atlassian_credential_id` | `uuid` | yes |  | FK |  |
@@ -675,17 +687,22 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 - **Primary key:** `id`
 - **Foreign keys:**
   - `owner_user_id` → `users` (`id`), on delete no action (`access_profiles_owner_user_id_users_id_fk`)
-  - `credential_id` → `credentials` (`id`), on delete set null (`access_profiles_credential_id_credentials_id_fk`)
-  - `gateway_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_gateway_credential_id_credentials_id_fk`)
+  - `claude_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_claude_credential_id_credentials_id_fk`)
+  - `claude_gateway_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_claude_gateway_credential_id_credentials_id_fk`)
+  - `openai_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_openai_credential_id_credentials_id_fk`)
+  - `openai_gateway_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_openai_gateway_credential_id_credentials_id_fk`)
   - `github_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_github_credential_id_credentials_id_fk`)
   - `atlassian_credential_id` → `credentials` (`id`), on delete set null (`access_profiles_atlassian_credential_id_credentials_id_fk`)
 - **Unique:**
   - `access_profiles_owner_user_id_name_unique` (`owner_user_id`, `name`)
 - **Checks:**
   - `access_profiles_name_check`: `char_length("name") between 1 and 80`
-  - `access_profiles_provider_check`: `provider` is one of `claude`, `openai`
-  - `access_profiles_model_check`: `char_length("model") between 1 and 100`
-  - `access_profiles_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - `access_profiles_claude_check`: `"claude_part" or ("claude_credential_id" is null and "claude_gateway_credential_id" is null and "claude_model" is null and "claude_effort" is null)`
+  - `access_profiles_claude_model_check`: `char_length("claude_model") between 1 and 100`
+  - `access_profiles_claude_effort_check`: `claude_effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - `access_profiles_openai_check`: `"openai_part" or ("openai_credential_id" is null and "openai_gateway_credential_id" is null and "openai_model" is null and "openai_effort" is null)`
+  - `access_profiles_openai_model_check`: `char_length("openai_model") between 1 and 100`
+  - `access_profiles_openai_effort_check`: `openai_effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - `access_profiles_github_check`: `"github_credential_id" is null or "github_rights" is not null`
   - `access_profiles_github_rights_check`: `jsonb_typeof("github_rights") = 'object'`
   - `access_profiles_atlassian_check`: `"atlassian_credential_id" is null or "atlassian_rights" is not null`

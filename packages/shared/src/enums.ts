@@ -101,15 +101,15 @@ export const Harness = z.enum(['claude_code', 'codex']);
 export type Harness = z.infer<typeof Harness>;
 
 /**
- * `access_profiles.provider` (docs/subscriptions.md): whose subscription an access profile's AI part holds, Claude's
- * for `claude_code` agents or OpenAI's for `codex` agents. Fixed when the profile is made.
+ * The AI parts of a profile (docs/subscriptions.md "Profiles"): Claude's subscription for `claude_code` agents,
+ * OpenAI's for `codex` agents. A profile may have either, both or none (`access_profiles.claude_part`, `openai_part`).
  */
 export const ProfileProvider = z.enum(['claude', 'openai']);
 export type ProfileProvider = z.infer<typeof ProfileProvider>;
 
 /**
- * The tool parts an access profile may have besides its AI part (S7.1b, one profile since 2026-11-13): GitHub, and
- * Atlassian for Jira and Confluence. Each holds one of its owner's sign-ins of that tool and the rights it gives.
+ * The tool parts a profile may have (S7.1b, generic profiles since 2026-11-13): GitHub, and Atlassian for Jira and
+ * Confluence. Each holds one of its owner's sign-ins of that tool and the rights it gives.
  */
 export const ToolProvider = z.enum(['github', 'atlassian']);
 export type ToolProvider = z.infer<typeof ToolProvider>;

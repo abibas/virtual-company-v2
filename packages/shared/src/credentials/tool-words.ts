@@ -117,7 +117,7 @@ export function toolBriefingLine(tool: BriefingTool): string {
     tool.provider === 'github' ? 'GitHub' : `Atlassian${tool.site === null ? '' : ` (${tool.site})`}`;
   // One line of words: a name with a newline in it cannot start a line of its own.
   const account = tool.account?.replace(/\s+/g, ' ').trim() ?? '';
-  if (account === '') return `- ${name}: your access profile has no sign-in for it now, so no access.`;
+  if (account === '') return `- ${name}: your profile has no sign-in for it now, so no access.`;
   const rights =
     'repos' in tool.rights ? githubLine(account, tool.rights) : atlassianLine(account, tool.rights);
   return `- ${name}: ${rights}. ${TOOL_ACCESS_NOTE}`;

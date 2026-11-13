@@ -218,51 +218,28 @@ describe('credential_uses', () => {
 const profile = async (values: Partial<NewAccessProfile> = {}) => {
   const [row] = await handle.db
     .insert(accessProfiles)
-    .values({ ownerUserId: ownerId, name: unique('profile'), provider: 'claude', ...values })
+    .values({ ownerUserId: ownerId, name: unique('profile'), ...values })
     .returning();
   return row as typeof accessProfiles.$inferSelect;
 };
 
-const profileRow = async (id: string) =>
-  (await handle.db.select().from(accessProfiles).where(eq(accessProfiles.id, id)))[0];
-
 describe('access_profiles', () => {
-  it('names one provider’s subscription of its owner and a gateway, both empty by default', async () => {
-    const row = await profile({ name: 'Work' });
-    expect(row).toMatchObject({
+  it('is a name of its owner’s, with no parts by default', async () => {
+    expect(await profile({ name: 'Work' })).toMatchObject({
       ownerUserId: ownerId,
       name: 'Work',
-      provider: 'claude',
-      credentialId: null,
-      gatewayCredentialId: null,
-      model: null,
-      effort: null,
+      claudePart: false,
+      openaiPart: false,
+      githubRights: null,
+      atlassianRights: null,
     });
-    const [claude] = await insert({ kind: 'claude_oauth' });
-    const [openai] = await insert({ kind: 'codex_oauth' });
-    const [gateway] = await insert({ kind: 'gateway' });
-    const full = await profile({
-      name: 'x'.repeat(80),
-      credentialId: claude?.id,
-      gatewayCredentialId: gateway?.id,
-    });
-    expect(full).toMatchObject({ credentialId: claude?.id, gatewayCredentialId: gateway?.id });
-    const codex = await profile({ provider: 'openai', credentialId: openai?.id });
-    expect(codex).toMatchObject({ provider: 'openai', credentialId: openai?.id, gatewayCredentialId: null });
+    expect((await profile({ name: 'x'.repeat(80) })).name).toHaveLength(80);
   });
 
-  it('holds a model id of 1 to 100 characters and any stored level; which fit is the credentials module’s rule', async () => {
-    const claude = await profile({ model: 'claude-opus-5-5', effort: 'max' });
-    expect(claude).toMatchObject({ model: 'claude-opus-5-5', effort: 'max' });
-    const codex = await profile({ provider: 'openai', model: 'm'.repeat(100), effort: 'ultra' });
-    expect(codex).toMatchObject({ provider: 'openai', effort: 'ultra' });
-    expect(codex.model).toHaveLength(100);
-  });
-
-  it('keeps names unique per owner, whatever the provider; another owner may use the same one', async () => {
+  it('keeps names unique per owner; another owner may use the same one', async () => {
     const name = unique('same');
     await profile({ name });
-    expect(await pgError(profile({ name, provider: 'openai' }))).toMatchObject({
+    expect(await pgError(profile({ name, openaiPart: true }))).toMatchObject({
       code: '23505',
       constraint: 'access_profiles_owner_user_id_name_unique',
     });
@@ -270,71 +247,25 @@ describe('access_profiles', () => {
     expect((await profile({ name, ownerUserId: other })).name).toBe(name);
   });
 
-  it('gives a profile of either provider a gateway; which gateway fits is the credentials module’s rule', async () => {
-    const [anthropic] = await insert({ kind: 'gateway', accountMeta: { baseUrl: 'http://127.0.0.1:8300' } });
-    const [openai] = await insert({
-      kind: 'gateway',
-      accountMeta: { baseUrl: 'http://127.0.0.1:8300/backend-api/codex', provider: 'openai' },
-    });
-    const codex = await profile({ provider: 'openai', gatewayCredentialId: openai?.id });
-    expect(codex).toMatchObject({ provider: 'openai', gatewayCredentialId: openai?.id });
-    const claude = await profile({ gatewayCredentialId: anthropic?.id });
-    expect(claude).toMatchObject({ provider: 'claude', gatewayCredentialId: anthropic?.id });
-  });
-
   it.each([
     ['an empty name', { name: '' }, '23514', 'access_profiles_name_check'],
     ['a name over 80 characters', { name: 'x'.repeat(81) }, '23514', 'access_profiles_name_check'],
-    ['another provider', { provider: 'gemini' as 'claude' }, '23514', 'access_profiles_provider_check'],
-    ['no provider', { provider: null as unknown as 'claude' }, '23502', undefined],
-    ['an empty model', { model: '' }, '23514', 'access_profiles_model_check'],
-    ['a model over 100 characters', { model: 'm'.repeat(101) }, '23514', 'access_profiles_model_check'],
-    ['an unknown effort', { effort: 'turbo' as 'high' }, '23514', 'access_profiles_effort_check'],
     [
       'an owner who is not a user',
       { ownerUserId: MISSING_ID },
       '23503',
       'access_profiles_owner_user_id_users_id_fk',
     ],
-    [
-      'a subscription naming no credential',
-      { credentialId: MISSING_ID },
-      '23503',
-      'access_profiles_credential_id_credentials_id_fk',
-    ],
-    [
-      'a gateway naming no credential',
-      { gatewayCredentialId: MISSING_ID },
-      '23503',
-      'access_profiles_gateway_credential_id_credentials_id_fk',
-    ],
   ])('refuses %s', async (_, values, code, constraint) => {
-    const error = await pgError(profile(values));
-    expect(error).toMatchObject({ code });
-    if (constraint) expect(error).toMatchObject({ constraint });
-  });
-
-  it('empties the profiles of a credential that is removed, and only those', async () => {
-    const [claude] = await insert({ kind: 'claude_setup_token' });
-    const [openai] = await insert({ kind: 'openai_api_key' });
-    const [gateway] = await insert({ kind: 'gateway' });
-    const first = await profile({ credentialId: claude?.id, gatewayCredentialId: gateway?.id });
-    const second = await profile({ credentialId: claude?.id });
-    const codex = await profile({ provider: 'openai', credentialId: openai?.id });
-    await handle.db.delete(credentials).where(eq(credentials.id, gateway?.id as string));
-    expect(await profileRow(first.id)).toMatchObject({ credentialId: claude?.id, gatewayCredentialId: null });
-    await handle.db.delete(credentials).where(eq(credentials.id, claude?.id as string));
-    expect(await profileRow(first.id)).toMatchObject({ credentialId: null });
-    expect(await profileRow(second.id)).toMatchObject({ credentialId: null });
-    expect(await profileRow(codex.id)).toMatchObject({ credentialId: openai?.id });
+    expect(await pgError(profile(values))).toMatchObject({ code, constraint });
   });
 
   it('is taken off its agents and its owner’s defaults when it is removed', async () => {
     const company = await insertCompany(handle);
     const member = await insertMember(handle, company.id, { userId: ownerId });
-    const given = await profile();
-    const kept = await profile();
-    const codex = await profile({ provider: 'openai' });
+    const given = await profile({ claudePart: true });
+    const kept = await profile({ claudePart: true });
+    const codex = await profile({ openaiPart: true });
     const agent = await insertAgent(handle, company.id, { profileId: given.id });
     const other = await insertAgent(handle, company.id, { profileId: kept.id });
     await handle.db
@@ -376,26 +307,28 @@ describe('access_profiles', () => {
     }
   });
 
-  it('is a personal table: an owner, no company, a subscription, a gateway, a model, an effort and tool parts', () => {
+  it('is a personal table: an owner, no company, no provider; its parts’ credentials let go when removed', () => {
     const config = getTableConfig(accessProfiles);
-    expect(config.columns.some((c) => c.name === 'company_id')).toBe(false);
+    const columns = config.columns.map((c) => c.name);
+    expect(columns).not.toContain('company_id');
+    expect(columns).not.toContain('provider');
     expect(config.columns.find((c) => c.name === 'owner_user_id')?.notNull).toBe(true);
-    expect(config.columns.find((c) => c.name === 'provider')?.notNull).toBe(true);
-    for (const name of ['model', 'effort'])
-      expect(config.columns.find((c) => c.name === name)?.notNull, name).toBe(false);
     const refs = config.foreignKeys.map((fk) => {
       const ref = fk.reference();
       return [ref.columns.map((c) => c.name), getTableConfig(ref.foreignTable).name, fk.onDelete];
     });
+    const held = (column: string) => [[column], 'credentials', 'set null'];
     expect(refs).toEqual(
       expect.arrayContaining([
         [['owner_user_id'], 'users', 'no action'],
-        [['credential_id'], 'credentials', 'set null'],
-        [['gateway_credential_id'], 'credentials', 'set null'],
-        [['github_credential_id'], 'credentials', 'set null'],
-        [['atlassian_credential_id'], 'credentials', 'set null'],
+        held('claude_credential_id'),
+        held('claude_gateway_credential_id'),
+        held('openai_credential_id'),
+        held('openai_gateway_credential_id'),
+        held('github_credential_id'),
+        held('atlassian_credential_id'),
       ]),
     );
-    expect(refs).toHaveLength(5);
+    expect(refs).toHaveLength(7);
   });
 });

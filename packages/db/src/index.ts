@@ -29,7 +29,12 @@ export {
   ownersOf,
   type ReferencedTable,
 } from './owned.ts';
-export { PROFILE_TOOL_COLUMNS } from './profile-tools.ts';
+export {
+  type AiPartRow,
+  aiPartOf,
+  PROFILE_AI_COLUMNS,
+  PROFILE_TOOL_COLUMNS,
+} from './profile-parts.ts';
 export * from './schema/index.ts';
 export {
   CompanyNotFoundError,

@@ -3,24 +3,20 @@ import { newId } from '@mwc/shared/ids';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { queryRows, type RawDbHandle } from '../../src/handle.ts';
-import { migrateToLatest, migrationStatus } from '../../src/migrate.ts';
-import {
-  type AccessProfile,
-  accessProfiles,
-  agents,
-  auditLog,
-  chats,
-  memberships,
-} from '../../src/schema/index.ts';
+import { migrationStatus } from '../../src/migrate.ts';
+import { agents, auditLog, chats, memberships } from '../../src/schema/index.ts';
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
-import { journal, migrateUpTo } from '../fixtures/migrations.ts';
+import { migrateUpTo } from '../fixtures/migrations.ts';
 import {
+  BEFORE_GENERIC_PROFILES,
   insertAgentBefore0017,
   insertCompany,
   insertCredentialBefore0029,
   insertMachine,
   insertPrincipal,
   insertUser,
+  type ProfileBefore0032,
+  profilesBefore0032,
 } from '../fixtures/rows.ts';
 
 /**
@@ -146,10 +142,11 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
     ids.defaultsEmpty = await member((await insertCompany(handle)).id, ihor, ids.empty);
     ids.defaultsNone = await member(companyId, other, null);
 
-    await migrateToLatest(handle);
+    // Up to the last migration with one provider per profile: `0032_generic_profiles` has its own test.
+    await migrateUpTo(handle, BEFORE_GENERIC_PROFILES);
   });
 
-  const profiles = () => handle.db.select().from(accessProfiles);
+  const profiles = () => profilesBefore0032(handle);
   const profile = async (id: string | undefined) => (await profiles()).find((row) => row.id === id);
   const named = async (name: string, ownerUserId?: string) =>
     (await profiles()).filter(
@@ -189,10 +186,10 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
         ),
       )
       .orderBy(auditLog.field);
-  const sibling = async (name: string) => (await named(name))[0] as AccessProfile;
+  const sibling = async (name: string) => (await named(name))[0] as ProfileBefore0032;
 
-  it('applies the migration (and the ones after it)', async () => {
-    expect(await migrationStatus(handle)).toMatchObject({ last: journal.entries.at(-1)?.tag, current: true });
+  it('applies the migration (and the ones after it, up to the generic profiles)', async () => {
+    expect(await migrationStatus(handle)).toMatchObject({ last: BEFORE_GENERIC_PROFILES });
   });
 
   it('makes a profile with only a Claude subscription a Claude profile, keeping its gateway', async () => {
@@ -288,7 +285,7 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
   it("moves the bundle's Codex agents and chats to the new profile, with audit rows; Claude Code ones stay", async () => {
     const work = (await named('Work · OpenAI')).find(
       (row) => row.credentialId === ids.openai,
-    ) as AccessProfile;
+    ) as ProfileBefore0032;
     expect(await agentProfile('claudeAgentOnWork')).toBe(ids.work);
     expect(await agentProfile('codexAgentOnWork')).toBe(work.id);
     expect(await agentProfile('secondCodexOnWork')).toBe(work.id);
@@ -344,7 +341,7 @@ describe(`0015_profile_provider on ${testDbKind()}: one provider per access prof
   it("moves each default to its provider's column; a bundle's stays Claude and its new profile is the OpenAI one", async () => {
     const work = (await named('Work · OpenAI')).find(
       (row) => row.credentialId === ids.openai,
-    ) as AccessProfile;
+    ) as ProfileBefore0032;
     expect(await defaults('defaultsWork')).toEqual([ids.work, work.id]);
     expect(await audit('membership', ids.defaultsWork)).toMatchObject([
       {

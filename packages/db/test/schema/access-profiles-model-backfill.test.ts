@@ -3,11 +3,18 @@ import { newId } from '@mwc/shared/ids';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { queryRows, type RawDbHandle } from '../../src/handle.ts';
-import { migrateToLatest, migrationStatus } from '../../src/migrate.ts';
-import { accessProfiles, auditLog } from '../../src/schema/index.ts';
+import { migrationStatus } from '../../src/migrate.ts';
+import { auditLog } from '../../src/schema/index.ts';
 import { createTestDb, type TestDb, testDbKind } from '../../src/testing.ts';
-import { journal, migrateUpTo } from '../fixtures/migrations.ts';
-import { type AgentBefore0017, insertAgentBefore0017, insertCompany, insertUser } from '../fixtures/rows.ts';
+import { migrateUpTo } from '../fixtures/migrations.ts';
+import {
+  type AgentBefore0017,
+  BEFORE_GENERIC_PROFILES,
+  insertAgentBefore0017,
+  insertCompany,
+  insertUser,
+  profilesBefore0032,
+} from '../fixtures/rows.ts';
 
 /**
  * The data step of migration `0017_profile_model` (the `-- custom:` part of `migrations/0017_profile_model.sql`): agents
@@ -108,14 +115,12 @@ describe(`0017_profile_model on ${testDbKind()}: the model and the effort move t
     // An agent without a profile counts for none.
     await insertAgentBefore0017(handle, companyId, { model: 'claude-haiku-5-5', effort: 'low' });
 
-    await migrateToLatest(handle);
+    // Up to the last migration with one provider per profile: `0032_generic_profiles` has its own test.
+    await migrateUpTo(handle, BEFORE_GENERIC_PROFILES);
   });
 
   const choice = async (id: string | undefined) => {
-    const [row] = await handle.db
-      .select()
-      .from(accessProfiles)
-      .where(eq(accessProfiles.id, id as string));
+    const row = (await profilesBefore0032(handle)).find((profile) => profile.id === id);
     return { model: row?.model, effort: row?.effort };
   };
   const audit = (id: string | undefined) =>
@@ -125,8 +130,8 @@ describe(`0017_profile_model on ${testDbKind()}: the model and the effort move t
       .where(and(eq(auditLog.entityType, 'access_profile'), eq(auditLog.entityId, id as string)))
       .orderBy(auditLog.field);
 
-  it('applies the migration (and the ones after it)', async () => {
-    expect(await migrationStatus(handle)).toMatchObject({ last: journal.entries.at(-1)?.tag, current: true });
+  it('applies the migration (and the ones after it, up to the generic profiles)', async () => {
+    expect(await migrationStatus(handle)).toMatchObject({ last: BEFORE_GENERIC_PROFILES });
   });
 
   it("gives a profile its agents' most used model and most used effort, each counted on its own", async () => {

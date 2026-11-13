@@ -105,10 +105,10 @@ export const GATEWAY_HEADERS = { min: 0, max: 20 } as const;
 export const ACCESS_PROFILE_NAME = { min: 1, max: 80 } as const;
 
 /**
- * The credential kinds an access profile's AI part holds, per provider (docs/subscriptions.md): a Claude profile one
- * Claude subscription, for `claude_code` agents; an OpenAI profile one OpenAI subscription, for `codex` agents; either
- * also takes any of its owner's gateways (`GATEWAY_KINDS`: gateways are universal since 2026-11-10). Its tool parts take
- * its owner's tool sign-ins (`TOOL_KINDS`). A profile holds its owner's own credentials, never a revoked one.
+ * The credential kinds a profile's AI parts hold (docs/subscriptions.md "Profiles"): its Claude part one Claude
+ * subscription, for `claude_code` agents; its OpenAI part one OpenAI subscription, for `codex` agents; either also takes
+ * any of its owner's gateways (`GATEWAY_KINDS`: gateways are universal since 2026-11-10). Its tool parts take its owner's
+ * tool sign-ins (`TOOL_KINDS`). A profile holds its owner's own credentials, never a revoked one.
  */
 export const PROVIDER_KINDS = {
   claude: ['claude_oauth', 'claude_setup_token', 'anthropic_api_key'],
@@ -118,16 +118,36 @@ export const PROVIDER_KINDS = {
 /** The kinds a profile's gateway takes. */
 export const GATEWAY_KINDS = ['gateway'] as const satisfies readonly CredentialKind[];
 
-/** The providers in the order the profiles page groups them. */
+/** A profile's AI parts, in the order the pages show them. */
 export const PROFILE_PROVIDERS = ['claude', 'openai'] as const satisfies readonly ProfileProvider[];
 
-/** The provider whose profiles a harness runs on: Claude for Claude Code, OpenAI for Codex. */
+/**
+ * A profile's parts (generic profiles since 2026-11-13: a name and any of these), in the order its card shows them: the
+ * AI parts, then the tool parts.
+ */
+export const PROFILE_PARTS = [...PROFILE_PROVIDERS, ...TOOL_PROVIDERS] as const;
+export type ProfilePart = (typeof PROFILE_PARTS)[number];
+
+/** Each part's name, as the pages and messages say it. */
+export const PART_NAMES = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  github: 'GitHub',
+  atlassian: 'Atlassian',
+} as const satisfies Record<ProfilePart, string>;
+
+/** True for a Claude or an OpenAI part, false for a tool part. */
+export function isAiPart(part: ProfilePart): part is ProfileProvider {
+  return (PROFILE_PROVIDERS as readonly string[]).includes(part);
+}
+
+/** The AI part a harness runs on: a profile's Claude part for Claude Code, its OpenAI part for Codex. */
 export const HARNESS_PROVIDER = {
   claude_code: 'claude',
   codex: 'openai',
 } as const satisfies Record<Harness, ProfileProvider>;
 
-/** True when a credential of `kind` is the subscription of a `provider` profile. */
+/** True when a credential of `kind` is the subscription of a profile's `provider` part. */
 export function fitsProvider(provider: ProfileProvider, kind: CredentialKind): boolean {
   return (PROVIDER_KINDS[provider] as readonly CredentialKind[]).includes(kind);
 }
@@ -140,11 +160,6 @@ export function fitsTool(tool: ToolProvider, kind: CredentialKind): boolean {
 /** True when a credential of `kind` may be a profile's gateway. */
 export function fitsGateway(kind: CredentialKind): boolean {
   return (GATEWAY_KINDS as readonly CredentialKind[]).includes(kind);
-}
-
-/** True when a profile of `provider` may power an agent on `harness`. */
-export function profileFitsHarness(provider: ProfileProvider, harness: Harness): boolean {
-  return HARNESS_PROVIDER[harness] === provider;
 }
 
 /**

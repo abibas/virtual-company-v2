@@ -2,10 +2,9 @@ import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { queryRows, type RawDbHandle } from '../../src/handle.ts';
-import { migrateToLatest } from '../../src/migrate.ts';
 import { createTestDb, pgError, type TestDb, testDbKind } from '../../src/testing.ts';
 import { migrateUpTo } from '../fixtures/migrations.ts';
-import { insertCredentialBefore0029, insertUser, unique } from '../fixtures/rows.ts';
+import { BEFORE_GENERIC_PROFILES, insertCredentialBefore0029, insertUser, unique } from '../fixtures/rows.ts';
 
 /**
  * Migration `0016_gateway_provider`: gateways get a provider (`accountMeta.provider`, `anthropic` or `openai`) and an
@@ -44,7 +43,7 @@ describe(`0016_gateway_provider on ${testDbKind()}: an OpenAI profile may hold a
       code: '23514',
       constraint: 'access_profiles_gateway_check',
     });
-    await migrateToLatest(handle);
+    await migrateUpTo(handle, BEFORE_GENERIC_PROFILES);
     const [row] = await openaiProfile(gatewayId);
     expect(row).toMatchObject({ provider: 'openai', gateway_credential_id: gatewayId });
   });

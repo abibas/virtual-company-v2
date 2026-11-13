@@ -191,7 +191,31 @@ export async function insertAgentBefore0030(handle: RawDbHandle, companyId: stri
   return { id, principalId, companyId } as Agent;
 }
 
-/** What an agent row held before migration `0032_profile_tool_parts`: its access profile and its tool profiles. */
+/** The last migration whose `access_profiles` had one provider per profile (`0032_generic_profiles` made them generic). */
+export const BEFORE_GENERIC_PROFILES = '0031_team_room';
+
+/** An access profile as its columns were from `0017_profile_model` to `0031_team_room`: one provider each. */
+export type ProfileBefore0032 = {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly name: string;
+  readonly provider: string;
+  readonly credentialId: string | null;
+  readonly gatewayCredentialId: string | null;
+  readonly model: string | null;
+  readonly effort: string | null;
+};
+
+/** Every access profile read raw at a migration before `0032_generic_profiles`, oldest first, for a backfill test. */
+export const profilesBefore0032 = (handle: RawDbHandle): Promise<ProfileBefore0032[]> =>
+  queryRows<ProfileBefore0032>(
+    handle,
+    sql`select id, owner_user_id as "ownerUserId", name, provider, credential_id as "credentialId",
+          gateway_credential_id as "gatewayCredentialId", model, effort
+        from access_profiles order by created_at, id`,
+  );
+
+/** What an agent row held before migration `0032_generic_profiles`: its access profile and its tool profiles. */
 export interface AgentBefore0032 {
   readonly profileId?: string | null;
   readonly githubProfileId?: string | null;
@@ -200,7 +224,7 @@ export interface AgentBefore0032 {
 }
 
 /**
- * An agent written with the columns `agents` had from migration `0030_tool_profiles` to `0032_profile_tool_parts` (a
+ * An agent written with the columns `agents` had from migration `0030_tool_profiles` to `0032_generic_profiles` (a
  * GitHub and an Atlassian profile beside its access profile), for a data-step test seeded at `0031`.
  */
 export async function insertAgentBefore0032(

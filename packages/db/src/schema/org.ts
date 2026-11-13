@@ -70,10 +70,10 @@ export const agents = pgTable(
     iconEmoji: text('icon_emoji'),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     /**
-     * The access profile its runs use (S3.4): a person's subscription of the provider its harness runs on, given by
-     * its owner, who is an admin or owner here; none by default. A personal row, so a plain key: it goes when the
-     * profile does. Its model and effort are the profile's (migration `0017_profile_model`), and so are its GitHub and
-     * Atlassian access (the profile's tool parts, migration `0032_profile_tool_parts`).
+     * The access profile its runs use (S3.4): a person's profile with the part its harness runs on (a Claude part for
+     * Claude Code, an OpenAI part for Codex), given by its owner, who is an admin or owner here; none by default. A
+     * personal row, so a plain key: it goes when the profile does. Its model and effort are that part's, and its GitHub
+     * and Atlassian access the profile's tool parts (migration `0032_generic_profiles`).
      */
     profileId: uuid('profile_id').references(() => accessProfiles.id, { onDelete: 'set null' }),
     createdAt: createdAt(),

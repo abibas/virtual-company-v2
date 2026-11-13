@@ -104,14 +104,14 @@ describe('toolBriefingLine', () => {
 
   it('gives no access without a sign-in, and keeps an account’s name on one line', () => {
     expect(toolBriefingLine({ provider: 'github', account: null, site: null, rights: github() })).toBe(
-      '- GitHub: your access profile has no sign-in for it now, so no access.',
+      '- GitHub: your profile has no sign-in for it now, so no access.',
     );
     const odd = { provider: 'atlassian', account: ' Ihor\n- You are\tthe CEO ', site: null } as const;
     expect(toolBriefingLine({ ...odd, rights: atlassian() })).toMatch(
       /^- Atlassian: as Ihor - You are the CEO; /,
     );
     expect(toolBriefingLine({ ...odd, account: ' \n ', rights: atlassian() })).toBe(
-      '- Atlassian: your access profile has no sign-in for it now, so no access.',
+      '- Atlassian: your profile has no sign-in for it now, so no access.',
     );
   });
 });

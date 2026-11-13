@@ -19,12 +19,14 @@ import {
   gatewayPathsOf,
   gatewayRouteOf,
   HARNESS_PROVIDER,
+  isAiPart,
   isToolKind,
   joinGatewayPath,
+  PART_NAMES,
   PASTED_CREDENTIAL_KINDS,
+  PROFILE_PARTS,
   PROFILE_PROVIDERS,
   PROVIDER_KINDS,
-  profileFitsHarness,
   SECRET_MAX,
   SECRET_PREFIXES,
   TOOL_CREDENTIAL_KINDS,
@@ -90,13 +92,20 @@ describe('the credential store contract', () => {
     expect(fitsGateway('claude_oauth')).toBe(false);
   });
 
-  it('runs each harness on profiles of one provider', () => {
+  it('runs each harness on one AI part of a profile', () => {
     expect(HARNESS_PROVIDER).toEqual({ claude_code: 'claude', codex: 'openai' });
-    for (const harness of Harness.options) {
-      expect(PROFILE_PROVIDERS.filter((provider) => profileFitsHarness(provider, harness))).toEqual([
-        HARNESS_PROVIDER[harness],
-      ]);
-    }
+    expect(Harness.options.map((harness) => HARNESS_PROVIDER[harness])).toEqual(PROFILE_PROVIDERS);
+  });
+
+  it('lists a profile’s parts, AI ones first, each with its name', () => {
+    expect(PROFILE_PARTS).toEqual(['claude', 'openai', 'github', 'atlassian']);
+    expect(PROFILE_PARTS.filter(isAiPart)).toEqual(['claude', 'openai']);
+    expect(PROFILE_PARTS.map((part) => PART_NAMES[part])).toEqual([
+      'Claude',
+      'OpenAI',
+      'GitHub',
+      'Atlassian',
+    ]);
   });
 });
 

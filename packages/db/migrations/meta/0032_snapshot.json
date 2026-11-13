@@ -1,5 +1,5 @@
 {
-  "id": "29288886-c1f1-40be-8c00-4ee2e6f50c53",
+  "id": "c8a632f1-d94c-42f8-a731-924d785de911",
   "prevId": "684dbfff-6fa5-4029-bd83-27e6b27be51f",
   "version": "7",
   "dialect": "postgresql",
@@ -1579,32 +1579,64 @@
           "primaryKey": false,
           "notNull": true
         },
-        "provider": {
-          "name": "provider",
-          "type": "text",
+        "claude_part": {
+          "name": "claude_part",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": false
         },
-        "credential_id": {
-          "name": "credential_id",
+        "claude_credential_id": {
+          "name": "claude_credential_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
-        "gateway_credential_id": {
-          "name": "gateway_credential_id",
+        "claude_gateway_credential_id": {
+          "name": "claude_gateway_credential_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
-        "model": {
-          "name": "model",
+        "claude_model": {
+          "name": "claude_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "effort": {
-          "name": "effort",
+        "claude_effort": {
+          "name": "claude_effort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "openai_part": {
+          "name": "openai_part",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "openai_credential_id": {
+          "name": "openai_credential_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "openai_gateway_credential_id": {
+          "name": "openai_gateway_credential_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "openai_model": {
+          "name": "openai_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "openai_effort": {
+          "name": "openai_effort",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1663,12 +1695,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "access_profiles_credential_id_credentials_id_fk": {
-          "name": "access_profiles_credential_id_credentials_id_fk",
+        "access_profiles_claude_credential_id_credentials_id_fk": {
+          "name": "access_profiles_claude_credential_id_credentials_id_fk",
           "tableFrom": "access_profiles",
           "tableTo": "credentials",
           "columnsFrom": [
-            "credential_id"
+            "claude_credential_id"
           ],
           "columnsTo": [
             "id"
@@ -1676,12 +1708,38 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "access_profiles_gateway_credential_id_credentials_id_fk": {
-          "name": "access_profiles_gateway_credential_id_credentials_id_fk",
+        "access_profiles_claude_gateway_credential_id_credentials_id_fk": {
+          "name": "access_profiles_claude_gateway_credential_id_credentials_id_fk",
           "tableFrom": "access_profiles",
           "tableTo": "credentials",
           "columnsFrom": [
-            "gateway_credential_id"
+            "claude_gateway_credential_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "access_profiles_openai_credential_id_credentials_id_fk": {
+          "name": "access_profiles_openai_credential_id_credentials_id_fk",
+          "tableFrom": "access_profiles",
+          "tableTo": "credentials",
+          "columnsFrom": [
+            "openai_credential_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "access_profiles_openai_gateway_credential_id_credentials_id_fk": {
+          "name": "access_profiles_openai_gateway_credential_id_credentials_id_fk",
+          "tableFrom": "access_profiles",
+          "tableTo": "credentials",
+          "columnsFrom": [
+            "openai_gateway_credential_id"
           ],
           "columnsTo": [
             "id"
@@ -1733,17 +1791,29 @@
           "name": "access_profiles_name_check",
           "value": "char_length(\"access_profiles\".\"name\") between 1 and 80"
         },
-        "access_profiles_provider_check": {
-          "name": "access_profiles_provider_check",
-          "value": "\"access_profiles\".\"provider\" in ('claude', 'openai')"
+        "access_profiles_claude_check": {
+          "name": "access_profiles_claude_check",
+          "value": "\"access_profiles\".\"claude_part\" or (\"access_profiles\".\"claude_credential_id\" is null and \"access_profiles\".\"claude_gateway_credential_id\" is null and \"access_profiles\".\"claude_model\" is null and \"access_profiles\".\"claude_effort\" is null)"
         },
-        "access_profiles_model_check": {
-          "name": "access_profiles_model_check",
-          "value": "char_length(\"access_profiles\".\"model\") between 1 and 100"
+        "access_profiles_claude_model_check": {
+          "name": "access_profiles_claude_model_check",
+          "value": "char_length(\"access_profiles\".\"claude_model\") between 1 and 100"
         },
-        "access_profiles_effort_check": {
-          "name": "access_profiles_effort_check",
-          "value": "\"access_profiles\".\"effort\" in ('low', 'medium', 'high', 'xhigh', 'max', 'ultra')"
+        "access_profiles_claude_effort_check": {
+          "name": "access_profiles_claude_effort_check",
+          "value": "\"access_profiles\".\"claude_effort\" in ('low', 'medium', 'high', 'xhigh', 'max', 'ultra')"
+        },
+        "access_profiles_openai_check": {
+          "name": "access_profiles_openai_check",
+          "value": "\"access_profiles\".\"openai_part\" or (\"access_profiles\".\"openai_credential_id\" is null and \"access_profiles\".\"openai_gateway_credential_id\" is null and \"access_profiles\".\"openai_model\" is null and \"access_profiles\".\"openai_effort\" is null)"
+        },
+        "access_profiles_openai_model_check": {
+          "name": "access_profiles_openai_model_check",
+          "value": "char_length(\"access_profiles\".\"openai_model\") between 1 and 100"
+        },
+        "access_profiles_openai_effort_check": {
+          "name": "access_profiles_openai_effort_check",
+          "value": "\"access_profiles\".\"openai_effort\" in ('low', 'medium', 'high', 'xhigh', 'max', 'ultra')"
         },
         "access_profiles_github_check": {
           "name": "access_profiles_github_check",
