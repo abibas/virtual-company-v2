@@ -113,6 +113,7 @@ export function slackInbound(deps: ConnectionsDeps): SlackInbound {
         entry.messages = entry.messages
           .then(() => handleMessage(deps, conn, message))
           .catch(failed('could not handle a message'));
+        return entry.messages;
       },
     });
   }

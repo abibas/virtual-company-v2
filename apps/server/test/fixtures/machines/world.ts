@@ -16,6 +16,7 @@ import {
   testConfig,
 } from '@mwc/testkit';
 import { FakeRunner, type FakeRunnerOptions } from '@mwc/testkit/runner';
+import type { SlackSockets } from '@mwc/tools-core';
 import {
   createPowerControl,
   createRunnerHub,
@@ -71,6 +72,9 @@ export async function machinesWorld(
     readonly leadWakeTimers?: Timers;
     /** The timers that end a chat turn's wait for its stopped machine, fired by hand; else Node's. */
     readonly machineWaitTimers?: Timers;
+    /** Slack's Socket Mode, a fake (receiving Slack messages); with its timers, the connections run. */
+    readonly slackSockets?: SlackSockets;
+    readonly slackInboundTimers?: Timers;
   } = {},
 ): Promise<MachinesWorld> {
   const clock = fixedClock();
@@ -95,6 +99,8 @@ export async function machinesWorld(
     localDocker: options.localDocker,
     ...(options.leadWakeTimers === undefined ? {} : { leadWakeTimers: options.leadWakeTimers }),
     ...(options.machineWaitTimers === undefined ? {} : { machineWaitTimers: options.machineWaitTimers }),
+    ...(options.slackSockets === undefined ? {} : { slackSockets: options.slackSockets }),
+    ...(options.slackInboundTimers === undefined ? {} : { slackInboundTimers: options.slackInboundTimers }),
   });
   const server = await listen(t.app.fetch);
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}/api/runner/ws`;

@@ -110,7 +110,7 @@ class Connection {
       const again = this.#seen.seen(`envelope:${frame.envelopeId}`);
       const eventAgain = frame.eventId !== null && this.#seen.seen(`event:${frame.eventId}`);
       if (again || eventAgain || frame.message === null) return;
-      this.#handlers.onMessage(frame.message);
+      void this.#handlers.onMessage(frame.message);
     }
   }
 

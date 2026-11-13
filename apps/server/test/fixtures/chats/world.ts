@@ -19,6 +19,7 @@ import type { CredentialKind, Effort, Harness, PermissionMode } from '@mwc/share
 import type { TurnEvent } from '@mwc/shared/harness';
 import type { RunnerCaps, TurnEnd, TurnStart } from '@mwc/shared/runner-protocol';
 import type { FakeRunner } from '@mwc/testkit/runner';
+import type { SlackSockets } from '@mwc/tools-core';
 import { asc, eq } from 'drizzle-orm';
 import type { ChatView } from '../../../src/modules/chats/schemas.ts';
 import { credentialSecrets } from '../../../src/modules/credentials/index.ts';
@@ -42,7 +43,12 @@ export interface ChatsWorld extends MachinesWorld {
 
 export async function chatsWorld(
   hubOptions: HubOptions = {},
-  options: { readonly leadWakeTimers?: Timers; readonly machineWaitTimers?: Timers } = {},
+  options: {
+    readonly leadWakeTimers?: Timers;
+    readonly machineWaitTimers?: Timers;
+    readonly slackSockets?: SlackSockets;
+    readonly slackInboundTimers?: Timers;
+  } = {},
 ): Promise<ChatsWorld> {
   const keyring = ephemeralKeyring();
   const provider = new FakeProvider();

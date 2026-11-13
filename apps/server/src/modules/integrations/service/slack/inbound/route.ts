@@ -61,7 +61,7 @@ async function threadStarter(
   }
 }
 
-/** The agent of a thread: its last poster through this sign-in, else the thread's first message's (see above). */
+/** The agent of a thread: its last poster through this sign-in, else one whose chat it is, else its first message's. */
 async function threadAgent(
   deps: InboundDeps,
   conn: Connection,
@@ -73,6 +73,13 @@ async function threadAgent(
   if (post !== undefined) {
     const found = await agentIn(deps, conn, post.companyId, post.agentId);
     return found === undefined ? undefined : { ...found, how: 'thread' };
+  }
+  for (const company of await ownerCompanies(deps.db, conn.ownerUserId)) {
+    const t = await tenant(deps.db, company.companyId);
+    const at = { credentialId: conn.credentialId, channelId: message.channel, threadTs: root };
+    const chat = await repo.threadChatAt(t, at);
+    const agent = chat && (await repo.liveAgent(t, chat.agentId));
+    if (agent) return { t, agent, how: 'thread' };
   }
   const starter = await threadStarter(deps, conn, message, root);
   if (!starter.ours) return undefined;

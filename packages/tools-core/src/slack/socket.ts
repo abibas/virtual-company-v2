@@ -43,8 +43,8 @@ export interface SlackSocketStatus {
 
 /** What a connection tells the server. */
 export interface SlackSocketHandlers {
-  /** A message event, already acked, once per envelope and event id. */
-  readonly onMessage: (message: SlackInboundMessage) => void;
+  /** A message event, already acked, once per envelope and event id (what it returns is not waited for). */
+  readonly onMessage: (message: SlackInboundMessage) => void | Promise<void>;
   /** Its state changed. */
   readonly onStatus: (status: SlackSocketStatus) => void;
 }

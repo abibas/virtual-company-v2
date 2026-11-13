@@ -132,6 +132,25 @@ async function threadOf(
   return row;
 }
 
+/** The company's latest agent chat for a thread through a sign-in (any agent); undefined for none. */
+async function threadChatAt(
+  t: TenantDb,
+  key: Pick<SlackThread, 'credentialId' | 'channelId'> & { readonly threadTs: string },
+): Promise<SlackThread | undefined> {
+  const [row] = await t
+    .select(
+      slackThreads,
+      and(
+        eq(slackThreads.credentialId, key.credentialId),
+        eq(slackThreads.channelId, key.channelId),
+        eq(slackThreads.threadTs, key.threadTs),
+      ),
+    )
+    .orderBy(desc(slackThreads.updatedAt), desc(slackThreads.id))
+    .limit(1);
+  return row;
+}
+
 /** The Slack conversation a chat is for; undefined for any other chat. */
 async function threadOfChat(t: TenantDb, chatId: string): Promise<SlackThread | undefined> {
   const [row] = await t.select(slackThreads, eq(slackThreads.chatId, chatId));
@@ -181,6 +200,7 @@ export const slackInboundRepo = {
   postedInTurn,
   ownerOfSignIn,
   threadOf,
+  threadChatAt,
   threadOfChat,
   saveThread,
   liveAgents,
