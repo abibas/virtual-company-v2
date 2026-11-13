@@ -26,11 +26,12 @@ import { AFTER_ONLY, deliveryChoices, splitQueue, waitsForMachine } from './deli
 import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx';
 import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
+import { chatMachine, fixOf } from './machine-context.ts';
 import { useThreadAuthors } from './thread/authors.ts';
 import { ChatThread } from './thread/ChatThread.tsx';
 import { questionOf } from './thread/question/question-model.ts';
 import { rememberSent, sentAnswer } from './thread/question/use-question-draft.ts';
-import { type ChatMachine, ChatMachineContext } from './thread/status/MachineWait.tsx';
+import { ChatMachineContext } from './thread/status/MachineWait.tsx';
 
 export interface OpenChatProps {
   /** The path to the agent's chats, for the header. */
@@ -162,38 +163,6 @@ export function queueView(live: ChatLive, chat: Chat) {
   const waiting = queue.length > 0 || live.turns.some(waitsForMachine) ? AFTER_ONLY : undefined;
   const choices = running ? deliveryChoices(chat.harness, running) : waiting;
   return { thread, queue, running, choices };
-}
-
-/**
- * The chat's machine for the line of a turn waiting for it, whose Cancel stops that turn; for an admin with the agent
- * still on it, its home folder and Send again, offered when a turn found the folder missing.
- */
-export function chatMachine(
-  calls: ChatCalls,
-  live: ChatLive,
-  chat: Chat,
-  companyId: string,
-  fix?: { readonly placement: AgentPlacement | undefined; readonly send: (prompt: string) => Promise<void> },
-): ChatMachine {
-  const placement = fix?.placement;
-  return {
-    companyId,
-    machineId: chat.machineId,
-    cancel: async (turnId) => live.putTurn(await calls.stop(chat.id, turnId)),
-    home:
-      fix && placement && placement.machineId === chat.machineId
-        ? { path: placement.home, resend: fix.send }
-        : undefined,
-  };
-}
-
-/** What fixes a missing home folder from the thread: only while the composer is open (an admin, a live chat). */
-export function fixOf(
-  closed: string | undefined,
-  placement: AgentPlacement | undefined,
-  send: (prompt: string, delivery: undefined) => Promise<void>,
-) {
-  return closed === undefined ? { placement, send: (prompt: string) => send(prompt, undefined) } : undefined;
 }
 
 /** The open chat's area in the page's frame (`CHAT_AREA`): the thread or the terminal; 80% of a narrow window. */

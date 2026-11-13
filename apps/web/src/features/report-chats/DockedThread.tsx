@@ -8,15 +8,8 @@ import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { AgentIconSubject } from '../../components/feed/AgentIcon.tsx';
 import { Composer } from '../chats/Composer.tsx';
 import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
-import {
-  asking,
-  chatActions,
-  chatMachine,
-  closedWhy,
-  fixOf,
-  queueActions,
-  queueView,
-} from '../chats/OpenChat.tsx';
+import { chatMachine, fixOf } from '../chats/machine-context.ts';
+import { asking, chatActions, closedWhy, queueActions, queueView } from '../chats/OpenChat.tsx';
 import { useThreadAuthors } from '../chats/thread/authors.ts';
 import { ChatThread } from '../chats/thread/ChatThread.tsx';
 import { ChatMachineContext } from '../chats/thread/status/MachineWait.tsx';
