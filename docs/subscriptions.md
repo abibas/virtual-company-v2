@@ -1170,6 +1170,16 @@ avatarUrl, link, contactId}`, `visibleText` and `replyLink` (docs/harness.md "Sl
   **Decisions**: what agents recorded with `record_decision` in their conversations, newest first, by outcome, each with
   its agent and a link to its chat at the turn (`GET …/decisions?contact=`, docs/processes.md "Decisions"; a decision's
   contact is its turn's, else the Slack chat's, `contactOf`). The page follows the chats' activity.
+- **The org chart's Requesters** (2026-11-14, Ihor: "i want to have him replicated on the chart… so i can see interaction
+  to the agents he is doing"; `features/structure/requesters/`): a column to the right of the tree, aligned to its top,
+  with the contacts who talked to an agent in the window (live first, then by requests; at most 12, then "+N more" to the
+  Contacts tab), each a dashed-outline card with their Slack photo, name, title and "N requests · 7 days" that opens their
+  page, and a dashed curve to each agent they talked to, 1 to 4 px by messages, green with a flowing dash and a glow
+  while a turn of theirs waits or runs (the dash stays still when motion is reduced). Hovering a contact lights their agents and fades the
+  rest, hovering an agent lights its requesters, and a highlighted flow lights the requesters of its members and frames
+  them with it. The **Requesters** switch beside the flow picker (members and above, once the company has a contact)
+  shows or hides it and picks 24 hours, 7 days or 30 days (`?requesters=0|24h|30d`); fit to screen holds the column. It
+  reads `…/contacts/interactions` again a second after the chats' activity tells a contact's turn moved, without polling.
 
 ### The API (`modules/contacts/`)
 
@@ -1180,7 +1190,7 @@ avatarUrl, link, contactId}`, `visibleText` and `replyLink` (docs/harness.md "Sl
 | `PATCH …/contacts/{contactId}` | admin and above | `{note?, archived?}`: a blank or null note removes it; audited as the person (`update`, `archive`, `unarchive`) |
 | `GET …/contacts/interactions?since=` | member and above | the org chart's Requesters (below) |
 
-**Interactions** (for the org chart's Requesters column, the next piece): `{since, contacts: [{contact: {id, name,
+**Interactions** (for the org chart's Requesters column, above): `{since, contacts: [{contact: {id, name,
 avatarUrl, title}, live, agents: [{agentId, principalId, messages, lastAt, live}]}]}`: per contact that is not archived,
 each agent their messages woke since `since` (7 days ago by default; at most 90 days back and never ahead, the one used is
 returned) with how many and the latest, and whether a turn of theirs waits or runs there now; the latest first. A turn

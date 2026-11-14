@@ -10,10 +10,10 @@ import { rankRequesters, requestsOf } from './requesters.ts';
  */
 
 /** A contact's card, in chart pixels. */
-export const REQUESTER = { width: 232, height: 72 } as const;
+export const REQUESTER = { width: 208, height: 72 } as const;
 
 /** The room between the tree and the column (the curves), the label's height, the space between cards, the cap. */
-export const COLUMN = { gap: 176, label: 28, row: 12, more: 32, max: 12 } as const;
+export const COLUMN = { gap: 128, label: 28, row: 12, more: 32, max: 12 } as const;
 
 /** One link from a contact to an agent. */
 export interface RequesterLink {

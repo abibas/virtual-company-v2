@@ -937,8 +937,13 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          Contacts tab of Company structure and a contact's page (conversations, counts per agent, the note and archive;
          the decisions agents recorded in their conversations; `decisions.contact_id` is a key into `contacts` and
          `contactOf` answers the turn's or the Slack chat's contact). `GET …/contacts/interactions?since=` gives the org chart's
-         Requesters column (the next piece) who talked to which agent in the last 7 days and who is being answered now,
+         Requesters column who talked to which agent in the last 7 days and who is being answered now,
          which the chats' activity also tells (`lastTurn.from.contactId`).
+       - **Requesters on the org chart, built 2026-11-14** (Ihor's choice: "a 'Requesters' column with live links";
+         docs/subscriptions.md "Contacts in the app"; branch `requesters`): the contacts in a column right of the tree
+         with dashed links to their agents (wider with messages, green and flowing while live), hover highlighting, a
+         header switch with a 24 h / 7 d / 30 d window (`?requesters=`), live from the chats' activity; web only, the
+         gallery's `/design/org` has sample contacts.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
