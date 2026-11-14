@@ -220,7 +220,9 @@ describe('a stopped machine', () => {
     await place(w, s.company, s.agentId, { machineId: box.machineId });
     await s.conn.deliver(message());
     expect(postsOf(w).map((post) => post.text)).toEqual([
-      expect.stringMatching(/^Couldn't answer: .* is stopped$/),
+      expect.stringMatching(
+        /^Couldn't answer: .* is stopped\. Start it, or turn on "Start when you message an agent on it" for the box\.$/,
+      ),
     ]);
     await putPolicy(w, s.company, box.machineId, { autoStartOnWork: true, autoStartOnMessage: true });
     await s.conn.deliver(message());

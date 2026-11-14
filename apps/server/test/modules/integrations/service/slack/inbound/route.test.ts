@@ -9,6 +9,7 @@ import {
   answerTurn,
   BOT,
   callsOf,
+  formOf,
   GENERAL,
   type InboundScene,
   type InboundWorld,
@@ -110,7 +111,8 @@ describe('a reply in a thread', () => {
     answerSlack(w, { 'conversations.replies': ok({ messages: [first] }) });
     await s.conn.deliver(message({ type: 'message', text: 'Thanks!', threadTs: first.ts }));
     expect(await answeredBy(s)).toBe(s.agentId);
-    expect(callsOf(w, 'conversations.replies')).toHaveLength(1);
+    // One read for the first message's poster, one for the thread's context in the prompt.
+    expect(callsOf(w, 'conversations.replies').map((call) => formOf(call).limit)).toEqual(['1', '200']);
   });
 
   it('is left alone in a thread no agent of ours is in', async () => {

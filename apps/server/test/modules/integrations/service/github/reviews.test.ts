@@ -169,12 +169,19 @@ describe('line comments and pending reviews', () => {
     await rights({ reviews: 'comment' });
     github(ME, rawReview(11, 'PENDING'));
     const pending = await review({});
-    expect(answerOf(pending)).toMatchObject({ review: { id: 11, state: 'PENDING' }, note: expect.any(String) });
+    expect(answerOf(pending)).toMatchObject({
+      review: { id: 11, state: 'PENDING' },
+      note: expect.any(String),
+    });
     expect(w.provider.calls.at(-1)?.body).toEqual({});
     const others = rawReview(5, 'PENDING', { user: { login: 'someone' } });
     w.provider.route('GET', REVIEWS, json(200, [others, rawReview(11, 'PENDING')]));
     const thread = { id: 'PRRT_7', comments: { nodes: [{ url: 'https://github.com/c/7' }] } };
-    w.provider.route('POST', `${API}/graphql`, json(200, { data: { addPullRequestReviewThread: { thread } } }));
+    w.provider.route(
+      'POST',
+      `${API}/graphql`,
+      json(200, { data: { addPullRequestReviewThread: { thread } } }),
+    );
     const comment = await callTool(s, start, 'add_comment_to_pending_review', {
       ...AT,
       path: 'src/a.ts',
@@ -221,7 +228,10 @@ describe('line comments and pending reviews', () => {
     github();
     w.provider.route('GET', REVIEWS, json(200, [rawReview(12, 'PENDING')]));
     w.provider.route('DELETE', `${REVIEWS}/12`, json(200, rawReview(12, 'PENDING')));
-    const deleted = await callTool(s, start, 'pull_request_review_write', { ...AT, method: 'delete_pending' });
+    const deleted = await callTool(s, start, 'pull_request_review_write', {
+      ...AT,
+      method: 'delete_pending',
+    });
     expect(answerOf(deleted)).toMatchObject({ deleted: { id: 12, state: 'PENDING' } });
     expect(w.provider.calls.at(-1)?.method).toBe('DELETE');
     const rows = await toolAudit(w.t.db, 'github_pull_request', `${REPO}#41`);

@@ -62,6 +62,18 @@ const lastTalksOf = (t: TenantDb, chatIds: readonly string[]): Promise<ChatTurn[
         ),
       );
 
+/** The chat's latest message turn that ended done (2026-11-14: a Slack thread's messages before it were seen). */
+async function lastDoneOf(t: TenantDb, chatId: string): Promise<ChatTurn | undefined> {
+  const [row] = await t
+    .select(
+      chatTurns,
+      and(eq(chatTurns.chatId, chatId), eq(chatTurns.kind, 'message'), eq(chatTurns.status, 'done')),
+    )
+    .orderBy(desc(chatTurns.seq))
+    .limit(1);
+  return row;
+}
+
 /** The chat's highest turn number, 0 before its first turn. */
 async function lastSeq(t: TenantDb, chatId: string): Promise<number> {
   const [row] = await t.selectFields(chatTurns, { seq: max(chatTurns.seq) }, eq(chatTurns.chatId, chatId));
@@ -142,6 +154,7 @@ export const turnsRepo = {
   ofChat,
   liveOf,
   lastOf,
+  lastDoneOf,
   lastTalksOf,
   lastSeq,
   insert,

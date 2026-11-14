@@ -46,7 +46,9 @@ export const reviewsApi = (request: Request): ReviewsApi => ({
       commit_id: review.commitId,
       comments: review.comments?.map(restComment),
     });
-    return reviewOf(await request(signIn, { method: 'POST', path: pullPath(repo, number, '/reviews'), body }));
+    return reviewOf(
+      await request(signIn, { method: 'POST', path: pullPath(repo, number, '/reviews'), body }),
+    );
   },
   async submitReview(signIn, repo, number, reviewId, submit) {
     const path = pullPath(repo, number, `/reviews/${reviewId}/events`);

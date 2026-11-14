@@ -25,7 +25,12 @@ const side = (what: string) =>
     .enum(['LEFT', 'RIGHT'])
     .optional()
     .describe(`${what}: LEFT is the previous state, RIGHT the new state (the default)`);
-const path = z.string().trim().min(1).max(1000).describe('The relative path to the file that needs a comment');
+const path = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1000)
+  .describe('The relative path to the file that needs a comment');
 const commentBody = z.string().trim().min(1).max(BODY_MAX).describe('The text of the review comment');
 const line = (what: string) => number(what).optional();
 
@@ -99,7 +104,8 @@ export const REVIEW_INPUTS = {
   add_comment_to_pending_review: pendingComment,
 };
 
-const THREADS = 'Resolving review threads is not offered here: create, submit_pending and delete_pending are.';
+const THREADS =
+  'Resolving review threads is not offered here: create, submit_pending and delete_pending are.';
 
 /** Arguments of GitHub's MCP server's review tools that would do something not offered, refused by name. */
 export const REVIEW_REFUSED_ARGUMENTS = {

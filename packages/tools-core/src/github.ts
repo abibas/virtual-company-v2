@@ -15,12 +15,7 @@ import type {
   GitHubStatus,
   SearchPage,
 } from './github/results.ts';
-import type {
-  GitHubReviewThread,
-  NewReview,
-  PendingReviewComment,
-  ReviewEvent,
-} from './github/reviews.ts';
+import type { GitHubReviewThread, NewReview, PendingReviewComment, ReviewEvent } from './github/reviews.ts';
 
 /**
  * The GitHub port (S7.1d, docs/subscriptions.md "GitHub tools"): what the server asks of GitHub's REST API (and its
@@ -195,7 +190,12 @@ export interface GitHubApi {
   /** The login of the account the sign-in acts as (`GET /user`). */
   viewerLogin(signIn: GitHubSignIn): Promise<string>;
   /** Makes a review, submitted with its event or left pending, with its line comments. */
-  createReview(signIn: GitHubSignIn, repo: RepoName, number: number, review: NewReview): Promise<GitHubReview>;
+  createReview(
+    signIn: GitHubSignIn,
+    repo: RepoName,
+    number: number,
+    review: NewReview,
+  ): Promise<GitHubReview>;
   /** Submits a pending review with an event. */
   submitReview(
     signIn: GitHubSignIn,

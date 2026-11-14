@@ -158,7 +158,10 @@ describe('changing a profile’s tool parts', () => {
     const signIn = await addSignIn(w, keyring, ihor.userId, 'github_token');
     const profile = await made({ parts: { github: { credentialId: signIn.id, rights: PUSH } } });
     const set = await patch(profile.id, { parts: { github: { rights: { ...PUSH, reviews: 'approve' } } } });
-    expect(set).toMatchObject({ status: 200, body: { parts: { github: { rights: { reviews: 'approve' } } } } });
+    expect(set).toMatchObject({
+      status: 200,
+      body: { parts: { github: { rights: { reviews: 'approve' } } } },
+    });
     const { reviews: _, ...before } = PUSH;
     const old = await patch(profile.id, { parts: { github: { rights: before } } });
     expect(old).toMatchObject({ status: 200, body: { parts: { github: { rights: { reviews: 'off' } } } } });

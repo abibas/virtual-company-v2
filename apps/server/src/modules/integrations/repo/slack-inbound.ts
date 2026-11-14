@@ -117,6 +117,23 @@ async function threadPostChat(
   return row?.chatId ?? undefined;
 }
 
+/** The ts of the agent's own posts in a chat's conversation (made in its turns, not a person's Send in Slack). */
+async function ownPostsOfChat(
+  o: OwnedDb,
+  at: { readonly credentialId: string; readonly channelId: string; readonly chatId: string },
+): Promise<Set<string>> {
+  const rows = await o.select(
+    slackPosts,
+    and(
+      eq(slackPosts.credentialId, at.credentialId),
+      eq(slackPosts.channelId, at.channelId),
+      eq(slackPosts.chatId, at.chatId),
+      isNotNull(slackPosts.turnId),
+    ),
+  );
+  return new Set(rows.map((row) => row.ts));
+}
+
 /** The turn's latest post in the conversation (the thread, or the DM itself); undefined when it posted none there. */
 async function postedInTurn(
   o: OwnedDb,
@@ -234,6 +251,7 @@ export const slackInboundRepo = {
   threadPoster,
   threadPostChat,
   postedInTurn,
+  ownPostsOfChat,
   ownerOfSignIn,
   threadOf,
   threadChatAt,

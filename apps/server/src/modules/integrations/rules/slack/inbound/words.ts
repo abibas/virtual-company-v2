@@ -52,22 +52,27 @@ export function messageLink(
     : `${base}?thread_ts=${threadTs}&cid=${message.channel}`;
 }
 
-/** The prompt: one header line (who wrote, where, the link, where the answer goes), then the message as rendered. */
+/**
+ * The prompt: one header line (who wrote, where, the link, where the answer goes), then the thread's earlier messages
+ * the agent has not seen (`context`, a reply's: `thread.ts`), then the message as rendered.
+ */
 export function inboundPrompt(message: {
   readonly from: string;
   readonly place: Place;
   readonly link: string | null;
   readonly threaded: boolean;
   readonly text: string;
+  readonly context?: string | null;
 }): string {
   const where =
     message.place.dm && message.place.id.startsWith('D') ? 'a DM with you' : placeWords(message.place);
   const link = message.link === null ? '' : ` (${message.link})`;
   const goes = message.threaded ? 'in that thread' : 'there';
   const header = `Slack message from ${oneLine(message.from, 120)} in ${where}${link}. Your final reply is posted ${goes} under your name.`;
-  const room = CHAT_PROMPT.max - header.length - 2;
+  const context = message.context ? `\n\n${message.context}\n\nTheir message:` : '';
+  const room = CHAT_PROMPT.max - header.length - context.length - 2;
   const body = message.text.length <= room ? message.text : `${message.text.slice(0, room - 1)}…`;
-  return `${header}\n\n${body === '' ? '(no text)' : body}`;
+  return `${header}${context}\n\n${body === '' ? '(no text)' : body}`;
 }
 
 /** An agent whose profile may not answer there. */
@@ -81,6 +86,10 @@ export const NO_DEFAULT_AGENT =
 /** Over the hourly cap: said once, then silence until the hour is over. */
 export const capWords = (max: number) =>
   `This Slack connection is at its ${max} answers an hour: agents answer here again within the hour.`;
+
+/** A turn that could not start because its machine is stopped: what to do about it, in one line (2026-11-14). */
+export const stoppedWords = (reason: string) =>
+  `${oneLine(reason, 120).replace(/\.$/, '')}. Start it, or turn on "Start when you message an agent on it" for the box.`;
 
 /** A turn that could not answer, in short. */
 export const couldNotAnswer = (reason: string | null) =>

@@ -10,6 +10,7 @@ import {
   oneLine,
   placeWords,
   slackChatTitle,
+  stoppedWords,
 } from '../../../../../../src/modules/integrations/rules/slack/inbound/words.ts';
 
 /** The words of receiving Slack messages (2026-11-13). */
@@ -83,6 +84,35 @@ describe('the prompt', () => {
     expect(group.length).toBeLessThanOrEqual(20_000);
     expect(group).toContain('in a group DM.');
   });
+
+  it('carries a reply’s thread context between the header and the message', () => {
+    const context =
+      'Earlier in this thread:\n- Erich (first message): Approve: https://github.com/a/b/pull/1';
+    const prompt = inboundPrompt({
+      from: 'Ihor',
+      place: GENERAL,
+      link: null,
+      threaded: true,
+      text: 'go',
+      context,
+    });
+    expect(prompt.split('\n\n')).toEqual([
+      'Slack message from Ihor in #general. Your final reply is posted in that thread under your name.',
+      context,
+      'Their message:',
+      'go',
+    ]);
+    const long = inboundPrompt({
+      from: 'I',
+      place: GENERAL,
+      link: null,
+      threaded: true,
+      text: 'z'.repeat(30_000),
+      context,
+    });
+    expect(long.length).toBeLessThanOrEqual(20_000);
+    expect(long).toContain(context);
+  });
 });
 
 describe('the notices and the answer', () => {
@@ -95,6 +125,11 @@ describe('the notices and the answer', () => {
     expect(couldNotAnswer(null)).toBe("Couldn't answer: the turn failed");
     expect(couldNotAnswer('  ')).toBe("Couldn't answer: the turn failed");
     expect(couldNotAnswer('x'.repeat(300))).toHaveLength(217);
+    expect(couldNotAnswer(stoppedWords('Airia devbox is stopped'))).toBe(
+      'Couldn\'t answer: Airia devbox is stopped. Start it, or turn on "Start when you message an agent on it" for ' +
+        'the box.',
+    );
+    expect(stoppedWords('Box is stopped.')).toMatch(/^Box is stopped\. Start it/);
     expect(answerText('short')).toBe('short');
     expect(answerText('y'.repeat(ANSWER_POST_MAX + 5))).toHaveLength(ANSWER_POST_MAX);
   });

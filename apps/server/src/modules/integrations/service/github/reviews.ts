@@ -128,7 +128,10 @@ async function commentInPending(ctx: GitHubContext, input: GitHubInput<'add_comm
   const comment = { path, body, subjectType, line, side, startLine, startSide };
   const thread = await ctx.api.addPendingReviewComment(ctx.signIn, review.nodeId, comment);
   const at = line === undefined ? path : `${path}:${startLine === undefined ? '' : `${startLine}-`}${line}`;
-  await ctx.audit({ entityId: id, changes: [{ field: 'comment', new: `${review.id} ${at}: ${excerpt(body)}` }] });
+  await ctx.audit({
+    entityId: id,
+    changes: [{ field: 'comment', new: `${review.id} ${at}: ${excerpt(body)}` }],
+  });
   return done({
     pullRequest: id,
     review: reviewView(review),

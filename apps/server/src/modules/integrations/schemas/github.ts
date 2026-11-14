@@ -52,6 +52,7 @@ export const PULL_METHODS = [
 export const ISSUE_METHODS = ['get', 'get_comments', 'get_sub_issues', 'get_labels'] as const;
 
 export { BODY_MAX, OWNER_PATTERN, REPO_PATTERN } from './github/fields.ts';
+
 const page = z.int().min(1).max(1000).optional().describe('Page number for pagination (min 1)');
 const perPage = z
   .int()

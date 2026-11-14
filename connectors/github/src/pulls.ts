@@ -43,7 +43,8 @@ export const repoPath = (repo: RepoName, rest = '') =>
 /** GitHub's page query. */
 export const pageQuery = (page: Page) => ({ page: page.page, per_page: page.perPage });
 
-export const pullPath = (repo: RepoName, number: number, rest = '') => repoPath(repo, `/pulls/${number}${rest}`);
+export const pullPath = (repo: RepoName, number: number, rest = '') =>
+  repoPath(repo, `/pulls/${number}${rest}`);
 const refPath = (repo: RepoName, ref: string, rest: string) =>
   repoPath(repo, `/commits/${encodeURIComponent(ref)}${rest}`);
 

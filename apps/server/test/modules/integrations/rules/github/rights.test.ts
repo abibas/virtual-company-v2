@@ -82,11 +82,19 @@ describe('the review tools a part gives (its reviews right)', () => {
   ] as const)('reviews %s gives the event %s: %s', (reviews, event, given) => {
     const refusal = reviewEventRefusal(event, rights({ reviews }));
     if (given) expect(refusal).toBeUndefined();
-    else expect(refusal).toBe(`${event} is off for this agent's profile: it may only comment in reviews (COMMENT, a pending review, line comments).`);
+    else
+      expect(refusal).toBe(
+        `${event} is off for this agent's profile: it may only comment in reviews (COMMENT, a pending review, line comments).`,
+      );
   });
 
   it('knows the events an account never gives its own pull request', () => {
-    expect([undefined, 'COMMENT', 'APPROVE', 'REQUEST_CHANGES'].map(judgesPull)).toEqual([false, false, true, true]);
+    expect([undefined, 'COMMENT', 'APPROVE', 'REQUEST_CHANGES'].map(judgesPull)).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
     expect(ownPullWords('a/b#1', 'me', 'APPROVE')).toContain("a/b#1 is me's own pull request");
   });
 });

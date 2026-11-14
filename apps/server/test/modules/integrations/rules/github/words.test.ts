@@ -44,7 +44,7 @@ describe('the GitHub tools’ words', () => {
     const reviews = ['pull_request_review_write'] as const;
     expect(githubLine(null, { ...all, reviews: 'comment' }, reviews, { kind: 'off' })).toContain(
       ": read, and review pull requests with comments. Your tools, by the names of GitHub's MCP server: " +
-        "pull_request_review_write; owner and repo name the repository; they never merge, close, delete, dismiss " +
+        'pull_request_review_write; owner and repo name the repository; they never merge, close, delete, dismiss ' +
         "others' reviews or approve your own pull requests.",
     );
     expect(githubLine(null, { ...RIGHTS, reviews: 'approve' }, reviews, { kind: 'off' })).toContain(

@@ -36,7 +36,8 @@ export const SLACK_TOOLS_NOTE =
 type Scope = 'all' | readonly string[];
 
 /** A GitHub part's reviews: `off` for rights from before them (2026-11-14) read without the schema's default. */
-export const reviewsOf = (rights: Pick<GitHubRights, 'reviews'>): GitHubRights['reviews'] => rights.reviews ?? 'off';
+export const reviewsOf = (rights: Pick<GitHubRights, 'reviews'>): GitHubRights['reviews'] =>
+  rights.reviews ?? 'off';
 
 /** A scope in a summary: its word for all, the first names and how many more, or its word for none. */
 function shortScope(scope: Scope, words: { readonly all: string; readonly none: string }): string {
@@ -49,7 +50,9 @@ function shortScope(scope: Scope, words: { readonly all: string; readonly none: 
 /** "push, PRs, approve · AiriaLLC/*": what it may do besides reading (else "read"), and where. */
 function githubSummary(rights: GitHubRights): string {
   const reviews = reviewsOf(rights) === 'off' ? '' : reviewsOf(rights);
-  const can = [rights.push ? 'push' : '', rights.pullRequests ? 'PRs' : '', reviews].filter((word) => word !== '');
+  const can = [rights.push ? 'push' : '', rights.pullRequests ? 'PRs' : '', reviews].filter(
+    (word) => word !== '',
+  );
   const where = shortScope(rights.repos, { all: 'all repositories', none: 'no repositories' });
   return `${can.length === 0 ? 'read' : can.join(', ')} · ${where}`;
 }

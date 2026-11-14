@@ -40,6 +40,7 @@ export {
 } from './errors.ts';
 export type {
   CommitFilter,
+  DiffSide,
   GitHubApi,
   GitHubBranch,
   GitHubCheckRun,
@@ -57,7 +58,6 @@ export type {
   GitHubReviewThread,
   GitHubSignIn,
   GitHubStatus,
-  DiffSide,
   NewPullRequest,
   NewReview,
   Page,

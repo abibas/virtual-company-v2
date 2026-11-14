@@ -75,6 +75,11 @@ export type InboundTurnSent =
 /** The port the integrations module calls. */
 export interface InboundChats {
   send(t: TenantDb, request: InboundTurnRequest): Promise<InboundTurnSent>;
+  /**
+   * When the chat's latest message turn that ended done was asked (its row made); null before one. A Slack thread's
+   * messages before it count as seen by the agent (2026-11-14).
+   */
+  lastAnsweredAt(t: TenantDb, chatId: string): Promise<Date | null>;
 }
 
 /** Where the hook posted a turn's reply outside: its address (the answer's message in Slack). */
@@ -169,6 +174,9 @@ export function inboundChats(deps: QueueDeps): InboundChats {
       if (sent.turn.status === 'failed')
         return refuse(409, sent.turn.error ?? 'turn_failed', `The turn could not start (${sent.turn.error})`);
       return { ok: true, chatId: chat.id, turnId: sent.turn.id, created, compacted };
+    },
+    async lastAnsweredAt(t, chatId) {
+      return (await turnsRepo.lastDoneOf(t, chatId))?.createdAt ?? null;
     },
   };
 }

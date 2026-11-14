@@ -50,7 +50,12 @@ describe(`0041_github_reviews on ${testDbKind()}: existing GitHub parts review n
   it('adds reviews off to every stored GitHub part, keeps one already set, and leaves profiles without one', async () => {
     const ihor = (await insertUser(handle)).id;
     const old = await profileWith(ihor, { repos: ['AiriaLLC/*'], push: true, pullRequests: true });
-    const set = await profileWith(ihor, { repos: 'all', push: false, pullRequests: false, reviews: 'approve' });
+    const set = await profileWith(ihor, {
+      repos: 'all',
+      push: false,
+      pullRequests: false,
+      reviews: 'approve',
+    });
     const none = await profileWith(ihor, null);
     await migrateToLatest(handle);
     expect(await rightsOf(old)).toEqual({

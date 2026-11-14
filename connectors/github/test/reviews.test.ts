@@ -42,7 +42,12 @@ describe('pull request reviews through the connector', () => {
         { path: 'b.ts', body: 'Range', line: 9, side: 'RIGHT', start_line: 5, start_side: 'LEFT' },
       ],
     });
-    expect(review).toMatchObject({ id: 9, nodeId: 'PRR_9', state: 'APPROVED', url: expect.stringContaining('9') });
+    expect(review).toMatchObject({
+      id: 9,
+      nodeId: 'PRR_9',
+      state: 'APPROVED',
+      url: expect.stringContaining('9'),
+    });
   });
 
   it('leaves a review pending without an event, and submits and deletes a pending one', async () => {

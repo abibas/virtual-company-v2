@@ -17,6 +17,7 @@ import {
   type Place,
   placeWords,
   slackChatTitle,
+  stoppedWords,
 } from '../../../rules/slack/inbound/words.ts';
 import { workingRights } from '../../../rules/slack/rights.ts';
 import { excerpt } from '../../reply.ts';
@@ -26,6 +27,7 @@ import { type ConversationKey, conversationOf, savesThread } from './conversatio
 import { namesOf, notice, peopleOf, placeOf, reactEyes, say } from './notice.ts';
 import { type Picked, pickAgent } from './route.ts';
 import { turnFrom } from './sender.ts';
+import { threadContext } from './thread.ts';
 
 /**
  * One Slack message received (2026-11-13, docs/subscriptions.md "Slack: receiving messages"): a DM to the bot, a
@@ -39,7 +41,8 @@ import { turnFrom } from './sender.ts';
  * name it, the turn with the sender and the message as the reader sees it. Since 2026-11-14 the answer always goes into
  * the message's own thread, and the conversation is the thread's: a reply's, or the one a message in no thread points
  * to; else the message starts a new one (`rules/slack/inbound/scope.ts`, `conversation.ts`); a conversation 60% full
- * is compacted first (`SLACK_COMPACT_AT`, the chats module's `compactAt`).
+ * is compacted first (`SLACK_COMPACT_AT`, the chats module's `compactAt`). Since 2026-11-14 a reply's prompt carries
+ * the thread's earlier messages the agent has not seen (`thread.ts`), and a stopped machine's notice says what to do.
  */
 
 export const HOUR_MS = 60 * 60_000;
@@ -94,13 +97,14 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
   const link = messageLink(conn.bot.url, message);
   const listed = w.people.find((person) => person.id === message.user);
   const sender = await turnFrom(deps, conn, t, { message, from, described: author, listed, link, text });
-  const prompt = inboundPrompt({ from, place, link, threaded: true, text });
   const named = picked.how === 'named' ? agent.name : null;
   const title = slackChatTitle(
     place,
     renderSlackText(askedText(message.text, conn.bot.userId, named), names),
   );
   const { key, found } = await conversationAt(deps, conn, w);
+  const context = await threadContext(deps, conn, t, { message, chatId: found.chatId, names });
+  const prompt = inboundPrompt({ from, place, link, threaded: true, text, context });
   const reason = `Started for a Slack message from ${from} in ${placeWords(place)}`;
   const request = {
     agentPrincipalId: agent.principalId,
@@ -118,7 +122,8 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
       { credentialId: conn.credentialId, code: sent.code },
       'slack inbound: the turn did not start',
     );
-    return say(deps, conn, where, couldNotAnswer(sent.message));
+    const why = sent.code === 'machine_stopped' ? stoppedWords(sent.message) : sent.message;
+    return say(deps, conn, where, couldNotAnswer(why));
   }
   const started = { chatId: sent.chatId, place: placeWords(place), contactId: sender.contactId };
   if (savesThread(found, sent.chatId)) await repo.saveThread(t, { ...key, ...started });
