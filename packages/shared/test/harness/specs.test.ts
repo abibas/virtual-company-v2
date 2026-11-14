@@ -156,6 +156,23 @@ describe('TurnSpec and TerminalSpec', () => {
   });
 });
 
+describe("a message's images on a turn's spec (T-18)", () => {
+  it('are optional, one to six references, each with its type, size and SHA-256', () => {
+    const ref = {
+      id: '019a5b2e-0000-7000-8000-000000000001',
+      contentType: 'image/png',
+      size: 120,
+      sha256: 'a'.repeat(64),
+    };
+    expect(TurnSpec.parse(turn).images).toBeUndefined();
+    expect(TurnSpec.parse({ ...turn, images: [ref] }).images).toEqual([ref]);
+    expect(TurnSpec.safeParse({ ...turn, images: [] }).success).toBe(false);
+    expect(TurnSpec.safeParse({ ...turn, images: [{ ...ref, contentType: 'image/svg+xml' }] }).success).toBe(
+      false,
+    );
+  });
+});
+
 describe('standing instructions on a spec', () => {
   it('are optional, and kept when given, on a turn and a terminal', () => {
     expect(TurnSpec.parse(turn).instructions).toBeUndefined();

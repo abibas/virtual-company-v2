@@ -65,6 +65,38 @@ describe("the runner's chat turns on the wire", () => {
     expect((await idle.frames.next('runner.hello')).caps.github).toBe(false);
   });
 
+  it("says caps.images (T-18) with HTTP to its server, and fetches a turn's images there with its key", async () => {
+    const server = await fakeServer();
+    const { host, cwd } = fakeHarnessHost();
+    startRunner(server, { harness: host, spawn: new FakeSpawn() });
+    expect((await server.frames.next('runner.hello')).caps.images).toBe(false);
+    const http = await fakeServer();
+    const calls: { url: string; authorization: string | null }[] = [];
+    const fetch = async (url: string, init?: RequestInit) => {
+      calls.push({ url, authorization: new Headers(init?.headers).get('authorization') });
+      return new Response('{}', { status: 404 });
+    };
+    const spawn = new FakeSpawn();
+    const { config } = startRunner(http, { harness: host, spawn, fetch });
+    expect((await http.frames.next('runner.hello')).caps.images).toBe(true);
+    await http.frames.next('runner.heartbeat');
+    const turnId = newId();
+    const image = { id: newId(), contentType: 'image/png', size: 8, sha256: 'a'.repeat(64) } as const;
+    http.send({ type: 'turn.start', turnId, spec: fakeTurnSpec('claude_code', { cwd, images: [image] }) });
+    expect(await http.frames.next('turn.end')).toMatchObject({
+      turnId,
+      ok: false,
+      error: 'images_unavailable: image 1 could not be fetched (the server answered 404)',
+    });
+    expect(calls).toEqual([
+      {
+        url: `${config.serverUrl}/api/runner/turns/${turnId}/images/${image.id}`,
+        authorization: `Bearer ${config.runnerKey}`,
+      },
+    ]);
+    expect(spawn.calls).toEqual([]);
+  });
+
   it('has no harness without a way to start processes, and answers every start unsupported', async () => {
     const server = await fakeServer();
     const { host, cwd } = fakeHarnessHost();

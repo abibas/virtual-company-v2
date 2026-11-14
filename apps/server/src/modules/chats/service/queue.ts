@@ -11,6 +11,7 @@ import { fromColumns } from '../rules/sender.ts';
 import { CHAT_ARCHIVED, CHAT_NOT_FOUND, type Refusal, TURN_NOT_FOUND } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatQueue } from './drain.ts';
+import { insertTurn } from './images.ts';
 import { startTurn, type TurnCaller, type TurnsDeps } from './turns.ts';
 import { turnView } from './views.ts';
 
@@ -21,7 +22,8 @@ import { turnView } from './views.ts';
  * turn's end, `interrupt` stops the running turn (its stop ladder) and starts first, `now` goes into the running turn
  * as well (Claude Code's message turns only) and starts first if the turn ends without taking it (its `input` event
  * removes it). A waiting message can be edited, discarded, sent Now or made to interrupt, while it still waits; one
- * already sent Now cannot. Every change is told to the chat's stream.
+ * already sent Now cannot. Every change is told to the chat's stream. A message with images (T-18) sent Now does not go
+ * into the running turn (a turn takes text only mid-turn): it waits and starts first once that turn ends.
  */
 
 export interface QueueDeps extends TurnsDeps {
@@ -59,7 +61,9 @@ const publish = (deps: TurnsDeps, turn: ChatTurn) => {
  * waiting turn starts if none runs; the turn as it is now.
  */
 async function deliver(deps: QueueDeps, t: TenantDb, turn: ChatTurn, running: ChatTurn | undefined) {
-  if (running !== undefined && turn.delivery === 'now') deps.live.input(running.id, turn.id, turn.prompt);
+  // A message with images (T-18) never goes into a running turn: sent Now, it starts first once that turn ends.
+  if (running !== undefined && turn.delivery === 'now' && turn.images === null)
+    deps.live.input(running.id, turn.id, turn.prompt);
   if (running !== undefined && turn.delivery === 'interrupt') deps.live.stop(running.id);
   await deps.queue.startNext(t, turn.chatId);
   const now = await turnsRepo.get(t, turn.chatId, turn.id);
@@ -97,7 +101,7 @@ export async function sendMessage(
       roomMessageId: caller.roomMessageId ?? null,
       ...fromColumns(caller.from, caller.shown),
     };
-    return turnsRepo.insert(tx, { ...values, status: 'queued' });
+    return insertTurn(tx, { ...values, status: 'queued' }, caller.images);
   });
   publish(deps, turn);
   return deliver(deps, t, turn, running);

@@ -12,6 +12,7 @@ import { branchRoutes } from './routes/branch.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { conversationRoutes } from './routes/conversation.ts';
 import { historyRoutes } from './routes/history.ts';
+import { imageRoutes } from './routes/images.ts';
 import { overrideRoutes } from './routes/overrides.ts';
 import { peopleRoutes } from './routes/people.ts';
 import { queueRoutes } from './routes/queue.ts';
@@ -138,6 +139,7 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
     .route('/', branchRoutes(deps, changed))
     .route('/', turnRoutes(queued))
     .route('/', historyRoutes(deps))
+    .route('/', imageRoutes(deps))
     .route('/', queueRoutes(queued))
     .route('/', conversationRoutes(turns))
     .route('/', answerRoutes(turns))

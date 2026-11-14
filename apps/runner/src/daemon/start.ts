@@ -115,6 +115,7 @@ function makeRunner(deps: MainDeps, setup: Setup, log: Log): Runner {
     sampler: machineSampler(deps, home, log),
     ...(deps.power ? { power: deps.power } : {}),
     ...(deps.tools ? { tools: deps.tools } : {}),
+    ...(deps.fetch ? { fetch: deps.fetch } : {}),
     processes: { spawn: deps.spawn, killGroup: deps.killGroup },
     ...(terminal ? { terminal } : {}),
     folders,

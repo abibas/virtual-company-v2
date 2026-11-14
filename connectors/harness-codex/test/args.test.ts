@@ -6,6 +6,7 @@ import {
   codexAccount,
   configArg,
   configListArg,
+  imageArgs,
   keyEnvOf,
   modelArgs,
   NO_UPDATE_CHECK,
@@ -124,6 +125,22 @@ describe('turnArgs', () => {
       THREAD,
       '-',
     ]);
+  });
+
+  it("attaches a message's images as --image files before every other option, on exec and resume (T-18)", () => {
+    const images = [
+      { contentType: 'image/png', base64: 'AAAA', path: '/runs/0a1b/images/1.png' },
+      { contentType: 'image/jpeg', base64: 'BBBB', path: '/runs/0a1b/images/2.jpg' },
+    ] as const;
+    expect(imageArgs(images)).toEqual(['--image', images[0].path, '--image', images[1].path]);
+    expect(imageArgs()).toEqual([]);
+    const fresh = turnArgs(fakeTurnSpec('codex'), undefined, images);
+    expect(fresh.slice(0, 6)).toEqual(['exec', ...imageArgs(images), '--json']);
+    expect(fresh.at(-1)).toBe('-');
+    const resumed = turnArgs(fakeTurnSpec('codex', { sessionId: THREAD }), undefined, images);
+    expect(resumed.slice(0, 7)).toEqual(['exec', 'resume', ...imageArgs(images), '--json']);
+    expect(resumed.slice(-2)).toEqual([THREAD, '-']);
+    expect(JSON.stringify(fresh)).not.toContain('AAAA');
   });
 
   it("forks the whole thread for a branch's first turn, and refuses a message to fork up to", () => {

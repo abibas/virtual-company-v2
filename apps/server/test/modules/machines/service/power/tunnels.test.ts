@@ -178,6 +178,7 @@ describe('when the tunnels cannot be sent', () => {
         decisions: false,
         serverTools: false,
         github: false,
+        images: false,
       },
       builtAt: null,
       build: null,

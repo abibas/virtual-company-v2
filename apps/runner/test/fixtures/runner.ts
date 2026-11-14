@@ -115,6 +115,8 @@ export function startRunner(
     folders?: FolderHost;
     /** The machine's CLIs: found at start, looked for again and installed through this host. */
     tools?: { readonly host: ToolsHost; readonly found: RunnerTools };
+    /** HTTP to its server (a message's images, T-18). */
+    fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   } = {},
 ): StartedRunner {
   const time = new FakeTime();
@@ -139,6 +141,7 @@ export function startRunner(
     ...(options.update ? { update: options.update } : {}),
     ...(options.folders ? { folders: options.folders } : {}),
     ...(options.tools ? { tools: options.tools } : {}),
+    ...(options.fetch ? { fetch: options.fetch } : {}),
     saveConfig: (next) => {
       if (options.saveFails) throw new Error('disk full');
       saved.push(next);

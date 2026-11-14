@@ -7,6 +7,7 @@ import { type AskBridge, turnTools } from './ask/bridge.ts';
 import { serverToolsFile } from './ask/server-tools.ts';
 import { processEnv } from './env.ts';
 import { withGitHub } from './git/env.ts';
+import { type FetchedImage, turnImages } from './images.ts';
 import { type PrivateLease, withPrivateDir } from './private-dir.ts';
 import { RunFolder } from './runs/folder.ts';
 import type { KeeperCommand } from './runs/kept.ts';
@@ -50,7 +51,8 @@ function openArtifacts(host: HarnessHost, frame: TurnStart, log: Log): ArtifactC
 
 /**
  * A fresh turn, once the runner's own checks passed (it runs harnesses, has a slot, the keeper): the agent's folder,
- * the driver's spec, the run folder and private folder, then the environment, the parser and the outputs folder.
+ * the driver's spec (with the message's images fetched before, T-18), the run folder (the images written in it) and
+ * private folder, then the environment, the parser and the outputs folder.
  */
 export function prepareTurn(
   host: HarnessHost,
@@ -58,6 +60,7 @@ export function prepareTurn(
   frame: TurnStart,
   now: number,
   log: Log,
+  fetched: readonly FetchedImage[] = [],
 ): Prepared {
   const { spec, turnId } = frame;
   const driver = host.drivers[spec.harness];
@@ -65,11 +68,13 @@ export function prepareTurn(
   if (!host.isDirectory(spec.cwd)) return { refused: 'home_missing' };
   const bridge = openBridge(host, turnId, log);
   const serverTools = spec.serverTools ?? [];
+  const images = turnImages(RunFolder.dirOf(host.runs, turnId), fetched);
   let built: ProcessSpec;
   try {
     built = driver.turn(
       spec,
       bridge && host.ask && turnTools(host.ask, bridge, knownTools(spec.tools ?? []), serverTools),
+      images.images,
     );
   } catch (error) {
     bridge?.close();
@@ -79,6 +84,7 @@ export function prepareTurn(
   let folder: RunFolder | undefined;
   try {
     folder = RunFolder.create(host.runs, turnId);
+    images.write();
     const files = [
       ...(built.turnFiles ?? []),
       ...(serverTools.length > 0 ? [serverToolsFile(serverTools)] : []),

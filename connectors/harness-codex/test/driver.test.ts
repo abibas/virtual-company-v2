@@ -30,6 +30,13 @@ describe('CodexDriver.turn', () => {
     });
   });
 
+  it("hands Codex the message's images as files (T-18)", () => {
+    const image = { contentType: 'image/gif', base64: 'R0lG', path: '/runs/0a1b/images/1.gif' } as const;
+    const process = driver.turn(fakeTurnSpec('codex'), undefined, [image]);
+    expect(process.args.slice(0, 4)).toEqual(['exec', '--image', image.path, '--json']);
+    expect(process.stdin).toBe('What is 2 + 2?');
+  });
+
   it('resumes the thread in the agent’s own home folder, with the model, the effort and no sandbox', () => {
     const spec = fakeTurnSpec('codex', {
       sessionId: THREAD,

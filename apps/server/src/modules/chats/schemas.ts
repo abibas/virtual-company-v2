@@ -5,6 +5,7 @@ import { AskQuestions, InitEvent, QuestionAnswers, TurnEvent } from '@mwc/shared
 import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
 import { ChatContextSchema } from './schemas/context.ts';
 import { ChatEarlierSchema } from './schemas/history.ts';
+import { messageImageFields, turnImageFields } from './schemas/images.ts';
 import { ChatOverridesSchema, ProfileRunsSchema, turnRunFields } from './schemas/overrides.ts';
 import { chatPeopleFields } from './schemas/people.ts';
 import { turnSenderFields } from './schemas/sender.ts';
@@ -118,6 +119,7 @@ export const ChatTurnSchema = z
         "Queued by Most Wanted itself, not by a person (S6c: a Lead's wake-up); `createdBy` is then the agent",
     }),
     ...turnSenderFields,
+    ...turnImageFields,
     profileId: z.string().nullable(),
     credentialId: z
       .string()
@@ -236,6 +238,7 @@ const Prompt = z.string().min(CHAT_PROMPT.min).max(CHAT_PROMPT.max);
 export const CreateTurnSchema = z
   .object({
     prompt: Prompt,
+    ...messageImageFields,
     delivery: ChatTurnDelivery.optional().openapi({
       description:
         'While a turn runs: `now` (into it: Claude Code only), `after` (queued for its end) or `interrupt` (stop it, ' +

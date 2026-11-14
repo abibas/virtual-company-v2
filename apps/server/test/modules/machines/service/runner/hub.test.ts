@@ -70,6 +70,7 @@ describe('which runners the hub has', () => {
         decisions: false,
         serverTools: false,
         github: false,
+        images: false,
       },
       connectedAt: w.clock(),
     });

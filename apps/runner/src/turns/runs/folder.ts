@@ -20,7 +20,8 @@ import { z } from 'zod';
  * which outlives the runner. `meta.json` says what the turn is (never its credential, a token or an environment value);
  * the keeper (`keeper.ts`) appends the harness's stdout to `out` and its stderr to `err`, listens on `k.sock` and writes
  * `exit.json` when the harness ends; the runner appends every event it numbered to `events.jsonl` (with how far into
- * `out` it had read) and every message it wrote into the turn to `inputs.jsonl`. The folder goes once the server
+ * `out` it had read) and every message it wrote into the turn to `inputs.jsonl`; a message's images (T-18) are in
+ * `images/`. The folder goes once the server
  * acknowledged the turn's end, or after `RUN_RETENTION_MS`.
  */
 
@@ -131,9 +132,14 @@ export class RunFolder {
   }
 
   /** A turn's folder under `root`, made 0700 (empty, as a fresh turn's). */
+  /** Where the turn's folder is (or will be) under `root`. */
+  static dirOf(root: string, turnId: string): string {
+    return join(root, createHash('sha256').update(turnId).digest('hex').slice(0, 12));
+  }
+
   static create(root: string, turnId: string): RunFolder {
     mkdirSync(root, { recursive: true, mode: 0o700 });
-    const dir = join(root, createHash('sha256').update(turnId).digest('hex').slice(0, 12));
+    const dir = RunFolder.dirOf(root, turnId);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { mode: 0o700 });
     chmodSync(dir, 0o700);

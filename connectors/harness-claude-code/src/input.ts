@@ -1,4 +1,4 @@
-import { clipHead, isRecord, type JsonRecord, stringOf } from '@mwc/harness-core';
+import { clipHead, isRecord, type JsonRecord, stringOf, type TurnImage } from '@mwc/harness-core';
 import { CHAT_PROMPT } from '@mwc/shared/chats';
 import type { TurnEventOf } from '@mwc/shared/harness';
 import { bodyOf } from './state.ts';
@@ -14,9 +14,21 @@ import { bodyOf } from './state.ts';
 /** The arguments that make a print-mode turn read user messages from stdin and echo each one it takes. */
 export const INPUT_ARGS = ['--input-format', 'stream-json', '--replay-user-messages'] as const;
 
-/** One stdin line: a user message with `text`, its `uuid` the id its echo carries back. */
-export function userLine(text: string, uuid: string): string {
-  const message = { role: 'user', content: [{ type: 'text', text }] };
+/**
+ * A message's image as a content block of the Messages API, which stream-json input passes on (T-18, docs/harness.md
+ * "Images in a message"): its bytes as base64 with their type.
+ */
+export const imageBlock = (image: Pick<TurnImage, 'contentType' | 'base64'>) => ({
+  type: 'image',
+  source: { type: 'base64', media_type: image.contentType, data: image.base64 },
+});
+
+/**
+ * One stdin line: a user message with `text`, its `uuid` the id its echo carries back; a message's images (T-18) go
+ * before its text, as image blocks.
+ */
+export function userLine(text: string, uuid: string, images: readonly TurnImage[] = []): string {
+  const message = { role: 'user', content: [...images.map(imageBlock), { type: 'text', text }] };
   return `${JSON.stringify({ type: 'user', uuid, session_id: '', parent_tool_use_id: null, message })}\n`;
 }
 

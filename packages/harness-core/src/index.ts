@@ -23,6 +23,7 @@ export {
   type ProcessSpec,
   SERVER_TOOLS_ENV,
   TOOLS_ENV,
+  type TurnImage,
   type TurnNotice,
   type TurnTools,
 } from './driver.ts';

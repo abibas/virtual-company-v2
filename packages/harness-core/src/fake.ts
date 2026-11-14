@@ -7,6 +7,7 @@ import type {
   PrivateDir,
   PrivateFile,
   ProcessSpec,
+  TurnImage,
   TurnNotice,
   TurnTools,
 } from './driver.ts';
@@ -56,7 +57,7 @@ export const FAKE_TOOLS_FILE = 'tools.json';
  * A `HarnessDriver` for other packages' tests: it runs the real spec checks, records every spec (`turns`,
  * `terminals`) and the tools a turn got (`tools`), throws queued errors (`failNext`), and builds process specs from its
  * options; with tools, a turn gets `--tools <dir>`, the tools' variables and `tools.json` (the MCP server's command) to
- * write in the turn's folder. Its parser reads lines that are `TurnEvent`s themselves (`fakeLines`), so the fake binary
+ * write in the turn's folder; it keeps the images a turn got (`images`). Its parser reads lines that are `TurnEvent`s themselves (`fakeLines`), so the fake binary
  * can play any turn; with `liveInput` a turn keeps stdin open and takes messages as `fakeInputLine`s, its parser settled
  * after a result. A process that writes `FAKE_SESSION_MISSING` lost the conversation it resumed (`sessionMissing`).
  */
@@ -67,6 +68,8 @@ export class FakeHarnessDriver implements HarnessDriver {
   readonly terminals: TerminalSpec[] = [];
   /** The tools each turn got (undefined: none). */
   readonly tools: (TurnTools | undefined)[] = [];
+  /** The images each turn got (T-18; undefined: none). */
+  readonly images: (readonly TurnImage[] | undefined)[] = [];
   readonly #options: FakeHarnessDriverOptions;
   readonly #failures: HarnessError[] = [];
 
@@ -80,11 +83,12 @@ export class FakeHarnessDriver implements HarnessDriver {
     this.#failures.push(error);
   }
 
-  turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec {
+  turn(spec: TurnSpec, tools?: TurnTools, images?: readonly TurnImage[]): ProcessSpec {
     this.#throwQueued();
     checkTurn(this.harness, spec);
     this.turns.push(spec);
     this.tools.push(tools);
+    this.images.push(images);
     const opened = this.#process('turn', spec.sessionId, spec.prompt);
     const process = this.#options.liveInput ? { ...opened, stdinOpen: true } : opened;
     if (tools === undefined) return process;

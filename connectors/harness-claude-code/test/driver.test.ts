@@ -61,6 +61,20 @@ describe('ClaudeCodeDriver.turn', () => {
     });
   });
 
+  it("gives the first user message the message's images before its text (T-18)", () => {
+    const image = {
+      contentType: 'image/webp',
+      base64: 'UklGRhoAAABX',
+      path: '/runs/0a1b/images/1.webp',
+    } as const;
+    const process = driver.turn(fakeTurnSpec('claude_code'), undefined, [image]);
+    expect(process.args).toEqual(TURN);
+    expect(messageOf(process.stdin).message.content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/webp', data: 'UklGRhoAAABX' } },
+      { type: 'text', text: 'What is 2 + 2?' },
+    ]);
+  });
+
   it('gives a message for the running turn as one more user message line, with its id', () => {
     const line = driver.inputLine('Use staging', '0a8d6c3e-5f1b-4c2a-9e7d-3b6f1a2c4d5e');
     expect(line.endsWith('\n')).toBe(true);

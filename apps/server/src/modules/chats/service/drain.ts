@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import { imagesOf, RUNNER_NO_IMAGES } from '../rules/images.ts';
 import { ranWith } from '../rules/overrides.ts';
 import { nextQueued, startSeq } from '../rules/queue.ts';
 import { CHAT_ARCHIVED, MACHINE_OFFLINE, type Refusal, titleOf } from '../rules.ts';
@@ -76,6 +77,7 @@ async function startOne(deps: DrainDeps, t: TenantDb, chatId: string, head: Chat
   if (chat.archivedAt !== null) return CHAT_ARCHIVED;
   const target = await resolveTarget(deps, t, chat, { principalId: head.createdBy, purpose: 'chat_turn' });
   if (!target.ok) return target;
+  if (imagesOf(head).length > 0 && !target.images) return RUNNER_NO_IMAGES;
   const slot = await slotCheck(deps, t, chat);
   if (!slot.free) {
     await holdForSlot(deps, t, head, slot.slots);

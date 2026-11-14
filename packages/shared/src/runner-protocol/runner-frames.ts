@@ -76,6 +76,11 @@ export const RunnerCaps = protocolObject({
   /** True when its turns put a GitHub sign-in in git's and gh's way (S7.1d, `TurnSpec.github`); false from older ones. */
   github: z.boolean().default(false),
   /**
+   * True when its turns fetch a message's images and hand them to the harness (T-18, `TurnSpec.images`); false from
+   * older ones, which the server tells to update before a message with images goes to them.
+   */
+  images: z.boolean().default(false),
+  /**
    * The CLIs it found, each one's version or null (`tools.ts`); left out by a runner older than the tools, which knows
    * no `tools.check` or `tools.install` (its `harnesses` still say Claude Code's and Codex's).
    */

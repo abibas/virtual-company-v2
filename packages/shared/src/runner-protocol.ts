@@ -79,9 +79,11 @@ export {
   RUNNER_PTY_PATH,
   RUNNER_PTY_TARGETS,
   RUNNER_SHA256_HEADER,
+  RUNNER_TURN_IMAGES_PATH,
   RunnerEnrollRequest,
   RunnerEnrollResponse,
   RunnerPtyTarget,
+  runnerTurnImagePath,
 } from './runner-protocol/enroll.ts';
 export {
   CONTAINER_WORK_ROOT,

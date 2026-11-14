@@ -1,4 +1,4 @@
-import { HarnessError, type PrivateFile, specMode, type TurnTools } from '@mwc/harness-core';
+import { HarnessError, type PrivateFile, specMode, type TurnImage, type TurnTools } from '@mwc/harness-core';
 import { ASK_SERVER, type HarnessCredential, type TerminalSpec, type TurnSpec } from '@mwc/shared/harness';
 import { configArg, configFlagArg, configListArg } from './config.ts';
 import { providerArgs } from './gateway.ts';
@@ -92,13 +92,23 @@ export const keyEnvOf = (credential: HarnessCredential, mode: 'exec' | 'tui'): s
   credential.kind === 'openai_api_key' && mode === 'exec' ? CODEX_API_KEY_ENV : undefined;
 
 /**
+ * A message's images (T-18): `--image <file>` each, the files the runner wrote in the turn's run folder (`codex exec`,
+ * `exec resume` and `exec fork` take them, Codex 0.167.0). They come first, before `--json`: `codex exec`'s `--image`
+ * takes several files, so one right before the closing `-` would take it as a file too.
+ */
+export const imageArgs = (images: readonly TurnImage[] = []): string[] =>
+  images.flatMap((image) => ['--image', image.path]);
+
+/**
  * `codex exec … -` for a new thread, `codex exec resume … <id> -` for the next turn, `codex exec fork … <id> -` for a
  * branch's first turn (a new thread from a copy of the whole thread, Codex 0.167.0; it has no way to fork from an
- * earlier turn, so a spec saying one is refused); the prompt comes on stdin. The provider (the profile's gateway, or
- * OpenAI directly, `gateway.ts`) comes after the permissions, then the runner's tools when it offers them.
+ * earlier turn, so a spec saying one is refused); the prompt comes on stdin. A message's images come first
+ * (`imageArgs`). The provider (the profile's gateway, or OpenAI directly, `gateway.ts`) comes after the permissions,
+ * then the runner's tools when it offers them.
  */
-export function turnArgs(spec: TurnSpec, tools?: TurnTools): string[] {
+export function turnArgs(spec: TurnSpec, tools?: TurnTools, images?: readonly TurnImage[]): string[] {
   const options = [
+    ...imageArgs(images),
     '--json',
     '--skip-git-repo-check',
     ...NO_UPDATE_CHECK,

@@ -9,6 +9,7 @@
     "./agent-briefing": "./src/agent-briefing.ts",
     "./agent-icons": "./src/agent-icons.ts",
     "./api-keys": "./src/api-keys.ts",
+    "./chat-images": "./src/chat-images.ts",
     "./chats": "./src/chats.ts",
     "./contacts": "./src/contacts.ts",
     "./config": "./src/config.ts",

@@ -73,6 +73,8 @@ export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
     // S7.1e: the server's tools a turn carries rise from 32 to 64; an older runner says nothing and is sent 32.
     ...(serverTools ? { serverToolsMax: SERVER_TOOLS_MAX } : {}),
     github: harness?.gitHooks !== undefined && processes !== undefined,
+    // T-18: its turns fetch a message's images from the server.
+    images: harness !== undefined && processes !== undefined && options.fetch !== undefined,
     ...(tools ? { tools } : {}),
     ...(containerId ? { containerId } : {}),
   };

@@ -4,6 +4,7 @@ import { TurnSpec } from '@mwc/shared/harness';
 import { newId } from '@mwc/shared/ids';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import { type MessageImage, RUNNER_NO_IMAGES } from '../rules/images.ts';
 import { machineBusy } from '../rules/machine.ts';
 import { ranWith } from '../rules/overrides.ts';
 import { fromColumns, type TurnFrom } from '../rules/sender.ts';
@@ -20,6 +21,7 @@ import {
 } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
 import { type DecisionsHook, withDecisionTool } from './decisions.ts';
+import { insertTurn, withImages } from './images.ts';
 import type { InboundTurnHook } from './inbound.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
@@ -47,6 +49,8 @@ import { turnView } from './views.ts';
  * message turn of a task's conversation (S5.3b) gets its outputs folder from the tasks module's hook, which hears of
  * its start (`task-hook.ts`). A prompt whose machine is stopped may start it and wait for it (`machine-wait.ts`); one
  * whose machine has every slot taken waits for a free slot (`slot-wait.ts`; a Compact or an answer is refused then).
+ * A message's images (T-18) are written with its turn and named in its spec (`images.ts`); a runner older than them
+ * refuses such a message (`runner_outdated`).
  */
 
 export interface TurnsDeps extends TargetDeps {
@@ -79,6 +83,8 @@ export interface TurnCaller {
   readonly from?: TurnFrom | undefined;
   /** What a person wrote when the prompt names them first (a chat with several people). */
   readonly shown?: string | undefined;
+  /** The images the message carries (T-18), kept with its turn. */
+  readonly images?: readonly MessageImage[] | undefined;
 }
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
@@ -105,6 +111,7 @@ async function record(
   chatId: string,
   values: Omit<Parameters<typeof turnsRepo.insert>[1], 'seq'>,
   how: TurnKindOptions,
+  images: readonly MessageImage[] | undefined,
 ) {
   let committed: (() => void) | undefined;
   try {
@@ -112,7 +119,7 @@ async function record(
       const seq = (await turnsRepo.lastSeq(tx, chatId)) + 1;
       const refused = how.check?.(seq);
       if (refused !== undefined) return refused;
-      const turn = await turnsRepo.insert(tx, { ...values, seq });
+      const turn = await insertTurn(tx, { ...values, seq }, images);
       committed = await how.alongside?.(tx, turn);
       const chat = (await chatsRepo.get(tx, chatId)) as Chat;
       const title = chat.title === null ? { title: titleOf(values.visibleText ?? values.prompt) } : {};
@@ -149,6 +156,7 @@ export async function startTurn(
   if (!target.ok) {
     return target.code === MACHINE_OFFLINE.code ? waitForMachine(deps, t, caller, chat, prompt) : target;
   }
+  if ((caller.images?.length ?? 0) > 0 && !target.images) return RUNNER_NO_IMAGES;
   const draft = await taskDraft(deps.tasks, t, { chat, agent: target.agent, kind: how.kind });
   const tools = await specTools(deps, t, { chat, target, kind: how.kind, draft });
   const spec = TurnSpec.safeParse({
@@ -184,6 +192,7 @@ export async function startTurn(
       ...fromColumns(caller.from, caller.shown),
     },
     how,
+    caller.images,
   );
   if ('ok' in turn) return turn;
   const { credentialId, ownerUserId, kind } = target;
@@ -253,7 +262,7 @@ export async function launch(
   const { machineId } = where;
   const task = taskContext(draft, turn);
   const sink = deps.live.sink(t, turn, used, { task, agentPrincipalId: where.agent.principalId });
-  const channel = deps.hub.turn(machineId, { turnId: turn.id, spec }, sink);
+  const channel = deps.hub.turn(machineId, { turnId: turn.id, spec: withImages(spec, turn) }, sink);
   if (channel === undefined) {
     deps.live.forget(turn.id);
     const ended = { status: 'failed', error: MACHINE_OFFLINE.code, endedAt: deps.clock() } as const;

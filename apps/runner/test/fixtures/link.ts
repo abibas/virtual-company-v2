@@ -29,6 +29,7 @@ export const HELLO: RunnerHello = {
     decisions: false,
     serverTools: false,
     github: false,
+    images: false,
   },
 };
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { STANDING_INSTRUCTIONS_MAX } from '../agent-briefing.ts';
+import { ChatImageRefs } from '../chat-images.ts';
 import {
   GATEWAY_HEADERS,
   GITHUB_REPO_PATTERN,
@@ -178,7 +179,9 @@ export type TurnGitHub = z.infer<typeof TurnGitHub>;
  * none. A turn of a task's step (S5.3b) names its outputs' folder (`artifacts`); one with the agents' tools (S6a) names
  * them (`tools`); one with the server's own tools (S7.1c, only to a runner that says `caps.serverTools`) carries them
  * whole (`serverTools`); one whose profile may push to GitHub carries the sign-in for git and gh (S7.1d, `github`, only
- * to a runner that says `caps.github`).
+ * to a runner that says `caps.github`). A message with images (T-18, only to a runner that says `caps.images`) names them
+ * (`images`): the runner fetches each one (`RUNNER_TURN_IMAGES_PATH`) before the start and hands them to the harness
+ * with the prompt.
  */
 export const TurnSpec = protocolObject({
   ...sessionFields,
@@ -189,5 +192,6 @@ export const TurnSpec = protocolObject({
   tools: TurnToolNames.optional(),
   serverTools: ServerToolDefs.optional(),
   github: TurnGitHub.optional(),
+  images: ChatImageRefs.optional(),
 });
 export type TurnSpec = z.infer<typeof TurnSpec>;

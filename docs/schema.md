@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 45. Migrations: 42, the last is `0041_github_reviews`.
+Tables: 46. Migrations: 43, the last is `0042_chat_images`.
 
 ```mermaid
 erDiagram
@@ -113,6 +113,19 @@ erDiagram
     jsonb event "not null"
     timestamptz at "not null, default now()"
   }
+  chat_images {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid chat_id FK "not null"
+    uuid turn_id FK "not null"
+    integer position "not null"
+    text content_type "not null, image/png|image/jpeg|image/webp|image/gif"
+    bytea bytes "not null"
+    integer size "not null"
+    text sha256 "not null"
+    uuid created_by FK "not null"
+    timestamptz created_at "not null, default now()"
+  }
   chat_participants {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
@@ -139,6 +152,7 @@ erDiagram
     text visible_text "nullable"
     uuid contact_id FK "nullable"
     text reply_link "nullable"
+    jsonb images "nullable"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     text mode "nullable, manual|acceptEdits|plan|auto|bypassPermissions|ask|full"
@@ -668,6 +682,10 @@ erDiagram
   audit_log }o--o| principals : "company_id, actor_principal_id"
   chat_events }o--|| companies : "company_id"
   chat_events }o--|| chat_turns : "company_id, turn_id"
+  chat_images }o--|| companies : "company_id"
+  chat_images }o--|| chats : "company_id, chat_id"
+  chat_images }o--|| chat_turns : "company_id, turn_id"
+  chat_images }o--|| principals : "company_id, created_by"
   chat_participants }o--|| companies : "company_id"
   chat_participants }o--|| chats : "company_id, chat_id"
   chat_participants }o--o| principals : "company_id, principal_id"
@@ -1028,6 +1046,38 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_events_event_check`: `jsonb_typeof("event") = 'object'`
 - **Indexes:** none
 
+### `chat_images`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `chat_id` | `uuid` | no |  | FK |  |
+| `turn_id` | `uuid` | no |  | FK |  |
+| `position` | `integer` | no |  |  |  |
+| `content_type` | `text` | no |  |  | `image/png`, `image/jpeg`, `image/webp`, `image/gif` |
+| `bytes` | `bytea` | no |  |  |  |
+| `size` | `integer` | no |  |  |  |
+| `sha256` | `text` | no |  |  |  |
+| `created_by` | `uuid` | no |  | FK |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`chat_images_company_id_companies_id_fk`)
+  - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`chat_images_chat_fk`)
+  - (`company_id`, `turn_id`) → `chat_turns` (`company_id`, `id`), on delete cascade (`chat_images_turn_fk`)
+  - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chat_images_created_by_fk`)
+- **Unique:**
+  - `chat_images_company_id_id_unique` (`company_id`, `id`)
+  - `chat_images_turn_position_unique` (`company_id`, `turn_id`, `position`)
+- **Checks:**
+  - `chat_images_position_check`: `"position" between 0 and 5`
+  - `chat_images_content_type_check`: `content_type` is one of `image/png`, `image/jpeg`, `image/webp`, `image/gif`
+  - `chat_images_size_check`: `"size" between 1 and 3145728 and octet_length("bytes") = "size"`
+  - `chat_images_sha256_check`: `"sha256" ~ '^[0-9a-f]{64}$'`
+- **Indexes:** none
+
 ### `chat_participants`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -1076,6 +1126,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `visible_text` | `text` | yes |  |  |  |
 | `contact_id` | `uuid` | yes |  | FK |  |
 | `reply_link` | `text` | yes |  |  |  |
+| `images` | `jsonb` | yes |  |  |  |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `mode` | `text` | yes |  |  | `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full` |
@@ -1105,6 +1156,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_contact_check`: `"contact_id" is null or "sender" is not null`
   - `chat_turns_visible_text_check`: `"visible_text" is null or ("kind" = 'message' and char_length("visible_text") <= 20000)`
   - `chat_turns_reply_link_check`: `char_length("reply_link") between 1 and 500`
+  - `chat_turns_images_check`: `"images" is null or ("kind" = 'message' and jsonb_typeof("images") = 'array')`
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
   - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`, `people`, `slack`
   - `chat_turns_mode_check`: `mode` is one of `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full`

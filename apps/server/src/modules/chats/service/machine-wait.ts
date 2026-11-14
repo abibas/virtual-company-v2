@@ -7,6 +7,7 @@ import type { ConnectedRunner, MachineWake, WakeFailure, WakeTrigger } from '../
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import type { MessageImage } from '../rules/images.ts';
 import {
   cannotStart,
   MACHINE_WAIT_MS,
@@ -19,6 +20,7 @@ import {
 import { fromColumns, type TurnFrom } from '../rules/sender.ts';
 import { MACHINE_OFFLINE, type Refusal } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
+import { insertTurn } from './images.ts';
 import { type InboundTurnHook, tellInbound } from './inbound.ts';
 import type { ChatsLive } from './live.ts';
 import { type TaskTurnHook, taskContext, taskDraft } from './task-hook.ts';
@@ -80,6 +82,7 @@ export interface WaitingCaller {
   readonly wake?: TurnWake | undefined;
   readonly from?: TurnFrom | undefined;
   readonly shown?: string | undefined;
+  readonly images?: readonly MessageImage[] | undefined;
 }
 
 /** Records a turn waiting for the chat's machine (to start, or for a free slot), delivered after. */
@@ -92,7 +95,7 @@ export const recordWaiting = (
 ) =>
   t.transaction(async (tx) => {
     const seq = (await turnsRepo.lastSeq(tx, chat.id)) + 1;
-    return turnsRepo.insert(tx, {
+    const values = {
       id: newId(),
       chatId: chat.id,
       seq,
@@ -105,7 +108,8 @@ export const recordWaiting = (
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
       ...fromColumns(caller.from, caller.shown),
-    });
+    } as const;
+    return insertTurn(tx, values, caller.images);
   });
 
 /**

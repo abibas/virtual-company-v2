@@ -12,6 +12,7 @@ import type { TurnEvent, TurnSpec } from '@mwc/shared/harness';
 import { newId } from '@mwc/shared/ids';
 import type { TurnEnd, TurnEventItem, TurnRunnerFrame } from '@mwc/shared/runner-protocol';
 import { nodePrivateFs } from '../../src/turns/files.ts';
+import type { ImageFetch } from '../../src/turns/images.ts';
 import { PrivateDirs } from '../../src/turns/private-dir.ts';
 import { runsRoot } from '../../src/turns/runs/folder.ts';
 import { type HarnessHost, Turns } from '../../src/turns/turns.ts';
@@ -68,6 +69,8 @@ export function turnsWorld(
     readonly processes?: boolean;
     /** Whether the link is up: a frame sent while it is down is kept but `send` says false. */
     readonly online?: () => boolean;
+    /** How a message's images are fetched (T-18); none: a turn with images is refused. */
+    readonly images?: ImageFetch;
   } = {},
 ) {
   const time = new FakeTime();
@@ -87,6 +90,7 @@ export function turnsWorld(
       return options.online?.() ?? true;
     },
     count: (live) => void counts.push(live),
+    images: options.images,
   });
   const ends = () => sent.filter((frame): frame is TurnEnd => frame.type === 'turn.end');
   const events = (): TurnEventItem[] =>

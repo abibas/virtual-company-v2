@@ -44,6 +44,17 @@ export const RunnerPtyTarget = z.enum(RUNNER_PTY_TARGETS);
 export type RunnerPtyTarget = z.infer<typeof RunnerPtyTarget>;
 export const RUNNER_PTY_PATH = '/api/runner/pty';
 
+/**
+ * Where a runner fetches a message's images before its turn starts (T-18): `RUNNER_TURN_IMAGES_PATH/<turnId>/images/<id>`
+ * with its runner key (`Authorization: Bearer`), only for a turn on its own machine; the bytes come with their SHA-256 in
+ * `RUNNER_SHA256_HEADER`, which it checks.
+ */
+export const RUNNER_TURN_IMAGES_PATH = '/api/runner/turns';
+
+/** The address of one of a turn's images under `RUNNER_TURN_IMAGES_PATH`. */
+export const runnerTurnImagePath = (turnId: string, imageId: string): string =>
+  `${RUNNER_TURN_IMAGES_PATH}/${turnId}/images/${imageId}`;
+
 export const EnrollmentToken = z.string().regex(ENROLLMENT_TOKEN_PATTERN, 'an enrollment token (mwc_et_…)');
 
 /** Free text a machine says about itself: `darwin`, `arm64`, its hostname, the runner's Unix user. */

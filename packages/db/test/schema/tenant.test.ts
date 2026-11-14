@@ -46,6 +46,7 @@ describe('the tenant conventions, on every tenant table', () => {
       'agent_placements',
       'agents',
       'api_keys',
+      'chat_images',
       'chat_participants',
       'chat_turns',
       'chats',
@@ -160,7 +161,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(73);
+    expect(composite).toBe(76);
   });
 });
 

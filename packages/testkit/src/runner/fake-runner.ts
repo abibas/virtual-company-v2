@@ -133,6 +133,7 @@ export class FakeRunner {
       decisions: false,
       serverTools: false,
       github: false,
+      images: false,
       ...this.#options.caps,
     };
     const protocol = this.#options.protocol ?? RUNNER_PROTOCOL_VERSION;

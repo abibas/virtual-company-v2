@@ -1,3 +1,4 @@
+import type { ChatImageRef } from '@mwc/shared/chat-images';
 import { CHAT_PROMPT, CHAT_TITLE, type TurnSender } from '@mwc/shared/chats';
 import {
   ChatTurnDelivery,
@@ -152,6 +153,7 @@ export const chats = pgTable(
  * 0040 a person's message in a chat with several people keeps what they wrote in `visible_text` (the prompt has their
  * name first), a `people` turn is a quiet line of who joined or left, and a `slack` turn a message sent straight into the
  * chat's Slack conversation (its address in `reply_link`); neither runs a process (docs/harness.md "Who is in a chat").
+ * Since migration 0042 (T-18) a message may carry images (`chat_images`), which `images` names in order.
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -181,6 +183,8 @@ export const chatTurns = pgTable(
     contactId: uuid('contact_id'),
     /** Where its reply was posted outside (the answer's address in Slack); null for none. */
     replyLink: text('reply_link'),
+    /** The images its message carries (T-18, `chat_images`), in order: id, type, size, SHA-256; null for none. */
+    images: jsonb('images').$type<ChatImageRef[]>(),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     /** The permission mode it ran in; null for a turn that has not started, a Clear, or one before 2026-11-13. */
@@ -217,6 +221,10 @@ export const chatTurns = pgTable(
       sql`${t.visibleText} is null or (${t.kind} = 'message' and char_length(${t.visibleText}) <= ${n(CHAT_PROMPT.max)})`,
     ),
     check('chat_turns_reply_link_check', sql`char_length(${t.replyLink}) between 1 and 500`),
+    check(
+      'chat_turns_images_check',
+      sql`${t.images} is null or (${t.kind} = 'message' and jsonb_typeof(${t.images}) = 'array')`,
+    ),
     index('chat_turns_contact_idx').on(t.companyId, t.contactId, t.createdAt),
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
     check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),

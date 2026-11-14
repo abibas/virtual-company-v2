@@ -6,6 +6,7 @@ import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { RECAP_EXCHANGES, recapExchanges, recapPrompt, sessionLostNotice } from '../rules/recap.ts';
 import { MACHINE_OFFLINE } from '../rules.ts';
+import { withImages } from './images.ts';
 import type { LostTurn } from './live-end.ts';
 import { resolveTarget } from './target.ts';
 import { artifactsOf, type TaskTurnContext } from './task-hook.ts';
@@ -73,7 +74,7 @@ export async function startAfresh(
   const agentPrincipalId = target.agent.principalId;
   return () => {
     const sink = deps.live.sink(t, turn, used, { task: lost.task, agentPrincipalId });
-    const request = { turnId: turn.id, spec: parsed.data, afterSeq };
+    const request = { turnId: turn.id, spec: withImages(parsed.data, turn), afterSeq };
     const channel = deps.hub.turn(chat.machineId, request, sink);
     if (channel === undefined) void sink.end({ ok: false, exitCode: null, error: MACHINE_OFFLINE.code });
     else deps.live.started(turn.id, channel);

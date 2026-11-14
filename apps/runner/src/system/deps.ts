@@ -78,6 +78,8 @@ export interface MainDeps {
   readonly containerId?: string;
   /** The power controller (S4.4b); none by default. */
   readonly power?: PowerExecutor;
+  /** HTTP to its server (`cli.ts`: the host's), for a message's images (T-18); left out, it says no `caps.images`. */
+  readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   /** Loads the terminal's PTY (`terminal/loader.ts`), once, when the daemon starts. */
   loadPty(): PtyLoad;
 }

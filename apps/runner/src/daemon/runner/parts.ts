@@ -16,6 +16,7 @@ import type { PowerExecutor } from '../../power/executor.ts';
 import type { Clock, Timers } from '../../system/time.ts';
 import { TerminalSessions } from '../../terminal/sessions.ts';
 import { Tools } from '../../tools/tools.ts';
+import { imageFetcher } from '../../turns/images.ts';
 import { Turns } from '../../turns/turns.ts';
 import { Updates } from '../../update/updates.ts';
 import type { RunnerOptions } from '../runner.ts';
@@ -76,10 +77,22 @@ export function makeCommands(wires: DaemonWires): Commands {
   });
 }
 
-/** The chat turns: their frames go through the link, a change of their count to the hold. */
+/**
+ * The chat turns: their frames go through the link, a change of their count to the hold, a message's images fetched
+ * from the server with the runner's key (T-18).
+ */
 export function makeTurns(wires: DaemonWires): Turns {
   const { options, clock, timers } = wires;
+  const { fetch } = options;
+  const images =
+    fetch &&
+    imageFetcher({
+      fetch,
+      serverUrl: () => wires.config().serverUrl,
+      runnerKey: () => wires.config().runnerKey,
+    });
   return new Turns({
+    images,
     host: options.harness,
     processes: options.processes,
     slots: () => wires.config().slots,

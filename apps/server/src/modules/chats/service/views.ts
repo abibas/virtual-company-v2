@@ -1,5 +1,6 @@
 import type { Chat, ChatEvent, ChatTurn } from '@mwc/db';
 import type { TurnEvent } from '@mwc/shared/harness';
+import { imagesOf } from '../rules/images.ts';
 import { senderOf, visibleTextOf } from '../rules/sender.ts';
 import type { ChatEventView, ChatStreamEvent, ChatTurnView, ChatView } from '../schemas.ts';
 
@@ -46,6 +47,7 @@ export function turnView(row: ChatTurn): ChatTurnView {
     from: senderOf(row),
     visibleText: visibleTextOf(row),
     replyLink: row.replyLink,
+    images: imagesOf(row).map(({ id, contentType, size }) => ({ id, contentType, size })),
     machineWaitAt: iso(row.machineWaitAt),
     machineWait: row.machineWait,
     profileId: row.profileId,

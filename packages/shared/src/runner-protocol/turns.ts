@@ -64,7 +64,8 @@ export const TURN_STOP_KILL_MS = 20_000;
  * words): no such harness here, every slot taken, the agent's home folder missing, the driver refused the spec, the
  * process could not start, a person stopped it, the runner stopping (a new turn refused), the process ended without
  * its end being recorded (killed while the runner was away, S5.4), the conversation it resumed is not on this machine
- * (`session_missing: <the harness's own line>`, 2026-11-13: the server starts the chat afresh with a recap, once).
+ * (`session_missing: <the harness's own line>`, 2026-11-13: the server starts the chat afresh with a recap, once), the
+ * message's images could not be fetched from the server (`images_unavailable: <which and why>`, T-18).
  */
 export const TURN_ERRORS = [
   'unsupported',
@@ -76,6 +77,7 @@ export const TURN_ERRORS = [
   'runner_stopping',
   'process_lost',
   'session_missing',
+  'images_unavailable',
 ] as const;
 export type TurnError = (typeof TURN_ERRORS)[number];
 

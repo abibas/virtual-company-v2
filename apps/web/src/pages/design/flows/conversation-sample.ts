@@ -134,6 +134,7 @@ const turn = (
     from: null,
     visibleText: null,
     replyLink: null,
+    images: [],
     machineWaitAt: null,
     machineWait: null,
     profileId: null,

@@ -1,13 +1,13 @@
 import { randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { newId } from '@mwc/shared/ids';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RawDbHandle } from '../../src/handle.ts';
+import { queryRows, type RawDbHandle } from '../../src/handle.ts';
 import { migrateToLatest } from '../../src/migrate.ts';
 import {
   type Agent,
   chatParticipants,
   chats,
-  chatTurns,
   contacts,
   credentials,
   flows,
@@ -23,7 +23,7 @@ import { insertAgent, insertCompany, insertMachine, insertMember, insertUser } f
  * made before it. A person's chat gets its creator; a Slack conversation's chat its contacts (who started it, and who
  * wrote in it) and the Slack connection's owner; one with no member yet the agent's manager, else every active owner. A
  * flow's team chat (as a task's conversation) gets nobody. Seeded at `0039_contacts`, whose tables 0040 leaves as they
- * were, so the rows are written with the schema as it is.
+ * were, so the rows are written with the schema as it is, except a turn (`0042` adds a column to `chat_turns`).
  */
 
 let testDb: TestDb;
@@ -111,17 +111,13 @@ async function slackChat(agent: Agent, machineId: string, credentialId: string, 
     avatarUrl: null,
     link: null,
   } as const;
-  await handle.db.insert(chatTurns).values({
-    companyId: agent.companyId,
-    chatId,
-    seq: 1,
-    prompt: 'Slack message from Anna',
-    status: 'done',
-    system: true,
-    sender,
-    contactId: writer,
-    createdBy: agent.principalId,
-  });
+  // Written with the columns `chat_turns` had at `0039` (a later migration adds its own, which drizzle would name).
+  await queryRows(
+    handle,
+    sql`insert into chat_turns (id, company_id, chat_id, seq, prompt, status, system, sender, contact_id, created_by)
+        values (${newId()}, ${agent.companyId}, ${chatId}, 1, 'Slack message from Anna', 'done', true,
+                ${JSON.stringify(sender)}::jsonb, ${writer}, ${agent.principalId})`,
+  );
   return { chatId, starter, writer };
 }
 

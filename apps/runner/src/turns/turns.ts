@@ -14,7 +14,9 @@ import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import type { ArtifactFs } from './artifacts/collect.ts';
 import type { AskHost } from './ask/bridge.ts';
+import { type BeforeStart, beforeStart } from './before.ts';
 import type { Env } from './env.ts';
+import type { FetchedImage, ImageFetch } from './images.ts';
 import { type Prepared, prepareTurn, takeBackParts } from './prepare.ts';
 import type { PrivateDirs } from './private-dir.ts';
 import type { ReadAt } from './runs/journal.ts';
@@ -36,7 +38,9 @@ import { type TurnParts, TurnProcess } from './turn.ts';
  * count for the runner's own hold. A runner that offers its tools opens each turn's question socket first (a turn whose
  * socket cannot open runs without it, logged), and its MCP server offers the agents' tools the spec names (S6a), whose
  * answers come back as `turn.tool.result`; a task step's turn (S5.3b) gets its outputs folder made and noted first. A
- * container runner makes a missing home folder under its work volume before the turn (2026-11-13, `makeHome`).
+ * container runner makes a missing home folder under its work volume before the turn (2026-11-13, `makeHome`). A
+ * message's images (T-18) are fetched from the server before the start (`images.ts`); a turn whose images cannot be
+ * fetched is refused `images_unavailable: …`.
  */
 
 /** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
@@ -88,6 +92,8 @@ export interface TurnsDeps {
   send(frame: TurnRunnerFrame): boolean;
   /** How many turns are live, after each change (the hold counts them). */
   count(live: number): void;
+  /** Fetches a message's images from the server (T-18); left out, a turn with images is refused. */
+  readonly images?: ImageFetch | undefined;
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -185,40 +191,29 @@ export class Turns {
     }
     const before = this.#before(frame);
     if (before === undefined) {
-      this.#launch(frame);
+      this.#launch(frame, []);
       return;
     }
     this.#searching.set(turnId, false);
-    void before.then(() => {
+    void before.then(({ refused, images }) => {
       const stopped = this.#searching.get(turnId);
       this.#searching.delete(turnId);
       if (stopped) this.#refuse(turnId, 'stopped');
-      else this.#launch(frame);
+      else if (refused !== undefined) this.#refuse(turnId, refused);
+      else this.#launch(frame, images);
     });
   }
 
-  /**
-   * What a start waits for, if anything: a harness missing at start looked for again (it may have been installed since),
-   * then a container's missing home folder made (once the harness is there).
-   */
-  #before(frame: TurnStart): Promise<void> | undefined {
+  /** What a start waits for, if anything (`before.ts`: a harness looked for again, a home folder made, images fetched). */
+  #before(frame: TurnStart): Promise<BeforeStart> | undefined {
     const { host, processes } = this.#deps;
     if (host === undefined || processes === undefined || this.#stopping) return undefined;
-    const { harness, cwd } = frame.spec;
-    const search = host.findAgain !== undefined && host.drivers[harness] === undefined;
-    const makeHome = host.makeHome?.bind(host);
-    const runs = search || host.drivers[harness] !== undefined;
-    const make = makeHome !== undefined && runs && !host.isDirectory(cwd);
-    if (!search && !make) return undefined;
-    return (async () => {
-      if (search) await host.findAgain?.(harness);
-      if (make && host.drivers[harness] !== undefined) await makeHome(cwd);
-    })();
+    return beforeStart(host, this.#deps.images, frame);
   }
 
-  #launch(frame: TurnStart): void {
+  #launch(frame: TurnStart, images: readonly FetchedImage[]): void {
     const { turnId } = frame;
-    const prepared = this.#prepare(frame);
+    const prepared = this.#prepare(frame, images);
     if ('refused' in prepared) {
       this.#refuse(turnId, prepared.refused);
       return;
@@ -256,7 +251,7 @@ export class Turns {
   }
 
   /** The runner's checks in order, then the driver's spec, the folders and the environment (`prepare.ts`). */
-  #prepare(frame: TurnStart): Prepared {
+  #prepare(frame: TurnStart, images: readonly FetchedImage[]): Prepared {
     const { host, processes } = this.#deps;
     if (this.#stopping) return { refused: 'runner_stopping' };
     const keeper = host?.keeper;
@@ -268,7 +263,7 @@ export class Turns {
     )
       return { refused: 'unsupported' };
     if (this.live >= this.#deps.slots()) return { refused: 'busy' };
-    return prepareTurn(host, keeper, frame, this.#deps.clock.now(), this.#deps.log);
+    return prepareTurn(host, keeper, frame, this.#deps.clock.now(), this.#deps.log, images);
   }
 
   /** A turn found on the disk at start, taken back (`prepare.ts`); one of a harness no longer here is left running. */

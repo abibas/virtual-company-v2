@@ -81,6 +81,8 @@ export interface Target {
   readonly serverToolsMax: number;
   /** True when its turns take a GitHub sign-in for git and gh (S7.1d, `caps.github`). */
   readonly github: boolean;
+  /** True when its turns fetch a message's images (T-18, `caps.images`). */
+  readonly images: boolean;
   /** Who asked: the principal the turn's uses of credentials are recorded for. */
   readonly by: string;
 }
@@ -117,6 +119,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
     serverTools: caps.serverTools,
     serverToolsMax: serverToolsLimit(caps),
     github: caps.github === true,
+    images: caps.images === true,
   };
 }
 
@@ -211,6 +214,7 @@ export async function resolveTarget(
     serverTools: place.serverTools,
     serverToolsMax: place.serverToolsMax,
     github: place.github,
+    images: place.images,
     by: request.principalId,
   };
 }

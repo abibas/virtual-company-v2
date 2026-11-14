@@ -170,6 +170,7 @@ async function run(argv: readonly string[], deps: CliDeps): Promise<number> {
     toolServer,
     keeper,
     tools: { host: tools, found: found.versions },
+    fetch: host.fetch.bind(host),
     ...selfFacts(host),
     exit,
   });

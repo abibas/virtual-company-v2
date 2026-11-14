@@ -66,6 +66,11 @@ export interface RunnerOptions {
    * hello has no `caps.tools` and every `tools.check` and `tools.install` is unsupported.
    */
   readonly tools?: { readonly host: ToolsHost; readonly found: RunnerTools };
+  /**
+   * HTTP to its server: a turn fetches its message's images with it (T-18, `turns/images.ts`), and the hello says
+   * `caps.images`; without it a turn with images is refused.
+   */
+  readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   /** Saves the configuration after `key.rotate`; without it the new key lives in memory only. */
   readonly saveConfig?: (config: RunnerConfig) => void | Promise<void>;
   readonly clock?: Clock;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INPUT_ARGS, inputEvent, isReplay, userLine } from '../src/input.ts';
+import { INPUT_ARGS, imageBlock, inputEvent, isReplay, userLine } from '../src/input.ts';
 
 const ID = '0a8d6c3e-5f1b-4c2a-9e7d-3b6f1a2c4d5e';
 
@@ -14,6 +14,25 @@ describe("Claude Code's stream-json input", () => {
       message: { role: 'user', content: [{ type: 'text', text: 'Hi "there"\nsecond line' }] },
     });
     expect(userLine('x', ID).split('\n')).toHaveLength(2);
+  });
+
+  it("puts a message's images before its text, as base64 image blocks (T-18)", () => {
+    const png = {
+      contentType: 'image/png',
+      base64: 'iVBORw0KGgo=',
+      path: '/runs/0a1b/images/1.png',
+    } as const;
+    const gif = { contentType: 'image/gif', base64: 'R0lGODlh', path: '/runs/0a1b/images/2.gif' } as const;
+    expect(imageBlock(png)).toEqual({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo=' },
+    });
+    expect(JSON.parse(userLine('What is this?', ID, [png, gif])).message.content).toEqual([
+      imageBlock(png),
+      imageBlock(gif),
+      { type: 'text', text: 'What is this?' },
+    ]);
+    expect(userLine('x', ID, [png])).not.toContain('/runs/');
   });
 
   it('tells an echo from a tool result, and reads its text blocks only', () => {

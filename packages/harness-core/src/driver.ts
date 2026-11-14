@@ -1,3 +1,4 @@
+import type { ChatImageType } from '@mwc/shared/chat-images';
 import type { Harness } from '@mwc/shared/enums';
 import type { TerminalSpec, TurnEvent, TurnEventOf, TurnSpec } from '@mwc/shared/harness';
 
@@ -64,6 +65,17 @@ export interface TurnTools {
    * server's own (S7.1c).
    */
   readonly names: readonly string[];
+}
+
+/**
+ * An image of the turn's message (T-18, docs/harness.md "Images in a message"), fetched by the runner before the start:
+ * its type, its bytes as base64 (what Claude Code's stream-json input takes) and the file the runner wrote it to in the
+ * turn's run folder (what Codex's `--image` takes). Never on a command line itself: only its path is.
+ */
+export interface TurnImage {
+  readonly contentType: ChatImageType;
+  readonly base64: string;
+  readonly path: string;
 }
 
 /** A notice the runner sends before the process's own events (a setting the harness cannot honour). */
@@ -143,8 +155,11 @@ export interface HarnessDriver {
   readonly harness: Harness;
   /** The arguments that print the CLI's version (`claude --version`): what the runner reports in its hello. */
   readonly versionArgs: readonly string[];
-  /** One chat turn, its output streamed as JSON lines; with `tools`, the runner's MCP server is the harness's too. */
-  turn(spec: TurnSpec, tools?: TurnTools): ProcessSpec;
+  /**
+   * One chat turn, its output streamed as JSON lines; with `tools`, the runner's MCP server is the harness's too; with
+   * `images`, the message's images go with the prompt.
+   */
+  turn(spec: TurnSpec, tools?: TurnTools, images?: readonly TurnImage[]): ProcessSpec;
   /** The interactive TUI on the conversation (resumed, or a new one when `sessionId` is null). */
   terminal(spec: TerminalSpec): ProcessSpec;
   /** A new parser for one turn's output; `context` says where the turn's harness keeps its state. */
