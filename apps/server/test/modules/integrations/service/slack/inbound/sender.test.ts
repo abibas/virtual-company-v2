@@ -1,4 +1,4 @@
-import { auditLog, chatTurns } from '@mwc/db';
+import { auditLog, chatTurns, credentials } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { and, eq } from 'drizzle-orm';
@@ -173,6 +173,26 @@ describe('the next messages', () => {
 });
 
 describe('who makes no contact', () => {
+  it('a bot sign-in whose workspace Slack did not name: the turn still names its sender, with no link it cannot trust', async () => {
+    const s = await erichScene(w);
+    const [sign] = await rawDb(w.t.db).select().from(credentials).where(eq(credentials.id, s.signIn.id));
+    const { teamId: _team, ...meta } = sign?.accountMeta ?? {};
+    const url = 'http://airia-fake.slack.com/';
+    await rawDb(w.t.db)
+      .update(credentials)
+      .set({ accountMeta: { ...meta, url } })
+      .where(eq(credentials.id, s.signIn.id));
+    await putInbound(w, s, { inbound: true });
+    const conn = w.sockets.latest();
+    answerSlack(w, { 'users.info': erichInfo() });
+    const { turn } = await wokenAndAnswered({ ...s, conn }, w, erichDm({ teamId: '' }));
+    expect(await contactRows(w.t.db, s.company.companyId)).toEqual([]);
+    expect(turn).toMatchObject({
+      contactId: null,
+      sender: { userId: ERICH, name: 'Erich Stuntebeck', avatarUrl: null, link: null },
+    });
+  });
+
   it('a person the wake rule ignores, and a bot', async () => {
     const s = await erichScene(w);
     await s.conn.deliver(erichDm({ user: 'U0STRANGER' }));
