@@ -74,6 +74,7 @@ function LiveBody({
           },
         }}
         history={{ live: live.earlier, folds }}
+        decisions={live.decisions}
       />
       <Composer
         running={view.running !== undefined}

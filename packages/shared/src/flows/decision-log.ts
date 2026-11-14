@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ASK_SERVER } from '../chats.ts';
 import { DecisionOutcome } from './enums.ts';
 
 /**
@@ -12,6 +13,12 @@ import { DecisionOutcome } from './enums.ts';
 
 /** The tool's name, among the agents' tools (`flows/tools.ts`). */
 export const DECISION_TOOL = 'record_decision';
+
+/** Its call as each harness names it (Claude Code's, Codex's): the thread shows the decision's card in its place. */
+export const DECISION_TOOL_CALLS = [
+  `mcp__${ASK_SERVER}__${DECISION_TOOL}`,
+  `mcp:${ASK_SERVER}/${DECISION_TOOL}`,
+] as const;
 
 /** How long each part may be, and how many sources a decision names. */
 export const DECISION_LIMITS = {

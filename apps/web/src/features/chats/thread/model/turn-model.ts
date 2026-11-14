@@ -1,3 +1,5 @@
+import { DECISION_TOOL_CALLS } from '@mwc/shared/flows';
+import type { Decision } from '../../../../api/decisions.ts';
 import type { ChatEvent, ChatTurnWithEvents, TurnEvent } from '../../../../api/types.ts';
 import { isAskCall, questionOf } from '../question/question-model.ts';
 import { between } from './format.ts';
@@ -10,7 +12,8 @@ import { familyOf } from './tool-kinds.ts';
  * Consecutive text joins, consecutive tool calls make one group, an Agent call becomes its subagent's block, a
  * `TodoWrite` call shows only as the to-do card, a question tool call only as the question card (S5.2 step 4), a
  * message the person sent into the running turn where the agent took it (S5.2 step 6), and each subagent keeps its
- * latest state. Pure.
+ * latest state. A decision the agent recorded (2026-11-14) is its card after the event it followed, and its tool call
+ * shows only as that card. A call keeps its whole input and a result its whole text when the harness gave them. Pure.
  */
 
 type Of<T extends TurnEvent['type']> = Extract<TurnEvent, { type: T }>;
@@ -46,9 +49,12 @@ function placeSubagent(build: Build, list: MutablePart[], id: string, key: strin
   list.push({ kind: 'subagent', key, id });
 }
 
+/** A call of the decision log's tool: its card shows it, not a tool row. */
+const isDecisionCall = (name: string): boolean => (DECISION_TOOL_CALLS as readonly string[]).includes(name);
+
 function addTool(build: Build, list: MutablePart[], event: Of<'tool'>, key: string, at: string) {
   if (build.subagentIds.has(event.id)) return placeSubagent(build, list, event.id, key);
-  if (familyOf(event.name) === 'todo' || isAskCall(event.name)) {
+  if (familyOf(event.name) === 'todo' || isAskCall(event.name) || isDecisionCall(event.name)) {
     build.hidden.add(event.id);
     return;
   }
@@ -56,6 +62,7 @@ function addTool(build: Build, list: MutablePart[], event: Of<'tool'>, key: stri
     id: event.id,
     name: event.name,
     summary: event.summary,
+    input: event.input,
     at,
     result: undefined,
   };
@@ -67,7 +74,7 @@ function addTool(build: Build, list: MutablePart[], event: Of<'tool'>, key: stri
 
 function addResult(build: Build, list: MutablePart[], event: Of<'tool_result'>, key: string, at: string) {
   if (build.subagentIds.has(event.id) || build.hidden.has(event.id)) return;
-  const result = { ok: event.ok, summary: event.summary };
+  const result = { ok: event.ok, summary: event.summary, output: event.output };
   const call = build.calls.get(event.id);
   if (call) call.result = result;
   else list.push({ kind: 'tools', key, calls: [{ id: event.id, name: 'Tool', summary: '', at, result }] });
@@ -176,9 +183,22 @@ function newBuild(events: readonly ChatEvent[]): Build {
   };
 }
 
-/** The model of a turn's thread, from its events, its status and its error. */
-export function turnModel(turn: ChatTurnWithEvents): TurnModel {
+/**
+ * The turn's decisions (oldest first) before the first event after the one each followed; with no `before` (the
+ * turn's end) all that are left, those of no known event too.
+ */
+function placeDecisions(build: Build, pending: Decision[], before?: number) {
+  const due = (decision: Decision) => before === undefined || (decision.eventSeq ?? before) < before;
+  while (pending[0] !== undefined && due(pending[0])) {
+    const decision = pending.shift() as Decision;
+    listOf(build, MAIN).push({ kind: 'decision', key: `decision:${decision.id}`, decision });
+  }
+}
+
+/** The model of a turn's thread, from its events, its status and its error, with its decisions in place. */
+export function turnModel(turn: ChatTurnWithEvents, decisions: readonly Decision[] = []): TurnModel {
   const build = newBuild(turn.events);
+  const pending = [...decisions];
   let todo: TurnModel['todo'];
   let init: Of<'init'> | undefined;
   let compact: Of<'compact'> | undefined;
@@ -191,8 +211,10 @@ export function turnModel(turn: ChatTurnWithEvents): TurnModel {
     else if (event.type === 'usage') usage = event;
     else if (event.type === 'result') result = event;
     if (event.type === 'compact') compact = event;
+    placeDecisions(build, pending, item.seq);
     addEvent(build, item);
   }
+  placeDecisions(build, pending);
   const parts = listOf(build, MAIN) as Part[];
   const mainText = parts.flatMap((part) => (part.kind === 'text' ? [part.text] : [])).join('\n\n');
   const fallback = result?.text ?? turn.resultText ?? '';

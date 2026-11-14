@@ -244,6 +244,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
               chatInit={live.detail.data?.init ?? undefined}
               answering={{ answer: actions.answer, closed }}
               history={{ live: live.earlier, folds }}
+              decisions={live.decisions}
               {...branchView(calls, live, chat, admin, rest)}
             />
             {runnerUpdate && (

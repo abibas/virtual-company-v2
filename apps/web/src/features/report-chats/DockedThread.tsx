@@ -89,6 +89,7 @@ export function DockedThread({
         chatInit={live.detail.data?.init ?? undefined}
         answering={{ answer: actions.answer, closed }}
         history={{ live: live.earlier, folds }}
+        decisions={live.decisions}
       />
       <Composer
         dense

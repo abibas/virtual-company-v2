@@ -1,3 +1,4 @@
+import type { Decision } from '../../../../api/decisions.ts';
 import type { TurnEvent } from '../../../../api/types.ts';
 import type { TurnQuestion } from '../question/question-model.ts';
 
@@ -10,8 +11,13 @@ export interface ToolCall {
   readonly id: string;
   readonly name: string;
   readonly summary: string;
+  /** Its whole input, when the harness gave it (2026-11-14: the full trace). */
+  readonly input?: string | undefined;
   readonly at: string;
-  readonly result: { readonly ok: boolean; readonly summary: string } | undefined;
+  /** Its result: the summary, and the whole text when the summary cut it. */
+  readonly result:
+    | { readonly ok: boolean; readonly summary: string; readonly output?: string | undefined }
+    | undefined;
 }
 
 export type Part =
@@ -36,7 +42,9 @@ export type Part =
   /** A compaction during a turn (Claude Code's own, near the end of the window). */
   | { readonly kind: 'compact'; readonly key: string; readonly event: Of<'compact'> }
   /** The person's message the running turn took (S5.2 step 6), where the agent took it. */
-  | { readonly kind: 'input'; readonly key: string; readonly text: string };
+  | { readonly kind: 'input'; readonly key: string; readonly text: string }
+  /** A decision the agent recorded (2026-11-14), after the event it followed. */
+  | { readonly kind: 'decision'; readonly key: string; readonly decision: Decision };
 
 /** A subagent's latest state, when it started and ended, and how many steps (tool calls) it made. */
 export interface SubagentState {

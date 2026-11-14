@@ -4,7 +4,10 @@ import { ActionWords, CallMark } from './ActionWords.tsx';
 import { ACTIVITY_ROW, Disclosure } from './Disclosure.tsx';
 import { ToolOutput } from './ToolOutput.tsx';
 
-/** One tool call (S5.2): its icon, its words and its mark, opening to its input and the start of its result. */
+/**
+ * One tool call (S5.2): its icon, its words and its mark, opening to its input and its result: whole when the harness
+ * gave them (2026-11-14, the full trace), else the one-line input and the start of the result.
+ */
 export function ToolCallRow({ call, running }: { readonly call: ToolCall; readonly running: boolean }) {
   const Icon = toolIcon(call.name);
   const done = call.result !== undefined;
@@ -24,12 +27,12 @@ export function ToolCallRow({ call, running }: { readonly call: ToolCall; readon
       }
     >
       <div className="grid gap-2 py-1.5 pr-1 pl-5">
-        {call.summary && <ToolOutput label={inputLabel} text={call.summary} />}
+        {(call.input ?? call.summary) && <ToolOutput label={inputLabel} text={call.input ?? call.summary} />}
         {call.result ? (
           <ToolOutput
             label={failed ? 'Error' : 'Output'}
             failed={failed}
-            text={call.result.summary || '(no output)'}
+            text={call.result.output ?? (call.result.summary || '(no output)')}
           />
         ) : (
           <p className="text-2xs text-faint">

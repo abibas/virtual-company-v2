@@ -1,6 +1,7 @@
 import { TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cx } from '../../../components/cx.ts';
+import { DecisionCard } from '../../../components/feed/DecisionCard.tsx';
 import { SENT_NOW_NOTE } from '../delivery/delivery.ts';
 import { Thinking } from './activity/Thinking.tsx';
 import { ToolGroup } from './activity/ToolGroup.tsx';
@@ -28,7 +29,7 @@ function TakenMessage({ text }: { readonly text: string }) {
 /**
  * A list of a turn's parts (S5.2): the main reply, or a subagent's own steps inside its block (the same renderer,
  * passed down so the blocks nest without an import cycle). Text is Markdown; tools, thinking and notices are quiet
- * rows; subagents are blocks. `live`: the list is still growing (its turn or subagent runs).
+ * rows; subagents are blocks; a recorded decision is its card (2026-11-14). `live`: the list is still growing (its turn or subagent runs).
  */
 export function ReplyParts({
   parts,
@@ -48,6 +49,7 @@ export function ReplyParts({
       if (part.kind === 'tools') return <ToolGroup key={part.key} calls={part.calls} running={growing} />;
       if (part.kind === 'compact') return <CompactedMarker key={part.key} event={part.event} />;
       if (part.kind === 'input') return <TakenMessage key={part.key} text={part.text} />;
+      if (part.kind === 'decision') return <DecisionCard key={part.key} decision={part.decision} />;
       if (part.kind === 'subagent') {
         const state = model.subagents.get(part.id);
         if (state === undefined) return null;

@@ -9,6 +9,7 @@ import {
 } from './chat-turns.ts';
 import { type ChatCalls, chatCalls } from './chats.ts';
 import { useApi } from './context.ts';
+import { type Decision, useChatDecisions } from './decisions.ts';
 import { readEventStream, type StreamMessage } from './event-stream.ts';
 import type {
   Chat,
@@ -25,7 +26,8 @@ import { type Loaded, useLoad } from './use-load.ts';
  * stands (`Last-Event-ID`), each turn and event merged in, and the current conversation's older turns a page at a time.
  * A dropped stream (an error, the end, 50 s of silence) reloads the detail a little later, and the fresh detail opens
  * the stream again from its own position, so nothing is missed or shown twice; older pages stay while they still reach
- * it. A Clear reloads the detail too, so the conversation it ended becomes one of its folded `conversations`.
+ * it. A Clear reloads the detail too, so the conversation it ended becomes one of its folded `conversations`. The
+ * decisions its agent recorded (2026-11-14) load beside it, again with each fresh detail, and come live on the stream.
  */
 
 /** `live`: the stream is open; `reconnecting`: it dropped and comes back; `gone`: the chat is not there any more. */
@@ -39,6 +41,8 @@ export interface ChatLive {
   readonly turns: readonly ChatTurnWithEvents[];
   readonly earlier: ChatEarlierLive;
   readonly stream: StreamState;
+  /** The decisions its agent recorded in it (none for a viewer, who may not read them). */
+  readonly decisions: readonly Decision[];
   /** A turn the page started or stopped (the API's answer), shown before the stream says so. */
   putTurn(turn: ChatTurn): void;
   /** A waiting message the page discarded (S5.2 step 6), gone before the stream says so. */
@@ -104,7 +108,13 @@ type Apply = (change: (m: Merged) => Merged) => void;
  * The stream of the loaded detail `base`, opened from where it stands; a drop reloads the detail (`reload`) after a
  * wait, and a detail that fails to load while reconnecting (the server is down) is asked for again, later each time.
  */
-function useStream(calls: ChatCalls, chatId: string, detail: Loaded<ChatDetail>, apply: Apply): StreamState {
+function useStream(
+  calls: ChatCalls,
+  chatId: string,
+  detail: Loaded<ChatDetail>,
+  on: { readonly apply: Apply; readonly decision: (decision: Decision) => void },
+): StreamState {
+  const { apply, decision } = on;
   const [stream, setStream] = useState<StreamState>('connecting');
   const failures = useRef(0);
   const { data: base, error, reload } = detail;
@@ -122,6 +132,9 @@ function useStream(calls: ChatCalls, chatId: string, detail: Loaded<ChatDetail>,
       } else if (m.event === 'removed') {
         const turnId = parsed<{ turnId: string }>(m.data)?.turnId;
         if (turnId) apply((x) => ({ ...x, turns: removeTurn(x.turns, turnId) }));
+      } else if (m.event === 'decision') {
+        const recorded = parsed<{ decision: Decision }>(m.data)?.decision;
+        if (recorded) decision(recorded);
       }
     };
     const open = () => {
@@ -141,7 +154,7 @@ function useStream(calls: ChatCalls, chatId: string, detail: Loaded<ChatDetail>,
       controller.abort();
       clearTimeout(retry);
     };
-  }, [base, calls, chatId, apply, reload]);
+  }, [base, calls, chatId, apply, decision, reload]);
   useEffect(() => {
     if (error === undefined || stream !== 'reconnecting') return;
     const retry = setTimeout(reload, backoff(failures.current));
@@ -197,6 +210,16 @@ function useOlder(
   return { ...state, load };
 }
 
+/** The chat's decisions again with each detail after the first (a reconnect), for those the dropped stream missed. */
+function useFreshDecisions(base: ChatDetail | undefined, reload: () => void) {
+  const first = useRef<ChatDetail | undefined>(undefined);
+  useEffect(() => {
+    if (base === undefined) return;
+    if (first.current === undefined) first.current = base;
+    else if (first.current !== base) reload();
+  }, [base, reload]);
+}
+
 export function useChatLive(companyId: string, chatId: string): ChatLive {
   const api = useApi();
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
@@ -208,7 +231,9 @@ export function useChatLive(companyId: string, chatId: string): ChatLive {
     (change) => setMerged((m) => change(m.from === base ? m : rebase(m, base))),
     [base],
   );
-  const stream = useStream(calls, chatId, detail, apply);
+  const recorded = useChatDecisions(companyId, chatId);
+  const stream = useStream(calls, chatId, detail, { apply, decision: recorded.put });
+  useFreshDecisions(base, recorded.reload);
   const current = merged.from === base ? merged : rebase(merged, base);
   const turns = useMemo(() => [...current.older, ...current.turns], [current.older, current.turns]);
   const older = useOlder(calls, chatId, base, turns[0]?.seq, apply);
@@ -224,6 +249,7 @@ export function useChatLive(companyId: string, chatId: string): ChatLive {
     chat: current.chat ?? base,
     turns,
     stream,
+    decisions: recorded.decisions,
     earlier: {
       conversations: base?.earlier.conversations ?? [],
       more: current.more,

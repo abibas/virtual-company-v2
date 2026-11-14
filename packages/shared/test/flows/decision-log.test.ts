@@ -9,6 +9,7 @@ import {
   DECISION_LIMITS,
   DECISION_LINE,
   DECISION_TOOL,
+  DECISION_TOOL_CALLS,
   isDecisionTool,
   READ_TOOLS,
   RecordDecisionInput,
@@ -21,6 +22,7 @@ describe('record_decision', () => {
   it('is an agents’ tool of its own: not a step’s move, not a read, in no step’s list', () => {
     expect(AgentTool.options).toContain(DECISION_TOOL);
     expect(DECISION_TOOL).toBe('record_decision');
+    expect(DECISION_TOOL_CALLS).toEqual(['mcp__mwc__record_decision', 'mcp:mwc/record_decision']);
     expect(isDecisionTool(DECISION_TOOL)).toBe(false);
     expect(READ_TOOLS).not.toContain(DECISION_TOOL);
     expect(stepTools('check')).not.toContain(DECISION_TOOL);

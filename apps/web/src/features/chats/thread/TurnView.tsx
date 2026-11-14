@@ -1,5 +1,6 @@
 import { CircleAlert } from 'lucide-react';
 import { useMemo } from 'react';
+import type { Decision } from '../../../api/decisions.ts';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import { MessageAuthor } from '../../../components/feed/MessageAuthor.tsx';
 import { BranchAction } from '../branch/BranchAction.tsx';
@@ -27,7 +28,8 @@ import { TodoCard } from './todo/TodoCard.tsx';
  * blocks), the to-do card, the agent's question (S5.2 step 4), and the live status while it runs (or the machine's
  * progress while it waits for its stopped machine) or the quiet summary once it ended, with Copy and Branch under the
  * reply. A Compact turn is a marker, a Clear a divider; a turn whose prompt carried answers shows no prompt (the
- * question's receipt stands for it). The authors and the faces' size come from the thread (`ThreadLookContext`).
+ * question's receipt stands for it). The decisions the agent recorded show as cards where each was made (2026-11-14).
+ * The authors and the faces' size come from the thread (`ThreadLookContext`).
  */
 
 /** A turn's failure; the last turn's missing folder offers Create folder and Send again (`HomeMissingActions`). */
@@ -45,6 +47,11 @@ function FailedBox({ error, fix }: { readonly error: string; readonly fix: strin
     </div>
   );
 }
+
+const NO_DECISIONS: readonly Decision[] = [];
+
+/** A message turn's element id, which a link to it names after `#` (a decision's "in its chat"). */
+export const turnAnchor = (turnId: string) => `turn-${turnId}`;
 
 /** Where a turn stands in the thread, and how its question is answered. */
 export interface TurnPlace {
@@ -131,14 +138,17 @@ export function TurnView({
   agentName,
   chatInit,
   place,
+  decisions = NO_DECISIONS,
 }: {
   readonly turn: ChatTurnWithEvents;
   readonly agentName: string;
   /** What the chat last ran on (its detail's `init`), until the turn's own `init` says. */
   readonly chatInit: RunsOn | undefined;
   readonly place: TurnPlace;
+  /** The decisions the agent recorded in this turn, oldest first: cards where each was made. */
+  readonly decisions?: readonly Decision[] | undefined;
 }) {
-  const model = useMemo(() => turnModel(turn), [turn]);
+  const model = useMemo(() => turnModel(turn, decisions), [turn, decisions]);
   const { authors, dense } = useThreadLook(agentName);
   if (turn.kind === 'clear') {
     return (
@@ -156,7 +166,7 @@ export function TurnView({
   }
   const note = turn.delivery ? STARTED_NOTE[turn.delivery] : undefined;
   return (
-    <li className="grid gap-2">
+    <li id={turnAnchor(turn.id)} className="grid scroll-mt-4 gap-2">
       {!place.answer && (
         <PromptMessage
           prompt={turn.prompt}

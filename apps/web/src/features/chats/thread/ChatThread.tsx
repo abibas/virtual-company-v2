@@ -1,5 +1,6 @@
 import { ArrowDown, MessagesSquare } from 'lucide-react';
 import { type ReactNode, type RefObject, useMemo } from 'react';
+import { type Decision, decisionsByTurn } from '../../../api/decisions.ts';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import type { EarlierConversations as Folds } from '../../../api/use-chat-earlier.ts';
 import type { ChatEarlierLive } from '../../../api/use-chat-live.ts';
@@ -16,6 +17,7 @@ import { sentTurnIds } from './question/use-question-draft.ts';
 import type { RunsOn } from './status/WorkingStatus.tsx';
 import { TurnView } from './TurnView.tsx';
 import { useFollow } from './use-follow.ts';
+import { useTurnAnchor } from './use-turn-anchor.ts';
 
 /** The thread's reading column (and the composer's): a comfortable measure that still fits code and tables. */
 export const THREAD_WIDTH = 'mx-auto w-full max-w-[44rem]';
@@ -49,7 +51,8 @@ function currentOf(turns: readonly ChatTurnWithEvents[]) {
  * The chat's turns as a thread (S5.1c, S5.2), scrolled to the latest on open and following the live output while the
  * person is at the bottom (`useFollow`). Scrolling up to read stops the following and shows "Jump to latest". Above
  * the current conversation: a bar for each conversation before a Clear (folded), and "Load older messages" while older
- * turns of the current one are left out, which keeps the reader's place as they go in.
+ * turns of the current one are left out, which keeps the reader's place as they go in. A link to a turn
+ * (`#turn-<id>`) scrolls to it once it is loaded.
  */
 export interface ChatThreadProps {
   readonly turns: readonly ChatTurnWithEvents[];
@@ -66,6 +69,8 @@ export interface ChatThreadProps {
   readonly lead?: ReactNode;
   /** Narrow (the right rail's docked chat): tighter margins. */
   readonly dense?: boolean;
+  /** The decisions the agent recorded in this chat (2026-11-14): each turn shows its own where they were made. */
+  readonly decisions?: readonly Decision[];
 }
 
 /** How the replies branch: the chat's harness (how far it forks) and the action on a turn. */
@@ -126,6 +131,7 @@ export function ChatThread({
   branching,
   lead,
   dense = false,
+  decisions,
 }: ChatThreadProps) {
   const current = currentOf(turns);
   const streaming = current.some((turn) => turn.status === 'running');
@@ -138,6 +144,8 @@ export function ChatThread({
   };
   const empty = current.length === 0 && history.live.conversations.length === 0;
   const look = useMemo(() => ({ authors, dense }), [authors, dense]);
+  const byTurn = useMemo(() => decisionsByTurn(decisions ?? []), [decisions]);
+  useTurnAnchor(follow.box, current, follow.onScroll);
   return (
     <ThreadLookContext value={look}>
       <div className="relative flex min-h-0 flex-1 flex-col">
@@ -165,6 +173,7 @@ export function ChatThread({
                     turn={turn}
                     agentName={agentName}
                     chatInit={chatInit}
+                    decisions={byTurn.get(turn.id)}
                     place={{
                       last: index === current.length - 1,
                       answer: answers.has(turn.id),
