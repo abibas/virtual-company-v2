@@ -6,6 +6,9 @@ import type { AgentIconSubject } from '../../../components/feed/AgentIcon.tsx';
 import { type MessageAuthorView, SYSTEM_AUTHOR } from '../../../components/feed/MessageAuthor.tsx';
 import { nodesById } from '../../../components/org/chart.ts';
 import { personName } from '../../../components/ui/Avatar.tsx';
+import type { IconComponent } from '../../../components/ui/icon.ts';
+import { SlackMark } from '../../../components/ui/ProviderLogo.tsx';
+import { contactPath } from '../../contacts/links.ts';
 
 /** Who wrote a turn's prompt, and whether it is the person reading (their own messages sit on the right). */
 export interface Prompter {
@@ -32,14 +35,23 @@ const personAuthor = (
   imageUrl,
 });
 
-/** The outside place a turn Most Wanted queued came from, as its author's "via" (2026-11-13: a Slack message). */
-const VIA: Readonly<Record<NonNullable<ChatTurn['from']>['via'], string>> = { slack: 'Slack' };
+type Sender = NonNullable<ChatTurn['from']>;
 
-/** A Slack message's sender as its turn's author: their name, via Slack. */
-const viaAuthor = (from: NonNullable<ChatTurn['from']>): MessageAuthorView => ({
+/** The outside place a turn Most Wanted queued came from, as its author's "via" (2026-11-13: a Slack message). */
+const VIA: Readonly<Record<Sender['via'], { readonly label: string; readonly mark: IconComponent }>> = {
+  slack: { label: 'Slack', mark: SlackMark },
+};
+
+/**
+ * A Slack message's sender as its turn's author (2026-11-14): their Slack photo and name, which links to their contact,
+ * and the Slack mark linking to the message there.
+ */
+const viaAuthor = (from: Sender, contactHref: ((id: string) => string) | undefined): MessageAuthorView => ({
   kind: 'person',
   name: from.name,
-  via: VIA[from.via],
+  imageUrl: from.avatarUrl,
+  via: { ...VIA[from.via], link: from.link },
+  ...(from.contactId !== null && contactHref !== undefined ? { href: contactHref(from.contactId) } : {}),
 });
 
 type AgentNode = Extract<ChartNode, { kind: 'agent' }>;
@@ -70,18 +82,21 @@ export function replierOf(
 
 /**
  * The thread's authors from the company's chart (`nodes`, by principal; none while it loads) and the reader. A prompt
- * Most Wanted queued for a Slack message is its sender's, via Slack; any other it queued itself is its own; any other is its writer's, found on the chart. Until the chart comes, a
- * person's prompt is taken as the reader's (the usual case: admins write in their agents' chats); someone no longer on
- * the chart shows as a former member.
+ * Most Wanted queued for a Slack message is its sender's, via Slack (their name linking to their contact through
+ * `contactHref`); any other it queued itself is its own; any other is its writer's, found on the chart. Until the chart
+ * comes, a person's prompt is taken as the reader's (the usual case: admins write in their agents' chats); someone no
+ * longer on the chart shows as a former member.
  */
 export function threadAuthors({
   agent,
   nodes,
   reader,
+  contactHref,
 }: {
   readonly agent: AgentIconSubject;
   readonly nodes: ReadonlyMap<string, ChartNode> | undefined;
   readonly reader: Reader | undefined;
+  readonly contactHref?: ((contactId: string) => string) | undefined;
 }): ThreadAuthors {
   const replier: MessageAuthorView = { kind: 'agent', name: agent.name, agent };
   const self: Prompter = {
@@ -93,7 +108,7 @@ export function threadAuthors({
   return {
     agent: replier,
     prompter: (turn) => {
-      if (turn.system && turn.from) return { author: viaAuthor(turn.from), own: false };
+      if (turn.system && turn.from) return { author: viaAuthor(turn.from, contactHref), own: false };
       if (turn.system) return { author: SYSTEM_AUTHOR, own: false };
       if (nodes === undefined) return self;
       const node = nodes.get(turn.createdBy);
@@ -108,9 +123,14 @@ export function threadAuthors({
 /** The thread's authors for a chat with `agent`, from the company's chart (loaded here) and the signed-in person. */
 export function useThreadAuthors(companyId: string, agent: AgentIconSubject): ThreadAuthors {
   const chart = useOrgChart(companyId);
-  const reader = useCompany().me.user;
+  const { me, membership } = useCompany();
+  const reader = me.user;
   const nodes = useMemo(() => (chart.data ? nodesById(chart.data.nodes) : undefined), [chart.data]);
-  return useMemo(() => threadAuthors({ agent, nodes, reader }), [agent, nodes, reader]);
+  const { slug } = membership;
+  return useMemo(
+    () => threadAuthors({ agent, nodes, reader, contactHref: (id) => contactPath(slug, id) }),
+    [agent, nodes, reader, slug],
+  );
 }
 
 /** What the thread's turns read their authors from: the authors, and whether the thread is narrow (smaller faces). */

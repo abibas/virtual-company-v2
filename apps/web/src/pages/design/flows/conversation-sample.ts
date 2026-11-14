@@ -132,6 +132,8 @@ const turn = (
     delivery: null,
     system: false,
     from: null,
+    visibleText: null,
+    replyLink: null,
     machineWaitAt: null,
     machineWait: null,
     profileId: null,

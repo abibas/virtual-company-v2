@@ -18,6 +18,7 @@ import { ReplyParts } from './ReplyParts.tsx';
 import { HomeMissingActions } from './status/HomeMissing.tsx';
 import { MachineWaitStatus } from './status/MachineWait.tsx';
 import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
+import { PostedInSlack } from './status/PostedInSlack.tsx';
 import { TurnFooter } from './status/TurnFooter.tsx';
 import { QueuedStatus, type RunsOn, WorkingStatus } from './status/WorkingStatus.tsx';
 import { ClearDivider, CompactTurn } from './TurnMarkers.tsx';
@@ -29,9 +30,19 @@ import { TodoCard } from './todo/TodoCard.tsx';
  * blocks), the to-do card, the agent's question (S5.2 step 4), and the live status while it runs (or the machine's
  * progress while it waits for its stopped machine) or the quiet summary once it ended, with Copy and Branch under the
  * reply. A Compact turn is a marker, a Clear a divider; a turn whose prompt carried answers shows no prompt (the
+<<<<<<< HEAD
  * question's receipt stands for it). The decisions the agent recorded show as cards where each was made (2026-11-14).
  * The authors and the faces' size come from the thread (`ThreadLookContext`).
+=======
+ * question's receipt stands for it). The authors and the faces' size come from the thread (`ThreadLookContext`). A
+ * Slack message's turn (2026-11-14) shows only the message as its sender wrote it (`visibleText`; the agent got the
+ * prompt with its header), and its reply says "Posted in Slack" once it was posted there.
+>>>>>>> 2978883 (Contacts: the db's table counts with contacts, and the chat thread shows a Slack message as its sender's)
  */
+
+/** What the reader sees of a turn's prompt: a message from outside as written (an empty one said so), else the prompt. */
+const shownPrompt = (turn: Pick<ChatTurnWithEvents, 'prompt' | 'visibleText'>) =>
+  turn.visibleText === null ? turn.prompt : turn.visibleText.trim() || '(no text)';
 
 /** A turn's failure; the last turn's missing folder offers Create folder and Send again (`HomeMissingActions`). */
 function FailedBox({ error, fix }: { readonly error: string; readonly fix: string | undefined }) {
@@ -116,6 +127,7 @@ function Reply({
             <div className="min-w-0 flex-1">
               <TurnFooter turn={turn} model={model} />
             </div>
+            {turn.replyLink && <PostedInSlack link={turn.replyLink} />}
             {model.replyText && (
               <MessageActions
                 text={model.replyText}
@@ -167,7 +179,7 @@ export function TurnView({
     <li id={turnAnchor(turn.id)} className="grid scroll-mt-4 gap-2">
       {!place.answer && (
         <PromptMessage
-          prompt={turn.prompt}
+          prompt={shownPrompt(turn)}
           prompter={authors.prompter(turn)}
           at={turn.createdAt}
           note={note}

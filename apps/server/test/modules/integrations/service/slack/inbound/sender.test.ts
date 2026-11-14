@@ -115,7 +115,7 @@ describe('the first message of an allowed person', () => {
       replyLink: 'https://airia-fake.slack.com/archives/C0GENERAL1/p1731499999000100',
     });
     expect(String(view?.prompt)).toContain('Your final reply is posted there under your name.');
-    expect((view?.from as { contactId: string }).contactId).toBe(
+    expect((view?.from as { contactId: string } | undefined)?.contactId).toBe(
       (await contactRows(w.t.db, s.company.companyId))[0]?.id,
     );
   });
