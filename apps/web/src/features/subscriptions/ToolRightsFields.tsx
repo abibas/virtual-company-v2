@@ -3,6 +3,7 @@ import {
   CONFLUENCE_SPACE_PATTERN,
   type ConfluenceAccess,
   GITHUB_REPO_PATTERN,
+  type GitHubReviews,
   type GitHubRights,
   JIRA_PROJECT_PATTERN,
   type JiraAccess,
@@ -21,7 +22,16 @@ export interface RightsProps<R> {
   readonly disabled: boolean;
 }
 
-/** GitHub's rights: the repositories it reaches, and whether it pushes branches and opens pull requests. */
+const REVIEW_LEVELS: readonly SegmentOption<GitHubReviews>[] = [
+  { value: 'off', label: 'Off' },
+  { value: 'comment', label: 'Comment' },
+  { value: 'approve', label: 'Approve' },
+];
+
+/**
+ * GitHub's rights: the repositories it reaches, whether it pushes branches and opens pull requests, and its reviews (Off,
+ * Comment, Approve: approving and requesting changes too).
+ */
 function GitHubRightsFields({ rights, onChange, disabled }: RightsProps<GitHubRights>) {
   const set = (change: Partial<GitHubRights>) => onChange({ ...rights, ...change });
   return (
@@ -49,6 +59,16 @@ function GitHubRightsFields({ rights, onChange, disabled }: RightsProps<GitHubRi
           checked={rights.pullRequests}
           disabled={disabled}
           onChange={(pullRequests) => set({ pullRequests })}
+        />
+      </ChoiceField>
+      <ChoiceField label="Reviews">
+        <SegmentedControl
+          label="Reviews"
+          size="sm"
+          options={REVIEW_LEVELS}
+          value={rights.reviews ?? 'off'}
+          onChange={(reviews) => set({ reviews })}
+          disabled={disabled}
         />
       </ChoiceField>
     </div>
@@ -132,8 +152,8 @@ function AtlassianRightsFields({ rights, onChange, disabled }: RightsProps<Atlas
 }
 
 /**
- * A tool part's rights as compact controls (S7.1b): GitHub's repositories (All, or chips) with Push branches and Pull
- * requests; Atlassian's Jira (Off, Read, Changes) and Confluence (Off, Read, Write), each with its projects or spaces;
+ * A tool part's rights as compact controls (S7.1b): GitHub's repositories (All, or chips) with Push branches, Pull
+ * requests and Reviews (Off, Comment, Approve); Atlassian's Jira (Off, Read, Changes) and Confluence (Off, Read, Write), each with its projects or spaces;
  * Slack's (S7.1e) channels, Read, Post, Search, React and DMs, gated by its sign-in's scopes. Each change hands back the
  * whole set.
  */

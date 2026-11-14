@@ -83,9 +83,10 @@ export const ProfileAgentSchema = z
 /** The GitHub part's rights (the whole set); the shared schemas are cloned so the copies follow zod-openapi's zod. */
 const GitHubRightsSchema = GitHubRights.clone().openapi('GitHubRights', {
   description:
-    '`repos` (`all`, or `owner/name` and `owner/*`), `push` (push branches), `pullRequests` (open and update them); ' +
-    'it never merges, deletes, force-pushes or pushes to a default branch',
-  example: { repos: ['AiriaLLC/*'], push: true, pullRequests: true },
+    '`repos` (`all`, or `owner/name` and `owner/*`), `push` (push branches), `pullRequests` (open and update them), ' +
+    '`reviews` (`off`, the default; `comment`; `approve`: also APPROVE and REQUEST_CHANGES); it never merges, closes, ' +
+    "deletes, force-pushes, pushes to a default branch, dismisses others' reviews or approves its own pull request",
+  example: { repos: ['AiriaLLC/*'], push: true, pullRequests: true, reviews: 'comment' },
 });
 
 /** The Atlassian part's rights (the whole set): Jira's and Confluence's levels and where they reach. */
