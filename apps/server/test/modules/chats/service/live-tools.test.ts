@@ -1,5 +1,6 @@
 import type { ChatTurn, TenantDb } from '@mwc/db';
 import { describe, expect, it } from 'vitest';
+import { chatBus } from '../../../../src/modules/chats/service/bus.ts';
 import { NO_TOOLS_HERE, toolCall } from '../../../../src/modules/chats/service/live-tools.ts';
 import type { ServerToolsHook, ServerToolTurn } from '../../../../src/modules/chats/service/server-tools.ts';
 import type { AgentToolTurn, TaskTurnHook } from '../../../../src/modules/chats/service/task-hook.ts';
@@ -7,6 +8,7 @@ import type { AgentToolTurn, TaskTurnHook } from '../../../../src/modules/chats/
 /** An agent's tool call during a live turn: answered by the tasks module's hook on the turn's queue, or by no one. */
 
 const t = {} as TenantDb;
+const bus = chatBus();
 const turn = { id: 'turn-1', chatId: 'chat-1', createdBy: 'person-1' } as ChatTurn;
 const call = { callId: 'c1', tool: 'task_note', input: {} };
 const task = {
@@ -40,23 +42,29 @@ describe('toolCall', () => {
   it('answers that the turn has no tools without a hook, a tool, or an agent', async () => {
     const { hook, run } = hookOf();
     const none = { ok: false, text: NO_TOOLS_HERE };
-    expect(await toolCall({}, run, t, { turn, context: { agentPrincipalId: 'a' } }, call)).toEqual(none);
+    expect(await toolCall({}, run, t, { turn, bus, context: { agentPrincipalId: 'a' } }, call)).toEqual(none);
     expect(
       await toolCall(
         { tasks: {} as TaskTurnHook },
         run,
         t,
-        { turn, context: { agentPrincipalId: 'a' } },
+        { turn, bus, context: { agentPrincipalId: 'a' } },
         call,
       ),
     ).toEqual(none);
-    expect(await toolCall({ tasks: hook }, run, t, { turn, context: {} }, call)).toEqual(none);
+    expect(await toolCall({ tasks: hook }, run, t, { turn, bus, context: {} }, call)).toEqual(none);
   });
 
   it("asks the hook on the turn's queue, as the chat's agent, else as its task step's", async () => {
     const own = hookOf();
     expect(
-      await toolCall({ tasks: own.hook }, own.run, t, { turn, context: { agentPrincipalId: 'lead' } }, call),
+      await toolCall(
+        { tasks: own.hook },
+        own.run,
+        t,
+        { turn, bus, context: { agentPrincipalId: 'lead' } },
+        call,
+      ),
     ).toEqual({
       ok: true,
       text: 'noted',
@@ -66,7 +74,7 @@ describe('toolCall', () => {
     ]);
     expect(own.queued()).toBe(1);
     const step = hookOf();
-    await toolCall({ tasks: step.hook }, step.run, t, { turn, context: { task } }, call);
+    await toolCall({ tasks: step.hook }, step.run, t, { turn, bus, context: { task } }, call);
     expect(step.seen[0]).toMatchObject({ agentPrincipalId: 'agent-of-step', task });
   });
 });
@@ -88,7 +96,7 @@ describe('toolCall of a server tool (S7.1c)', () => {
     const hooks = { tasks: tasks.hook, serverTools: serverTools(seen) };
     const get = { callId: 'c2', tool: 'getJiraIssue', input: { issueIdOrKey: 'AP-301' } };
     expect(
-      await toolCall(hooks, tasks.run, t, { turn: ran, context: { agentPrincipalId: 'dev' } }, get),
+      await toolCall(hooks, tasks.run, t, { turn: ran, bus, context: { agentPrincipalId: 'dev' } }, get),
     ).toEqual({
       ok: true,
       text: 'AP-301',
@@ -98,7 +106,7 @@ describe('toolCall of a server tool (S7.1c)', () => {
     ]);
     expect(tasks.queued()).toBe(0);
     expect(
-      await toolCall(hooks, tasks.run, t, { turn: ran, context: { agentPrincipalId: 'dev' } }, call),
+      await toolCall(hooks, tasks.run, t, { turn: ran, bus, context: { agentPrincipalId: 'dev' } }, call),
     ).toEqual({
       ok: true,
       text: 'noted',

@@ -35,9 +35,9 @@ const SYSTEM_TIMERS: StreamTimers = {
   clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>),
 };
 
-/** Whether a message may change how the chat lists: anything but an event, of which only a question does. */
+/** Whether a message may change how the chat lists: anything but an event or a decision; of events, a question. */
 export const listsAnew = (activity: ChatActivity): boolean =>
-  activity.kind !== 'event' || activity.event.event.type === 'question';
+  activity.kind === 'event' ? activity.event.event.type === 'question' : activity.kind !== 'decision';
 
 /** The chat as the activity sends it; undefined for another company's chat or a task's conversation. */
 export async function activityOf(t: TenantDb, chatId: string): Promise<ChatActivityView | undefined> {

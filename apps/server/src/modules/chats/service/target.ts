@@ -73,6 +73,8 @@ export interface Target {
   readonly kind: CredentialKind;
   /** True when the machine's runner offers the agents' tools (S6a, `caps.agentTools`). */
   readonly agentTools: boolean;
+  /** True when its turns offer the decision log's `record_decision` (2026-11-14, `caps.decisions`). */
+  readonly decisions: boolean;
   /** True when it lists and relays the server's own tools (S7.1c, `caps.serverTools`). */
   readonly serverTools: boolean;
   /** How many of them a turn's spec may carry (S7.1e: 64; an older runner 32, `serverToolsLimit`). */
@@ -111,6 +113,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
     agent,
     placement,
     agentTools: caps.agentTools === true,
+    decisions: caps.decisions === true,
     serverTools: caps.serverTools,
     serverToolsMax: serverToolsLimit(caps),
     github: caps.github === true,
@@ -204,6 +207,7 @@ export async function resolveTarget(
     ownerUserId: profile.ownerUserId,
     kind: credential.kind,
     agentTools: place.agentTools,
+    decisions: place.decisions,
     serverTools: place.serverTools,
     serverToolsMax: place.serverToolsMax,
     github: place.github,

@@ -1,8 +1,10 @@
+import type { DecisionView } from '@mwc/shared/flows';
 import type { ChatStreamEvent, ChatTurnView } from '../schemas.ts';
 
 /**
- * What a chat's stream listeners hear (S5.1b): a turn that started or changed status, each event stored, and a waiting
- * message that went (S5.2 step 6: discarded, or taken into the running turn). Memory only, in this server process: a
+ * What a chat's stream listeners hear (S5.1b): a turn that started or changed status, each event stored, a waiting
+ * message that went (S5.2 step 6: discarded, or taken into the running turn), and a decision the agent recorded
+ * (2026-11-14). Memory only, in this server process: a
  * listener that missed something reads it back from the database (`Last-Event-ID`, or the chat's detail). Watchers
  * (2026-11-13, the chats' activity) hear every chat's messages, and a chat that was made or changed (`changed`: begun,
  * renamed, archived), which no chat's own listener hears.
@@ -11,7 +13,9 @@ import type { ChatStreamEvent, ChatTurnView } from '../schemas.ts';
 export type ChatMessage =
   | { readonly kind: 'turn'; readonly turn: ChatTurnView }
   | { readonly kind: 'event'; readonly event: ChatStreamEvent }
-  | { readonly kind: 'removed'; readonly turnId: string };
+  | { readonly kind: 'removed'; readonly turnId: string }
+  /** A decision the agent recorded with `record_decision` (2026-11-14). */
+  | { readonly kind: 'decision'; readonly decision: DecisionView };
 
 /** What a watcher hears: a chat's message, or that the chat itself was made or changed. */
 export type ChatActivity = ChatMessage | { readonly kind: 'chat' };

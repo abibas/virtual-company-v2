@@ -9,14 +9,15 @@ import { streamEvent, turnView } from './views.ts';
  * A chat's stream (S5.1b, `GET …/chats/{chatId}/stream`, Server-Sent Events): `turn` messages (`{turn}`) when a turn
  * starts or changes status, `event` messages (`{turnId, turnSeq, seq, event, at}`) for each event with its id
  * `<turnSeq>.<seq>`, `removed` messages (`{turnId}`) when a waiting message goes (S5.2 step 6; never replayed: a page
- * that reconnects reads the chat's detail again), and a `: heartbeat` comment every 20 s. With a `Last-Event-ID` it first sends what came after it:
+ * that reconnects reads the chat's detail again), `decision` messages (`{decision}`) when the agent records one
+ * (2026-11-14; never replayed either: a page reads the chat's decisions again), and a `: heartbeat` comment every 20 s. With a `Last-Event-ID` it first sends what came after it:
  * the turns from that one on (as they are now) and their later events, then the live messages, an event never twice.
  * It listens before it reads, so nothing that happens during the replay is lost.
  */
 
 /** Where the messages go (the route writes them as Server-Sent Events). */
 export interface StreamSink {
-  message(event: 'turn' | 'event' | 'removed', data: string, id?: string): Promise<void>;
+  message(event: 'turn' | 'event' | 'removed' | 'decision', data: string, id?: string): Promise<void>;
   comment(text: string): Promise<void>;
 }
 
@@ -63,6 +64,10 @@ export async function streamChat(
     }
     if (message.kind === 'removed') {
       chain = chain.then(() => sink.message('removed', JSON.stringify({ turnId: message.turnId })));
+      return;
+    }
+    if (message.kind === 'decision') {
+      chain = chain.then(() => sink.message('decision', JSON.stringify({ decision: message.decision })));
       return;
     }
     const position = positionOf(message.event);

@@ -18,6 +18,7 @@ import {
   titleOf,
 } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
+import { type DecisionsHook, withDecisionTool } from './decisions.ts';
 import type { InboundTurnHook } from './inbound.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
@@ -54,6 +55,8 @@ export interface TurnsDeps extends TargetDeps {
   readonly tasks?: TaskTurnHook | undefined;
   /** The server's own tools (S7.1c, the Atlassian tools); none: a turn gets none. */
   readonly serverTools?: ServerToolsHook | undefined;
+  /** The decision log (2026-11-14); none: a turn gets no `record_decision`. */
+  readonly decisions?: DecisionsHook | undefined;
   /** The waits for a stopped machine (the runtime's); none: a stopped machine refuses the turn (`machine_offline`). */
   readonly waits?: MachineWaits | undefined;
   /** What hears the end of a turn Most Wanted queued for a message from outside, one that never started too. */
@@ -183,9 +186,9 @@ export async function startTurn(
 }
 
 /**
- * What a turn's spec adds for the tools when its runner offers them: the agents' tools' names (S6a), the server's own
- * tools of its profile (S7.1c) with, on a runner that takes it, the GitHub sign-in for git and gh (S7.1d), and its
- * instructions with each one's line.
+ * What a turn's spec adds for the tools when its runner offers them: the agents' tools' names (S6a) with the decision
+ * log's (2026-11-14), the server's own tools of its profile (S7.1c) with, on a runner that takes it, the GitHub sign-in
+ * for git and gh (S7.1d), and its instructions with each one's line.
  */
 export async function specTools(
   deps: TurnsDeps,
@@ -198,7 +201,7 @@ export async function specTools(
   },
 ) {
   const { target, kind } = turn;
-  const agent = await toolsOf(deps.tasks, t, {
+  const tasks = await toolsOf(deps.tasks, t, {
     chat: turn.chat,
     agent: target.agent,
     kind,
@@ -206,6 +209,8 @@ export async function specTools(
     offers: target.agentTools,
     instructions: target.spec.instructions,
   });
+  const decisions = { hook: deps.decisions, offers: target.decisions, kind };
+  const agent = withDecisionTool(tasks, { ...decisions, instructions: target.spec.instructions });
   const instructions = agent.instructions ?? target.spec.instructions;
   const offers = target.serverTools;
   const git = target.github ? { chatId: turn.chat.id, agentId: target.agent.id, by: target.by } : undefined;

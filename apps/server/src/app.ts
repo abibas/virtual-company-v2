@@ -10,6 +10,7 @@ import {
   signInRoutes,
   toolCheckJob,
 } from './modules/credentials/index.ts';
+import { decisionsHook, decisionsRoutes } from './modules/decisions/index.ts';
 import { healthRoutes } from './modules/health/index.ts';
 import { identityRoutes, reconcileCompany, retryIdentityEvents } from './modules/identity/index.ts';
 import { inboxRoutes } from './modules/inbox/index.ts';
@@ -128,7 +129,19 @@ export function createApp(deps: AppOptions) {
   // Slack messages wake agents (2026-11-13); a turn's end posts its answer back, through the same Slack connector.
   const slack = slackReceiving({ ...server, keyring, slack: tools.slack });
   const inbound = slack.answers;
-  const chatsDeps = { ...server, hub, tickets, keyring, tasks: hook, serverTools, inbound, wake: power.wake };
+  // The decision log (2026-11-14): every message turn's record_decision, kept by the decisions module.
+  const decisions = decisionsHook(server);
+  const chatsDeps = {
+    ...server,
+    hub,
+    tickets,
+    keyring,
+    tasks: hook,
+    serverTools,
+    inbound,
+    decisions,
+    wake: power.wake,
+  };
   const chats = chatsRuntime(chatsDeps);
   startLeadWakes(server, chats.teamChats, deps.leadWakeTimers);
   const sockets = deps.slackSockets ?? slackSocketsFor(fetch);
@@ -162,6 +175,7 @@ export function createApp(deps: AppOptions) {
     .route('/', notificationsRoutes(server))
     .route('/', tasksRoutes({ ...server, steps: chats.taskTurns, team: chats.teamChats }))
     .route('/', inboxRoutes(server))
+    .route('/', decisionsRoutes(server))
     .route('/', integrationsRoutes({ ...server, keyring, slack: tools.slack, receiving }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.

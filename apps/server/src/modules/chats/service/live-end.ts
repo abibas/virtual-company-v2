@@ -7,6 +7,7 @@ import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { endedTurn, type TurnOutcome } from '../rules.ts';
 import type { ChatBus } from './bus.ts';
+import type { DecisionsHook } from './decisions.ts';
 import { type InboundTurnHook, tellInbound } from './inbound.ts';
 import { heldForSlot } from './live-slot.ts';
 import type { ServerToolsHook } from './server-tools.ts';
@@ -36,6 +37,8 @@ export interface LiveDeps {
   readonly tasks?: TaskTurnHook | undefined;
   /** The server's own tools (S7.1c), whose calls skip the write queue. */
   readonly serverTools?: ServerToolsHook | undefined;
+  /** The decision log (2026-11-14), whose `record_decision` calls go on the write queue. */
+  readonly decisions?: DecisionsHook | undefined;
   /** What hears the end of a turn Most Wanted queued for a message from outside (a Slack message, 2026-11-13). */
   readonly inbound?: InboundTurnHook | undefined;
 }

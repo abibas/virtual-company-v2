@@ -33,7 +33,8 @@ import { streamEvent, turnView } from './views.ts';
  * module's hook, on the same queue, before the next waiting turn starts. A turn whose runner went away (S5.4) is
  * `detached` until its runner comes back with it (the stream shows it reconnecting) and says the last event it stored
  * (`lastSeq`); after a server restart, `adopt` builds the sink of a turn left running from its stored events. An agent's
- * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end. A
+ * tool call (S6a) goes to the tasks module's hook on the same queue, so a decision is written before the turn's end (and
+ * a `record_decision` call to the decision log's, 2026-11-14). A
  * turn the runner refuses for a full machine (`busy`) waits for a free slot instead of ending (`live-slot.ts`). A turn
  * Most Wanted queued tells the tasks module's hook its end too (`systemEnded`: the team room posts its reply). How an end
  * closes the turn, or starts it again on a fresh conversation when the harness lost its own (S7, 2026-11-13), is
@@ -142,7 +143,7 @@ export function chatsLive(deps: LiveDeps) {
           }),
         artifact: (file) => void run(async () => hook?.collected(t, task as TaskTurnContext, file)),
         artifacts: (collected) => void run(async () => hook?.skipped(t, task as TaskTurnContext, collected)),
-        tool: (call) => toolCall(deps, run, t, { turn, context }, call),
+        tool: (call) => toolCall(deps, run, t, { turn, context, bus }, call),
         end: async (ending) => {
           let after: (() => void) | undefined;
           await run(async () => {

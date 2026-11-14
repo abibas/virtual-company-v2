@@ -39,6 +39,8 @@ export interface WakeOptions {
   readonly leadUnplaced?: boolean;
   /** The machine's slots (the fake runner's eight unless said). */
   readonly slots?: number;
+  /** Its runner offers the decision log's `record_decision` too (`caps.decisions`). */
+  readonly decisions?: boolean;
 }
 
 /** The team, its machine online (with the agents' tools), the Lead and the Developer placed with a profile, the flow. */
@@ -46,7 +48,9 @@ export async function wakeScene(w: WakeWorld, options: WakeOptions = {}): Promis
   const c = await teamCompany(w);
   const { machineId, runnerKey } = await enroll(w, c);
   const slots = options.slots === undefined ? {} : { slots: options.slots };
-  const runner = await w.connect(runnerKey, { caps: { ...BOTH_HARNESSES, agentTools: true, ...slots } });
+  const decisions = options.decisions === true ? { decisions: true } : {};
+  const caps = { ...BOTH_HARNESSES, agentTools: true, ...slots, ...decisions };
+  const runner = await w.connect(runnerKey, { caps });
   const credential = await addSubscription(w, w.keyring, c.owner.userId, 'claude_setup_token');
   const profile = await seedProfile(w.t.db, c.owner.userId, {
     credentialId: credential.id,

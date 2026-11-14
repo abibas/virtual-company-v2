@@ -19,6 +19,7 @@ import { streamRoutes } from './routes/stream.ts';
 import { chatTerminalRoutes } from './routes/terminal.ts';
 import { turnRoutes } from './routes/turns.ts';
 import { failLeftTurns, turnAdopter } from './service/adopt.ts';
+import type { DecisionsHook } from './service/decisions.ts';
 import { type ChatQueue, chatQueue } from './service/drain.ts';
 import { type InboundTurnHook, inboundChats } from './service/inbound.ts';
 import { chatsLive } from './service/live.ts';
@@ -43,6 +44,8 @@ export interface ChatsDeps extends ServerDeps {
   readonly serverTools?: ServerToolsHook | undefined;
   /** What hears the end of a turn a Slack message started (2026-11-13: the integrations module posts its answer). */
   readonly inbound?: InboundTurnHook | undefined;
+  /** The decision log (2026-11-14: the decisions module stores what `record_decision` records). */
+  readonly decisions?: DecisionsHook | undefined;
   readonly wake: MachineWake;
 }
 
@@ -63,8 +66,8 @@ export interface ChatsDeps extends ServerDeps {
 export function chatsRuntime(deps: ChatsDeps) {
   const providerFetch = deps.providerFetch ?? providerFetchFor(deps.config);
   const credentials = credentialsForHarness({ ...deps, providerFetch });
-  const { logger, clock, tasks, serverTools, inbound } = deps;
-  const live = chatsLive({ logger, clock, credentials, tasks, serverTools, inbound });
+  const { logger, clock, tasks, serverTools, inbound, decisions } = deps;
+  const live = chatsLive({ logger, clock, credentials, tasks, serverTools, inbound, decisions });
   const later = {} as { queue: ChatQueue };
   const timers = deps.machineWaitTimers ?? SYSTEM_TIMERS;
   const startNext = (t: TenantDb, chatId: string) => later.queue.startNext(t, chatId);

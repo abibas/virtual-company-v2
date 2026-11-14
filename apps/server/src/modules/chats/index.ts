@@ -5,7 +5,9 @@
 // runtime's `teamChats` wakes a flow's Lead agent in its team chat for the tasks module. Since S7.1c a turn gets the
 // server's own tools of its profile through `ServerToolsHook`, which the integrations module implements. Since
 // 2026-11-13 a Slack message asks an agent for a turn through `InboundChats`, and its end comes back by `InboundTurnHook`.
+// Since 2026-11-14 every message turn gets `record_decision`, whose calls the decisions module stores (`DecisionsHook`).
 export { type ChatsDeps, type ChatsRuntime, chatsRoutes, chatsRuntime } from './routes.ts';
+export type { DecisionRecorded, DecisionsHook, DecisionTurn } from './service/decisions.ts';
 export type {
   InboundChats,
   InboundTurnHook,
