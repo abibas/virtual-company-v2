@@ -11,8 +11,8 @@ import {
 /**
  * A Slack person seen by the company (2026-11-14, docs/subscriptions.md "Contacts"): the integrations module calls it
  * when their message wakes one of the company's agents. The first time, their contact is made (audited as Most Wanted,
- * `create`); after that it takes what Slack gave this time that differs (the name, avatar, title, email and handle,
- * never blanked; audited `update`) and moves last seen forward. An archived contact stays archived. Two messages at
+ * `create`, named by their Slack id when Slack gave no name); after that it takes what Slack gave this time that
+ * differs (the name, avatar, title, email and handle, never blanked; audited `update`) and moves last seen forward. An archived contact stays archived. Two messages at
  * once (two Slack connections of one workspace) make one contact.
  */
 
@@ -44,6 +44,7 @@ export async function seenOnSlack(t: TenantDb, person: SlackPersonSeen, at: Date
     slackTeamId: person.teamId,
     slackUserId: person.userId,
     ...fields,
+    name: fields.name ?? person.userId,
     firstSeenAt: at,
     lastSeenAt: at,
   });

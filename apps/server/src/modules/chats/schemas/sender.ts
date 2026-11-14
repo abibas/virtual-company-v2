@@ -16,12 +16,9 @@ export const turnSenderFields = {
         .openapi({ description: 'Their Slack id; null for a turn from before 2026-11-14' }),
       avatarUrl: z.string().nullable(),
       link: z.string().nullable().openapi({ description: 'The message in Slack' }),
-      contactId: z
-        .string()
-        .nullable()
-        .openapi({
-          description: 'Their contact (`GET …/contacts/{contactId}`); null for a turn from before contacts',
-        }),
+      contactId: z.string().nullable().openapi({
+        description: 'Their contact (`GET …/contacts/{contactId}`); null for a turn from before contacts',
+      }),
     })
     .nullable()
     .openapi({

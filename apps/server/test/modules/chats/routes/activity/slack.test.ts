@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { type OpenActivity, openActivity } from '../../../../fixtures/chats/activity.ts';
 import { type OpenStream, openStream } from '../../../../fixtures/chats/stream.ts';
 import { chatPath, eventually } from '../../../../fixtures/chats/world.ts';
+import { contactRows } from '../../../../fixtures/contacts.ts';
 import {
   answerTurn,
   BOT,
@@ -16,7 +17,9 @@ import {
 /**
  * A Slack message's turn, live (2026-11-13, docs/harness.md "Live chat lists"): the new "Slack · …" chat shows in the
  * company's chats' activity at once with its turn running, as the sender's (`from`, via Slack), and a reply in the same
- * thread reaches the chat's own stream as a person's message does.
+ * thread reaches the chat's own stream as a person's message does. Since 2026-11-14 the turn names the sender's
+ * contact, so the activity tells who is being answered now (the org chart's Requesters), and the reply's link once
+ * posted.
  */
 
 let w: InboundWorld;
@@ -47,13 +50,16 @@ describe('a Slack message’s turn', () => {
     await s.conn.deliver(first);
     const shown = await live.next('the Slack chat', (v) => v.lastTurn?.status === 'running');
     expect(shown.chat).toMatchObject({ agentId: s.agentId, title: 'Slack · #general · Bro are you there?' });
+    const [contact] = await contactRows(w.t.db, s.company.companyId);
     expect(shown.lastTurn).toMatchObject({
       system: true,
-      from: { name: 'Ihor Herasko', via: 'slack' },
+      from: { name: 'Ihor Herasko', via: 'slack', userId: 'U0IHOR', contactId: contact?.id },
+      visibleText: '@mw-bot Bro are you there?',
     });
     const runner = s.runner as FakeRunner;
     answerTurn(runner, await runner.frames.next('turn.start'), 'Here.');
     await live.next('its reply', (v) => v.lastTurn?.status === 'done');
+    await live.next('the reply’s link', (v) => v.lastTurn?.replyLink != null);
     await eventually('the answer is posted', () => postsOf(w).length === 1);
 
     const thread = await openStream(w.t.app, chatPath(s.company, shown.chat.id, '/stream'), {

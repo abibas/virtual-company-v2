@@ -29,9 +29,9 @@ export interface SlackPersonSeen {
   readonly handle: string | null;
 }
 
-/** The fields a contact keeps of a person. */
+/** The fields a contact keeps of a person; a name null when Slack gave none (only their id). */
 export interface PersonFields {
-  readonly name: string;
+  readonly name: string | null;
   readonly avatarUrl: string | null;
   readonly title: string | null;
   readonly email: string | null;
@@ -56,11 +56,12 @@ function httpsUrl(value: string | null): string | null {
 
 const EMAIL = /^[^\s@]+@[^\s@]+$/;
 
-/** The fields kept of a Slack person (see above); a person with no name is named by their Slack id. */
+/** The fields kept of a Slack person (see above); no name when Slack gave none, or only their id. */
 export function personFields(person: SlackPersonSeen): PersonFields {
   const email = cut(person.email, CONTACT_EMAIL_MAX);
+  const name = cut(person.name, CONTACT_NAME_MAX);
   return {
-    name: cut(person.name, CONTACT_NAME_MAX) ?? person.userId,
+    name: name === person.userId ? null : name,
     avatarUrl: httpsUrl(person.avatarUrl),
     title: cut(person.title, CONTACT_TITLE_MAX),
     email: email !== null && EMAIL.test(email) ? email : null,
@@ -73,7 +74,10 @@ export function seenChanges(
   row: Pick<Contact, keyof PersonFields | 'lastSeenAt'>,
   fields: PersonFields,
   at: Date,
-): { readonly set: Partial<PersonFields> & { readonly lastSeenAt?: Date }; readonly changed: boolean } {
+): {
+  readonly set: Partial<Record<keyof PersonFields, string>> & { readonly lastSeenAt?: Date };
+  readonly changed: boolean;
+} {
   const set: Partial<Record<keyof PersonFields, string>> = {};
   for (const key of ['name', 'avatarUrl', 'title', 'email', 'handle'] as const) {
     const value = fields[key];
