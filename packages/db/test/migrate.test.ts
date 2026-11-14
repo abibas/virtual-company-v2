@@ -43,6 +43,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'api_keys',
       'audit_log',
       'chat_events',
+      'chat_participants',
       'chat_turns',
       'chats',
       'companies',

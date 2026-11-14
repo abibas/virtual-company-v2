@@ -1,6 +1,7 @@
 export * from './agent-icons.ts';
 export * from './api-keys.ts';
 export * from './audit-log.ts';
+export * from './chat-participants.ts';
 export * from './chats.ts';
 export * from './companies.ts';
 export * from './company-logos.ts';

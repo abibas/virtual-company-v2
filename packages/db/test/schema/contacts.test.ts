@@ -142,12 +142,12 @@ describe('chat_turns: a Slack message’s turn (0039)', () => {
     expect(row).toMatchObject({ sender: SENDER, visibleText: 'Hi', contactId: erich.id });
   });
 
-  it('takes a sender and a visible text only on a turn Most Wanted queued, and a contact only with a sender', async () => {
+  it('takes a sender only on a turn Most Wanted queued, a visible text only on a message, a contact only with a sender', async () => {
     const erich = await contact();
     expect(await constraint(turn({ sender: SENDER, system: false }))).toBe('chat_turns_sender_check');
     expect(await constraint(turn({ sender: [] as never }))).toBe('chat_turns_sender_check');
     expect(await constraint(turn({ contactId: erich.id }))).toBe('chat_turns_contact_check');
-    expect(await constraint(turn({ visibleText: 'Hi', system: false }))).toBe(
+    expect(await constraint(turn({ visibleText: 'Hi', kind: 'compact' }))).toBe(
       'chat_turns_visible_text_check',
     );
     expect(await constraint(turn({ visibleText: 'x'.repeat(20_001) }))).toBe('chat_turns_visible_text_check');

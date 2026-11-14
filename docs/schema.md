@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 44. Migrations: 40, the last is `0039_contacts`.
+Tables: 45. Migrations: 41, the last is `0040_chat_participants`.
 
 ```mermaid
 erDiagram
@@ -113,12 +113,21 @@ erDiagram
     jsonb event "not null"
     timestamptz at "not null, default now()"
   }
+  chat_participants {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid chat_id FK "not null"
+    uuid principal_id FK "nullable"
+    uuid contact_id FK "nullable"
+    uuid added_by FK "nullable"
+    timestamptz added_at "not null, default now()"
+  }
   chat_turns {
     uuid id PK "not null, default newId() (app-side)"
     uuid company_id FK "not null"
     uuid chat_id FK "not null"
     integer seq "not null"
-    text kind "not null, default 'message', message|compact|clear"
+    text kind "not null, default 'message', message|compact|clear|people|slack"
     text prompt "not null"
     text status "not null, default 'queued', queued|running|done|failed|stopped"
     text delivery "nullable, now|after|interrupt"
@@ -659,6 +668,11 @@ erDiagram
   audit_log }o--o| principals : "company_id, actor_principal_id"
   chat_events }o--|| companies : "company_id"
   chat_events }o--|| chat_turns : "company_id, turn_id"
+  chat_participants }o--|| companies : "company_id"
+  chat_participants }o--|| chats : "company_id, chat_id"
+  chat_participants }o--o| principals : "company_id, principal_id"
+  chat_participants }o--o| contacts : "company_id, contact_id"
+  chat_participants }o--o| principals : "company_id, added_by"
   chat_turns }o--|| companies : "company_id"
   chat_turns |o--|| chats : "company_id, chat_id"
   chat_turns }o--|| principals : "company_id, created_by"
@@ -1014,6 +1028,34 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_events_event_check`: `jsonb_typeof("event") = 'object'`
 - **Indexes:** none
 
+### `chat_participants`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `chat_id` | `uuid` | no |  | FK |  |
+| `principal_id` | `uuid` | yes |  | FK |  |
+| `contact_id` | `uuid` | yes |  | FK |  |
+| `added_by` | `uuid` | yes |  | FK |  |
+| `added_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`chat_participants_company_id_companies_id_fk`)
+  - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`chat_participants_chat_fk`)
+  - (`company_id`, `principal_id`) → `principals` (`company_id`, `id`), on delete no action (`chat_participants_principal_fk`)
+  - (`company_id`, `contact_id`) → `contacts` (`company_id`, `id`), on delete no action (`chat_participants_contact_fk`)
+  - (`company_id`, `added_by`) → `principals` (`company_id`, `id`), on delete no action (`chat_participants_added_by_fk`)
+- **Unique:**
+  - `chat_participants_company_id_id_unique` (`company_id`, `id`)
+  - `chat_participants_principal_unique` (`company_id`, `chat_id`, `principal_id`)
+  - `chat_participants_contact_unique` (`company_id`, `chat_id`, `contact_id`)
+- **Checks:**
+  - `chat_participants_who_check`: `("principal_id" is null) <> ("contact_id" is null)`
+- **Indexes:**
+  - `chat_participants_principal_idx` on (`company_id`, `principal_id`)
+
 ### `chat_turns`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -1022,7 +1064,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `company_id` | `uuid` | no |  | FK |  |
 | `chat_id` | `uuid` | no |  | FK |  |
 | `seq` | `integer` | no |  |  |  |
-| `kind` | `text` | no | `'message'` |  | `message`, `compact`, `clear` |
+| `kind` | `text` | no | `'message'` |  | `message`, `compact`, `clear`, `people`, `slack` |
 | `prompt` | `text` | no |  |  |  |
 | `status` | `text` | no | `'queued'` |  | `queued`, `running`, `done`, `failed`, `stopped` |
 | `delivery` | `text` | yes |  |  | `now`, `after`, `interrupt` |
@@ -1061,10 +1103,10 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_room_message_check`: `"room_message_id" is null or "system"`
   - `chat_turns_sender_check`: `"sender" is null or ("system" and jsonb_typeof("sender") = 'object')`
   - `chat_turns_contact_check`: `"contact_id" is null or "sender" is not null`
-  - `chat_turns_visible_text_check`: `"visible_text" is null or ("system" and char_length("visible_text") <= 20000)`
+  - `chat_turns_visible_text_check`: `"visible_text" is null or ("kind" = 'message' and char_length("visible_text") <= 20000)`
   - `chat_turns_reply_link_check`: `char_length("reply_link") between 1 and 500`
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
-  - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
+  - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`, `people`, `slack`
   - `chat_turns_mode_check`: `mode` is one of `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full`
   - `chat_turns_model_check`: `char_length("model") between 1 and 100`
   - `chat_turns_effort_check`: `effort` is one of `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
@@ -1072,6 +1114,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_machine_wait_check`: `machine_wait` is one of `stopped`, `slots`
   - `chat_turns_machine_wait_at_check`: `"machine_wait" is null or "machine_wait_at" is not null`
   - `chat_turns_clear_check`: `"kind" <> 'clear' or ("status" = 'done' and "credential_id" is null)`
+  - `chat_turns_note_check`: `"kind" not in ('people', 'slack') or ("status" = 'done' and "credential_id" is null)`
   - `chat_turns_seq_check`: `"seq" >= 1`
   - `chat_turns_prompt_check`: `char_length("prompt") between 1 and 20000`
   - `chat_turns_usage_check`: `"usage" is null or jsonb_typeof("usage") = 'object'`

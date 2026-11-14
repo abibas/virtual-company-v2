@@ -91,7 +91,7 @@ describe('enums', () => {
     expect(CodexMode.options).toEqual(['ask', 'auto', 'full']);
     expect(new Set(PermissionMode.options)).toEqual(new Set([...ClaudeMode.options, ...CodexMode.options]));
     expect(ChatTurnStatus.options).toEqual(['queued', 'running', 'done', 'failed', 'stopped']);
-    expect(ChatTurnKind.options).toEqual(['message', 'compact', 'clear']);
+    expect(ChatTurnKind.options).toEqual(['message', 'compact', 'clear', 'people', 'slack']);
     expect(ChatTurnDelivery.options).toEqual(['now', 'after', 'interrupt']);
     expect(NotificationKind.options).toHaveLength(19);
     expect(NotificationKind.options.slice(-2)).toEqual(['agent_question', 'lead_not_woken']);

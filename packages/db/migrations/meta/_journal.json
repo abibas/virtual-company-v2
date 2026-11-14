@@ -281,6 +281,13 @@
       "when": 1794651100615,
       "tag": "0039_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794676155868,
+      "tag": "0040_chat_participants",
+      "breakpoints": true
     }
   ]
 }

@@ -148,7 +148,10 @@ export const chats = pgTable(
  * a person's message in the team room names that message (`room_message_id`, docs/processes.md "The team room").
  * Since migration 0039 (2026-11-14) a turn Most Wanted queued for a Slack message names its sender (`sender`), the
  * message as the reader sees it without the prompt's header (`visible_text`) and its contact (`contact_id`), and its
- * reply's address once it was posted back in Slack (`reply_link`; docs/subscriptions.md "Contacts").
+ * reply's address once it was posted back in Slack (`reply_link`; docs/subscriptions.md "Contacts"). Since migration
+ * 0040 a person's message in a chat with several people keeps what they wrote in `visible_text` (the prompt has their
+ * name first), a `people` turn is a quiet line of who joined or left, and a `slack` turn a message sent straight into the
+ * chat's Slack conversation (its address in `reply_link`); neither runs a process (docs/harness.md "Who is in a chat").
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -211,7 +214,7 @@ export const chatTurns = pgTable(
     check('chat_turns_contact_check', sql`${t.contactId} is null or ${t.sender} is not null`),
     check(
       'chat_turns_visible_text_check',
-      sql`${t.visibleText} is null or (${t.system} and char_length(${t.visibleText}) <= ${n(CHAT_PROMPT.max)})`,
+      sql`${t.visibleText} is null or (${t.kind} = 'message' and char_length(${t.visibleText}) <= ${n(CHAT_PROMPT.max)})`,
     ),
     check('chat_turns_reply_link_check', sql`char_length(${t.replyLink}) between 1 and 500`),
     index('chat_turns_contact_idx').on(t.companyId, t.contactId, t.createdAt),
@@ -229,6 +232,10 @@ export const chatTurns = pgTable(
     check(
       'chat_turns_clear_check',
       sql`${t.kind} <> 'clear' or (${t.status} = 'done' and ${t.credentialId} is null)`,
+    ),
+    check(
+      'chat_turns_note_check',
+      sql`${t.kind} not in ('people', 'slack') or (${t.status} = 'done' and ${t.credentialId} is null)`,
     ),
     check('chat_turns_seq_check', sql`${t.seq} >= 1`),
     check(

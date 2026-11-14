@@ -220,9 +220,11 @@ export type ChatTurnStatus = z.infer<typeof ChatTurnStatus>;
 /**
  * `chat_turns.kind` (S5.2, docs/harness.md "Compact and Clear"): a person's prompt (`message`), the harness's own
  * `/compact` of the conversation (`compact`), or a Clear, which runs no process and starts the next turn in a new
- * conversation (`clear`).
+ * conversation (`clear`). Since 2026-11-14 (docs/harness.md "Who is in a chat") two more run no process either: a quiet
+ * line saying who joined or left the chat (`people`), and a message its Slack connection's owner sent straight into the
+ * Slack conversation, with no agent turn (`slack`).
  */
-export const ChatTurnKind = z.enum(['message', 'compact', 'clear']);
+export const ChatTurnKind = z.enum(['message', 'compact', 'clear', 'people', 'slack']);
 export type ChatTurnKind = z.infer<typeof ChatTurnKind>;
 
 /**
