@@ -74,6 +74,8 @@ export interface GitHubComment {
 
 export interface GitHubReview {
   readonly id: number;
+  /** Its GraphQL id (`PRR_…`), which a comment added to a pending review names; null when GitHub gave none. */
+  readonly nodeId: string | null;
   readonly author: string | null;
   readonly state: string;
   readonly body: string;

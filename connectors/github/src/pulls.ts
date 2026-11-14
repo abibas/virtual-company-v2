@@ -43,7 +43,7 @@ export const repoPath = (repo: RepoName, rest = '') =>
 /** GitHub's page query. */
 export const pageQuery = (page: Page) => ({ page: page.page, per_page: page.perPage });
 
-const pullPath = (repo: RepoName, number: number, rest = '') => repoPath(repo, `/pulls/${number}${rest}`);
+export const pullPath = (repo: RepoName, number: number, rest = '') => repoPath(repo, `/pulls/${number}${rest}`);
 const refPath = (repo: RepoName, ref: string, rest: string) =>
   repoPath(repo, `/commits/${encodeURIComponent(ref)}${rest}`);
 
@@ -51,7 +51,7 @@ const DRAFT = `mutation($id: ID!) { convertPullRequestToDraft(input: {pullReques
 const READY = `mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { pullRequest { isDraft } } }`;
 
 /** GraphQL's errors, which come with a 200, as a refusal in its words. */
-function graphqlErrors(body: unknown): GitHubError | undefined {
+export function graphqlErrors(body: unknown): GitHubError | undefined {
   const errors = listOf(recordOf(body).errors);
   if (errors.length === 0) return undefined;
   const words = errors

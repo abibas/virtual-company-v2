@@ -2,6 +2,7 @@ import type { GitHubApi } from '@mwc/tools-core';
 import { githubHttp, type HttpOptions } from './http.ts';
 import { pullsApi } from './pulls.ts';
 import { reposApi } from './repos.ts';
+import { reviewsApi } from './reviews.ts';
 
 /**
  * The GitHub connector (S7.1d): `@mwc/tools-core`'s `GitHubApi` over `api.github.com`, through the injected `fetch` with
@@ -10,5 +11,5 @@ import { reposApi } from './repos.ts';
  */
 export function githubClient(options: HttpOptions): GitHubApi {
   const request = githubHttp(options);
-  return { ...pullsApi(request), ...reposApi(request) };
+  return { ...pullsApi(request), ...reposApi(request), ...reviewsApi(request) };
 }

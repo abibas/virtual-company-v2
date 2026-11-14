@@ -15,6 +15,12 @@ import type {
   GitHubStatus,
   SearchPage,
 } from './github/results.ts';
+import type {
+  GitHubReviewThread,
+  NewReview,
+  PendingReviewComment,
+  ReviewEvent,
+} from './github/reviews.ts';
 
 /**
  * The GitHub port (S7.1d, docs/subscriptions.md "GitHub tools"): what the server asks of GitHub's REST API (and its
@@ -51,6 +57,14 @@ export type {
   GitHubStatus,
   SearchPage,
 } from './github/results.ts';
+export type {
+  DiffSide,
+  GitHubReviewThread,
+  NewReview,
+  PendingReviewComment,
+  ReviewEvent,
+  ReviewLineComment,
+} from './github/reviews.ts';
 
 /** Which page of a list: GitHub's `page` (from 1) and `per_page` (1 to 100). */
 export interface Page {
@@ -178,4 +192,29 @@ export interface GitHubApi {
     number: number,
     reviewers: readonly string[],
   ): Promise<void>;
+  /** The login of the account the sign-in acts as (`GET /user`). */
+  viewerLogin(signIn: GitHubSignIn): Promise<string>;
+  /** Makes a review, submitted with its event or left pending, with its line comments. */
+  createReview(signIn: GitHubSignIn, repo: RepoName, number: number, review: NewReview): Promise<GitHubReview>;
+  /** Submits a pending review with an event. */
+  submitReview(
+    signIn: GitHubSignIn,
+    repo: RepoName,
+    number: number,
+    reviewId: number,
+    submit: { readonly event: ReviewEvent; readonly body?: string | undefined },
+  ): Promise<GitHubReview>;
+  /** Deletes a pending review (GitHub deletes only pending ones). */
+  deletePendingReview(
+    signIn: GitHubSignIn,
+    repo: RepoName,
+    number: number,
+    reviewId: number,
+  ): Promise<GitHubReview>;
+  /** Adds a comment to a pending review (by its node id): GitHub's GraphQL, as REST cannot. */
+  addPendingReviewComment(
+    signIn: GitHubSignIn,
+    reviewNodeId: string,
+    comment: PendingReviewComment,
+  ): Promise<GitHubReviewThread>;
 }

@@ -38,7 +38,7 @@ const DETAIL_MAX = 500;
 export type Query = Readonly<Record<string, string | number | boolean | undefined>>;
 
 export interface Call {
-  readonly method: 'GET' | 'POST' | 'PATCH';
+  readonly method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   readonly path: string;
   readonly query?: Query;
   readonly body?: unknown;

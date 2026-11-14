@@ -130,6 +130,7 @@ export function reviewOf(value: unknown): GitHubReview {
   const raw = recordOf(value);
   return {
     id: num(raw.id) ?? 0,
+    nodeId: str(raw.node_id),
     author: login(raw.user),
     state: text(raw.state),
     body: text(raw.body),
