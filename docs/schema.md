@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 45. Migrations: 41, the last is `0040_chat_participants`.
+Tables: 45. Migrations: 42, the last is `0041_github_reviews`.
 
 ```mermaid
 erDiagram

@@ -145,7 +145,7 @@ describe('agentBriefing', () => {
         provider: 'github',
         account: 'ihorherasko',
         site: null,
-        rights: { repos: ['AiriaLLC/*'], push: true, pullRequests: true },
+        rights: { repos: ['AiriaLLC/*'], push: true, pullRequests: true, reviews: 'off' },
       },
       {
         provider: 'atlassian',
