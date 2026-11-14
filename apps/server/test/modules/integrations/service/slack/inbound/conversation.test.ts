@@ -1,4 +1,4 @@
-import { slackPosts, slackThreads } from '@mwc/db';
+import { chatTurns, slackPosts, slackThreads } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { TurnStart } from '@mwc/shared/runner-protocol';
 import type { FakeRunner } from '@mwc/testkit/runner';
@@ -130,6 +130,32 @@ describe('a DM', () => {
     const rows = await rowsOf(s);
     expect(rows.find((row) => row.chatId === old.chatId)?.threadTs).toBeNull();
     expect(rows).toHaveLength(2);
+  });
+});
+
+describe('a turn from before', () => {
+  it('without its message’s link, answers in its chat’s place: a DM’s conversation from before, the DM itself', async () => {
+    const s = await sceneOf({ rights: { dms: 'post' } });
+    const runner = s.runner as FakeRunner;
+    const dm = { type: 'message' as const, channel: 'D0DM7', channelType: 'im' };
+    const old = await turnFor(s, message({ ...dm, text: 'old times' }), 'Old answer.');
+    await rawDb(w.t.db)
+      .update(slackThreads)
+      .set({ threadTs: null })
+      .where(eq(slackThreads.chatId, old.chatId));
+    await rawDb(w.t.db).update(slackPosts).set({ threadTs: null }).where(eq(slackPosts.chatId, old.chatId));
+    const answer = (await postRows(w.t.db)).find((row) => row.chatId === old.chatId);
+    const before = postsOf(w).length;
+    await s.conn.deliver(message({ ...dm, text: 'about that', threadTs: answer?.ts ?? null }));
+    const start = await runner.frames.next('turn.start');
+    await rawDb(w.t.db)
+      .update(chatTurns)
+      .set({ sender: null, visibleText: null, contactId: null })
+      .where(eq(chatTurns.id, start.turnId));
+    answerTurn(runner, start, 'In the DM.');
+    await eventually('the answer is posted', () => postsOf(w).length > before);
+    expect(postsOf(w).at(-1)).toMatchObject({ channel: 'D0DM7', text: 'In the DM.' });
+    expect(postsOf(w).at(-1)?.thread_ts).toBeUndefined();
   });
 });
 

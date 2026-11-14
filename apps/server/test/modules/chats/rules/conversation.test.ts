@@ -141,7 +141,12 @@ describe('conversationState', () => {
 });
 
 describe('compactDue', () => {
-  const reading = (usedTokens: number, window: number | null) => ({ usedTokens, window, model: null, at: '' });
+  const reading = (usedTokens: number, window: number | null) => ({
+    usedTokens,
+    window,
+    model: null,
+    at: '',
+  });
 
   it('is true from the share of the window on, never without a reading or a window', () => {
     expect(compactDue(reading(120_000, 200_000), 0.6)).toBe(true);
