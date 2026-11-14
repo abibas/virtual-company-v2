@@ -223,4 +223,4 @@ export const plainExcerpt = (text: string): string =>
 export const isNoise = (event: TaskEvent): boolean =>
   event.kind === 'entered' ||
   (event.kind === 'started' && event.actor === null) ||
-  (event.kind === 'routed' && event.from === null && !event.reason);
+  (event.kind === 'routed' && event.from === null && !event.reason && event.details.autoTake !== true);

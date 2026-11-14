@@ -7,6 +7,7 @@ import { type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts'
 import type { TaskActionRequest, TaskDetailView } from '../schemas/tasks.ts';
 import { applyMove } from './apply.ts';
 import type { Caller } from './audit.ts';
+import { endsProgress, takeQueued } from './auto-take.ts';
 import { type RunDeps, runStep, startedNow } from './runs.ts';
 import { shownTask } from './tasks.ts';
 import { rosterOf } from './team.ts';
@@ -33,7 +34,7 @@ export type MoveResult =
  * `already_at_step`). A send-back over its step's limit is not refused: it escalates the task to the Lead. While a turn
  * of its step's conversations runs (S5.3b), a move is refused after the caller's own checks (409 `step_running`) unless
  * it says `force`, which stops that turn once the move is written. A move that starts the task at an agent's step runs
- * the step (`runStep`), after the transaction.
+ * the step (`runStep`), after the transaction; one that ends its time in progress lets the flow auto-take (T-25).
  */
 export async function actOnTask(
   deps: Deps,
@@ -72,6 +73,8 @@ export async function actOnTask(
   if (!done.ok) return done;
   if (running !== undefined && request.body.force === true) await deps.steps?.stop(t, running);
   if (startedNow(done.transition)) await runStep(deps, repo, t, caller, done.task.id);
+  // Its time in progress ended: the flow takes its next queued task when it auto-takes (T-25).
+  if (endsProgress(done.transition)) await takeQueued(deps, repo, t, done.task.flowId, request.now);
   const now = (await repo.tasks.get(t, { id: done.task.id })) as Task;
   return { ok: true, outcome: done.transition.outcome, task: await shownTask(deps, repo, t, caller, now) };
 }

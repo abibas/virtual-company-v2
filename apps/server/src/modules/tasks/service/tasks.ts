@@ -15,6 +15,7 @@ import type {
 } from '../schemas/tasks.ts';
 import { applyMove, eventRow } from './apply.ts';
 import { audit, type Caller } from './audit.ts';
+import { takeQueued } from './auto-take.ts';
 import { type RunDeps, runStep } from './runs.ts';
 import { rosterOf } from './team.ts';
 import { conversationView, taskDetail, taskPrincipals, taskSummary } from './views.ts';
@@ -175,6 +176,8 @@ export async function createTask(
   // Put straight into a step that starts by itself: its run starts now, outside the transaction.
   if (made.task.state === 'active' && made.task.stepState === 'working')
     await runStep(deps, repo, t, caller, made.task.id);
+  // Made in Queued: the flow takes it (or an earlier one) when it auto-takes and has room (T-25).
+  if (made.task.state === 'queued') await takeQueued(deps, repo, t, made.task.flowId, input.now);
   const now = (await repo.tasks.get(t, { id: made.task.id })) as Task;
   return { ok: true, task: await shownTask(deps, repo, t, caller, now) };
 }

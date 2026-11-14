@@ -2,5 +2,6 @@
 // board; S5.3b runs a task's step through the chats module (`steps`) and hears of its turns (`taskTurnHook`).
 // createApp mounts its router and wires both; since S6c it also starts the tick that wakes agent Leads (`leadWakes`).
 export { tasksRoutes } from './routes.ts';
+export { autoTakeAtStart } from './service/auto-take.ts';
 export { taskTurnHook } from './service/hook.ts';
 export { type LeadWakes, leadWakes, wakeLeadsOnce } from './service/wake/tick.ts';

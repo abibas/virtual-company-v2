@@ -23,6 +23,7 @@ export type DropLook = 'open' | 'closed' | undefined;
 export function BoardColumn({
   column,
   nodes,
+  note,
   drop,
   over,
   onDragOver,
@@ -31,6 +32,8 @@ export function BoardColumn({
 }: {
   readonly column: Column;
   readonly nodes: ReadonlyMap<string, ChartNode>;
+  /** A short line beside the count (Queued's "auto-take on · 2 at a time", T-25). */
+  readonly note?: string | undefined;
   readonly drop: DropLook;
   /** The dragged card is over it now. */
   readonly over: boolean;
@@ -65,6 +68,11 @@ export function BoardColumn({
           </span>
         )}
         <span className="text-xs font-semibold text-dim tabular">{count}</span>
+        {note && (
+          <span className="ml-auto truncate text-2xs font-semibold text-blue" title={note}>
+            {note}
+          </span>
+        )}
         {column.step && (
           <span title={column.step.assignee.name} className="ml-auto">
             <Face who={column.step.assignee} nodes={nodes} />

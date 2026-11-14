@@ -29,3 +29,9 @@ export const BOARD_DONE = { default: 10, max: 50 } as const;
 
 /** A page of the task list. */
 export const TASK_PAGE = { default: 50, max: 200 } as const;
+
+/**
+ * A flow's auto-take from Queued (T-25): while it is on and fewer of its tasks than this are in progress (active at any
+ * step), the next queued task enters its first step by itself.
+ */
+export const IN_PROGRESS_LIMIT = { min: 1, max: 20, default: 2 } as const;

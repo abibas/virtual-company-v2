@@ -309,6 +309,13 @@
       "when": 1794694243727,
       "tag": "0043_reply_failure",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794694990782,
+      "tag": "0044_auto_take",
+      "breakpoints": true
     }
   ]
 }

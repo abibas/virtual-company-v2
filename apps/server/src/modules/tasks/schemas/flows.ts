@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { FlowStepKind, StepOnReturn, StepStarts } from '@mwc/shared/enums';
-import { FLOW_NAME, FLOW_STEPS_MAX, SEND_BACK_LIMIT, STEP_NAME } from '@mwc/shared/flows';
+import { FLOW_NAME, FLOW_STEPS_MAX, IN_PROGRESS_LIMIT, SEND_BACK_LIMIT, STEP_NAME } from '@mwc/shared/flows';
 import { At, PrincipalRefSchema } from '../schemas.ts';
 
 const FlowName = z
@@ -37,7 +37,18 @@ export const CreateFlowSchema = z
   .object({ leadPrincipalId: z.uuid(), name: FlowName, steps: StepList })
   .openapi('CreateFlow');
 
-export const RenameFlowSchema = z.object({ name: FlowName }).openapi('RenameFlow');
+const InProgressLimit = z.number().int().min(IN_PROGRESS_LIMIT.min).max(IN_PROGRESS_LIMIT.max);
+
+/** A flow's name and its auto-take from Queued (T-25); what is left out stays as it is. */
+export const PatchFlowSchema = z
+  .object({
+    name: FlowName.optional(),
+    /** Take the next queued task into the first step by itself while fewer than the limit are in progress. */
+    autoTake: z.boolean().optional(),
+    /** At most this many of the flow's tasks in progress (active at any step) before auto-take waits. */
+    inProgressLimit: InProgressLimit.optional(),
+  })
+  .openapi('PatchFlow');
 
 export const PutStepsSchema = z.object({ steps: StepList }).openapi('PutFlowSteps');
 
@@ -66,6 +77,9 @@ export const FlowSchema = z
     name: z.string(),
     lead: PrincipalRefSchema,
     steps: z.array(StepSchema),
+    /** Auto-take from Queued (T-25) and its limit of tasks in progress. */
+    autoTake: z.boolean(),
+    inProgressLimit: z.number().int(),
     createdAt: At,
     updatedAt: At,
   })
@@ -92,6 +106,7 @@ export const FlowTextSchema = z
   .openapi('FlowText');
 
 export type CreateFlow = z.infer<typeof CreateFlowSchema>;
+export type PatchFlow = z.infer<typeof PatchFlowSchema>;
 export type FlowView = z.infer<typeof FlowSchema>;
 export type FlowSummaryView = z.infer<typeof FlowSummarySchema>;
 export type StepView = z.infer<typeof StepSchema>;

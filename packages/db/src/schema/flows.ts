@@ -1,6 +1,7 @@
 import { FlowStepKind, StepOnReturn, StepStarts } from '@mwc/shared/enums';
 import {
   FLOW_NAME,
+  IN_PROGRESS_LIMIT,
   LEAD_WAKE,
   LEAD_WAKE_DEFAULTS,
   ROOM,
@@ -37,7 +38,8 @@ const within = (value: SQL | AnyPgColumn, range: { readonly min: number; readonl
  * up by itself in its team chat (`lead_wake_events`): which events wake it, the quiet window that coalesces them, and
  * the caps on wake-ups per hour and per day (`wake_*`, defaults `LEAD_WAKE_DEFAULTS`), and since its check-ins the
  * minutes between two while the flow has work (`wake_check_in_minutes`, 5 by default; null: none). Its team room
- * (`room_messages`) caps the answers people's messages ask of its agents in an hour (`room_max_per_hour`, 30).
+ * (`room_messages`) caps the answers people's messages ask of its agents in an hour (`room_max_per_hour`, 30). With
+ * `auto_take` on (T-25) it takes its next queued task into its first step while fewer than `in_progress_limit` are active.
  */
 export const flows = pgTable(
   'flows',
@@ -65,6 +67,10 @@ export const flows = pgTable(
     wakeCheckInMinutes: integer('wake_check_in_minutes').default(LEAD_WAKE.checkInMinutes.default),
     /** The team room's answers an hour: each agent a person's message asks is one; past it, nobody is asked. */
     roomMaxPerHour: integer('room_max_per_hour').notNull().default(ROOM.maxPerHour.default),
+    /** Auto-take (T-25): the next queued task enters the first step by itself while fewer than the limit are active. */
+    autoTake: boolean('auto_take').notNull().default(false),
+    /** At most this many of the flow's tasks in progress (active at any step) before auto-take waits. */
+    inProgressLimit: integer('in_progress_limit').notNull().default(IN_PROGRESS_LIMIT.default),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -83,6 +89,7 @@ export const flows = pgTable(
     check('flows_wake_per_hour_check', within(t.wakeMaxPerHour, LEAD_WAKE.perHour)),
     check('flows_wake_per_day_check', within(t.wakeMaxPerDay, LEAD_WAKE.perDay)),
     check('flows_room_per_hour_check', within(t.roomMaxPerHour, ROOM.maxPerHour)),
+    check('flows_in_progress_limit_check', within(t.inProgressLimit, IN_PROGRESS_LIMIT)),
     check(
       'flows_wake_check_in_check',
       sql`${t.wakeCheckInMinutes} is null or ${within(t.wakeCheckInMinutes, LEAD_WAKE.checkInMinutes)}`,

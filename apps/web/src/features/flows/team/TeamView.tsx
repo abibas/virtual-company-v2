@@ -135,6 +135,7 @@ function BoardTab({
           leads={leads}
           links={props.links}
           calls={props.calls}
+          autoTake={props.flow?.autoTake ? props.flow.inProgressLimit : null}
           onMoved={props.onBoardChanged}
         />
       )}

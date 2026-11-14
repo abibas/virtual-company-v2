@@ -2,7 +2,7 @@ import type { Flow, TenantDb } from '@mwc/db';
 import { tasksRepo } from './repo.ts';
 import type { StepInput } from './rules/steps.ts';
 import { FLOW_NOT_FOUND, taskRef } from './rules.ts';
-import type { CreateFlow } from './schemas/flows.ts';
+import type { CreateFlow, PatchFlow } from './schemas/flows.ts';
 import type { RoomQuery } from './schemas/room.ts';
 import type { CreateTask, EditTask, TaskActionRequest, TaskListQuery } from './schemas/tasks.ts';
 import type { LeadWakeSettingsBody } from './schemas/wakes.ts';
@@ -14,8 +14,8 @@ import {
   createFlow,
   findFlow,
   listFlows,
+  patchFlow,
   putSteps,
-  renameFlow,
   shownFlow,
   writtenFlow,
 } from './service/flows.ts';
@@ -64,8 +64,8 @@ export function tasksService(deps: RunDeps & Pick<RoomDeps, 'team'>) {
       return found.ok ? { ok: true as const, board: await boardOf(deps, repo, t, found.flow, done) } : found;
     },
     createFlow: (t: TenantDb, caller: Caller, input: CreateFlow) => createFlow(deps, repo, t, caller, input),
-    renameFlow: (t: TenantDb, caller: Caller, flowId: string, name: string) =>
-      renameFlow(deps, repo, t, caller, { flowId, name }),
+    patchFlow: (t: TenantDb, caller: Caller, flowId: string, patch: PatchFlow, now: Date) =>
+      patchFlow(deps, repo, t, caller, { flowId, patch, now }),
     putSteps: (t: TenantDb, caller: Caller, flowId: string, steps: readonly StepInput[]) =>
       putSteps(deps, repo, t, caller, { flowId, steps }),
     listTasks: (t: TenantDb, query: TaskListQuery) => listTasks(deps, repo, t, query),

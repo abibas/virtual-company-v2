@@ -77,9 +77,14 @@ function where(event: TaskEvent): string {
   return at ? ` · at ${at.name}` : '';
 }
 
+/** A route the flow made by itself, taking the task from Queued (T-25's auto-take). */
+export const autoTaken = (event: TaskEvent): boolean =>
+  event.kind === 'routed' && event.details.autoTake === true;
+
 /** One history row in words, without its reason (shown once beside it): who did what, where. */
 export function eventWords(event: TaskEvent): string {
   const who = event.actor?.name;
+  if (autoTaken(event)) return `Taken from Queued by itself${where(event)}`;
   switch (event.kind) {
     case 'entered':
       return `Entered ${event.to?.name ?? 'a step'}${event.round ? ` · round ${event.round}` : ''}`;
@@ -105,6 +110,7 @@ export function eventWords(event: TaskEvent): string {
 /** A small line under a step: a person's action or an error, without where (the step says it). */
 export function asideWords(event: TaskEvent): string {
   const who = event.actor?.name ?? 'Someone';
+  if (autoTaken(event)) return 'Taken from Queued by itself';
   switch (event.kind) {
     case 'blocked':
       return event.actor ? `Blocked by ${who}` : 'Blocked';

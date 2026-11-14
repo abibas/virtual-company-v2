@@ -17,6 +17,7 @@ import { move, type Transition } from '../rules/machine.ts';
 import { moveRefusal } from '../rules/moves.ts';
 import { movedLine, type StepEndLine, stoppedLine } from '../rules/room.ts';
 import { applyMove } from './apply.ts';
+import { endsProgress, takeQueued } from './auto-take.ts';
 import { AUDIT_IGNORED, type Caller } from './audit.ts';
 import { postStepEnd } from './room/post.ts';
 import { applyStepChange, type RunDeps, runStep, startedNow } from './runs.ts';
@@ -142,6 +143,10 @@ export async function applyDecision(
     return transition;
   });
   if (moved && startedNow(moved)) await runStep(deps, repo, t, caller, turn.taskId);
+  if (moved && endsProgress(moved)) {
+    const task = await repo.tasks.get(t, { id: turn.taskId });
+    if (task) await takeQueued(deps, repo, t, task.flowId, now);
+  }
 }
 
 /** Drops this turn's decision without applying it (its turn failed, or was stopped, or another turn runs at the step). */

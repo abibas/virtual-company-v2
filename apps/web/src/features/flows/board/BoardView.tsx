@@ -10,7 +10,7 @@ import { useBoardMoves } from './use-board-moves.ts';
  * A team's board: Queued, each step in order, Done (the latest) and Escalated, side by side (scrolling sideways when
  * they do not fit). A card opens its task; the Lead's people and admins (`leads`) drag a card onto a step's column to
  * route it there, the columns it may not go to dimmed; Done and Cancel are the task's own buttons. A refusal puts the
- * card back with the server's words at the bottom.
+ * card back with the server's words at the bottom. While the flow auto-takes (T-25), Queued's header says so.
  */
 export function BoardView({
   board,
@@ -19,6 +19,7 @@ export function BoardView({
   leads,
   links,
   calls,
+  autoTake,
   onMoved,
 }: {
   readonly board: Board;
@@ -28,6 +29,8 @@ export function BoardView({
   readonly leads: boolean;
   readonly links: FlowLinks;
   readonly calls: FlowCalls;
+  /** The flow's auto-take from Queued (T-25): the most tasks in progress while on; null when off. */
+  readonly autoTake: number | null;
   readonly onMoved: () => void;
 }) {
   const moves = useBoardMoves({ board, calls, enabled: leads, onMoved });
@@ -39,6 +42,9 @@ export function BoardView({
             key={column.step?.id ?? column.kind}
             column={column}
             nodes={nodes}
+            note={
+              column.kind === 'queued' && autoTake !== null ? `auto-take on · ${autoTake} at a time` : undefined
+            }
             drop={moves.look(index)}
             over={moves.over === index}
             onDragOver={moves.dragOver(index)}

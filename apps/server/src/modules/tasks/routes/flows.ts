@@ -9,14 +9,15 @@ import {
   CreateFlowSchema,
   FlowListSchema,
   FlowSchema,
+  PatchFlowSchema,
   PutStepsSchema,
-  RenameFlowSchema,
 } from '../schemas/flows.ts';
 import { CompanyParamsSchema, FlowParamsSchema, LeadParamsSchema } from '../schemas.ts';
 import { callerOf, type TasksService } from '../service.ts';
 
 /**
- * A team's flow (S5.3a): `GET|POST /api/companies/{companyId}/flows`, `GET|PATCH …/flows/{flowId}`,
+ * A team's flow (S5.3a): `GET|POST /api/companies/{companyId}/flows`, `GET|PATCH …/flows/{flowId}` (its name and,
+ * T-25, its auto-take from Queued),
  * `PUT …/flows/{flowId}/steps` and `GET …/leads/{lead}/flow`. Everyone of the company reads; the team's Lead people
  * (the Lead when a person, every person above it) and admins and owners make, rename and change a flow.
  */
@@ -92,13 +93,17 @@ const byLeadRoute = (deps: ServerDeps) => {
   });
 };
 
-const renameRoute = (deps: ServerDeps) => {
+const patchRoute = (deps: ServerDeps) => {
   const { base, refusals } = route(deps, 'member', FLOW);
   return createRoute({
     ...base,
     method: 'patch',
-    summary: 'Rename a flow (its Lead people, admins and owners)',
-    request: { params: FlowParamsSchema, body: jsonBody(RenameFlowSchema) },
+    summary: 'Rename a flow or change its auto-take from Queued (its Lead people, admins and owners)',
+    description:
+      'Only what is sent changes. With `autoTake` on, the next queued task (by priority, then the oldest) enters the ' +
+      'first step by itself while fewer than `inProgressLimit` of the flow\'s tasks are active; turning it on or ' +
+      'raising the limit takes at once.',
+    request: { params: FlowParamsSchema, body: jsonBody(PatchFlowSchema) },
     responses: {
       200: jsonResponse('The flow', FlowSchema),
       400: INVALID,
@@ -150,9 +155,10 @@ export function flowRoutes(deps: ServerDeps, tasks: TasksService) {
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.flow, 200);
     })
-    .openapi(renameRoute(deps), async (c) => {
+    .openapi(patchRoute(deps), async (c) => {
       const { flowId } = c.req.valid('param');
-      const result = await tasks.renameFlow(c.var.tenant, callerOf(c.var), flowId, c.req.valid('json').name);
+      const patch = c.req.valid('json');
+      const result = await tasks.patchFlow(c.var.tenant, callerOf(c.var), flowId, patch, c.var.clock());
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.flow, 200);
     })

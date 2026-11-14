@@ -147,6 +147,24 @@ async function openByFlow(t: TenantDb): Promise<Map<string, number>> {
   return new Map(rows.map((row) => [row.flowId, row.n]));
 }
 
+/** How many of the flow's tasks are in progress: active at any step (T-25's auto-take). */
+async function activeCount(t: TenantDb, flowId: string): Promise<number> {
+  const where = and(eq(tasks.flowId, flowId), eq(tasks.state, 'active'));
+  const [row] = await t.selectFields(tasks, { n: count() }, where);
+  return row?.n ?? 0;
+}
+
+/** The order queued tasks are taken in: urgent, high, normal, low. */
+const PRIORITY_RANK = sql`case ${tasks.priority}
+  when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`;
+
+/** The flow's next queued tasks to take: by priority, then the oldest first. */
+const nextQueued = (t: TenantDb, flowId: string, limit: number): Promise<Task[]> =>
+  t
+    .select(tasks, and(eq(tasks.flowId, flowId), eq(tasks.state, 'queued')))
+    .orderBy(PRIORITY_RANK, asc(tasks.createdAt), asc(tasks.number))
+    .limit(limit);
+
 async function insertEvents(t: TenantDb, rows: readonly TenantValues<typeof taskEvents>[]): Promise<void> {
   if (rows.length > 0) await t.insert(taskEvents, rows);
 }
@@ -166,6 +184,8 @@ export const taskRows = {
   latestDone,
   doneCount,
   openByFlow,
+  activeCount,
+  nextQueued,
   insertEvents,
   events,
 };

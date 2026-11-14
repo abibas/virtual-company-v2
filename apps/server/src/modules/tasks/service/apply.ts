@@ -10,11 +10,15 @@ import type { Roster } from './team.ts';
 import { recordWake } from './wake/record.ts';
 
 /** A history row of a task, by `caller` unless it happened by itself (a system row, or no caller). */
-export function eventRow(taskId: string, caller: Pick<Caller, 'principalId'> | null, event: EventDraft) {
+export function eventRow(
+  taskId: string,
+  caller: Pick<Caller, 'principalId' | 'system'> | null,
+  event: EventDraft,
+) {
   return {
     taskId,
     kind: event.kind,
-    actorPrincipalId: event.system || caller === null ? null : caller.principalId,
+    actorPrincipalId: event.system || caller === null || caller.system ? null : caller.principalId,
     fromStepId: event.from?.id ?? null,
     fromStepName: event.from?.name ?? null,
     toStepId: event.to?.id ?? null,
@@ -80,7 +84,7 @@ export async function applyMove(
     outcome: transition.outcome,
     from: move.from,
   });
-  await notify(tx, caller.principalId, notices);
+  await notify(tx, caller.system ? null : caller.principalId, notices);
   await recordWake(repo, tx, {
     flow,
     roster: move.roster,

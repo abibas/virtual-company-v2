@@ -53,6 +53,8 @@ const flowOf = (id: string, name: string, lead: string, specs: readonly StepSpec
     sendBackLimit: limit,
     openTasks: open,
   })),
+  autoTake: false,
+  inProgressLimit: 2,
   createdAt: ago(60 * 24 * 9),
   updatedAt: ago(60 * 26),
 });

@@ -5,13 +5,18 @@ import type { TasksRepo } from '../repo.ts';
 import { leadRefusal } from '../rules/access.ts';
 import { planSteps, type StepInput } from '../rules/steps.ts';
 import { FLOW_NOT_FOUND, inOrder, type Refusal, refuse } from '../rules.ts';
-import type { CreateFlow, FlowSummaryView, FlowView } from '../schemas/flows.ts';
+import type { CreateFlow, FlowSummaryView, FlowView, PatchFlow } from '../schemas/flows.ts';
 import { audit, type Caller } from './audit.ts';
+import { takeQueued } from './auto-take.ts';
+import type { RunDeps } from './runs.ts';
 import { writeSteps } from './steps.ts';
 import { rosterOf } from './team.ts';
 import { flowPrincipals, flowSummary, flowView } from './views.ts';
 
-/** A team's flow (S5.3a): listing, reading (by id, by Lead, written), making one, renaming it and its step list. */
+/**
+ * A team's flow (S5.3a): listing, reading (by id, by Lead, written), making one, renaming it and its auto-take (T-25),
+ * and its step list.
+ */
 
 type Deps = { readonly db: DbHandle };
 export type FlowResult<S extends 403 | 404 | 409 | 422 = 403 | 404 | 409 | 422> =
@@ -118,29 +123,41 @@ export async function lockedForLead(repo: TasksRepo, tx: TenantDb, caller: Calle
   return { ok: true as const, flow, roster, steps: await repo.flows.steps(tx, flow.id) };
 }
 
-/** Renames a flow (its Lead people and admins). */
-export async function renameFlow(
-  deps: Deps,
+/**
+ * Renames a flow or changes its auto-take from Queued (its Lead people and admins); only what differs is written and
+ * audited. With auto-take on after the change (turned on, or its limit changed), the flow takes at once (T-25).
+ */
+export async function patchFlow(
+  deps: RunDeps,
   repo: TasksRepo,
   t: TenantDb,
   caller: Caller,
-  change: { readonly flowId: string; readonly name: string },
+  change: { readonly flowId: string; readonly patch: PatchFlow; readonly now: Date },
 ): Promise<FlowResult<403 | 404>> {
   const done = await t.transaction(async (tx) => {
     const locked = await lockedForLead(repo, tx, caller, change.flowId);
     if (!locked.ok) return locked;
-    if (locked.flow.name === change.name) return { ok: true as const, flow: locked.flow };
-    const flow = await repo.flows.update(tx, locked.flow.id, { name: change.name });
+    const before = locked.flow;
+    const set = Object.fromEntries(
+      Object.entries(change.patch).filter(
+        ([field, value]) => value !== undefined && before[field as keyof Flow] !== value,
+      ),
+    ) as Partial<Pick<Flow, 'name' | 'autoTake' | 'inProgressLimit'>>;
+    if (Object.keys(set).length === 0) return { ok: true as const, flow: before, takes: false };
+    const flow = await repo.flows.update(tx, before.id, set);
     await audit(repo, tx, caller, {
       entityType: 'flow',
       entityId: flow.id,
       action: 'update',
-      before: locked.flow,
+      before,
       after: flow,
     });
-    return { ok: true as const, flow };
+    const takes = flow.autoTake && (set.autoTake !== undefined || set.inProgressLimit !== undefined);
+    return { ok: true as const, flow, takes };
   });
-  return done.ok ? { ok: true, flow: await shownFlow(deps, repo, t, done.flow) } : done;
+  if (!done.ok) return done;
+  if (done.takes) await takeQueued(deps, repo, t, done.flow.id, change.now);
+  return { ok: true, flow: await shownFlow(deps, repo, t, done.flow) };
 }
 
 /** Replaces a flow's step list (its Lead people and admins): `planSteps`, then `writeSteps`. */

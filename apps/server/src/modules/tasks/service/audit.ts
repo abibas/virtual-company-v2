@@ -12,6 +12,8 @@ export interface Caller {
   readonly role: MembershipRole;
   readonly requestId: string;
   readonly agent?: AgentVia | undefined;
+  /** Most Wanted itself (T-25's auto-take): its rows have no actor; `principalId` is whom a run it starts is for. */
+  readonly system?: boolean | undefined;
 }
 
 export const callerOf = (v: {
@@ -41,9 +43,9 @@ export function audit(
   },
 ) {
   return repo.audit(t, {
-    actorKind: caller.agent === undefined ? 'user' : 'agent',
-    actorPrincipalId: caller.principalId,
-    requestId: caller.requestId,
+    actorKind: caller.system ? 'system' : caller.agent === undefined ? 'user' : 'agent',
+    actorPrincipalId: caller.system ? null : caller.principalId,
+    requestId: caller.system ? null : caller.requestId,
     entityType: change.entityType,
     entityId: change.entityId,
     action: change.action,

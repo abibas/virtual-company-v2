@@ -30,7 +30,7 @@ import { invitationOutboxHandlers, memberOutboxHandlers, membersRoutes } from '.
 import { deliverEmails, membershipNoticeHook, notificationsRoutes } from './modules/notifications/index.ts';
 import { memberChart, orgRoutes } from './modules/org/index.ts';
 import { speechRoutes } from './modules/speech/index.ts';
-import { leadWakes, tasksRoutes, taskTurnHook } from './modules/tasks/index.ts';
+import { autoTakeAtStart, leadWakes, tasksRoutes, taskTurnHook } from './modules/tasks/index.ts';
 import { atlassianFor } from './platform/atlassian.ts';
 import { emailFromConfig } from './platform/email/select.ts';
 import type { AppDeps, AppEnv, ServerDeps } from './platform/env.ts';
@@ -146,7 +146,7 @@ export function createApp(deps: AppOptions) {
     wake: power.wake,
   };
   const chats = chatsRuntime(chatsDeps);
-  startLeadWakes(server, chats.teamChats, deps.leadWakeTimers);
+  startLeadWakes(server, chats, deps.leadWakeTimers);
   const sockets = deps.slackSockets ?? slackSocketsFor(fetch);
   const receiving = slack.start(chats.inboundChats, sockets, deps.slackInboundTimers);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
@@ -190,15 +190,16 @@ export function createApp(deps: AppOptions) {
 /**
  * The tick that wakes flows' agent Leads in their team chats (S6c), in this process since it holds the runners' sockets
  * and the chats' live turns: started when the server runs its background work (MWC_JOBS) or a test passes its timers,
- * stopped with the server.
+ * stopped with the server. With it, once, the flows' auto-take from Queued (T-25) of what they missed while it was down.
  */
 function startLeadWakes(
   server: ServerDeps,
-  chats: ReturnType<typeof chatsRuntime>['teamChats'],
+  chats: ReturnType<typeof chatsRuntime>,
   timers: AppDeps['leadWakeTimers'],
 ) {
   if (!server.config.MWC_JOBS && timers === undefined) return;
-  const wakes = leadWakes({ ...server, chats, timers: timers ?? SYSTEM_TIMERS });
+  autoTakeAtStart({ ...server, steps: chats.taskTurns }, timers ?? SYSTEM_TIMERS);
+  const wakes = leadWakes({ ...server, chats: chats.teamChats, timers: timers ?? SYSTEM_TIMERS });
   wakes.start();
   server.onShutdown?.(() => wakes.stop());
 }

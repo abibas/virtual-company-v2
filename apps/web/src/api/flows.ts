@@ -22,6 +22,8 @@ export type FlowStep = Flow['steps'][number];
 /** A person or an agent as flows and tasks name them (an agent's slug, for its page). */
 export type PrincipalRef = Flow['lead'];
 export type NewFlow = InferRequestType<FlowRoutes['$post']>['json'];
+/** A flow's name and its auto-take from Queued (T-25), what a PATCH sends. */
+export type FlowPatch = InferRequestType<FlowRoutes[':flowId']['$patch']>['json'];
 export type StepInput = NewFlow['steps'][number];
 export type Board = InferResponseType<FlowRoutes[':flowId']['board']['$get'], 200>;
 export type BoardColumn = Board['columns'][number];
@@ -123,6 +125,8 @@ export function flowCalls(api: Api, companyId: string) {
     createFlow: (flow: NewFlow) => call(flows.$post({ param: { companyId }, json: flow })),
     renameFlow: (flowId: string, name: string) =>
       call(flows[':flowId'].$patch({ param: { companyId, flowId }, json: { name } })),
+    patchFlow: (flowId: string, patch: FlowPatch) =>
+      call(flows[':flowId'].$patch({ param: { companyId, flowId }, json: patch })),
     putSteps: (flowId: string, steps: StepInput[]) =>
       call(flows[':flowId'].steps.$put({ param: { companyId, flowId }, json: { steps } })),
     putLeadWakes: (flowId: string, settings: LeadWakeSettings) =>

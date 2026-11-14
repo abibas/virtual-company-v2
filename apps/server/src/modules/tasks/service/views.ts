@@ -56,6 +56,8 @@ export function flowView(
     name: flow.name,
     lead: names(flow.leadPrincipalId),
     steps: inOrder(steps).map(stepView),
+    autoTake: flow.autoTake,
+    inProgressLimit: flow.inProgressLimit,
     createdAt: flow.createdAt.toISOString(),
     updatedAt: flow.updatedAt.toISOString(),
   };
