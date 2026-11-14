@@ -7,6 +7,7 @@ import type { CredentialsForTools, SecretDeps } from '../../../../credentials/in
 import { companiesOf } from '../../../../identity/service.ts';
 import { postIcon } from '../../../rules/slack/icons.ts';
 import type { SlackBot } from '../../../rules/slack/inbound/event.ts';
+import { toMrkdwn } from '../../../rules/slack/mrkdwn.ts';
 import { postName, stripMentions } from '../../../rules/slack/text.ts';
 
 /**
@@ -57,7 +58,7 @@ export function postedAs(
   return { username: postName(agent.name), ...postIcon(agent) };
 }
 
-/** Posts a text in a conversation (a thread when `threadTs`), mentions of many people taken out. */
+/** Posts a text in a conversation (a thread when `threadTs`), mentions of many people taken out, its Markdown as mrkdwn. */
 export async function postIn(
   api: SlackApi,
   signIn: SlackSignIn,
@@ -68,7 +69,7 @@ export async function postIn(
   const { text: plain } = stripMentions(text);
   return api.postMessage(signIn, {
     channel: where.channel,
-    text: plain,
+    text: toMrkdwn(plain),
     threadTs: where.threadTs ?? undefined,
     ...shown,
   });

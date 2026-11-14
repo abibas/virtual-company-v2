@@ -1,5 +1,6 @@
 import { slackAllows } from '@mwc/shared/credentials';
 import { postIcon } from '../../rules/slack/icons.ts';
+import { toMrkdwn } from '../../rules/slack/mrkdwn.ts';
 import { channelWords, type ResolvedChannel } from '../../rules/slack/rights.ts';
 import { postName, stripMentions } from '../../rules/slack/text.ts';
 import type { SlackInput } from '../../schemas/slack.ts';
@@ -10,7 +11,7 @@ import { inChannel, type SlackContext } from './context.ts';
 /**
  * The Slack write tools (S7.1e): a post, a thread reply and a reaction, once the conversation is resolved and the
  * profile may write there. A post's text loses every mention of many people (`stripMentions`) and goes as plain text with no
- * footer; on a bot token with `chat:write.customize` it shows under the agent's name and emoji icon, without it as the
+ * footer, its Markdown as Slack mrkdwn (`toMrkdwn`); on a bot token with `chat:write.customize` it shows under the agent's name and emoji icon, without it as the
  * bot, and a user token posts as its person. Each is audited as the agent on the message, and a post is recorded
  * (2026-11-13), so a reply in its thread comes back to this agent.
  */
@@ -36,7 +37,7 @@ async function post(ctx: SlackContext, channel: ResolvedChannel, text: string, t
     const shown = postedAs(ctx);
     const posted = await ctx.api.postMessage(ctx.signIn, {
       channel: channel.id,
-      text: plain,
+      text: toMrkdwn(plain),
       threadTs,
       ...shown,
     });
