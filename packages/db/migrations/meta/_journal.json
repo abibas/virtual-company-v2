@@ -288,6 +288,13 @@
       "when": 1794676155868,
       "tag": "0040_chat_participants",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794683491007,
+      "tag": "0041_github_reviews",
+      "breakpoints": true
     }
   ]
 }

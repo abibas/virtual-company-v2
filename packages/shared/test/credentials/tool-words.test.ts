@@ -14,6 +14,7 @@ const github = (rights: Partial<GitHubRights> = {}): GitHubRights => ({
   repos: ['AiriaLLC/*'],
   push: true,
   pullRequests: true,
+  reviews: 'off',
   ...rights,
 });
 const atlassian = (rights: Partial<AtlassianRights> = {}): AtlassianRights => ({
@@ -45,6 +46,10 @@ describe('rightsSummary', () => {
 
   it('says what a GitHub part does besides reading, and where', () => {
     expect(rightsSummary(github())).toBe('push, PRs · AiriaLLC/*');
+    expect(rightsSummary(github({ reviews: 'approve' }))).toBe('push, PRs, approve · AiriaLLC/*');
+    expect(rightsSummary(github({ push: false, pullRequests: false, reviews: 'comment' }))).toBe(
+      'comment · AiriaLLC/*',
+    );
     expect(rightsSummary(github({ pullRequests: false, repos: 'all' }))).toBe('push · all repositories');
     expect(rightsSummary(github({ push: false, pullRequests: false, repos: [] }))).toBe(
       'read · no repositories',
@@ -84,6 +89,17 @@ describe('toolBriefingLine', () => {
     const readOnly = github({ push: false, pullRequests: false, repos: 'all' });
     expect(toolBriefingLine({ provider: 'github', account: 'me', site: null, rights: readOnly })).toBe(
       `- GitHub: as me; may read in every repository the account can see; never merges, force-pushes, deletes or pushes to a default branch.${note}`,
+    );
+    const comments = github({ push: false, pullRequests: false, reviews: 'comment' });
+    expect(toolBriefingLine({ provider: 'github', account: 'me', site: null, rights: comments })).toBe(
+      '- GitHub: as me; may read and review pull requests with comments in AiriaLLC/*; never merges, closes, ' +
+        "force-pushes, deletes, pushes to a default branch, dismisses others' reviews or approves its own pull " +
+        `requests.${note}`,
+    );
+    const approves = github({ reviews: 'approve' });
+    expect(toolBriefingLine({ provider: 'github', account: 'me', site: null, rights: approves })).toContain(
+      'may read, push branches, open and update pull requests and review pull requests (comment, approve or request ' +
+        'changes) in AiriaLLC/*;',
     );
     const two = github({ pullRequests: false, repos: ['a/x', 'b/*'] });
     expect(toolBriefingLine({ provider: 'github', account: 'me', site: null, rights: two })).toContain(

@@ -80,15 +80,25 @@ const SlackChannel = z
   );
 
 /**
+ * Pull request reviews through a profile's GitHub part (2026-11-14): none, comments (COMMENT reviews, line comments,
+ * pending reviews), or also approving and requesting changes (APPROVE, REQUEST_CHANGES).
+ */
+export const GitHubReviews = z.enum(['off', 'comment', 'approve']);
+export type GitHubReviews = z.infer<typeof GitHubReviews>;
+
+/**
  * A profile's GitHub rights. Reading is always on, in the repositories it reaches (`repos`: `all` it can see, or a list
  * of `owner/name` and `owner/*`; empty reaches none). `push` pushes branches; `pullRequests` opens and updates pull
- * requests. It never merges, deletes (a branch, a repository, anything), force-pushes, or pushes to a repository's
- * default branch: those are no options, and the tools (S7.1d) refuse them whatever a profile says.
+ * requests; `reviews` reviews them (`off` when left out: rights stored before 2026-11-14, migration
+ * `0041_github_reviews`). It never merges, closes, deletes (a branch, a repository, anything), force-pushes, pushes to a
+ * repository's default branch, dismisses others' reviews or approves its own pull request: those are no options, and
+ * the tools (S7.1d) refuse them whatever a profile says.
  */
 export const GitHubRights = z.strictObject({
   repos: scope(GitHubRepo, (repo) => repo.toLowerCase()),
   push: z.boolean(),
   pullRequests: z.boolean(),
+  reviews: GitHubReviews.default('off'),
 });
 export type GitHubRights = z.infer<typeof GitHubRights>;
 
@@ -147,13 +157,13 @@ export type RightsOf<P extends ToolProvider> = P extends 'github'
 export const TOOL_RIGHTS = { github: GitHubRights, atlassian: AtlassianRights, slack: SlackRights } as const;
 
 const DEFAULT_RIGHTS: { readonly [P in ToolProvider]: RightsOf<P> } = {
-  github: { repos: [], push: false, pullRequests: false },
+  github: { repos: [], push: false, pullRequests: false, reviews: 'off' },
   atlassian: { jira: 'read', jiraProjects: 'all', confluence: 'read', confluenceSpaces: 'all' },
   slack: { read: true, post: false, channels: 'all', dms: 'off', search: false, react: false },
 };
 
 const NO_RIGHTS: { readonly [P in ToolProvider]: RightsOf<P> } = {
-  github: { repos: [], push: false, pullRequests: false },
+  github: { repos: [], push: false, pullRequests: false, reviews: 'off' },
   atlassian: { jira: 'off', jiraProjects: [], confluence: 'off', confluenceSpaces: [] },
   slack: { read: false, post: false, channels: [], dms: 'off', search: false, react: false },
 };

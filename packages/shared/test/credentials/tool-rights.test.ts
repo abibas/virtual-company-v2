@@ -16,6 +16,7 @@ const github = (rights: Record<string, unknown> = {}) => ({
   repos: ['AiriaLLC/*'],
   push: true,
   pullRequests: false,
+  reviews: 'off',
   ...rights,
 });
 const atlassian = (rights: Record<string, unknown> = {}) => ({
@@ -51,6 +52,16 @@ describe('GitHub rights', () => {
     `${'o'.repeat(40)}/repo`,
   ])('refuse the repository %j', (repo) => {
     expect(GitHubRights.safeParse(github({ repos: [repo] })).success).toBe(false);
+  });
+
+  it('review off, with comments or also approving; off when left out (rights stored before reviews)', () => {
+    for (const reviews of ['off', 'comment', 'approve'])
+      expect(GitHubRights.parse(github({ reviews })).reviews).toBe(reviews);
+    const { reviews: _, ...before } = github();
+    expect(GitHubRights.parse(before).reviews).toBe('off');
+    expect(storedRights('github', before)).toEqual(github());
+    expect(GitHubRights.safeParse(github({ reviews: 'merge' })).success).toBe(false);
+    expect(GitHubRights.safeParse(github({ reviews: true })).success).toBe(false);
   });
 
   it('refuse more than the most repositories, a missing right, and anything else (merge is no option)', () => {
@@ -96,7 +107,7 @@ describe('a tool part’s rights', () => {
   });
 
   it('start at the safe end: GitHub reaches nothing and only reads, Atlassian only reads', () => {
-    expect(defaultRights('github')).toEqual({ repos: [], push: false, pullRequests: false });
+    expect(defaultRights('github')).toEqual({ repos: [], push: false, pullRequests: false, reviews: 'off' });
     expect(defaultRights('atlassian')).toEqual({
       jira: 'read',
       jiraProjects: 'all',

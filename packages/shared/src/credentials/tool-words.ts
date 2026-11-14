@@ -35,6 +35,9 @@ export const SLACK_TOOLS_NOTE =
 
 type Scope = 'all' | readonly string[];
 
+/** A GitHub part's reviews: `off` for rights from before them (2026-11-14) read without the schema's default. */
+export const reviewsOf = (rights: Pick<GitHubRights, 'reviews'>): GitHubRights['reviews'] => rights.reviews ?? 'off';
+
 /** A scope in a summary: its word for all, the first names and how many more, or its word for none. */
 function shortScope(scope: Scope, words: { readonly all: string; readonly none: string }): string {
   if (scope === 'all') return words.all;
@@ -43,9 +46,10 @@ function shortScope(scope: Scope, words: { readonly all: string; readonly none: 
   return scope.length > SUMMARY_NAMES_MAX ? `${shown} +${scope.length - SUMMARY_NAMES_MAX}` : shown;
 }
 
-/** "push, PRs · AiriaLLC/*": what it may do besides reading (else "read"), and where. */
+/** "push, PRs, approve · AiriaLLC/*": what it may do besides reading (else "read"), and where. */
 function githubSummary(rights: GitHubRights): string {
-  const can = [rights.push ? 'push' : '', rights.pullRequests ? 'PRs' : ''].filter((word) => word !== '');
+  const reviews = reviewsOf(rights) === 'off' ? '' : reviewsOf(rights);
+  const can = [rights.push ? 'push' : '', rights.pullRequests ? 'PRs' : '', reviews].filter((word) => word !== '');
   const where = shortScope(rights.repos, { all: 'all repositories', none: 'no repositories' });
   return `${can.length === 0 ? 'read' : can.join(', ')} · ${where}`;
 }
@@ -113,18 +117,31 @@ function sentence(items: readonly string[]): string {
 /** Where a right reaches, in a sentence: everywhere, or in the names listed. */
 const reach = (scope: Scope, everywhere: string) => (scope === 'all' ? everywhere : `in ${sentence(scope)}`);
 
+/** What a GitHub part's reviews let it do, in the briefing (2026-11-14). */
+export const GITHUB_REVIEWS_MAY = {
+  comment: 'review pull requests with comments',
+  approve: 'review pull requests (comment, approve or request changes)',
+} as const;
+
 /** GitHub's line: as whom, what it may do and where, and what it never does. */
 function githubLine(account: string, rights: GitHubRights): string {
   if (rights.repos !== 'all' && rights.repos.length === 0) {
     return `as ${account}; no repositories are chosen, so it reaches none`;
   }
+  const reviews = reviewsOf(rights);
   const may = sentence([
     'read',
     ...(rights.push ? ['push branches'] : []),
     ...(rights.pullRequests ? ['open and update pull requests'] : []),
+    ...(reviews === 'off' ? [] : [GITHUB_REVIEWS_MAY[reviews]]),
   ]);
   const where = reach(rights.repos, 'in every repository the account can see');
-  return `as ${account}; may ${may} ${where}; never merges, force-pushes, deletes or pushes to a default branch`;
+  const never =
+    reviews === 'off'
+      ? 'never merges, force-pushes, deletes or pushes to a default branch'
+      : "never merges, closes, force-pushes, deletes, pushes to a default branch, dismisses others' reviews or " +
+        'approves its own pull requests';
+  return `as ${account}; may ${may} ${where}; ${never}`;
 }
 
 const JIRA_MAY = {
