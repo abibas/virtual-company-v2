@@ -8,7 +8,7 @@ import {
   type TenantSet,
   type TenantValues,
 } from '@mwc/db';
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, max } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, max, sql } from 'drizzle-orm';
 
 /** A chat's turns and their events (S5.1b), through the company's tenant only. */
 
@@ -46,6 +46,21 @@ async function lastOf(t: TenantDb, chatId: string): Promise<ChatTurn | undefined
   const [row] = await t.select(chatTurns, eq(chatTurns.chatId, chatId)).orderBy(desc(chatTurns.seq)).limit(1);
   return row;
 }
+
+/**
+ * The latest turn of each of these chats that talks with the agent (2026-11-14: no line of who joined or left, no
+ * message sent in Slack).
+ */
+const lastTalksOf = (t: TenantDb, chatIds: readonly string[]): Promise<ChatTurn[]> =>
+  chatIds.length === 0
+    ? Promise.resolve([])
+    : t.select(
+        chatTurns,
+        and(
+          inArray(chatTurns.chatId, [...chatIds]),
+          sql`${chatTurns.seq} = (select max(l.seq) from chat_turns l where l.company_id = ${chatTurns.companyId} and l.chat_id = ${chatTurns.chatId} and l.kind in ('message', 'compact', 'clear'))`,
+        ),
+      );
 
 /** The chat's highest turn number, 0 before its first turn. */
 async function lastSeq(t: TenantDb, chatId: string): Promise<number> {
@@ -127,6 +142,7 @@ export const turnsRepo = {
   ofChat,
   liveOf,
   lastOf,
+  lastTalksOf,
   lastSeq,
   insert,
   updateLive,

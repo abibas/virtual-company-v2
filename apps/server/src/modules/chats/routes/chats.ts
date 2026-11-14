@@ -5,11 +5,11 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
+import { ChatListSchema } from '../schemas/activity.ts';
 import { CreateChatSchema } from '../schemas/people.ts';
 import {
   AgentChatsParamsSchema,
   ChatDetailSchema,
-  ChatListSchema,
   ChatParamsSchema,
   ChatSchema,
   UpdateChatSchema,
@@ -171,6 +171,7 @@ export function chatRoutes(deps: ServerDeps, live: ChatDetailLive, changed: Chat
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
       const result = await listChats(
+        deps.db,
         c.var.tenant,
         c.req.valid('param').agentId,
         c.var.membership.principalId,

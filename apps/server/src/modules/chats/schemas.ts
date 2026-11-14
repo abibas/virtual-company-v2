@@ -223,8 +223,6 @@ export const OlderTurnsSchema = z
   .object({ turns: z.array(ChatTurnWithEventsSchema), more: z.boolean() })
   .openapi('ChatOlderTurns');
 
-export const ChatListSchema = z.object({ chats: z.array(ChatSchema) }).openapi('ChatList');
-
 /** A new title, and this chat's own access profile (the caller's own) or null for the agent's. */
 export const UpdateChatSchema = z
   .object({

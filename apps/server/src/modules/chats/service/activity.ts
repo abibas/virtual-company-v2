@@ -1,13 +1,12 @@
-import type { TenantDb } from '@mwc/db';
+import type { DbHandle, TenantDb } from '@mwc/db';
 import { CHAT_STREAM_HEARTBEAT_MS } from '@mwc/shared/chats';
 import { participantsRepo } from '../repo/participants.ts';
-import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { isMessageChat } from '../rules/people.ts';
-import type { ChatActivityView } from '../schemas/activity.ts';
+import type { ChatActivityView, ChatListItemView } from '../schemas/activity.ts';
 import type { ChatActivity, ChatBus } from './bus.ts';
+import { listItems } from './faces.ts';
 import type { StreamTimers } from './stream.ts';
-import { chatView, turnView } from './views.ts';
 
 /**
  * The company's chats, live (2026-11-13, docs/harness.md "Live chat lists"; `GET …/chat-activity`, Server-Sent Events):
@@ -29,6 +28,7 @@ export interface ActivitySink {
 }
 
 export interface ActivityDeps {
+  readonly db: DbHandle;
   readonly bus: ChatBus;
   readonly timers?: StreamTimers;
   readonly heartbeatMs?: number;
@@ -48,6 +48,7 @@ export const listsAnew = (activity: ChatActivity): boolean =>
  * conversation, never read again; `hidden` for a message chat they are not in, read again at its next burst.
  */
 export async function activityOf(
+  db: DbHandle,
   t: TenantDb,
   chatId: string,
   viewer: string,
@@ -55,8 +56,8 @@ export async function activityOf(
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined || chat.taskId !== null) return 'elsewhere';
   if (isMessageChat(chat) && !(await participantsRepo.has(t, chat.id, viewer))) return 'hidden';
-  const last = await turnsRepo.lastOf(t, chat.id);
-  return { chat: chatView(chat), lastTurn: last === undefined ? null : turnView(last) };
+  const [item] = (await listItems(db, t, [chat])) as [ChatListItemView];
+  return { chat: item, lastTurn: item.lastTurn };
 }
 
 /** Streams the company's chats' activity to `sink` until `closed` resolves (see above). */
@@ -74,7 +75,7 @@ export async function streamActivity(
   let chain = sink.comment('open');
   const send = async (chatId: string) => {
     pending.delete(chatId);
-    const view = await activityOf(t, chatId, viewer);
+    const view = await activityOf(deps.db, t, chatId, viewer);
     if (view === 'elsewhere') elsewhere.add(chatId);
     else if (view !== 'hidden') await sink.message('chat', JSON.stringify(view));
   };

@@ -3,7 +3,7 @@ import { CHAT_PROMPT } from '@mwc/shared/chats';
 import { participantsRepo } from '../repo/participants.ts';
 import { groupHeader, groupPrompt, promptTooLong } from '../rules/people.ts';
 import type { Refusal } from '../rules.ts';
-import { memberNames } from './people.ts';
+import { memberNames } from './faces.ts';
 
 /**
  * A person's message as the agent gets it (2026-11-14, docs/harness.md "Who is in a chat"): in a chat with several

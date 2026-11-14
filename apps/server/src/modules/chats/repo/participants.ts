@@ -30,6 +30,14 @@ const ofChat = (t: TenantDb, chatId: string): Promise<ChatParticipant[]> =>
         .orderBy(asc(chatParticipants.addedAt), asc(chatParticipants.id))
     : Promise.resolve([]);
 
+/** The people of these chats, the earliest added first. */
+const ofChats = (t: TenantDb, chatIds: readonly string[]): Promise<ChatParticipant[]> =>
+  chatIds.length === 0
+    ? Promise.resolve([])
+    : t
+        .select(chatParticipants, inArray(chatParticipants.chatId, [...chatIds]))
+        .orderBy(asc(chatParticipants.addedAt), asc(chatParticipants.id));
+
 /** True when this member is in the chat. */
 async function has(t: TenantDb, chatId: string, principalId: string): Promise<boolean> {
   if (!isUuid(principalId)) return false;
@@ -129,6 +137,7 @@ export const memberIn = (principalId: string) =>
 
 export const participantsRepo = {
   ofChat,
+  ofChats,
   has,
   add,
   remove,

@@ -1,6 +1,5 @@
 import { auditChanges, type Chat, type ChatParticipant, type DbHandle, type TenantDb } from '@mwc/db';
 import type { MembershipRole } from '@mwc/shared/enums';
-import { profilesOf } from '../../identity/service.ts';
 import { type NewPerson, participantsRepo } from '../repo/participants.ts';
 import { chatsRepo } from '../repo.ts';
 import {
@@ -21,11 +20,12 @@ import {
 import { CHAT_ARCHIVED, CHAT_NOT_FOUND, type Refusal } from '../rules.ts';
 import type { ChatPersonView } from '../schemas/people.ts';
 import type { ChatBus } from './bus.ts';
+import { memberNames, peopleOf } from './faces.ts';
 import { recordNote } from './notes.ts';
 
 /**
  * Who is in a chat (2026-11-14, docs/harness.md "Who is in a chat"): where a member stands in one (`seatIn`, the routes'
- * guard), its people with their names and faces (`peopleOf`), and the changes: any person in the chat adds members, an
+ * guard), and the changes to its people (their faces are `faces.ts`'s): any person in the chat adds members, an
  * owner who is not in it adds only themselves (Add me); the chat's creator and the owners take someone out, and anyone
  * leaves. Each change is audited (entity `chat`: `add_person`, `join`, `remove_person`, `leave`), shows as a quiet line
  * in the thread (a `people` turn) and is told to the chats' activity, so the lists of whoever joined or left follow.
@@ -56,52 +56,6 @@ export async function seatIn(
   if (chat === undefined) return 'open';
   const inChat = isMessageChat(chat) && (await participantsRepo.has(t, chat.id, who.principalId));
   return seatOf(chat, inChat, who.role);
-}
-
-/** A person's name as the app shows it: their display name, else their email. */
-const nameOf = (
-  profile: { readonly displayName: string | null; readonly primaryEmail: string } | undefined,
-) => (profile === undefined ? 'Former member' : (profile.displayName ?? profile.primaryEmail));
-
-/** The names of these members, by principal. Outside any transaction (the identity read runs on the handle). */
-export async function memberNames(db: DbHandle, t: TenantDb, principalIds: readonly string[]) {
-  const members = await participantsRepo.members(t, principalIds);
-  const profiles = await profilesOf(
-    db,
-    members.map((member) => member.userId),
-  );
-  const users = new Map(members.map((member) => [member.principalId, member.userId]));
-  return (principalId: string) => {
-    const userId = users.get(principalId);
-    const profile = userId === undefined ? undefined : profiles.get(userId);
-    return { name: nameOf(profile), imageUrl: profile?.imageUrl ?? null };
-  };
-}
-
-/** The chat's people as its header lists them, the earliest added first. */
-export async function peopleOf(db: DbHandle, t: TenantDb, chat: Chat): Promise<ChatPersonView[]> {
-  const rows = await participantsRepo.ofChat(t, chat.id);
-  const principals = rows.flatMap((row) => (row.principalId === null ? [] : [row.principalId]));
-  const names = await memberNames(db, t, principals);
-  const contactIds = rows.flatMap((row) => (row.contactId === null ? [] : [row.contactId]));
-  const contacts = new Map((await participantsRepo.contactsOf(t, contactIds)).map((c) => [c.id, c]));
-  return rows.map((row) => {
-    const contact = row.contactId === null ? undefined : contacts.get(row.contactId);
-    const face =
-      row.principalId === null
-        ? { name: contact?.name ?? 'Contact', imageUrl: contact?.avatarUrl ?? null }
-        : names(row.principalId);
-    return {
-      id: row.id,
-      kind: row.principalId === null ? 'contact' : 'member',
-      principalId: row.principalId,
-      contactId: row.contactId,
-      ...face,
-      creator: row.principalId !== null && row.principalId === chat.createdBy,
-      addedBy: row.addedBy,
-      addedAt: row.addedAt.toISOString(),
-    };
-  });
 }
 
 /** Puts people in a chat as Most Wanted or its creator (a new chat, a branch, a Slack message): no line, no audit. */

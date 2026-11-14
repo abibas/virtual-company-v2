@@ -142,6 +142,6 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
     .route('/', conversationRoutes(turns))
     .route('/', answerRoutes(turns))
     .route('/', streamRoutes(deps, { bus: live.bus }))
-    .route('/', activityRoutes(deps, { bus: live.bus }))
+    .route('/', activityRoutes(deps, { db: deps.db, bus: live.bus }))
     .route('/', chatTerminalRoutes({ ...turns, tickets: deps.tickets }));
 }

@@ -10,14 +10,16 @@ import { chatsRepo } from './repo.ts';
 import { isMessageChat } from './rules/people.ts';
 import { openQuestion } from './rules/questions.ts';
 import { AGENT_ARCHIVED, AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal } from './rules.ts';
+import type { ChatListItemView } from './schemas/activity.ts';
 import type { CreateChat } from './schemas/people.ts';
 import type { ChatDetailView, ChatView, UpdateChat } from './schemas.ts';
 import { auditChat } from './service/audit.ts';
 import { branchedFromOf } from './service/branch.ts';
+import { listItems, peopleOf } from './service/faces.ts';
 import { currentConversation } from './service/history.ts';
 import type { TurnAway } from './service/live.ts';
 import { profileRunsOf, switchedAi } from './service/overrides.ts';
-import { joinable, peopleOf, seatPeople } from './service/people.ts';
+import { joinable, seatPeople } from './service/people.ts';
 import type { ChatSlackHook } from './service/slack.ts';
 import { chatView } from './service/views.ts';
 
@@ -58,17 +60,18 @@ async function chooseRefusal(t: TenantDb, caller: ChatCaller, profileId: string,
  * are in, and the team chats (their own rules); with `others`, the message chats they are not in (an owner's look).
  */
 export async function listChats(
+  db: DbHandle,
   t: TenantDb,
   agentId: string,
   viewer: string,
   others = false,
-): Promise<{ ok: true; chats: ChatView[] } | Refusal> {
+): Promise<{ ok: true; chats: ChatListItemView[] } | Refusal> {
   const agent = await chatsRepo.agentOf(t, agentId);
   if (agent === undefined) return AGENT_NOT_FOUND;
   const rows = others
     ? await chatsRepo.othersOf(t, agent.id, viewer)
     : await chatsRepo.ofAgent(t, agent.id, viewer);
-  return { ok: true, chats: rows.map(chatView) };
+  return { ok: true, chats: await listItems(db, t, rows) };
 }
 
 /** Begins a chat with the agent, on its harness and its placement's machine (see above). */

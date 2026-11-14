@@ -75,10 +75,14 @@ describe('the chats’ activity', () => {
     const other = await scene(w);
     const t = await tenant(w.t.db, s.company.companyId);
     const me = s.company.owner.principalId;
-    expect(await activityOf(t, s.chat.id, me)).toEqual({ chat: s.chat, lastTurn: null });
-    expect(await activityOf(t, other.chat.id, me)).toBe('elsewhere');
-    expect(await activityOf(t, 'nope', me)).toBe('elsewhere');
-    expect(await activityOf(t, s.chat.id, other.company.owner.principalId)).toBe('hidden');
+    const people = [expect.objectContaining({ principalId: me, kind: 'member', creator: true })];
+    expect(await activityOf(w.t.db, t, s.chat.id, me)).toEqual({
+      chat: { ...s.chat, people, lastTurn: null },
+      lastTurn: null,
+    });
+    expect(await activityOf(w.t.db, t, other.chat.id, me)).toBe('elsewhere');
+    expect(await activityOf(w.t.db, t, 'nope', me)).toBe('elsewhere');
+    expect(await activityOf(w.t.db, t, s.chat.id, other.company.owner.principalId)).toBe('hidden');
   });
 
   it('sends a chat once per burst, beats, never sends another company’s, and stops nothing on a failed write', async () => {
@@ -105,7 +109,13 @@ describe('the chats’ activity', () => {
       close = resolve;
     });
     const me = s.company.owner.principalId;
-    const streaming = streamActivity({ bus, timers: hand.timers, heartbeatMs: 1 }, t, me, sink, closed);
+    const streaming = streamActivity(
+      { db: w.t.db, bus, timers: hand.timers, heartbeatMs: 1 },
+      t,
+      me,
+      sink,
+      closed,
+    );
     bus.changed(s.chat.id);
     await eventually('the failed write', () => !failNext);
     bus.publish(other.chat.id, turnMessage(other.chat.id, 'running'));

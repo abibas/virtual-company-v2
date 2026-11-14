@@ -4,8 +4,9 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
+import { ChatListSchema } from '../schemas/activity.ts';
 import { AddPeopleSchema, ChatPeopleSchema, PersonParamsSchema } from '../schemas/people.ts';
-import { AgentChatsParamsSchema, ChatListSchema, ChatParamsSchema } from '../schemas.ts';
+import { AgentChatsParamsSchema, ChatParamsSchema } from '../schemas.ts';
 import type { ChatBus } from '../service/bus.ts';
 import { addPeople, type PeopleCaller, removePerson } from '../service/people.ts';
 import { listChats } from '../service.ts';
@@ -114,7 +115,7 @@ export function peopleRoutes(deps: ServerDeps & { readonly bus: ChatBus }) {
     })
     .openapi(othersRoute(deps), async (c) => {
       const { agentId } = c.req.valid('param');
-      const result = await listChats(c.var.tenant, agentId, c.var.membership.principalId, true);
+      const result = await listChats(deps.db, c.var.tenant, agentId, c.var.membership.principalId, true);
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
       return c.json({ chats: result.chats }, 200);
     });
