@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { BODY_MAX, number, owner, pull, repo } from './github/fields.ts';
+import { GITHUB_REVIEW_TOOLS, REVIEW_INPUTS, REVIEW_REFUSED_ARGUMENTS } from './github/reviews.ts';
 
 /**
  * The GitHub tools' names and inputs (S7.1d, docs/subscriptions.md "GitHub tools"): GitHub's MCP server's, as its README
@@ -6,7 +8,7 @@ import { z } from 'zod';
  * carry over. Other arguments of that server's that change nothing here (`fields`, `after`, `minimal_output`) are taken
  * and ignored; what would do something not offered (closing a pull request with `state`, requesting reviewers, a
  * reaction) is refused by name (`REFUSED_ARGUMENTS`). Nothing merges, closes or deletes. The server checks every call's
- * input with these schemas; the runner only relays them.
+ * input with these schemas; the runner only relays them. The review tools (2026-11-14) are in `github/reviews.ts`.
  */
 
 export const GITHUB_READ_TOOLS = [
@@ -28,7 +30,9 @@ export const GITHUB_PR_TOOLS = [
   'request_copilot_review',
 ] as const;
 
-export const GitHubTool = z.enum([...GITHUB_READ_TOOLS, ...GITHUB_PR_TOOLS]);
+export { GITHUB_REVIEW_TOOLS, REVIEW_EVENTS, REVIEW_METHODS } from './github/reviews.ts';
+
+export const GitHubTool = z.enum([...GITHUB_READ_TOOLS, ...GITHUB_PR_TOOLS, ...GITHUB_REVIEW_TOOLS]);
 export type GitHubTool = z.infer<typeof GitHubTool>;
 
 /** What `pull_request_read` reads. */
@@ -47,17 +51,7 @@ export const PULL_METHODS = [
 /** What `issue_read` reads. */
 export const ISSUE_METHODS = ['get', 'get_comments', 'get_sub_issues', 'get_labels'] as const;
 
-/** The longest body a tool writes (a pull request's, a comment): what the runner's socket carries. */
-export const BODY_MAX = 50_000;
-
-/** A repository owner, as GitHub allows one: letters, digits and dashes, up to 39. */
-export const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
-/** A repository name: letters, digits, `.`, `_` and `-`, up to 100, not `.` or `..`. */
-export const REPO_PATTERN = /^(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/;
-
-const owner = z.string().trim().regex(OWNER_PATTERN, 'a GitHub owner').describe('Repository owner');
-const repo = z.string().trim().regex(REPO_PATTERN, 'a repository name').describe('Repository name');
-const number = (what: string) => z.int().min(1).max(2_147_483_647).describe(what);
+export { BODY_MAX, OWNER_PATTERN, REPO_PATTERN } from './github/fields.ts';
 const page = z.int().min(1).max(1000).optional().describe('Page number for pagination (min 1)');
 const perPage = z
   .int()
@@ -78,7 +72,6 @@ const search = (what: string) => ({
   perPage,
   fields: ignored('fields'),
 });
-const pull = { owner, repo, pullNumber: number('Pull request number') };
 
 /** Each tool's input. */
 export const GITHUB_INPUTS = {
@@ -184,6 +177,7 @@ export const GITHUB_INPUTS = {
     body: z.string().trim().min(1).max(BODY_MAX).describe('Comment content'),
   }),
   request_copilot_review: z.object(pull),
+  ...REVIEW_INPUTS,
 } satisfies Record<GitHubTool, z.ZodType>;
 
 export type GitHubInput<T extends GitHubTool> = z.output<(typeof GITHUB_INPUTS)[T]>;
@@ -203,4 +197,5 @@ export const REFUSED_ARGUMENTS: Partial<Record<GitHubTool, Readonly<Record<strin
     comment_id: 'Reactions are not offered: write a comment with body.',
     reaction: 'Reactions are not offered: write a comment with body.',
   },
+  ...REVIEW_REFUSED_ARGUMENTS,
 };

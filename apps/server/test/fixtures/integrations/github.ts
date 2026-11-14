@@ -25,6 +25,7 @@ export const PUSH_PRS: GitHubRights = {
   repos: ['AiriaLLC/*', 'abibas/sandbox'],
   push: true,
   pullRequests: true,
+  reviews: 'off',
 };
 
 export interface GitHubSceneOptions extends SceneOptions {

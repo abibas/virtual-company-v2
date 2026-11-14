@@ -47,8 +47,20 @@ export const issueView = (issue: GitHubIssueHit, whole = false) =>
     body: shortBody(issue.body, whole ? GITHUB_TEXT_LIMITS.body : GITHUB_TEXT_LIMITS.listed),
   });
 
-export const commentView = (comment: GitHubComment | GitHubReview) =>
-  compact({ ...comment, body: cut(comment.body, GITHUB_TEXT_LIMITS.comment) });
+/** A comment, or a review (its GraphQL id left out). */
+export function commentView(comment: GitHubComment | GitHubReview) {
+  const { nodeId: _, ...fields } = { nodeId: null, ...comment };
+  return compact({ ...fields, body: cut(comment.body, GITHUB_TEXT_LIMITS.comment) });
+}
+
+/** A review a tool made, submitted or deleted: its id, state, address and body's start. */
+export const reviewView = (review: GitHubReview) =>
+  compact({
+    id: review.id,
+    state: review.state,
+    url: review.url,
+    body: cut(review.body, GITHUB_TEXT_LIMITS.listed),
+  });
 
 export const fileView = (file: GitHubFile) =>
   compact({ ...file, patch: shortBody(file.patch, GITHUB_TEXT_LIMITS.patch) });

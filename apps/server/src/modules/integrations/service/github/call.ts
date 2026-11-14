@@ -11,6 +11,7 @@ import { refused, type ToolReply } from '../reply.ts';
 import type { GitHubChange, GitHubContext } from './context.ts';
 import { PULL_TOOLS } from './pulls.ts';
 import { REPO_TOOLS } from './repos.ts';
+import { REVIEW_TOOLS } from './reviews.ts';
 
 /**
  * One call of a GitHub tool (S7.1d), checked again on the server whatever the runner relayed: the tool is one of them,
@@ -42,7 +43,7 @@ function refusedArgument(tool: GitHubTool, input: Readonly<Record<string, unknow
 
 /** Runs the tool on its checked input. */
 function run(tool: GitHubTool, ctx: GitHubContext, input: unknown): Promise<ToolReply> {
-  const tools = { ...PULL_TOOLS, ...REPO_TOOLS } as Record<
+  const tools = { ...PULL_TOOLS, ...REPO_TOOLS, ...REVIEW_TOOLS } as Record<
     GitHubTool,
     (ctx: GitHubContext, input: unknown) => Promise<ToolReply>
   >;

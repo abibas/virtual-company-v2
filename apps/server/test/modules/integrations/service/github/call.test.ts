@@ -31,7 +31,7 @@ const TURN: ServerToolTurn = {
   profileId: '0195f0a0-0000-7000-8000-000000000009',
   by: 'person-p',
 };
-const READ: GitHubRights = { repos: ['acme/*'], push: false, pullRequests: false };
+const READ: GitHubRights = { repos: ['acme/*'], push: false, pullRequests: false, reviews: 'off' };
 const BRANCHES = [{ name: 'main', commit: { sha: 'c1' } }];
 
 type Answer = { readonly status: number; readonly body?: unknown; readonly headers?: Record<string, string> };

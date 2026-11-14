@@ -1,8 +1,14 @@
 import type { GitHubRights } from '@mwc/shared/credentials';
 import type { ServerToolDef } from '@mwc/shared/harness';
 import { z } from 'zod';
-import { GITHUB_INPUTS, type GitHubTool, ISSUE_METHODS, PULL_METHODS } from '../../schemas/github.ts';
-import { isPullRequestTool } from './rights.ts';
+import {
+  GITHUB_INPUTS,
+  type GitHubTool,
+  ISSUE_METHODS,
+  PULL_METHODS,
+  REVIEW_METHODS,
+} from '../../schemas/github.ts';
+import { changesGitHub } from './rights.ts';
 
 /**
  * The GitHub tools' words (S7.1d): what each one is for, as its `tools/list` entry says it, its definition for a turn's
@@ -62,6 +68,18 @@ export const GITHUB_TOOL_INFO: Readonly<Record<GitHubTool, { title: string; desc
     'Ask Copilot to review',
     'Requests a review of a pull request from GitHub Copilot.',
   ),
+  pull_request_review_write: info(
+    'Review a pull request',
+    `Reviews a pull request: method ${REVIEW_METHODS.join(', ')}. create with an event (APPROVE, REQUEST_CHANGES, ` +
+      'COMMENT) submits the review, with optional line comments; without one it stays pending. submit_pending ' +
+      'submits your pending review with an event; delete_pending deletes it. Never merges, closes or dismisses ' +
+      'reviews, and never approves your own pull request.',
+  ),
+  add_comment_to_pending_review: info(
+    'Comment in a pending review',
+    'Adds a comment on a file or a line (or range) of the diff to your pending review of a pull request; ' +
+      'submit it with pull_request_review_write method submit_pending.',
+  ),
 };
 
 /** A tool's input schema as `tools/list` gives it: its JSON Schema without the `$schema` line. */
@@ -81,7 +99,7 @@ export function githubToolDef(tool: GitHubTool): ServerToolDef {
     name: tool,
     ...GITHUB_TOOL_INFO[tool],
     inputSchema: inputSchema(tool),
-    readOnly: !isPullRequestTool(tool),
+    readOnly: !changesGitHub(tool),
   };
   DEFS.set(tool, made);
   return made;
@@ -111,6 +129,27 @@ const gitWords = (git: GitState) =>
     ? `Pushing: the sign-in could not be opened for git now. ${git.message}`
     : GIT_WORDS[git.kind];
 
+const REVIEWS_MAY = {
+  comment: 'review them with comments',
+  approve: 'review them (comment, approve or request changes)',
+} as const;
+
+/** What the rights let the agent do: "read, and open and update pull requests", and its reviews. */
+function mayWords(rights: GitHubRights): string {
+  const pulls = rights.pullRequests ? 'open and update pull requests' : '';
+  if (rights.reviews === 'off') return pulls === '' ? 'read' : `read, and ${pulls}`;
+  const reviews = REVIEWS_MAY[rights.reviews];
+  return pulls === ''
+    ? `read, and ${reviews.replace('them', 'pull requests')}`
+    : `read, ${pulls}, and ${reviews}`;
+}
+
+/** What the tools never do. */
+const neverWords = (rights: GitHubRights) =>
+  rights.reviews === 'off'
+    ? 'they never merge, close or delete.'
+    : "they never merge, close, delete, dismiss others' reviews or approve your own pull requests.";
+
 /**
  * The line a turn's standing instructions get with the tools: "GitHub tools (from Most Wanted): as ihorherasko, in
  * AiriaLLC/*: read, and open and update pull requests. Your tools, by the names of GitHub's MCP server: …; they never
@@ -125,10 +164,9 @@ export function githubLine(
   const as = account === null ? '' : ` as ${account.replace(/\s+/g, ' ').trim()},`;
   const where =
     rights.repos === 'all' ? 'in every repository the account can see' : `in ${rights.repos.join(', ')}`;
-  const may = rights.pullRequests ? 'read, and open and update pull requests' : 'read';
   return (
-    `GitHub tools (from Most Wanted):${as} ${where}: ${may}. Your tools, by the names of GitHub's MCP server: ` +
-    `${tools.join(', ')}; owner and repo name the repository; they never merge, close or delete. ${gitWords(git)}`
+    `GitHub tools (from Most Wanted):${as} ${where}: ${mayWords(rights)}. Your tools, by the names of GitHub's MCP ` +
+    `server: ${tools.join(', ')}; owner and repo name the repository; ${neverWords(rights)} ${gitWords(git)}`
   );
 }
 

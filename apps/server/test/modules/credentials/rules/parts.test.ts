@@ -9,7 +9,7 @@ import {
   secondAiPart,
 } from '../../../../src/modules/credentials/rules/parts.ts';
 
-const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
+const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true, reviews: 'off' as const };
 const WIKI: AtlassianRights = {
   jira: 'read',
   jiraProjects: ['AP'],
