@@ -20,7 +20,7 @@ import { ChatFaces } from '../people/ChatFaces.tsx';
 const DOT_TONE: Readonly<Record<ChatDot, string>> = { working: 'bg-done', unseen: 'bg-blue' };
 
 /** The dot's column: always there, empty without a dot. */
-function DotColumn({ dot }: { readonly dot: ChatDot | undefined }) {
+export function DotColumn({ dot }: { readonly dot: ChatDot | undefined }) {
   if (dot === undefined) return <span aria-hidden="true" className="mt-1.5 size-2 shrink-0" />;
   const tone = DOT_TONE[dot];
   return (
@@ -49,7 +49,7 @@ function ChatTitle({ chat, open }: { readonly chat: ChatListItem; readonly open:
 }
 
 /** When it last moved: its latest turn, else when it began. */
-const movedAt = (chat: ChatListItem) =>
+export const movedAt = (chat: ChatListItem) =>
   chat.lastTurn
     ? (chat.lastTurn.endedAt ?? chat.lastTurn.startedAt ?? chat.lastTurn.createdAt)
     : chat.updatedAt;

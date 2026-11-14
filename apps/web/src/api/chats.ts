@@ -26,11 +26,11 @@ export interface SendOptions {
   readonly images?: readonly Blob[] | undefined;
 }
 
-/** An agent's chats, the latest first (archived ones are left out). */
+/** An agent's chats, the latest first (archived ones are left out), and its task conversations apart (T-19). */
 export function useAgentChats(
   companyId: string,
   agentId: string,
-): Loaded<{ readonly chats: readonly ChatListItem[] }> {
+): Loaded<{ readonly chats: readonly ChatListItem[]; readonly tasks: readonly ChatListItem[] }> {
   const api = useApi();
   return useLoad(`chats:${companyId}:${agentId}`, () => chatCalls(api, companyId).list(agentId));
 }

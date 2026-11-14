@@ -5,10 +5,12 @@ import { useApi } from '../../api/context.ts';
 import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../api/types.ts';
 import { useEarlierConversations } from '../../api/use-chat-earlier.ts';
 import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
+import { useCompany } from '../../app/company.ts';
 import { cx } from '../../components/cx.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { Crumb } from '../../components/layout/Breadcrumbs.tsx';
 import { Badge } from '../../components/ui/Badge.tsx';
+import { companyFlowLinks } from '../flows/links.ts';
 import { useMarkSeen } from '../report-chats/seen.ts';
 import { BranchedFrom } from './branch/BranchedFrom.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
@@ -139,7 +141,8 @@ function slackOf(calls: ChatCalls, live: ChatLive, chat: Chat, people: ChatPeopl
  * The chat and its turns come from `useChatLive` (the detail, then the stream); a prompt, a stop and a profile change
  * show their answer at once, before the stream says the same. Since 2026-11-14 its ⋯ menu lists who is in it (People),
  * an owner who is not in it reads it in the owner view (a mark, and Add me in place of the composer), and a Slack
- * conversation's chat lets its Slack connection's owner send in Slack.
+ * conversation's chat lets its Slack connection's owner send in Slack; a task's conversation leads back to its task
+ * (T-19).
  */
 export function OpenChat({
   companyId,
@@ -157,6 +160,8 @@ export function OpenChat({
   const folds = useEarlierConversations(calls, chatId);
   const authors = useThreadAuthors(companyId, agent);
   const people = useChatPeople(calls, live.detail, chatId, owner);
+  const { slug } = useCompany().membership;
+  const forTask = live.detail.data?.forTask;
   const [mode, setMode] = useState<ChatMode>('chat');
   // The rail's dot for a direct report's chat clears once its reply shows here.
   useMarkSeen(chatId, live.turns);
@@ -177,6 +182,7 @@ export function OpenChat({
     profiles: rest.profiles,
     sessionCwd,
     ...peopleParts(people),
+    task: forTask ? { ...forTask, href: companyFlowLinks(slug).task(forTask.key) } : undefined,
   };
   const closed = closedWhy(chat, mayWrite(chat, admin, member), placement, people.looksOn);
   const placeholder = asking(thread) ? 'Answer above, or write your answer here' : `Message ${agent.name}`;

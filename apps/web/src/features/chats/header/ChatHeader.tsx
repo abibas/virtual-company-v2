@@ -1,14 +1,15 @@
-import { Folder, MessageSquare, Server, SquareTerminal } from 'lucide-react';
+import { Folder, ListChecks, MessageSquare, Server, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../../api/types.ts';
 import type { StreamState } from '../../../api/use-chat-live.ts';
+import { Link } from '../../../app/router.tsx';
 import { AgentIcon } from '../../../components/feed/AgentIcon.tsx';
 import { SegmentedControl, type SegmentOption } from '../../../components/forms/Segmented.tsx';
 import type { Crumb } from '../../../components/layout/Breadcrumbs.tsx';
 import { harnessLabel } from '../../../components/org/agent-labels.ts';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { ClaudeMark, OpenAIMark } from '../../../components/ui/ProviderLogo.tsx';
-import { ChatBar } from './ChatBar.tsx';
+import { ChatBar, HEADER_CONTROL } from './ChatBar.tsx';
 import { HarnessChip } from './HarnessChip.tsx';
 import { OpenInClaudeCode } from './OpenInClaudeCode.tsx';
 import { ProfilePicker } from './ProfilePicker.tsx';
@@ -43,12 +44,30 @@ function WhereLine({ placement }: { readonly placement: AgentPlacement | undefin
   );
 }
 
+/** The task a task's conversation is for (T-19): its key and title, and its page. */
+export interface ChatTaskLink {
+  readonly key: string;
+  readonly title: string;
+  readonly href: string;
+}
+
+/** The way back to the task from its conversation: "T-18", with the task's title on hover. */
+function TaskLink({ task }: { readonly task: ChatTaskLink }) {
+  return (
+    <Link to={task.href} title={`Open ${task.key} · ${task.title}`} className={HEADER_CONTROL}>
+      <ListChecks size={13} aria-hidden="true" />
+      {task.key}
+    </Link>
+  );
+}
+
 /**
  * The open chat's header (S5.1c), one row across the page: the path to its chats (Company structure › Agents › the
  * agent › Chats; the open chat is the one marked in the list), the harness, the machine and the folder under it; on the right the access profile picker,
  * the harness CLI on the machine (linking to its tools), "Open in Claude Code" for admins once the chat has a
  * conversation (S5.2 step 6), the Chat / Terminal switch (the terminal for owners only) and (2026-11-14) the ⋯ menu with
- * People in this chat; an owner who only looks on sees the "Owner view" mark.
+ * People in this chat; an owner who only looks on sees the "Owner view" mark. A task's conversation leads back to its
+ * task first (T-19).
  */
 export function ChatHeader({
   crumbs,
@@ -66,6 +85,7 @@ export function ChatHeader({
   onProfile,
   badges,
   more,
+  task,
 }: {
   /** The path to the agent's chats. */
   readonly crumbs: readonly Crumb[];
@@ -86,6 +106,8 @@ export function ChatHeader({
   readonly badges?: ReactNode;
   /** The last control: the ⋯ menu (People in this chat, 2026-11-14). */
   readonly more?: ReactNode;
+  /** The task of a task's conversation (T-19), linked first among the controls. */
+  readonly task?: ChatTaskLink | undefined;
 }) {
   const modes: readonly SegmentOption<ChatMode>[] = [
     { value: 'chat', label: 'Chat', icon: MessageSquare },
@@ -119,6 +141,7 @@ export function ChatHeader({
       }
       controls={
         <>
+          {task && <TaskLink task={task} />}
           <ProfilePicker
             chat={chat}
             agentProfileName={agent.profile?.name ?? null}

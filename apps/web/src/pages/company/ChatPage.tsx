@@ -90,7 +90,9 @@ function ChatsOf({
   const placement = useAgentPlacement(companyId, agent.id);
   const profiles = useAccessProfiles();
   const admin = roleAtLeast(role, 'admin');
-  const newestAtFirst = useNewestAtFirst(chats.data?.chats);
+  // The newest chat, else (an agent that only works on tasks) its live or latest task conversation.
+  const listed = useMemo(() => chats.data && [...chats.data.chats, ...chats.data.tasks], [chats.data]);
+  const newestAtFirst = useNewestAtFirst(listed);
   const openId = openWanted ?? newestAtFirst;
   const hrefOf = (chatId?: string) => chatsPath(slug, agent.id, chatId);
   useSeenMarks();

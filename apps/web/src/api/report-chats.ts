@@ -46,7 +46,8 @@ export function useReportChats(
   };
   useChatActivity(companyId, readsChats, {
     chat: ({ chat }) => {
-      if (data?.reports.some((report) => report.agent.id === chat.agentId)) soon();
+      // A task's conversation is never a rail's chat (T-19: the activity tells them for the agent's chat list).
+      if (chat.task === null && data?.reports.some((report) => report.agent.id === chat.agentId)) soon();
     },
     opened: soon,
   });

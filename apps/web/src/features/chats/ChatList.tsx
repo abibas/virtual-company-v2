@@ -1,6 +1,7 @@
 import { MessageSquarePlus, MessagesSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { ChatListItem } from '../../api/types.ts';
+import type { AgentChatGroups } from '../../api/use-agent-chats-live.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { Button } from '../../components/ui/Button.tsx';
@@ -9,11 +10,13 @@ import { SkeletonRows } from '../../components/ui/Skeleton.tsx';
 import type { ChatDot } from './chat-dots.ts';
 import { ChatRow } from './list/ChatRow.tsx';
 import { useSteadyOrder } from './list/steady-order.ts';
+import { TaskChats } from './list/TaskChats.tsx';
 import { NewChatWith } from './people/NewChatWith.tsx';
 import { useAction } from './use-action.ts';
 
 export interface ChatListProps {
-  readonly chats: Loaded<{ readonly chats: readonly ChatListItem[] }>;
+  /** The agent's chats and, apart, its task conversations (T-19). */
+  readonly chats: Loaded<AgentChatGroups>;
   readonly openId: string | undefined;
   readonly hrefOf: (chatId: string) => string;
   /** Admins and owners begin and archive chats. */
@@ -67,7 +70,8 @@ function Rows({
 /**
  * The left column (S5.1c): the agent's chats you are in (2026-11-14: each with the faces of who the agent talks with
  * there), the live ones first, then the latest; with New chat (alone, or With people) and Archive (admins and owners);
- * live since 2026-11-13 (a new chat in place at once, each with its dot).
+ * live since 2026-11-13 (a new chat in place at once, each with its dot). Under them, apart, its task conversations
+ * (T-19, "Tasks"), live the same way.
  */
 export function ChatList({
   chats,
@@ -125,6 +129,7 @@ export function ChatList({
           )
         }
       </LoadState>
+      {chats.data && <TaskChats chats={chats.data.tasks} openId={openId} hrefOf={hrefOf} dots={dots} />}
       {after}
     </nav>
   );
