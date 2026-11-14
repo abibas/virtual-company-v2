@@ -68,10 +68,11 @@ describe('entering an agent’s step that starts by itself', () => {
       task: { taskId: task.id, stepId: stepOf(s.flow, 'Develop').id, round: 1 },
       turns: [{ id: start.turnId, status: 'running', createdBy: s.c.owner.principalId }],
     });
-    // A task's conversation stays out of the agent's own chat list.
+    // A task's conversation stays out of the agent's own chats: its list holds it apart (T-19).
     const developer = await agentOf(w.t.db, s.c.developer);
     const list = await as(w, s.c.owner)('GET', agentChatsPath(s.c, developer.id));
-    expect((list.body as { chats: ChatView[] }).chats).toEqual([]);
+    const body = list.body as { chats: ChatView[]; tasks: ChatView[] };
+    expect([body.chats, body.tasks.map((chat) => chat.id)]).toEqual([[], [conversation?.chatId]]);
     expect((await historyOf(w.t.db, task.id)).at(-1)).toEqual(['started', null, 'Develop', null]);
   });
 

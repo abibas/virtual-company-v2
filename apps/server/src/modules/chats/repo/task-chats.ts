@@ -1,10 +1,12 @@
-import { type Agent, agents, type Chat, chats, chatTurns, type TenantDb } from '@mwc/db';
-import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
+import { type Agent, agents, type Chat, chats, chatTurns, flowSteps, type TenantDb, tasks } from '@mwc/db';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 /**
  * A task's conversations (S5.3b), through the company's tenant only: the agent a step's assignee is, the latest
  * conversation of a task at a step (of one agent), and a turn of the step's conversations that runs (or waits for its
- * machine).
+ * machine). Since 2026-11-14 (T-19) an agent's task conversations for its chat list, and what names them there: their
+ * tasks and steps (the tasks module's rows, read only) and every conversation of those tasks (for the rounds each
+ * covers).
  */
 
 /** The agent of a principal (archived ones too); undefined for a person or another company's principal. */
@@ -39,4 +41,48 @@ async function runningTurnOf(t: TenantDb, taskId: string, stepId: string): Promi
   return row?.id;
 }
 
-export const taskChatsRepo = { agentByPrincipal, latestOf, runningTurnOf };
+/** The agent's task conversations not archived, the latest first (by `updated_at`, which a turn moves), `limit` of them. */
+const ofAgent = (t: TenantDb, agentId: string, limit: number): Promise<Chat[]> =>
+  t
+    .select(chats, and(eq(chats.agentId, agentId), isNotNull(chats.taskId), isNull(chats.archivedAt)))
+    .orderBy(desc(chats.updatedAt), desc(chats.id))
+    .limit(limit);
+
+/** These tasks (at least one) as a conversation's name needs them. */
+const tasksOf = (t: TenantDb, ids: readonly string[]) =>
+  t.selectFields(
+    tasks,
+    {
+      id: tasks.id,
+      number: tasks.number,
+      title: tasks.title,
+      state: tasks.state,
+      currentStepId: tasks.currentStepId,
+      rounds: tasks.rounds,
+    },
+    inArray(tasks.id, [...ids]),
+  );
+
+/** The names of these steps (at least one), removed ones left out. */
+const stepNames = (t: TenantDb, ids: readonly string[]) =>
+  t.selectFields(flowSteps, { id: flowSteps.id, name: flowSteps.name }, inArray(flowSteps.id, [...ids]));
+
+/** Every conversation of these tasks (at least one), archived ones too, oldest first. */
+const conversationsOf = (t: TenantDb, taskIds: readonly string[]) =>
+  t
+    .selectFields(
+      chats,
+      { id: chats.id, taskId: chats.taskId, stepId: chats.taskStepId, round: chats.taskRound },
+      inArray(chats.taskId, [...taskIds]),
+    )
+    .orderBy(asc(chats.createdAt), asc(chats.id));
+
+export const taskChatsRepo = {
+  agentByPrincipal,
+  latestOf,
+  runningTurnOf,
+  ofAgent,
+  tasksOf,
+  stepNames,
+  conversationsOf,
+};

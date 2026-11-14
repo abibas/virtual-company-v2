@@ -6,9 +6,11 @@ import type { Harness } from '@mwc/shared/enums';
 import { agentPlacement } from '../machines/index.ts';
 import { giveRefusal, profilePartMissing } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
+import { taskChatsRepo } from './repo/task-chats.ts';
 import { chatsRepo } from './repo.ts';
 import { isMessageChat } from './rules/people.ts';
 import { openQuestion } from './rules/questions.ts';
+import { AGENT_TASK_CHATS } from './rules/task-chats.ts';
 import { AGENT_ARCHIVED, AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal } from './rules.ts';
 import type { ChatListItemView } from './schemas/activity.ts';
 import type { CreateChat } from './schemas/people.ts';
@@ -21,6 +23,7 @@ import type { TurnAway } from './service/live.ts';
 import { profileRunsOf, switchedAi } from './service/overrides.ts';
 import { joinable, seatPeople } from './service/people.ts';
 import type { ChatSlackHook } from './service/slack.ts';
+import { taskNamesOf } from './service/task-names.ts';
 import { chatView } from './service/views.ts';
 
 /**
@@ -57,7 +60,9 @@ async function chooseRefusal(t: TenantDb, caller: ChatCaller, profileId: string,
 
 /**
  * The agent's chats not archived, the latest first; 404 for an unknown agent. The viewer's own: the message chats they
- * are in, and the team chats (their own rules); with `others`, the message chats they are not in (an owner's look).
+ * are in, and the team chats (their own rules), with the agent's task conversations apart (`tasks`, T-19: anyone who
+ * opens them from the task's page, the latest `AGENT_TASK_CHATS`); with `others`, the message chats they are not in (an
+ * owner's look), and no `tasks`.
  */
 export async function listChats(
   db: DbHandle,
@@ -65,13 +70,18 @@ export async function listChats(
   agentId: string,
   viewer: string,
   others = false,
-): Promise<{ ok: true; chats: ChatListItemView[] } | Refusal> {
+): Promise<{ ok: true; chats: ChatListItemView[]; tasks: ChatListItemView[] } | Refusal> {
   const agent = await chatsRepo.agentOf(t, agentId);
   if (agent === undefined) return AGENT_NOT_FOUND;
-  const rows = others
-    ? await chatsRepo.othersOf(t, agent.id, viewer)
-    : await chatsRepo.ofAgent(t, agent.id, viewer);
-  return { ok: true, chats: await listItems(db, t, rows) };
+  if (others)
+    return {
+      ok: true,
+      chats: await listItems(db, t, await chatsRepo.othersOf(t, agent.id, viewer)),
+      tasks: [],
+    };
+  const own = await chatsRepo.ofAgent(t, agent.id, viewer);
+  const tasks = await taskChatsRepo.ofAgent(t, agent.id, AGENT_TASK_CHATS);
+  return { ok: true, chats: await listItems(db, t, own), tasks: await listItems(db, t, tasks) };
 }
 
 /** Begins a chat with the agent, on its harness and its placement's machine (see above). */
@@ -161,9 +171,10 @@ export async function getChat(
   const ownerView = isMessageChat(chat) && reader.looksOn;
   const slack = (await live.slack?.conversationOf(t, chat.id, reader.userId)) ?? null;
   const shown = { people, ownerView, slack: slack && { ...slack, mayPost: slack.mayPost && !ownerView } };
+  const forTask = (await taskNamesOf(t, [chat])).get(chat.id) ?? null;
   return {
     ok: true,
-    chat: { ...detail, queue: queue.map((turn) => turn.id), runnerUpdateFor: update, ...shown },
+    chat: { ...detail, queue: queue.map((turn) => turn.id), runnerUpdateFor: update, ...shown, forTask },
   };
 }
 

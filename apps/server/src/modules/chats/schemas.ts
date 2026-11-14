@@ -9,6 +9,7 @@ import { messageImageFields, turnImageFields } from './schemas/images.ts';
 import { ChatOverridesSchema, ProfileRunsSchema, turnRunFields } from './schemas/overrides.ts';
 import { chatPeopleFields } from './schemas/people.ts';
 import { turnSenderFields } from './schemas/sender.ts';
+import { chatTaskField } from './schemas/task.ts';
 
 export { ChatContextSchema, type ChatContextView } from './schemas/context.ts';
 
@@ -70,8 +71,8 @@ export const ChatSchema = z
       .nullable()
       .openapi({
         description:
-          "A task's conversation at one of its steps (S5.3b): left out of the agent's chat list, opened from the task; " +
-          'null for a chat begun with the agent',
+          "A task's conversation at one of its steps (S5.3b): in the agent's chat list apart from its chats (`tasks`, " +
+          'T-19), and opened from the task; null for a chat begun with the agent',
       }),
     flowId: z.string().nullable().openapi({
       description:
@@ -218,6 +219,7 @@ export const ChatDetailSchema = ChatSchema.extend({
         '`caps.serverTools`), in a few words; null when nothing waits for a runner update or the runner is offline',
     }),
   ...chatPeopleFields,
+  ...chatTaskField,
 }).openapi('ChatDetail');
 
 /** A page of older turns (`GET …/chats/{chatId}/turns`), in order, and whether older ones exist in its range. */

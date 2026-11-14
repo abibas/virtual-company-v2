@@ -14,7 +14,7 @@ import {
 /**
  * Turns Most Wanted queues in a flow's team chats, live (2026-11-13, docs/harness.md "Live chat lists"): a Lead's
  * wake-up and the team room's turns show in the company's chats' activity with their chats, as Most Wanted's (no
- * `from`); a task's own conversation never does.
+ * `from`); since T-19 a task's own conversation does too, named by its task (`forTask`), the team chat by none.
  */
 
 let w: WakeWorld;
@@ -29,7 +29,7 @@ afterEach(async () => {
 afterAll(() => w.close());
 
 describe('turns Most Wanted queues', () => {
-  it('shows a Lead’s wake-up in its team chat, never the task’s own conversation', async () => {
+  it('shows a Lead’s wake-up in its team chat, and the task’s own conversation named by its task', async () => {
     const s = await wakeScene(w);
     const live = await openActivity(w.t.app, s.c.companyId, s.c.owner);
     open.push(live);
@@ -42,7 +42,12 @@ describe('turns Most Wanted queues', () => {
     const woke = await live.next('the wake-up', (v) => v.lastTurn?.id === start.turnId);
     expect(woke.chat).toMatchObject({ agentId: lead.id, title: 'DEVBOX delivery: team', flowId: s.flow.id });
     expect(woke.lastTurn).toMatchObject({ status: 'running', system: true, from: null });
-    expect(live.chats().every((v) => v.chat.task === null)).toBe(true);
+    expect(woke.chat.forTask).toBeNull();
+    const ran = live.chats().filter((v) => v.chat.task !== null);
+    expect(ran.length).toBeGreaterThan(0);
+    expect(ran.every((v) => v.chat.forTask?.key === task.key && v.chat.forTask.step === 'Develop')).toBe(
+      true,
+    );
     finish(s.runner, start, 'Looking.');
     await live.next('its end', (v) => v.lastTurn?.id === start.turnId && v.lastTurn.status === 'done');
   });

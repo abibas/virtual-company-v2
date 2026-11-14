@@ -9,8 +9,8 @@ import { type ActivityDeps, streamActivity } from '../service/activity.ts';
 
 /**
  * The company's chats, live (2026-11-13): `GET /api/companies/{companyId}/chat-activity`, Server-Sent Events over a
- * normal authenticated GET, as a chat's own stream. Members and above: each hears the chats they are in (2026-11-14), and
- * every team chat.
+ * normal authenticated GET, as a chat's own stream. Members and above: each hears the chats they are in (2026-11-14),
+ * every team chat and (T-19) every task's conversation.
  */
 
 const ACTIVITY = '/api/companies/{companyId}/chat-activity' as const;
@@ -25,9 +25,9 @@ const activityRoute = (deps: ServerDeps) => {
       '`event: chat` with `{chat, lastTurn}` (a `ChatActivity`: the chat as it is now, its latest turn or null) each ' +
       'time a chat is begun, renamed or archived (`archivedAt` set), or one of its turns is queued, starts, changes ' +
       "status or goes, or the agent asks a question, whoever made the turn (a person, a Slack message, a Lead's " +
-      "wake-up, the team room). Tasks' conversations are left out, and message chats the caller is not in. A " +
-      '`: heartbeat` comment every 20 s; nothing is ' +
-      'replayed: read the lists again after a reconnect.',
+      "wake-up, the team room, a task's step). Message chats the caller is not in are left out; a task's " +
+      'conversation comes with `forTask` (T-19). A `: heartbeat` comment every 20 s; nothing is replayed: read the ' +
+      'lists again after a reconnect.',
     request: { params: ChatActivityParamsSchema },
     responses: {
       200: { description: 'The stream', content: { 'text/event-stream': { schema: z.string() } } },

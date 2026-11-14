@@ -50,8 +50,9 @@ async function get(t: TenantDb, id: string): Promise<Chat | undefined> {
 }
 
 /**
- * The agent's own chats not archived, the latest first: a task's conversations (S5.3b) stay out of the list, and of its
- * message chats only those the viewer is in (2026-11-14); its team chats keep their own rules.
+ * The agent's own chats not archived, the latest first: a task's conversations (S5.3b) stay out of it (the list holds
+ * them apart since T-19: `repo/task-chats.ts`), and of its message chats only those the viewer is in (2026-11-14); its
+ * team chats keep their own rules.
  */
 const ofAgent = (t: TenantDb, agentId: string, viewer: string): Promise<Chat[]> =>
   t

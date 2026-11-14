@@ -5,7 +5,7 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
-import { ChatListSchema } from '../schemas/activity.ts';
+import { AgentChatListSchema } from '../schemas/activity.ts';
 import { CreateChatSchema } from '../schemas/people.ts';
 import {
   AgentChatsParamsSchema,
@@ -75,8 +75,12 @@ const listRoute = (deps: ServerDeps) => {
     method: 'get',
     summary:
       "An agent's chats you are in, and its team chats (member and above), the latest first; archived ones are left out",
+    description:
+      "`chats` are the agent's chats you are in and its team chats; `tasks` (T-19) its task conversations apart, each " +
+      'named by its task (`forTask`: key, title, step and rounds), as anyone of the company who reads chats opens ' +
+      "them from the task's page.",
     request: { params: AgentChatsParamsSchema },
-    responses: { 200: jsonResponse('Its chats', ChatListSchema), ...refusals, 404: NO_AGENT },
+    responses: { 200: jsonResponse('Its chats', AgentChatListSchema), ...refusals, 404: NO_AGENT },
   });
 };
 
@@ -124,7 +128,8 @@ const getChatRoute = (deps: ServerDeps) => {
       '`model`, `at`), both read from all of it, left-out turns too; null before anything said so since the last Clear. ' +
       "`runnerUpdateFor` names the server's tools the chat's profile gives that its machine's runner is too old to " +
       'provide (its turns are told so instead of getting them). `people` is who is in it; `ownerView` is true for a ' +
-      'company owner who is not (they read only); `slack` the Slack conversation it is for.',
+      'company owner who is not (they read only); `slack` the Slack conversation it is for; `forTask` the task a ' +
+      "task's conversation is for (T-19: its key and title, for the way back to the task).",
     request: { params: ChatParamsSchema },
     responses: { 200: jsonResponse('The chat', ChatDetailSchema), ...refusals, 404: NO_CHAT },
   });
@@ -177,7 +182,7 @@ export function chatRoutes(deps: ServerDeps, live: ChatDetailLive, changed: Chat
         c.var.membership.principalId,
       );
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
-      return c.json({ chats: result.chats }, 200);
+      return c.json({ chats: result.chats, tasks: result.tasks }, 200);
     })
     .openapi(createChatRoute(deps), async (c) => {
       const { agentId } = c.req.valid('param');

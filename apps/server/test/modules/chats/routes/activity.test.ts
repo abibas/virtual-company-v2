@@ -56,7 +56,7 @@ describe('GET chat-activity', () => {
     const chat = await beginChat(w, s.company, s.agentId);
     const begun = await live.next('the new chat', (v) => v.chat.id === chat.id);
     const people = [expect.objectContaining({ principalId: s.company.owner.principalId, creator: true })];
-    expect(begun).toEqual({ chat: { ...chat, people, lastTurn: null }, lastTurn: null });
+    expect(begun).toEqual({ chat: { ...chat, people, lastTurn: null, forTask: null }, lastTurn: null });
     const start = await startedTurn(w, { ...s, chat });
     const running = await live.next('its turn running', (v) => v.lastTurn?.status === 'running');
     expect(running.chat.title).toBe('What is 2 + 2?');

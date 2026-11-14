@@ -4,6 +4,7 @@ import { participantsRepo } from '../repo/participants.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import type { ChatListItemView } from '../schemas/activity.ts';
 import type { ChatPersonView } from '../schemas/people.ts';
+import { taskNamesOf } from './task-names.ts';
 import { chatView, turnView } from './views.ts';
 
 /**
@@ -70,7 +71,10 @@ export async function peopleOfChats(
 export const peopleOf = async (db: DbHandle, t: TenantDb, chat: Pick<Chat, 'id' | 'createdBy'>) =>
   (await peopleOfChats(db, t, [chat])).get(chat.id) as ChatPersonView[];
 
-/** These chats as a list shows them: each with its people and its latest turn that talks with the agent. */
+/**
+ * These chats as a list shows them: each with its people, its latest turn that talks with the agent and, a task's
+ * conversation, what names it (T-19).
+ */
 export async function listItems(
   db: DbHandle,
   t: TenantDb,
@@ -79,9 +83,11 @@ export async function listItems(
   const people = await peopleOfChats(db, t, chats);
   const ids = chats.map((chat) => chat.id);
   const last = new Map((await turnsRepo.lastTalksOf(t, ids)).map((turn) => [turn.chatId, turnView(turn)]));
+  const tasks = await taskNamesOf(t, chats);
   return chats.map((chat) => ({
     ...chatView(chat),
     people: people.get(chat.id) as ChatPersonView[],
     lastTurn: last.get(chat.id) ?? null,
+    forTask: tasks.get(chat.id) ?? null,
   }));
 }

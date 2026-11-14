@@ -77,7 +77,7 @@ describe('the chats’ activity', () => {
     const me = s.company.owner.principalId;
     const people = [expect.objectContaining({ principalId: me, kind: 'member', creator: true })];
     expect(await activityOf(w.t.db, t, s.chat.id, me)).toEqual({
-      chat: { ...s.chat, people, lastTurn: null },
+      chat: { ...s.chat, people, lastTurn: null, forTask: null },
       lastTurn: null,
     });
     expect(await activityOf(w.t.db, t, other.chat.id, me)).toBe('elsewhere');

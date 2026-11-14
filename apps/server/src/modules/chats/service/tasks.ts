@@ -17,10 +17,11 @@ import { startTurn, type TurnsDeps } from './turns.ts';
 /**
  * A task's conversations (S5.3b, docs/harness.md "Task turns"): a step's work is a chat of the step's agent that names
  * the task, the step and the round it began in, so it streams, stops, queues, resumes and opens in Claude Code like any
- * chat, and stays out of the agent's own chat list. The tasks module starts a step's turn through `taskTurns` (Keep
- * continues the step's latest conversation, Fresh begins one per round; different steps never share one) and hears of
- * every message turn of such a chat through the `TaskTurnHook` it passes in (`task-hook.ts`). A step whose agent's
- * machine is stopped starts it when its policy starts it for work, and its turn waits for it (`machine-wait.ts`).
+ * chat; the agent's chat list holds it apart from its chats (T-19, `task-names.ts`). The tasks module starts a step's
+ * turn through `taskTurns` (Keep continues the step's latest conversation, Fresh begins one per round; different steps
+ * never share one) and hears of every message turn of such a chat through the `TaskTurnHook` it passes in
+ * (`task-hook.ts`). A step whose agent's machine is stopped starts it when its policy starts it for work, and its turn
+ * waits for it (`machine-wait.ts`).
  */
 
 /** A step's turn to start: who moved the task, the step's agent, the conversation's rule, its title and its prompts. */
