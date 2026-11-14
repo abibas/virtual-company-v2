@@ -7,7 +7,7 @@ import { Spinner } from '../../components/ui/Button.tsx';
 import { iconButtonClass } from '../../components/ui/IconButton.tsx';
 import { AttachmentChips } from './attach/AttachmentChips.tsx';
 import { ATTACH_REFUSALS, imagesPrompt, imagesRefusal } from './attach/image-files.ts';
-import { useAttachments } from './attach/use-attachments.ts';
+import { useMarkedText } from './attach/use-marked-text.ts';
 import { DeliveryStrip } from './delivery/DeliveryStrip.tsx';
 import { type DeliveryChoice, offered, rememberDelivery, rememberedDelivery } from './delivery/delivery.ts';
 import { StartAndSend, startable } from './delivery/StartAndSend.tsx';
@@ -105,8 +105,8 @@ function RoundAction({
  * it can be sent again; a stopped machine the person may start offers Start and send. In a Slack conversation's chat
  * its Slack connection's owner chooses above the box where the message goes (2026-11-14): Ask the agent or Send in
  * Slack. Closed, it shows why in one line, with what may open it (an owner's Add me). Images dropped on the card or
- * pasted in the text (T-18) show as chips above the text and go to the agent with the message (`attach/`); a message of
- * images alone says how many.
+ * pasted in the text (T-18) show as chips above the text and go to the agent with the message (`attach/`); each puts
+ * its `[Image N]` marker in the text at the cursor, linked to its chip (T-20, `use-marked-text.ts`).
  */
 export function Composer({
   running,
@@ -148,13 +148,13 @@ export function Composer({
   /** A Slack conversation's chat whose connection the reader owns (2026-11-14): Ask the agent or Send in Slack. */
   readonly slack?: { readonly place: string; readonly onSend: (text: string) => Promise<void> } | undefined;
 }) {
-  const [text, setText] = useState('');
   const [to, setTo] = useState<SlackTargetValue>('agent');
   const inSlack = slack !== undefined && to === 'slack';
   const [delivery, choose] = useDelivery();
   const { busy, error, failure, run } = useAction();
   const stop = useAction();
-  const attach = useAttachments(inSlack ? ATTACH_REFUSALS.slack : undefined);
+  const marked = useMarkedText(inSlack ? ATTACH_REFUSALS.slack : undefined);
+  const { text, attach } = marked;
   const attached = inSlack ? [] : attach.items;
   const hasText = text.trim().length > 0;
   const ready = (hasText || attached.length > 0) && attach.preparing === 0 && !busy;
@@ -163,13 +163,11 @@ export function Composer({
     event?.preventDefault();
     if (!ready) return;
     attach.dismiss();
-    const prompt = hasText ? text : imagesPrompt(attached.length);
-    const images = attached.map((item) => item.blob);
-    const go = inSlack ? () => slack.onSend(text) : () => onSend(prompt, how, { ...options, images });
+    const out = marked.outgoing(attached);
+    const prompt = hasText ? out.prompt : imagesPrompt(attached.length);
+    const go = inSlack ? () => slack.onSend(text) : () => onSend(prompt, how, { ...options, images: out.images });
     void run(go).then((sent) => {
-      if (!sent) return;
-      setText('');
-      attach.clear(attached);
+      if (sent) marked.sent(attached);
     });
   };
   const stopped = startable(failure);
@@ -216,16 +214,12 @@ export function Composer({
           data-dragging={attach.dragging || undefined}
           className="@container/composer rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-[box-shadow,background-color] ring-inset focus-within:ring-blue/60 data-dragging:bg-blue-soft/50 data-dragging:ring-2 data-dragging:ring-blue"
         >
-          <AttachmentChips
-            items={attach.items}
-            preparing={attach.preparing}
-            muted={inSlack}
-            onRemove={attach.remove}
-          />
+          <AttachmentChips items={attach.items} muted={inSlack} onRemove={attach.remove} />
           <textarea
+            ref={marked.box}
             aria-label="Message"
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => marked.change(event.target.value)}
             onKeyDown={(event) => enterSends(event, send)}
             onPaste={attach.onPaste}
             maxLength={CHAT_PROMPT.max}
@@ -235,7 +229,7 @@ export function Composer({
           />
           <div className="flex min-h-12 flex-nowrap items-center gap-1 px-1.5 py-1.5 @sm/composer:px-2">
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
-              <DictationButton value={text} onChange={setText} />
+              <DictationButton value={text} onChange={marked.change} />
               {runs}
             </div>
             <div className="flex max-w-[60%] min-w-0 items-center justify-end gap-1 @sm/composer:gap-1.5">

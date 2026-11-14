@@ -113,3 +113,13 @@ export const RUNNER_NO_IMAGES = refuse(
   "The agent's machine runs an older runner that cannot take images: update it on the machine's card, or send the " +
     'message without them',
 );
+
+/** The line that tells the agent how a message's images match the `[Image N]` markers in its text (T-20). */
+export const IMAGE_ORDER_NOTE = 'Images are attached in the order of their [Image N] markers.';
+
+/**
+ * What goes before a message's text for the agent when it marks where its images belong (`[Image 1]`, …, T-20): the
+ * line that says the images come in the order of their markers; nothing for a message without images or markers.
+ */
+export const imageOrderHeader = (text: string, images: number): string =>
+  images > 0 && /\[Image \d+\]/.test(text) ? `${IMAGE_ORDER_NOTE}\n\n` : '';

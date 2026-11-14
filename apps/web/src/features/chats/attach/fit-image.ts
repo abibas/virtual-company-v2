@@ -4,7 +4,7 @@ import { AttachError, attachable, CHAT_IMAGE_MAX_BYTES } from './image-files.ts'
  * An attached image made to fit a message (T-18): one of at most 3 MB goes as it is; a larger PNG, JPEG or WebP (a big
  * Retina screenshot) is drawn smaller on a canvas, kept a PNG when the PNG fits, else made a WebP at high quality (a
  * JPEG where the browser cannot write WebP), smaller again until it fits; a larger GIF (its frames would be lost) or one
- * that never fits is refused.
+ * that never fits is refused. One that fits is read into the page and checked to decode (T-20).
  */
 
 /** Each try draws the image this much smaller than the last. */
@@ -62,10 +62,25 @@ async function shrink(bitmap: ImageBitmap, type: string, start: number): Promise
   return undefined;
 }
 
+/**
+ * A file that fits, read into the page and checked to be a picture (T-20): a drop's file may still be on its way (a
+ * screenshot's floating thumbnail) or empty, and its chip would show a grey box; such a file is refused as unreadable.
+ */
+async function readImage(file: File): Promise<Blob> {
+  let blob: Blob;
+  try {
+    blob = new Blob([await file.arrayBuffer()], { type: file.type });
+  } catch {
+    throw new AttachError('unreadable');
+  }
+  (await decode(blob)).close();
+  return blob;
+}
+
 /** The file as it goes with the message: as it is when it fits, else scaled down to fit; refused otherwise. */
 export async function fitImage(file: File): Promise<Blob> {
   if (!attachable(file)) throw new AttachError('type');
-  if (file.size <= CHAT_IMAGE_MAX_BYTES) return file;
+  if (file.size <= CHAT_IMAGE_MAX_BYTES) return readImage(file);
   if (file.type === 'image/gif') throw new AttachError('gif_too_large');
   const bitmap = await decode(file);
   try {

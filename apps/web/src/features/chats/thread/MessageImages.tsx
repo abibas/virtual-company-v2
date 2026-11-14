@@ -10,6 +10,7 @@ import { Sheet } from '../../../components/layout/Drawer.tsx';
 /**
  * A message's images in the thread (T-18): a row of thumbnails with its bubble, on the bubble's side, each opening the
  * image large beside the page. The bytes come through the API client (`useChatImageUrl`), once per image for the page.
+ * Each is labeled "Image N", as the `[Image N]` marker in the message's text that points to it (T-20).
  */
 
 const TYPE_WORDS: Readonly<Record<ChatImage['contentType'], string>> = {
@@ -19,7 +20,7 @@ const TYPE_WORDS: Readonly<Record<ChatImage['contentType'], string>> = {
   'image/gif': 'GIF',
 };
 
-const FRAME = 'overflow-hidden rounded-xl bg-surface-2 ring-1 ring-line';
+const FRAME = 'relative overflow-hidden rounded-xl bg-surface-2 ring-1 ring-line';
 
 /** Where the images are read from: the chat, and the company on screen (none in the design gallery). */
 interface Source {
@@ -62,6 +63,12 @@ function Thumbnail({
           {url === null && <ImageOff size={20} aria-hidden="true" />}
         </span>
       )}
+      <span
+        aria-hidden="true"
+        className="absolute bottom-1 left-1 rounded-md bg-ink/70 px-1.5 py-px text-2xs leading-4 font-medium text-surface"
+      >
+        {label}
+      </span>
     </button>
   );
 }
@@ -100,8 +107,7 @@ export function MessageImages({
   const [open, setOpen] = useState<number>();
   if (images.length === 0) return null;
   const source = { companyId, chatId };
-  const labelOf = (index: number) =>
-    images.length === 1 ? 'the image' : `image ${index + 1} of ${images.length}`;
+  const labelOf = (index: number) => `Image ${index + 1}`;
   const shown = open === undefined ? undefined : images[open];
   return (
     <>

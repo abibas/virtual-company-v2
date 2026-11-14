@@ -1,5 +1,6 @@
 import { CHAT_IMAGE_MAX_BYTES, CHAT_IMAGES_MAX, ChatImageType } from '@mwc/shared/chat-images';
 import { ApiError } from '../../../api/errors.ts';
+import { isMarkersOnly } from './markers.ts';
 
 /**
  * Which files a chat message takes as images (T-18): PNG, JPEG, WebP or GIF, at most `CHAT_IMAGES_MAX` a message, each
@@ -56,8 +57,9 @@ export const draggingFiles = (transfer: DataTransfer | null): boolean =>
 /** The prompt of a message with images and no text (the agent needs some words): "(1 image)", "(3 images)". */
 export const imagesPrompt = (count: number): string => `(${count} ${count === 1 ? 'image' : 'images'})`;
 
-/** True for a prompt `imagesPrompt` made: the thread shows the images alone. */
-export const isImagesPrompt = (prompt: string): boolean => /^\(\d+ images?\)$/.test(prompt);
+/** True for a prompt `imagesPrompt` made, or one of `[Image N]` markers alone (T-20): the thread shows the images alone. */
+export const isImagesPrompt = (prompt: string): boolean =>
+  /^\(\d+ images?\)$/.test(prompt) || isMarkersOnly(prompt);
 
 /**
  * A message with images refused because the machine's runner is older than them (`runner_outdated`): the server's own
