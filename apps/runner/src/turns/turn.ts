@@ -1,49 +1,37 @@
-import { rmSync } from 'node:fs';
-import { PARSER_TICK_MS } from '@mwc/harness-core';
 import type { TurnToolResult } from '@mwc/shared/runner-protocol';
-import { every } from '../system/time.ts';
 import type { TurnInput } from './input.ts';
-import type { RunExit, RunMeta } from './runs/folder.ts';
-import { type Kept, spawnKeeper } from './runs/kept.ts';
-import {
-  endFrame,
-  metaOf,
-  missingSession,
-  rewrittenLogin,
-  sendArtifacts,
-  startFailure,
-  stderrTail,
-  walkLadder,
-} from './turn/end.ts';
+import type { RunMeta } from './runs/folder.ts';
+import type { Kept } from './runs/kept.ts';
+import { metaOf } from './turn/end.ts';
+import { TurnEnding } from './turn/ending.ts';
 import { logState, type TurnEvents } from './turn/events.ts';
+import { HeldKeeper, spawnTurnKeeper } from './turn/held.ts';
 import type { TurnOutput } from './turn/output.ts';
 import { type TurnDeps, type TurnLaunch, type TurnParts, wireTurn } from './turn/parts.ts';
 import { TOOL_ENDING, TOOL_LOST, type TurnToolCalls } from './turn/tools.ts';
 
 export { INVALID_LOGIN } from './turn/end.ts';
 export { ASK_ENDING, ASK_OFFLINE } from './turn/events.ts';
+export { JOURNAL_POLL_MS } from './turn/held.ts';
 export type { TurnDeps, TurnLaunch, TurnParts } from './turn/parts.ts';
 export { TOOL_ENDING, TOOL_LOST, TOOL_NO_ANSWER, TOOL_OFFLINE, TOOL_REPLY_MS } from './turn/tools.ts';
 
 /**
  * One chat turn's process (docs/harness.md, "How a turn runs" and "Surviving restarts", S5.4). The runner starts its
- * keeper (`runs/keeper.ts`) in the turn's run folder, which starts the harness with its output in files; the runner
- * reads that output every `JOURNAL_POLL_MS` through the driver's parser into numbered events, each kept in the run
- * folder before it is sent (`turn/events.ts`), and the prompt goes to the harness's stdin through the keeper, which
- * keeps it open for the person's messages while the turn runs (`input.ts`). The turn outlives the runner: `release`
- * lets go of it (the runner stops or restarts) and a later runner takes it back from its run folder (`resume`), reading
- * the output again up to where its log got; a dropped link only holds its frames back until the server says where to
- * resume (`attach`). When the keeper ends: the parser's last events, then the task step's files and `turn.end` once the
- * turn is attached (the Codex login the process rewrote goes back as `authJson`); the run folder goes when the server
- * acknowledges the end; a conversation it resumed that is not here ends it `session_missing`, with no failing
- * result (`missingSession`), and a start's `afterSeq` numbers its events after the server's. `stop` walks the ladder on
- * the keeper's process group: SIGINT, SIGTERM 10 s later, SIGKILL 20 s after the SIGINT, each only while the keeper is still there (never a pid that may no longer be the turn's). The agent's
- * calls of the agents' tools (S6a) go to the server and back through `turn/tools.ts`; a call still waiting when the turn
- * ends, is let go of or loses its link is answered that it may not have taken effect.
+ * keeper (`runs/keeper.ts`) in the turn's run folder, which starts the harness with its output in files; it holds the
+ * keeper (`turn/held.ts`) and reads that output every `JOURNAL_POLL_MS` through the driver's parser into numbered
+ * events, each kept in the run folder before it is sent (`turn/events.ts`), and the prompt goes to the harness's stdin
+ * through the keeper, which keeps it open for the person's messages while the turn runs (`input.ts`). The turn outlives
+ * the runner: `release` lets go of it (the runner stops or restarts) and a later runner takes it back from its run
+ * folder (`resume`), reading the output again up to where its log got; a dropped link only holds its frames back until
+ * the server says where to resume (`attach`). When the keeper ends: the parser's last events, then the task step's
+ * files and `turn.end` once the turn is attached (`turn/ending.ts`: the Codex login the process rewrote goes back as
+ * `authJson`, a conversation it resumed that is not here ends it `session_missing`); the run folder goes when the
+ * server acknowledges the end, and a start's `afterSeq` numbers its events after the server's. `stop` walks the stop
+ * ladder on the keeper's process group (`turn/end.ts`, `walkLadder`). The agent's calls of the agents' tools (S6a) go
+ * to the server and back through `turn/tools.ts`; a call still waiting when the turn ends, is let go of or loses its
+ * link is answered that it may not have taken effect.
  */
-
-/** How often a live turn's output is read. */
-export const JOURNAL_POLL_MS = 100;
 
 export class TurnProcess {
   readonly turnId: string;
@@ -55,17 +43,13 @@ export class TurnProcess {
   readonly #input: TurnInput;
   readonly #output: TurnOutput;
   readonly #tools: TurnToolCalls;
+  readonly #keeper: HeldKeeper;
+  readonly #end: TurnEnding;
   readonly #resolve: () => void;
   #meta: RunMeta | undefined;
-  #kept: Kept | undefined;
-  #exit: RunExit | undefined;
-  #spawnError: string | undefined;
   #stopping = false;
   #forgotten = false;
-  #ladder: unknown[] = [];
-  #timers: (() => void)[] = [];
   #ended = false;
-  #login: { readonly authJson: string | undefined } | undefined;
 
   constructor(turnId: string, parts: TurnParts, deps: TurnDeps) {
     this.turnId = turnId;
@@ -74,12 +58,13 @@ export class TurnProcess {
     const { promise, resolve } = Promise.withResolvers<void>();
     this.done = promise;
     this.#resolve = resolve;
-    const stdin = { write: (text: string) => this.#kept?.write(text) ?? false, end: () => this.#kept?.end() };
-    const wired = wireTurn(turnId, parts, deps, stdin, () => !this.#ended && !this.#stopping);
+    this.#keeper = new HeldKeeper(deps);
+    const wired = wireTurn(turnId, parts, deps, this.#keeper.stdin, () => !this.#ended && !this.#stopping);
     this.#events = wired.events;
     this.#input = wired.input;
     this.#output = wired.output;
     this.#tools = wired.tools;
+    this.#end = new TurnEnding(turnId, parts, deps, wired);
     parts.bridge?.bind({
       ask: (questions) => {
         // The output so far first: the events before the question are numbered before it.
@@ -103,16 +88,9 @@ export class TurnProcess {
   /** Starts a fresh turn's keeper; throws when it cannot even be spawned (the caller refuses the turn). */
   start(launch: TurnLaunch): void {
     const { process } = launch;
-    const { folder, cwd } = this.#parts;
     const afterSeq = launch.afterSeq ?? 0;
     this.#events.resumeAfter(afterSeq);
-    const kept = spawnKeeper(this.#deps.spawn, launch.keeper, {
-      dir: folder.dir,
-      command: process.command,
-      args: process.args,
-      cwd,
-      env: launch.env,
-    });
+    const kept = spawnTurnKeeper(this.#deps.spawn, launch, this.#parts);
     if (kept.pid !== undefined)
       this.#writeMeta(metaOf(this.turnId, { ...this.#parts, afterSeq }, kept.pid, launch.startedAt));
     this.#hold(kept);
@@ -142,7 +120,7 @@ export class TurnProcess {
     if (log.finished) {
       kept?.release();
       this.#output.result = log.result;
-      this.#exit = folder.exit();
+      this.#end.exit = folder.exit();
       this.#ended = true;
       this.#resolve();
       return;
@@ -153,7 +131,7 @@ export class TurnProcess {
       return;
     }
     this.#hold(kept);
-    if (this.#stopping) this.#walkLadder();
+    if (this.#stopping) this.#keeper.walkLadder();
   }
 
   /** The link dropped: its frames wait in the run folder; a tool's call waiting for the server gets no answer now. */
@@ -187,7 +165,7 @@ export class TurnProcess {
     this.#stopping = true;
     if (this.#meta !== undefined) this.#writeMeta({ ...this.#meta, stopping: true });
     this.#input.close('stopping');
-    this.#walkLadder();
+    this.#keeper.walkLadder();
     return this.done;
   }
 
@@ -204,8 +182,8 @@ export class TurnProcess {
   release(): void {
     this.#events.detach();
     this.#tools.closeAll(TOOL_LOST);
-    this.#stopTimers();
-    this.#kept?.release();
+    this.#keeper.stopTimers();
+    this.#keeper.release();
     this.#parts.bridge?.release();
   }
 
@@ -215,34 +193,20 @@ export class TurnProcess {
   }
 
   #hold(kept: Kept): void {
-    this.#kept = kept;
-    kept.gone((error) => {
-      this.#spawnError = error;
+    this.#keeper.hold(kept, this.#output, (error) => {
+      this.#end.spawnError = error;
       this.#gone();
     });
-    this.#timers.push(every(this.#deps.timers, JOURNAL_POLL_MS, () => this.#output.read()));
-    if (this.#output.ticks)
-      this.#timers.push(every(this.#deps.timers, PARSER_TICK_MS, () => this.#output.tick()));
-  }
-
-  #walkLadder(): void {
-    this.#ladder = walkLadder(this.#kept, this.#deps.killGroup, this.#deps.timers);
   }
 
   /** The keeper ended (or was never there): the rest of the output and the parser's last events, then the end. */
   #gone(): void {
     if (this.#ended) return;
     this.#ended = true;
-    this.#stopTimers();
+    this.#keeper.stopTimers();
     this.#tools.closeAll(TOOL_ENDING);
     this.#parts.bridge?.close();
-    this.#exit = this.#parts.folder.exit();
-    const detail =
-      startFailure(this.#spawnError, this.#exit) ??
-      stderrTail(this.#deps.readAt, this.#parts.folder.path('err'));
-    this.#output.drain();
-    // A conversation that is not here gives no failing result: the server starts the turn afresh instead.
-    if (this.#missing() === undefined) this.#output.close(this.#exit?.code ?? null, detail);
+    this.#end.close();
     this.#input.close();
     this.#events.finish();
     this.#deps.ended(this.turnId);
@@ -253,42 +217,12 @@ export class TurnProcess {
 
   /** The task step's files and `turn.end`; again after a reconnect until the server acknowledges it. */
   #deliver(): void {
-    if (this.#forgotten) return;
-    const { turnId } = this;
-    const { send, log } = this.#deps;
-    sendArtifacts(this.#parts.artifacts, turnId, send, log);
-    this.#login ??= { authJson: rewrittenLogin(this.#parts.lease, log, turnId) };
-    const end = endFrame({
-      turnId,
-      exit: this.#exit,
-      spawnError: this.#spawnError,
-      stopping: this.#stopping,
-      result: this.#output.result,
-      authJson: this.#login.authJson,
-      sessionMissing: this.#missing(),
-    });
-    send(end);
-    const { ok, exitCode, error } = end;
-    log.info('turn ended', { turnId, ok, exitCode, error, events: this.#events.lastSeq });
-  }
-
-  /** The harness's line saying the conversation it resumed is not here, read from its run folder (`missingSession`). */
-  #missing(): string | undefined {
-    const ended = { exit: this.#exit, spawnError: this.#spawnError, result: this.#output.result };
-    return missingSession(this.#parts, this.#deps.readAt, ended);
+    if (!this.#forgotten) this.#end.deliver(this.#stopping);
   }
 
   #done(): void {
-    this.#parts.lease?.release();
-    // A question socket's folder an earlier runner let go of (its tool's file holds the token) goes with the turn.
-    if (this.#meta?.ask) rmSync(this.#meta.ask.dir, { recursive: true, force: true });
-    this.#parts.folder.remove();
+    this.#end.remove(this.#meta);
     this.#deps.done(this.turnId);
-  }
-
-  #stopTimers(): void {
-    for (const stop of this.#timers.splice(0)) stop();
-    for (const timer of this.#ladder.splice(0)) this.#deps.timers.clearTimeout(timer);
   }
 
   #writeMeta(meta: RunMeta): void {
