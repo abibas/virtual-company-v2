@@ -110,8 +110,8 @@ function banned(
 
 const HELP = [
   'mwc commands:',
-  '  check [--fast] [--full]        lint, banned names, structure, typecheck, db drift, test (coverage',
-  '                                 unless --fast); --full: tests on Postgres, web build',
+  '  check [--fast] [--full]        lint, banned names, structure, typecheck, db drift, test with coverage;',
+  '                                 --fast: only tests related to changed files, 2 workers; --full: Postgres, web build',
   '  dev [--down]                   Postgres, migrations, API on 9950 and web on 9951; --down stops Postgres',
   '  dev outbox [--last N] [--full] the newest emails the development server wrote to .data/outbox/ instead',
   '                                 of sending them (MWC_EMAIL=outbox), one line each or in full',

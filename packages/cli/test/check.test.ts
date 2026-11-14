@@ -55,8 +55,26 @@ describe('checkSteps', () => {
     expect(script).toContain('checkDiagram()');
   });
 
-  it('drops coverage with --fast', () => {
-    expect(checkSteps(new Set(['fast']), []).at(-1)?.args).not.toContain('--coverage');
+  it('runs only the related tests of the changed files with --fast, on two workers and without coverage', () => {
+    const step = checkSteps(new Set(['fast']), [], undefined, undefined, () => ['apps/server/src/a.ts']).at(
+      -1,
+    );
+    expect(step?.args).toEqual([
+      'exec',
+      'vitest',
+      'related',
+      '--run',
+      '--maxWorkers=2',
+      'apps/server/src/a.ts',
+    ]);
+    expect(step?.args).not.toContain('--coverage');
+  });
+
+  it('skips the tests with --fast when no source changed', () => {
+    const step = checkSteps(new Set(['fast']), [], undefined, undefined, () => []).at(-1);
+    const out: string[] = [];
+    expect(step?.run?.({ stdout: (s: string) => out.push(s), stderr: () => {} } as never)).toBe(true);
+    expect(out.join('')).toContain('related tests skipped');
   });
 
   it('adds the web build with --full, run from apps/web on Node, and no frontend tests', () => {
@@ -246,7 +264,9 @@ describe('the closing structure warnings', () => {
 
 describe('the in-process steps: banned names and structure', () => {
   it('run in this process: spawnStep calls run instead of starting a process', () => {
-    const steps = checkSteps(new Set(['fast']), []).filter((s) => s.run);
+    const steps = checkSteps(new Set(['fast']), [], undefined, undefined, () => ['a.ts']).filter(
+      (s) => s.run,
+    );
     expect(steps.map((s) => [s.label, s.args])).toEqual([
       ['banned names', ['packages/cli/src/mwc.ts', 'banned']],
       ['structure', ['packages/cli/src/mwc.ts', 'structure']],

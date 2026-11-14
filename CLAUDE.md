@@ -54,7 +54,7 @@ Coverage reports go to `.cache/coverage` (ignored). Biome does not format Markdo
 pnpm install            # also installs the git hooks (pre-push, commit-msg)
 pnpm dev                # dev Postgres (Docker, 9952) + migrations + API 9950 (with .env, then .env.local) + web 9951; mwc dev --down stops PG
 pnpm mwc check          # biome, banned names, structure, typecheck per package, db drift, tests with coverage
-pnpm mwc check --fast   # the same without coverage (what the pre-push hook runs)
+pnpm mwc check --fast   # lint, typecheck, structure, drift, and only the tests related to changed files (2 workers, no coverage); the pre-push hook. The whole suite with coverage runs at a stage's end (Ihor, 2026-11-14)
 pnpm mwc check --full   # + tests on the dev Postgres and the web build (docs/testing.md)
 pnpm mwc structure --report  # early warnings: hot spots before a structure rule fails; never fails
 pnpm mwc dev outbox     # the notification emails the dev server wrote to .data/outbox/ instead of sending (docs/notifications.md)

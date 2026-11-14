@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { cachedScanDeps, formatHits, type ScanDeps, scanFiles, systemScanDeps } from './banned.ts';
+import { changedFiles, fastTestsStep } from './check/changed.ts';
 import { type FullLane, fullSteps, NO_DOCKER } from './check/full.ts';
 import { DEV_COMPOSE_FILE, type Step } from './dev.ts';
 import { type MainIo, REPO_ROOT } from './io.ts';
@@ -56,6 +57,7 @@ export function checkSteps(
   packageDirs: readonly string[],
   lane: FullLane = NO_DOCKER,
   scan: ScanDeps = cachedScanDeps(systemScanDeps(REPO_ROOT)),
+  changed: () => readonly string[] = changedFiles,
 ): CheckStep[] {
   const steps: CheckStep[] = [
     { label: 'biome', command: 'pnpm', args: ['exec', 'biome', 'check', '.'] },
@@ -84,11 +86,13 @@ export function checkSteps(
       args: ['packages/db/scripts/check-drift.ts'],
     });
   }
-  steps.push({
-    label: 'tests',
-    command: 'pnpm',
-    args: ['exec', 'vitest', 'run', ...(flags.has('fast') ? [] : ['--coverage'])],
-  });
+  // The fast lane (the pre-push hook) runs only the tests related to the changed files, on two workers, no coverage;
+  // the whole suite with coverage is the default lane's and --full's, at a stage's end (check/changed.ts).
+  steps.push(
+    flags.has('fast')
+      ? fastTestsStep(changed())
+      : { label: 'tests', command: 'pnpm', args: ['exec', 'vitest', 'run', '--coverage'] },
+  );
   return flags.has('full') ? [...steps, ...fullSteps(flags, packageDirs, lane)] : steps;
 }
 

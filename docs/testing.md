@@ -9,7 +9,7 @@ unit tests and no browser smoke); the web is typechecked in every lane and built
 
 | Lane | Command | What runs | When |
 | --- | --- | --- | --- |
-| fast | `pnpm mwc check --fast` | Biome, banned names, structure (`docs/structure.md`), `tsc --noEmit` per workspace package (`packages/*`, `connectors/*`, `apps/*`), db drift (migrations and `docs/schema.md`), all Vitest tests on PGlite, no coverage | the git pre-push hook |
+| fast | `pnpm mwc check --fast` | Biome, banned names, structure (`docs/structure.md`), `tsc --noEmit` per workspace package (`packages/*`, `connectors/*`, `apps/*`), db drift (migrations and `docs/schema.md`), and only the Vitest tests related to the files changed against `origin/main` (`vitest related`, 2 workers, no coverage; none when no source changed) | the git pre-push hook, and agents during a stage (the whole suite with coverage runs at a stage's end: Ihor, 2026-11-14, "my laptop is on FIRE") |
 | default | `pnpm mwc check` | the fast lane with coverage (v8; overall 90% lines/statements/functions and 85% branches, every file 85% lines and 75% branches; reports in `.cache/coverage/`) | before every commit |
 | full | `pnpm mwc check --full` | the default lane, then the tests again on the dev Postgres and the web build | before a push that touches the database, the server or the web, and at the end of a stage |
 
