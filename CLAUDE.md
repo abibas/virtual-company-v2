@@ -85,6 +85,9 @@ The main chat (the CEO office) plans, delegates, merges and verifies. It loads t
 (`.claude/skills/self-reflection`) before briefing a subagent (effort by task size, the brief template) and after
 every batch, stage, complaint or incident, to review its own work and get faster.
 
+At the start of a session: if `HANDOFF.md` exists at the repo root, read it first, take its context in, then delete it
+(it is untracked). The running TODO list is `docs/todo.md`: keep it current as work lands.
+
 ## Layout
 
 Load the keep-structure skill (`.claude/skills/keep-structure`) before adding, moving or splitting files,
