@@ -43,7 +43,7 @@ export function BoardView({
             column={column}
             nodes={nodes}
             note={
-              column.kind === 'queued' && autoTake !== null ? `auto-take on · ${autoTake} at a time` : undefined
+              column.kind === 'queued' && autoTake !== null ? `autotake on · ${autoTake} at a time` : undefined
             }
             drop={moves.look(index)}
             over={moves.over === index}

@@ -16,7 +16,7 @@ interface AutoTakeDraft {
 }
 
 /**
- * The Flow tab's "Auto-take from Queued" row (T-25), for those who lead the team: a switch and the most tasks in
+ * The Flow tab's "Autotake" card (T-25), for those who lead the team: a switch and the most tasks in
  * progress (active at any step) before the flow waits; Save and Discard while changed.
  */
 export function AutoTakeSection({
@@ -38,17 +38,17 @@ export function AutoTakeSection({
       .finally(() => setBusy(false));
   };
   return (
-    <Card padding="sm" as="section" aria-label="Auto-take from Queued" className="flex flex-col gap-3">
+    <Card padding="sm" as="section" aria-label="Autotake" className="flex flex-col gap-3">
       <header className="flex flex-wrap items-center gap-2">
         <ListStart size={16} aria-hidden="true" className="text-blue" />
-        <h2 className="text-sm font-bold text-ink">Queue</h2>
+        <h2 className="text-sm font-bold text-ink">Autotake</h2>
         <span className="text-xs text-dim">
           The next queued task (by priority, then the oldest) enters the first step by itself
         </span>
       </header>
       <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-2">
         <Switch
-          label="Auto-take from Queued"
+          label="Autotake"
           checked={draft.autoTake}
           disabled={busy}
           onChange={(autoTake) => setDraft({ ...draft, autoTake })}

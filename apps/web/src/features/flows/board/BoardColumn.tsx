@@ -32,7 +32,7 @@ export function BoardColumn({
 }: {
   readonly column: Column;
   readonly nodes: ReadonlyMap<string, ChartNode>;
-  /** A short line beside the count (Queued's "auto-take on · 2 at a time", T-25). */
+  /** A short line beside the count (Queued's "autotake on · 2 at a time", T-25). */
   readonly note?: string | undefined;
   readonly drop: DropLook;
   /** The dragged card is over it now. */
