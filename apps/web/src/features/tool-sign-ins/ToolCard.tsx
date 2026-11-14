@@ -167,7 +167,8 @@ export function ToolCard({ tool, rename, remove, check, signInAgain, highlighted
         <p className="text-xs text-blocked">{checking.error ?? tool.checkError?.message}</p>
       )}
       {tool.kind === 'slack_bot_token' && tool.status !== 'revoked' && (
-        <SlackReceive credentialId={tool.id} />
+        // A new token (Sign in again) or a check starts it over: its settings and people load again, an old refusal goes.
+        <SlackReceive key={`${tool.id}:${tool.status}:${tool.checkedAt}`} credentialId={tool.id} />
       )}
       <footer className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
         <Checked at={tool.checkedAt} />
