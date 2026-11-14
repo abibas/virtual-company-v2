@@ -11,6 +11,7 @@ import {
   isDisconnected,
   parseChatEventId,
   queueOrder,
+  storedSender,
 } from '../src/chats.ts';
 
 describe('chats', () => {
@@ -76,5 +77,26 @@ describe('chats', () => {
       '1 hour',
       '2 hours 5 minutes',
     ]);
+  });
+
+  it('read a stored Slack sender back, and nothing that no longer parses', () => {
+    const sender = {
+      via: 'slack',
+      userId: 'U0ERICH',
+      name: 'Erich Stuntebeck',
+      avatarUrl: 'https://avatars.slack-edge.com/erich_72.png',
+      link: 'https://airia.slack.com/archives/D0DM/p1731490000000100',
+    };
+    expect(storedSender(sender)).toEqual(sender);
+    expect(storedSender({ ...sender, avatarUrl: null, link: null })).toMatchObject({ avatarUrl: null });
+    for (const bad of [
+      null,
+      undefined,
+      'x',
+      {},
+      { ...sender, via: 'email' },
+      { ...sender, avatarUrl: 'http://a/b' },
+    ])
+      expect(storedSender(bad)).toBeNull();
   });
 });

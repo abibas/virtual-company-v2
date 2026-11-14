@@ -5,6 +5,7 @@
  * branches a conversation.
  */
 
+import { z } from 'zod';
 import type { Harness } from './enums.ts';
 
 /** A chat's title: the first prompt's start, at most 80 characters. */
@@ -19,6 +20,29 @@ export const CHAT_PROMPT = { min: 1, max: 20_000 } as const;
  */
 export const CHAT_WINDOW = 30;
 export const CHAT_PAGE = { min: 1, default: 20, max: 50 } as const;
+
+/** An `https` address of at most 500 characters (an avatar, a message's link). */
+const httpsUrl = z.url({ protocol: /^https$/ }).max(500);
+
+/**
+ * Whom a turn Most Wanted queued for a message from outside speaks for (2026-11-14, `chat_turns.sender`,
+ * docs/subscriptions.md "Contacts"): a Slack person, by their Slack id, name and avatar, with the message's address in
+ * Slack. The turn's view shows it as that person's message.
+ */
+export const TurnSender = z.object({
+  via: z.enum(['slack']),
+  userId: z.string().min(1).max(40),
+  name: z.string().trim().min(1).max(120),
+  avatarUrl: httpsUrl.nullable(),
+  link: httpsUrl.nullable(),
+});
+export type TurnSender = z.infer<typeof TurnSender>;
+
+/** A stored sender read back; null for none or one that no longer parses. */
+export function storedSender(value: unknown): TurnSender | null {
+  const sender = TurnSender.safeParse(value);
+  return sender.success ? sender.data : null;
+}
 
 /** The most messages a chat keeps waiting for its running turn (S5.2 step 6). */
 export const CHAT_QUEUE_MAX = 10;

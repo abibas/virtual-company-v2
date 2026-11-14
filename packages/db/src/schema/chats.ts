@@ -1,4 +1,4 @@
-import { CHAT_PROMPT, CHAT_TITLE } from '@mwc/shared/chats';
+import { CHAT_PROMPT, CHAT_TITLE, type TurnSender } from '@mwc/shared/chats';
 import {
   ChatTurnDelivery,
   ChatTurnKind,
@@ -27,6 +27,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
+import { contacts } from './contacts.ts';
 import { accessProfiles } from './credentials.ts';
 import { flows } from './flows.ts';
 import { machines } from './machines.ts';
@@ -145,6 +146,9 @@ export const chats = pgTable(
  * turn also waits so while every slot of its machine is taken (`machine_wait` says which: `stopped` or `slots`), and
  * starts when a turn on that machine ends. A turn Most Wanted queued in an agent's room conversation (a flow's chat) for
  * a person's message in the team room names that message (`room_message_id`, docs/processes.md "The team room").
+ * Since migration 0038 (2026-11-14) a turn Most Wanted queued for a Slack message names its sender (`sender`), the
+ * message as the reader sees it without the prompt's header (`visible_text`) and its contact (`contact_id`), and its
+ * reply's address once it was posted back in Slack (`reply_link`; docs/subscriptions.md "Contacts").
  */
 export const chatTurns = pgTable(
   'chat_turns',
@@ -166,6 +170,14 @@ export const chatTurns = pgTable(
     machineWait: text('machine_wait').$type<MachineWait>(),
     /** The team room's message a room turn answers (a system turn); null for any other turn. */
     roomMessageId: uuid('room_message_id'),
+    /** Whom a turn Most Wanted queued for a message from outside speaks for (`TurnSender`); null for any other turn. */
+    sender: jsonb('sender').$type<TurnSender>(),
+    /** That message as the reader sees it, without the prompt's header; null: the prompt itself. */
+    visibleText: text('visible_text'),
+    /** The contact the message came from. */
+    contactId: uuid('contact_id'),
+    /** Where its reply was posted outside (the answer's address in Slack); null for none. */
+    replyLink: text('reply_link'),
     profileId: uuid('profile_id'),
     credentialId: uuid('credential_id'),
     /** The permission mode it ran in; null for a turn that has not started, a Clear, or one before 2026-11-13. */
@@ -191,6 +203,18 @@ export const chatTurns = pgTable(
     tenantForeignKey('chat_turns_created_by_fk', t.companyId, t.createdBy, principals),
     tenantForeignKey('chat_turns_room_message_fk', t.companyId, t.roomMessageId, roomMessages),
     check('chat_turns_room_message_check', sql`${t.roomMessageId} is null or ${t.system}`),
+    tenantForeignKey('chat_turns_contact_fk', t.companyId, t.contactId, contacts),
+    check(
+      'chat_turns_sender_check',
+      sql`${t.sender} is null or (${t.system} and jsonb_typeof(${t.sender}) = 'object')`,
+    ),
+    check('chat_turns_contact_check', sql`${t.contactId} is null or ${t.sender} is not null`),
+    check(
+      'chat_turns_visible_text_check',
+      sql`${t.visibleText} is null or (${t.system} and char_length(${t.visibleText}) <= ${n(CHAT_PROMPT.max)})`,
+    ),
+    check('chat_turns_reply_link_check', sql`char_length(${t.replyLink}) between 1 and 500`),
+    index('chat_turns_contact_idx').on(t.companyId, t.contactId, t.createdAt),
     check('chat_turns_status_check', oneOf(t.status, ChatTurnStatus.options)),
     check('chat_turns_kind_check', oneOf(t.kind, ChatTurnKind.options)),
     check('chat_turns_mode_check', oneOf(t.mode, PermissionMode.options)),

@@ -202,9 +202,10 @@ export type PowerEventAction = z.infer<typeof PowerEventAction>;
 export const PlacementMode = z.enum(['host', 'container']);
 export type PlacementMode = z.infer<typeof PlacementMode>;
 
+/** Contacts (`contacts.source`): `enums/contacts.ts`. */
+export * from './enums/contacts.ts';
 /** The permission modes (`access_profiles.claude_mode`, `openai_mode`, `chats.mode`, `chat_turns.mode`): `enums/modes.ts`. */
 export * from './enums/modes.ts';
-
 /** Receiving Slack messages (`slack_connections.wake`, `status`): `enums/slack.ts`. */
 export * from './enums/slack.ts';
 

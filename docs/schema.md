@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 43. Migrations: 39, the last is `0038_decisions`.
+Tables: 44. Migrations: 40, the last is `0039_contacts`.
 
 ```mermaid
 erDiagram
@@ -126,6 +126,10 @@ erDiagram
     timestamptz machine_wait_at "nullable"
     text machine_wait "nullable, stopped|slots"
     uuid room_message_id FK "nullable"
+    jsonb sender "nullable"
+    text visible_text "nullable"
+    uuid contact_id FK "nullable"
+    text reply_link "nullable"
     uuid profile_id "nullable"
     uuid credential_id "nullable"
     text mode "nullable, manual|acceptEdits|plan|auto|bypassPermissions|ask|full"
@@ -188,6 +192,24 @@ erDiagram
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
+  contacts {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    text source "not null, slack"
+    text name "not null"
+    text avatar_url "nullable"
+    text email "nullable"
+    text title "nullable"
+    text handle "nullable"
+    text slack_team_id "nullable"
+    text slack_user_id "nullable"
+    timestamptz first_seen_at "not null"
+    timestamptz last_seen_at "not null"
+    text note "nullable"
+    timestamptz archived_at "nullable"
+    timestamptz created_at "not null, default now()"
+    timestamptz updated_at "not null, default now()"
+  }
   credential_uses {
     bigserial id PK "not null, default auto-increment"
     uuid credential_id "not null"
@@ -225,7 +247,7 @@ erDiagram
     uuid chat_id FK "not null"
     uuid turn_id FK "not null"
     uuid task_id FK "nullable"
-    uuid contact_id "nullable"
+    uuid contact_id FK "nullable"
     text what "not null"
     text why "not null"
     jsonb sources "not null, default '[]'"
@@ -535,6 +557,7 @@ erDiagram
     text channel_id "not null"
     text thread_ts "nullable"
     text place "not null"
+    uuid contact_id FK "nullable"
     timestamptz created_at "not null, default now()"
     timestamptz updated_at "not null, default now()"
   }
@@ -640,6 +663,7 @@ erDiagram
   chat_turns |o--|| chats : "company_id, chat_id"
   chat_turns }o--|| principals : "company_id, created_by"
   chat_turns }o--o| room_messages : "company_id, room_message_id"
+  chat_turns }o--o| contacts : "company_id, contact_id"
   chats }o--|| companies : "company_id"
   chats }o--o| access_profiles : "profile_id"
   chats }o--o| users : "profile_set_by"
@@ -653,6 +677,7 @@ erDiagram
   companies }o--o| users : "created_by_user_id"
   company_logos |o--|| companies : "company_id"
   company_logos }o--o| principals : "company_id, updated_by_principal_id"
+  contacts }o--|| companies : "company_id"
   credential_uses }o--|| users : "owner_user_id"
   credentials }o--|| users : "owner_user_id"
   decisions }o--|| companies : "company_id"
@@ -660,6 +685,7 @@ erDiagram
   decisions }o--|| chats : "company_id, chat_id"
   decisions }o--|| chat_turns : "company_id, turn_id"
   decisions }o--o| tasks : "company_id, task_id"
+  decisions }o--o| contacts : "company_id, contact_id"
   enrollment_tokens }o--|| companies : "company_id"
   enrollment_tokens }o--|| principals : "company_id, created_by"
   enrollment_tokens }o--o| machines : "company_id, machine_id"
@@ -719,6 +745,7 @@ erDiagram
   slack_threads }o--|| companies : "company_id"
   slack_threads }o--|| agents : "company_id, agent_id"
   slack_threads |o--|| chats : "company_id, chat_id"
+  slack_threads }o--o| contacts : "company_id, contact_id"
   task_artifacts }o--|| companies : "company_id"
   task_artifacts }o--|| tasks : "company_id, task_id"
   task_artifacts }o--o| chats : "company_id, chat_id"
@@ -1003,6 +1030,10 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `machine_wait_at` | `timestamp with time zone` | yes |  |  |  |
 | `machine_wait` | `text` | yes |  |  | `stopped`, `slots` |
 | `room_message_id` | `uuid` | yes |  | FK |  |
+| `sender` | `jsonb` | yes |  |  |  |
+| `visible_text` | `text` | yes |  |  |  |
+| `contact_id` | `uuid` | yes |  | FK |  |
+| `reply_link` | `text` | yes |  |  |  |
 | `profile_id` | `uuid` | yes |  |  |  |
 | `credential_id` | `uuid` | yes |  |  |  |
 | `mode` | `text` | yes |  |  | `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full` |
@@ -1022,11 +1053,16 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`chat_turns_chat_fk`)
   - (`company_id`, `created_by`) → `principals` (`company_id`, `id`), on delete no action (`chat_turns_created_by_fk`)
   - (`company_id`, `room_message_id`) → `room_messages` (`company_id`, `id`), on delete no action (`chat_turns_room_message_fk`)
+  - (`company_id`, `contact_id`) → `contacts` (`company_id`, `id`), on delete no action (`chat_turns_contact_fk`)
 - **Unique:**
   - `chat_turns_company_id_id_unique` (`company_id`, `id`)
   - `chat_turns_chat_seq_unique` (`company_id`, `chat_id`, `seq`)
 - **Checks:**
   - `chat_turns_room_message_check`: `"room_message_id" is null or "system"`
+  - `chat_turns_sender_check`: `"sender" is null or ("system" and jsonb_typeof("sender") = 'object')`
+  - `chat_turns_contact_check`: `"contact_id" is null or "sender" is not null`
+  - `chat_turns_visible_text_check`: `"visible_text" is null or ("system" and char_length("visible_text") <= 20000)`
+  - `chat_turns_reply_link_check`: `char_length("reply_link") between 1 and 500`
   - `chat_turns_status_check`: `status` is one of `queued`, `running`, `done`, `failed`, `stopped`
   - `chat_turns_kind_check`: `kind` is one of `message`, `compact`, `clear`
   - `chat_turns_mode_check`: `mode` is one of `manual`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `ask`, `full`
@@ -1040,6 +1076,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `chat_turns_prompt_check`: `char_length("prompt") between 1 and 20000`
   - `chat_turns_usage_check`: `"usage" is null or jsonb_typeof("usage") = 'object'`
 - **Indexes:**
+  - `chat_turns_contact_idx` on (`company_id`, `contact_id`, `created_at`)
   - `chat_turns_one_running_idx` on (`company_id`, `chat_id`), unique, where `"status" = 'running'`
   - `chat_turns_status_idx` on (`status`)
 
@@ -1156,6 +1193,48 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `company_logos_sha256_check`: `"sha256" ~ '^[0-9a-f]{64}$'`
 - **Indexes:** none
 
+### `contacts`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `source` | `text` | no |  |  | `slack` |
+| `name` | `text` | no |  |  |  |
+| `avatar_url` | `text` | yes |  |  |  |
+| `email` | `text` | yes |  |  |  |
+| `title` | `text` | yes |  |  |  |
+| `handle` | `text` | yes |  |  |  |
+| `slack_team_id` | `text` | yes |  |  |  |
+| `slack_user_id` | `text` | yes |  |  |  |
+| `first_seen_at` | `timestamp with time zone` | no |  |  |  |
+| `last_seen_at` | `timestamp with time zone` | no |  |  |  |
+| `note` | `text` | yes |  |  |  |
+| `archived_at` | `timestamp with time zone` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`contacts_company_id_companies_id_fk`)
+- **Unique:**
+  - `contacts_company_id_id_unique` (`company_id`, `id`)
+  - `contacts_slack_unique` (`company_id`, `slack_team_id`, `slack_user_id`)
+- **Checks:**
+  - `contacts_source_check`: `source` is one of `slack`
+  - `contacts_slack_check`: `"source" <> 'slack' or ("slack_team_id" is not null and "slack_user_id" is not null)`
+  - `contacts_slack_team_check`: `char_length("slack_team_id") between 1 and 40`
+  - `contacts_slack_user_check`: `char_length("slack_user_id") between 1 and 40`
+  - `contacts_name_check`: `char_length("name") between 1 and 120`
+  - `contacts_avatar_check`: `char_length("avatar_url") between 1 and 500`
+  - `contacts_email_check`: `char_length("email") between 3 and 320`
+  - `contacts_title_check`: `char_length("title") between 1 and 200`
+  - `contacts_handle_check`: `char_length("handle") between 1 and 80`
+  - `contacts_note_check`: `char_length("note") between 1 and 2000`
+  - `contacts_seen_check`: `"last_seen_at" >= "first_seen_at"`
+- **Indexes:**
+  - `contacts_seen_idx` on (`company_id`, `last_seen_at`)
+
 ### `credential_uses`
 
 | Column | Type | Nullable | Default | Key | Allowed values |
@@ -1229,7 +1308,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `chat_id` | `uuid` | no |  | FK |  |
 | `turn_id` | `uuid` | no |  | FK |  |
 | `task_id` | `uuid` | yes |  | FK |  |
-| `contact_id` | `uuid` | yes |  |  |  |
+| `contact_id` | `uuid` | yes |  | FK |  |
 | `what` | `text` | no |  |  |  |
 | `why` | `text` | no |  |  |  |
 | `sources` | `jsonb` | no | `'[]'` |  |  |
@@ -1244,6 +1323,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`decisions_chat_fk`)
   - (`company_id`, `turn_id`) → `chat_turns` (`company_id`, `id`), on delete no action (`decisions_turn_fk`)
   - (`company_id`, `task_id`) → `tasks` (`company_id`, `id`), on delete no action (`decisions_task_fk`)
+  - (`company_id`, `contact_id`) → `contacts` (`company_id`, `id`), on delete no action (`decisions_contact_fk`)
 - **Unique:**
   - `decisions_company_id_id_unique` (`company_id`, `id`)
 - **Checks:**
@@ -1952,6 +2032,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
 | `channel_id` | `text` | no |  |  |  |
 | `thread_ts` | `text` | yes |  |  |  |
 | `place` | `text` | no |  |  |  |
+| `contact_id` | `uuid` | yes |  | FK |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |  |
 
@@ -1960,13 +2041,15 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `company_id` → `companies` (`id`), on delete no action (`slack_threads_company_id_companies_id_fk`)
   - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete no action (`slack_threads_agent_fk`)
   - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`slack_threads_chat_fk`)
+  - (`company_id`, `contact_id`) → `contacts` (`company_id`, `id`), on delete no action (`slack_threads_contact_fk`)
 - **Unique:**
   - `slack_threads_company_id_id_unique` (`company_id`, `id`)
   - `slack_threads_conversation_unique` (`company_id`, `agent_id`, `credential_id`, `channel_id`, `thread_ts`), nulls not distinct
   - `slack_threads_chat_unique` (`company_id`, `chat_id`)
 - **Checks:**
   - `slack_threads_place_check`: `char_length("place") between 1 and 200`
-- **Indexes:** none
+- **Indexes:**
+  - `slack_threads_contact_idx` on (`company_id`, `contact_id`)
 
 ### `task_artifacts`
 

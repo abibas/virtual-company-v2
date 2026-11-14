@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { chats } from './chats.ts';
 import { bytea, createdAt, oneOf, updatedAt } from './columns.ts';
+import { contacts } from './contacts.ts';
 import { credentials } from './credentials.ts';
 import { agents } from './org.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
@@ -135,7 +136,8 @@ export const slackPosts = pgTable(
  * An agent's chat for one Slack conversation (a channel's thread, or a DM itself when its message is in no thread),
  * through one Slack sign-in (a plain id: the personal row stays its owner's): the messages there wake the agent in that
  * chat, which keeps its context across them. A chat that cannot go on (archived, or the agent moved) is replaced, so the
- * row then names the new one.
+ * row then names the new one. Since migration 0038 it names the contact who started it (`contact_id`; a row from before
+ * gets the next sender's).
  */
 export const slackThreads = pgTable(
   'slack_threads',
@@ -150,6 +152,8 @@ export const slackThreads = pgTable(
     threadTs: text('thread_ts'),
     /** Where it is, in words: `#general`, `a DM with Ihor`. */
     place: text('place').notNull(),
+    /** The contact who started it; null for a row from before contacts (until its next message). */
+    contactId: uuid('contact_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -157,6 +161,8 @@ export const slackThreads = pgTable(
     tenantKey('slack_threads', t),
     tenantForeignKey('slack_threads_agent_fk', t.companyId, t.agentId, agents),
     tenantForeignKey('slack_threads_chat_fk', t.companyId, t.chatId, chats),
+    tenantForeignKey('slack_threads_contact_fk', t.companyId, t.contactId, contacts),
+    index('slack_threads_contact_idx').on(t.companyId, t.contactId),
     unique('slack_threads_conversation_unique')
       .on(t.companyId, t.agentId, t.credentialId, t.channelId, t.threadTs)
       .nullsNotDistinct(),

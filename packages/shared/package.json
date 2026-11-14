@@ -10,6 +10,7 @@
     "./agent-icons": "./src/agent-icons.ts",
     "./api-keys": "./src/api-keys.ts",
     "./chats": "./src/chats.ts",
+    "./contacts": "./src/contacts.ts",
     "./config": "./src/config.ts",
     "./container-runner": "./src/container-runner.ts",
     "./credentials": "./src/credentials.ts",

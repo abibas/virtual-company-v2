@@ -4,6 +4,7 @@ export * from './audit-log.ts';
 export * from './chats.ts';
 export * from './companies.ts';
 export * from './company-logos.ts';
+export * from './contacts.ts';
 export * from './credentials.ts';
 export * from './decisions.ts';
 export * from './flows.ts';

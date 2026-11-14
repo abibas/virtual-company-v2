@@ -47,6 +47,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'chats',
       'companies',
       'company_logos',
+      'contacts',
       'credential_uses',
       'credentials',
       'decisions',
