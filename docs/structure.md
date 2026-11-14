@@ -42,8 +42,9 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          what needs a person, computed live (built S6b); permissions S6
 │   │   │   │   ├── decisions/      the decision log: what agents record with record_decision (built 2026-11-14)
+│   │   │   │   ├── contacts/       people outside a company who talk to its agents (built 2026-11-14)
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
-│   │   │   │   └── integrations/   the agents' Atlassian tools (built S7.1c); Jira intake, PR watch, sprints S7
+│   │   │   │   └── integrations/   the agents' Atlassian, GitHub, Slack tools, receiving Slack (built S7.1c–e); Jira intake, PR watch, sprints S7
 │   │   │   └── dev/                in-memory server for local demos
 │   │   └── test/                   mirrors src/ one to one
 │   │       └── scenarios/          stories across modules over the HTTP API     S1.12

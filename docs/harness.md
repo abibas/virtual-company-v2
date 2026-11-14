@@ -1431,9 +1431,13 @@ integrations module asks the chats module's `InboundChats` for a turn in the age
 (kept while it can go on, else a new one with the title given, made by Most Wanted), sent as a turn Most Wanted queued
 (`system`, the agent as its sender) "after this turn", with the machine-wake trigger `message`. Every system message
 turn's end is told to `InboundTurnHook` (from the live end, and for a turn that failed while it waited for its machine
-or in the queue), which posts the answer back in Slack. The turn's view names its sender (`from`: `{name, via:
-'slack'}`, read from the prompt's header line by `rules/sender.ts`), so the thread shows it as that person's message via
-Slack, not as Most Wanted's.
+or in the queue), which posts the answer back in Slack. The turn's view names its sender (`from`), so the thread shows it
+as that person's message via Slack, not as Most Wanted's. Since 2026-11-14 (docs/subscriptions.md "Contacts") the turn
+stores it (`chat_turns.sender`, `visible_text`, `contact_id`, passed by `InboundTurnRequest.from` as `TurnCaller.from`):
+`from` is `{name, via: 'slack', userId, avatarUrl, link, contactId}` and `visibleText` the message without the header
+(a turn from before reads the name, the link and the text from the header line, `rules/sender.ts`). The hook's `ended`
+returns where it posted the answer; the turn keeps it (`replyLink`) and the chat's stream and the chats' activity hear
+it.
 
 ## Live chat lists
 

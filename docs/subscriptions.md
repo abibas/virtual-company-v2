@@ -1056,6 +1056,7 @@ without background work stores the settings and says it keeps no connection (`re
 - **The prompt**: one header line, then the message with its mentions rendered as names (`users.info`, with
   `users:read`), channels as `#name` and links as `label (address)`: "Slack message from Ihor Herasko in #general
   (https://airia.slack.com/archives/C…/p…). Your final reply is posted in that thread under your name."
+  The agent gets it whole; since 2026-11-14 the chat shows only the message itself, as its sender's ("Contacts" below).
 - **The turn** is one Most Wanted queues (`system`, the agent as its sender), after any turn running there; slots are
   waited for as usual. **Machines**: a Slack message counts as a message for the machine's power policy (its "start for
   a message" switch decides), and the power log says "Started for a Slack message from Ihor Herasko in #general".
@@ -1111,6 +1112,105 @@ settings, their refusals and audit, the people search); the rules; `packages/db/
    "Developer isn't allowed to post in #…".
 
 **Later**: Slack may mirror the team structure (a channel per team), and a team's room could hear its channel.
+
+## Contacts
+
+Built 2026-11-14 (Ihor: a colleague, Erich, DMed the bot and TEST DEV answered, but the chat showed his message as one
+big Most Wanted bubble with the prompt's header: "i would love to have a way to show full conversation… so i can look
+with my eyes… if ERICH is requesting something i need to have it linked to ERICH. To his persona… and on the chart (next
+piece)"; he chose **contacts, made automatically**). A **contact** is a person outside the company who talks to its
+agents: today, a Slack person whose message woke one of them.
+
+### Made automatically (`service/slack/inbound/sender.ts`, `contacts/service/seen.ts`)
+
+- **When:** a Slack message from someone the wake rule allows ("Which messages wake an agent" above) that reaches an
+  agent (its profile may answer there, within the hourly cap) makes the sender's contact in that agent's company, before
+  the turn is queued. A person the wake rule ignores, a bot, a message no agent may answer, or one over the cap makes
+  none. A turn that then cannot start (a paused agent) keeps the contact.
+- **Who:** one contact per company, Slack workspace (the bot sign-in's `teamId`) and Slack person
+  (`UNIQUE(company_id, slack_team_id, slack_user_id)`); two messages at once (two connections of one workspace) still
+  make one.
+- **What:** from `users.info` (with `users:read`): the name (real name, else display name, else username), the avatar
+  (`image_72`, only at an `https` address), the title, the email (with `users:read.email`) and the handle (the
+  username); without it, the connection's listed person (name and image from the people picker). Each later message
+  takes what Slack gave that differs and moves **last seen** forward; nothing is ever blanked, and a name that is only
+  the Slack id never replaces a real one (a contact Slack never named is named by the id). An archived contact stays
+  archived, and their messages still wake agents.
+- **Audited** in the company as Most Wanted (`contact` `create`, then `update` with the fields that changed; last seen
+  alone is not audited).
+
+### The Slack chat, readable
+
+The turn stores what the reader needs, beside the prompt the agent gets (migration `0038_contacts`):
+`chat_turns.sender` (`TurnSender` of `@mwc/shared/chats`: `via: 'slack'`, the Slack `userId`, `name`, `avatarUrl`, the
+message's `link`), `visible_text` (the message with its mentions as names, without the header and its instructions),
+`contact_id`, and `reply_link` (where the reply was posted back). The turn's view gives `from: {name, via, userId,
+avatarUrl, link, contactId}`, `visibleText` and `replyLink` (docs/harness.md "Slack conversations").
+
+- **Their message** shows on the left as theirs: their Slack photo and name (which opens their contact), the Slack mark
+  linking to the message in Slack, and only their words.
+- **The agent's reply** shows as before, under its face; once the answer is posted back the footer says **Posted in
+  Slack** with a link to it (the agent's own post when it replied itself with `slack_reply_to_thread` or
+  `slack_post_message`). The answers hook (`InboundTurnHook.ended`) returns the link; the chats module keeps it on the
+  turn and tells the chat's stream and the chats' activity.
+- **Turns from before** read the name and link from the header line and show the text after it; they have no photo
+  and no contact.
+- Each Slack chat (`slack_threads.contact_id`) names the contact who started it; a chat from before takes the next
+  sender's.
+
+### Contacts in the app
+
+- **The list** is a tab of **Company structure**, beside Org chart, Agents and People: `/:slug/structure/contacts`
+  (`/:slug/contacts` opens it). Each contact with their photo, name, title, Slack handle, the agents they talked to and
+  when they were last seen, the latest first; **With archived** shows the archived ones too. Viewers do not see the tab.
+- **A contact's page**, `/:slug/contacts/:id`: their photo, name, title, email and Slack handle, first and last seen;
+  **Conversations** with the agents, the latest first (each Slack chat with its agent's face, green while a turn runs
+  there, its title, place and last message, opening the chat); **Agents** (per agent their conversations, messages and
+  the latest); **Note** (admins and owners write it and **Archive** or **Bring back** the contact; others read the note);
+  **Decisions**, the decision log's section: an empty list until that branch fills it (a web hook only,
+  `features/contacts/ContactDecisions.tsx`; no endpoint here). The page follows the chats' activity.
+
+### The API (`modules/contacts/`)
+
+| Route | Who | What |
+| ----- | --- | ---- |
+| `GET /api/companies/{companyId}/contacts` | member and above | the contacts not archived (all with `archived=true`), the latest seen first, each with `agentIds` and `conversations` |
+| `GET …/contacts/{contactId}` | member and above | `{contact, conversations, agents}` (at most 200 conversations); 404 `contact_not_found`, another company's too |
+| `PATCH …/contacts/{contactId}` | admin and above | `{note?, archived?}`: a blank or null note removes it; audited as the person (`update`, `archive`, `unarchive`) |
+| `GET …/contacts/interactions?since=` | member and above | the org chart's Requesters (below) |
+
+**Interactions** (for the org chart's Requesters column, the next piece): `{since, contacts: [{contact: {id, name,
+avatarUrl, title}, live, agents: [{agentId, principalId, messages, lastAt, live}]}]}`: per contact that is not archived,
+each agent their messages woke since `since` (7 days ago by default; at most 90 days back and never ahead, the one used is
+returned) with how many and the latest, and whether a turn of theirs waits or runs there now; the latest first. A turn
+that starts or ends is told live by `GET …/chat-activity`: its `lastTurn.from.contactId` with its status says who is
+being answered now.
+
+### The data (migration `0038_contacts`)
+
+- `contacts` (a company's): `source` (`slack`), `name`, `avatar_url`, `email`, `title`, `handle`, `slack_team_id`,
+  `slack_user_id` (both for a Slack contact), `first_seen_at`, `last_seen_at`, `note` (at most 2000), `archived_at`.
+- `chat_turns.sender`, `visible_text` (only on a turn Most Wanted queued), `contact_id` (only with a sender) and
+  `reply_link`; `slack_threads.contact_id`. Rows from before keep nulls.
+
+### Tests
+
+`apps/server/test/modules/integrations/service/slack/inbound/sender.test.ts` (the first message makes the contact from
+`users.info`, the next ones update it and never make a second, ignored senders and bots make none, anyone allowed, the
+turn's sender, visible text and contact, the chat's contact, the reply's link and the agent's own post),
+`test/modules/contacts/` (the routes: list, page, note and archive, roles, 404s, audit; the interactions: the window,
+live, archived, `since` kept in range; `seenOnSlack` twice at once; the rules), `test/modules/chats/rules/sender.test.ts`
+(stored and from-before senders), `routes/activity/slack.test.ts` (the activity names the contact and the reply's link),
+`packages/db/test/schema/contacts.test.ts` (constraints, composite keys, rows from before the migration).
+
+### How to test it (Ihor)
+
+1. Merge, then restart the dev API (`pnpm dev`): migration `0038_contacts` runs on start. The runner did not change.
+2. Have someone allowed (or yourself) DM the bot. In TEST DEV's chat "Slack · DM · …" the message shows with their Slack
+   photo and name and the Slack mark; the header is gone. Under TEST DEV's answer: **Posted in Slack**.
+3. Click their name: their contact page, with the conversation and TEST DEV's counts. **Company structure** →
+   **Contacts** lists them.
+4. Write a note and **Save**; **Archive** hides them from the list (**With archived** shows them).
 
 ## Security
 

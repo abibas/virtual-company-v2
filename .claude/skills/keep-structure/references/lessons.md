@@ -28,6 +28,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-14: Contacts: a new module that reads the chats' tables, and a turn that names who it speaks for
+
+- **What happened:** the contacts module (`modules/contacts/`, 14 files, all under 160 lines) reads `chat_turns`,
+  `chats`, `slack_threads` and `agents` through its own `repo/conversations.ts` (the tenant layer, grouped reads, no
+  other module's repo) and imports the chats' pure `senderOf`/`visibleTextOf` through `chats/index.ts`; the integrations
+  module calls its `seenOnSlack` before the turn is queued, outside any transaction. The turn's sender travels as
+  `TurnCaller.from` (three insert sites: `turns.ts`, `queue.ts`, `machine-wait.ts`, one `fromColumns` spread each), and
+  `InboundTurnHook.ended` now returns the reply's link, which `tellInbound` keeps (`turns.ts` 276 → 280,
+  `machine-wait.ts` 229 → 232, `chats.ts` of the db schema 243 → 267).
+- **Where:** the `contacts` branch.
+- **What was done:** as above; the map in `docs/structure.md` has the module's line.
+- **Suggested change:** a placement row "a read model of one module over another's tables (a contact's conversations)
+  → its own `repo/<view>.ts` through the tenant layer, the other module's pure rules through its `index.ts`"; at the next
+  review, consider a `TurnCaller` field list in one place instead of each insert site spreading its parts.
+- **Status:** `open`.
+
 ### 2026-11-13: Receiving Slack messages: a module that holds sockets, and a second end hook in the chats
 
 - **What happened:** the server keeps a Socket Mode connection per Slack bot sign-in. The client went to the connector

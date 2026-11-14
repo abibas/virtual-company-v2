@@ -134,7 +134,9 @@ function QueuedRow({ turn, actions }: { readonly turn: ChatTurnWithEvents; reado
         {editing ? (
           <EditBox initial={turn.prompt} busy={busy} onSave={save} onCancel={() => setEditing(false)} />
         ) : (
-          <p className="line-clamp-3 text-sm break-words whitespace-pre-wrap text-ink">{turn.prompt}</p>
+          <p className="line-clamp-3 text-sm break-words whitespace-pre-wrap text-ink">
+            {turn.visibleText ?? turn.prompt}
+          </p>
         )}
         <p className={cx('text-2xs', sent ? 'text-blue' : 'text-dim')}>
           {turn.system

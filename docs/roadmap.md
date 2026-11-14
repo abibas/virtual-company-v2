@@ -926,6 +926,18 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          conversation's chat on top at once with a dot, the rail reads again at once, and a Slack message's turn shows
          as its sender's, via Slack. A turn whose runner went away just before its start, and one taken back after the
          grace, are now told to the chat's stream.
+       - **Contacts, built 2026-11-14** (Ihor: a colleague's DM showed as one Most Wanted bubble with the prompt's
+         header; "if ERICH is requesting something i need to have it linked to ERICH. To his persona… and on the chart
+         (next piece)"; he chose contacts made automatically; docs/subscriptions.md "Contacts"; branch `contacts`):
+         migration `0038_contacts` (`contacts`, one per company, Slack workspace and person; a Slack message's turn
+         stores its sender, visible text, contact and the reply's link; a Slack chat names the contact who started it).
+         The first message of a person that wakes an agent makes their contact from `users.info`, and the next ones
+         update it. The chat shows a Slack message as its sender's (their Slack photo and name linking to their contact,
+         the Slack mark linking to the message, only their words), and a reply posted back says "Posted in Slack". The
+         Contacts tab of Company structure and a contact's page (conversations, counts per agent, the note and archive;
+         a Decisions section the decision log fills). `GET …/contacts/interactions?since=` gives the org chart's
+         Requesters column (the next piece) who talked to which agent in the last 7 days and who is being answered now,
+         which the chats' activity also tells (`lastTurn.from.contactId`).
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
