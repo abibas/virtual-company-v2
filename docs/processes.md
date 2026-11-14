@@ -286,9 +286,11 @@ readable, as `task_events` keeps its plain ids) and `task_round` (the round of t
 CHECK keeps the three together, the round from 1). Why: a step's conversation is one chat, one to one, so a side table
 would only split the chat's row in two. Being a chat, it gets everything chats have with no new code: streaming, its
 events, Stop, the queue, the briefing ("Standing instructions"), resume, the machine and profile checks, the terminal
-and "Open in Claude Code". The agent's chat list (`GET …/agents/{agentId}/chats`) leaves task conversations out
-(`task_id is null`); they open by id (`GET …/chats/{chatId}`, whose `task` names the task, the step and the round) and
-are listed on the task (`conversations` in `GET …/tasks/{taskId}`).
+and "Open in Claude Code". The agent's chat list (`GET …/agents/{agentId}/chats`) keeps task conversations out of its
+`chats` (`task_id is null`) and, since T-19 (2026-11-14), lists them apart in `tasks`, each named by its task
+(`forTask`: key, title, step, the rounds it covers; docs/harness.md "Task conversations in the agent's chats"); they open
+by id (`GET …/chats/{chatId}`, whose `task` names the task, the step and the round, and `forTask` the task's key and
+title) and are listed on the task (`conversations` in `GET …/tasks/{taskId}`).
 
 **One conversation per task and step** (`taskTurns` of the chats module, `service/tasks.ts`): the step's latest
 conversation of that agent goes on when it can (not archived, the agent's harness and machine unchanged) and the step
@@ -428,8 +430,9 @@ The page reads the task again every 30 seconds while visible, like the board.
 task's detail has `lastTurn: {status, at} | null` (the running turn's status while one runs, else the latest's; the latest
 start or end; Clears left out), and the board's cards carry `blockedReason`.
 
-**Not built:** a "Task conversations" list on the agent's page: the agent's chat list leaves task conversations out
-and no route lists one agent's task chats, so it waits for an API that gives it cheaply.
+**Built since (T-19, 2026-11-14):** the agent's task conversations on its Chats page, in a **Tasks** section apart
+from its chats, named by the task's key and title with the step and the rounds, live with the chats' dot, each opening
+as a chat with a link back to the task (docs/harness.md "Task conversations in the agent's chats").
 
 The parts: `features/flows/conversations/` (`model.ts` pure: states, round spans, order, the first open; `TaskConversations`,
 `ConversationList`, `ThreadFrame`, `TaskThread` (live), `LiveDot`), `features/flows/artifacts/` (`groups.ts` pure: groups,

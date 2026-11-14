@@ -1439,7 +1439,8 @@ Built in S5.3b (2026-11-11; docs/processes.md "Built in S5.3b"). A task's step w
 of that agent: a **task conversation**, a chat whose row names the task, the step and the round it began in
 (`chats.task_id`, `task_step_id`, `task_round`, migration `0023_task_runs`). It is every bit a chat (the turn, its
 checks and refusals, the credential's use, the standing instructions, the stream, Stop, the queue, the terminal,
-"Open in Claude Code"); it only stays out of the agent's own chat list and is opened from the task.
+"Open in Claude Code"); only it is listed apart from the agent's chats, in the Tasks section of its chat list ("Task
+conversations in the agent's chats", T-19), and opened from the task too.
 
 - **Who starts it.** The tasks module, once a move started the task at an agent's step (an entry into a step that starts
   by itself, or Start), calls the chats module's `taskTurns.start` (`modules/chats/service/tasks.ts`) as the person who
@@ -1526,9 +1527,10 @@ send failed without telling the stream, and so did a turn taken back after the g
   or goes, or its agent asks a question; a `: heartbeat` every 20 s; nothing replayed. The bus's watchers hear every
   chat's messages and `changed(chatId)` (a chat made or changed, which a chat's own listeners never hear); each
   connection reads a chat once per burst of its messages, through the caller's tenant, so another company's chat is
-  never sent (nor read again), and a task's conversation is left out, as from the agent's list (`service/activity.ts`,
-  `routes/activity.ts`). Since 2026-11-14 each person hears only the chats they are in, each chat with its people and
-  its latest turn ("Who is in a chat").
+  never sent (nor read again) (`service/activity.ts`, `routes/activity.ts`). Since 2026-11-14 each person hears only the
+  message chats they are in, each chat with its people and its latest turn ("Who is in a chat"); a task's conversation
+  goes to everyone who reads chats, named by its task (T-19, "Task conversations in the agent's chats"), and the rail
+  ignores it.
 - **The web.** One connection per company in the page (`api/chat-activity.ts`), shared by the lists, back after a drop
   (1 s doubling to 15 s) and read again on each open. The agent's chat list (`api/use-agent-chats-live.ts`) puts each
   told chat in place, newest first, archived ones out, with a dot (`features/chats/chat-dots.ts`): green while a turn
@@ -1540,7 +1542,45 @@ send failed without telling the stream, and so did a turn taken back after the g
 Tests: `apps/server/test/modules/chats/routes/activity.test.ts` (a person's chat and turn, rename, archive, a slot and a
 machine wait, members only, one company), `routes/activity/slack.test.ts` (a Slack message's new chat at once, its
 sender, the next reply in the chat's own stream), `routes/activity/wakes.test.ts` (a Lead's wake-up and the team room,
-never a task's conversation), `service/activity.test.ts` and `rules/sender.test.ts`.
+and the task's own conversation named by its task), `routes/activity/tasks.test.ts` (a step's turn, to a member in none
+of the agent's chats), `service/activity.test.ts` and `rules/sender.test.ts`.
+
+## Task conversations in the agent's chats
+
+Built 2026-11-14 (T-19; Ihor: MV Company Developer was working on T-18, but its Chats showed only its two normal chats;
+the task's conversation could be found only from the task's page, so its own page did not say what it was working on,
+whether a task keeps one thread across steps and rounds, or whether a turn was task work or a separate chat).
+
+- **The list.** `GET /api/companies/{companyId}/agents/{agentId}/chats` answers `{chats, tasks}`: `chats` as before (the
+  message chats the caller is in, and the team chats), and `tasks` the agent's task conversations ("Task turns") apart,
+  not archived, the latest 50 by `updated_at` (which each turn moves; `AGENT_TASK_CHATS`, `rules/task-chats.ts`), for
+  anyone who reads chats (member and above), as the task's page opens them: they keep their own rules and have no people.
+  The owner's `…/chats/others` is unchanged.
+- **The name.** Every list item, the open chat's detail and the activity's chat carry `forTask` (`schemas/task.ts`,
+  `ChatTask`; null for any other chat): the task's `taskId`, `key` (`T-18`) and `title` now, the step's name now
+  (`a removed step` for one removed since), the `rounds` the conversation covers (`{from, to}`, `roundSpanOf` in
+  `rules/task-chats.ts`, as the task's page counts them: from the round it began in up to the round before the step's
+  next conversation began, the latest one up to the times the task has entered the step), the task's `state` and
+  `atStep` (active at this conversation's step now). So "Develop · rounds 1–3" says a Keep step kept one thread, and
+  one row per round says a Fresh step began one each time. Read for many chats at once in `service/task-names.ts`
+  (three reads: the tasks, the steps, the tasks' conversations; none without a task's conversation), through
+  `repo/task-chats.ts` (the tasks module's rows, read only).
+- **Live.** The chats' activity tells a task's conversation like any chat, to everyone who reads chats ("Live chat
+  lists"), so its step's turn moves it in the list as it is queued, starts and ends.
+- **The page.** Under the agent's chats, a **Tasks** section (`features/chats/list/TaskChats.tsx`, `TaskChatRow.tsx`;
+  nothing before the agent's first task): each row "T-18 · <task title>", and under it the step and its rounds, the task's
+  state once it is no longer active, and when it last moved ("Develop · round 1 · 3m"); the dot's column as on every row
+  (green and pulsing while its turn waits or runs; no blue dot for activity not seen, which every ended step would
+  get: a step's end is the task's news, told by its flow and the inbox), the live ones first, the order held under the
+  pointer; no Archive there. `api/use-agent-chats-live.ts` keeps both groups live from the activity. Opening one is the same chat as the task
+  page's "Open as chat" (`?chat=<id>`, the same access), and its header leads back to the task first (a "T-18" control,
+  the task's title on hover). An agent with no chats of its own opens its live or latest task conversation. The team
+  room's conversation of a flow stays among the chats, with its bell and its title "<flow>: team".
+
+Tests: `apps/server/test/modules/chats/service/task-names.test.ts` (the list apart for the owner and for a member in none
+of the chats, the detail's `forTask`, viewers 403, another company 404; Keep and Fresh rounds through send-backs; an
+archived one left out, a removed step's name), `routes/activity/tasks.test.ts`, `rules/task-chats.test.ts`, and the
+updated `tasks/service/runs.test.ts`, `routes/activity/wakes.test.ts`. No frontend tests, per the repo's rules.
 
 ## Your direct reports in the rail
 
@@ -1624,7 +1664,8 @@ conversation, a flow's team chat and the team room keep their own rules (docs/pr
   role, 403 `forbidden`). Anyone else gets the same 404 `chat_not_found` as an unknown chat, on every route. A
   company **owner** (not an admin) who is not in it reads it: its detail (`ownerView: true`), its older turns and its
   stream; every route that writes answers them 403 `not_in_chat`. The agent's list (`GET …/agents/{agentId}/chats`)
-  holds the caller's own message chats and the team chats; `GET …/agents/{agentId}/chats/others` (owners only) lists
+  holds the caller's own message chats and the team chats (and, apart, its task conversations: `tasks`, T-19);
+  `GET …/agents/{agentId}/chats/others` (owners only) lists
   its message chats the caller is not in. A stream's reader taken out of the chat is cut off at that line.
 - **People** (`routes/people.ts`, `service/people.ts`, the faces `service/faces.ts`): `POST …/chats/{chatId}/people
   {principalIds}` adds members (any person in the chat; an owner who is not in it adds only themselves, **Add me**;

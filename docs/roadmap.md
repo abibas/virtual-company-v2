@@ -1001,6 +1001,15 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          who is in a chat. A Slack chat's connection owner sends in Slack as the bot (no agent turn, `slack_posts`, a
          reply routed back). The chat list: the dot in a fixed column (green pulsing while live), live chats first,
          faces of who the agent talks with.
+       - **Task conversations in the agent's chats, built 2026-11-14** (T-19, Ihor: the Developer worked on T-18 but its
+         Chats showed only its two normal chats; docs/harness.md "Task conversations in the agent's chats"; branch
+         `t-19-task-chats`): `GET …/agents/{agentId}/chats` gives the agent's task conversations apart (`tasks`, the
+         latest 50, for anyone who reads chats, as the task's page opens them), each named by its task (`forTask`: key,
+         title, step, the rounds it covers, the task's state, whether it is at that step); the open chat's detail names
+         its task too, and the chats' activity tells task conversations. The page: a **Tasks** section under the
+         chats ("T-18 · <title>", "Develop · round 1"), live with the green dot, live ones first; the open one links
+         back to its task. The team room's conversation stays with the chats (bell, "<flow>: team"). No migration; the
+         runner did not change.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.
