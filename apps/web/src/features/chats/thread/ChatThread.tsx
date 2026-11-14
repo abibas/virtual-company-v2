@@ -146,6 +146,7 @@ export function ChatThread({
   const empty = current.length === 0 && history.live.conversations.length === 0;
   const look = useMemo(() => ({ authors, dense }), [authors, dense]);
   const byTurn = useMemo(() => decisionsByTurn(decisions ?? []), [decisions]);
+  const lastTalking = lastTalk(current);
   useTurnAnchor(follow.box, current, follow.onScroll);
   return (
     <ThreadLookContext value={look}>
@@ -176,7 +177,7 @@ export function ChatThread({
                     chatInit={chatInit}
                     decisions={byTurn.get(turn.id)}
                     place={{
-                      last: turn === lastTalk(current),
+                      last: turn === lastTalking,
                       answer: answers.has(turn.id),
                       answering,
                       branch: branchFor(branching, current, turn),
