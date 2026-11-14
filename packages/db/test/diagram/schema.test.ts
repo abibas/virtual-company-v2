@@ -16,7 +16,7 @@ describe('renderSchemaDiagram on the real schema', () => {
   it('draws every table as an entity, sorted by name', () => {
     const entities = lines.filter((line) => line.endsWith(' {')).map((line) => line.trim().slice(0, -2));
     expect(entities).toEqual(tables.map((table) => table.name).sort());
-    expect(entities).toHaveLength(42);
+    expect(entities).toHaveLength(43);
     expect(entities.slice(0, 4)).toEqual(['access_profiles', 'agent_icons', 'agent_placements', 'agents']);
   });
 
@@ -76,7 +76,7 @@ describe('renderSchemaDiagram on the real schema', () => {
     expect(doc).toContain('Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`');
     expect(doc).toContain('Do not edit by\n> hand');
     expect(doc).toContain(
-      `Tables: 42. Migrations: ${journal.entries.length}, the last is \`${journal.entries.at(-1)?.tag}\`.`,
+      `Tables: 43. Migrations: ${journal.entries.length}, the last is \`${journal.entries.at(-1)?.tag}\`.`,
     );
   });
 
@@ -95,7 +95,7 @@ describe('renderSchemaDiagram on the real schema', () => {
       '  - `company_id` → `companies` (`id`), on delete no action (`audit_log_company_id_companies_id_fk`)',
     );
     expect(doc).toContain('| `bytes` | `bytea` | no |  |  |  |');
-    expect(doc.match(/^### /gm)).toHaveLength(42);
+    expect(doc.match(/^### /gm)).toHaveLength(43);
   });
 });
 
