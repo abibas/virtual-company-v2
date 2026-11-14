@@ -20,25 +20,30 @@ import { eventView, streamEvent } from './views.ts';
 /**
  * Answering the agent's question (S5.2 step 4, docs/harness.md "Asking the person"): the answers must fit the open
  * question (`rules/questions.ts`); they start the chat's next turn with a prompt that says them in words, refused as any
- * turn is. In the transaction that records that turn, the question must still be open (no turn came after its own:
- * otherwise `question_closed`), and its turn gets an `answered` event naming the new turn, which the stream sends
+ * turn is. In the transaction that records that turn, the question must still be open (no turn came after those read,
+ * of which only lines of who joined or left and messages sent in Slack may follow its own: otherwise `question_closed`), and its turn gets an `answered` event naming the new turn, which the stream sends
  * before the new turn. A plain message instead closes the question without a mark: a newer turn supersedes it.
  */
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
 
-/** The chat's turns with their events, as the rules read them. */
-async function questionTurns(t: TenantDb, chatId: string): Promise<QuestionTurn[]> {
+/** The chat's turns with their events, as the rules read them, and the highest number read. */
+async function questionTurns(
+  t: TenantDb,
+  chatId: string,
+): Promise<{ turns: QuestionTurn[]; lastSeq: number }> {
   const turns = await turnsRepo.ofChat(t, chatId);
   const events = await turnsRepo.eventsOf(
     t,
     turns.map((turn) => turn.id),
   );
-  return turns.map((turn) => ({
+  const read = turns.map((turn) => ({
     id: turn.id,
     seq: turn.seq,
+    kind: turn.kind,
     events: events.filter((event) => event.turnId === turn.id).map(eventView),
   }));
+  return { turns: read, lastSeq: turns.at(-1)?.seq ?? 0 };
 }
 
 /** Answers the chat's open question (see above); 202 with the turn that carries the answers, or why not. */
@@ -51,7 +56,8 @@ export async function answerQuestion(
 ): Promise<Started> {
   const chat = await chatsRepo.get(t, chatId);
   if (chat === undefined) return CHAT_NOT_FOUND;
-  const found = findQuestion(await questionTurns(t, chat.id), body.questionId);
+  const read = await questionTurns(t, chat.id);
+  const found = findQuestion(read.turns, body.questionId);
   if (found === undefined) return QUESTION_NOT_FOUND;
   if (found.state !== 'open') return QUESTION_CLOSED;
   const { questions } = found.event;
@@ -60,7 +66,7 @@ export async function answerQuestion(
   const asked = found.turn;
   return startTurn(deps, t, caller, chat.id, answersPrompt(questions, body.answers), {
     kind: 'message',
-    check: closedUnlessNext(asked.seq),
+    check: closedUnlessNext(read.lastSeq),
     alongside: async (tx, turn: ChatTurn) => {
       const event: AnsweredEvent = {
         type: 'answered',

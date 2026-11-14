@@ -1,5 +1,4 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -7,6 +6,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { UpdateChatOverridesSchema } from '../schemas/overrides.ts';
 import { ChatParamsSchema, ChatSchema } from '../schemas.ts';
 import { setOverrides } from '../service/overrides.ts';
+import { chatRoute } from './access.ts';
 
 /**
  * A chat's own mode, model and effort (2026-11-13, docs/harness.md "Modes"): `PATCH
@@ -17,7 +17,7 @@ import { setOverrides } from '../service/overrides.ts';
 const OVERRIDES = '/api/companies/{companyId}/chats/{chatId}/overrides' as const;
 
 const updateRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: OVERRIDES, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: OVERRIDES, access: 'write' });
   return createRoute({
     ...base,
     method: 'patch',

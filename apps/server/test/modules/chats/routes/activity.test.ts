@@ -113,15 +113,17 @@ describe('GET chat-activity', () => {
     await live.next('its start', (v) => v.lastTurn?.id === turn.id && v.lastTurn.status === 'running');
   });
 
-  it('is for members and above, and tells only their own company’s chats', async () => {
+  it('is for members and above, and tells only their own company’s chats they are in', async () => {
     const s = await scene(w);
-    const member = await listen(s, await addMember(w, s.company, 'member'));
+    const person = await addMember(w, s.company, 'member');
+    const member = await listen(s, person);
     expect(member.status).toBe(200);
     const viewer = await listen(s, await addMember(w, s.company, 'viewer'));
     expect(viewer.status).toBe(403);
     const elsewhere = await scene(w);
     const theirs = await listen(elsewhere);
-    const chat = await beginChat(w, s.company, s.agentId);
+    await beginChat(w, s.company, s.agentId);
+    const chat = await beginChat(w, s.company, s.agentId, { with: [person.principalId] });
     await member.next('the new chat', (v) => v.chat.id === chat.id);
     const own = await beginChat(w, elsewhere.company, elsewhere.agentId);
     await theirs.next('their own chat', (v) => v.chat.id === own.id);

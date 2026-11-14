@@ -1,6 +1,7 @@
 import type { Agent, Chat, TenantDb } from '@mwc/db';
 import { BRANCH_SUPPORT } from '@mwc/shared/chats';
 import { branchRepo } from '../repo/branch.ts';
+import { participantsRepo } from '../repo/participants.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import {
@@ -17,6 +18,7 @@ import type { ChatBranchedFromView } from '../schemas/branch.ts';
 import type { ChatView } from '../schemas.ts';
 import type { ChatCaller } from '../service.ts';
 import { auditChat } from './audit.ts';
+import { seatPeople } from './people.ts';
 import { chatView } from './views.ts';
 
 /**
@@ -24,7 +26,8 @@ import { chatView } from './views.ts';
  * conversation from one of its replies, the parent untouched. The branch copies the parent's harness, machine, access
  * profile choice (and who made it) and the reply's session, names its parent and the reply, and stays `fork_pending`
  * until its first turn resumes that session forked (`forkOf`, read when the turn resolves) and its `session` event saves
- * the new one. Audited as `branch` (entity `chat`). A branch's detail names its parent (`branchedFromOf`).
+ * the new one. Audited as `branch` (entity `chat`). A branch's detail names its parent (`branchedFromOf`). Its people
+ * (2026-11-14) are whoever branched it and the parent's members (not its contacts: a branch is no Slack conversation).
  */
 
 type Branched = { readonly ok: true; readonly chat: ChatView } | Refusal;
@@ -60,6 +63,13 @@ export async function branchChat(
     forkPending: true,
     createdBy: caller.principalId,
   });
+  const members = (await participantsRepo.ofChat(t, chat.id)).flatMap((row) => row.principalId ?? []);
+  const by = caller.principalId;
+  await seatPeople(
+    t,
+    branch.id,
+    [by, ...members].map((principalId) => ({ principalId, addedBy: by })),
+  );
   await auditChat(t, caller, branch, 'branch', null);
   return { ok: true, chat: chatView(branch) };
 }

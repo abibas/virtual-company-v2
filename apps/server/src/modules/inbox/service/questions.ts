@@ -10,7 +10,8 @@ import type { InboxCompany, InboxItem } from '../schemas.ts';
 /**
  * The agents' open questions (S6b): a chat's question is open while it is the latest of the chat's last turn and nothing
  * answered it (the chats module's own rule, `openQuestion`). Only for those who may answer (`answersQuestions`: admins
- * and owners), in chats and of agents not archived; a task's conversation asks like any chat.
+ * and owners), in chats and of agents not archived; a task's conversation asks like any chat; a message chat's question
+ * only for the people in it (2026-11-14, docs/harness.md "Who is in a chat").
  */
 
 /** The open question of a chat's last turn, with when it was asked; undefined when it is answered. */
@@ -46,6 +47,7 @@ export async function questionItems(
       await repo.questions.chatsOf(
         t,
         asking.map((a) => a.chatId),
+        viewer.principalId,
       )
     ).map((chat) => [chat.id, chat]),
   );

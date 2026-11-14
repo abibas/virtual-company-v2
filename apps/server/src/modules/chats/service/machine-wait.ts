@@ -79,6 +79,7 @@ export interface WaitingCaller {
   readonly roomMessageId?: string | undefined;
   readonly wake?: TurnWake | undefined;
   readonly from?: TurnFrom | undefined;
+  readonly shown?: string | undefined;
 }
 
 /** Records a turn waiting for the chat's machine (to start, or for a free slot), delivered after. */
@@ -103,7 +104,7 @@ export const recordWaiting = (
       createdBy: caller.principalId,
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
-      ...fromColumns(caller.from),
+      ...fromColumns(caller.from, caller.shown),
     });
   });
 

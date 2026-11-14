@@ -11,7 +11,8 @@ import { refuse } from '../rules.ts';
  * Selections (S5.2 step 4, docs/harness.md "Asking the person"): where an agent's question stands, whether the
  * person's answers fit it, and the prompt that carries them to the agent. A question is a turn's `question` event; the
  * open one is the latest question of the chat's last turn while no `answered` event names it. A newer turn (a plain
- * message, a Clear) or a later question in the same turn supersedes it. Pure.
+ * message, a Clear) or a later question in the same turn supersedes it; a turn that runs no process (`talks`) does
+ * not. Pure.
  */
 
 export const QUESTION_NOT_FOUND = refuse(404, 'question_not_found', 'No such question in this chat');
@@ -22,12 +23,19 @@ export const QUESTION_CLOSED = refuse(
 );
 export const invalidAnswers = (why: string) => refuse(422, 'invalid_answers', why);
 
-/** A turn with its events, as the rules read them. */
+/** A turn with its events, as the rules read them; its kind when known. */
 export interface QuestionTurn {
   readonly id: string;
   readonly seq: number;
+  readonly kind?: string;
   readonly events: readonly { readonly event: TurnEvent }[];
 }
+
+/**
+ * True for a turn that talks with the agent: a line of who joined or left and a message sent in Slack (2026-11-14) run
+ * no process, so they neither close nor supersede a question.
+ */
+export const talks = (turn: { readonly kind?: string }) => turn.kind !== 'people' && turn.kind !== 'slack';
 
 export type QuestionState = 'open' | 'answered' | 'superseded';
 
@@ -55,7 +63,8 @@ const answerOf = (turn: QuestionTurn, questionId: string) =>
   )?.event;
 
 /** The question with this id and where it stands; undefined when the chat has none of that id. */
-export function findQuestion(turns: readonly QuestionTurn[], questionId: string): FoundQuestion | undefined {
+export function findQuestion(all: readonly QuestionTurn[], questionId: string): FoundQuestion | undefined {
+  const turns = all.filter(talks);
   const index = turns.findIndex((turn) => questionsOf(turn).some((event) => event.id === questionId));
   const turn = turns[index];
   if (turn === undefined) return undefined;
@@ -68,15 +77,15 @@ export function findQuestion(turns: readonly QuestionTurn[], questionId: string)
 
 /** The chat's open question (see above), or null. */
 export function openQuestion(turns: readonly QuestionTurn[]): OpenQuestion | null {
-  const last = turns.at(-1);
+  const last = turns.filter(talks).at(-1);
   const event = last === undefined ? undefined : questionsOf(last).at(-1);
   if (last === undefined || event === undefined || answerOf(last, event.id) !== undefined) return null;
   return { turnId: last.id, id: event.id, questions: event.questions };
 }
 
 /**
- * The check of the transaction that records an answer's turn: its number must come right after the question's turn
- * (no turn came in between since the question was read), else `question_closed`.
+ * The check of the transaction that records an answer's turn: its number must come right after the last turn read with
+ * the question (no turn came since), else `question_closed`.
  */
 export const closedUnlessNext =
   (askedSeq: number) =>

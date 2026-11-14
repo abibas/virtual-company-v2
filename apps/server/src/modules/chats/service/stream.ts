@@ -12,7 +12,8 @@ import { streamEvent, turnView } from './views.ts';
  * that reconnects reads the chat's detail again), `decision` messages (`{decision}`) when the agent records one
  * (2026-11-14; never replayed either: a page reads the chat's decisions again), and a `: heartbeat` comment every 20 s. With a `Last-Event-ID` it first sends what came after it:
  * the turns from that one on (as they are now) and their later events, then the live messages, an event never twice.
- * It listens before it reads, so nothing that happens during the replay is lost.
+ * It listens before it reads, so nothing that happens during the replay is lost. Since 2026-11-14 a line of who left
+ * or was taken out (a `people` turn) asks `stillIn` again, and the stream ends once its reader is out of the chat.
  */
 
 /** Where the messages go (the route writes them as Server-Sent Events). */
@@ -30,6 +31,8 @@ export interface StreamDeps {
   readonly bus: ChatBus;
   readonly timers?: StreamTimers;
   readonly heartbeatMs?: number;
+  /** Whether the reader may still read the chat, asked at each line of who joined or left; none: always. */
+  readonly stillIn?: () => Promise<boolean>;
 }
 
 const SYSTEM_TIMERS: StreamTimers = {
@@ -57,9 +60,16 @@ export async function streamChat(
   // A first comment at once, so the response starts flowing (proxies and fetch see it open) before any heartbeat.
   let chain = sink.comment('open');
   let buffered: ChatMessage[] | undefined = [];
+  let cut = () => {};
+  const out = new Promise<void>((resolve) => {
+    cut = resolve;
+  });
+  const { stillIn } = deps;
   const write = (message: ChatMessage) => {
     if (message.kind === 'turn') {
       chain = chain.then(() => sink.message('turn', JSON.stringify({ turn: message.turn })));
+      if (message.turn.kind === 'people' && stillIn !== undefined)
+        chain = chain.then(async () => ((await stillIn()) ? undefined : cut()));
       return;
     }
     if (message.kind === 'removed') {
@@ -86,7 +96,7 @@ export async function streamChat(
     if (after !== undefined) for (const message of await replay(t, chatId, after)) write(message);
     for (const message of buffered) write(message);
     buffered = undefined;
-    await closed;
+    await Promise.race([closed, out]);
   } finally {
     unsubscribe();
     timers.clearInterval(heartbeat);

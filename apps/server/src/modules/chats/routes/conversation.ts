@@ -1,5 +1,4 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -7,6 +6,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { ChatParamsSchema, ChatTurnSchema } from '../schemas.ts';
 import { clearChat, compactChat } from '../service/conversation.ts';
 import type { TurnsDeps } from '../service/turns.ts';
+import { chatRoute } from './access.ts';
 import { TURN_REFUSALS } from './turns.ts';
 
 /**
@@ -23,7 +23,7 @@ const NO_CHAT = errorResponse(
 );
 
 const compactRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: COMPACT, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: COMPACT, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',
@@ -48,7 +48,7 @@ const compactRoute = (deps: ServerDeps) => {
 };
 
 const clearRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: CLEAR, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: CLEAR, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',

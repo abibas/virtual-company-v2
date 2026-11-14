@@ -6,7 +6,9 @@
 // server's own tools of its profile through `ServerToolsHook`, which the integrations module implements. Since
 // 2026-11-13 a Slack message asks an agent for a turn through `InboundChats`, and its end comes back by `InboundTurnHook`
 // (since 2026-11-14 with whom the turn speaks for, `TurnFrom`, and where the hook posted the reply). Since 2026-11-14
-// every message turn gets `record_decision`, whose calls the decisions module stores (`DecisionsHook`).
+// every message turn gets `record_decision`, whose calls the decisions module stores (`DecisionsHook`). Since 2026-11-14
+// a message chat is locked to its people, and a Slack conversation's chat sends in Slack through `ChatSlackHook`, which
+// the integrations module implements.
 export { type ChatsDeps, type ChatsRuntime, chatsRoutes, chatsRuntime } from './routes.ts';
 export { senderOf, type TurnFrom, type TurnSenderView, visibleTextOf } from './rules/sender.ts';
 export type { DecisionRecorded, DecisionsHook, DecisionTurn } from './service/decisions.ts';
@@ -19,6 +21,12 @@ export type {
 } from './service/inbound.ts';
 export { reapTurns, SERVER_RESTARTED } from './service/reaper.ts';
 export type { GitUse, ServerToolsHook, ServerToolsPlan, ServerToolTurn } from './service/server-tools.ts';
+export type {
+  ChatSlackHook,
+  SlackConversationView,
+  SlackPosted,
+  SlackPostRequest,
+} from './service/slack.ts';
 export type {
   AgentToolsPlan,
   AgentToolTurn,

@@ -1,11 +1,11 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { ChatTurnSchema, DeliverTurnSchema, EditTurnSchema, TurnParamsSchema } from '../schemas.ts';
 import { deliverQueued, discardQueued, editQueued, type QueueDeps } from '../service/queue.ts';
+import { chatRoute } from './access.ts';
 
 /**
  * A chat's waiting messages (S5.2 step 6, docs/harness.md "Delivery while a turn runs"): `PATCH …/turns/{turnId}`
@@ -24,7 +24,7 @@ const NOT_WAITING =
   'it went into the running turn already (`message_sent`)';
 
 const editRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: ONE, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: ONE, access: 'write' });
   return createRoute({
     ...base,
     method: 'patch',
@@ -38,12 +38,15 @@ const editRoute = (deps: ServerDeps) => {
       ...refusals,
       404: NOT_FOUND,
       409: errorResponse(NOT_WAITING),
+      422: errorResponse(
+        'With your name first (a chat with several people), it no longer fits (`prompt_too_long`)',
+      ),
     },
   });
 };
 
 const discardRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: ONE, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: ONE, access: 'write' });
   return createRoute({
     ...base,
     method: 'delete',
@@ -59,7 +62,7 @@ const discardRoute = (deps: ServerDeps) => {
 };
 
 const deliverRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: DELIVER, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: DELIVER, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',
@@ -84,7 +87,7 @@ export function queueRoutes(deps: ServerDeps & QueueDeps) {
     .openapi(editRoute(deps), async (c) => {
       const { chatId, turnId } = c.req.valid('param');
       const result = await editQueued(deps, c.var.tenant, chatId, turnId, c.req.valid('json').prompt);
-      if (!result.ok) return errorJson(c, result.status as 404 | 409, result.code, result.message);
+      if (!result.ok) return errorJson(c, result.status as 404 | 409 | 422, result.code, result.message);
       return c.json(result.turn, 200);
     })
     .openapi(discardRoute(deps), async (c) => {

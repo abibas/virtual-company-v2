@@ -3,6 +3,7 @@ import { rawDb } from '@mwc/db/system';
 import { TEST_NOW } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { addToChat } from '../../../../fixtures/chats/people.ts';
 import {
   type ChatsWorld,
   chatsWorld,
@@ -101,6 +102,7 @@ describe('POST chats/:chatId/turns refusals', () => {
   it("refuses a chat's own profile once the person who chose it is no longer an admin here", async () => {
     const s = await scene(w);
     const admin = await addMember(w, s.company, 'admin');
+    await addToChat(w, s.company, s.chat.id, [admin]);
     const theirs = await seedProfile(w.t.db, admin.userId, { credentialId: null });
     await as(w, admin)('PATCH', `/api/companies/${s.company.companyId}/chats/${s.chat.id}`, {
       profileId: theirs.id,

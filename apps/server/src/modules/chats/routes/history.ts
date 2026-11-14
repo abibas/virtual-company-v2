@@ -1,5 +1,4 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -7,6 +6,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { OlderTurnsQuerySchema } from '../schemas/history.ts';
 import { ChatParamsSchema, OlderTurnsSchema } from '../schemas.ts';
 import { olderTurns } from '../service/history.ts';
+import { chatRoute } from './access.ts';
 
 /**
  * A long chat's older turns (docs/harness.md "Reading a long chat"): `GET /api/companies/{companyId}/chats/{chatId}/turns`
@@ -16,7 +16,7 @@ import { olderTurns } from '../service/history.ts';
 const TURNS = '/api/companies/{companyId}/chats/{chatId}/turns' as const;
 
 const olderRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'member', path: TURNS, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: TURNS, access: 'read' });
   return createRoute({
     ...base,
     method: 'get',

@@ -4,7 +4,7 @@
  * choice and a chat's standing read (who began it, its task or flow, when it last moved; a turn's kind, status, sender
  * and times).
  */
-import { chats, chatTurns, tenant } from '@mwc/db';
+import { chatParticipants, chats, chatTurns, tenant } from '@mwc/db';
 import type { ChatTurnKind, ChatTurnStatus } from '@mwc/shared/enums';
 import type { ReportChatView } from '../../../src/modules/chats/schemas/reports.ts';
 import { as, type MembersCompany } from '../members/members.ts';
@@ -27,7 +27,10 @@ export async function reportChatsOf(
   return (res.body as { reports: ReportChatView[] }).reports;
 }
 
-/** A chat of the agent on the machine, begun by `createdBy`, moved last at `updatedAt`; its id. */
+/**
+ * A chat of the agent on the machine, begun by `createdBy`, moved last at `updatedAt`; its id. A message chat has its
+ * people (`people`: its creator by default; 2026-11-14), a task's conversation or a team chat none.
+ */
 export async function chatRowOf(
   w: AuthWorld,
   company: Pick<MembersCompany, 'companyId'>,
@@ -40,6 +43,7 @@ export async function chatRowOf(
     readonly task?: { readonly id: string; readonly stepId: string };
     readonly flowId?: string;
     readonly archivedAt?: Date;
+    readonly people?: readonly string[];
   },
 ): Promise<string> {
   const t = await tenant(w.t.db, company.companyId);
@@ -58,7 +62,15 @@ export async function chatRowOf(
       ...task,
     })
     .returning();
-  return (row as { id: string }).id;
+  const id = (row as { id: string }).id;
+  const message = fields.task === undefined && fields.flowId === undefined;
+  const people = fields.people ?? (message ? [fields.createdBy] : []);
+  if (people.length > 0)
+    await t.insert(
+      chatParticipants,
+      people.map((principalId) => ({ chatId: id, principalId, addedBy: null })),
+    );
+  return id;
 }
 
 /** A turn of the chat: its number, kind, status, sender and times. */

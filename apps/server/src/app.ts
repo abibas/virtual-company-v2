@@ -127,7 +127,8 @@ export function createApp(deps: AppOptions) {
   const fetch = deps.providerFetch ?? providerFetchFor(deps.config);
   const tools = { atlassian: atlassianFor(fetch), github: githubFor(fetch), slack: slackFor(fetch) };
   const serverTools = integrationTools({ ...server, keyring, ...tools });
-  // Slack messages wake agents (2026-11-13); a turn's end posts its answer back, through the same Slack connector.
+  // Slack messages wake agents (2026-11-13); a turn's end posts its answer back, through the same Slack connector, and a
+  // chat's Slack connection owner sends in Slack from it (2026-11-14).
   const slack = slackReceiving({ ...server, keyring, slack: tools.slack });
   const inbound = slack.answers;
   // The decision log (2026-11-14): every message turn's record_decision, kept by the decisions module.
@@ -141,6 +142,7 @@ export function createApp(deps: AppOptions) {
     serverTools,
     inbound,
     decisions,
+    slack: slack.sends,
     wake: power.wake,
   };
   const chats = chatsRuntime(chatsDeps);

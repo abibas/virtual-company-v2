@@ -110,6 +110,7 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
     reason,
     from: sender,
     compactAt: SLACK_COMPACT_AT,
+    ownerUserId: conn.ownerUserId,
   };
   const sent = await deps.chats.send(t, request);
   if (!sent.ok) {

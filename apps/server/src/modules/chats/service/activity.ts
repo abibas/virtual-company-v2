@@ -1,7 +1,9 @@
 import type { TenantDb } from '@mwc/db';
 import { CHAT_STREAM_HEARTBEAT_MS } from '@mwc/shared/chats';
+import { participantsRepo } from '../repo/participants.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import { isMessageChat } from '../rules/people.ts';
 import type { ChatActivityView } from '../schemas/activity.ts';
 import type { ChatActivity, ChatBus } from './bus.ts';
 import type { StreamTimers } from './stream.ts';
@@ -14,8 +16,10 @@ import { chatView, turnView } from './views.ts';
  * agent asks a question; so an agent's chat list and the rail's chats move without a reload, whichever path made the
  * turn (a person, a Slack message, a Lead's wake-up, the team room, a wait that ended). A task's conversation is left
  * out (it is not in the agent's list) and so is every other company's chat: each chat is read through the caller's
- * tenant, once per burst of its messages, and one that is not the company's is never read again. A `: heartbeat`
- * comment every 20 s; nothing is replayed (a page that reconnects reads its lists again).
+ * tenant, once per burst of its messages, and one that is not the company's is never read again. Since 2026-11-14 a
+ * message chat goes only to the people in it (docs/harness.md "Who is in a chat"), read again at each burst, so a person
+ * added hears it from then on. A `: heartbeat` comment every 20 s; nothing is replayed (a page that reconnects reads its
+ * lists again).
  */
 
 /** Where the messages go (the route writes them as Server-Sent Events). */
@@ -39,10 +43,18 @@ const SYSTEM_TIMERS: StreamTimers = {
 export const listsAnew = (activity: ChatActivity): boolean =>
   activity.kind === 'event' ? activity.event.event.type === 'question' : activity.kind !== 'decision';
 
-/** The chat as the activity sends it; undefined for another company's chat or a task's conversation. */
-export async function activityOf(t: TenantDb, chatId: string): Promise<ChatActivityView | undefined> {
+/**
+ * The chat as the activity sends it to `viewer` (a principal); `elsewhere` for another company's chat or a task's
+ * conversation, never read again; `hidden` for a message chat they are not in, read again at its next burst.
+ */
+export async function activityOf(
+  t: TenantDb,
+  chatId: string,
+  viewer: string,
+): Promise<ChatActivityView | 'elsewhere' | 'hidden'> {
   const chat = await chatsRepo.get(t, chatId);
-  if (chat === undefined || chat.taskId !== null) return undefined;
+  if (chat === undefined || chat.taskId !== null) return 'elsewhere';
+  if (isMessageChat(chat) && !(await participantsRepo.has(t, chat.id, viewer))) return 'hidden';
   const last = await turnsRepo.lastOf(t, chat.id);
   return { chat: chatView(chat), lastTurn: last === undefined ? null : turnView(last) };
 }
@@ -51,6 +63,7 @@ export async function activityOf(t: TenantDb, chatId: string): Promise<ChatActiv
 export async function streamActivity(
   deps: ActivityDeps,
   t: TenantDb,
+  viewer: string,
   sink: ActivitySink,
   closed: Promise<void>,
 ): Promise<void> {
@@ -61,9 +74,9 @@ export async function streamActivity(
   let chain = sink.comment('open');
   const send = async (chatId: string) => {
     pending.delete(chatId);
-    const view = await activityOf(t, chatId);
-    if (view === undefined) elsewhere.add(chatId);
-    else await sink.message('chat', JSON.stringify(view));
+    const view = await activityOf(t, chatId, viewer);
+    if (view === 'elsewhere') elsewhere.add(chatId);
+    else if (view !== 'hidden') await sink.message('chat', JSON.stringify(view));
   };
   const unwatch = deps.bus.watch((chatId, activity) => {
     if (elsewhere.has(chatId) || pending.has(chatId) || !listsAnew(activity)) return;

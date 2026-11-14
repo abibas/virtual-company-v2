@@ -1,5 +1,6 @@
 import { agents, chatEvents, chats, chatTurns, flows, orgPositions, type TenantDb } from '@mwc/db';
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, not, or, sql } from 'drizzle-orm';
+import { memberIn } from './participants.ts';
 
 /**
  * What the rail's Chats read (docs/harness.md "Your direct reports in the rail"), read only: the agents that report to a
@@ -43,9 +44,13 @@ const flowsLedBy = (t: TenantDb, principalIds: readonly string[]) =>
     inArray(flows.leadPrincipalId, [...principalIds]),
   );
 
+/** `chats.id` names a Slack conversation's chat (a condition on `chats`). */
+const forSlack = sql`exists (select 1 from slack_threads s where s.company_id = ${chats.companyId} and s.chat_id = ${chats.id})`;
+
 /**
- * The chats this principal began with these agents (at least one), not archived, neither a task's conversation nor a
- * team chat, the latest first (by `updated_at`, which a sent message moves, as the agent's chat list orders them).
+ * The chats this principal is in with these agents (at least one; 2026-11-14, docs/harness.md "Who is in a chat"), not
+ * archived, neither a task's conversation, a team chat nor a Slack conversation's, the latest first (by `updated_at`,
+ * which a sent message moves, as the agent's chat list orders them).
  */
 const ownChats = (t: TenantDb, agentIds: readonly string[], principalId: string) =>
   t
@@ -54,7 +59,8 @@ const ownChats = (t: TenantDb, agentIds: readonly string[], principalId: string)
       { id: chats.id, agentId: chats.agentId, title: chats.title, updatedAt: chats.updatedAt },
       and(
         inArray(chats.agentId, [...agentIds]),
-        eq(chats.createdBy, principalId),
+        memberIn(principalId),
+        not(forSlack),
         isNull(chats.taskId),
         isNull(chats.flowId),
         isNull(chats.archivedAt),
@@ -79,8 +85,9 @@ const latestSeq = (filter: ReturnType<typeof sql>) =>
   sql`${chatTurns.seq} = (select max(l.seq) from chat_turns l where l.company_id = ${chatTurns.companyId} and l.chat_id = ${chatTurns.chatId} and ${filter})`;
 
 /**
- * The turns that say where each chat stands: its last turn, its running ones, its latest reply (a message turn that is
- * done) and the latest message this principal wrote in it.
+ * The turns that say where each chat stands: its last turn (of those that talk to the agent: no line of who joined, no
+ * message sent in Slack), its running ones, its latest reply (a message turn that is done) and the latest message this
+ * principal wrote in it.
  */
 const standingTurns = (t: TenantDb, chatIds: readonly string[], principalId: string) =>
   chatIds.length === 0
@@ -102,7 +109,7 @@ const standingTurns = (t: TenantDb, chatIds: readonly string[], principalId: str
         and(
           inArray(chatTurns.chatId, [...chatIds]),
           or(
-            latestSeq(sql`true`),
+            latestSeq(sql`l.kind in ('message', 'compact', 'clear')`),
             eq(chatTurns.status, 'running'),
             latestSeq(sql`l.kind = 'message' and l.status = 'done'`),
             latestSeq(sql`l.kind = 'message' and not l.system and l.created_by = ${principalId}`),

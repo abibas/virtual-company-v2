@@ -77,6 +77,8 @@ export interface TurnCaller {
   readonly wake?: TurnWake | undefined;
   /** A message from outside the turn speaks for (a Slack message: its sender, visible text and contact). */
   readonly from?: TurnFrom | undefined;
+  /** What a person wrote when the prompt names them first (a chat with several people). */
+  readonly shown?: string | undefined;
 }
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
@@ -179,7 +181,7 @@ export async function startTurn(
       createdBy: caller.principalId,
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
-      ...fromColumns(caller.from),
+      ...fromColumns(caller.from, caller.shown),
     },
     how,
   );

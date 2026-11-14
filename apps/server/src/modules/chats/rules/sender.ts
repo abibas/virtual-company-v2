@@ -31,10 +31,13 @@ export interface TurnFrom {
   readonly contactId: string | null;
 }
 
-/** The columns a turn is written with for its message from outside (none: nulls). */
-export const fromColumns = (from: TurnFrom | undefined) => ({
+/**
+ * The columns a turn is written with for its message from outside (none: nulls), or for a person's message whose prompt
+ * names them first (`shown`: what they wrote, in a chat with several people; 2026-11-14).
+ */
+export const fromColumns = (from: TurnFrom | undefined, shown?: string) => ({
   sender: from?.sender ?? null,
-  visibleText: from?.visibleText ?? null,
+  visibleText: from?.visibleText ?? shown ?? null,
   contactId: from?.contactId ?? null,
 });
 

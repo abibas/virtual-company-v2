@@ -9,7 +9,8 @@ import {
   type TenantSet,
   type TenantValues,
 } from '@mwc/db';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, not, or } from 'drizzle-orm';
+import { memberIn } from './repo/participants.ts';
 
 /**
  * The chats' rows, through the company's tenant only (S5.1b): the chats themselves, and the agent a chat is with (read
@@ -48,10 +49,36 @@ async function get(t: TenantDb, id: string): Promise<Chat | undefined> {
   return row;
 }
 
-/** The agent's own chats not archived, the latest first: a task's conversations (S5.3b) stay out of the list. */
-const ofAgent = (t: TenantDb, agentId: string): Promise<Chat[]> =>
+/**
+ * The agent's own chats not archived, the latest first: a task's conversations (S5.3b) stay out of the list, and of its
+ * message chats only those the viewer is in (2026-11-14); its team chats keep their own rules.
+ */
+const ofAgent = (t: TenantDb, agentId: string, viewer: string): Promise<Chat[]> =>
   t
-    .select(chats, and(eq(chats.agentId, agentId), isNull(chats.archivedAt), isNull(chats.taskId)))
+    .select(
+      chats,
+      and(
+        eq(chats.agentId, agentId),
+        isNull(chats.archivedAt),
+        isNull(chats.taskId),
+        or(isNotNull(chats.flowId), memberIn(viewer)),
+      ),
+    )
+    .orderBy(desc(chats.updatedAt), desc(chats.id));
+
+/** The agent's message chats not archived that the viewer is not in, the latest first (an owner's look). */
+const othersOf = (t: TenantDb, agentId: string, viewer: string): Promise<Chat[]> =>
+  t
+    .select(
+      chats,
+      and(
+        eq(chats.agentId, agentId),
+        isNull(chats.archivedAt),
+        isNull(chats.taskId),
+        isNull(chats.flowId),
+        not(memberIn(viewer)),
+      ),
+    )
     .orderBy(desc(chats.updatedAt), desc(chats.id));
 
 async function insert(t: TenantDb, values: TenantValues<typeof chats>): Promise<Chat> {
@@ -92,6 +119,7 @@ export const chatsRepo = {
   teamChatOf,
   get,
   ofAgent,
+  othersOf,
   insert,
   update,
   saveSession,

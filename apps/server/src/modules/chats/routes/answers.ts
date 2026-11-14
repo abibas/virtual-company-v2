@@ -1,5 +1,4 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -7,6 +6,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { AnswerQuestionSchema, ChatParamsSchema, ChatTurnSchema } from '../schemas.ts';
 import { answerQuestion } from '../service/answers.ts';
 import type { TurnsDeps } from '../service/turns.ts';
+import { chatRoute } from './access.ts';
 import { TURN_REFUSALS } from './turns.ts';
 
 /**
@@ -18,7 +18,7 @@ import { TURN_REFUSALS } from './turns.ts';
 const ANSWERS = '/api/companies/{companyId}/chats/{chatId}/answers' as const;
 
 const answerRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: ANSWERS, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: ANSWERS, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',

@@ -1,10 +1,11 @@
 import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
-import { CHAT_QUEUE_MAX } from '@mwc/shared/chats';
+import { CHAT_PROMPT, CHAT_QUEUE_MAX } from '@mwc/shared/chats';
 import type { ChatTurnDelivery } from '@mwc/shared/enums';
 import { newId } from '@mwc/shared/ids';
 import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
+import { editedPrompt, promptTooLong } from '../rules/people.ts';
 import { MESSAGE_SENT, nowRefusal, QUEUE_FULL, TURN_NOT_QUEUED } from '../rules/queue.ts';
 import { fromColumns } from '../rules/sender.ts';
 import { CHAT_ARCHIVED, CHAT_NOT_FOUND, type Refusal, TURN_NOT_FOUND } from '../rules.ts';
@@ -94,7 +95,7 @@ export async function sendMessage(
       createdBy: caller.principalId,
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
-      ...fromColumns(caller.from),
+      ...fromColumns(caller.from, caller.shown),
     };
     return turnsRepo.insert(tx, { ...values, status: 'queued' });
   });
@@ -102,7 +103,10 @@ export async function sendMessage(
   return deliver(deps, t, turn, running);
 }
 
-/** Changes a waiting message's prompt; 200 with its turn, or why not. */
+/**
+ * Changes a waiting message's prompt (the header naming its writer kept before the new text, in a chat with several
+ * people); 200 with its turn, or why not.
+ */
 export async function editQueued(
   deps: TurnsDeps,
   t: TenantDb,
@@ -112,7 +116,9 @@ export async function editQueued(
 ): Promise<Answer> {
   const found = await waitingTurn(t, chatId, turnId);
   if (!('turn' in found)) return found;
-  const row = await queueRepo.updateQueued(t, found.chat.id, found.turn.id, { prompt });
+  const edited = editedPrompt(found.turn, prompt);
+  if (edited.prompt.length > CHAT_PROMPT.max) return promptTooLong(edited.prompt.length - CHAT_PROMPT.max);
+  const row = await queueRepo.updateQueued(t, found.chat.id, found.turn.id, edited);
   return row === undefined ? TURN_NOT_QUEUED : { ok: true, turn: publish(deps, row) };
 }
 

@@ -7,6 +7,7 @@
 import {
   agents,
   chatEvents,
+  chatParticipants,
   chats,
   chatTurns,
   type DbHandle,
@@ -119,6 +120,8 @@ export async function chatOf(
     readonly machineId: string;
     readonly title?: string | null;
     readonly task?: { readonly id: string; readonly stepId: string };
+    /** Who is in a message chat (2026-11-14): the owner by default. */
+    readonly people?: readonly string[];
   },
 ): Promise<AskedChat> {
   const t = await tenant(w.t.db, company.companyId);
@@ -134,7 +137,14 @@ export async function chatOf(
       ...task,
     })
     .returning();
-  return { chatId: (row as { id: string }).id, agentId, machineId: options.machineId };
+  const chatId = (row as { id: string }).id;
+  const people = options.task ? [] : (options.people ?? [company.owner.principalId]);
+  if (people.length > 0)
+    await t.insert(
+      chatParticipants,
+      people.map((principalId) => ({ chatId, principalId, addedBy: null })),
+    );
+  return { chatId, agentId, machineId: options.machineId };
 }
 
 /** Writes the chat's next turn (done) with these events; its id. */

@@ -1,5 +1,4 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -7,6 +6,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { BranchChatSchema } from '../schemas/branch.ts';
 import { ChatParamsSchema, ChatSchema } from '../schemas.ts';
 import { branchChat } from '../service/branch.ts';
+import { chatRoute } from './access.ts';
 import { type ChatChanged, chatCaller } from './chats.ts';
 
 /**
@@ -18,7 +18,7 @@ import { type ChatChanged, chatCaller } from './chats.ts';
 const BRANCH = '/api/companies/{companyId}/chats/{chatId}/branch' as const;
 
 const branchRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: BRANCH, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: BRANCH, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',

@@ -9,7 +9,8 @@ import { type ActivityDeps, streamActivity } from '../service/activity.ts';
 
 /**
  * The company's chats, live (2026-11-13): `GET /api/companies/{companyId}/chat-activity`, Server-Sent Events over a
- * normal authenticated GET, as a chat's own stream. Members and above: whoever reads an agent's chats hears them.
+ * normal authenticated GET, as a chat's own stream. Members and above: each hears the chats they are in (2026-11-14), and
+ * every team chat.
  */
 
 const ACTIVITY = '/api/companies/{companyId}/chat-activity' as const;
@@ -24,7 +25,8 @@ const activityRoute = (deps: ServerDeps) => {
       '`event: chat` with `{chat, lastTurn}` (a `ChatActivity`: the chat as it is now, its latest turn or null) each ' +
       'time a chat is begun, renamed or archived (`archivedAt` set), or one of its turns is queued, starts, changes ' +
       "status or goes, or the agent asks a question, whoever made the turn (a person, a Slack message, a Lead's " +
-      "wake-up, the team room). Tasks' conversations are left out. A `: heartbeat` comment every 20 s; nothing is " +
+      "wake-up, the team room). Tasks' conversations are left out, and message chats the caller is not in. A " +
+      '`: heartbeat` comment every 20 s; nothing is ' +
       'replayed: read the lists again after a reconnect.',
     request: { params: ChatActivityParamsSchema },
     responses: {
@@ -38,12 +40,14 @@ const activityRoute = (deps: ServerDeps) => {
 export function activityRoutes(deps: ServerDeps, activity: ActivityDeps) {
   return newRouter().openapi(activityRoute(deps), async (c) => {
     const tenant = c.var.tenant;
+    const viewer = c.var.membership.principalId;
     c.header('cache-control', 'no-store');
     return streamSSE(c, async (sse) => {
       const closed = new Promise<void>((resolve) => sse.onAbort(resolve));
       await streamActivity(
         activity,
         tenant,
+        viewer,
         {
           message: (event, data) => sse.writeSSE({ event, data }),
           comment: (text) => sse.write(`: ${text}\n\n`).then(() => undefined),

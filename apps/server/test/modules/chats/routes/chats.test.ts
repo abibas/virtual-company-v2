@@ -1,6 +1,7 @@
 import { seedApiKey, TEST_NOW } from '@mwc/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatDetailView, ChatView } from '../../../../src/modules/chats/schemas.ts';
+import { addToChat } from '../../../fixtures/chats/people.ts';
 import {
   ANSWER,
   agentChatsPath,
@@ -118,8 +119,9 @@ describe('POST agents/:agentId/chats', () => {
 describe('GET agents/:agentId/chats and chats/:chatId', () => {
   it("lists an agent's chats for members, the latest first, without archived ones", async () => {
     const s = await scene(w, { offline: true });
-    const later = await beginChat(w, s.company, s.agentId);
     const member = await addMember(w, s.company, 'member');
+    await addToChat(w, s.company, s.chat.id, [member]);
+    const later = await beginChat(w, s.company, s.agentId, { with: [member.principalId] });
     const list = await as(w, member)('GET', agentChatsPath(s.company, s.agentId));
     expect((list.body as { chats: ChatView[] }).chats.map((chat) => chat.id)).toEqual([later.id, s.chat.id]);
     await as(w, s.company.owner)('DELETE', chatPath(s.company, later.id));
@@ -171,6 +173,7 @@ describe('PATCH and DELETE chats/:chatId', () => {
     const same = await owner('PATCH', chatPath(s.company, s.chat.id), { title: 'Planning' });
     expect(same.status).toBe(200);
     const admin = await addMember(w, s.company, 'admin');
+    await addToChat(w, s.company, s.chat.id, [admin]);
     const theirs = await as(w, admin)('PATCH', chatPath(s.company, s.chat.id), { profileId: mine.id });
     expect(theirs.status).toBe(200);
     const other = await seedProfile(w.t.db, s.company.owner.userId);

@@ -39,11 +39,12 @@ export type OpenedGitHub =
  * A Slack connection's opening of its bot sign-in (2026-11-13, docs/subscriptions.md "Slack: receiving messages"):
  * for Socket Mode (`socket_mode`: the connection holds the token for its messages' reads and notices, and records each
  * message's wake of an agent as `inbound`, which the hourly cap counts), an agent's answer (`inbound_reply`, with the
- * company, the agent, its chat and the agent as the one asking), a search of the workspace's people (`slack_people`).
+ * company, the agent, its chat and the agent as the one asking), a search of the workspace's people (`slack_people`),
+ * and a person's own message sent in Slack from a chat (`chat_send`, 2026-11-14, with the person as the one asking).
  */
 export type SlackConnectionUse =
   | { readonly purpose: 'socket_mode' | 'slack_people' }
-  | ({ readonly purpose: 'inbound_reply' } & UseContext);
+  | ({ readonly purpose: 'inbound_reply' | 'chat_send' } & UseContext);
 
 /** A Slack bot sign-in opened for its connection: its token and its account details (the bot, the workspace, scopes). */
 export type OpenedSlackBot =

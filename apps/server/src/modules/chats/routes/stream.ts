@@ -1,24 +1,26 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { parseChatEventId } from '@mwc/shared/chats';
 import { streamSSE } from 'hono/streaming';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
 import { chatsRepo } from '../repo.ts';
 import { CHAT_NOT_FOUND } from '../rules.ts';
 import { ChatParamsSchema } from '../schemas.ts';
+import { seatIn } from '../service/people.ts';
 import { type StreamDeps, streamChat } from '../service/stream.ts';
+import { chatRoute } from './access.ts';
 
 /**
  * A chat's stream (S5.1b): `GET /api/companies/{companyId}/chats/{chatId}/stream`, Server-Sent Events over a normal
- * authenticated GET (the web reads it with `fetch` and its Bearer header; no cookies). Members and above.
+ * authenticated GET (the web reads it with `fetch` and its Bearer header; no cookies). Members and above, in the chat
+ * (an owner who is not reads it too); a reader taken out of the chat is cut off at that line (2026-11-14).
  */
 
 const STREAM = '/api/companies/{companyId}/chats/{chatId}/stream' as const;
 
 const streamRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'member', path: STREAM, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: STREAM, access: 'read' });
   return createRoute({
     ...base,
     method: 'get',
@@ -51,11 +53,13 @@ export function streamRoutes(deps: ServerDeps, stream: StreamDeps) {
     if (chat === undefined) return errorJson(c, 404, CHAT_NOT_FOUND.code, CHAT_NOT_FOUND.message);
     const after = parseChatEventId(c.req.valid('header')['last-event-id']);
     const tenant = c.var.tenant;
+    const { principalId, role } = c.var.membership;
+    const stillIn = async () => (await seatIn(tenant, chat.id, { principalId, role })) !== 'none';
     c.header('cache-control', 'no-store');
     return streamSSE(c, async (sse) => {
       const closed = new Promise<void>((resolve) => sse.onAbort(resolve));
       await streamChat(
-        stream,
+        { ...stream, stillIn },
         tenant,
         chat.id,
         after,

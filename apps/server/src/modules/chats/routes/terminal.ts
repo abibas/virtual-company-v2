@@ -1,6 +1,5 @@
 import { createRoute } from '@hono/zod-openapi';
 import { TERMINAL_WS_PATH } from '@mwc/shared/runner-protocol';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -8,6 +7,7 @@ import { newRouter } from '../../../platform/http/router.ts';
 import { TerminalTicketSchema } from '../../machines/index.ts';
 import { ChatParamsSchema } from '../schemas.ts';
 import { type ChatTerminalDeps, chatTerminalTicket } from '../service/terminal.ts';
+import { chatRoute } from './access.ts';
 import { TURN_REFUSALS } from './turns.ts';
 
 /**
@@ -19,7 +19,7 @@ import { TURN_REFUSALS } from './turns.ts';
 const TICKETS = '/api/companies/{companyId}/chats/{chatId}/terminal-tickets' as const;
 
 const ticketRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'owner', path: TICKETS, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'owner', path: TICKETS, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',

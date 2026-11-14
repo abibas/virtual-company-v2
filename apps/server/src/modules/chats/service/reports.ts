@@ -29,8 +29,8 @@ async function standingOf(t: TenantDb, chatIds: readonly string[], viewer: strin
 
 /**
  * Your direct reports' chats with you (docs/harness.md "Your direct reports in the rail"): every agent (not archived)
- * that reports to the viewer on the chart, the Leads first, with its main chat with the viewer (the latest they began
- * with it, not archived, neither a task's conversation nor a team chat), where that chat stands (its last turn, a
+ * that reports to the viewer on the chart, the Leads first, with its main chat with the viewer (the latest they are in
+ * with it, not archived, neither a task's conversation, a team chat nor a Slack conversation's), where that chat stands (its last turn, a
  * running turn, an open question, its latest reply and the viewer's latest message) and, for a Lead, its flow's team
  * chat. People who report to the viewer are left out: there are no chats with people. A handful of reads, whatever the
  * number of reports.

@@ -1,6 +1,7 @@
 import { TEST_NOW } from '@mwc/testkit';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { addToChat } from '../../../fixtures/chats/people.ts';
 import { openStream, type SseMessage } from '../../../fixtures/chats/stream.ts';
 import {
   ANSWER,
@@ -104,9 +105,12 @@ describe('GET chats/:chatId/stream', () => {
     expect(shape(stream.messages)).toEqual(['event 1.1 session']);
   });
 
-  it('is for members and above, and a 404 for an unknown chat', async () => {
+  it('is for members and above in the chat, and a 404 for an unknown chat or one they are not in', async () => {
     const s = await scene(w, { offline: true });
-    const member = await listen(s, {}, await addMember(w, s.company, 'member'));
+    const person = await addMember(w, s.company, 'member');
+    expect((await listen(s, {}, person)).status).toBe(404);
+    await addToChat(w, s.company, s.chat.id, [person]);
+    const member = await listen(s, {}, person);
     expect(member.status).toBe(200);
     const viewer = await listen(s, {}, await addMember(w, s.company, 'viewer'));
     expect(viewer.status).toBe(403);

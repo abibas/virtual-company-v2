@@ -13,6 +13,7 @@ import {
   refusal,
   reply,
 } from '../../../fixtures/chats/branch.ts';
+import { addToChat } from '../../../fixtures/chats/people.ts';
 import {
   type ChatsWorld,
   chatPath,
@@ -80,13 +81,15 @@ describe('POST chats/:chatId/branch', () => {
     expect(parent.branchedFrom).toBeNull();
   });
 
-  it('is for admins and owners, and 404s an unknown chat or turn', async () => {
+  it('is for admins and owners in the chat, and 404s an unknown chat or turn, or one they are not in', async () => {
     const s = await scene(w);
     const first = await answeredTurn(w, s, reply('4'));
     for (const role of ['member', 'viewer'] as const) {
       expect((await branch(w, s, first.turnId, await addMember(w, s.company, role))).status).toBe(403);
     }
     const admin = await addMember(w, s.company, 'admin');
+    expect(refusal(await branch(w, s, first.turnId, admin))).toEqual([404, 'chat_not_found']);
+    await addToChat(w, s.company, s.chat.id, [admin]);
     expect((await branch(w, s, first.turnId, admin)).status).toBe(201);
     expect(refusal(await branch(w, { ...s, chat: { ...s.chat, id: 'nope' } }, first.turnId))).toEqual([
       404,

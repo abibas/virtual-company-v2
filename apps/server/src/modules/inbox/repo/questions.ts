@@ -1,5 +1,5 @@
 import { agents, chatEvents, chats, chatTurns, type TenantDb, tasks } from '@mwc/db';
-import { and, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, inArray, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 /**
  * The chats' questions as the inbox reads them (S6b), read only (the chats module owns these rows): each chat's last turn
@@ -15,9 +15,12 @@ export interface QuestionRow {
   readonly events: readonly { readonly event: Record<string, unknown>; readonly at: Date }[];
 }
 
-/** Every chat's last turn (`seq` the chat's highest) that has a `question` or `answered` event. */
+/**
+ * Every chat's last turn (`seq` the chat's highest of those that talk with the agent: no line of who joined or left, no
+ * message sent in Slack) that has a `question` or `answered` event.
+ */
 async function lastTurnsAsking(t: TenantDb): Promise<QuestionRow[]> {
-  const last = sql`${chatTurns.seq} = (select max(latest.seq) from chat_turns latest where latest.company_id = ${chatTurns.companyId} and latest.chat_id = ${chatTurns.chatId})`;
+  const last = sql`${chatTurns.seq} = (select max(latest.seq) from chat_turns latest where latest.company_id = ${chatTurns.companyId} and latest.chat_id = ${chatTurns.chatId} and latest.kind in ('message', 'compact', 'clear'))`;
   const turns = await t.selectFields(
     chatTurns,
     { id: chatTurns.id, chatId: chatTurns.chatId, seq: chatTurns.seq },
@@ -43,13 +46,19 @@ async function lastTurnsAsking(t: TenantDb): Promise<QuestionRow[]> {
   });
 }
 
-/** These chats when not archived, with the agent each is with (not archived either) and the task it is a step of. */
-async function chatsOf(t: TenantDb, chatIds: readonly string[]) {
+/**
+ * These chats when not archived and open to the viewer (a message chat they are in, 2026-11-14; a task's conversation
+ * or a team chat, which keep their own rules), with the agent each is with (not archived either) and the task it is a
+ * step of.
+ */
+async function chatsOf(t: TenantDb, chatIds: readonly string[], viewer: string) {
   if (chatIds.length === 0) return [];
+  const message = sql`${chats.taskId} is null and ${chats.flowId} is null`;
+  const theirs = sql`exists (select 1 from chat_participants p where p.company_id = ${chats.companyId} and p.chat_id = ${chats.id} and p.principal_id = ${viewer})`;
   const rows = await t.selectFields(
     chats,
     { id: chats.id, agentId: chats.agentId, title: chats.title, taskId: chats.taskId },
-    and(inArray(chats.id, [...chatIds]), isNull(chats.archivedAt)),
+    and(inArray(chats.id, [...chatIds]), isNull(chats.archivedAt), or(not(message), theirs)),
   );
   const agentIds = [...new Set(rows.map((row) => row.agentId))];
   const live =

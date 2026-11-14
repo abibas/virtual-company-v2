@@ -13,8 +13,10 @@ import { chatRoutes } from './routes/chats.ts';
 import { conversationRoutes } from './routes/conversation.ts';
 import { historyRoutes } from './routes/history.ts';
 import { overrideRoutes } from './routes/overrides.ts';
+import { peopleRoutes } from './routes/people.ts';
 import { queueRoutes } from './routes/queue.ts';
 import { reportChatRoutes } from './routes/reports.ts';
+import { slackRoutes } from './routes/slack.ts';
 import { streamRoutes } from './routes/stream.ts';
 import { chatTerminalRoutes } from './routes/terminal.ts';
 import { turnRoutes } from './routes/turns.ts';
@@ -26,6 +28,7 @@ import { chatsLive } from './service/live.ts';
 import { machineWaits } from './service/machine-wait.ts';
 import { runnerUpdateFor, type ServerToolsHook } from './service/server-tools.ts';
 import { startAfresh } from './service/session-lost.ts';
+import type { ChatSlackHook } from './service/slack.ts';
 import { slotWaits, slotWordsOf } from './service/slot-wait.ts';
 import type { TaskTurnHook } from './service/task-hook.ts';
 import { taskTurns } from './service/tasks.ts';
@@ -46,6 +49,8 @@ export interface ChatsDeps extends ServerDeps {
   readonly inbound?: InboundTurnHook | undefined;
   /** The decision log (2026-11-14: the decisions module stores what `record_decision` records). */
   readonly decisions?: DecisionsHook | undefined;
+  /** Send in Slack and a chat's Slack conversation (2026-11-14: the integrations module). */
+  readonly slack?: ChatSlackHook | undefined;
   readonly wake: MachineWake;
 }
 
@@ -111,7 +116,7 @@ export type ChatsRuntime = ReturnType<typeof chatsRuntime>;
  * ones a page at a time), a branch from a reply, Compact and Clear (S5.2), answers to the agent's questions (S5.2 step
  * 4), the messages that wait for a running turn (S5.2 step 6), the chat's stream and its terminal, the company's chats'
  * activity (2026-11-13: every chat begun, changed or with a turn that moved, live), your direct reports'
- * main chats with you (the right rail's Chats), on the app's runtime
+ * main chats with you (the right rail's Chats), who is in a chat and Send in Slack (2026-11-14), on the app's runtime
  * (`chatsRuntime`, one of its own when none is given).
  */
 export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntime(deps)) {
@@ -121,9 +126,13 @@ export function chatsRoutes(deps: ChatsDeps, runtime: ChatsRuntime = chatsRuntim
   const detail = {
     awayOf: live.awayOf,
     runnerUpdateFor: (t: TenantDb, chat: Chat) => runnerUpdateFor(deps, t, chat),
+    slack: deps.slack,
   };
+  const bus = live.bus;
   return newRouter()
     .route('/', chatRoutes(deps, detail, changed))
+    .route('/', peopleRoutes({ ...deps, bus }))
+    .route('/', slackRoutes({ ...deps, bus }))
     .route('/', overrideRoutes(deps))
     .route('/', reportChatRoutes(deps))
     .route('/', branchRoutes(deps, changed))

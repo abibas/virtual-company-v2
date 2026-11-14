@@ -1,4 +1,4 @@
-import type { AccessProfile, Chat, TenantDb } from '@mwc/db';
+import type { AccessProfile, Chat, DbHandle, TenantDb } from '@mwc/db';
 import { aiPartOf } from '@mwc/db';
 import { queueOrder } from '@mwc/shared/chats';
 import { HARNESS_PROVIDER } from '@mwc/shared/credentials';
@@ -7,14 +7,18 @@ import { agentPlacement } from '../machines/index.ts';
 import { giveRefusal, profilePartMissing } from '../org/rules/agents.ts';
 import { profilesRepo } from './repo/profiles.ts';
 import { chatsRepo } from './repo.ts';
+import { isMessageChat } from './rules/people.ts';
 import { openQuestion } from './rules/questions.ts';
 import { AGENT_ARCHIVED, AGENT_NOT_FOUND, CHAT_NOT_FOUND, PLACEMENT_MISSING, type Refusal } from './rules.ts';
-import type { ChatDetailView, ChatView, CreateChat, UpdateChat } from './schemas.ts';
+import type { CreateChat } from './schemas/people.ts';
+import type { ChatDetailView, ChatView, UpdateChat } from './schemas.ts';
 import { auditChat } from './service/audit.ts';
 import { branchedFromOf } from './service/branch.ts';
 import { currentConversation } from './service/history.ts';
 import type { TurnAway } from './service/live.ts';
 import { profileRunsOf, switchedAi } from './service/overrides.ts';
+import { joinable, peopleOf, seatPeople } from './service/people.ts';
+import type { ChatSlackHook } from './service/slack.ts';
 import { chatView } from './service/views.ts';
 
 /**
@@ -49,14 +53,22 @@ async function chooseRefusal(t: TenantDb, caller: ChatCaller, profileId: string,
     : profilePartMissing(harness);
 }
 
-/** The agent's chats not archived, the latest first; 404 for an unknown agent. */
+/**
+ * The agent's chats not archived, the latest first; 404 for an unknown agent. The viewer's own: the message chats they
+ * are in, and the team chats (their own rules); with `others`, the message chats they are not in (an owner's look).
+ */
 export async function listChats(
   t: TenantDb,
   agentId: string,
+  viewer: string,
+  others = false,
 ): Promise<{ ok: true; chats: ChatView[] } | Refusal> {
   const agent = await chatsRepo.agentOf(t, agentId);
   if (agent === undefined) return AGENT_NOT_FOUND;
-  return { ok: true, chats: (await chatsRepo.ofAgent(t, agent.id)).map(chatView) };
+  const rows = others
+    ? await chatsRepo.othersOf(t, agent.id, viewer)
+    : await chatsRepo.ofAgent(t, agent.id, viewer);
+  return { ok: true, chats: rows.map(chatView) };
 }
 
 /** Begins a chat with the agent, on its harness and its placement's machine (see above). */
@@ -74,6 +86,9 @@ export async function createChat(
   const profileId = body.profileId ?? null;
   const refused = profileId === null ? undefined : await chooseRefusal(t, caller, profileId, agent.harness);
   if (refused !== undefined) return refused;
+  const others = (body.with ?? []).filter((id) => id !== caller.principalId);
+  const people = others.length === 0 ? [] : await joinable(t, others);
+  if (!Array.isArray(people)) return people;
   const chat = await chatsRepo.insert(t, {
     agentId: agent.id,
     harness: agent.harness,
@@ -82,7 +97,13 @@ export async function createChat(
     profileSetBy: profileId === null ? null : caller.userId,
     createdBy: caller.principalId,
   });
-  await auditChat(t, caller, chat, 'create', null);
+  const by = caller.principalId;
+  await seatPeople(
+    t,
+    chat.id,
+    [by, ...people].map((principalId) => ({ principalId, addedBy: by })),
+  );
+  await auditChat(t, caller, chat, 'create', null, people);
   return { ok: true, chat: chatView(chat) };
 }
 
@@ -93,6 +114,15 @@ export async function createChat(
 export interface ChatDetailLive {
   readonly awayOf?: ((turnId: string) => TurnAway | undefined) | undefined;
   readonly runnerUpdateFor?: ((t: TenantDb, chat: Chat) => Promise<string | null>) | undefined;
+  /** The Slack conversation a chat is for (2026-11-14); none: no chat shows one. */
+  readonly slack?: ChatSlackHook | undefined;
+}
+
+/** Who reads a chat's detail: their person, and whether they only look on as an owner who is not in it. */
+export interface ChatReader {
+  readonly db: DbHandle;
+  readonly userId: string;
+  readonly looksOn: boolean;
 }
 
 /**
@@ -105,6 +135,7 @@ export interface ChatDetailLive {
 export async function getChat(
   t: TenantDb,
   chatId: string,
+  reader: ChatReader,
   live: ChatDetailLive = {},
 ): Promise<{ ok: true; chat: ChatDetailView } | Refusal> {
   const { awayOf = () => undefined, runnerUpdateFor = async () => null } = live;
@@ -123,7 +154,14 @@ export async function getChat(
   const profileRuns = await profileRunsOf(t, chat);
   const detail = { ...chatView(chat), turns, earlier, branchedFrom, ...state, profileRuns, question };
   const update = await runnerUpdateFor(t, chat);
-  return { ok: true, chat: { ...detail, queue: queue.map((turn) => turn.id), runnerUpdateFor: update } };
+  const people = isMessageChat(chat) ? await peopleOf(reader.db, t, chat) : [];
+  const ownerView = isMessageChat(chat) && reader.looksOn;
+  const slack = (await live.slack?.conversationOf(t, chat.id, reader.userId)) ?? null;
+  const shown = { people, ownerView, slack: slack && { ...slack, mayPost: slack.mayPost && !ownerView } };
+  return {
+    ok: true,
+    chat: { ...detail, queue: queue.map((turn) => turn.id), runnerUpdateFor: update, ...shown },
+  };
 }
 
 /** Renames a chat and chooses its profile (see above); an unchanged field writes nothing. */

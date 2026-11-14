@@ -1,6 +1,7 @@
 import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
 import { storedSender } from '@mwc/shared/chats';
 import { agentPlacement } from '../../machines/index.ts';
+import { participantsRepo } from '../repo/participants.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import type { TurnFrom } from '../rules/sender.ts';
@@ -15,6 +16,7 @@ import {
 import { auditChat } from './audit.ts';
 import { compactFirst } from './auto-compact.ts';
 import type { ChatBus } from './bus.ts';
+import { seatPeople } from './people.ts';
 import { type QueueDeps, sendMessage } from './queue.ts';
 import type { SystemTurnEnd } from './task-hook.ts';
 import { turnView } from './views.ts';
@@ -32,7 +34,8 @@ import { turnView } from './views.ts';
  * text and the contact), and the hook says where it posted the reply, which the turn keeps (`reply_link`) and its
  * stream hears. Since 2026-11-14 the hook is also told the link of the message the turn answers (its sender's), so the
  * answer goes into that message's thread; and a request may ask for the conversation to be compacted first once it is
- * long (`compactAt`, `auto-compact.ts`).
+ * long (`compactAt`, `auto-compact.ts`). Its contact and the connection's owner are in the chat (docs/harness.md "Who
+ * is in a chat").
  */
 
 export const AGENT_PAUSED_INBOUND = refuse(409, 'agent_paused', 'The agent is paused');
@@ -53,6 +56,8 @@ export interface InboundTurnRequest {
    * never (2026-11-14, Slack's conversations only for now).
    */
   readonly compactAt?: number | undefined;
+  /** The person whose connection the message came through (the Slack connection's owner), who is in the chat. */
+  readonly ownerUserId?: string | undefined;
 }
 
 /** Where the message went: the chat (new or not) and its turn; or why not. */
@@ -136,6 +141,16 @@ async function conversationChat(
   return { chat, created: true };
 }
 
+/** Puts the message's contact and the connection's owner (by their membership here) in the chat, unless in already. */
+async function seatInbound(t: TenantDb, chatId: string, request: InboundTurnRequest): Promise<void> {
+  const owner = request.ownerUserId && (await participantsRepo.memberOfUser(t, request.ownerUserId));
+  const contactId = request.from?.contactId ?? null;
+  await seatPeople(t, chatId, [
+    ...(owner ? [{ principalId: owner.principalId, addedBy: null }] : []),
+    ...(contactId === null ? [] : [{ contactId, addedBy: null }]),
+  ]);
+}
+
 /** The inbound chats over the chats' queue (see above). */
 export function inboundChats(deps: QueueDeps): InboundChats {
   return {
@@ -143,6 +158,7 @@ export function inboundChats(deps: QueueDeps): InboundChats {
       const found = await conversationChat(deps, t, request);
       if (!('chat' in found)) return found;
       const { chat, created } = found;
+      await seatInbound(t, chat.id, request);
       const wake = { trigger: 'message' as const, reason: request.reason };
       const caller = { principalId: request.agentPrincipalId, system: true, wake, from: request.from };
       const { compactAt } = request;

@@ -5,6 +5,7 @@ import { newId } from '@mwc/shared/ids';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { addToChat } from '../../../fixtures/chats/people.ts';
 import {
   type ChatsWorld,
   chatsWorld,
@@ -62,11 +63,13 @@ const notices = (person: Pick<Person, 'principalId'> | string) =>
   noticesOf(w.t.db, typeof person === 'string' ? person : person.principalId, 'agent_question');
 
 describe('agent_question', () => {
-  it('tells the admins and owners, never the agent nor anyone below admin, and once', async () => {
+  it('tells the admins and owners in the chat, never the agent, anyone below admin or outside the chat, and once', async () => {
     const s = await scene(w);
     const admin = await placedMember(w, s.company, 'admin');
     const member = await placedMember(w, s.company, 'member');
     const viewer = await placedMember(w, s.company, 'viewer');
+    const outside = await placedMember(w, s.company, 'admin');
+    await addToChat(w, s.company, s.chat.id, [admin, member]);
     const elsewhere = await scene(w);
     const agent = await agentPrincipalOf(s.agentId);
     await ask(s, 2);
@@ -80,6 +83,7 @@ describe('agent_question', () => {
     expect(await notices(admin)).toHaveLength(1);
     expect(await notices(member)).toEqual([]);
     expect(await notices(viewer)).toEqual([]);
+    expect(await notices(outside)).toEqual([]);
     expect(await notices(agent)).toEqual([]);
     expect(await notices(elsewhere.company.owner)).toEqual([]);
 

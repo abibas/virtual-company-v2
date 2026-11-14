@@ -5,6 +5,7 @@ import type { FakeRunner } from '@mwc/testkit/runner';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatDetailView, ChatView } from '../../../../src/modules/chats/schemas.ts';
+import { addToChat } from '../../../fixtures/chats/people.ts';
 import {
   ANSWER,
   type ChatsWorld,
@@ -157,6 +158,8 @@ describe('PATCH chats/:chatId/overrides', () => {
       });
     }
     const admin = await addMember(w, s.company, 'admin');
+    expect((await override(s, { mode: 'plan' }, admin)).status).toBe(404);
+    await addToChat(w, s.company, s.chat.id, [admin]);
     expect((await override(s, { mode: 'plan' }, admin)).status).toBe(200);
     const other = await scene(w);
     expect(await override({ company: s.company, chat: other.chat }, { mode: 'plan' })).toMatchObject({

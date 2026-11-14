@@ -33,8 +33,9 @@ describe('GET /api/companies/:companyId/inbox: questions', () => {
     machineId = await machineOf(w, c);
   });
 
-  const asking = async (options: { title?: string | null } = {}) => {
-    const chat = await chatOf(w, c, { agentPrincipalId: c.developer, machineId, ...options });
+  const asking = async (options: { title?: string | null; people?: readonly string[] } = {}) => {
+    const people = [c.owner.principalId, c.admin.principalId];
+    const chat = await chatOf(w, c, { agentPrincipalId: c.developer, machineId, people, ...options });
     const question = questionEvent();
     const turnId = await turnOf(w, c, chat.chatId, 1, [
       { type: 'text', text: 'Two choices first.' },
@@ -76,6 +77,12 @@ describe('GET /api/companies/:companyId/inbox: questions', () => {
     for (const person of [c.manager, c.member, c.viewer, c.tester]) {
       expect((await inboxOf(w, person, c)).items).toEqual([]);
     }
+  });
+
+  it("shows a message chat's question only to the people in it (2026-11-14)", async () => {
+    const asked = await asking({ people: [c.owner.principalId] });
+    expect((await inboxOf(w, c.owner, c)).items.map((item) => item.question?.chatId)).toEqual([asked.chatId]);
+    expect((await inboxOf(w, c.admin, c)).items).toEqual([]);
   });
 
   it('drops a question once answered, once a newer turn supersedes it, or once its chat is archived', async () => {

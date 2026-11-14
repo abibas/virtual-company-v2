@@ -6,6 +6,7 @@ import { ChatBranchedFromSchema, chatBranchFields } from './schemas/branch.ts';
 import { ChatContextSchema } from './schemas/context.ts';
 import { ChatEarlierSchema } from './schemas/history.ts';
 import { ChatOverridesSchema, ProfileRunsSchema, turnRunFields } from './schemas/overrides.ts';
+import { chatPeopleFields } from './schemas/people.ts';
 import { turnSenderFields } from './schemas/sender.ts';
 
 export { ChatContextSchema, type ChatContextView } from './schemas/context.ts';
@@ -100,8 +101,9 @@ export const ChatTurnSchema = z
     seq: z.number().int().min(1),
     kind: z.enum(ChatTurnKind.options).openapi({
       description:
-        "`message` (a person's prompt), `compact` (the harness's own `/compact`) or `clear` (no process: the chat's " +
-        'next turn starts a new conversation; the thread shows it as a marker)',
+        "`message` (a person's prompt), `compact` (the harness's own `/compact`), `clear` (no process: the chat's " +
+        'next turn starts a new conversation; the thread shows it as a marker), `people` (no process: a quiet line of ' +
+        'who joined or left) or `slack` (no process: a message sent straight into the Slack conversation)',
     }),
     prompt: z.string(),
     status: ChatTurnStatus,
@@ -213,6 +215,7 @@ export const ChatDetailSchema = ChatSchema.extend({
         "What the chat's profile gives of the server's tools that its machine's runner is too old to provide (no " +
         '`caps.serverTools`), in a few words; null when nothing waits for a runner update or the runner is offline',
     }),
+  ...chatPeopleFields,
 }).openapi('ChatDetail');
 
 /** A page of older turns (`GET …/chats/{chatId}/turns`), in order, and whether older ones exist in its range. */
@@ -221,11 +224,6 @@ export const OlderTurnsSchema = z
   .openapi('ChatOlderTurns');
 
 export const ChatListSchema = z.object({ chats: z.array(ChatSchema) }).openapi('ChatList');
-
-/** A new chat, with this chat's own access profile (only the caller's own) when given. */
-export const CreateChatSchema = z
-  .object({ profileId: z.string().nullable().optional() })
-  .openapi('CreateChat');
 
 /** A new title, and this chat's own access profile (the caller's own) or null for the agent's. */
 export const UpdateChatSchema = z
@@ -275,7 +273,6 @@ export type ChatTurnView = z.infer<typeof ChatTurnSchema>;
 export type ChatEventView = z.infer<typeof ChatEventSchema>;
 export type ChatDetailView = z.infer<typeof ChatDetailSchema>;
 export type ChatTurnWithEventsView = z.infer<typeof ChatTurnWithEventsSchema>;
-export type CreateChat = z.infer<typeof CreateChatSchema>;
 export type UpdateChat = z.infer<typeof UpdateChatSchema>;
 export type AnswerQuestion = z.infer<typeof AnswerQuestionSchema>;
 

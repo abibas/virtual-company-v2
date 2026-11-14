@@ -23,7 +23,8 @@ export interface AuditCaller {
 
 /**
  * Logs a chat's change (`create`, `update`, `archive`, `branch`); `before` is null for a new chat, `caller` null for one
- * Most Wanted made itself (S6c: a flow's team chat).
+ * Most Wanted made itself (S6c: a flow's team chat). A new chat with several people names the others it began with
+ * (`people`, their principals; 2026-11-14).
  */
 export const auditChat = (
   t: TenantDb,
@@ -31,6 +32,7 @@ export const auditChat = (
   row: Chat,
   action: string,
   before: Chat | null,
+  people: readonly string[] = [],
 ) =>
   auditChanges(t, {
     actorKind: caller === null ? 'system' : 'user',
@@ -39,5 +41,8 @@ export const auditChat = (
     entityType: 'chat',
     entityId: row.id,
     action,
-    changes: diffFields(before === null ? null : audited(before), audited(row)),
+    changes: [
+      ...diffFields(before === null ? null : audited(before), audited(row)),
+      ...(people.length === 0 ? [] : [{ field: 'people', old: null, new: [...people] }]),
+    ],
   });

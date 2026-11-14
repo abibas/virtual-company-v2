@@ -1,5 +1,4 @@
 import { createRoute } from '@hono/zod-openapi';
-import { companyRoute } from '../../../platform/auth/membership.ts';
 import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
@@ -9,12 +8,15 @@ import { MachineStoppedSchema } from '../schemas/machine.ts';
 import { ChatParamsSchema, ChatTurnSchema, CreateTurnSchema, TurnParamsSchema } from '../schemas.ts';
 import { type QueueDeps, sendMessage } from '../service/queue.ts';
 import { stopTurn } from '../service/turns.ts';
+import { writtenIn } from '../service/written.ts';
+import { chatRoute } from './access.ts';
 
 /**
  * A chat's turns (S5.1b): `POST /api/companies/{companyId}/chats/{chatId}/turns` sends a prompt to the agent on its
  * machine (202: the turn runs, or with a `delivery` waits for the running one, S5.2 step 6, or waits for its stopped
  * machine to start; its events come on the chat's stream), `POST …/turns/{turnId}/stop` stops a running one or one
- * waiting for its machine. The waiting ones are `routes/queue.ts`'s. Admins and owners only.
+ * waiting for its machine. The waiting ones are `routes/queue.ts`'s. Admins and owners only, in the chat; in a chat with
+ * several people the agent gets the writer's name first (2026-11-14).
  */
 
 const TURNS = '/api/companies/{companyId}/chats/{chatId}/turns' as const;
@@ -36,12 +38,13 @@ export const TURN_REFUSALS = {
     'No access profile (`profile_missing`), one of another provider than the harness runs on ' +
     '(`profile_harness_mismatch`), one without a subscription (`profile_empty`), a subscription that is gone, ' +
     'revoked, signed out or of the wrong kind (`credential_not_found`, `credential_revoked`, ' +
-    "`credential_needs_sign_in`, `credential_unusable`), or the agent's settings cannot start one (`invalid_spec`)",
+    "`credential_needs_sign_in`, `credential_unusable`), or the agent's settings cannot start one (`invalid_spec`); " +
+    'in a chat with several people, a message that no longer fits once your name goes first (`prompt_too_long`)',
   503: "The provider did not refresh the login's token (`provider_unavailable`)",
 } as const;
 
 const startRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: TURNS, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: TURNS, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',
@@ -71,7 +74,7 @@ const startRoute = (deps: ServerDeps) => {
 };
 
 const stopRoute = (deps: ServerDeps) => {
-  const { base, refusals } = companyRoute(deps, { role: 'admin', path: STOP, tag: 'chats' });
+  const { base, refusals } = chatRoute(deps, { role: 'admin', path: STOP, access: 'write' });
   return createRoute({
     ...base,
     method: 'post',
@@ -94,7 +97,10 @@ export function turnRoutes(deps: ServerDeps & QueueDeps) {
       const { principalId, userId, role } = c.var.membership;
       const { prompt, delivery, startMachine } = c.req.valid('json');
       const wake = { trigger: 'message' as const, person: { userId, role }, asked: startMachine === true };
-      const result = await sendMessage(deps, c.var.tenant, { principalId, wake }, chatId, prompt, delivery);
+      const written = await writtenIn(deps.db, c.var.tenant, chatId, principalId, prompt);
+      if (!written.ok) return errorJson(c, 422, written.code, written.message);
+      const caller = { principalId, wake, shown: written.shown };
+      const result = await sendMessage(deps, c.var.tenant, caller, chatId, written.prompt, delivery);
       if (result.ok) return c.json(result.turn, 202);
       if (isMachineStopped(result)) {
         const error = { code: result.code, message: result.message, requestId: c.var.requestId };

@@ -5,15 +5,16 @@ import type { ServerDeps } from '../../../platform/env.ts';
 import { jsonBody, jsonResponse } from '../../../platform/http/docs.ts';
 import { errorJson, errorResponse } from '../../../platform/http/errors.ts';
 import { newRouter } from '../../../platform/http/router.ts';
+import { CreateChatSchema } from '../schemas/people.ts';
 import {
   AgentChatsParamsSchema,
   ChatDetailSchema,
   ChatListSchema,
   ChatParamsSchema,
   ChatSchema,
-  CreateChatSchema,
   UpdateChatSchema,
 } from '../schemas.ts';
+import { seatIn } from '../service/people.ts';
 import {
   archiveChat,
   type ChatCaller,
@@ -23,12 +24,14 @@ import {
   listChats,
   updateChat,
 } from '../service.ts';
+import { type ChatAccess, chatRoute } from './access.ts';
 
 /**
  * A chat with an agent (S5.1b): `GET|POST /api/companies/{companyId}/agents/{agentId}/chats` and
  * `GET|PATCH|DELETE /api/companies/{companyId}/chats/{chatId}`. Members and above read; admins and owners begin, change
  * and archive chats. Another company's agent or chat is the same 404 as an unknown one. Each change is told to the
- * chats' activity (`changed`, 2026-11-13).
+ * chats' activity (`changed`, 2026-11-13). Since 2026-11-14 a message chat is its people's (docs/harness.md "Who is in a
+ * chat"): the list holds the caller's own, and a company owner who is not in a chat opens it read-only.
  */
 
 const AGENT_CHATS = '/api/companies/{companyId}/agents/{agentId}/chats' as const;
@@ -49,6 +52,9 @@ const PROFILE_REFUSED = errorResponse(
 const route = <P extends CompanyPath>(deps: ServerDeps, role: MembershipRole, path: P) =>
   companyRoute(deps, { role, path, tag: 'chats' });
 
+const oneChat = (deps: ServerDeps, role: MembershipRole, access: ChatAccess) =>
+  chatRoute(deps, { role, path: CHAT, access });
+
 /** The caller of a chat route, from the guard's variables. */
 export const chatCaller = (v: {
   actor: { via: string };
@@ -67,7 +73,8 @@ const listRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'get',
-    summary: "An agent's chats (member and above), the latest first; archived ones are left out",
+    summary:
+      "An agent's chats you are in, and its team chats (member and above), the latest first; archived ones are left out",
     request: { params: AgentChatsParamsSchema },
     responses: { 200: jsonResponse('Its chats', ChatListSchema), ...refusals, 404: NO_AGENT },
   });
@@ -81,7 +88,8 @@ const createChatRoute = (deps: ServerDeps) => {
     summary: 'Begin a chat with an agent (admin and above)',
     description:
       "The chat runs on the agent's harness, on its placement's machine (its session lives there), with the agent's " +
-      'access profile, or with `profileId`: one of your own, chosen signed in.',
+      'access profile, or with `profileId`: one of your own, chosen signed in. You are in it, and so are the members ' +
+      'named in `with` (a chat with several people).',
     request: { params: AgentChatsParamsSchema, body: jsonBody(CreateChatSchema) },
     responses: {
       201: jsonResponse('The chat', ChatSchema),
@@ -94,14 +102,15 @@ const createChatRoute = (deps: ServerDeps) => {
       ),
       422: errorResponse(
         'No such access profile (`profile_not_found`), or one of another provider than the chat’s harness runs on ' +
-          '(`profile_harness_mismatch`)',
+          '(`profile_harness_mismatch`); someone in `with` who is not an active member above a viewer ' +
+          '(`person_not_member`)',
       ),
     },
   });
 };
 
 const getChatRoute = (deps: ServerDeps) => {
-  const { base, refusals } = route(deps, 'member', CHAT);
+  const { base, refusals } = oneChat(deps, 'member', 'read');
   return createRoute({
     ...base,
     method: 'get',
@@ -114,14 +123,15 @@ const getChatRoute = (deps: ServerDeps) => {
       'conversation (model, effort, folder, slash commands) and `context` how full it is (`usedTokens`, `window`, ' +
       '`model`, `at`), both read from all of it, left-out turns too; null before anything said so since the last Clear. ' +
       "`runnerUpdateFor` names the server's tools the chat's profile gives that its machine's runner is too old to " +
-      'provide (its turns are told so instead of getting them).',
+      'provide (its turns are told so instead of getting them). `people` is who is in it; `ownerView` is true for a ' +
+      'company owner who is not (they read only); `slack` the Slack conversation it is for.',
     request: { params: ChatParamsSchema },
     responses: { 200: jsonResponse('The chat', ChatDetailSchema), ...refusals, 404: NO_CHAT },
   });
 };
 
 const updateChatRoute = (deps: ServerDeps) => {
-  const { base, refusals } = route(deps, 'admin', CHAT);
+  const { base, refusals } = oneChat(deps, 'admin', 'write');
   return createRoute({
     ...base,
     method: 'patch',
@@ -143,7 +153,7 @@ const updateChatRoute = (deps: ServerDeps) => {
 };
 
 const archiveRoute = (deps: ServerDeps) => {
-  const { base, refusals } = route(deps, 'admin', CHAT);
+  const { base, refusals } = oneChat(deps, 'admin', 'write');
   return createRoute({
     ...base,
     method: 'delete',
@@ -160,7 +170,11 @@ export type ChatChanged = (chatId: string) => void;
 export function chatRoutes(deps: ServerDeps, live: ChatDetailLive, changed: ChatChanged) {
   return newRouter()
     .openapi(listRoute(deps), async (c) => {
-      const result = await listChats(c.var.tenant, c.req.valid('param').agentId);
+      const result = await listChats(
+        c.var.tenant,
+        c.req.valid('param').agentId,
+        c.var.membership.principalId,
+      );
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
       return c.json({ chats: result.chats }, 200);
     })
@@ -173,7 +187,10 @@ export function chatRoutes(deps: ServerDeps, live: ChatDetailLive, changed: Chat
       return c.json(result.chat, 201);
     })
     .openapi(getChatRoute(deps), async (c) => {
-      const result = await getChat(c.var.tenant, c.req.valid('param').chatId, live);
+      const { chatId } = c.req.valid('param');
+      const { principalId, role, userId } = c.var.membership;
+      const looksOn = (await seatIn(c.var.tenant, chatId, { principalId, role })) === 'owner';
+      const result = await getChat(c.var.tenant, chatId, { db: deps.db, userId, looksOn }, live);
       if (!result.ok) return errorJson(c, 404, result.code, result.message);
       return c.json(result.chat, 200);
     })
