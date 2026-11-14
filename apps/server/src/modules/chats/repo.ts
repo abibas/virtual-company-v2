@@ -4,6 +4,7 @@ import {
   type Chat,
   chats,
   isUuid,
+  slackThreads,
   type TenantDb,
   type TenantSet,
   type TenantValues,
@@ -13,7 +14,8 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 /**
  * The chats' rows, through the company's tenant only (S5.1b): the chats themselves, and the agent a chat is with (read
  * only: the agents are the org module's), and a flow's team chat with its Lead agent (S6c). The turns and their events
- * are `repo/turns.ts`'s, the access profiles `repo/profiles.ts`'s.
+ * are `repo/turns.ts`'s, the access profiles `repo/profiles.ts`'s. Since 2026-11-14 the contact a Slack conversation's
+ * chat began with (read only: the rows are the integrations module's).
  */
 
 /** The agent's fields a chat needs; undefined for an unknown, malformed or another company's id. */
@@ -74,4 +76,24 @@ async function saveSession(t: TenantDb, id: string, sessionId: string): Promise<
   await update(t, id, { sessionId, ...forked });
 }
 
-export const chatsRepo = { agentOf, agentByPrincipal, teamChatOf, get, ofAgent, insert, update, saveSession };
+/** The contact who started the Slack conversation this chat is for; null for any other chat, or one from before. */
+async function slackContactOf(t: TenantDb, chatId: string): Promise<string | null> {
+  const [row] = await t.selectFields(
+    slackThreads,
+    { contactId: slackThreads.contactId },
+    eq(slackThreads.chatId, chatId),
+  );
+  return row?.contactId ?? null;
+}
+
+export const chatsRepo = {
+  agentOf,
+  agentByPrincipal,
+  teamChatOf,
+  get,
+  ofAgent,
+  insert,
+  update,
+  saveSession,
+  slackContactOf,
+};

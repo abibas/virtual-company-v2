@@ -21,6 +21,7 @@ function ContactView({
   const { membership } = useCompany();
   const change = useContactChange(membership.companyId);
   const { contact } = detail;
+  const names = new Map(detail.conversations.map(({ agent }) => [agent.id, agent.name]));
   return (
     <div className="grid gap-4 md:gap-5">
       <Breadcrumbs
@@ -41,7 +42,12 @@ function ContactView({
               return saved;
             }}
           />
-          <ContactDecisions contactId={contact.id} />
+          <ContactDecisions
+            companyId={membership.companyId}
+            companySlug={membership.slug}
+            contactId={contact.id}
+            agentName={(agentId) => names.get(agentId)}
+          />
         </div>
       </div>
     </div>
@@ -52,7 +58,7 @@ function ContactView({
  * `/:slug/contacts/:contactId` (2026-11-14, docs/subscriptions.md "Contacts"): a person outside the company who talked to
  * its agents. Their photo, name, title, email, Slack handle and first and last seen; their conversations with the
  * agents, the latest first, followed live; the counts per agent; the note and archive (admins and owners); and the
- * decisions made for them (the decision log's, when it lands).
+ * decisions agents recorded in their conversations.
  */
 export function ContactPage({ contactId }: { readonly contactId: string }) {
   const { membership } = useCompany();

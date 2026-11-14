@@ -1141,7 +1141,7 @@ agents: today, a Slack person whose message woke one of them.
 
 ### The Slack chat, readable
 
-The turn stores what the reader needs, beside the prompt the agent gets (migration `0038_contacts`):
+The turn stores what the reader needs, beside the prompt the agent gets (migration `0039_contacts`):
 `chat_turns.sender` (`TurnSender` of `@mwc/shared/chats`: `via: 'slack'`, the Slack `userId`, `name`, `avatarUrl`, the
 message's `link`), `visible_text` (the message with its mentions as names, without the header and its instructions),
 `contact_id`, and `reply_link` (where the reply was posted back). The turn's view gives `from: {name, via, userId,
@@ -1167,8 +1167,9 @@ avatarUrl, link, contactId}`, `visibleText` and `replyLink` (docs/harness.md "Sl
   **Conversations** with the agents, the latest first (each Slack chat with its agent's face, green while a turn runs
   there, its title, place and last message, opening the chat); **Agents** (per agent their conversations, messages and
   the latest); **Note** (admins and owners write it and **Archive** or **Bring back** the contact; others read the note);
-  **Decisions**, the decision log's section: an empty list until that branch fills it (a web hook only,
-  `features/contacts/ContactDecisions.tsx`; no endpoint here). The page follows the chats' activity.
+  **Decisions**: what agents recorded with `record_decision` in their conversations, newest first, by outcome, each with
+  its agent and a link to its chat at the turn (`GET …/decisions?contact=`, docs/processes.md "Decisions"; a decision's
+  contact is its turn's, else the Slack chat's, `contactOf`). The page follows the chats' activity.
 
 ### The API (`modules/contacts/`)
 
@@ -1186,12 +1187,15 @@ returned) with how many and the latest, and whether a turn of theirs waits or ru
 that starts or ends is told live by `GET …/chat-activity`: its `lastTurn.from.contactId` with its status says who is
 being answered now.
 
-### The data (migration `0038_contacts`)
+### The data (migration `0039_contacts`)
 
 - `contacts` (a company's): `source` (`slack`), `name`, `avatar_url`, `email`, `title`, `handle`, `slack_team_id`,
   `slack_user_id` (both for a Slack contact), `first_seen_at`, `last_seen_at`, `note` (at most 2000), `archived_at`.
 - `chat_turns.sender`, `visible_text` (only on a turn Most Wanted queued), `contact_id` (only with a sender) and
   `reply_link`; `slack_threads.contact_id`. Rows from before keep nulls.
+- `decisions.contact_id` (migration `0038_decisions`) becomes a composite key into `contacts`, `ON DELETE SET NULL
+  (contact_id)` (a `-- custom:` part: drizzle-kit writes one ON DELETE for both columns, and nulling the company is not
+  allowed). Nothing deletes a contact today.
 
 ### Tests
 
@@ -1201,11 +1205,13 @@ turn's sender, visible text and contact, the chat's contact, the reply's link an
 `test/modules/contacts/` (the routes: list, page, note and archive, roles, 404s, audit; the interactions: the window,
 live, archived, `since` kept in range; `seenOnSlack` twice at once; the rules), `test/modules/chats/rules/sender.test.ts`
 (stored and from-before senders), `routes/activity/slack.test.ts` (the activity names the contact and the reply's link),
+`service/decisions/contact.test.ts` (a decision in a Slack turn names its sender's contact, one in a person's message in
+that chat the conversation's, listed by `?contact=`),
 `packages/db/test/schema/contacts.test.ts` (constraints, composite keys, rows from before the migration).
 
 ### How to test it (Ihor)
 
-1. Merge, then restart the dev API (`pnpm dev`): migration `0038_contacts` runs on start. The runner did not change.
+1. Merge, then restart the dev API (`pnpm dev`): migration `0039_contacts` runs on start. The runner did not change.
 2. Have someone allowed (or yourself) DM the bot. In TEST DEV's chat "Slack · DM · …" the message shows with their Slack
    photo and name and the Slack mark; the header is gone. Under TEST DEV's answer: **Posted in Slack**.
 3. Click their name: their contact page, with the conversation and TEST DEV's counts. **Company structure** →

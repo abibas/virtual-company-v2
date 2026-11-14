@@ -17,7 +17,7 @@ const n = (value: number) => sql.raw(String(value));
 const at = (name: string) => timestamp(name, { withTimezone: true });
 
 /**
- * A company's contacts (2026-11-14, docs/subscriptions.md "Contacts", migration `0038_contacts`): the people outside it
+ * A company's contacts (2026-11-14, docs/subscriptions.md "Contacts", migration `0039_contacts`): the people outside it
  * who talk to its agents, one per person and outside account. A Slack person is one per workspace (`slack_team_id`) and
  * Slack user (`slack_user_id`), made by Most Wanted the first time their message wakes one of the company's agents and
  * kept up to date (name, avatar, title, email, handle) from Slack on each message after. The chats for their Slack

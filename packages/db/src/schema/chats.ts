@@ -146,7 +146,7 @@ export const chats = pgTable(
  * turn also waits so while every slot of its machine is taken (`machine_wait` says which: `stopped` or `slots`), and
  * starts when a turn on that machine ends. A turn Most Wanted queued in an agent's room conversation (a flow's chat) for
  * a person's message in the team room names that message (`room_message_id`, docs/processes.md "The team room").
- * Since migration 0038 (2026-11-14) a turn Most Wanted queued for a Slack message names its sender (`sender`), the
+ * Since migration 0039 (2026-11-14) a turn Most Wanted queued for a Slack message names its sender (`sender`), the
  * message as the reader sees it without the prompt's header (`visible_text`) and its contact (`contact_id`), and its
  * reply's address once it was posted back in Slack (`reply_link`; docs/subscriptions.md "Contacts").
  */

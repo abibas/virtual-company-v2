@@ -1,16 +1,39 @@
-import { Gavel } from 'lucide-react';
-import { EmptyState } from '../../components/ui/EmptyState.tsx';
+import { Link } from '../../app/router.tsx';
 import { Panel } from '../../components/ui/Panel.tsx';
+import { turnPath } from '../agents/links.ts';
+import { DecisionsList } from '../decisions/DecisionsList.tsx';
 
 /**
- * The decisions made for a contact's requests (2026-11-14, docs/subscriptions.md "Contacts"). The hook for the decision
- * log, which lands on its own branch: it gives this section its list for the contact (`contactId`) and replaces the
- * empty state; until then there is no endpoint for it.
+ * The decisions agents recorded in a contact's conversations (2026-11-14, docs/subscriptions.md "Contacts";
+ * `GET …/decisions?contact=`), newest first, by outcome: whose each is, and a link to its chat at the turn.
  */
-export function ContactDecisions({ contactId: _contactId }: { readonly contactId: string }) {
+export function ContactDecisions({
+  companyId,
+  companySlug,
+  contactId,
+  agentName,
+}: {
+  readonly companyId: string;
+  readonly companySlug: string;
+  readonly contactId: string;
+  /** An agent's name by its id (the contact's conversations'). */
+  readonly agentName: (agentId: string) => string | undefined;
+}) {
   return (
     <Panel title="Decisions" padding="sm">
-      <EmptyState icon={Gavel} title="No decisions yet" size="sm" />
+      <DecisionsList
+        companyId={companyId}
+        query={{ contact: contactId }}
+        agentName={agentName}
+        where={(decision) => (
+          <Link
+            to={turnPath(companySlug, decision.agentId, decision.chatId, decision.turnId)}
+            className="rounded-xs font-semibold text-blue hover:underline"
+          >
+            In the conversation
+          </Link>
+        )}
+      />
     </Panel>
   );
 }

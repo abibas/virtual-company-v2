@@ -136,7 +136,7 @@ export const slackPosts = pgTable(
  * An agent's chat for one Slack conversation (a channel's thread, or a DM itself when its message is in no thread),
  * through one Slack sign-in (a plain id: the personal row stays its owner's): the messages there wake the agent in that
  * chat, which keeps its context across them. A chat that cannot go on (archived, or the agent moved) is replaced, so the
- * row then names the new one. Since migration 0038 it names the contact who started it (`contact_id`; a row from before
+ * row then names the new one. Since migration 0039 it names the contact who started it (`contact_id`; a row from before
  * gets the next sender's).
  */
 export const slackThreads = pgTable(

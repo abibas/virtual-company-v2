@@ -25,7 +25,7 @@ export interface DecisionTurn {
   readonly agentPrincipalId: string;
   /** The task whose step the turn belongs to; null for any other turn. */
   readonly taskId: string | null;
-  /** The contact the conversation is with; null until the contacts land (`contactOf`). */
+  /** The contact the conversation is with (`contactOf`); null for none. */
   readonly contactId: string | null;
   /** The turn's last event stored before the call. */
   readonly eventSeq: number;
@@ -43,10 +43,12 @@ export interface DecisionsHook {
 }
 
 /**
- * The contact a turn's conversation is with. TODO(contacts): once the contacts branch adds `contact_id` to Slack chats
- * and their turns, answer `turn.contactId ?? chat.contactId`; until then no chat names one.
+ * The contact a turn's conversation is with (2026-11-14, docs/subscriptions.md "Contacts"): the turn's own (a Slack
+ * message's sender), else the one who started the chat's Slack conversation (a person's message in that chat); null for
+ * any other chat.
  */
-export const contactOf = (_chat: Chat, _turn: ChatTurn): string | null => null;
+export const contactOf = async (t: TenantDb, chat: Chat, turn: ChatTurn): Promise<string | null> =>
+  turn.contactId ?? (await chatsRepo.slackContactOf(t, chat.id));
 
 /**
  * What a turn's spec adds for the decision log on top of the agents' tools so far (`plan`): the tool's name after
@@ -103,7 +105,7 @@ export async function decisionCall(
         agentId: chat.agentId,
         agentPrincipalId: of.agentPrincipalId,
         taskId: of.taskId ?? chat.taskId,
-        contactId: contactOf(chat, turn),
+        contactId: await contactOf(t, chat, turn),
         eventSeq: await turnsRepo.lastEventSeq(t, turn.id),
       },
       call.input,

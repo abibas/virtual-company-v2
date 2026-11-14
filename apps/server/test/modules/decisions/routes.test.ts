@@ -1,4 +1,4 @@
-import { decisions } from '@mwc/db';
+import { contacts, decisions } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import { TEST_NOW } from '@mwc/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -25,7 +25,8 @@ afterEach(async () => {
 });
 afterAll(() => w.close());
 
-const CONTACT = '019a4f0c-c3d4-7e5f-8061-7b8c9d0e1f20';
+/** An id no row has. */
+const UNKNOWN = '019a4f0c-c3d4-7e5f-8061-7b8c9d0e1f20';
 const later = (minutes: number) => w.clock.set(new Date(Date.parse(TEST_NOW) + minutes * 60_000));
 
 interface Seeded {
@@ -33,11 +34,12 @@ interface Seeded {
   readonly taskId: string;
   readonly developerId: string;
   readonly leadChatId: string;
+  readonly contactId: string;
 }
 
 /**
  * The Developer records two decisions in its task's step (approved, then declined), the Lead one in its own chat
- * (deferred), and a Slack chat's decision names a contact (written as the contacts will: no chat has one yet).
+ * (deferred), and a Slack chat's decision names a contact (written straight in the table, its contact too).
  */
 async function seeded(): Promise<Seeded> {
   const s = await toolScene(w, { caps: { decisions: true } });
@@ -59,6 +61,18 @@ async function seeded(): Promise<Seeded> {
   const developer = await agentOf(w.t.db, s.c.developer);
   const turn = await turnRow(w.t.db, develop.turnId);
   later(4);
+  const [contact] = await rawDb(w.t.db)
+    .insert(contacts)
+    .values({
+      companyId: s.c.companyId,
+      source: 'slack',
+      name: 'Erich Stuntebeck',
+      slackTeamId: 'T0AIRIA',
+      slackUserId: 'U0ERICH',
+      firstSeenAt: w.clock(),
+      lastSeenAt: w.clock(),
+    })
+    .returning();
   await rawDb(w.t.db)
     .insert(decisions)
     .values({
@@ -66,12 +80,18 @@ async function seeded(): Promise<Seeded> {
       agentId: developer.id,
       chatId: turn?.chatId as string,
       turnId: develop.turnId,
-      contactId: CONTACT,
+      contactId: contact?.id as string,
       what: 'Answer the customer',
       why: 'They asked twice.',
       createdAt: w.clock(),
     });
-  return { s, taskId: task.id, developerId: developer.id, leadChatId: lead.chatId };
+  return {
+    s,
+    taskId: task.id,
+    developerId: developer.id,
+    leadChatId: lead.chatId,
+    contactId: contact?.id as string,
+  };
 }
 
 let scene: Seeded;
@@ -117,7 +137,8 @@ describe('GET decisions', () => {
       'Skip the migration',
       'Use the old API',
     ]);
-    expect(whats((await list(`?contact=${CONTACT}`)).body)).toEqual(['Answer the customer']);
+    expect(whats((await list(`?contact=${scene.contactId}`)).body)).toEqual(['Answer the customer']);
+    expect(whats((await list(`?contact=${UNKNOWN}`)).body)).toEqual([]);
     expect(whats((await list('?outcome=declined')).body)).toEqual(['Skip the migration']);
     expect(whats((await list(`?agent=${scene.developerId}&outcome=deferred`)).body)).toEqual([]);
   });
@@ -138,7 +159,7 @@ describe('GET decisions', () => {
       'invalid_request',
     ]);
     expect((await list('?agent=not-an-id')).status).toBe(400);
-    const unknown = await list(`?before=${CONTACT}`);
+    const unknown = await list(`?before=${UNKNOWN}`);
     expect([unknown.status, (unknown.body as unknown as { error: { code: string } }).error.code]).toEqual([
       400,
       'unknown_before',

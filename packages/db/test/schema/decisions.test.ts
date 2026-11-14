@@ -16,7 +16,10 @@ import {
 import { pgError, type TestDb } from '../../src/testing.ts';
 import { insertAgent, insertCompany, insertMachine, MISSING_ID, migratedTestDb } from '../fixtures/rows.ts';
 
-/** The decision log (migration 0038): its CHECKs, its tenant keys, and a contact id with no foreign key yet. */
+/**
+ * The decision log (migration 0038): its CHECKs, its tenant keys, and since migration 0039 its contact a key into the
+ * company's contacts (`contacts.test.ts`: another company's refused, a removed one let go).
+ */
 
 let testDb: TestDb;
 let handle: RawDbHandle;
@@ -108,9 +111,8 @@ describe('decisions (0038)', () => {
     expect(full).toMatchObject({ taskId: task.id, sources, outcome: 'approved', eventSeq: 7 });
   });
 
-  it('takes any contact id: no foreign key until the contacts table lands', async () => {
-    const [row] = await record({ contactId: MISSING_ID });
-    expect(row?.contactId).toBe(MISSING_ID);
+  it('refuses a contact that is not there (0039)', async () => {
+    expect(await constraint(record({ contactId: MISSING_ID }))).toBe('decisions_contact_fk');
   });
 
   it('refuses parts out of bounds, sources that are not a short list, an unknown outcome and a negative event', async () => {

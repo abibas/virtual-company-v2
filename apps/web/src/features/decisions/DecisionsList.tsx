@@ -57,8 +57,8 @@ export function DecisionsList({
   where,
 }: {
   readonly companyId: string;
-  /** Whose decisions: an agent's or a task's. */
-  readonly query: Pick<DecisionQuery, 'agent' | 'task'>;
+  /** Whose decisions: an agent's, a task's, or those made for a contact (2026-11-14). */
+  readonly query: Pick<DecisionQuery, 'agent' | 'task' | 'contact'>;
   /** The agent's name for each card, when the list mixes agents. */
   readonly agentName?: ((agentId: string) => string | undefined) | undefined;
   /** Where a decision was made: a link to its chat and turn. */

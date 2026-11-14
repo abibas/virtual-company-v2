@@ -1098,10 +1098,11 @@ clock) and `contact_id`. Composite tenant keys to `agents`, `chats`, `chat_turns
   decisions again after a reconnect). The chat lists' activity ignores it.
 - **Audited as the agent**: `entity_type` `decision`, action `record`, one row per field, the agent's principal as the
   actor (`actor_kind` `agent`), the turn as the request id.
-- **The contact.** `contact_id` is a plain nullable uuid with **no foreign key yet**: the contacts (a parallel branch)
-  add a `contacts` table and link Slack chats and turns to a contact. Until they land no chat names one and every
-  decision's `contact_id` is null; `contactOf(chat, turn)` in the chats module's `service/decisions.ts` is the hook
-  (TODO: answer `turn.contactId ?? chat.contactId`), and the foreign key comes with the merge.
+- **The contact** (since migration `0039_contacts`, docs/subscriptions.md "Contacts"): `contactOf(t, chat, turn)` in
+  the chats module's `service/decisions.ts` answers the turn's contact (a Slack message's sender), else the one who
+  started the chat's Slack conversation (a person's message in that chat), else null. `contact_id` is a composite key
+  into the company's `contacts`, set null when the contact goes (`ON DELETE SET NULL (contact_id)`, a custom part of the
+  migration); a contact's page lists their decisions (`?contact=`).
 
 ### Reading them
 
