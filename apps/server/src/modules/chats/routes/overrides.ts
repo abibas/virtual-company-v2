@@ -10,18 +10,24 @@ import { chatRoute } from './access.ts';
 
 /**
  * A chat's own mode, model and effort (2026-11-13, docs/harness.md "Modes"): `PATCH
- * /api/companies/{companyId}/chats/{chatId}/overrides` sets or clears them for its next turns. Admins and owners, as
- * sending it a message.
+ * /api/companies/{companyId}/chats/{chatId}/overrides` sets or clears them for its next turns. Whoever may send it a
+ * message: its people from the member role up (2026-11-14).
  */
 
 const OVERRIDES = '/api/companies/{companyId}/chats/{chatId}/overrides' as const;
 
 const updateRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: OVERRIDES, access: 'write' });
+  const { base, refusals } = chatRoute(deps, {
+    role: 'member',
+    path: OVERRIDES,
+    access: 'write',
+    team: 'admin',
+  });
   return createRoute({
     ...base,
     method: 'patch',
-    summary: "Set or clear the chat's own mode, model and effort for its next turns (admin and above)",
+    summary:
+      "Set or clear the chat's own mode, model and effort for its next turns (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)",
     description:
       "Each given field is set (a value) or cleared (null: the profile's); one left out is kept. A turn already running " +
       'keeps what it started with; the next one takes them. Message chats only: a task’s conversation and a flow’s ' +

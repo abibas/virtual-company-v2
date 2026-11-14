@@ -34,11 +34,14 @@ const refusal = (res: { status: number; body: unknown }) => [
 ];
 
 describe('POST chats/:chatId/turns refusals', () => {
-  it('is for admins and owners, takes a prompt of 1 to 20 000 characters, and 404s an unknown chat', async () => {
+  it('is for the chat’s people from members up, takes a prompt of 1 to 20 000 characters, and 404s an unknown chat', async () => {
     const s = await scene(w, { offline: true });
-    for (const role of ['member', 'viewer'] as const) {
-      expect((await sendPrompt(w, s, 'hi', await addMember(w, s.company, role))).status).toBe(403);
-    }
+    expect((await sendPrompt(w, s, 'hi', await addMember(w, s.company, 'viewer'))).status).toBe(403);
+    // A member sends in a chat they are in (2026-11-14: here its machine is offline), and finds no chat they are not in.
+    const member = await addMember(w, s.company, 'member');
+    expect((await sendPrompt(w, s, 'hi', member)).status).toBe(404);
+    await addToChat(w, s.company, s.chat.id, [member]);
+    expect(refusal(await sendPrompt(w, s, 'hi', member))).toEqual([409, 'machine_offline']);
     expect((await sendPrompt(w, s, '')).status).toBe(400);
     expect((await sendPrompt(w, s, 'p'.repeat(20_001))).status).toBe(400);
     const missing = await as(w, s.company.owner)(

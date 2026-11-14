@@ -12,17 +12,24 @@ import { TURN_REFUSALS } from './turns.ts';
 /**
  * Answers to the agent's question (S5.2 step 4, docs/harness.md "Asking the person"): `POST
  * /api/companies/{companyId}/chats/{chatId}/answers` sends the person's picks for the chat's open question as its next
- * turn (202), and marks the question answered. Admins and owners only.
+ * turn (202), and marks the question answered. The chat's people from the member role up (a task's conversation or a team chat: admins
+ * and owners).
  */
 
 const ANSWERS = '/api/companies/{companyId}/chats/{chatId}/answers' as const;
 
 const answerRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: ANSWERS, access: 'write' });
+  const { base, refusals } = chatRoute(deps, {
+    role: 'member',
+    path: ANSWERS,
+    access: 'write',
+    team: 'admin',
+  });
   return createRoute({
     ...base,
     method: 'post',
-    summary: "Answer the agent's question: the picks go as the chat's next turn (admin and above)",
+    summary:
+      "Answer the agent's question: the picks go as the chat's next turn (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)",
     description:
       'The answers name the questions asked (each at most once; one left out is said as skipped) and pick only their ' +
       "options' labels (one for a single-choice question), with the person's own words as `other`. The next turn's " +

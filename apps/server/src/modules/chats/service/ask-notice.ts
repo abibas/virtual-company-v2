@@ -3,13 +3,19 @@ import type { AskQuestion } from '@mwc/shared/harness';
 import { noticeAgentQuestion } from '../../notifications/service.ts';
 import { participantsRepo } from '../repo/participants.ts';
 import { chatsRepo } from '../repo.ts';
-import { isMessageChat } from '../rules/people.ts';
+import { isMessageChat, mayJoin } from '../rules/people.ts';
+
+/** The people of a message chat who may answer in it: its members, active and above a viewer. */
+async function writers(t: TenantDb, chatId: string): Promise<string[]> {
+  const members = (await participantsRepo.membersOf(t, [chatId])).get(chatId) ?? [];
+  return (await participantsRepo.members(t, members)).filter(mayJoin).map((member) => member.principalId);
+}
 
 /**
  * An agent asked a question in a chat (S6c, docs/notifications.md): once its `question` event is stored, the people who
  * may answer it (the company's admins and owners) hear of it, quoting its first question and pointing at the chat; the
- * agent never does. A task's conversation asks like any chat; a message chat's question goes only to the people in it
- * (2026-11-14, docs/harness.md "Who is in a chat").
+ * agent never does. A task's conversation asks like any chat; a message chat's question goes to the people in it who
+ * may answer there, members too, and to nobody else (2026-11-14, docs/harness.md "Who is in a chat").
  */
 export async function noticeQuestion(
   t: TenantDb,
@@ -20,9 +26,7 @@ export async function noticeQuestion(
   const agent = chat && (await chatsRepo.agentOf(t, chat.agentId));
   const [first] = questions;
   if (chat === undefined || agent === undefined || first === undefined) return;
-  const only = isMessageChat(chat)
-    ? ((await participantsRepo.membersOf(t, [chat.id])).get(chat.id) ?? [])
-    : undefined;
+  const only = isMessageChat(chat) ? await writers(t, chat.id) : undefined;
   const question = {
     agentPrincipalId: agent.principalId,
     agentId: agent.id,

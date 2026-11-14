@@ -7,7 +7,7 @@ import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { AgentIconSubject } from '../../components/feed/AgentIcon.tsx';
 import { Composer } from '../chats/Composer.tsx';
-import { asking, chatActions, closedWhy, queueActions, queueView } from '../chats/chat-actions.ts';
+import { asking, chatActions, closedWhy, mayWrite, queueActions, queueView } from '../chats/chat-actions.ts';
 import { QueuedMessages } from '../chats/delivery/QueuedMessages.tsx';
 import { chatMachine, fixOf } from '../chats/machine-context.ts';
 import { chatRunsMenus } from '../chats/runs/chat-runs.tsx';
@@ -76,7 +76,8 @@ export function DockedThread({
   if (chat === undefined) return <Opening detail={live.detail} />;
   const actions = chatActions(calls, live, chat, onChanged);
   const view = queueView(live, chat);
-  const closed = closedWhy(chat, admin, placement);
+  // The rail is for members and above (viewers read no chats): its main chats are theirs to write in.
+  const closed = closedWhy(chat, mayWrite(chat, admin, true), placement);
   return (
     <ChatMachineContext.Provider
       value={chatMachine(calls, live, chat, companyId, fixOf(closed, placement, actions.send))}

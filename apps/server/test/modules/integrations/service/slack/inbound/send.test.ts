@@ -1,4 +1,4 @@
-import { agents, auditLog } from '@mwc/db';
+import { auditLog } from '@mwc/db';
 import { rawDb } from '@mwc/db/system';
 import type { FakeRunner } from '@mwc/testkit/runner';
 import { and, eq } from 'drizzle-orm';
@@ -17,10 +17,8 @@ import {
   inboundWorld,
   message,
   ok,
-  otherAgent,
   postRows,
   postsOf,
-  putInbound,
   slackError,
   threadRows,
 } from '../../../../../fixtures/integrations/slack-inbound.ts';
@@ -168,38 +166,21 @@ describe('POST chats/:chatId/slack-messages', () => {
   });
 });
 
-describe('a DM’s reply after a Send in Slack', () => {
-  it("goes back to that chat's agent, then to the default agent once the agent answered", async () => {
+describe('a Send in Slack in a DM’s conversation', () => {
+  it('goes into the thread of the DM’s message, where a reply goes on in the same chat; a new DM message starts another', async () => {
     const s = await inboundScene(w, { rights: { dms: 'post' } });
     const dm = { type: 'message' as const, channel: 'D0DM9', channelType: 'im' };
-    const { chatId } = await slackChat(s, { ...dm, text: 'hello' });
-    const other = await otherAgent(w, s, 'Second', true);
-    const dms = { credentialId: s.signIn.id, rights: { ...CHAT_GENERAL, dms: 'post' as const } };
-    const [second] = await rawDb(w.t.db).select().from(agents).where(eq(agents.id, other.id));
-    await putSlackPart(w.t.db, second?.profileId as string, dms);
-    const moved = await putInbound(w, s, {
-      defaultAgent: { companyId: s.company.companyId, agentId: other.id },
-    });
-    expect(moved.status).toBe(200);
-    answerSlack(w, {
-      'chat.postMessage': [
-        ok({ channel: 'D0DM9', ts: '1731500100.000100' }),
-        ok({ channel: 'D0DM9', ts: '1731500100.000200' }),
-      ],
-    });
+    const { chatId, first } = await slackChat(s, { ...dm, text: 'hello' });
+    answerSlack(w, { 'chat.postMessage': ok({ channel: 'D0DM9', ts: '1731500100.000100' }) });
     expect((await send(s, chatId, 'Did it work?')).status).toBe(201);
-    await s.conn.deliver(message({ ...dm, text: 'yes it did' }));
+    expect(postsOf(w).at(-1)).toMatchObject({ channel: 'D0DM9', thread_ts: first.ts, text: 'Did it work?' });
+    await s.conn.deliver(message({ ...dm, text: 'yes it did', threadTs: first.ts }));
     const back = await runnerOf(s).frames.next('turn.start');
     expect((await turnRow(w.t.db, back.turnId))?.chatId).toBe(chatId);
-    answerTurn(runnerOf(s), back, 'Great.');
-    await eventually('its answer recorded', async () =>
-      (await postRows(w.t.db)).some((row) => row.turnId === back.turnId),
-    );
-    await s.conn.deliver(message({ ...dm, text: 'one more' }));
+    endTurn(runnerOf(s), back.turnId);
+    await s.conn.deliver(message({ ...dm, text: 'something else' }));
     const next = await runnerOf(s).frames.next('turn.start');
-    const row = await turnRow(w.t.db, next.turnId);
-    expect(row?.chatId).not.toBe(chatId);
-    expect((await threadRows(w.t.db)).find((t) => t.chatId === row?.chatId)?.agentId).toBe(other.id);
+    expect((await turnRow(w.t.db, next.turnId))?.chatId).not.toBe(chatId);
     endTurn(runnerOf(s), next.turnId);
   });
 });

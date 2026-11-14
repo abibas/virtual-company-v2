@@ -12,7 +12,8 @@ import { TURN_REFUSALS } from './turns.ts';
 /**
  * A chat's conversation as a whole (S5.2, docs/harness.md "Compact and Clear"): `POST
  * /api/companies/{companyId}/chats/{chatId}/compact` runs the harness's own `/compact` as a turn of kind `compact`, and
- * `POST …/clear` records a Clear and starts the next turn in a new conversation. Admins and owners only.
+ * `POST …/clear` records a Clear and starts the next turn in a new conversation. The chat's people from the member role up (a task's conversation or a
+ * team chat: admins and owners).
  */
 
 const COMPACT = '/api/companies/{companyId}/chats/{chatId}/compact' as const;
@@ -23,11 +24,17 @@ const NO_CHAT = errorResponse(
 );
 
 const compactRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: COMPACT, access: 'write' });
+  const { base, refusals } = chatRoute(deps, {
+    role: 'member',
+    path: COMPACT,
+    access: 'write',
+    team: 'admin',
+  });
   return createRoute({
     ...base,
     method: 'post',
-    summary: "Compact the chat's conversation: the harness's own `/compact`, as a turn (admin and above)",
+    summary:
+      "Compact the chat's conversation: the harness's own `/compact`, as a turn (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)",
     description:
       "A turn of kind `compact` with the prompt `/compact`, on the chat's session, refused as any turn is. Its events " +
       'come on the stream: a `compact` event with the size before and after, then the usage and the result (no reply). ' +
@@ -48,11 +55,12 @@ const compactRoute = (deps: ServerDeps) => {
 };
 
 const clearRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: CLEAR, access: 'write' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: CLEAR, access: 'write', team: 'admin' });
   return createRoute({
     ...base,
     method: 'post',
-    summary: "Clear the chat's conversation: its next turn starts a new one (admin and above)",
+    summary:
+      "Clear the chat's conversation: its next turn starts a new one (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)",
     description:
       "Runs nothing: forgets the chat's session and records a turn of kind `clear` (prompt `/clear`, done at once, on " +
       'no credential), which the thread shows as a marker and the stream sends as a `turn` message. The old ' +

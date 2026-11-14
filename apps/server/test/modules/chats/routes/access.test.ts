@@ -1,7 +1,9 @@
+import { flows, tenant } from '@mwc/db';
 import { TEST_NOW } from '@mwc/testkit';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ChatListItemView } from '../../../../src/modules/chats/schemas/activity.ts';
 import type { ChatDetailView, ChatView } from '../../../../src/modules/chats/schemas.ts';
+import { chatRowOf } from '../../../fixtures/chats/reports.ts';
 import { openStream } from '../../../fixtures/chats/stream.ts';
 import {
   agentChatsPath,
@@ -142,6 +144,31 @@ describe("a chat's routes", () => {
     expect((await people([owner.principalId])).status).toBe(200);
     const rename = await as(w, owner)('PATCH', chatPath(s.company, chat.id), { title: 'Ours' });
     expect([rename.status, (rename.body as ChatView).title]).toEqual([200, 'Ours']);
+  });
+});
+
+describe("a task's conversation or a team chat", () => {
+  it('keeps its own rules: a member still may not write in it, an admin may', async () => {
+    const s = await scene(w, { offline: true });
+    const t = await tenant(w.t.db, s.company.companyId);
+    const owner = s.company.owner.principalId;
+    const [flow] = await t
+      .insert(flows, { leadPrincipalId: owner, name: 'Delivery', createdBy: owner })
+      .returning();
+    const fields = {
+      agentId: s.agentId,
+      machineId: s.machineId,
+      createdBy: owner,
+      updatedAt: new Date(TEST_NOW),
+    };
+    const team = await chatRowOf(w, s.company, { ...fields, flowId: (flow as { id: string }).id });
+    const member = await addMember(w, s.company, 'member');
+    const admin = await addMember(w, s.company, 'admin');
+    const send = (person: Person) =>
+      as(w, person)('POST', chatPath(s.company, team, '/turns'), { prompt: 'hi' });
+    expect([(await send(member)).status, code(await send(member))]).toEqual([403, 'forbidden']);
+    expect(code(await send(admin))).toBe('machine_offline');
+    expect((await as(w, member)('GET', chatPath(s.company, team))).status).toBe(200);
   });
 });
 

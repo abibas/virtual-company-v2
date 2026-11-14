@@ -11,7 +11,7 @@ import type { InboxCompany, InboxItem } from '../schemas.ts';
  * The agents' open questions (S6b): a chat's question is open while it is the latest of the chat's last turn and nothing
  * answered it (the chats module's own rule, `openQuestion`). Only for those who may answer (`answersQuestions`: admins
  * and owners), in chats and of agents not archived; a task's conversation asks like any chat; a message chat's question
- * only for the people in it (2026-11-14, docs/harness.md "Who is in a chat").
+ * only for the people in it, members too, who may answer there (2026-11-14, docs/harness.md "Who is in a chat").
  */
 
 /** The open question of a chat's last turn, with when it was asked; undefined when it is answered. */
@@ -36,7 +36,8 @@ export async function questionItems(
   viewer: Viewer,
   company: InboxCompany,
 ): Promise<InboxItem[]> {
-  if (!answersQuestions(viewer.role)) return [];
+  const anyChat = answersQuestions(viewer.role);
+  if (!anyChat && viewer.role !== 'member') return [];
   const asking = (await repo.questions.lastTurnsAsking(t)).flatMap((row) => {
     const found = openOf(row);
     return found === undefined ? [] : [{ ...found, chatId: row.chatId }];
@@ -58,7 +59,7 @@ export async function questionItems(
   );
   return asking.flatMap(({ open, at, chatId }): InboxItem[] => {
     const chat = chats.get(chatId);
-    if (chat === undefined) return [];
+    if (chat === undefined || !(anyChat || (chat.taskId === null && chat.flowId === null))) return [];
     const agent = names(chat.agentPrincipalId);
     const [first] = open.questions as [AskQuestion, ...AskQuestion[]];
     return [

@@ -13,7 +13,7 @@ import { useMarkSeen } from '../report-chats/seen.ts';
 import { BranchedFrom } from './branch/BranchedFrom.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
-import { asking, chatActions, closedWhy, queueActions, queueView } from './chat-actions.ts';
+import { asking, chatActions, closedWhy, mayWrite, queueActions, queueView } from './chat-actions.ts';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
 import { chatRuns } from './context/context-state.ts';
 import { QueuedMessages } from './delivery/QueuedMessages.tsx';
@@ -38,6 +38,8 @@ export interface OpenChatProps {
   readonly placement: AgentPlacement | undefined;
   readonly profiles: readonly AccessProfile[] | undefined;
   readonly admin: boolean;
+  /** Members and above: they write in the message chats they are in (2026-11-14). */
+  readonly member: boolean;
   readonly owner: boolean;
   /** The chat changed in a way the list shows (its title after the first prompt, its profile). */
   readonly onChanged: () => void;
@@ -139,7 +141,16 @@ function slackOf(calls: ChatCalls, live: ChatLive, chat: Chat, people: ChatPeopl
  * an owner who is not in it reads it in the owner view (a mark, and Add me in place of the composer), and a Slack
  * conversation's chat lets its Slack connection's owner send in Slack.
  */
-export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ...rest }: OpenChatProps) {
+export function OpenChat({
+  companyId,
+  chatId,
+  agent,
+  placement,
+  admin,
+  member,
+  owner,
+  ...rest
+}: OpenChatProps) {
   const api = useApi();
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const live = useChatLive(companyId, chatId);
@@ -167,7 +178,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
     sessionCwd,
     ...peopleParts(people),
   };
-  const closed = closedWhy(chat, admin, placement, people.looksOn);
+  const closed = closedWhy(chat, mayWrite(chat, admin, member), placement, people.looksOn);
   const placeholder = asking(thread) ? 'Answer above, or write your answer here' : `Message ${agent.name}`;
   const runnerUpdate = admin ? live.detail.data?.runnerUpdateFor : null;
   return (

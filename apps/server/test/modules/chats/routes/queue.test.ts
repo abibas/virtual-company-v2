@@ -66,7 +66,7 @@ describe('PATCH chats/:chatId/turns/:turnId', () => {
     const unknownChat = chatPath(s.company, 'nope', `/turns/${now.id}`);
     expect(refusal(await owner('PATCH', unknownChat, { prompt: 'x' }))).toEqual([404, 'chat_not_found']);
     const member = await addMember(w, s.company, 'member');
-    expect((await as(w, member)('PATCH', turnPath(s, now.id), { prompt: 'x' })).status).toBe(403);
+    expect((await as(w, member)('PATCH', turnPath(s, now.id), { prompt: 'x' })).status).toBe(404);
   });
 });
 
@@ -82,7 +82,7 @@ describe('DELETE chats/:chatId/turns/:turnId', () => {
     expect(refusal(await owner('DELETE', turnPath(s, waiting.id)))).toEqual([404, 'turn_not_found']);
     expect(refusal(await owner('DELETE', turnPath(s, first.turnId)))).toEqual([409, 'turn_not_queued']);
     const member = await addMember(w, s.company, 'member');
-    expect((await as(w, member)('DELETE', turnPath(s, first.turnId))).status).toBe(403);
+    expect((await as(w, member)('DELETE', turnPath(s, first.turnId))).status).toBe(404);
   });
 
   it('refuses in an archived chat', async () => {
@@ -157,7 +157,7 @@ describe('POST chats/:chatId/turns/:turnId/deliver', () => {
       'invalid_request',
     ]);
     const member = await addMember(w, s.company, 'member');
-    expect((await as(w, member)('POST', turnPath(s, id, '/deliver'), { delivery: 'now' })).status).toBe(403);
+    expect((await as(w, member)('POST', turnPath(s, id, '/deliver'), { delivery: 'now' })).status).toBe(404);
     const res = await owner('POST', turnPath(s, id, '/deliver'), { delivery: 'now' });
     expect([res.status, (res.body as ChatTurnView).status, (res.body as ChatTurnView).delivery]).toEqual([
       202,

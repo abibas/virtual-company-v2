@@ -136,6 +136,7 @@ function ChatsOf({
           placement={placement.data}
           profiles={profiles.data?.profiles ?? (profiles.error === undefined ? undefined : [])}
           admin={admin}
+          member={roleAtLeast(role, 'member')}
           owner={roleAtLeast(role, 'owner')}
           onChanged={chats.reload}
           hrefOf={hrefOf}
@@ -176,7 +177,8 @@ function NoChatOpen({
  * `/:slug/chats/:agentId` (S5.1c): an agent's chats you are in, live (2026-11-13: a new chat, a Slack conversation's
  * too, at once, each with its dot; 2026-11-14: the live ones first, each with its people's faces, and for owners the
  * other people's chats under them, opened read-only), and the open one (`?chat=<id>`, else the newest), live, with its access profile picker and, for owners, its terminal, in one frame under one header with the path the
- * person came through. Members read; admins and owners write. The page reads in Inter (`font-reading`).
+ * person came through. Members read, and write in the chats they are in; admins and owners begin chats. The page reads
+ * in Inter (`font-reading`).
  */
 export function ChatPage({ agentId }: { readonly agentId: string }) {
   const { membership } = useCompany();

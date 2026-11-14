@@ -79,9 +79,12 @@ describe('GET /api/companies/:companyId/inbox: questions', () => {
     }
   });
 
-  it("shows a message chat's question only to the people in it (2026-11-14)", async () => {
-    const asked = await asking({ people: [c.owner.principalId] });
+  it("shows a message chat's question only to the people in it, members too (2026-11-14)", async () => {
+    const asked = await asking({ people: [c.owner.principalId, c.member.principalId] });
     expect((await inboxOf(w, c.owner, c)).items.map((item) => item.question?.chatId)).toEqual([asked.chatId]);
+    expect((await inboxOf(w, c.member, c)).items.map((item) => item.question?.chatId)).toEqual([
+      asked.chatId,
+    ]);
     expect((await inboxOf(w, c.admin, c)).items).toEqual([]);
   });
 

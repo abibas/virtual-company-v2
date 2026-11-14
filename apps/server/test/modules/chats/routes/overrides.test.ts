@@ -150,13 +150,16 @@ describe('PATCH chats/:chatId/overrides', () => {
         body: { error: { code: 'invalid_request' } },
       });
     }
-    for (const role of ['member', 'viewer'] as const) {
-      const person = await addMember(w, s.company, role);
-      expect(await override(s, { mode: 'plan' }, person)).toMatchObject({
-        status: 403,
-        body: { error: { code: 'forbidden' } },
-      });
-    }
+    const viewer = await addMember(w, s.company, 'viewer');
+    expect(await override(s, { mode: 'plan' }, viewer)).toMatchObject({
+      status: 403,
+      body: { error: { code: 'forbidden' } },
+    });
+    // A member writes in a chat they are in (2026-11-14), and finds no chat they are not in.
+    const member = await addMember(w, s.company, 'member');
+    expect((await override(s, { mode: 'plan' }, member)).status).toBe(404);
+    await addToChat(w, s.company, s.chat.id, [member]);
+    expect((await override(s, { mode: 'plan' }, member)).status).toBe(200);
     const admin = await addMember(w, s.company, 'admin');
     expect((await override(s, { mode: 'plan' }, admin)).status).toBe(404);
     await addToChat(w, s.company, s.chat.id, [admin]);

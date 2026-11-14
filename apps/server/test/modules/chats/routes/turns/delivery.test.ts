@@ -85,7 +85,7 @@ describe('POST chats/:chatId/turns with a delivery: after this turn', () => {
     expect(refusal(await sendWith(w, s, 'one more', 'after'))).toEqual([409, 'queue_full']);
     expect((await detailOf(w, s)).queue).toHaveLength(CHAT_QUEUE_MAX);
     const member = await addMember(w, s.company, 'member');
-    expect((await sendWith(w, s, 'hi', 'after', member)).status).toBe(403);
+    expect((await sendWith(w, s, 'hi', 'after', member)).status).toBe(404);
     const bad = await as(w, s.company.owner)('POST', chatPath(s.company, s.chat.id, '/turns'), {
       prompt: 'x',
       delivery: 'later',

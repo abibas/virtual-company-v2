@@ -189,7 +189,7 @@ describe('POST chats/:chatId/answers', () => {
     expect(refusal(await answer(s, { questionId, answers: [ANSWERS[0]] }))).toEqual([409, 'turn_running']);
   });
 
-  it('refuses answers that do not fit, an unknown question or chat, a bad body, and anyone below admin', async () => {
+  it('refuses answers that do not fit, an unknown question or chat, a bad body, a viewer and a member not in the chat', async () => {
     const s = await scene(w);
     const { questionId } = await asking(s);
     const unfit = await answer(s, {
@@ -210,11 +210,11 @@ describe('POST chats/:chatId/answers', () => {
     });
     expect(refusal(missing)).toEqual([404, 'chat_not_found']);
     expect(refusal(await answer(s, { questionId, answers: [] }))).toEqual([400, 'invalid_request']);
-    for (const role of ['member', 'viewer'] as const) {
-      expect(
-        (await answer(s, { questionId, answers: ANSWERS }, await addMember(w, s.company, role))).status,
-      ).toBe(403);
-    }
+    // A viewer is below the role; a member who is not in the chat finds no chat (2026-11-14).
+    const viewer = await addMember(w, s.company, 'viewer');
+    expect((await answer(s, { questionId, answers: ANSWERS }, viewer)).status).toBe(403);
+    const member = await addMember(w, s.company, 'member');
+    expect((await answer(s, { questionId, answers: ANSWERS }, member)).status).toBe(404);
     expect((await detail(s)).question?.id).toBe(questionId);
   });
 });

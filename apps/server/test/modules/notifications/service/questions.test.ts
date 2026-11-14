@@ -63,7 +63,7 @@ const notices = (person: Pick<Person, 'principalId'> | string) =>
   noticesOf(w.t.db, typeof person === 'string' ? person : person.principalId, 'agent_question');
 
 describe('agent_question', () => {
-  it('tells the admins and owners in the chat, never the agent, anyone below admin or outside the chat, and once', async () => {
+  it('tells the people in the chat who may answer, members too, never the agent, a viewer or anyone outside it, once', async () => {
     const s = await scene(w);
     const admin = await placedMember(w, s.company, 'admin');
     const member = await placedMember(w, s.company, 'member');
@@ -81,7 +81,7 @@ describe('agent_question', () => {
       payload: { about: agent, agent: s.agentId, chat: s.chat.id, detail: QUESTION.question },
     });
     expect(await notices(admin)).toHaveLength(1);
-    expect(await notices(member)).toEqual([]);
+    expect(await notices(member)).toHaveLength(1);
     expect(await notices(viewer)).toEqual([]);
     expect(await notices(outside)).toEqual([]);
     expect(await notices(agent)).toEqual([]);

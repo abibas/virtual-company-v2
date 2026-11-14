@@ -1547,16 +1547,20 @@ conversation, a flow's team chat and the team room keep their own rules (docs/pr
   `added_at`. The chat's creator is one; a new chat with `with` has those members too; a branch has whoever branched it
   and the parent's members (not its contacts: a branch is no Slack conversation); a Slack conversation's chat has each
   contact whose message is one of its turns and the Slack connection's owner (by their membership of the company),
-  added by Most Wanted on each Slack message (`InboundTurnRequest.ownerUserId`, `from.contactId`).
+  added by Most Wanted on each Slack message (`InboundTurnRequest.ownerUserId`, `from.contactId`), so each new chat of
+  one conversation per thread (docs/subscriptions.md) begins with its starter's contact and the owner.
 - **The backfill** (the migration's `-- custom:` steps): every message chat made by a person gets its creator; a Slack
   conversation's chat gets its contacts (who started it, and whoever wrote in it) and its connection's owner; a message
   chat with no member after that (a Slack chat whose sign-in or owner is gone, or one its Slack row no longer names)
   gets the agent's manager (the principal its place on the chart reports to, when that is a person of the company),
   else every active owner of the company. All as Most Wanted, added when the chat began.
 - **Access** (`routes/access.ts`, the guard `chatRoute` puts after the company's on every route of one chat; the
-  rules in `rules/people.ts`): a member who is in a message chat lists, opens, streams and writes in it as their role
-  allows (members read; admins and owners send, branch, rename, archive, set its overrides, answer, Compact and Clear;
-  the terminal is owners'). Anyone else gets the same 404 `chat_not_found` as an unknown chat, on every route. A
+  rules in `rules/people.ts`): a chat belongs to its people, so whoever is in a message chat, from the member role up,
+  lists, opens, streams and writes in it: sends, stops, edits and delivers waiting messages, answers, sets its
+  overrides, Compacts and Clears (Ihor, 2026-11-14: being in it means you can write; viewers read no chats). Beginning
+  a chat, a branch, a rename or a profile and archiving stay admins' and owners', the terminal owners'. A task's
+  conversation and a team chat keep their own rules: those write routes still need an admin there (the guard's `team`
+  role, 403 `forbidden`). Anyone else gets the same 404 `chat_not_found` as an unknown chat, on every route. A
   company **owner** (not an admin) who is not in it reads it: its detail (`ownerView: true`), its older turns and its
   stream; every route that writes answers them 403 `not_in_chat`. The agent's list (`GET …/agents/{agentId}/chats`)
   holds the caller's own message chats and the team chats; `GET …/agents/{agentId}/chats/others` (owners only) lists
@@ -1588,7 +1592,7 @@ conversation, a flow's team chat and the team room keep their own rules (docs/pr
 - **Who hears of it**: the chats' activity tells each person only the chats they are in (read again at each burst, so a
   person added hears it); the rail's main chat with a report is the latest message chat the viewer is in with it,
   another person's group chat too, never a Slack conversation's; an agent's question in a message chat shows in the
-  inbox and is noticed (`agent_question`) only to the admins and owners in it.
+  inbox and is noticed (`agent_question`) only to the people in it who may answer, members too.
 - **The page**: New chat has **With** (a people button beside it: the company's members above a viewer, picked in a
   sheet), and the open chat's header a **⋯** menu with **People in this chat** (their faces; the sheet lists them with
   Remove for the creator and owners, Leave for yourself, and Add person). An owner reading a chat they are not in sees

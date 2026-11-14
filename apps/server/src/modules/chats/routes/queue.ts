@@ -11,8 +11,8 @@ import { chatRoute } from './access.ts';
  * A chat's waiting messages (S5.2 step 6, docs/harness.md "Delivery while a turn runs"): `PATCH …/turns/{turnId}`
  * changes one's prompt, `DELETE …/turns/{turnId}` discards it, `POST …/turns/{turnId}/deliver` sends it into the
  * running turn now or makes it interrupt that turn. Only while it waits, and never one already sent Now; a waiting
- * message that cannot start when its turn comes fails with the refusal's words (as the stream says). Admins and owners
- * only.
+ * message that cannot start when its turn comes fails with the refusal's words (as the stream says). The chat's people
+ * from the member role up (a task's conversation or a team chat: admins and owners).
  */
 
 const ONE = '/api/companies/{companyId}/chats/{chatId}/turns/{turnId}' as const;
@@ -24,11 +24,12 @@ const NOT_WAITING =
   'it went into the running turn already (`message_sent`)';
 
 const editRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: ONE, access: 'write' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: ONE, access: 'write', team: 'admin' });
   return createRoute({
     ...base,
     method: 'patch',
-    summary: "Change a waiting message's prompt (admin and above)",
+    summary:
+      "Change a waiting message's prompt (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)",
     request: { params: TurnParamsSchema, body: jsonBody(EditTurnSchema) },
     responses: {
       200: jsonResponse('The waiting turn, changed', ChatTurnSchema),
@@ -46,11 +47,12 @@ const editRoute = (deps: ServerDeps) => {
 };
 
 const discardRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: ONE, access: 'write' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: ONE, access: 'write', team: 'admin' });
   return createRoute({
     ...base,
     method: 'delete',
-    summary: 'Discard a waiting message (admin and above); the stream says `removed`',
+    summary:
+      'Discard a waiting message (member and above in a chat of yours; admin and above in a task’s conversation or a team chat); the stream says `removed`',
     request: { params: TurnParamsSchema },
     responses: {
       204: { description: 'Discarded' },
@@ -62,12 +64,17 @@ const discardRoute = (deps: ServerDeps) => {
 };
 
 const deliverRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: DELIVER, access: 'write' });
+  const { base, refusals } = chatRoute(deps, {
+    role: 'member',
+    path: DELIVER,
+    access: 'write',
+    team: 'admin',
+  });
   return createRoute({
     ...base,
     method: 'post',
     summary:
-      'Send a waiting message into the running turn now, or make it interrupt that turn (admin and above)',
+      'Send a waiting message into the running turn now, or make it interrupt that turn (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)',
     description:
       'Now: Claude Code takes it at its next step, and it starts first if the turn ends without taking it. Interrupt: ' +
       'the running turn stops, and it starts first. With nothing running it starts at once.',

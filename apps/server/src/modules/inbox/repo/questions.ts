@@ -57,7 +57,7 @@ async function chatsOf(t: TenantDb, chatIds: readonly string[], viewer: string) 
   const theirs = sql`exists (select 1 from chat_participants p where p.company_id = ${chats.companyId} and p.chat_id = ${chats.id} and p.principal_id = ${viewer})`;
   const rows = await t.selectFields(
     chats,
-    { id: chats.id, agentId: chats.agentId, title: chats.title, taskId: chats.taskId },
+    { id: chats.id, agentId: chats.agentId, title: chats.title, taskId: chats.taskId, flowId: chats.flowId },
     and(inArray(chats.id, [...chatIds]), isNull(chats.archivedAt), or(not(message), theirs)),
   );
   const agentIds = [...new Set(rows.map((row) => row.agentId))];

@@ -20,6 +20,14 @@ import { lastTalk } from './thread/talks.ts';
  */
 
 /**
+ * Whether the reader may write in the chat (2026-11-14, docs/harness.md "Who is in a chat"): a chat belongs to its
+ * people, so anyone in a message chat writes from the member role up (the server lets only its people open it); a
+ * task's conversation and a team chat keep admins and owners.
+ */
+export const mayWrite = (chat: Pick<Chat, 'task' | 'flowId'>, admin: boolean, member: boolean): boolean =>
+  admin || (member && chat.task === null && chat.flowId === null);
+
+/**
  * Why the composer is closed: an owner who only looks on (2026-11-14), an archived chat, a reader who is not an admin,
  * an agent placed nowhere now.
  */

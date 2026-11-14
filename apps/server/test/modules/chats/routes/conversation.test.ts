@@ -101,11 +101,10 @@ describe('POST chats/:chatId/compact', () => {
     expect((await chatRow(w.t.db, s.chat.id))?.title).toBe('What is 2 + 2?');
   });
 
-  it('is for admins and owners, 404s an unknown chat, and refuses a chat without a conversation', async () => {
+  it('is for the chat’s people from members up, 404s an unknown chat, and refuses a chat without a conversation', async () => {
     const s = await scene(w);
-    for (const role of ['member', 'viewer'] as const) {
-      expect((await compact(s, await addMember(w, s.company, role))).status).toBe(403);
-    }
+    expect((await compact(s, await addMember(w, s.company, 'viewer'))).status).toBe(403);
+    expect((await compact(s, await addMember(w, s.company, 'member'))).status).toBe(404);
     const missing = await as(w, s.company.owner)('POST', chatPath(s.company, 'nope', '/compact'));
     expect(refusal(missing)).toEqual([404, 'chat_not_found']);
     expect(refusal(await compact(s))).toEqual([409, 'nothing_to_compact']);
@@ -164,11 +163,10 @@ describe('POST chats/:chatId/clear', () => {
     expect((await turnRow(w.t.db, next.turnId))?.seq).toBe(3);
   });
 
-  it('is for admins and owners, 404s an unknown chat, and refuses a chat without a conversation', async () => {
+  it('is for the chat’s people from members up, 404s an unknown chat, and refuses a chat without a conversation', async () => {
     const s = await scene(w, { offline: true });
-    for (const role of ['member', 'viewer'] as const) {
-      expect((await clear(s, await addMember(w, s.company, role))).status).toBe(403);
-    }
+    expect((await clear(s, await addMember(w, s.company, 'viewer'))).status).toBe(403);
+    expect((await clear(s, await addMember(w, s.company, 'member'))).status).toBe(404);
     const missing = await as(w, s.company.owner)('POST', chatPath(s.company, 'nope', '/clear'));
     expect(refusal(missing)).toEqual([404, 'chat_not_found']);
     expect(refusal(await clear(s))).toEqual([409, 'nothing_to_clear']);

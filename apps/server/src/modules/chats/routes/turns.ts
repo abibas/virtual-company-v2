@@ -15,7 +15,7 @@ import { chatRoute } from './access.ts';
  * A chat's turns (S5.1b): `POST /api/companies/{companyId}/chats/{chatId}/turns` sends a prompt to the agent on its
  * machine (202: the turn runs, or with a `delivery` waits for the running one, S5.2 step 6, or waits for its stopped
  * machine to start; its events come on the chat's stream), `POST …/turns/{turnId}/stop` stops a running one or one
- * waiting for its machine. The waiting ones are `routes/queue.ts`'s. Admins and owners only, in the chat; in a chat with
+ * waiting for its machine. The waiting ones are `routes/queue.ts`'s. The chat's people from the member role up (a task's conversation or a team chat: admins and owners); in a chat with
  * several people the agent gets the writer's name first (2026-11-14).
  */
 
@@ -44,11 +44,12 @@ export const TURN_REFUSALS = {
 } as const;
 
 const startRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: TURNS, access: 'write' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: TURNS, access: 'write', team: 'admin' });
   return createRoute({
     ...base,
     method: 'post',
-    summary: 'Send a prompt: a turn of the agent on its machine (admin and above)',
+    summary:
+      'Send a prompt: a turn of the agent on its machine (member and above in a chat of yours; admin and above in a task’s conversation or a team chat)',
     description:
       "The turn runs on the chat's profile (else the agent's), of the provider the harness runs on: its subscription, " +
       "refreshed when due, handed to the runner for this turn only, with the profile's gateway. Its events, " +
@@ -74,12 +75,12 @@ const startRoute = (deps: ServerDeps) => {
 };
 
 const stopRoute = (deps: ServerDeps) => {
-  const { base, refusals } = chatRoute(deps, { role: 'admin', path: STOP, access: 'write' });
+  const { base, refusals } = chatRoute(deps, { role: 'member', path: STOP, access: 'write', team: 'admin' });
   return createRoute({
     ...base,
     method: 'post',
     summary:
-      'Stop a running turn, or one waiting for its machine (admin and above); its end comes on the stream as `stopped`',
+      'Stop a running turn, or one waiting for its machine (member and above in a chat of yours; admin and above in a task’s conversation or a team chat); its end comes on the stream as `stopped`',
     request: { params: TurnParamsSchema },
     responses: {
       202: jsonResponse('The turn, stopping', ChatTurnSchema),

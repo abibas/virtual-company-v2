@@ -1283,8 +1283,8 @@ Built 2026-11-14 (Ihor: "I can send messages through my system to their chat… 
 it to send messages"). A Slack conversation's chat has two people at least: its contact and the Slack connection's
 owner (docs/harness.md "Who is in a chat"). The owner may write in it two ways, a small segmented choice above the
 message box: **Ask the agent** (the default: a normal turn, sent as the owner, with their name first since the chat has
-several people) or **Send in Slack**: the text goes straight into that conversation (the thread, or the DM itself)
-through the bot, as the bot (never under the agent's name), with no agent turn.
+several people) or **Send in Slack**: the text goes straight into that conversation (its thread; a DM's conversation
+from before one conversation per thread, the DM itself) through the bot, as the bot (never under the agent's name), with no agent turn.
 
 - **The route** (the chats module, `routes/slack.ts`): `POST /api/companies/{companyId}/chats/{chatId}/slack-messages
   {text}` (1 to 4000 characters; member and above, in the chat) → 201 the turn that keeps it: kind `slack`, done at
@@ -1301,18 +1301,18 @@ through the bot, as the bot (never under the agent's name), with no agent turn.
   working rights (`channelRefusal` with `post`: the channels it reaches, DMs with posting on). Then it posts (mentions of
   many people taken out), records the post in `slack_posts` with the chat (no turn), and audits it as the person
   (`slack_message`, action `slack_send`: the place, the chat, the text).
-- **A reply comes back**: a reply in the thread goes to the agent that last posted there (its posts, this one too) and
-  so to this chat. In a DM, a message in no thread right after a person sent in Slack there (that post is the latest
-  through this sign-in) goes to that chat's agent, even when the connection's default agent is another; once the agent
-  answered, the default agent takes the DM's next ones again (`route.ts`, `dmSender`).
+- **A reply comes back**: the message goes into the conversation's thread (since one conversation per thread, a DM's
+  conversation is the thread of its first message too), so a reply in that thread goes on in this chat by its thread,
+  as any reply there does ("One conversation per thread"). A new message in no thread, a DM's too, starts a new
+  conversation, as always.
 - **What the page shows**: the chat's detail says `slack: {place, link, mayPost}` (`mayPost` for the owner, not in an
   owner's look); the thread shows the message as its writer's, on the right for them, marked **Sent in Slack** with a
   link to it there.
 
 Tests: `apps/server/test/modules/integrations/service/slack/inbound/send.test.ts` (the post as the bot in the thread,
 no agent turn, the turn and its link, `slack_posts`, the use and the audit, a reply in the thread back in the chat; only
-the owner and only a Slack chat; the rights, the reach, the sign-in and Slack's refusals; a DM's reply back to the chat
-until the agent answered).
+the owner and only a Slack chat; the rights, the reach, the sign-in and Slack's refusals; in a DM's conversation, the
+post in the thread of its first message, a reply there in the same chat and a new DM message in another).
 
 ## Security
 

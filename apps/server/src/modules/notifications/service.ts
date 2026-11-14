@@ -85,7 +85,7 @@ export const QUESTION_QUOTE_MAX = 200;
 /**
  * An agent asked a question (S6c): every person who may answer it (the company's active admins and owners, as `POST
  * …/chats/{chatId}/answers` allows) hears of it, never the agent; it points at the chat. Written by the system. A chat
- * locked to its people (2026-11-14) names them (`only`): no one else hears of it.
+ * locked to its people (2026-11-14) names those of them who may answer there (`only`), members too: no one else hears.
  */
 export async function noticeAgentQuestion(
   t: TenantDb,
@@ -105,7 +105,7 @@ export async function noticeAgentQuestion(
     chat: question.chatId,
     detail,
   };
-  const recipients = (await repo.answerers(t)).filter((id) => only === undefined || only.includes(id));
+  const recipients = only ?? (await repo.answerers(t));
   return notify(
     t,
     null,
