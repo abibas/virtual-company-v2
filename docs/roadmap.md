@@ -953,6 +953,16 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          message of the same channel joins that thread's conversation and is answered under itself. A Slack
          conversation 60% full (a constant, `SLACK_COMPACT_AT`) runs the chat's Compact before its next message, shown as
          "Compacted to keep this conversation short". No migration. Other chats could compact the same way later.
+       - **Chat people, built 2026-11-14** (Ihor: "if CHAT is started/used with/by a person, i want to have it locked to
+         a person, until/unless we pull into it someone else… Or do create chat with 3 of us"; docs/harness.md "Who is
+         in a chat", docs/subscriptions.md "Send in Slack"; branch `chat-people`): migration `0040_chat_participants`
+         (a member or a contact per row; the backfill: creators, Slack contacts and connection owners, else the agent's
+         manager or the owners). A message chat lets in only its people (others 404); owners read any one in the owner
+         view and Add me; New chat With people; People in this chat (add, remove, leave; audited, a line in the
+         thread); a group chat's prompt names its writer; the activity, the rail, the inbox and question notices follow
+         who is in a chat. A Slack chat's connection owner sends in Slack as the bot (no agent turn, `slack_posts`, a
+         reply routed back). The chat list: the dot in a fixed column (green pulsing while live), live chats first,
+         faces of who the agent talks with.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.

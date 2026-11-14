@@ -28,6 +28,22 @@ Newest first, one entry per lesson:
 
 ## Entries
 
+### 2026-11-14: Chat people: a route guard per chat, and turn kinds that run no process
+
+- **What happened:** locking message chats to their people needed one check on 17 routes of one chat; it went in a
+  chats-module wrapper of `companyRoute` (`routes/access.ts`, `chatRoute`: the company's two middlewares and a third,
+  the people's guard), so each route file changed one line. `schemas.ts` sat at 299 lines: `CreateChatSchema` moved to
+  `schemas/people.ts` and `ChatListSchema` to `schemas/activity.ts` (beside the list item it now shares with the
+  activity). Two new `ChatTurnKind`s (`people`, `slack`) touched every reader that took "the last turn" (questions, the
+  inbox, the rail, the activity, the branch and the context meter), each now skipping them (`talks`). On the web,
+  `OpenChat.tsx` (277 lines) moved its helpers to `chat-actions.ts` to take the people's parts.
+- **Where:** the `chat-people` branch.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a check every route of one entity shares (its people) → the module's own
+  route wrapper in `routes/access.ts`, after the company's guard"; and at the next review, whether "the last turn that
+  talks" should be one repo read the modules share instead of each filtering kinds.
+- **Status:** `open`.
+
 ### 2026-11-14: Contacts: a new module that reads the chats' tables, and a turn that names who it speaks for
 
 - **What happened:** the contacts module (`modules/contacts/`, 14 files, all under 160 lines) reads `chat_turns`,

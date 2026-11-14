@@ -1277,6 +1277,43 @@ that chat the conversation's, listed by `?contact=`),
    **Contacts** lists them.
 4. Write a note and **Save**; **Archive** hides them from the list (**With archived** shows them).
 
+## Send in Slack
+
+Built 2026-11-14 (Ihor: "I can send messages through my system to their chat… as it's my bot… so basically i can use
+it to send messages"). A Slack conversation's chat has two people at least: its contact and the Slack connection's
+owner (docs/harness.md "Who is in a chat"). The owner may write in it two ways, a small segmented choice above the
+message box: **Ask the agent** (the default: a normal turn, sent as the owner, with their name first since the chat has
+several people) or **Send in Slack**: the text goes straight into that conversation (the thread, or the DM itself)
+through the bot, as the bot (never under the agent's name), with no agent turn.
+
+- **The route** (the chats module, `routes/slack.ts`): `POST /api/companies/{companyId}/chats/{chatId}/slack-messages
+  {text}` (1 to 4000 characters; member and above, in the chat) → 201 the turn that keeps it: kind `slack`, done at
+  once, the text as its prompt, the person as its writer, its address in Slack as `replyLink`. Refusals: 403
+  `not_slack_owner` (only the person whose bot sign-in it is), `not_in_chat`; 404 as any chat route; 409
+  `not_slack_chat`, `chat_archived`, `agent_archived`, `slack_refused` (in words: the agent's profile no longer posts
+  through this bot, posting is off, the channel is outside its reach, DMs without posting, the bot not in the channel,
+  or Slack's own refusal); 422 `credential_unusable` (the sign-in gone or revoked); 503 `slack_unavailable`.
+- **The port**: the chats module defines `ChatSlackHook` (`service/slack.ts`: `conversationOf`, `post`); the
+  integrations module implements it (`service/slack/inbound/send.ts`, `slackSends`), wired by `app.ts`. It checks the
+  owner (`slack_threads.credential_id`'s owner), the chat's agent (not archived) and its profile's Slack part (the same
+  bot sign-in), opens the bot sign-in for `chat_send` (a `credential_uses` row with the company, the agent, the chat and
+  the person), reads where the conversation is (a DM by its id, else `conversations.info`) and applies the part's
+  working rights (`channelRefusal` with `post`: the channels it reaches, DMs with posting on). Then it posts (mentions of
+  many people taken out), records the post in `slack_posts` with the chat (no turn), and audits it as the person
+  (`slack_message`, action `slack_send`: the place, the chat, the text).
+- **A reply comes back**: a reply in the thread goes to the agent that last posted there (its posts, this one too) and
+  so to this chat. In a DM, a message in no thread right after a person sent in Slack there (that post is the latest
+  through this sign-in) goes to that chat's agent, even when the connection's default agent is another; once the agent
+  answered, the default agent takes the DM's next ones again (`route.ts`, `dmSender`).
+- **What the page shows**: the chat's detail says `slack: {place, link, mayPost}` (`mayPost` for the owner, not in an
+  owner's look); the thread shows the message as its writer's, on the right for them, marked **Sent in Slack** with a
+  link to it there.
+
+Tests: `apps/server/test/modules/integrations/service/slack/inbound/send.test.ts` (the post as the bot in the thread,
+no agent turn, the turn and its link, `slack_posts`, the use and the audit, a reply in the thread back in the chat; only
+the owner and only a Slack chat; the rights, the reach, the sign-in and Slack's refusals; a DM's reply back to the chat
+until the agent answered).
+
 ## Security
 
 - **At rest:** AES-256-GCM per secret, with the AAD binding it to its id, owner and kind, and a key version so the

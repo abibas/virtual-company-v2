@@ -1466,7 +1466,8 @@ send failed without telling the stream, and so did a turn taken back after the g
   chat's messages and `changed(chatId)` (a chat made or changed, which a chat's own listeners never hear); each
   connection reads a chat once per burst of its messages, through the caller's tenant, so another company's chat is
   never sent (nor read again), and a task's conversation is left out, as from the agent's list (`service/activity.ts`,
-  `routes/activity.ts`).
+  `routes/activity.ts`). Since 2026-11-14 each person hears only the chats they are in, each chat with its people and
+  its latest turn ("Who is in a chat").
 - **The web.** One connection per company in the page (`api/chat-activity.ts`), shared by the lists, back after a drop
   (1 s doubling to 15 s) and read again on each open. The agent's chat list (`api/use-agent-chats-live.ts`) puts each
   told chat in place, newest first, archived ones out, with a dot (`features/chats/chat-dots.ts`): green while a turn
@@ -1489,9 +1490,10 @@ the time sit in the right rail of every company page, beside the Inbox (docs/pro
   viewer, not archived (paused ones stay, muted), the Leads (an agent that leads a flow) first, then by name. People who
   report to the viewer are left out: there are no chats with people. Viewers (the role) read no chats, so they see none;
   nobody with no direct reports who are agents sees the strip's group or the Chats tab.
-- **The main chat.** An agent's main chat with the viewer is the latest chat the viewer began with it (by `updated_at`,
-  which each sent message moves, as the agent's chat list orders them), not archived, neither a task's conversation
-  (`task_id`) nor a flow's team chat (`flow_id`). Another person's chat with the same agent is theirs. None: the first
+- **The main chat.** An agent's main chat with the viewer is the latest chat the viewer is in with it (by `updated_at`,
+  which each sent message moves; since 2026-11-14 by who is in it, "Who is in a chat"), not archived, neither a task's
+  conversation (`task_id`), a flow's team chat (`flow_id`) nor a Slack conversation's. Another person's chat with the
+  same agent is theirs, unless they put the viewer in it. None: the first
   message from the rail begins one (`POST …/agents/{agentId}/chats`, then the message), as New chat does.
 - **The read.** `GET /api/companies/{companyId}/me/report-chats` (member and above; the chats module,
   `routes/reports.ts`, `service/reports.ts`, its reads in `repo/reports.ts` and the pure parts in `rules/reports.ts`):
@@ -1531,6 +1533,80 @@ agents; the main chat against an older one, an archived one, another person's, a
 the standing turns, a running one and a queued one, a compact, a failed turn, another person's and a system message; an
 open and an answered question; a Lead's team chat, an archived one and another agent's; viewers refused, another
 company's 404, an empty list) and `rules/reports.test.ts`.
+
+## Who is in a chat
+
+Built 2026-11-14 (Ihor: "if CHAT is started/used with/by a person, i want to have it locked to a person, until/unless we
+pull into it someone else... from the settings! Or do create chat with 3 of us etc..."). An agent's **message chats**
+(a person's own chats, the rail's main chats, Slack conversations' chats) are locked to their people. A task's
+conversation, a flow's team chat and the team room keep their own rules (docs/processes.md) and have no people.
+
+- **The data** (migration `0040_chat_participants`, `packages/db/src/schema/chat-participants.ts`): `chat_participants`,
+  one row per chat and person: a member of the company (`principal_id`, a person's principal) or a contact from
+  outside (`contact_id`), never both; once per chat each; `added_by` (a principal; null when Most Wanted added them) and
+  `added_at`. The chat's creator is one; a new chat with `with` has those members too; a branch has whoever branched it
+  and the parent's members (not its contacts: a branch is no Slack conversation); a Slack conversation's chat has each
+  contact whose message is one of its turns and the Slack connection's owner (by their membership of the company),
+  added by Most Wanted on each Slack message (`InboundTurnRequest.ownerUserId`, `from.contactId`).
+- **The backfill** (the migration's `-- custom:` steps): every message chat made by a person gets its creator; a Slack
+  conversation's chat gets its contacts (who started it, and whoever wrote in it) and its connection's owner; a message
+  chat with no member after that (a Slack chat whose sign-in or owner is gone, or one its Slack row no longer names)
+  gets the agent's manager (the principal its place on the chart reports to, when that is a person of the company),
+  else every active owner of the company. All as Most Wanted, added when the chat began.
+- **Access** (`routes/access.ts`, the guard `chatRoute` puts after the company's on every route of one chat; the
+  rules in `rules/people.ts`): a member who is in a message chat lists, opens, streams and writes in it as their role
+  allows (members read; admins and owners send, branch, rename, archive, set its overrides, answer, Compact and Clear;
+  the terminal is owners'). Anyone else gets the same 404 `chat_not_found` as an unknown chat, on every route. A
+  company **owner** (not an admin) who is not in it reads it: its detail (`ownerView: true`), its older turns and its
+  stream; every route that writes answers them 403 `not_in_chat`. The agent's list (`GET …/agents/{agentId}/chats`)
+  holds the caller's own message chats and the team chats; `GET …/agents/{agentId}/chats/others` (owners only) lists
+  its message chats the caller is not in. A stream's reader taken out of the chat is cut off at that line.
+- **People** (`routes/people.ts`, `service/people.ts`, the faces `service/faces.ts`): `POST …/chats/{chatId}/people
+  {principalIds}` adds members (any person in the chat; an owner who is not in it adds only themselves, **Add me**;
+  403 `not_in_chat` for others; 422 `person_not_member` for someone who is not an active member above a viewer; 409
+  `person_in_chat`, `people_unsupported` for a task's conversation or a team chat, `chat_archived`) and `DELETE
+  …/people/{personId}` takes one out (the chat's creator or an owner; 403 `remove_refused`) or leaves (anyone, for
+  themselves). Both answer the chat's people. Each change is audited (entity `chat`: `add_person`, `join`,
+  `remove_person`, `leave`, the person as the field `person`), shows as a quiet line in the thread (a turn of kind
+  `people`: "Ihor added Anna", "Anna left the chat", "Ihor joined the chat"; done at once, no process, no credential,
+  `service/notes.ts`) and is told to the chats' activity, so whoever joined hears the chat from then on. A new chat's
+  `with` is audited with it (`create people`).
+- **What the API shows**: the chat's detail has `people` (each `{id, kind: member | contact, principalId, contactId,
+  name, imageUrl, creator, addedBy, addedAt}`: a member's display name, else email, and photo; a contact's name and
+  Slack photo), `ownerView` and `slack` (`{place, link, mayPost}`, docs/subscriptions.md "Send in Slack"). The list
+  and the chats' activity give each chat as a `ChatListItem`: the chat with its `people` and its `lastTurn` (its latest
+  turn that talks with the agent).
+- **A group chat's prompt**: in a chat with several people (members and contacts), a person's message goes to the
+  agent as "Message from <name>:" then a blank line, then what they wrote (`rules/people.ts` `groupPrompt`); the turn
+  keeps what they wrote as its `visibleText`, which the thread shows (and the chat's title comes from), and an edit of
+  a waiting message keeps the header. A message that no longer fits 20 000 characters with the name first is refused
+  with 422 `prompt_too_long`, saying by how much. A chat of one person sends a message as written. Each person's message
+  shows with their own face (the chart's, `thread/authors.ts`).
+- **Turns that run no process** (`ChatTurnKind` `people` and `slack`; a CHECK holds them done on no credential): they
+  neither close nor supersede the agent's question (`rules/questions.ts` `talks`, the inbox's read, the answers'
+  check), never stand for the chat's last turn in the lists, the rail or the context meter, and never block a branch.
+- **Who hears of it**: the chats' activity tells each person only the chats they are in (read again at each burst, so a
+  person added hears it); the rail's main chat with a report is the latest message chat the viewer is in with it,
+  another person's group chat too, never a Slack conversation's; an agent's question in a message chat shows in the
+  inbox and is noticed (`agent_question`) only to the admins and owners in it.
+- **The page**: New chat has **With** (a people button beside it: the company's members above a viewer, picked in a
+  sheet), and the open chat's header a **⋯** menu with **People in this chat** (their faces; the sheet lists them with
+  Remove for the creator and owners, Leave for yourself, and Add person). An owner reading a chat they are not in sees
+  an **Owner view** mark, and the composer is one line with **Add me**; the agent's chats page lists **Other people's
+  chats** for owners under their own (read when opened). The thread shows a people line as a quiet centred marker.
+  The chat list (2026-11-14, Ihor: "a GREEN dot blinking … sorted by running currently, then older"): a fixed column
+  before each title for its dot (green and pulsing while a turn waits or runs, the open chat's too, steady with reduced
+  motion; blue for a reply not seen; empty otherwise), the faces of who the agent talks with there under the title
+  (about 18 px, at most four and "+N", their names in the tooltip) with the time after them, the live chats first (the
+  one started last on top), then by their latest turn; the order holds while the pointer is over the list. The rail's
+  docked switcher lists the reports (agents), not chats, so it is unchanged.
+
+Tests: `apps/server/test/modules/chats/routes/people.test.ts` (a new chat's people and its `with`, add and remove with
+their audit and lines, refusals), `routes/access.test.ts` (every route for a member not in the chat, the chat's own,
+an owner's read and refused writes, Add me, the lists and the others), `routes/turns/group.test.ts`,
+`routes/activity/people.test.ts`, `routes/reports.test.ts` (the main chat by who is in it), `rules/people.test.ts`,
+`service/notes.test.ts`, the inbox's and the notices' tests, and in `packages/db`, `chat-participants.test.ts` and
+`chat-participants-backfill.test.ts`.
 
 ## Tests
 
