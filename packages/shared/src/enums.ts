@@ -250,7 +250,8 @@ export type MachineWait = z.infer<typeof MachineWait>;
  * archived; someone accepted their invitation; a task came to their step or needs their sign-off, was escalated to
  * their team's Lead, or is done (S5.3a); a step's turn ended without a hand-off or is blocked (S5.3b); an agent asks a
  * question they may answer (`agent_question`), or their team's Lead agent was not woken (`lead_not_woken`: its cap, or it
- * could not run; S6c).
+ * could not run; S6c); or a tool sign-in of theirs stopped working (`sign_in_needed`: its provider refused its token;
+ * T-22, once per change of the sign-in).
  */
 export const NotificationKind = z.enum([
   'manager_changed',
@@ -272,6 +273,7 @@ export const NotificationKind = z.enum([
   'task_blocked',
   'agent_question',
   'lead_not_woken',
+  'sign_in_needed',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 

@@ -1,6 +1,7 @@
 import { type Credential, diffFields, owned } from '@mwc/db';
 import type { ToolCredentialKind } from '@mwc/shared/credentials';
 import type { Logger } from 'pino';
+import { noticeSignInNeeded } from '../../../notifications/service.ts';
 import { credentialsRepo } from '../../repo.ts';
 import type { ToolOutcome } from '../../rules/tools.ts';
 import { credentialView } from '../../rules.ts';
@@ -69,17 +70,19 @@ function afterCheck(outcome: ToolOutcome, at: Date) {
 
 /**
  * Keeps a check's outcome on the owner's sign-in, with its audit row; undefined when it is gone, and a revoked one
- * as it is.
+ * as it is. A sign-in the system found `needs_sign_in` (the daily check, a refused tool call or Slack answer) is told to
+ * its owner, once per change of it (T-22, `noticeSignInNeeded`); a person's own Check again tells nothing.
  */
-export function recordToolCheck(
-  deps: SecretDeps,
+export async function recordToolCheck(
+  deps: SecretDeps & { readonly logger: Logger },
   credentialId: string,
   ownerUserId: string,
   outcome: ToolOutcome,
   actor: CheckActor,
 ): Promise<SubscriptionView | undefined> {
   const repo = credentialsRepo();
-  return owned(deps.db, ownerUserId).transaction(async (tx) => {
+  let broken: Credential | undefined;
+  const view = await owned(deps.db, ownerUserId).transaction(async (tx) => {
     const row = await repo.get(tx, credentialId);
     if (row === undefined || row.status === 'revoked') return row && credentialView(row);
     const now = deps.clock();
@@ -99,8 +102,21 @@ export function recordToolCheck(
         changes,
       });
     }
+    if (updated.status === 'needs_sign_in') broken = updated;
     return credentialView(updated);
   });
+  if (broken !== undefined && actor.kind === 'system') await tellOwner(deps, broken);
+  return view;
+}
+
+/** Tells the owner their sign-in stopped working; a failure to tell is logged, never failing the check. */
+async function tellOwner(deps: SecretDeps & { readonly logger: Logger }, row: Credential): Promise<void> {
+  try {
+    const { id, ownerUserId, label, kind, updatedAt } = row;
+    await noticeSignInNeeded(deps.db, { id, ownerUserId, label, kind, updatedAt });
+  } catch (error) {
+    deps.logger.error({ err: error, credentialId: row.id }, 'could not tell the owner their sign-in stopped working');
+  }
 }
 
 /** Opens the sign-in's secret, asks its provider and keeps the outcome; an unexpected failure is `check_failed`. */

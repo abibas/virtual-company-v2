@@ -8,6 +8,7 @@ import {
   type TenantSet,
   type TenantValues,
 } from '@mwc/db';
+import type { ReplyFailure } from '@mwc/shared/chats';
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, max, sql } from 'drizzle-orm';
 
 /** A chat's turns and their events (S5.1b), through the company's tenant only. */
@@ -115,7 +116,19 @@ async function reopen(t: TenantDb, turn: ChatTurn): Promise<ChatTurn | undefined
 
 /** Keeps where an ended turn's reply was posted outside; undefined for an unknown turn. */
 async function setReplyLink(t: TenantDb, id: string, link: string): Promise<ChatTurn | undefined> {
-  const [row] = await t.update(chatTurns, { replyLink: link }, eq(chatTurns.id, id)).returning();
+  const [row] = await t
+    .update(chatTurns, { replyLink: link, replyFailure: null }, eq(chatTurns.id, id))
+    .returning();
+  return row;
+}
+
+/** Keeps why an ended turn's reply could not be posted outside (T-22); undefined for an unknown turn. */
+async function setReplyFailure(
+  t: TenantDb,
+  id: string,
+  failure: ReplyFailure,
+): Promise<ChatTurn | undefined> {
+  const [row] = await t.update(chatTurns, { replyFailure: failure }, eq(chatTurns.id, id)).returning();
   return row;
 }
 
@@ -161,6 +174,7 @@ export const turnsRepo = {
   updateLive,
   reopen,
   setReplyLink,
+  setReplyFailure,
   startedAfter,
   insertEvents,
   lastEventSeq,

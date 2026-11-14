@@ -1,5 +1,5 @@
 import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
-import { storedSender } from '@mwc/shared/chats';
+import { type ReplyFailure, storedSender } from '@mwc/shared/chats';
 import { agentPlacement } from '../../machines/index.ts';
 import { participantsRepo } from '../repo/participants.ts';
 import { turnsRepo } from '../repo/turns.ts';
@@ -82,10 +82,11 @@ export interface InboundChats {
   lastAnsweredAt(t: TenantDb, chatId: string): Promise<Date | null>;
 }
 
-/** Where the hook posted a turn's reply outside: its address (the answer's message in Slack). */
-export interface InboundReply {
-  readonly link: string;
-}
+/**
+ * Where the hook posted a turn's reply outside: its address (the answer's message in Slack); or, since T-22, why it
+ * could not post it there (the turn shows "Not posted in Slack: <reason>").
+ */
+export type InboundReply = { readonly link: string } | { readonly failure: ReplyFailure };
 
 /** What hears the end of every message turn Most Wanted queued (its row closed, or failed before it started). */
 export interface InboundTurnHook {
@@ -95,7 +96,7 @@ export interface InboundTurnHook {
 
 /**
  * Tells the hook of a message turn Most Wanted queued that ended (any other turn tells nothing); the reply's address it
- * gives back is kept on the turn and told to the chat's stream.
+ * gives back (or why it could not post it, T-22) is kept on the turn and told to the chat's stream.
  */
 export async function tellInbound(
   hook: InboundTurnHook | undefined,
@@ -108,7 +109,10 @@ export async function tellInbound(
   const senderLink = storedSender(row.sender)?.link ?? null;
   const reply = await hook.ended(t, { chatId, turnId, roomMessageId, status, resultText, error, senderLink });
   if (reply === undefined) return;
-  const linked = await turnsRepo.setReplyLink(t, turnId, reply.link);
+  const linked =
+    'link' in reply
+      ? await turnsRepo.setReplyLink(t, turnId, reply.link)
+      : await turnsRepo.setReplyFailure(t, turnId, reply.failure);
   if (linked !== undefined) bus.publish(chatId, { kind: 'turn', turn: turnView(linked) });
 }
 

@@ -1,0 +1,4 @@
+ALTER TABLE "notifications" DROP CONSTRAINT "notifications_kind_check";--> statement-breakpoint
+ALTER TABLE "chat_turns" ADD COLUMN "reply_failure" jsonb;--> statement-breakpoint
+ALTER TABLE "chat_turns" ADD CONSTRAINT "chat_turns_reply_failure_check" CHECK ("chat_turns"."reply_failure" is null or jsonb_typeof("chat_turns"."reply_failure") = 'object');--> statement-breakpoint
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_kind_check" CHECK ("notifications"."kind" in ('manager_changed', 'report_added', 'report_removed', 'role_changed', 'membership_suspended', 'membership_reactivated', 'membership_removed', 'agent_paused', 'agent_resumed', 'agent_archived', 'invitation_accepted', 'task_at_step', 'task_signoff', 'task_escalated', 'task_done', 'task_turn_ended', 'task_blocked', 'agent_question', 'lead_not_woken', 'sign_in_needed'));

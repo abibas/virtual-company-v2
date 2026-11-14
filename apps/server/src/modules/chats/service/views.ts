@@ -1,4 +1,5 @@
 import type { Chat, ChatEvent, ChatTurn } from '@mwc/db';
+import { storedReplyFailure } from '@mwc/shared/chats';
 import type { TurnEvent } from '@mwc/shared/harness';
 import { imagesOf } from '../rules/images.ts';
 import { senderOf, visibleTextOf } from '../rules/sender.ts';
@@ -47,6 +48,7 @@ export function turnView(row: ChatTurn): ChatTurnView {
     from: senderOf(row),
     visibleText: visibleTextOf(row),
     replyLink: row.replyLink,
+    replyFailure: storedReplyFailure(row.replyFailure),
     images: imagesOf(row).map(({ id, contentType, size }) => ({ id, contentType, size })),
     machineWaitAt: iso(row.machineWaitAt),
     machineWait: row.machineWait,

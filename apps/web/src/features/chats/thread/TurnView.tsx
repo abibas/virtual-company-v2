@@ -18,7 +18,7 @@ import { ReplyParts } from './ReplyParts.tsx';
 import { HomeMissingActions } from './status/HomeMissing.tsx';
 import { MachineWaitStatus } from './status/MachineWait.tsx';
 import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
-import { PostedInSlack } from './status/PostedInSlack.tsx';
+import { NotPostedInSlack, PostedInSlack } from './status/PostedInSlack.tsx';
 import { TurnFooter } from './status/TurnFooter.tsx';
 import { QueuedStatus, type RunsOn, WorkingStatus } from './status/WorkingStatus.tsx';
 import { ClearDivider, CompactTurn, PeopleLine } from './TurnMarkers.tsx';
@@ -130,6 +130,7 @@ function Reply({
               <TurnFooter turn={turn} model={model} />
             </div>
             {turn.replyLink && <PostedInSlack link={turn.replyLink} />}
+            {!turn.replyLink && turn.replyFailure && <NotPostedInSlack failure={turn.replyFailure} />}
             {model.replyText && (
               <MessageActions
                 text={model.replyText}

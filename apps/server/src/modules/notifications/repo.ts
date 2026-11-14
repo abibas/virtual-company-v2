@@ -9,7 +9,7 @@ import {
   tasks,
 } from '@mwc/db';
 import type { NotificationKind } from '@mwc/shared/enums';
-import { and, asc, count, desc, eq, inArray, isNull, lt } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { NoticePayload } from './rules.ts';
 
 /**
@@ -57,6 +57,25 @@ export function notificationsRepo() {
         and(inArray(principals.id, [...ids]), eq(principals.kind, 'person')),
       );
       return new Set(rows.map((row) => row.id));
+    },
+
+    /** A person's principal here by their user, while their membership is active; undefined for none. */
+    async memberPrincipal(t: TenantDb, userId: string): Promise<string | undefined> {
+      const where = and(eq(memberships.userId, userId), eq(memberships.status, 'active'));
+      const [row] = await t.selectFields(memberships, { id: memberships.principalId }, where).limit(1);
+      return row?.id;
+    },
+
+    /** True when the person was already told of this change (`change`) of a tool sign-in that stopped working (T-22). */
+    async signInNoticed(t: TenantDb, recipient: string, signIn: string, change: string): Promise<boolean> {
+      const where = and(
+        mine(recipient),
+        eq(notifications.kind, 'sign_in_needed'),
+        sql`${notifications.payload}->>'signIn' = ${signIn}`,
+        sql`${notifications.payload}->>'change' = ${change}`,
+      );
+      const [row] = await t.selectFields(notifications, { id: notifications.id }, where).limit(1);
+      return row !== undefined;
     },
 
     /** Who sent an invitation here (null: nobody here, or no such invitation). */

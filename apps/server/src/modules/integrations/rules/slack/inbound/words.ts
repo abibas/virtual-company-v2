@@ -101,3 +101,30 @@ export const ANSWER_POST_MAX = 39_000;
 /** An agent's answer as posted: its text, cut to fit. */
 export const answerText = (text: string) =>
   text.length <= ANSWER_POST_MAX ? text : `${text.slice(0, ANSWER_POST_MAX - 1)}…`;
+
+/**
+ * Why an answer was not posted in Slack (T-22), as the chat shows it under the reply ("Not posted in Slack: …"): the
+ * bot sign-in at fault (`signIn`, the line links to it), or what Slack said.
+ */
+export function notPostedReason(
+  label: string | null,
+  why:
+    | { readonly signIn: 'gone' | 'revoked' | 'not_bot' }
+    | { readonly code: string; readonly slackError: string | null },
+): { readonly reason: string; readonly signIn: boolean } {
+  const named = label === null ? 'the Slack sign-in' : `the Slack sign-in '${oneLine(label, 80)}'`;
+  if ('signIn' in why) {
+    if (why.signIn === 'gone') return { reason: 'its Slack sign-in is gone', signIn: true };
+    if (why.signIn === 'revoked') return { reason: `${named} was revoked`, signIn: true };
+    return { reason: `${named} is not a bot token (xoxb-)`, signIn: true };
+  }
+  if (why.code === 'needs_sign_in') return { reason: `${named} needs a new token`, signIn: true };
+  if (why.code === 'not_in_channel')
+    return { reason: 'the bot is not in this channel: invite it there in Slack (/invite)', signIn: false };
+  if (why.slackError === 'missing_scope')
+    return { reason: `${named} lacks a scope to post (chat:write)`, signIn: true };
+  const said = why.slackError ?? why.code;
+  if (why.code === 'rate_limited') return { reason: 'Slack was limiting requests', signIn: false };
+  if (why.code === 'unavailable') return { reason: 'Slack did not answer', signIn: false };
+  return { reason: `Slack refused it (${oneLine(said, 60)})`, signIn: false };
+}

@@ -1,5 +1,5 @@
 import type { ChatImageRef } from '@mwc/shared/chat-images';
-import { CHAT_PROMPT, CHAT_TITLE, type TurnSender } from '@mwc/shared/chats';
+import { CHAT_PROMPT, CHAT_TITLE, type ReplyFailure, type TurnSender } from '@mwc/shared/chats';
 import {
   ChatTurnDelivery,
   ChatTurnKind,
@@ -183,6 +183,8 @@ export const chatTurns = pgTable(
     contactId: uuid('contact_id'),
     /** Where its reply was posted outside (the answer's address in Slack); null for none. */
     replyLink: text('reply_link'),
+    /** Why its reply could not be posted there (T-22: the reason, and whether a sign-in is at fault); null for none. */
+    replyFailure: jsonb('reply_failure').$type<ReplyFailure>(),
     /** The images its message carries (T-18, `chat_images`), in order: id, type, size, SHA-256; null for none. */
     images: jsonb('images').$type<ChatImageRef[]>(),
     profileId: uuid('profile_id'),
@@ -221,6 +223,10 @@ export const chatTurns = pgTable(
       sql`${t.visibleText} is null or (${t.kind} = 'message' and char_length(${t.visibleText}) <= ${n(CHAT_PROMPT.max)})`,
     ),
     check('chat_turns_reply_link_check', sql`char_length(${t.replyLink}) between 1 and 500`),
+    check(
+      'chat_turns_reply_failure_check',
+      sql`${t.replyFailure} is null or jsonb_typeof(${t.replyFailure}) = 'object'`,
+    ),
     check(
       'chat_turns_images_check',
       sql`${t.images} is null or (${t.kind} = 'message' and jsonb_typeof(${t.images}) = 'array')`,

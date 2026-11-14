@@ -60,7 +60,25 @@ const WORDS: Readonly<Record<NotificationKind, Words>> = {
     `${taskWords(p, n)} is blocked${p.step ? ` at ${p.step}` : ''}: ${n.name(p.about)}'s turn could not start or failed`,
   agent_question: (p, n) => `${n.name(p.about)} asks: “${p.detail ?? 'a question'}”`,
   lead_not_woken: (p, n) => leadNotWoken(n.name(p.about), p),
+  sign_in_needed: (p) => signInNeeded(p),
 };
+
+/** The provider of a tool sign-in's kind, as a notice names it. */
+const TOOL_OF: Readonly<Record<string, string>> = {
+  slack_bot_token: 'Slack',
+  slack_user_token: 'Slack',
+  github_oauth: 'GitHub',
+  github_token: 'GitHub',
+  atlassian_api_token: 'Atlassian',
+};
+
+/** A tool sign-in that stopped working (T-22): its provider refused it; its owner adds it again. */
+function signInNeeded(p: NoticePayload): string {
+  const tool = TOOL_OF[p.signInKind ?? ''] ?? 'its provider';
+  const login = p.signInKind === 'github_oauth';
+  const name = p.detail ? `'${p.detail}'` : 'A sign-in of yours';
+  return `${name} stopped working: ${tool} refused its ${login ? 'sign-in. Sign in again' : 'token. Add it again'}`;
+}
 
 /** A Lead agent that was not woken, and why (S6c): its team's events wait for the person told. */
 function leadNotWoken(lead: string, p: NoticePayload): string {
@@ -82,7 +100,8 @@ export function noticeText(
 
 /**
  * Where the notice points, as a path inside the company (`/<slug>/<path>`): a task's page (`tasks/T-12`), an agent's
- * page, the chat an agent asks in, a team's board (`flows/<lead>`), the people, or the org chart; null after a removal
+ * page, the chat an agent asks in, a team's board (`flows/<lead>`), the person's sign-ins (`subscriptions`, T-22), the
+ * people, or the org chart; null after a removal
  * or suspension, which leave the person without access.
  */
 export function noticePath(kind: NotificationKind, payload: NoticePayload, names: Names): string | null {
@@ -90,6 +109,7 @@ export function noticePath(kind: NotificationKind, payload: NoticePayload, names
   if (kind === 'agent_question') {
     return payload.agent && payload.chat ? `chats/${payload.agent}?chat=${payload.chat}` : 'structure/agents';
   }
+  if (kind === 'sign_in_needed') return 'subscriptions';
   if (kind === 'lead_not_woken') {
     const slug = names.agentSlug(payload.about);
     return slug === undefined ? 'flows' : `flows/${slug}`;

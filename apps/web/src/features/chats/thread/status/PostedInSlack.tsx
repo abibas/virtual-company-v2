@@ -1,4 +1,7 @@
 import { ExternalLink } from 'lucide-react';
+import { useCompany } from '../../../../app/company.ts';
+import { companyPath } from '../../../../app/nav.ts';
+import { Link } from '../../../../app/router.tsx';
 import { SlackMark } from '../../../../components/ui/ProviderLogo.tsx';
 
 /**
@@ -26,5 +29,34 @@ export function PostedInSlack({
       {words}
       <ExternalLink size={11} aria-hidden="true" />
     </a>
+  );
+}
+
+/**
+ * Why a reply was not posted in Slack (T-22), in its place under the reply: "Not posted in Slack: <reason>", linking
+ * to the sign-ins page when a sign-in is at fault (its owner adds a new token there).
+ */
+export function NotPostedInSlack({
+  failure,
+}: {
+  readonly failure: { readonly reason: string; readonly signIn: boolean };
+}) {
+  const { slug } = useCompany().membership;
+  return (
+    <span
+      title={`Not posted in Slack: ${failure.reason}`}
+      className="inline-flex min-w-0 shrink items-center gap-1 text-xs text-failed"
+    >
+      <SlackMark size={12} aria-hidden="true" className="shrink-0" />
+      <span className="truncate">Not posted in Slack: {failure.reason}</span>
+      {failure.signIn && (
+        <Link
+          to={companyPath(slug, 'subscriptions')}
+          className="shrink-0 font-semibold text-blue hover:underline"
+        >
+          Open sign-ins
+        </Link>
+      )}
+    </span>
   );
 }

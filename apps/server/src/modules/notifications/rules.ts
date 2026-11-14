@@ -27,8 +27,15 @@ export interface NoticePayload {
   readonly chat?: string;
   /** Why a Lead agent was not woken (S6c): its cap for the hour or the day, or it could not run. */
   readonly reason?: LeadNotWokenReason;
-  /** Words kept as they were: the question asked (clipped), or the refusal that kept a Lead from running. */
+  /**
+   * Words kept as they were: the question asked (clipped), the refusal that kept a Lead from running, or the name of a
+   * sign-in that stopped working.
+   */
   readonly detail?: string;
+  /** A tool sign-in that stopped working (T-22): its id and kind, and the change of it (its `updated_at`) told. */
+  readonly signIn?: string;
+  readonly signInKind?: string;
+  readonly change?: string;
 }
 
 /** Why a flow's Lead agent was not woken (S6c, `lead_not_woken`). */

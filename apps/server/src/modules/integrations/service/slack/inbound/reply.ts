@@ -1,11 +1,17 @@
-import { ownedIn, type TenantDb } from '@mwc/db';
-import { isSlackError } from '@mwc/tools-core';
+import { type OwnedDb, ownedIn, type TenantDb } from '@mwc/db';
+import type { ReplyFailure } from '@mwc/shared/chats';
+import { isSlackError, type SlackError } from '@mwc/tools-core';
 import type { InboundReply, InboundTurnHook, SystemTurnEnd } from '../../../../chats/index.ts';
 import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
 import { integrationsRepo } from '../../../repo.ts';
 import { botOf } from '../../../rules/slack/inbound/event.ts';
 import { answerPlace } from '../../../rules/slack/inbound/scope.ts';
-import { answerText, couldNotAnswer, messageLink } from '../../../rules/slack/inbound/words.ts';
+import {
+  answerText,
+  couldNotAnswer,
+  messageLink,
+  notPostedReason,
+} from '../../../rules/slack/inbound/words.ts';
 import { excerpt } from '../../reply.ts';
 import { type InboundDeps, postedAs, postIn } from './context.ts';
 
@@ -19,7 +25,9 @@ import { type InboundDeps, postedAs, postIn } from './context.ts';
  * gives back the posted reply's link (the agent's own post, when it posted itself), which the turn keeps for "Posted
  * in Slack". Since 2026-11-14 the answer goes into the thread of the message the turn answers (its sender's link), which
  * may be another thread than the chat's own (a message that pointed to the chat's thread); a turn from before goes into
- * the chat's. In a DM, a post of the agent's anywhere in that DM during the turn counts as its answer.
+ * the chat's. In a DM, a post of the agent's anywhere in that DM during the turn counts as its answer. Since T-22 an
+ * answer that could not be posted (the bot sign-in gone, revoked or refused by Slack, the bot not in the channel) gives
+ * back why, which the turn shows as "Not posted in Slack: <reason>"; a refused token marks the sign-in `needs_sign_in`.
  */
 
 /** A post's link in the sign-in's workspace; undefined without the workspace's address or the post's ts. */
@@ -41,7 +49,8 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
   if (reply === '') return undefined;
   const owner = await repo.ownerOfSignIn(t, thread.credentialId);
   const agent = await repo.liveAgent(t, thread.agentId);
-  if (owner === undefined || agent === undefined) return undefined;
+  if (agent === undefined) return undefined;
+  if (owner === undefined) return { failure: notPostedReason(null, { signIn: 'gone' }) };
   const o = ownedIn(t, owner);
   const where = answerPlace(end.senderLink) ?? { channel: thread.channelId, threadTs: thread.threadTs };
   const turn = { credentialId: thread.credentialId, turnId: end.turnId, channelId: where.channel };
@@ -67,16 +76,18 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
       { credentialId: thread.credentialId },
       `slack inbound: no answer posted: ${opened.message}`,
     );
-    return undefined;
+    const sign = await repo.signInOf(o, thread.credentialId);
+    const why = sign === undefined ? 'gone' : sign.status === 'revoked' ? 'revoked' : 'not_bot';
+    return { failure: notPostedReason(sign?.label ?? null, { signIn: why }) };
   }
   const text = done ? answerText(reply) : reply;
-  const posted = await postIn(
-    deps.slack,
-    { token: opened.token },
-    where,
-    text,
-    postedAs(botOf(opened.meta), agent),
-  );
+  let posted: Awaited<ReturnType<typeof postIn>>;
+  try {
+    posted = await postIn(deps.slack, { token: opened.token }, where, text, postedAs(botOf(opened.meta), agent));
+  } catch (error) {
+    if (!isSlackError(error)) throw error;
+    return { failure: await refused(deps, o, thread.credentialId, error, end.turnId) };
+  }
   const channelId = posted.channel || where.channel;
   if (posted.ts !== '') {
     const at = deps.clock();
@@ -98,6 +109,26 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
     ],
   });
   return linkOf(botOf(opened.meta).url, { channel: channelId, ts: posted.ts, threadTs: where.threadTs });
+}
+
+/**
+ * Slack refused the answer's post (T-22): logged, and a refused token marks the sign-in as needing a new one (its owner
+ * hears of it once per change); the reason the chat shows under the reply.
+ */
+async function refused(
+  deps: InboundDeps,
+  o: OwnedDb,
+  credentialId: string,
+  error: SlackError,
+  turnId: string,
+): Promise<ReplyFailure> {
+  deps.logger.warn(
+    { code: error.code, slackError: error.slackError, turnId },
+    'slack inbound: the answer was not posted',
+  );
+  if (error.code === 'needs_sign_in') await deps.credentials.needsSignIn(credentialId, o.userId);
+  const sign = await repo.signInOf(o, credentialId);
+  return notPostedReason(sign?.label ?? null, { code: error.code, slackError: error.slackError });
 }
 
 /** The hook on these deps. */

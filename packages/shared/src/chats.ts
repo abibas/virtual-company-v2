@@ -44,6 +44,22 @@ export function storedSender(value: unknown): TurnSender | null {
   return sender.success ? sender.data : null;
 }
 
+/**
+ * Why a turn's reply was not posted back outside (T-22, `chat_turns.reply_failure`): the reason in a few words ("the
+ * Slack sign-in 'Slack Airia Bro' needs a new token"), and whether a sign-in is at fault (the line links to it).
+ */
+export const ReplyFailure = z.object({
+  reason: z.string().trim().min(1).max(300),
+  signIn: z.boolean(),
+});
+export type ReplyFailure = z.infer<typeof ReplyFailure>;
+
+/** A stored reply failure read back; null for none or one that no longer parses. */
+export function storedReplyFailure(value: unknown): ReplyFailure | null {
+  const failure = ReplyFailure.safeParse(value);
+  return failure.success ? failure.data : null;
+}
+
 /** The most messages a chat keeps waiting for its running turn (S5.2 step 6). */
 export const CHAT_QUEUE_MAX = 10;
 

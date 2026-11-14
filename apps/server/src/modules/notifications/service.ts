@@ -1,5 +1,6 @@
-import type { DbHandle, Membership, TenantDb } from '@mwc/db';
+import { type DbHandle, type Membership, type TenantDb, tenant } from '@mwc/db';
 import type { EmailMode } from '@mwc/shared/config';
+import { companiesOf } from '../identity/service.ts';
 import { type NotificationsRepo, notificationsRepo } from './repo.ts';
 import {
   type AgentStatusChange,
@@ -111,6 +112,36 @@ export async function noticeAgentQuestion(
     null,
     recipients.map((recipient) => ({ kind: 'agent_question' as const, recipient, payload })),
   );
+}
+
+/** A tool sign-in that stopped working (T-22), as its notice names it. */
+export interface SignInNeeded {
+  readonly id: string;
+  readonly ownerUserId: string;
+  readonly label: string;
+  readonly kind: string;
+  /** When the sign-in last changed: its owner hears of each change once. */
+  readonly updatedAt: Date;
+}
+
+/**
+ * A tool sign-in its provider refused (`needs_sign_in`, T-22): its owner hears of it in each company where their
+ * membership is active, once per change of the sign-in (the notice names the change, its `updated_at`), from the system.
+ * Resolves to how many were written.
+ */
+export async function noticeSignInNeeded(db: DbHandle, signIn: SignInNeeded): Promise<number> {
+  const change = signIn.updatedAt.toISOString();
+  const actor = { kind: 'user', via: 'clerk', userId: signIn.ownerUserId } as const;
+  let written = 0;
+  for (const company of await companiesOf(db, actor)) {
+    if (company.status !== 'active') continue;
+    const t = await tenant(db, company.companyId);
+    const recipient = await repo.memberPrincipal(t, signIn.ownerUserId);
+    if (recipient === undefined || (await repo.signInNoticed(t, recipient, signIn.id, change))) continue;
+    const payload = { about: recipient, detail: signIn.label, signIn: signIn.id, signInKind: signIn.kind, change };
+    written += await notify(t, null, [{ kind: 'sign_in_needed', recipient, payload }]);
+  }
+  return written;
 }
 
 /** Notifications per page, unless asked for fewer. */

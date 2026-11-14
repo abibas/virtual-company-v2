@@ -37,4 +37,12 @@ export const turnSenderFields = {
   replyLink: z.string().nullable().openapi({
     description: "Where the turn's reply was posted outside (the answer's message in Slack); null for none",
   }),
+  replyFailure: z
+    .object({ reason: z.string(), signIn: z.boolean() })
+    .nullable()
+    .openapi({
+      description:
+        "Why the turn's reply could not be posted outside (T-22): the reason, and whether a sign-in is at fault " +
+        '(its owner adds it again on the Subscriptions page); null when it was posted or nothing was to be',
+    }),
 };
