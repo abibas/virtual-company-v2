@@ -23,6 +23,8 @@ export interface RequesterLayer {
   /** The chart's people and agents a hover lights (the rest fade), or undefined when nothing is hovered. */
   readonly hovered: ReadonlySet<string> | undefined;
   readonly setHover: (hover: RequesterHover | undefined) => void;
+  /** The pointer entered or left an agent's card; undefined while there is no column. */
+  readonly agentHover: ((principalId: string | undefined) => void) | undefined;
   /** The requester cards that talked to a highlighted flow's members, to frame with them. */
   around(focus: FlowFocus): readonly ChartBox[];
 }
@@ -53,6 +55,7 @@ export function useRequesterLayer(
     lit,
     hovered: hovering ? lit.principals : undefined,
     setHover,
+    agentHover: layout && ((id) => setHover(id === undefined ? undefined : { kind: 'agent', id })),
     around: (flow) => {
       if (!layout) return [];
       const linked = litBy(layout, undefined, flow.members);
@@ -86,4 +89,15 @@ export function useFitOnToggle(
     wanted.current = false;
     canvas.current?.fitTo({ x: 0, y: 0, width, height });
   }, [settled, canvas, width, height]);
+}
+
+/**
+ * Whether the canvas still waits for the Requesters' first answer, so its first view fits them too; once the canvas has
+ * opened it never waits again (switching them on later fits instead, `useFitOnToggle`).
+ */
+export function useWaitForRequesters(input: ChartRequesters | undefined, ready: boolean): boolean {
+  const opened = useRef(false);
+  const waiting = !opened.current && input !== undefined && input.contacts === undefined;
+  if (ready && !waiting) opened.current = true;
+  return waiting;
 }

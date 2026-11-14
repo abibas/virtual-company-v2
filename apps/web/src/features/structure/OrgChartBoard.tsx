@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { OrgCalls } from '../../api/org.ts';
 import type { ChartNode, OrgChart, OrgTreeNode } from '../../api/types.ts';
@@ -21,10 +20,9 @@ import type { DropPlan } from './drop-targets.ts';
 import type { FlowFocus } from './flow/flow-focus.ts';
 import { useFlowFocus } from './flow/use-flow-focus.ts';
 import { MoveToast } from './MoveToast.tsx';
-import { RequesterLinks } from './requesters/RequesterLinks.tsx';
-import { RequestersColumn } from './requesters/RequestersColumn.tsx';
-import { useFitOnToggle, useRequesterLayer } from './requesters/use-requester-layer.ts';
+import { useFitOnToggle, useRequesterLayer, useWaitForRequesters } from './requesters/use-requester-layer.ts';
 import type { ChartRequesters } from './requesters/use-requesters.ts';
+import { WithRequesters } from './requesters/WithRequesters.tsx';
 import { type Board, useBoard } from './use-board.ts';
 
 export interface OrgChartBoardProps {
@@ -83,6 +81,19 @@ function dragHint(chart: OrgChart, plan: DropPlan, over: string | undefined) {
   return { hint: 'Drop on a manager, or on the company for the top', refused: false };
 }
 
+/** A card's buttons (the company's with `COMPANY`): + for admins and owners, ⋯ for a card, or the company's for them. */
+const buttonsOf =
+  (board: Board, company: string, admin: boolean) => (target: string, node: ChartNode | undefined) => (
+    <CardButtons
+      target={target}
+      name={node ? nodeName(node) : company}
+      add={admin}
+      more={node !== undefined || admin}
+      open={board.menu}
+      onOpen={board.setMenu}
+    />
+  );
+
 /**
  * The canvas with the chart on it (the tree, and the Requesters column with its links beside it), and the last move's
  * toast over it. The canvas first waits for the Requesters, so its first fit holds them.
@@ -93,19 +104,8 @@ function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board:
   const req = useRequesterLayer(requesters, layout, props.focus, drag.dragging !== undefined);
   const focused = useFlowFocus(props.focus, layout, board.canvas, chart !== undefined, req);
   useFitOnToggle(requesters, board.canvas, req);
-  const opened = useRef(false);
-  const waiting = !opened.current && requesters !== undefined && requesters.contacts === undefined;
-  if (chart && !waiting) opened.current = true;
-  const buttons = (target: string, node: ChartNode | undefined) => (
-    <CardButtons
-      target={target}
-      name={node ? nodeName(node) : props.company.name}
-      add={abilities.admin}
-      more={node !== undefined || abilities.admin}
-      open={board.menu}
-      onOpen={board.setMenu}
-    />
-  );
+  const waiting = useWaitForRequesters(requesters, chart !== undefined);
+  const buttons = buttonsOf(board, props.company.name, abilities.admin);
   return (
     <div ref={board.frame} className="relative">
       <LoadState
@@ -128,42 +128,24 @@ function BoardCanvas({ board, ...props }: OrgChartBoardProps & { readonly board:
               onMove={() => board.setMenu(undefined)}
               className="h-[max(26rem,calc(100dvh-10.5rem))] rounded-2xl"
             >
-              {req.layout && (
-                <RequesterLinks
-                  links={req.layout.links}
-                  width={req.width}
-                  height={req.height}
-                  lit={req.lit}
+              <WithRequesters layer={req} requesters={requesters}>
+                <ChartLayer
+                  layout={layout}
+                  nodes={board.nodes}
+                  orphans={orphansOf(chart.tree)}
+                  company={{ ...props.company, summary: summaryOf(chart) }}
+                  plan={board.plan}
+                  over={drag.dragging?.over}
+                  meUserId={abilities.meUserId}
+                  draggable={abilities.admin}
+                  grab={drag.grab}
+                  buttons={buttons}
+                  agentHref={(node) => board.actions.agentHref(node.agent)}
+                  focus={focused}
+                  hovered={req.hovered}
+                  onAgentHover={req.agentHover}
                 />
-              )}
-              <ChartLayer
-                layout={layout}
-                nodes={board.nodes}
-                orphans={orphansOf(chart.tree)}
-                company={{ ...props.company, summary: summaryOf(chart) }}
-                plan={board.plan}
-                over={drag.dragging?.over}
-                meUserId={abilities.meUserId}
-                draggable={abilities.admin}
-                grab={drag.grab}
-                buttons={buttons}
-                agentHref={(node) => board.actions.agentHref(node.agent)}
-                focus={focused}
-                hovered={req.hovered}
-                onAgentHover={
-                  req.layout && ((id) => req.setHover(id === undefined ? undefined : { kind: 'agent', id }))
-                }
-              />
-              {req.layout && requesters && (
-                <RequestersColumn
-                  layout={req.layout}
-                  range={requesters.window}
-                  lit={req.lit}
-                  contactHref={requesters.contactHref}
-                  moreHref={requesters.moreHref}
-                  onHover={req.setHover}
-                />
-              )}
+              </WithRequesters>
             </ChartCanvas>
           ))
         }
