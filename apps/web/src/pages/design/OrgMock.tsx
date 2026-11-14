@@ -27,6 +27,7 @@ const LINKS: AgentLinks = {
   chart: HERE,
   list: `${HERE}?view=list`,
   people: '/design/members',
+  contacts: HERE,
   hire: `${HERE}?agent=new`,
   agent: (agent) => `${HERE}?agent=${agent.slug}`,
   machines: HERE,

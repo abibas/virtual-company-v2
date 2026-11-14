@@ -34,6 +34,7 @@ const STRUCTURE_LINKS = {
   chart: '/design/org',
   list: '/design/org?view=list',
   people: '/design/members',
+  contacts: '/design/org',
 } as const;
 
 /** The Company structure page's People tab with sample people, as an owner sees it. */

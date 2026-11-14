@@ -1,11 +1,11 @@
-import { Bot, type LucideIcon, Network, Plus, Users } from 'lucide-react';
+import { BookUser, Bot, type LucideIcon, Network, Plus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Tabs } from '../../components/forms/Segmented.tsx';
 import { ButtonLink } from '../../components/ui/Button.tsx';
 import type { StructureLinks } from '../agents/links.ts';
 
 /** The tabs of the Company structure page. */
-export type StructureTab = 'chart' | 'agents' | 'people';
+export type StructureTab = 'chart' | 'agents' | 'people' | 'contacts';
 
 interface TabDef {
   readonly tab: StructureTab;
@@ -21,6 +21,7 @@ const TABS: readonly TabDef[] = [
   { tab: 'chart', path: '', label: 'Org chart', icon: Network, href: (links) => links.chart },
   { tab: 'agents', path: 'agents', label: 'Agents', icon: Bot, href: (links) => links.list },
   { tab: 'people', path: 'people', label: 'People', icon: Users, href: (links) => links.people },
+  { tab: 'contacts', path: 'contacts', label: 'Contacts', icon: BookUser, href: (links) => links.contacts },
 ];
 
 /** The tab at `path` (the address after `/:slug/structure/`), or undefined when there is none. */
@@ -37,14 +38,17 @@ export function StructureView({
   links,
   hireHref,
   admin,
+  hidden = [],
   tools,
   children,
 }: {
   readonly tab: StructureTab;
   readonly links: StructureLinks;
-  /** The hire form; the People tab has its own invitation form instead. */
+  /** The hire form; the People tab has its own invitation form instead, and Contacts none. */
   readonly hireHref: string;
   readonly admin: boolean;
+  /** Tabs the person may not open (a viewer's Contacts). */
+  readonly hidden?: readonly StructureTab[];
   /** The tab's own controls, before Hire (the org chart's flow picker). */
   readonly tools?: ReactNode;
   readonly children: ReactNode;
@@ -56,7 +60,7 @@ export function StructureView({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <Tabs
           label="Company structure views"
-          items={TABS.map((t) => ({
+          items={TABS.filter((t) => !hidden.includes(t.tab)).map((t) => ({
             href: t.href(links),
             label: t.label,
             icon: t.icon,
@@ -65,7 +69,7 @@ export function StructureView({
         />
         <div className="flex flex-wrap items-center gap-2">
           {tools}
-          {admin && tab !== 'people' && (
+          {admin && (tab === 'chart' || tab === 'agents') && (
             <ButtonLink href={hireHref} tone="primary" size="sm" icon={Plus}>
               Hire an agent
             </ButtonLink>

@@ -12,12 +12,14 @@ import { agentRef } from '../components/org/agent-labels.ts';
 import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
+import { CONTACTS, contactsListPath } from '../features/contacts/links.ts';
 import { CHAT_TAB, FLOW_TAB, type TeamTab } from '../features/flows/links.ts';
 import { useCompanyRail } from '../features/inbox/use-company-rail.tsx';
 import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
 import { ApiKeysPage } from '../pages/company/ApiKeysPage.tsx';
 import { ChatPage } from '../pages/company/ChatPage.tsx';
+import { ContactPage } from '../pages/company/ContactPage.tsx';
 import { FlowsPage } from '../pages/company/flows/FlowsPage.tsx';
 import { TaskPage } from '../pages/company/flows/TaskPage.tsx';
 import { TasksPage } from '../pages/company/flows/TasksPage.tsx';
@@ -33,7 +35,7 @@ import { SettingsPage } from '../pages/company/SettingsPage.tsx';
 import { StructurePage } from '../pages/company/StructurePage.tsx';
 import { NotFoundPage } from '../pages/NotFoundPage.tsx';
 import { CompanySwitcher } from './CompanySwitcher.tsx';
-import { CompanyContext, type CompanyView } from './company.ts';
+import { CompanyContext, type CompanyView, useCompany } from './company.ts';
 import { companyHrefs, companyNav, companyPath, movedSection, railSection } from './nav.ts';
 import { Redirect, useLocation } from './router.tsx';
 import { rememberCompany, useSession } from './session.tsx';
@@ -112,9 +114,14 @@ function flowPageAt(head: string, rest: readonly string[]): ReactNode {
   return undefined;
 }
 
+/** `/:slug/contacts` opens the Contacts tab of Company structure. */
+function ContactsRedirect() {
+  return <Redirect to={contactsListPath(useCompany().membership.slug)} />;
+}
+
 /**
  * The page at `section` (the path after `/:slug/`): a company page, a Company structure tab, an agent's page or chats,
- * a team's or a task's page, or not found.
+ * a contact's page (`/:slug/contacts` opens their list), a team's or a task's page, or not found.
  */
 function pageAt(section: string): ReactNode {
   const [head = '', ...rest] = section.split('/');
@@ -123,6 +130,8 @@ function pageAt(section: string): ReactNode {
   if (tab) return <StructurePage tab={tab} />;
   if (head === 'agents' && address) return <AgentPage address={address} />;
   if (head === 'chats' && address) return <ChatPage key={address} agentId={address} />;
+  if (head === CONTACTS && address) return <ContactPage key={address} contactId={address} />;
+  if (head === CONTACTS && rest.length === 0) return <ContactsRedirect />;
   const flowPage = flowPageAt(head, rest);
   if (flowPage) return flowPage;
   const Page = rest.length === 0 ? SECTIONS[head] : undefined;

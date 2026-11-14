@@ -1,4 +1,5 @@
 import { companyPath } from '../../app/nav.ts';
+import { contactsListPath } from '../contacts/links.ts';
 
 /** Where the Company structure tabs link to, so the same parts serve the company's routes and the design gallery. */
 export interface StructureLinks {
@@ -8,6 +9,8 @@ export interface StructureLinks {
   readonly list: string;
   /** The people of the company, their roles and invitations (the People tab). */
   readonly people: string;
+  /** The people outside it who talked to its agents (the Contacts tab, 2026-11-14). */
+  readonly contacts: string;
 }
 
 /** Where the agents' pages link to: the Company structure tabs, the hire form, an agent and its chats. */
@@ -33,7 +36,7 @@ export const agentAddress = (agent: { readonly slug: string; readonly id: string
   agent.slug === HIRE ? agent.id : agent.slug;
 
 /**
- * The links of a company's agents: the Company structure tabs (`/:slug/structure`, `/agents`, `/people`), the hire
+ * The links of a company's agents: the Company structure tabs (`/:slug/structure`, `/agents`, `/people`, `/contacts`), the hire
  * form and an agent's page under `/:slug/agents/` (`/new`, `/:agent`), its machines, and an agent's chats.
  */
 export function companyAgentLinks(companySlug: string): AgentLinks {
@@ -43,6 +46,7 @@ export function companyAgentLinks(companySlug: string): AgentLinks {
     chart: structure,
     list: `${structure}/agents`,
     people: `${structure}/people`,
+    contacts: contactsListPath(companySlug),
     hire: `${base}/${HIRE}`,
     agent: (agent) => `${base}/${agentAddress(agent)}`,
     machines: companyPath(companySlug, 'machines'),

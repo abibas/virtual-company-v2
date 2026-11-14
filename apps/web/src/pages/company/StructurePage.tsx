@@ -5,12 +5,13 @@ import { companyAgentLinks } from '../../features/agents/links.ts';
 import { FlowPicker } from '../../features/structure/flow/FlowPicker.tsx';
 import { type StructureTab, StructureView } from '../../features/structure/StructureView.tsx';
 import { AgentsTab } from './AgentsTab.tsx';
+import { ContactsTab } from './ContactsTab.tsx';
 import { PeopleTab } from './PeopleTab.tsx';
 
 /**
  * `/:slug/structure` and its tabs: who is in the company, people and agents, and who reports to whom. The org chart
- * (`/:slug/structure`, `?flow=<lead>` highlighting a flow), the agents (`/agents`) and the people with their roles and
- * invitations (`/people`).
+ * (`/:slug/structure`, `?flow=<lead>` highlighting a flow), the agents (`/agents`), the people with their roles and
+ * invitations (`/people`) and the contacts, the people outside it who talked to its agents (`/contacts`, 2026-11-14).
  */
 export function StructurePage({ tab }: { readonly tab: StructureTab }) {
   const { membership } = useCompany();
@@ -23,9 +24,14 @@ export function StructurePage({ tab }: { readonly tab: StructureTab }) {
       links={links}
       hireHref={links.hire}
       admin={roleAtLeast(membership.role, 'admin')}
+      hidden={roleAtLeast(membership.role, 'member') ? [] : ['contacts']}
       tools={tab === 'chart' && list && list.length > 0 ? <FlowPicker flows={list} /> : undefined}
     >
-      {tab === 'people' ? <PeopleTab /> : <AgentsTab tab={tab === 'chart' ? 'chart' : 'list'} flows={list} />}
+      {tab === 'people' && <PeopleTab />}
+      {tab === 'contacts' && <ContactsTab />}
+      {(tab === 'chart' || tab === 'agents') && (
+        <AgentsTab tab={tab === 'chart' ? 'chart' : 'list'} flows={list} />
+      )}
     </StructureView>
   );
 }

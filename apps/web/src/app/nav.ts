@@ -35,12 +35,12 @@ export function withoutOldPrefix(href: string): string {
 }
 
 /**
- * The rail section a company path belongs to, from its first segment: an agent's page (`agents/...`) and its chats
- * (`chats/...`) are part of Company structure (`structure`); every other section is its own, so a task's page
- * (`tasks/T-12`) is under Tasks, with its list.
+ * The rail section a company path belongs to, from its first segment: an agent's page (`agents/...`), its chats
+ * (`chats/...`) and a contact's page (`contacts/...`, 2026-11-14) are part of Company structure (`structure`); every
+ * other section is its own, so a task's page (`tasks/T-12`) is under Tasks, with its list.
  */
 export function railSection(first: string): string {
-  return first === 'agents' || first === 'chats' ? 'structure' : first;
+  return first === 'agents' || first === 'chats' || first === 'contacts' ? 'structure' : first;
 }
 
 /**
