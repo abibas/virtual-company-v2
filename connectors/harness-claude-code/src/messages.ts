@@ -3,8 +3,10 @@ import {
   clipLine,
   clipMarked,
   countOf,
+  inputText,
   isRecord,
   type JsonRecord,
+  outputText,
   stringOf,
 } from '@mwc/harness-core';
 import {
@@ -13,6 +15,7 @@ import {
   THINKING_MAX,
   TODO_ITEMS_MAX,
   TODO_TEXT_MAX,
+  TOOL_RESULT_SUMMARY_MAX,
   TodoStatus,
   type TurnEvent,
   type TurnEventOf,
@@ -20,7 +23,7 @@ import {
 import { contextEvents, resultContext } from './context.ts';
 import { bodyOf, type ClaudeState, newClaudeState, parentOf } from './state.ts';
 import { interruptedSubagents, subagentAnswered, subagentStarted } from './subagents.ts';
-import { denialNotice, resultSummary, toolSummary } from './summary.ts';
+import { denialNotice, resultSummary, resultText, toolSummary } from './summary.ts';
 
 /**
  * Claude Code's `assistant`, `user` and `result` messages as turn events (`system` ones are `system.ts`'s). A subagent's
@@ -51,13 +54,23 @@ export function todoEvent(input: unknown, belongs: Belongs): TurnEventOf<'todo'>
   return [{ type: 'todo', items, ...belongs }];
 }
 
-/** A tool call block: the tool, and its to-do list or its subagent when it is one. */
+/** A tool call block: the tool (its whole input too, for the full trace), and its to-do list or its subagent. */
 function toolEvents(block: JsonRecord, belongs: Belongs, state: ClaudeState): TurnEvent[] {
   const id = stringOf(block.id);
   if (id === undefined || id === '') return [];
   const name = clipLine(stringOf(block.name) ?? '', 200) || 'tool';
   const call = { id: id.slice(0, 200), name, input: block.input };
-  const tool: TurnEvent = { type: 'tool', id: call.id, name, summary: toolSummary(block.input), ...belongs };
+  const summary = toolSummary(block.input);
+  // A to-do list's input is its card's; any other call's whole input is the trace's, unless its summary says it all.
+  const input = name === 'TodoWrite' ? undefined : inputText(block.input, summary);
+  const tool: TurnEvent = {
+    type: 'tool',
+    id: call.id,
+    name,
+    summary,
+    ...(input === undefined ? {} : { input }),
+    ...belongs,
+  };
   if (name === 'TodoWrite') return [tool, ...todoEvent(block.input, belongs)];
   return [tool, ...subagentStarted(call, belongs, state)];
 }
@@ -87,7 +100,7 @@ export function assistantEvents(message: JsonRecord, state: ClaudeState = newCla
   return events;
 }
 
-/** `user`: the results of the tool calls, each ending the subagent its call started. */
+/** `user`: the results of the tool calls (the whole text too when the summary cut it), each ending its subagent. */
 export function userEvents(message: JsonRecord, state: ClaudeState = newClaudeState()): TurnEvent[] {
   const belongs = parentOf(message);
   const events: TurnEvent[] = [];
@@ -96,7 +109,9 @@ export function userEvents(message: JsonRecord, state: ClaudeState = newClaudeSt
     const id = stringOf(block.tool_use_id)?.slice(0, 200);
     if (id === undefined || id === '') continue;
     const ok = block.is_error !== true;
-    events.push({ type: 'tool_result', id, ok, summary: resultSummary(block.content), ...belongs });
+    const output = outputText(resultText(block.content), TOOL_RESULT_SUMMARY_MAX);
+    const whole = output === undefined ? {} : { output };
+    events.push({ type: 'tool_result', id, ok, summary: resultSummary(block.content), ...whole, ...belongs });
     events.push(...subagentAnswered(id, block.content, !ok, state));
   }
   return events;

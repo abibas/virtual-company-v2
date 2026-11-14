@@ -206,3 +206,31 @@ describe('todoEvents', () => {
     expect(todoEvents({ id: 'c', type: 'command_execution' }, newItemState())).toEqual([]);
   });
 });
+
+describe('the full trace (2026-11-14)', () => {
+  it('a tool carries its whole input when its summary does not say it all', () => {
+    const script = "/bin/zsh -lc 'cd src\ngit status'";
+    const [command] = startedEvents({ ...cmd('in_progress', null), command: script }, newItemState());
+    expect(command).toMatchObject({ summary: "/bin/zsh -lc 'cd src git status'", input: script });
+    const [short] = startedEvents(cmd('in_progress', null), newItemState());
+    expect(short).not.toHaveProperty('input');
+    const args = { query: 'how', filters: { lang: 'ts', limit: 20 } };
+    const mcp = { id: 'm', type: 'mcp_tool_call', server: 'docs', tool: 'search', arguments: args };
+    expect(startedEvents({ ...mcp, status: 'in_progress' }, newItemState())[0]).toMatchObject({
+      summary: 'how',
+      input: JSON.stringify(args, null, 2),
+    });
+  });
+
+  it('a result carries the whole text its summary cut: a command’s output, an MCP call’s text', () => {
+    const output = `${'compiling…\n'.repeat(80)}done`;
+    const [, result] = completedEvents(cmd('completed', 0, output), newItemState());
+    expect(result).toMatchObject({ type: 'tool_result', ok: true, output });
+    const [, small] = completedEvents(cmd('completed', 0, 'ok'), newItemState());
+    expect(small).not.toHaveProperty('output');
+    const text = 'x'.repeat(900);
+    const mcp = { id: 'm', type: 'mcp_tool_call', server: 'docs', tool: 'search', arguments: {} };
+    const done = { ...mcp, status: 'completed', result: { content: [{ type: 'text', text }] } };
+    expect(completedEvents(done, newItemState())[1]).toMatchObject({ output: text });
+  });
+});

@@ -3,8 +3,10 @@ import {
   clipLine,
   clipMarked,
   clipTail,
+  inputText,
   isRecord,
   type JsonRecord,
+  outputText,
   stringOf,
 } from '@mwc/harness-core';
 import {
@@ -22,7 +24,9 @@ import {
  * Codex's thread items (`item.started` / `item.updated` / `item.completed` of `codex exec --json`) as turn events: an
  * agent message is text, reasoning is thinking; a command, a file change, an MCP tool call and a web search are tools,
  * shown when they start (or, for those that only complete, then) with their result on completion; the to-do list is a
- * `todo` event each time it changes (Codex's items are only done or not: `completed` or `pending`).
+ * `todo` event each time it changes (Codex's items are only done or not: `completed` or `pending`). For the full trace
+ * (2026-11-14) a tool carries its whole input (the command, the changes, the arguments, the query) and a result the
+ * whole text its summary cut.
  */
 
 /** What the parser keeps across items: the tools already shown, the last agent message (the reply), the last list. */
@@ -53,12 +57,18 @@ export function todoEvents(item: JsonRecord, state: ItemState): TurnEvent[] {
   return [{ type: 'todo', items }];
 }
 
-const tool = (id: string, name: string, summary: string): TurnEventOf<'tool'> => ({
-  type: 'tool',
-  id: id.slice(0, 200),
-  name: clipLine(name, 200) || 'tool',
-  summary: clipLine(summary, TOOL_SUMMARY_MAX),
-});
+/** A tool: its one-line summary, and its whole input when the summary does not say it all (the full trace). */
+function tool(id: string, name: string, summary: string, whole: unknown): TurnEventOf<'tool'> {
+  const line = clipLine(summary, TOOL_SUMMARY_MAX);
+  const input = inputText(whole, line);
+  return {
+    type: 'tool',
+    id: id.slice(0, 200),
+    name: clipLine(name, 200) || 'tool',
+    summary: line,
+    ...(input === undefined ? {} : { input }),
+  };
+}
 
 /** `update src/main.ts, add src/new.ts`. */
 function changesSummary(changes: unknown): string {
@@ -81,17 +91,19 @@ function toolOf(item: JsonRecord): TurnEventOf<'tool'> | null {
   if (id === undefined || id === '') return null;
   switch (item.type) {
     case 'command_execution':
-      return tool(id, 'command', stringOf(item.command) ?? '');
+      return tool(id, 'command', stringOf(item.command) ?? '', item.command);
     case 'file_change':
-      return tool(id, 'file_change', changesSummary(item.changes));
+      // Its changes are paths and kinds only, all in the summary: no whole input.
+      return tool(id, 'file_change', changesSummary(item.changes), undefined);
     case 'mcp_tool_call':
       return tool(
         id,
         `mcp:${stringOf(item.server) ?? '?'}/${stringOf(item.tool) ?? '?'}`,
         argumentsSummary(item.arguments),
+        item.arguments,
       );
     case 'web_search':
-      return tool(id, 'web_search', stringOf(item.query) ?? '');
+      return tool(id, 'web_search', stringOf(item.query) ?? '', item.query);
     default:
       return null;
   }
@@ -102,9 +114,11 @@ export function commandResult(item: JsonRecord, id: string): TurnEventOf<'tool_r
   const exit = typeof item.exit_code === 'number' ? item.exit_code : null;
   const head = item.status === 'declined' ? 'declined' : exit === null ? String(item.status) : `exit ${exit}`;
   const output = stringOf(item.aggregated_output)?.trim() ?? '';
-  const summary =
-    output === '' ? head : `${head}: ${clipTail(output, TOOL_RESULT_SUMMARY_MAX - head.length - 2)}`;
-  return { type: 'tool_result', id, ok: item.status === 'completed' && (exit ?? 0) === 0, summary };
+  const room = TOOL_RESULT_SUMMARY_MAX - head.length - 2;
+  const summary = output === '' ? head : `${head}: ${clipTail(output, room)}`;
+  const whole = outputText(output, room);
+  const ok = item.status === 'completed' && (exit ?? 0) === 0;
+  return { type: 'tool_result', id, ok, summary, ...(whole === undefined ? {} : { output: whole }) };
 }
 
 /** An MCP result's text blocks, one per line. */
@@ -127,11 +141,13 @@ function resultOf(item: JsonRecord, id: string): TurnEventOf<'tool_result'> | nu
     case 'mcp_tool_call': {
       const error = isRecord(item.error) ? stringOf(item.error.message) : undefined;
       const text = error ?? (mcpText(item.result) || String(item.status));
+      const whole = outputText(text, TOOL_RESULT_SUMMARY_MAX);
       return {
         type: 'tool_result',
         id,
         ok: ok && error === undefined,
         summary: clipHead(text, TOOL_RESULT_SUMMARY_MAX),
+        ...(whole === undefined ? {} : { output: whole }),
       };
     }
     default:

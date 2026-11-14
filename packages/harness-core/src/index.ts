@@ -43,4 +43,4 @@ export {
   stringOf,
 } from './lines.ts';
 export { lineMatching, SESSION_MISSING_LINE_MAX } from './missing.ts';
-export { clipHead, clipLine, clipMarked, clipTail } from './text.ts';
+export { clipHead, clipLine, clipMarked, clipTail, inputText, outputText } from './text.ts';

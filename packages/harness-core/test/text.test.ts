@@ -1,6 +1,6 @@
-import { TRUNCATED_MARKER } from '@mwc/shared/harness';
+import { TOOL_INPUT_MAX, TOOL_OUTPUT_MAX, TRUNCATED_MARKER } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { clipHead, clipLine, clipMarked, clipTail } from '../src/text.ts';
+import { clipHead, clipLine, clipMarked, clipTail, inputText, outputText } from '../src/text.ts';
 
 describe('clipHead', () => {
   it('keeps a short text, trimmed, and cuts a long one to the limit with an ellipsis', () => {
@@ -55,5 +55,33 @@ describe('clipMarked', () => {
     const text = `${'a'.repeat(9)}😀${'b'.repeat(40)}`;
     expect(clipMarked(text, 10 + TRUNCATED_MARKER.length)).toBe(`${'a'.repeat(9)}${TRUNCATED_MARKER}`);
     expect(clipMarked('abcdefghijklmnopqrstuvwxyz', 5)).toBe('abcde');
+  });
+});
+
+describe('inputText and outputText (the full trace)', () => {
+  it('gives a call’s whole input as indented JSON, a string as it is, nothing for none, and cuts a long one', () => {
+    expect(inputText({ command: 'ls', description: 'List' })).toBe(
+      '{\n  "command": "ls",\n  "description": "List"\n}',
+    );
+    expect(inputText('raw arguments')).toBe('raw arguments');
+    for (const none of [undefined, null, {}, [], '', '  ']) expect(inputText(none)).toBeUndefined();
+    expect(inputText({ file_path: '/w/a.ts' }, '/w/a.ts')).toBeUndefined();
+    expect(inputText('ls -la', 'ls -la')).toBeUndefined();
+    expect(inputText('git status\ngit diff', 'git status git diff')).toBe('git status\ngit diff');
+    expect(inputText({ file_path: '/w/a.ts', limit: 5 }, '/w/a.ts')).toContain('"limit": 5');
+    expect(inputText(['a'], 'a')).toBe('[\n  "a"\n]');
+    expect(inputText({ limit: 3 }, '{"limit":3}')).toBeUndefined();
+    const long = inputText({ text: 'x'.repeat(TOOL_INPUT_MAX) }) as string;
+    expect(long).toHaveLength(TOOL_INPUT_MAX);
+    expect(long.endsWith(TRUNCATED_MARKER)).toBe(true);
+  });
+
+  it('gives a result’s whole text only when its summary cut it, and cuts a long one', () => {
+    expect(outputText('short', 10)).toBeUndefined();
+    expect(outputText(`  ${'a'.repeat(10)}  `, 10)).toBeUndefined();
+    expect(outputText('a'.repeat(11), 10)).toBe('a'.repeat(11));
+    const long = outputText('y'.repeat(TOOL_OUTPUT_MAX + 5), 10) as string;
+    expect(long).toHaveLength(TOOL_OUTPUT_MAX);
+    expect(long.endsWith(TRUNCATED_MARKER)).toBe(true);
   });
 });

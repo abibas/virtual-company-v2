@@ -1,4 +1,4 @@
-import { THINKING_MAX, TRUNCATED_MARKER } from '@mwc/shared/harness';
+import { THINKING_MAX, TOOL_RESULT_SUMMARY_MAX, TRUNCATED_MARKER } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
 import { assistantEvents, resultEvents, todoEvent, userEvents } from '../src/messages.ts';
 import { newClaudeState } from '../src/state.ts';
@@ -86,6 +86,31 @@ describe('userEvents', () => {
       [{ type: 'tool_result', id: 't', ok: true, summary: 'x', parentId: 'toolu_task' }],
     );
     expect(userEvents(user('a plain message'))).toEqual([]);
+  });
+
+  it('keeps a result’s whole text beside its summary when the summary cut it (the full trace)', () => {
+    const long = `${'line of output\n'.repeat(60)}the end`;
+    const [event] = userEvents(user([{ type: 'tool_result', tool_use_id: 't', content: long }]));
+    expect(event).toMatchObject({ type: 'tool_result', id: 't', ok: true, output: long });
+    expect((event as { summary: string }).summary.length).toBeLessThanOrEqual(TOOL_RESULT_SUMMARY_MAX);
+  });
+});
+
+describe('a call’s whole input (the full trace)', () => {
+  it('rides on the call unless its summary says it all; a to-do list’s never does', () => {
+    const edit = { file_path: '/w/a.ts', old_string: 'a', new_string: 'b' };
+    const events = assistantEvents(
+      assistant([
+        { type: 'tool_use', id: 'e', name: 'Edit', input: edit },
+        { type: 'tool_use', id: 'r', name: 'Read', input: { file_path: '/w/a.ts' } },
+        { type: 'tool_use', id: 'd', name: 'TodoWrite', input: { todos: [] } },
+      ]),
+    );
+    expect(events.filter((event) => event.type === 'tool')).toEqual([
+      { type: 'tool', id: 'e', name: 'Edit', summary: '/w/a.ts', input: JSON.stringify(edit, null, 2) },
+      { type: 'tool', id: 'r', name: 'Read', summary: '/w/a.ts' },
+      { type: 'tool', id: 'd', name: 'TodoWrite', summary: '0 to-dos' },
+    ]);
   });
 });
 
@@ -239,7 +264,13 @@ describe('the richer events of messages', () => {
       background: false,
     };
     expect(assistantEvents(assistant([call]), state)).toEqual([
-      { type: 'tool', id: 'toolu_a', name: 'Agent', summary: 'Look' },
+      {
+        type: 'tool',
+        id: 'toolu_a',
+        name: 'Agent',
+        summary: 'Look',
+        input: JSON.stringify({ description: 'Look', prompt: 'p' }, null, 2),
+      },
       { ...subagent, status: 'running' },
     ]);
     const answer = user([{ type: 'tool_result', tool_use_id: 'toolu_a', content: 'Found it.' }]);

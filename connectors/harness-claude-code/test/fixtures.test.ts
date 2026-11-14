@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { BACKGROUND_ID, CLAUDE_SCENARIOS, CLAUDE_SESSION_ID, EXPLORE_ID, TODO_ID } from '../src/fixtures.ts';
 import { ClaudeLineParser } from '../src/parser.ts';
 
+/** A call's whole input as the trace keeps it (2026-11-14): its JSON, indented by two spaces. */
+const wholeInput = (input: Record<string, unknown>) => JSON.stringify(input, null, 2);
+
 /** Plays a scenario through a parser as the runner will: every line, then the end. */
 function play(scenario: FakeScenario): TurnEvent[] {
   const parser = new ClaudeLineParser();
@@ -61,7 +64,13 @@ describe('the Claude Code fixtures', () => {
       session,
       init,
       { type: 'thinking', text: 'List the folder first.' },
-      { type: 'tool', id: 'toolu_01FixtureLs', name: 'Bash', summary: 'ls src' },
+      {
+        type: 'tool',
+        id: 'toolu_01FixtureLs',
+        name: 'Bash',
+        summary: 'ls src',
+        input: wholeInput({ command: 'ls src', description: 'List the source folder' }),
+      },
       context(1),
       { type: 'tool_result', id: 'toolu_01FixtureLs', ok: true, summary: 'index.ts\nmain.ts' },
       { type: 'text', text: 'src holds index.ts and main.ts.' },
@@ -81,7 +90,13 @@ describe('the Claude Code fixtures', () => {
     expect(play(CLAUDE_SCENARIOS.denied)).toEqual([
       session,
       init,
-      { type: 'tool', id: 'toolu_01FixtureRm', name: 'Bash', summary: 'rm -rf build' },
+      {
+        type: 'tool',
+        id: 'toolu_01FixtureRm',
+        name: 'Bash',
+        summary: 'rm -rf build',
+        input: wholeInput({ command: 'rm -rf build', description: 'Remove the build folder' }),
+      },
       context(1),
       {
         type: 'tool_result',
@@ -166,10 +181,28 @@ describe('the Claude Code fixtures', () => {
         ],
       },
       { type: 'tool_result', id: TODO_ID, ok: true, summary: 'Todos have been modified successfully.' },
-      { type: 'tool', id: EXPLORE_ID, name: 'Agent', summary: 'Find the parser' },
+      {
+        type: 'tool',
+        id: EXPLORE_ID,
+        name: 'Agent',
+        summary: 'Find the parser',
+        input: wholeInput({
+          description: 'Find the parser',
+          prompt: 'Find where the stream-json lines are parsed.',
+          subagent_type: 'Explore',
+          model: 'haiku',
+        }),
+      },
       { ...explore, status: 'running' },
       context(2),
-      { type: 'tool', id: grep, name: 'Grep', summary: 'parseJsonLine in src', parentId: EXPLORE_ID },
+      {
+        type: 'tool',
+        id: grep,
+        name: 'Grep',
+        summary: 'parseJsonLine in src',
+        input: wholeInput({ pattern: 'parseJsonLine', path: 'src' }),
+        parentId: EXPLORE_ID,
+      },
       { ...explore, status: 'running', lastStep: 'Running Grep' },
       {
         type: 'tool_result',
@@ -181,7 +214,18 @@ describe('the Claude Code fixtures', () => {
       { type: 'text', text: answer, parentId: EXPLORE_ID },
       { type: 'tool_result', id: EXPLORE_ID, ok: true, summary: `${answer}\n${trailer}` },
       { ...explore, status: 'done', lastStep: 'Running Grep', summary: answer },
-      { type: 'tool', id: BACKGROUND_ID, name: 'Agent', summary: 'Run the tests' },
+      {
+        type: 'tool',
+        id: BACKGROUND_ID,
+        name: 'Agent',
+        summary: 'Run the tests',
+        input: wholeInput({
+          description: 'Run the tests',
+          prompt: 'Run the test suite and say whether it passes.',
+          subagent_type: 'general-purpose',
+          run_in_background: true,
+        }),
+      },
       { ...tests, status: 'running' },
       context(3),
       {
