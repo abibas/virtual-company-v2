@@ -56,5 +56,12 @@ export function chatsPath(companySlug: string, agentId: string, chatId?: string)
   return chatId === undefined ? path : `${path}?chat=${encodeURIComponent(chatId)}`;
 }
 
+/** A message turn's element id in its thread, which a link to the turn names after `#`. */
+export const turnAnchor = (turnId: string): string => `turn-${turnId}`;
+
+/** A turn of an agent's chat (`/:slug/chats/:agentId?chat=<id>#turn-<turnId>`): the thread scrolls to it. */
+export const turnPath = (companySlug: string, agentId: string, chatId: string, turnId: string): string =>
+  `${chatsPath(companySlug, agentId, chatId)}#${turnAnchor(turnId)}`;
+
 /** True when the address after `/agents/` is the hire form. */
 export const isHireAddress = (address: string): boolean => address === HIRE;

@@ -87,6 +87,7 @@ export function TaskPage({ taskKey }: { readonly taskKey: string }) {
       calls={calls}
       runs={runs}
       onChanged={changed}
+      decisions={roleAtLeast(membership.role, 'member') ? { companyId } : undefined}
     />
   );
 }

@@ -33,6 +33,8 @@ export interface TaskViewProps {
   readonly runs: TaskRuns;
   /** The task moved or changed: read it again. */
   readonly onChanged: () => void;
+  /** Its agents' recorded decisions, for members and above (2026-11-14): the company they are read from. */
+  readonly decisions?: { readonly companyId: string } | undefined;
 }
 
 /** The rounds under each step it entered: "2 rounds · 1 sent back". */
@@ -153,6 +155,7 @@ export function TaskView(props: TaskViewProps) {
             runs={runs}
             editable={editable}
             me={myPrincipal(viewer)}
+            decisions={props.decisions}
             onDescription={(description) => calls.editTask(task.key, { description }).then(onChanged)}
           />
         </div>

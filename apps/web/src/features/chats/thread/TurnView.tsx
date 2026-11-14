@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { Decision } from '../../../api/decisions.ts';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import { MessageAuthor } from '../../../components/feed/MessageAuthor.tsx';
+import { turnAnchor } from '../../agents/links.ts';
 import { BranchAction } from '../branch/BranchAction.tsx';
 import type { BranchState } from '../branch/branch-state.ts';
 import { turnErrorText } from '../chat-text.ts';
@@ -49,9 +50,6 @@ function FailedBox({ error, fix }: { readonly error: string; readonly fix: strin
 }
 
 const NO_DECISIONS: readonly Decision[] = [];
-
-/** A message turn's element id, which a link to it names after `#` (a decision's "in its chat"). */
-export const turnAnchor = (turnId: string) => `turn-${turnId}`;
 
 /** Where a turn stands in the thread, and how its question is answered. */
 export interface TurnPlace {

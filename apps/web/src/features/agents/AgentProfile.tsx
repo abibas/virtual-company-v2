@@ -17,6 +17,7 @@ import type { Loaded } from '../../api/use-load.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { nodesById } from '../../components/org/chart.ts';
 import { Button, ButtonLink } from '../../components/ui/Button.tsx';
+import { AgentDecisions } from '../decisions/AgentDecisions.tsx';
 import { HarnessToolWarning } from '../machines/tools/ToolWarning.tsx';
 import {
   type PlacementDraft,
@@ -37,6 +38,8 @@ export interface AgentProfileProps {
   readonly chart: Loaded<OrgChart>;
   /** Admins and owners change the agent; everyone else sees it read-only. */
   readonly admin: boolean;
+  /** Its recorded decisions, for members and above (2026-11-14): the company's address they link under. */
+  readonly decisions?: { readonly companySlug: string } | undefined;
   readonly meUserId: string;
   readonly links: AgentLinks;
   /** The agent changed (its fields, its place or its status): read it, the chart and the team again. */
@@ -174,6 +177,7 @@ function ProfileBody({
   onChanged,
   machinesHref,
   chatsHref,
+  decisions,
 }: Omit<AgentProfileProps, 'agent' | 'links'> & {
   readonly agent: AgentDetail;
   readonly machinesHref: string;
@@ -211,6 +215,9 @@ function ProfileBody({
         />
         {admin && <ProfileActions form={form} />}
       </form>
+      {decisions && (
+        <AgentDecisions companyId={companyId} companySlug={decisions.companySlug} agentId={agent.id} />
+      )}
     </div>
   );
 }

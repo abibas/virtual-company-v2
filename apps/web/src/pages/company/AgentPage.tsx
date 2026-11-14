@@ -43,6 +43,7 @@ function AgentAt({
       agent={agent}
       chart={chart}
       admin={roleAtLeast(membership.role, 'admin')}
+      decisions={roleAtLeast(membership.role, 'member') ? { companySlug: membership.slug } : undefined}
       meUserId={me.user.id}
       links={links}
       onChanged={() => {
