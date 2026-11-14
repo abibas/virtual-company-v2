@@ -69,17 +69,6 @@ async function remove(t: TenantDb, chatId: string, id: string): Promise<ChatPart
   return row;
 }
 
-/** Which of these chats this member is in. */
-async function chatsOf(t: TenantDb, principalId: string, chatIds: readonly string[]): Promise<Set<string>> {
-  if (chatIds.length === 0) return new Set();
-  const rows = await t.selectFields(
-    chatParticipants,
-    { chatId: chatParticipants.chatId },
-    and(eq(chatParticipants.principalId, principalId), inArray(chatParticipants.chatId, [...chatIds])),
-  );
-  return new Set(rows.map((row) => row.chatId));
-}
-
 /** The members of these chats (their principals), per chat. */
 async function membersOf(t: TenantDb, chatIds: readonly string[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
@@ -141,7 +130,6 @@ export const participantsRepo = {
   has,
   add,
   remove,
-  chatsOf,
   membersOf,
   members,
   memberOfUser,

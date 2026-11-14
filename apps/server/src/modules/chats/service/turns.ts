@@ -115,7 +115,7 @@ async function record(
       const turn = await turnsRepo.insert(tx, { ...values, seq });
       committed = await how.alongside?.(tx, turn);
       const chat = (await chatsRepo.get(tx, chatId)) as Chat;
-      const title = chat.title === null ? { title: titleOf(values.prompt) } : {};
+      const title = chat.title === null ? { title: titleOf(values.visibleText ?? values.prompt) } : {};
       await chatsRepo.update(tx, chatId, { updatedAt: values.startedAt as Date, ...title });
       return turn;
     });

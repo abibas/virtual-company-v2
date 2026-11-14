@@ -1,4 +1,5 @@
-import { agents, chatEvents, flows, tenant } from '@mwc/db';
+import { agents, chatEvents, flows, slackThreads, tenant } from '@mwc/db';
+import { newId } from '@mwc/shared/ids';
 import { seedAgent } from '@mwc/testkit';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -104,6 +105,34 @@ describe('GET /api/companies/:companyId/me/report-chats', () => {
     expect(report?.chat).toEqual({ id: main, title: 'The main one', updatedAt: iso(1) });
     // The admin's own main chat with the same agent is theirs, though the agent does not report to them.
     expect(await reportChatsOf(w, c.admin, c)).toEqual([]);
+  });
+
+  it("takes the viewer's latest chat they are in, another's group chat too, never a Slack conversation's or one they left", async () => {
+    const agent = await underOwner('Writer');
+    const owner = c.owner.principalId;
+    const group = await chat(agent.id, 1, {
+      createdBy: c.admin.principalId,
+      people: [c.admin.principalId, owner],
+    });
+    await chat(agent.id, 2, { people: [] });
+    const slack = await chat(agent.id, 3, { createdBy: agent.principalId, people: [owner] });
+    const t = await tenant(w.t.db, c.companyId);
+    await t.insert(slackThreads, {
+      agentId: agent.id,
+      chatId: slack,
+      credentialId: newId(),
+      channelId: 'D0ERICH',
+      threadTs: null,
+      place: 'a DM with Erich',
+    });
+    const [report] = await reportChatsOf(w, c.owner, c);
+    expect(report?.chat?.id).toBe(group);
+    // A line of who joined is not where the chat stands.
+    await turnRowOf(w, c, group, { seq: 1, createdBy: owner, at: at(4) });
+    await turnRowOf(w, c, group, { seq: 2, createdBy: owner, at: at(7), kind: 'people' });
+    expect((await reportChatsOf(w, c.owner, c))[0]).toMatchObject({
+      lastTurn: { status: 'done', at: iso(5) },
+    });
   });
 
   it('says where the main chat stands: its last turn, a running one, its latest reply and your latest message', async () => {

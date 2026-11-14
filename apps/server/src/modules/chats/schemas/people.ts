@@ -85,7 +85,4 @@ export const PersonParamsSchema = z.object({
 });
 
 export type ChatPersonView = z.infer<typeof ChatPersonSchema>;
-export type ChatPeopleFields = {
-  [K in keyof typeof chatPeopleFields]: z.infer<(typeof chatPeopleFields)[K]>;
-};
 export type CreateChat = z.infer<typeof CreateChatSchema>;

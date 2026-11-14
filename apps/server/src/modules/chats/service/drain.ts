@@ -49,7 +49,7 @@ async function claim(deps: DrainDeps, t: TenantDb, chat: Chat, id: string, targe
       const set = { status: 'running', seq, profileId, credentialId, ...ran, startedAt: now } as const;
       const row = (await queueRepo.updateQueued(tx, chat.id, id, set)) as ChatTurn;
       const current = (await chatsRepo.get(tx, chat.id)) as Chat;
-      const title = current.title === null ? { title: titleOf(row.prompt) } : {};
+      const title = current.title === null ? { title: titleOf(row.visibleText ?? row.prompt) } : {};
       await chatsRepo.update(tx, chat.id, { updatedAt: now, ...title });
       return row;
     });
