@@ -94,7 +94,23 @@ describe('the Slack connector', () => {
     expect(calls[0]?.form).toEqual({ channel: 'C0123ABCD', limit: '10', oldest: '1731400000' });
     const thread = await api.replies(SIGN_IN, 'C0123ABCD', '1731490000.000100', { limit: 50 });
     expect(thread.nextCursor).toBeNull();
+    expect(thread.items[0]).not.toHaveProperty('attachments');
     expect(calls[1]?.form).toEqual({ channel: 'C0123ABCD', ts: '1731490000.000100', limit: '50' });
+  });
+
+  it('reads what a message shares or unfurls: each address (from_url, else title_link) and title', async () => {
+    const pr = 'https://github.com/AiriaLLC/airia-platform/pull/7';
+    const attachments = [
+      { from_url: pr, title: '#7 Fix the login', title_link: 'https://x' },
+      { title_link: 'https://example.com/a', fallback: 'A page' },
+      { color: 'ff0000' },
+    ];
+    const { api } = client({ 'conversations.replies': ok({ messages: [{ ...MESSAGE, attachments }] }) });
+    const thread = await api.replies(SIGN_IN, 'C0123ABCD', '1731490000.000100', { limit: 50 });
+    expect(thread.items[0]?.attachments).toEqual([
+      { url: pr, title: '#7 Fix the login' },
+      { url: 'https://example.com/a', title: 'A page' },
+    ]);
   });
 
   it('lists the people, reads one and finds one by email', async () => {

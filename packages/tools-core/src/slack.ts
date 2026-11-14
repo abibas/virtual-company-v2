@@ -49,6 +49,17 @@ export interface SlackMessage {
   readonly reactions: readonly { readonly name: string; readonly count: number }[];
   /** Its files' names. */
   readonly files: readonly string[];
+  /**
+   * What it shares or Slack unfurled under it (2026-11-14): each attachment's address (a shared message's or a link's
+   * `from_url`, else its `title_link`) and title, such as a GitHub pull request's; left out when it has none.
+   */
+  readonly attachments?: readonly SlackAttachment[];
+}
+
+/** A shared message or an unfurled link under a message: its address and its title. */
+export interface SlackAttachment {
+  readonly url: string | null;
+  readonly title: string | null;
 }
 
 /** A page of a list, with the cursor of the next one (null: the last). */

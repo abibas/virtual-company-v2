@@ -1,4 +1,5 @@
 import type {
+  SlackAttachment,
   SlackChannel,
   SlackHit,
   SlackMessage,
@@ -64,7 +65,19 @@ export function messageOf(raw: Raw): SlackMessage {
       return { name: str(reaction.name) ?? '', count: num(reaction.count) ?? 0 };
     }),
     files: list(raw.files).flatMap((item) => str(obj(item).name) ?? []),
+    ...attachmentsOf(raw),
   };
+}
+
+/** A message's shared messages and unfurled links: each one's address and title (2026-11-14). */
+function attachmentsOf(raw: Raw): { readonly attachments?: SlackAttachment[] } {
+  const attachments = list(raw.attachments).flatMap((item) => {
+    const attachment = obj(item);
+    const url = str(attachment.from_url) ?? str(attachment.title_link) ?? str(attachment.original_url);
+    const title = str(attachment.title) ?? str(attachment.fallback);
+    return url === null && title === null ? [] : [{ url, title }];
+  });
+  return attachments.length === 0 ? {} : { attachments };
 }
 
 /** A person or a bot of the workspace. */

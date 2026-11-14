@@ -80,6 +80,7 @@ export type {
 } from './slack/socket.ts';
 export type {
   SlackApi,
+  SlackAttachment,
   SlackChannel,
   SlackConversationType,
   SlackHit,
