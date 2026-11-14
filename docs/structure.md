@@ -41,6 +41,7 @@ Most_Wanted_corp_v2/
 │   │   │   │   ├── tasks/          flows, steps, tasks, history, board (built S5.3a); step runs, artifacts (built S5.3b); agents' tools, decisions (built S6a); the Lead's wake-ups (built S6c); the team room (built 2026-11-12)
 │   │   │   │   ├── runs/           runs, events, scheduler                     S5
 │   │   │   │   ├── inbox/          what needs a person, computed live (built S6b); permissions S6
+│   │   │   │   ├── decisions/      the decision log: what agents record with record_decision (built 2026-11-14)
 │   │   │   │   ├── credentials/    subscriptions, sign-in, limits, profiles (built) S3
 │   │   │   │   └── integrations/   the agents' Atlassian tools (built S7.1c); Jira intake, PR watch, sprints S7
 │   │   │   └── dev/                in-memory server for local demos

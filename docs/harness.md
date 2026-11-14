@@ -80,8 +80,8 @@ PARSER_TICK_MS = 1000
 | `init`        | `model` (string or null, ≤ 200), `effort?` (≤ 50), `cwd?` (≤ 4096), `slashCommands?` (≤ 200 of ≤ 100, no slash) | what the turn runs on: Claude's `system/init`; Codex says nothing of it, so none |
 | `text`        | `text`, `parentId?`                                       | the assistant's text, as it comes                           |
 | `thinking`    | `text` (≤ 20 000), `parentId?`                            | Claude's `thinking` blocks with text, Codex's `reasoning` items; a longer one is cut, ending in `TRUNCATED_MARKER` (`\n… [truncated]`) |
-| `tool`        | `id`, `name`, `summary` (one line, ≤ 200), `parentId?`    | the input in one line: the command, file, pattern, address  |
-| `tool_result` | `id`, `ok`, `summary` (≤ 500), `parentId?`                | the start of the result (Claude), the exit code and the end of the output (Codex commands) |
+| `tool`        | `id`, `name`, `summary` (one line, ≤ 200), `input?` (≤ 8 000), `parentId?` | the input in one line: the command, file, pattern, address; `input` the whole input (its JSON indented, a command as it is) when the summary does not say it all (none for a to-do list or a Codex file change), cut with the marker |
+| `tool_result` | `id`, `ok`, `summary` (≤ 500), `output?` (≤ 8 000), `parentId?` | the start of the result (Claude), the exit code and the end of the output (Codex commands); `output` the whole text when the summary cut it, cut with the marker |
 | `todo`        | `items` (≤ 100: `text` ≤ 300, `status` `pending` \| `in_progress` \| `completed`), `parentId?` | the whole to-do list as it is now (the latest replaces the one before): Claude's `TodoWrite` input (its `tool` event comes too), Codex's `todo_list` item (done or not: `completed` or `pending`) |
 | `subagent`    | `id` (its Agent call's id), `agentType` (≤ 100), `description` (≤ 200), `model?`, `effort?` (≤ 50), `background?`, `status` (`running` \| `done` \| `failed` \| `interrupted`), `summary?` (≤ 4000, cut with the marker), `lastStep?` (≤ 200), `parentId?` | a subagent's whole state, each time it changes (the latest per `id` counts); Claude's Agent calls (`id` the call's), Codex's subagents (`id` the subagent's thread id, with its model and effort when Codex names them; see "Codex subagents") |
 | `usage`       | `inputTokens`, `outputTokens`, `cachedInputTokens?`, `costUsd?` | the turn's sum; input counts cached tokens too; Claude adds its cache writes and reads |
@@ -110,6 +110,9 @@ split into several `text` events, each keeping its `parentId`.
 - **How full** is `contextPercent(used, window, baselineTokens)`: `used / window`, or with a baseline (Codex's 12k)
   `(used − baseline) / (window − baseline)`, which is how Codex's `/status` computes its "% left".
 - **Old events stay valid**: every field added in S5.2 is optional, and the new types are new.
+- **The full trace** (2026-11-14, docs/processes.md "Decisions"): `tool.input` and `tool_result.output` are optional,
+  from the parsers of runners built since (`inputText` and `outputText` of `@mwc/harness-core`); a tool row in the
+  thread opens to them when present, else to the summaries. An older runner's turns keep the summaries only.
 - **Questions** (S5.2 step 4): a harness's parser never gives `question` or `answered`. The runner numbers a question
   among the turn's events (it sends the ones before it first), and the server writes `answered` after the turn ended,
   numbered after its last event, so a reader shows them in place.
@@ -927,7 +930,9 @@ prompt. The same bridge is where S6's tool approvals will ride.
 Built in S6a (2026-11-11; what they do for a task is docs/processes.md "Built in S6a"). The same bridge as the questions
 gives a turn the agents' tools: a task step's (`task_read`, its kind's moves, `task_attach`, `task_blocked`) or a flow
 Lead's in its own chats (`team_board`, `task_show`, `task_create`, `task_route`, `task_start`, `task_retry`,
-`task_cancel`). The names, inputs and words are `@mwc/shared/flows`'s (`AgentTool`, `AGENT_TOOL_INPUTS`,
+`task_cancel`), and since 2026-11-14 every message turn's `record_decision` (the decision log, docs/processes.md
+"Decisions"; offered only when the runner also says `caps.decisions`, which a runner built since says with
+`caps.agentTools`: an older one would pass the name over). The names, inputs and words are `@mwc/shared/flows`'s (`AgentTool`, `AGENT_TOOL_INPUTS`,
 `AGENT_TOOL_INFO`), and the runner and the server check an input with the same `checkToolInput`; the token and socket
 model is unchanged.
 

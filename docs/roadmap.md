@@ -645,6 +645,18 @@ whose prompt recaps the chat's last 20 exchanges, with a notice in the thread an
 conversations too (docs/harness.md "A lost conversation"). Runners need the rebuild and update; the Docker runner needs
 Update container for the volumes, and that first rebuild still starts with an empty Claude Code store.
 
+### Between S6 and S7: a decision log the agents write (Ihor, 2026-11-14)
+
+"When Agent is taking some decisions, i could have some traceability WHY he has done something" (for a company review
+agent first); he chose a decision log the agent writes. **Built 2026-11-14** (branch `decision-log`; docs/processes.md
+"Decisions"): the agents' tool `record_decision {what, why, sources?, outcome?}` with one standing line, in every message
+turn of every agent whose runner says `caps.decisions`; the per-company `decisions` table (migration `0038_decisions`,
+audited as the agent, `contact_id` without a foreign key until the contacts land); `GET …/decisions` by agent, chat,
+task, contact and outcome (members and above); a card in the chat where each was made, a Decisions panel on the
+agent's page and a tab on the task's. The full trace beside it: a tool row opens to the call's whole input and the
+result's whole text (`tool.input`, `tool_result.output`). Runners need the rebuild and update (the tool's name and
+`caps.decisions`, the whole inputs and results).
+
 ### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
 Reshaped on 2026-11-12 with Ihor ("GitHub LOGIN and Confluence Login. I do wanna have SIMILAR profile to push data as

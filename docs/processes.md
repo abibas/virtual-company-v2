@@ -1051,3 +1051,89 @@ notice and the Lead's reply, silence, a stop and a failure, a person's message k
 check-in's notice); `routes/room.test.ts` (who reads and writes, the cap and its audit, pages, tenancy);
 `apps/server/test/modules/chats/service/tasks.test.ts` (a step's prompt as Most Wanted's). All on PGlite with the fake
 runner.
+
+## Decisions (2026-11-14)
+
+Ihor: "when Agent is taking some decisions, i could have some traceability WHY he has done something... i'm planning
+to set up a company REVIEW agent, so it just takes a review, and makes a review for someone who requested it." He chose
+a decision log the agent writes: each real decision as its own record, with the turn's full trace beside it.
+
+### The tool
+
+`record_decision {what, why, sources?, outcome?}` is one of the agents' tools (`AgentTool` of `@mwc/shared/flows`; its
+contract is `flows/decision-log.ts`): `what` one line (whitespace folded, 1–200), `why` up to 1 000 characters, `sources`
+up to 20 links or references it relied on (a PR or Slack URL, a Jira key, a file path; each 1–500), `outcome` one of
+`approved`, `rejected`, `done`, `declined`, `deferred`, `other` (`DecisionOutcome`). The runner and the server check the
+input with the same `checkToolInput`; a bad one is a tool error naming each issue, and nothing is kept. The answer:
+`Recorded your decision "<what>" with your reasons and sources.`
+
+Every **message turn of every agent** gets it (its own chats, a task's step, a Lead's chats and team chat, the team
+room, a Slack conversation) when its runner says `caps.decisions`, after the turn's other agents' tools, with one line
+after the standing instructions so far (before the server tools' line; left out when it would not fit
+`STANDING_INSTRUCTIONS_MAX`):
+
+> Call record_decision {what, why, sources?, outcome?} for every real decision you make (approving or rejecting a
+> review, accepting or declining a request, choosing between options that matter, refusing something), never for
+> routine steps.
+
+A Compact, a Clear and a runner without `caps.decisions` get neither. The chats module offers it (`withDecisionTool`,
+`service/decisions.ts`) beside the tasks module's tools, through the same `TurnSpec.tools`, MCP bridge and
+`--allowedTools` (Claude Code) or `env_vars` (Codex) path as the `task_*` tools (docs/harness.md "Agents' tools").
+
+**Older runners.** A runner from before 2026-11-14 says `caps.agentTools` but not `caps.decisions`, and would pass over
+a name it does not know (`knownTools`), so the server offers it neither the tool nor the line: its turns record no
+decisions until the machine's runner is rebuilt and updated.
+
+### The record (`decisions`, migration `0038_decisions`)
+
+A per-company table: the agent, the chat, the turn, the task (when the turn belongs to a task's step: the task
+conversation's), `what`, `why`, `sources` (a jsonb array of strings, at most 20), `outcome` (null when none was said),
+`event_seq` (the turn's last event stored when it was recorded: where the thread shows it), `created_at` (the app's
+clock) and `contact_id`. Composite tenant keys to `agents`, `chats`, `chat_turns` and `tasks`; never changed.
+
+- **The call** is answered on the turn's write queue (as the `task_*` moves), after the events the runner sent before
+  it, so `event_seq` is right; the chats module reads the chat and hands the decisions module its `DecisionsHook`
+  (`record`), which checks the input again, inserts the row and its audit rows in one transaction, and answers. The
+  stored decision goes to the chat's stream as `event: decision` (`{decision}`; never replayed: a page reads the chat's
+  decisions again after a reconnect). The chat lists' activity ignores it.
+- **Audited as the agent**: `entity_type` `decision`, action `record`, one row per field, the agent's principal as the
+  actor (`actor_kind` `agent`), the turn as the request id.
+- **The contact.** `contact_id` is a plain nullable uuid with **no foreign key yet**: the contacts (a parallel branch)
+  add a `contacts` table and link Slack chats and turns to a contact. Until they land no chat names one and every
+  decision's `contact_id` is null; `contactOf(chat, turn)` in the chats module's `service/decisions.ts` is the hook
+  (TODO: answer `turn.contactId ?? chat.contactId`), and the foreign key comes with the merge.
+
+### Reading them
+
+`GET /api/companies/{companyId}/decisions?agent=&chat=&task=&contact=&outcome=&limit=&before=` (members and above;
+viewers 403): the company's decisions newest first (`created_at`, then id), each filter an id (`outcome` an outcome),
+`limit` 1–200 (50), `before` the `nextBefore` of the page before (a decision's id; one of no decision of the company is
+400 `unknown_before`). Each row: id, agent, chat, turn, task, contact, what, why, sources, outcome, `eventSeq`,
+`createdAt`. The Contact page of the contacts branch reads it with `contact=`.
+
+### Web
+
+- **In the chat**: each decision is a card in the thread where it was made, after the event it followed (its
+  `record_decision` call shows only as the card): the outcome as a chip, what, why (folded after three lines, "Show
+  more"), and the sources (a web address as a link, a Jira key or a path as it is). `components/feed/DecisionCard.tsx`;
+  the chat's decisions load beside its detail (`useChatDecisions`) and come live on its stream.
+- **The agent's page**: a Decisions panel under its fields (members and above), newest first, filtered by outcome, a
+  page at a time, each card with when and a link to its chat and turn (`/:slug/chats/:agentId?chat=<id>#turn-<id>`:
+  the thread scrolls to that turn once it is loaded).
+- **The task's page**: a Decisions tab (members and above) with the decisions of its steps' turns, whose each is, and
+  a link that opens its conversation scrolled to the turn.
+
+### The full trace beside it
+
+Under each reply the tool calls fold ("Ran 1 search, called 1 tool"); each call opens to its whole input and its
+result's whole text when the harness gave them (docs/harness.md "Events": `tool.input`, `tool_result.output`, since
+2026-11-14), else its one-line summary and the start of its result; the harness's thinking shows in place as "Thought
+for …" (Claude Code's `thinking` blocks with text, Codex's `reasoning` items, as before). Nothing is invented: Claude
+Code gives no thinking text for a redacted block, and Codex none when it sends no reasoning summary.
+
+### Tests
+
+The tool's schema and answer (shared, runner), offered in every kind of turn and on no older runner, a call kept with
+its chat, turn, agent, task and place in the turn, streamed and audited, a bad input refused (`chats/service/
+decisions.test.ts`), the list's filters, pages and permissions (`decisions/routes.test.ts`), the table and its
+migration (`db/test/schema/decisions.test.ts`), and both parsers' whole inputs and results.
