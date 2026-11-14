@@ -51,7 +51,10 @@ export function CompactedMarker({ event }: { readonly event: CompactEvent }) {
   );
 }
 
-/** A Compact turn: running, then the sizes once its `compact` event came; failed or stopped say so. */
+/**
+ * A Compact turn: running, then the sizes once its `compact` event came; failed or stopped say so. One Most Wanted
+ * queued itself (a long Slack conversation, before its next message) says why, quietly.
+ */
 export function CompactTurn({
   turn,
   model,
@@ -60,18 +63,18 @@ export function CompactTurn({
   readonly model: TurnModel;
 }) {
   if (turn.status === 'queued' || turn.status === 'running') {
+    const waits = turn.system
+      ? 'Compacting to keep this conversation short once this turn ends…'
+      : 'Compacting the conversation once the machine is ready…';
     return (
       <Marker live icon={<Spinner size={11} className="text-blue" />}>
-        {turn.status === 'queued'
-          ? 'Compacting the conversation once the machine is ready…'
-          : 'Compacting the conversation…'}
+        {turn.status === 'queued' ? waits : 'Compacting the conversation…'}
       </Marker>
     );
   }
   if (turn.status === 'done') {
-    return (
-      <Marker icon={FOLD}>Conversation compacted{model.compact ? ` · ${sizes(model.compact)}` : ''}</Marker>
-    );
+    const words = turn.system ? 'Compacted to keep this conversation short' : 'Conversation compacted';
+    return <Marker icon={FOLD}>{`${words}${model.compact ? ` · ${sizes(model.compact)}` : ''}`}</Marker>;
   }
   return (
     <div className="grid gap-1.5">

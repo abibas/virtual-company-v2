@@ -1,6 +1,6 @@
 import type { TurnEvent } from '@mwc/shared/harness';
 import { describe, expect, it } from 'vitest';
-import { conversationState } from '../../../../src/modules/chats/rules/conversation.ts';
+import { compactDue, conversationState } from '../../../../src/modules/chats/rules/conversation.ts';
 
 describe('conversationState', () => {
   const at = (n: number) => `2026-11-09T12:00:0${n}.000Z`;
@@ -137,5 +137,16 @@ describe('conversationState', () => {
       init: init('sonnet'),
       context: null,
     });
+  });
+});
+
+describe('compactDue', () => {
+  const reading = (usedTokens: number, window: number | null) => ({ usedTokens, window, model: null, at: '' });
+
+  it('is true from the share of the window on, never without a reading or a window', () => {
+    expect(compactDue(reading(120_000, 200_000), 0.6)).toBe(true);
+    expect(compactDue(reading(119_999, 200_000), 0.6)).toBe(false);
+    expect(compactDue(reading(190_000, null), 0.6)).toBe(false);
+    expect(compactDue(null, 0.6)).toBe(false);
   });
 });

@@ -72,3 +72,13 @@ export function conversationState(
   }
   return state;
 }
+
+/**
+ * True when the conversation is at least `share` (0 to 1) of its window full, by its last reading (2026-11-14, a Slack
+ * conversation compacted before its next message, docs/harness.md "Slack conversations"); never without a reading or a
+ * window.
+ */
+export function compactDue(context: ChatContextView | null, share: number): boolean {
+  if (context === null || context.window === null) return false;
+  return context.usedTokens >= context.window * share;
+}

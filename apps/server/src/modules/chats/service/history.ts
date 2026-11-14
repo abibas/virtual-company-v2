@@ -35,8 +35,9 @@ async function withEvents(t: TenantDb, rows: readonly ChatTurn[]): Promise<ChatT
 }
 
 /** The left-out turns of the current conversation as `conversationState` reads them: their state events only. */
-async function leftOutState(t: TenantDb, chatId: string, fromSeq: number, beforeSeq: number) {
-  const { turns, events } = await historyRepo.stateOf(t, chatId, { fromSeq, beforeSeq });
+async function leftOutState(t: TenantDb, chatId: string, fromSeq: number, beforeSeq?: number) {
+  const range = beforeSeq === undefined ? { fromSeq } : { fromSeq, beforeSeq };
+  const { turns, events } = await historyRepo.stateOf(t, chatId, range);
   return turns.map((turn) => ({
     kind: turn.kind,
     events: events.filter((event) => event.turnId === turn.id).map(eventView),
@@ -54,6 +55,12 @@ async function profileWindow(t: TenantDb, chat: Chat): Promise<number | null> {
   const part = await chatPart(t, chat);
   const provider = HARNESS_PROVIDER[chat.harness];
   return part === undefined ? null : profileWindowOf(provider, turnRuns(chat, provider, part).model);
+}
+
+/** What the chat's current conversation runs on and how full it is (`conversationState`), from its state events only. */
+export async function conversationNow(t: TenantDb, chat: Chat): Promise<ConversationState> {
+  const fromSeq = (await historyRepo.clearsOf(t, chat.id)).at(-1)?.seq ?? 1;
+  return conversationState(await leftOutState(t, chat.id, fromSeq), await profileWindow(t, chat));
 }
 
 /** The chat's current conversation, its latest turns with their events, and what is left out (see above). */

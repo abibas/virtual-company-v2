@@ -10,6 +10,12 @@ import { isThreadReply } from './event.ts';
  * (`<workspace>/archives/<channel>/p<ts without the dot>`, `?thread_ts=` for a reply in a thread). Pure.
  */
 
+/**
+ * How full a Slack conversation gets before its next message compacts it first: 60% of the model's window, by the last
+ * turn's reading (2026-11-14; a constant for now, not a setting of the card).
+ */
+export const SLACK_COMPACT_AT = 0.6;
+
 /** A Slack message read from its link: the workspace's host, the channel, the message and its thread's first message. */
 export interface SlackAddress {
   readonly host: string;

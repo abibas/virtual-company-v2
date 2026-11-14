@@ -5,7 +5,7 @@ import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
 import { integrationsRepo } from '../../../repo.ts';
 import { inboundKind, mayWake, messageKey, threadRoot } from '../../../rules/slack/inbound/event.ts';
 import { inboundReach } from '../../../rules/slack/inbound/reach.ts';
-import { joinedRoot } from '../../../rules/slack/inbound/scope.ts';
+import { joinedRoot, SLACK_COMPACT_AT } from '../../../rules/slack/inbound/scope.ts';
 import { askedText, renderSlackText } from '../../../rules/slack/inbound/text.ts';
 import {
   capWords,
@@ -38,7 +38,8 @@ import { turnFrom } from './sender.ts';
  * Since 2026-11-14 the sender's contact is made or updated first (`sender.ts`), and the turn and the conversation's chat
  * name it, the turn with the sender and the message as the reader sees it. Since 2026-11-14 the answer always goes into
  * the message's own thread, and the conversation is the thread's: a reply's, or the one a message in no thread points
- * to; else the message starts a new one (`rules/slack/inbound/scope.ts`, `conversation.ts`).
+ * to; else the message starts a new one (`rules/slack/inbound/scope.ts`, `conversation.ts`); a conversation 60% full
+ * is compacted first (`SLACK_COMPACT_AT`, the chats module's `compactAt`).
  */
 
 export const HOUR_MS = 60 * 60_000;
@@ -108,6 +109,7 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
     prompt,
     reason,
     from: sender,
+    compactAt: SLACK_COMPACT_AT,
   };
   const sent = await deps.chats.send(t, request);
   if (!sent.ok) {

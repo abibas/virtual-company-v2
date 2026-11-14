@@ -13,6 +13,7 @@ import {
   refuse,
 } from '../rules.ts';
 import { auditChat } from './audit.ts';
+import { compactFirst } from './auto-compact.ts';
 import type { ChatBus } from './bus.ts';
 import { type QueueDeps, sendMessage } from './queue.ts';
 import type { SystemTurnEnd } from './task-hook.ts';
@@ -30,7 +31,8 @@ import { turnView } from './views.ts';
  * Since 2026-11-14 (docs/subscriptions.md "Contacts") the turn stores whom it speaks for (`from`: the sender, the visible
  * text and the contact), and the hook says where it posted the reply, which the turn keeps (`reply_link`) and its
  * stream hears. Since 2026-11-14 the hook is also told the link of the message the turn answers (its sender's), so the
- * answer goes into that message's thread.
+ * answer goes into that message's thread; and a request may ask for the conversation to be compacted first once it is
+ * long (`compactAt`, `auto-compact.ts`).
  */
 
 export const AGENT_PAUSED_INBOUND = refuse(409, 'agent_paused', 'The agent is paused');
@@ -46,11 +48,23 @@ export interface InboundTurnRequest {
   readonly reason: string;
   /** Whom the turn speaks for: the message's sender, its visible text and contact. */
   readonly from?: TurnFrom | undefined;
+  /**
+   * Compact the conversation first when it is at least this share (0 to 1) of its window full (`auto-compact.ts`); none:
+   * never (2026-11-14, Slack's conversations only for now).
+   */
+  readonly compactAt?: number | undefined;
 }
 
 /** Where the message went: the chat (new or not) and its turn; or why not. */
 export type InboundTurnSent =
-  | { readonly ok: true; readonly chatId: string; readonly turnId: string; readonly created: boolean }
+  | {
+      readonly ok: true;
+      readonly chatId: string;
+      readonly turnId: string;
+      readonly created: boolean;
+      /** Its conversation is compacted first. */
+      readonly compacted: boolean;
+    }
   | Refusal;
 
 /** The port the integrations module calls. */
@@ -131,11 +145,14 @@ export function inboundChats(deps: QueueDeps): InboundChats {
       const { chat, created } = found;
       const wake = { trigger: 'message' as const, reason: request.reason };
       const caller = { principalId: request.agentPrincipalId, system: true, wake, from: request.from };
+      const { compactAt } = request;
+      const compacted =
+        !created && compactAt !== undefined && (await compactFirst(deps, t, chat, caller, compactAt));
       const sent = await sendMessage(deps, t, caller, chat.id, request.prompt, 'after');
       if (!sent.ok) return sent;
       if (sent.turn.status === 'failed')
         return refuse(409, sent.turn.error ?? 'turn_failed', `The turn could not start (${sent.turn.error})`);
-      return { ok: true, chatId: chat.id, turnId: sent.turn.id, created };
+      return { ok: true, chatId: chat.id, turnId: sent.turn.id, created, compacted };
     },
   };
 }
