@@ -944,6 +944,15 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          with dashed links to their agents (wider with messages, green and flowing while live), hover highlighting, a
          header switch with a 24 h / 7 d / 30 d window (`?requesters=`), live from the chats' activity; web only, the
          gallery's `/design/org` has sample contacts.
+       - **One conversation per thread, built 2026-11-14** (Ihor: "start NEW whenever this Airia Bro is tagged in
+         different groups, or inside the message thread with him… only when it's time to compact it, we have to compact a
+         conversation… UNLESS the user is pointing to the message / replying to the message"; docs/subscriptions.md "One
+         conversation per thread"; branch `slack-scope`): a message in no thread, a DM's too, starts its own chat
+         answered in its thread (a DM no longer grows one session; its chats from before stay and go on in the thread
+         under one of their answers); a reply in a thread goes on in that thread's; a message that links or shares a
+         message of the same channel joins that thread's conversation and is answered under itself. A Slack
+         conversation 60% full (a constant, `SLACK_COMPACT_AT`) runs the chat's Compact before its next message, shown as
+         "Compacted to keep this conversation short". No migration. Other chats could compact the same way later.
 2. **S7.2 Per-task worktrees and branches:** each task gets its own git worktree and branch from a fresh origin
    default branch, under the agent's home folder (v1's `<home>/worktrees/<key>/`). It is kept across the task's steps
    and rounds, and cleaned up after Done.

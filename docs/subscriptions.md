@@ -1030,7 +1030,7 @@ without background work stores the settings and says it keeps no connection (`re
   in one thread go to one chat.
 - **Who answers**, in this order: the agent named right after the bot's mention (**`@Bot @Developer …`**, its name or
   slug, any case, the longest that fits, among the owner's companies' agents, the default agent's company first); for
-  **a reply in a thread**, the agent that last posted there through this sign-in (`slack_posts`: its tools' posts and
+  **a reply in a thread** (or a message pointing to a thread of its channel, "One conversation per thread"), the agent that last posted there through this sign-in (`slack_posts`: its tools' posts and
   replies, and its answers), else an agent whose chat that thread is (woken there before it answered), else the agent
   whose name the bot posted the thread's first message under (`conversations.replies`, for posts made before this);
   else the connection's **default agent** (a fresh mention or a DM). A reply in a thread no agent of ours is in is left
@@ -1048,11 +1048,11 @@ without background work stores the settings and says it keeps no connection (`re
 ### The turn and its answer
 
 - **👀** on the message first, when the bot has `reactions:write`.
-- **The chat**: one per agent and Slack conversation, a channel's thread (a fresh mention's own message starts it) or a
-  DM itself for its messages in no thread (`slack_threads`), kept across its messages (Keep context): the turn resumes
-  its conversation. It is one of the agent's own chats, in its chat list, titled "Slack · #channel · <first words>"
-  ("Slack · DM · …"), made by Most Wanted (audited as the system); one that cannot go on (archived, the agent moved to
-  another machine or harness) is replaced by a new one (the chats module's `InboundChats`).
+- **The chat**: one per agent and Slack conversation, which is a thread ("One conversation per thread" below): a
+  message's own thread when it starts one, kept across its replies (Keep context): the turn resumes its conversation.
+  It is one of the agent's own chats, in its chat list, titled "Slack · #channel · <first words>" ("Slack · DM · …"),
+  made by Most Wanted (audited as the system); one that cannot go on (archived, the agent moved to another machine or
+  harness) is replaced by a new one (the chats module's `InboundChats`).
 - **The prompt**: one header line, then the message with its mentions rendered as names (`users.info`, with
   `users:read`), channels as `#name` and links as `label (address)`: "Slack message from Ihor Herasko in #general
   (https://airia.slack.com/archives/C…/p…). Your final reply is posted in that thread under your name."
@@ -1060,9 +1060,10 @@ without background work stores the settings and says it keeps no connection (`re
 - **The turn** is one Most Wanted queues (`system`, the agent as its sender), after any turn running there; slots are
   waited for as usual. **Machines**: a Slack message counts as a message for the machine's power policy (its "start for
   a message" switch decides), and the power log says "Started for a Slack message from Ihor Herasko in #general".
-- **The answer**: when the turn ends done, its final reply is posted in the same thread (or DM) under the agent's name
-  and emoji icon (a bot with `chat:write.customize`, as its tools post; mentions of many people stripped), unless the
-  agent already posted there in that turn with `slack_reply_to_thread` or `slack_post_message`. A failed turn, or one
+- **The answer**: when the turn ends done, its final reply is posted in the thread of the message it answers (read from
+  the link the turn keeps of it; a turn from before goes into its chat's thread) under the agent's name and emoji icon
+  (a bot with `chat:write.customize`, as its tools post; mentions of many people stripped), unless the agent already
+  posted there in that turn with `slack_reply_to_thread` or `slack_post_message` (in a DM, anywhere in that DM). A failed turn, or one
   that could not start (a paused agent, no placement, a stopped machine its policy does not start, a turn that waited
   and could not start) answers "Couldn't answer: <short reason>"; a stopped turn says nothing (the chats module's
   `InboundTurnHook`, told of every system turn's end).
@@ -1070,6 +1071,45 @@ without background work stores the settings and says it keeps no connection (`re
   asking) and audited in the company by the system on `slack_message` `<channel>/<ts>` (action `slack_inbound`: from,
   place, agent, chat, text); each answer opens the sign-in for `inbound_reply` and is audited as the agent
   (`slack_reply`, `slack_reply_failed`); the agents' posts are kept in `slack_posts`.
+
+### One conversation per thread
+
+Built 2026-11-14 (Ihor: "we have to compact conversations, or start NEW whenever this Airia Bro is tagged in different
+groups, or inside the message thread with him… only when it's time to compact it, we have to compact a conversation… we
+should not keep sending FULL messages… UNLESS the user is pointing to the message / replying to the message"). A DM's
+messages used to go into one chat that kept growing; now every Slack conversation is a thread
+(`rules/slack/inbound/scope.ts`, `service/slack/inbound/conversation.ts`):
+
+- **A message in no thread starts a new conversation**: a channel's mention, and since then a DM's message too, gets a
+  new chat for its agent, rooted at that message, and the answer goes into its thread. Each new DM message is its own
+  chat ("Slack · DM · <first words>").
+- **A reply in a thread goes on in that thread's conversation**, whether it answers the agent or mentions the bot there.
+  The thread's chat is the one recorded for it (`slack_threads`), else the Slack chat of the agent's latest post in that
+  thread (an answer it posted there for a message that pointed to another thread, below).
+- **A message that points to another goes on in that one's conversation**: a message in no thread that links to a Slack
+  message of the same channel or DM (its link in the text, `…/archives/<channel>/p<ts>`, with `?thread_ts=` for a reply,
+  of the bot's workspace), or shares one (Slack's Share message, and a message link Slack unfurled: the event's
+  attachments' `from_url`, read by the connector as `shared`), joins the conversation of that message's thread, when its
+  agent has one there: the same chat and session. Its agent is that thread's, unless the message names one; the answer
+  goes under the pointing message, and a reply there goes on in the same chat. A link to another channel's message, or
+  to a thread without a chat, starts a new conversation (the agent reads the link with its own tools, as its rights
+  allow), so a chat never carries one channel's conversation into another.
+- **Chats from before stay as they are.** A DM's chat from before (`slack_threads.thread_ts` null) is no longer added to
+  by messages in no thread; a reply in the thread under one of its answers goes on in it, answered in that thread.
+- **Where the answer goes** is the thread of the message the turn answers, read from the link the turn keeps of its
+  message (`chat_turns.sender.link`, told to the answers hook as `SystemTurnEnd.senderLink`): a chat can answer in more
+  than one thread. No migration.
+
+**Compacting long conversations.** A Slack conversation that reached **60% of its model's window** (by its last
+turn's reading of the context, the chat's context meter) runs the chat's **Compact** before its next message: the
+message's turn waits behind a `/compact` turn Most Wanted queues (`system`, by the agent), at once while nothing runs
+there, else behind the running turn. The chat's thread shows it as a quiet line, "Compacted to keep this conversation
+short" with the sizes before and after; nothing is posted in Slack. Nothing is compacted for a new chat, a chat with no
+session (after a Clear), a Codex chat, or while another message already waits; and a compaction that is refused (a
+stopped machine, which a compaction never starts, or no free slot) leaves the message to go as before, and the next one
+tries again. The threshold is a constant (`SLACK_COMPACT_AT` in `rules/slack/inbound/scope.ts`), not a setting of the
+card yet. The chats module's side is generic (`InboundTurnRequest.compactAt`, `service/auto-compact.ts`): only Slack's
+conversations ask for it for now, and other chats (a person's, a task's) could get it later.
 
 ### The data (migration `0037_slack_inbound`)
 
@@ -1080,7 +1120,8 @@ without background work stores the settings and says it keeps no connection (`re
 - `slack_posts` (personal, gone with the sign-in): an agent's message in Slack (`channel_id`, `ts`, `thread_ts`, the
   company, agent, chat and turn as plain ids), one per message.
 - `slack_threads` (a company's): an agent's chat for a Slack conversation through a sign-in (`channel_id`, `thread_ts`,
-  null for a DM itself, `place` in words), unique per agent, sign-in, channel and thread (nulls not distinct).
+  null only for a DM's conversation from before 2026-11-14, `place` in words), unique per agent, sign-in, channel and
+  thread (nulls not distinct).
 
 ### Tests
 
@@ -1092,7 +1133,13 @@ post, failures, a stop, a DM, an archived chat), `route.test.ts` (`@Bot @Agent`,
 a thread not ours, the default agent, none), `guards.test.ts` (the wake rule, ignored senders, bots and self, the
 double event, channel and DM rights, 👀, the cap, a stopped machine, the audit), `connections.test.ts` (opening with
 the sealed token, statuses, off and on, a new token, the sync, a renewed or revoked sign-in); `routes.test.ts` (the
-settings, their refusals and audit, the people search); the rules; `packages/db/test/schema/slack.test.ts`.
+settings, their refusals and audit, the people search); the rules; `packages/db/test/schema/slack.test.ts`. Since
+2026-11-14: `conversation.test.ts` (new chats for messages in no thread, a channel's and a DM's, each answered in its
+thread; replies and mentions in a thread go on; a DM's chat from before goes on under its answer; a link, a reply's link
+and a share of the same channel go on, another channel's starts anew), `rules/slack/inbound/scope.test.ts` (links, what
+a message points to, the answer's place), `test/modules/chats/service/auto-compact.test.ts` (the compaction at the
+threshold, behind a running turn and once, none below it or after a Clear), the chats' `rules/conversation.test.ts`
+(`compactDue`) and the connector's `frames.test.ts` (shared links).
 
 ### How to test it (Ihor)
 
@@ -1107,7 +1154,9 @@ settings, their refusals and audit, the people search); the rules; `packages/db/
 4. In Slack, reply in the thread under TEST DEV's earlier post ("Thx brother! Tell me a joke"): 👀 appears, then TEST
    DEV answers in the thread. Its chat "Slack · #… · …" shows in TEST DEV's chats.
 5. Mention the bot fresh in the channel ("@Airia BRO Bro are you there?"): the default agent answers in a thread under
-   your message.
+   your message, in a new chat. Mention it fresh again: another new chat. Reply in the first thread: the first chat
+   goes on. DM the bot twice: two chats, each answered in its message's thread. Paste the link of the first thread's
+   message in a new message mentioning the bot: the first chat goes on, answered under your new message.
 6. `@Airia BRO @Developer hi`: Developer answers, if its profile has a Slack part on this bot; else the bot says
    "Developer isn't allowed to post in #…".
 

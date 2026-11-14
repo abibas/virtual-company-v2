@@ -1439,6 +1439,17 @@ stores it (`chat_turns.sender`, `visible_text`, `contact_id`, passed by `Inbound
 returns where it posted the answer; the turn keeps it (`replyLink`) and the chat's stream and the chats' activity hear
 it.
 
+Since 2026-11-14 (docs/subscriptions.md "One conversation per thread") each Slack thread is its own conversation, and
+the hook is told the link of the message the turn answers (`SystemTurnEnd.senderLink`, the stored sender's), so the
+answer goes into that message's thread. A request may also ask for the conversation to be compacted first once it is
+long: `InboundTurnRequest.compactAt` (a share of the window, 0 to 1; Slack passes 0.6). When the chat goes on (not a new
+one), can compact (a session, Claude Code) and its conversation since the last Clear is at least that full by its last
+reading (`conversationNow`, the detail's `context`; `compactDue`), and no turn waits there, `service/auto-compact.ts`
+starts its Compact as a turn Most Wanted queues (`system`, by the agent, with no machine wake: a stopped machine or a
+full machine refuses it and the message goes as before), or queues it (`kind` `compact`, delivered after) behind the
+running turn; the message then waits behind it. The thread shows a system Compact as "Compacted to keep this
+conversation short". Only Slack asks for it for now; a person's or a task's chat could later.
+
 ## Live chat lists
 
 Built 2026-11-13 (Ihor: a Slack reply reached his agent, but his open chat page showed it only after a refresh). Every
