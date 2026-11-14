@@ -855,6 +855,13 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
        - **The runner changed**: every runner needs rebuilding and updating once, and the Docker runner **Update container**
          (for gh too). Codex's push and gh are expected only in Full trust (its shell drops `*TOKEN*` variables by default
          and its sandboxes keep the network off): not verified.
+       - **Reviews, built 2026-11-14** (Ihor's Code Reviewer, asked in Slack to approve an `AiriaLLC` pull request, had no
+         tool for it; docs/subscriptions.md "GitHub tools"; branch `review-tools`): a `reviews` right on the GitHub part
+         (`off`, `comment`, `approve`; the Profiles card's **Reviews**; migration `0041_github_reviews` sets every stored
+         part to `off`) gives `pull_request_review_write` (`create` with an event or pending, with line comments;
+         `submit_pending`; `delete_pending`) and `add_comment_to_pending_review` (GraphQL), by GitHub's MCP server's names.
+         APPROVE and REQUEST_CHANGES need `approve` and never go on the sign-in's own pull request; nothing dismisses,
+         merges or closes. Audited as the agent; the answer has the review's address. The runner did not change.
      - **S7.1e Slack** (Ihor, 2026-11-12: "i wan to add SLACK TOOL as well.. I have a bot"):
        - **The sign-in:** his Slack bot's token (`xoxb-…`, kind `slack_bot_token`), checked with `auth.test`, which
          shows the workspace, the bot's name and its scopes.
@@ -953,6 +960,13 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
          message of the same channel joins that thread's conversation and is answered under itself. A Slack
          conversation 60% full (a constant, `SLACK_COMPACT_AT`) runs the chat's Compact before its next message, shown as
          "Compacted to keep this conversation short". No migration. Other chats could compact the same way later.
+       - **Thread context, built 2026-11-14** (Erich asked the bot to approve a PR whose link was only in the thread's
+         first message; the agent saw just Ihor's reply; docs/subscriptions.md "Thread context"; branch `review-tools`):
+         a reply's prompt carries the thread's earlier messages the agent has not seen (`conversations.replies`; those
+         after its last successful turn in the chat, all without one, never its own posts, the first message always),
+         with names and shared or unfurled links, within about 8 000 characters (oldest dropped first), or one line
+         without the history scope. A stopped machine's Slack notice now says to start it or turn on "Start when you
+         message an agent on it". No migration; the runner did not change.
        - **Chat people, built 2026-11-14** (Ihor: "if CHAT is started/used with/by a person, i want to have it locked to
          a person, until/unless we pull into it someone else… Or do create chat with 3 of us"; docs/harness.md "Who is
          in a chat", docs/subscriptions.md "Send in Slack"; branch `chat-people`): migration `0040_chat_participants`

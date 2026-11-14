@@ -554,6 +554,7 @@ told.
   | GitHub    | `repos`            | `all`, or up to 100 of `owner/name` and `owner/*` (repeats dropped, case ignored); empty reaches none |
   |           | `push`             | push branches                                                                                  |
   |           | `pullRequests`     | open and update pull requests                                                                  |
+  |           | `reviews`          | `off`, `comment` (COMMENT reviews, pending reviews, line comments), `approve` (also APPROVE and REQUEST_CHANGES); `off` when left out (2026-11-14, migration `0041_github_reviews`) |
   | Atlassian | `jira`             | `off`, `read`, `changes` (comment, transition, create, edit summary, description and labels)  |
   |           | `jiraProjects`     | `all`, or project keys (`AP`; typed lower-case, stored upper-case)                             |
   |           | `confluence`       | `off`, `read`, `write` (create and update pages)                                               |
@@ -565,8 +566,8 @@ told.
   |           | `search`           | search messages (a user token with `search:read`, and `read`)                                  |
   |           | `react`            | add reactions                                                                                  |
 
-  GitHub reads in the repositories it reaches, always. A GitHub part never merges, deletes, force-pushes or pushes to a
-  default branch, an Atlassian part never deletes or archives, and a Slack part never mentions `@here`, `@channel` or
+  GitHub reads in the repositories it reaches, always. A GitHub part never merges, closes, deletes, force-pushes, pushes
+  to a default branch, dismisses others' reviews or approves its own pull request, an Atlassian part never deletes or archives, and a Slack part never mentions `@here`, `@channel` or
   `@everyone`, deletes, edits others' messages, invites, kicks or administers: those are no options. A new part starts at
   the safe end (`defaultRights`): GitHub reaches no repository and only reads; Atlassian reads Jira and Confluence
   everywhere and writes nowhere; Slack reads every channel and posts nowhere, with DMs, search and reactions off.
@@ -584,7 +585,7 @@ told.
   counted.
 - **The web:** a tool part's section has **Sign-in** (the person's sign-ins of that tool; **Add a sign-in** links to
   Subscriptions when there is none) and the rights: GitHub's **Repositories** (**All repositories**, else chips of
-  `owner/name` and `owner/*`), **Push branches** and **Pull requests**; Atlassian's **Jira** (Off, Read, Changes) and
+  `owner/name` and `owner/*`), **Push branches**, **Pull requests** and **Reviews** (Off, Comment, Approve); Atlassian's **Jira** (Off, Read, Changes) and
   **Confluence** (Off, Read, Write), each with **All projects** or **All spaces**, else key chips.
 
 **From one provider to generic profiles** (migration `0032_generic_profiles`, its `-- custom:` data step, 2026-11-13;
@@ -717,14 +718,48 @@ as the server's own tools (docs/harness.md, "Server tools"), for Claude Code and
 | a sign-in and at least one repository (`repos` `all` or a list) | `search_pull_requests {query, owner?, repo?, sort?, order?, page?, perPage?}`, `list_pull_requests {owner, repo, state?, head?, base?, sort?, direction?, page?, perPage?}`, `pull_request_read {method, owner, repo, pullNumber, page?, perPage?}` (`get`, `get_diff`, `get_status`, `get_files`, `get_commits`, `get_review_comments`, `get_reviews`, `get_comments`, `get_check_runs`), `search_issues {query, owner?, repo?, sort?, order?, page?, perPage?}`, `issue_read {method, owner, repo, issue_number, page?, perPage?}` (`get`, `get_comments`, `get_sub_issues`, `get_labels`), `list_commits {owner, repo, sha?, author?, path?, since?, until?, page?, perPage?}`, `get_commit {owner, repo, sha, detail?, page?, perPage?}`, `get_file_contents {owner, repo, path?, ref?, sha?}`, `list_branches {owner, repo, page?, perPage?}`, `search_repositories {query, sort?, order?, page?, perPage?}` |
 | `pullRequests` | `create_pull_request {owner, repo, title, head, base, body?, draft?, maintainer_can_modify?}`, `update_pull_request {owner, repo, pullNumber, title?, body?, base?, draft?}` (draft through GitHub's GraphQL, as REST cannot), `add_issue_comment {owner, repo, issue_number, body}` (on a pull request only), `request_copilot_review {owner, repo, pullNumber}` |
 | `push` | no tool: git and gh on the machine get the sign-in in the turn ("git and gh in a turn" below) |
+| `reviews` `comment` | `pull_request_review_write {method, owner, repo, pullNumber, body?, event?, commitID?, comments?}` (`create`: with `event` COMMENT it submits, without one the review stays pending, `comments` its line comments `{path, line, side?, startLine?, startSide?, body}`; `submit_pending` with `event`; `delete_pending`), `add_comment_to_pending_review {owner, repo, pullNumber, path, body, subjectType, line?, side?, startLine?, startSide?}` (`FILE` or `LINE`) |
+| `reviews` `approve` | the same, and the events APPROVE and REQUEST_CHANGES |
 
-Nothing merges, closes or deletes anything: there is no such tool (no `merge_pull_request`, no `delete_*`). Arguments of
-GitHub's MCP server that would do something not offered are refused by name: `update_pull_request`'s `state` (closing),
-`reviewers` and `maintainer_can_modify`, `create_pull_request`'s `reviewers`, `add_issue_comment`'s `comment_id` and
-`reaction`; others that change nothing here (`fields`, `after`, `minimal_output`) are taken and ignored.
+Nothing merges, closes or deletes anything: there is no such tool (no `merge_pull_request`, no `delete_*`; the only
+delete is the account's own pending review, which nobody else sees). Arguments of GitHub's MCP server that would do
+something not offered are refused by name: `update_pull_request`'s `state` (closing), `reviewers` and
+`maintainer_can_modify`, `create_pull_request`'s `reviewers`, `add_issue_comment`'s `comment_id` and `reaction`,
+`pull_request_review_write`'s `threadId` and `resolutionReason` (its `resolve_thread` and `unresolve_thread` are not
+offered); others that change nothing here (`fields`, `after`, `minimal_output`) are taken and ignored.
+
+**Reviews** (2026-11-14; Ihor's Code Reviewer agent, asked in Slack to approve a pull request in `AiriaLLC`, had no tool
+for it). By GitHub's MCP server's names and inputs as its README and source had them that day
+(`pull_request_review_write`'s methods `create`, `submit_pending`, `delete_pending`; `add_comment_to_pending_review`),
+with one addition: `create` takes line comments (`comments`), as GitHub's REST does, so a review with comments is one
+call (the MCP server makes a pending review and adds them one by one, which works here too). The `reviews` right of the
+profile's GitHub part (Profiles card: **Reviews** Off, Comment, Approve; `off` for a new part and for every part stored
+before, migration `0041_github_reviews`) gives them, with `pullRequests` or without:
+
+- `comment`: a COMMENT review, a pending review (no `event`), its comments and line comments, submitting it as COMMENT,
+  deleting it; `approve`: also APPROVE and REQUEST_CHANGES. "APPROVE is off for this agent's profile: it may only
+  comment in reviews (COMMENT, a pending review, line comments)."; "Reviews are off for this agent's profile: it may not
+  review pull requests."
+- **Never its own pull request**: APPROVE and REQUEST_CHANGES (on `create` and `submit_pending`) read the sign-in's login
+  (`GET /user`) and the pull request's author; when they are the same (any case) the call is refused before anything is
+  written: "AiriaLLC/x#7 is ihorherasko's own pull request, the account this agent acts as: it never gives its own pull
+  request APPROVE. Comment instead (event COMMENT), or ask a person to review it." COMMENT on one's own is fine.
+- **The pending review** `submit_pending`, `delete_pending` and `add_comment_to_pending_review` act on is the account's
+  own latest one (a review `PENDING` whose author is the sign-in's login, among the pull request's first 300 reviews);
+  without one: "ihorherasko has no pending review on AiriaLLC/x#7: make one with pull_request_review_write method create
+  and no event." A comment is added through GraphQL's `addPullRequestReviewThread` (REST cannot add to a pending
+  review); the others are REST (`POST …/pulls/{n}/reviews`, `POST …/reviews/{id}/events`, `DELETE …/reviews/{id}`).
+- **The answer** names the pull request and the review: its id, state and address (`https://github.com/…/pull/7#pullrequestreview-…`),
+  how many line comments, and for a pending review that it waits for `submit_pending`; a comment's answer has its
+  address too.
+- **Records**: a use `tool:<name>` per call; audited as the agent on `github_pull_request` `owner/repo#n`: `review`
+  (`<id>: <event>`, `<id>: PENDING`, from `PENDING` to the event on a submit, to `deleted`), `body` (its start),
+  `comments` (how many), `comment` (`<review id> <path>:<lines>: <start>`).
+- The repository is checked against the allowlist as every tool's is. Nothing dismisses a review, merges or closes.
 
 - **Offered.** A message turn whose profile (the chat's own, else the agent's) has a GitHub part with a sign-in that
-  reaches a repository gets the read tools, and the pull request tools with `pullRequests`, on a runner that says
+  reaches a repository gets the read tools, the pull request tools with `pullRequests`, and the review tools with
+  `reviews` (2026-11-14: 16 GitHub tools at most), on a runner that says
   `caps.serverTools`; with an Atlassian part too, Atlassian's come first (15 and 14: the 32 a turn's spec carries hold
   both). The turn's standing instructions get one line after them (after Atlassian's), ending with what git and gh get:
 
@@ -732,7 +767,9 @@ GitHub's MCP server that would do something not offered are refused by name: `up
   GitHub tools (from Most Wanted): as ihorherasko, in AiriaLLC/*: read, and open and update pull requests. Your tools, by the names of GitHub's MCP server: search_pull_requests, list_pull_requests, pull_request_read, …; owner and repo name the repository; they never merge, close or delete. git and gh on this machine use this sign-in in this turn (GH_TOKEN; git@github.com remotes go over https): push your branches to those repositories, never to a default branch and never with force; the tools above are preferred for reading and for pull requests.
   ```
 
-  Without `push` the end says pushing is off and git and gh get no sign-in from Most Wanted; on a runner without
+  With `reviews` the line says "…, and review them (comment, approve or request changes)" (or "with comments") and that
+  they never dismiss others' reviews or approve your own pull requests; the briefing's line says the same ("may …
+  review pull requests (comment, approve or request changes)"). Without `push` the end says pushing is off and git and gh get no sign-in from Most Wanted; on a runner without
   `caps.github` that the runner is too old to give git the sign-in (and the chat's notice says "git push"); when the
   sign-in could not be opened, why. A runner without `caps.serverTools` gets the S7.1c "runner too old" line, naming
   "GitHub" (or "Jira, Confluence and GitHub").
@@ -795,6 +832,12 @@ package).
    list the sandbox's pull requests with gh". The clone and push work over https with your sign-in (an SSH address
    too); `gh pr list` answers. Asking it to push to main, or to force-push, ends in the hook's
    "Most Wanted: refused: …" line.
+6. **Reviews** (2026-11-14; merge, then restart the dev API: migration `0041_github_reviews` runs on start and sets
+   every existing GitHub part's Reviews to Off; the runner did not change). **Profiles** → the Code Reviewer's profile
+   → its GitHub part → **Reviews: Comment**. In its chat: "review <a teammate's PR link> and leave a comment". It calls
+   `pull_request_read` then `pull_request_review_write` (`create`, COMMENT) and answers with the review's address. Ask it
+   to approve: "APPROVE is off for this agent's profile…". Switch **Reviews: Approve** and ask again: the review is
+   approved. Ask it to approve one of your own pull requests: "… is ihorherasko's own pull request …".
 
 ## Slack
 
@@ -1057,6 +1100,8 @@ without background work stores the settings and says it keeps no connection (`re
   `users:read`), channels as `#name` and links as `label (address)`: "Slack message from Ihor Herasko in #general
   (https://airia.slack.com/archives/C…/p…). Your final reply is posted in that thread under your name."
   The agent gets it whole; since 2026-11-14 the chat shows only the message itself, as its sender's ("Contacts" below).
+  Since 2026-11-14 a reply in a thread also carries the thread's earlier messages the agent has not seen, between the
+  header and the message ("Thread context" below).
 - **The turn** is one Most Wanted queues (`system`, the agent as its sender), after any turn running there; slots are
   waited for as usual. **Machines**: a Slack message counts as a message for the machine's power policy (its "start for
   a message" switch decides), and the power log says "Started for a Slack message from Ihor Herasko in #general".
@@ -1066,7 +1111,9 @@ without background work stores the settings and says it keeps no connection (`re
   posted there in that turn with `slack_reply_to_thread` or `slack_post_message` (in a DM, anywhere in that DM). A failed turn, or one
   that could not start (a paused agent, no placement, a stopped machine its policy does not start, a turn that waited
   and could not start) answers "Couldn't answer: <short reason>"; a stopped turn says nothing (the chats module's
-  `InboundTurnHook`, told of every system turn's end).
+  `InboundTurnHook`, told of every system turn's end). A stopped machine whose policy does not start it for a message
+  says what to do (2026-11-14; Ihor: it only said "Couldn't answer: Airia devbox is stopped"): "Couldn't answer: Airia
+  devbox is stopped. Start it, or turn on "Start when you message an agent on it" for the box." (`stoppedWords`).
 - **Records**: each wake is a `credential_uses` row `inbound` (the company, the agent, the chat, the agent as the one
   asking) and audited in the company by the system on `slack_message` `<channel>/<ts>` (action `slack_inbound`: from,
   place, agent, chat, text); each answer opens the sign-in for `inbound_reply` and is audited as the agent
@@ -1111,6 +1158,44 @@ tries again. The threshold is a constant (`SLACK_COMPACT_AT` in `rules/slack/inb
 card yet. The chats module's side is generic (`InboundTurnRequest.compactAt`, `service/auto-compact.ts`): only Slack's
 conversations ask for it for now, and other chats (a person's, a task's) could get it later.
 
+### Thread context
+
+Built 2026-11-14 (Erich wrote "@Airia BRO Approve: <PR link>"; that turn failed on a stopped devbox; Ihor replied in the
+thread "@Airia BRO @Erich has asked you to approve!", and the agent answered that it could not see the PR link: it got
+the reply's text alone). When the message is a reply in a thread (`rules/slack/inbound/thread.ts`,
+`service/slack/inbound/thread.ts`), its prompt carries the thread's earlier messages the agent has not seen yet:
+
+```
+Slack message from Ihor Herasko in #general (https://…). Your final reply is posted in that thread under your name.
+
+Earlier in this thread:
+- Erich Example (first message): @Airia BRO Approve: https://github.com/AiriaLLC/x/pull/7 [shared: #7 Fix the login (https://github.com/AiriaLLC/x/pull/7)]
+- Airia BRO: Couldn't answer: Airia devbox is stopped. Start it, or …
+
+Their message:
+
+@Airia BRO @Erich Example has asked you to approve!
+```
+
+- **Read** with `conversations.replies` through the connection's bot (up to 5 pages of 200), once per message; nothing
+  is recorded or posted for it.
+- **Not seen yet**: the messages before the new one and after the start of the agent's last successful turn in that
+  conversation's chat (when that turn was asked: the chats module's `InboundChats.lastAnsweredAt`); all of them when it
+  has none (a first turn that failed, a mention in the middle of a thread, a new chat). Never the agent's own posts in
+  that chat (made in its turns, `slack_posts`; a person's Send in Slack counts as unseen), nor anything after the new
+  message. The thread's first message is always there, marked "(first message)".
+- **Rendered**: authors by name (`users.info` with `users:read`, at most 15 more than the message's own; a bot by the name
+  it posted under), mentions, channels and links as the message's own text is, and what a message shares or Slack
+  unfurled under it (its attachments' `from_url`, else `title_link`, with the title: a GitHub pull request's address)
+  as `[shared: <title> (<address>)]`; files by name. A message's text is cut at 2 000 characters.
+- **Budget**: about 8 000 characters (`THREAD_BUDGET`): the oldest messages are dropped first, the first message always
+  kept, with "(N earlier messages left out)" in their place.
+- **Scopes**: a thread in a public channel needs `channels:history`, a private one `groups:history`, a DM `im:history`, a
+  group DM `mpim:history` (by the event's channel type; a mention, which has none, by the id: either channel scope
+  will do). Without it, or when Slack answers `missing_scope`, one line instead: "Earlier in this thread: not read: the
+  Slack app has no channels:history scope (add it on its OAuth & Permissions page and reinstall it). Ask for the earlier
+  messages if you need them."; another refusal says "could not be read (<Slack's words>)".
+
 ### The data (migration `0037_slack_inbound`)
 
 - `slack_connections` (personal, one per bot sign-in, gone with it): the app token sealed in `app_key_version`,
@@ -1139,7 +1224,11 @@ thread; replies and mentions in a thread go on; a DM's chat from before goes on 
 and a share of the same channel go on, another channel's starts anew), `rules/slack/inbound/scope.test.ts` (links, what
 a message points to, the answer's place), `test/modules/chats/service/auto-compact.test.ts` (the compaction at the
 threshold, behind a running turn and once, none below it or after a Clear), the chats' `rules/conversation.test.ts`
-(`compactDue`) and the connector's `frames.test.ts` (shared links).
+(`compactDue`) and the connector's `frames.test.ts` (shared links). Since 2026-11-14 (thread context):
+`service/slack/inbound/thread.test.ts` (the whole thread when nothing was seen, only what came after the last successful
+turn and never the agent's own posts, the first message always, the unfurled pull request's address, the budget, the
+missing scope and Slack's refusal, nothing outside a thread), `rules/slack/inbound/thread.test.ts`, the connector's
+`client.test.ts` (attachments), and `guards.test.ts` and `rules/slack/inbound/words.test.ts` (the stopped machine's words).
 
 ### How to test it (Ihor)
 
@@ -1159,6 +1248,11 @@ threshold, behind a running turn and once, none below it or after a Clear), the 
    message in a new message mentioning the bot: the first chat goes on, answered under your new message.
 6. `@Airia BRO @Developer hi`: Developer answers, if its profile has a Slack part on this bot; else the bot says
    "Developer isn't allowed to post in #…".
+7. **Thread context** (2026-11-14, no migration, the runner did not change): in a thread whose first message holds a
+   PR link (someone else's message, or yours), mention the bot in a reply without the link ("@Airia BRO please approve
+   the PR above"). The chat's prompt (the turn's row, or the agent's answer) shows "Earlier in this thread:" with the
+   first message and the PR's address. With the devbox stopped and its "Start when you message an agent on it" off,
+   a mention answers "Couldn't answer: Airia devbox is stopped. Start it, or turn on … for the box."
 
 **Later**: Slack may mirror the team structure (a channel per team), and a team's room could hear its channel.
 
