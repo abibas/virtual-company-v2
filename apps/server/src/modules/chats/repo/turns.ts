@@ -86,6 +86,12 @@ async function reopen(t: TenantDb, turn: ChatTurn): Promise<ChatTurn | undefined
   return row;
 }
 
+/** Keeps where an ended turn's reply was posted outside; undefined for an unknown turn. */
+async function setReplyLink(t: TenantDb, id: string, link: string): Promise<ChatTurn | undefined> {
+  const [row] = await t.update(chatTurns, { replyLink: link }, eq(chatTurns.id, id)).returning();
+  return row;
+}
+
 /** True when a turn of the chat after turn number `seq` ever started. */
 async function startedAfter(t: TenantDb, chatId: string, seq: number): Promise<boolean> {
   const where = and(eq(chatTurns.chatId, chatId), gt(chatTurns.seq, seq), isNotNull(chatTurns.startedAt));
@@ -125,6 +131,7 @@ export const turnsRepo = {
   insert,
   updateLive,
   reopen,
+  setReplyLink,
   startedAfter,
   insertEvents,
   lastEventSeq,

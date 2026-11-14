@@ -143,7 +143,7 @@ export async function ended(
     const which = { chatId: row.chatId, turnId: row.id, roomMessageId: row.roomMessageId };
     await l.deps.tasks?.systemEnded?.(t, { ...which, status, resultText, error });
   }
-  await tellInbound(l.deps.inbound, t, row);
+  await tellInbound(l.deps.inbound, t, row, l.bus);
   await l.ended?.(t, turn.chatId);
   return undefined;
 }

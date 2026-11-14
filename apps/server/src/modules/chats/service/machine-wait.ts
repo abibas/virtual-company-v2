@@ -16,6 +16,7 @@ import {
   SLOT_WAIT_MS,
   waitedOut,
 } from '../rules/machine.ts';
+import { fromColumns, type TurnFrom } from '../rules/sender.ts';
 import { MACHINE_OFFLINE, type Refusal } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
 import { type InboundTurnHook, tellInbound } from './inbound.ts';
@@ -77,6 +78,7 @@ export interface WaitingCaller {
   readonly system?: boolean | undefined;
   readonly roomMessageId?: string | undefined;
   readonly wake?: TurnWake | undefined;
+  readonly from?: TurnFrom | undefined;
 }
 
 /** Records a turn waiting for the chat's machine (to start, or for a free slot), delivered after. */
@@ -101,6 +103,7 @@ export const recordWaiting = (
       createdBy: caller.principalId,
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
+      ...fromColumns(caller.from),
     });
   });
 
@@ -173,7 +176,7 @@ async function endWaiting(
   if (row === undefined) return undefined;
   deps.live.bus.publish(row.chatId, { kind: 'turn', turn: turnView(row) });
   await reportTask(deps, t, row);
-  await tellInbound(deps.inbound, t, row);
+  await tellInbound(deps.inbound, t, row, deps.live.bus);
   return row;
 }
 

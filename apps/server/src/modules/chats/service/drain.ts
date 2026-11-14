@@ -67,7 +67,7 @@ async function failed(deps: DrainDeps, t: TenantDb, turn: ChatTurn, error: strin
     : await queueRepo.updateQueued(t, turn.chatId, turn.id, set);
   if (row === undefined) return;
   deps.live.bus.publish(turn.chatId, { kind: 'turn', turn: turnView(row) });
-  await tellInbound(deps.inbound, t, row);
+  await tellInbound(deps.inbound, t, row, deps.live.bus);
 }
 
 /** Starts one waiting turn (see above). */

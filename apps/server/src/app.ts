@@ -4,6 +4,7 @@ import { requestId } from 'hono/request-id';
 import { apiKeysRoutes } from './modules/api-keys/index.ts';
 import { chatsRoutes, chatsRuntime, reapTurns as reapChatTurns } from './modules/chats/index.ts';
 import { companiesRoutes, companyOutboxHandlers } from './modules/companies/index.ts';
+import { contactsRoutes } from './modules/contacts/index.ts';
 import {
   credentialsRoutes,
   providerFetchFor,
@@ -176,6 +177,7 @@ export function createApp(deps: AppOptions) {
     .route('/', tasksRoutes({ ...server, steps: chats.taskTurns, team: chats.teamChats }))
     .route('/', inboxRoutes(server))
     .route('/', decisionsRoutes(server))
+    .route('/', contactsRoutes(server))
     .route('/', integrationsRoutes({ ...server, keyring, slack: tools.slack, receiving }));
   mountDocs(app, deps);
   // Last: the UI only answers what no API route did.

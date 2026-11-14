@@ -1,10 +1,10 @@
 import { ownedIn, type TenantDb } from '@mwc/db';
 import { isSlackError } from '@mwc/tools-core';
-import type { InboundTurnHook, SystemTurnEnd } from '../../../../chats/index.ts';
+import type { InboundReply, InboundTurnHook, SystemTurnEnd } from '../../../../chats/index.ts';
 import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
 import { integrationsRepo } from '../../../repo.ts';
 import { botOf } from '../../../rules/slack/inbound/event.ts';
-import { answerText, couldNotAnswer } from '../../../rules/slack/inbound/words.ts';
+import { answerText, couldNotAnswer, messageLink } from '../../../rules/slack/inbound/words.ts';
 import { excerpt } from '../../reply.ts';
 import { type InboundDeps, postedAs, postIn } from './context.ts';
 
@@ -14,23 +14,39 @@ import { type InboundDeps, postedAs, postIn } from './context.ts';
  * that thread (or DM) under the agent's name (a bot with `chat:write.customize`, as the agent's tools post), unless the
  * agent already posted there in that turn with its own tools; a turn that failed (or never started) says "Couldn't
  * answer: …"; a stopped one says nothing. The bot sign-in is opened for `inbound_reply`, the post recorded (a reply in
- * the thread comes back to this agent) and audited as the agent. Never throws: a failure is logged.
+ * the thread comes back to this agent) and audited as the agent. Never throws: a failure is logged. Since 2026-11-14 it
+ * gives back the posted reply's link (the agent's own post, when it posted itself), which the turn keeps for "Posted
+ * in Slack".
  */
 
-/** Posts the turn's answer (see above). */
-async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promise<void> {
-  if (end.status !== 'done' && end.status !== 'failed') return;
+/** A post's link in the sign-in's workspace; undefined without the workspace's address or the post's ts. */
+const linkOf = (
+  url: string | null,
+  post: { readonly channel: string; readonly ts: string; readonly threadTs: string | null },
+) => {
+  const link = post.ts === '' ? null : messageLink(url, post);
+  return link === null ? undefined : { link };
+};
+
+/** Posts the turn's answer (see above); where it went. */
+async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promise<InboundReply | undefined> {
+  if (end.status !== 'done' && end.status !== 'failed') return undefined;
   const thread = await repo.threadOfChat(t, end.chatId);
-  if (thread === undefined) return;
+  if (thread === undefined) return undefined;
   const done = end.status === 'done';
   const reply = done ? (end.resultText ?? '').trim() : couldNotAnswer(end.error);
-  if (reply === '') return;
+  if (reply === '') return undefined;
   const owner = await repo.ownerOfSignIn(t, thread.credentialId);
   const agent = await repo.liveAgent(t, thread.agentId);
-  if (owner === undefined || agent === undefined) return;
+  if (owner === undefined || agent === undefined) return undefined;
   const o = ownedIn(t, owner);
   const turn = { credentialId: thread.credentialId, turnId: end.turnId, channelId: thread.channelId };
-  if (done && (await repo.postedInTurn(o, turn, thread.threadTs))) return;
+  const own = done ? await repo.postedInTurn(o, turn, thread.threadTs) : undefined;
+  if (own !== undefined) {
+    const sign = await repo.signInOf(o, thread.credentialId);
+    const url = sign === undefined ? null : botOf(sign.accountMeta).url;
+    return linkOf(url, { channel: own.channelId, ts: own.ts, threadTs: own.threadTs });
+  }
   const use = {
     companyId: t.companyId,
     agentId: agent.id,
@@ -46,7 +62,7 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
       { credentialId: thread.credentialId },
       `slack inbound: no answer posted: ${opened.message}`,
     );
-    return;
+    return undefined;
   }
   const where = { channel: thread.channelId, threadTs: thread.threadTs };
   const text = done ? answerText(reply) : reply;
@@ -77,6 +93,7 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
       { field: 'text', old: null, new: excerpt(text) },
     ],
   });
+  return linkOf(botOf(opened.meta).url, { channel: channelId, ts: posted.ts, threadTs: thread.threadTs });
 }
 
 /** The hook on these deps. */
@@ -84,7 +101,7 @@ export function slackReplies(deps: InboundDeps): InboundTurnHook {
   return {
     async ended(t, end) {
       try {
-        await answer(deps, t, end);
+        return await answer(deps, t, end);
       } catch (error) {
         if (isSlackError(error))
           deps.logger.warn(
@@ -93,6 +110,7 @@ export function slackReplies(deps: InboundDeps): InboundTurnHook {
           );
         else
           deps.logger.error({ err: error, turnId: end.turnId }, 'slack inbound: the answer was not posted');
+        return undefined;
       }
     },
   };

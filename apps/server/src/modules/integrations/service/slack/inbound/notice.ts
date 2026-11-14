@@ -1,5 +1,5 @@
 import { type SlackPerson, slackAllows, storedPeople } from '@mwc/shared/credentials';
-import { isSlackError, type SlackInboundMessage } from '@mwc/tools-core';
+import { isSlackError, type SlackInboundMessage, type SlackUser } from '@mwc/tools-core';
 import { mentionedIds } from '../../../rules/slack/inbound/text.ts';
 import type { Place } from '../../../rules/slack/inbound/words.ts';
 import { type Connection, type InboundDeps, postIn } from './context.ts';
@@ -40,29 +40,35 @@ export async function placeOf(
   }
 }
 
-/** A person's name by Slack (with `users:read`), else as listed, else their id; and the names of those it mentions. */
+/**
+ * A person's name by Slack (with `users:read`), else as listed, else their id; the names of those it mentions; and the
+ * author as Slack described them (none without `users:read`, or when Slack refused), for their contact.
+ */
 export async function namesOf(
   deps: InboundDeps,
   conn: Connection,
   people: readonly SlackPerson[],
   message: SlackInboundMessage,
-): Promise<{ readonly from: string; readonly names: Map<string, string> }> {
+): Promise<{ readonly from: string; readonly names: Map<string, string>; readonly author?: SlackUser }> {
   const names = new Map<string, string>();
   for (const person of people) names.set(person.id, person.name);
   if (conn.bot.userId !== null && conn.bot.name !== null) names.set(conn.bot.userId, conn.bot.name);
   const author = message.user as string;
   const ids = [author, ...mentionedIds(message.text)].filter((id) => id !== conn.bot.userId);
+  let described: SlackUser | undefined;
   if (slackAllows('users', 'slack_bot_token', conn.bot.scopes)) {
     for (const id of [...new Set(ids)].slice(0, NAMES_MAX)) {
       try {
         const user = await deps.slack.userInfo(conn.signIn, id);
         names.set(id, user.realName ?? user.displayName ?? user.name);
+        if (id === author) described = user;
       } catch (error) {
         await slackFailed(deps, conn, error, 'slack inbound: could not read a person');
       }
     }
   }
-  return { from: names.get(author) ?? author, names };
+  const from = names.get(author) ?? author;
+  return described === undefined ? { from, names } : { from, names, author: described };
 }
 
 /** The listed people of the connection's row. */

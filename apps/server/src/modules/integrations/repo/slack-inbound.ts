@@ -10,6 +10,7 @@ import {
   owned,
   ownersOf,
   type SlackConnection,
+  type SlackPost,
   type SlackThread,
   slackConnections,
   slackPosts,
@@ -94,22 +95,25 @@ async function threadPoster(o: OwnedDb, credentialId: string, channelId: string,
   return row;
 }
 
-/** True when the turn already posted in the conversation (the thread, or the DM itself). */
+/** The turn's latest post in the conversation (the thread, or the DM itself); undefined when it posted none there. */
 async function postedInTurn(
   o: OwnedDb,
   turn: { readonly credentialId: string; readonly turnId: string; readonly channelId: string },
   root: string | null,
-): Promise<boolean> {
-  const rows = await o.select(
-    slackPosts,
-    and(
-      eq(slackPosts.credentialId, turn.credentialId),
-      eq(slackPosts.turnId, turn.turnId),
-      eq(slackPosts.channelId, turn.channelId),
-      root === null ? undefined : or(eq(slackPosts.threadTs, root), eq(slackPosts.ts, root)),
-    ),
-  );
-  return rows.length > 0;
+): Promise<SlackPost | undefined> {
+  const [row] = await o
+    .select(
+      slackPosts,
+      and(
+        eq(slackPosts.credentialId, turn.credentialId),
+        eq(slackPosts.turnId, turn.turnId),
+        eq(slackPosts.channelId, turn.channelId),
+        root === null ? undefined : or(eq(slackPosts.threadTs, root), eq(slackPosts.ts, root)),
+      ),
+    )
+    .orderBy(desc(slackPosts.at), desc(slackPosts.id))
+    .limit(1);
+  return row;
 }
 
 /** Whose a sign-in is, from a company's side; undefined when it is gone. */
@@ -158,19 +162,27 @@ async function threadOfChat(t: TenantDb, chatId: string): Promise<SlackThread | 
   return row;
 }
 
-/** Saves the agent's chat for the conversation: a new row, or the chat that replaced its old one. */
+/**
+ * Saves the agent's chat for the conversation: a new row naming the contact who started it, or the chat that replaced
+ * its old one; a row from before contacts takes this sender's.
+ */
 async function saveThread(
   t: TenantDb,
-  values: Pick<SlackThread, 'agentId' | 'chatId' | 'credentialId' | 'channelId' | 'threadTs' | 'place'>,
+  values: Pick<
+    SlackThread,
+    'agentId' | 'chatId' | 'credentialId' | 'channelId' | 'threadTs' | 'place' | 'contactId'
+  >,
 ): Promise<void> {
   const found = await threadOf(t, values);
-  if (found === undefined) await t.insert(slackThreads, values);
-  else if (found.chatId !== values.chatId)
-    await t.update(
-      slackThreads,
-      { chatId: values.chatId, place: values.place },
-      eq(slackThreads.id, found.id),
-    );
+  if (found === undefined) {
+    await t.insert(slackThreads, values);
+    return;
+  }
+  const contact =
+    found.contactId === null && values.contactId !== null ? { contactId: values.contactId } : {};
+  const chat = found.chatId === values.chatId ? {} : { chatId: values.chatId, place: values.place };
+  if (Object.keys({ ...chat, ...contact }).length > 0)
+    await t.update(slackThreads, { ...chat, ...contact }, eq(slackThreads.id, found.id));
 }
 
 /** The company's agents that are not archived: all, or those of these profiles. */

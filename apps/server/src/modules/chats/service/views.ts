@@ -1,6 +1,6 @@
 import type { Chat, ChatEvent, ChatTurn } from '@mwc/db';
 import type { TurnEvent } from '@mwc/shared/harness';
-import { senderOf } from '../rules/sender.ts';
+import { senderOf, visibleTextOf } from '../rules/sender.ts';
 import type { ChatEventView, ChatStreamEvent, ChatTurnView, ChatView } from '../schemas.ts';
 
 /** Chats, turns and events as the API and the stream show them: never a secret (a turn names its credential's id). */
@@ -44,6 +44,8 @@ export function turnView(row: ChatTurn): ChatTurnView {
     delivery: row.delivery,
     system: row.system,
     from: senderOf(row),
+    visibleText: visibleTextOf(row),
+    replyLink: row.replyLink,
     machineWaitAt: iso(row.machineWaitAt),
     machineWait: row.machineWait,
     profileId: row.profileId,

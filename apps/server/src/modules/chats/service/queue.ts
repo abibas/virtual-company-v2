@@ -6,6 +6,7 @@ import { queueRepo } from '../repo/queue.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { MESSAGE_SENT, nowRefusal, QUEUE_FULL, TURN_NOT_QUEUED } from '../rules/queue.ts';
+import { fromColumns } from '../rules/sender.ts';
 import { CHAT_ARCHIVED, CHAT_NOT_FOUND, type Refusal, TURN_NOT_FOUND } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
 import type { ChatQueue } from './drain.ts';
@@ -93,6 +94,7 @@ export async function sendMessage(
       createdBy: caller.principalId,
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
+      ...fromColumns(caller.from),
     };
     return turnsRepo.insert(tx, { ...values, status: 'queued' });
   });

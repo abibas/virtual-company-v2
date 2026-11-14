@@ -23,6 +23,7 @@ import { accessOf } from '../call.ts';
 import type { Connection, HandleDeps } from './context.ts';
 import { namesOf, notice, peopleOf, placeOf, reactEyes, say } from './notice.ts';
 import { type Picked, pickAgent } from './route.ts';
+import { turnFrom } from './sender.ts';
 
 /**
  * One Slack message received (2026-11-13, docs/subscriptions.md "Slack: receiving messages"): a DM to the bot, a
@@ -32,6 +33,8 @@ import { type Picked, pickAgent } from './route.ts';
  * ignored; without read and post there it says so once an hour), within the connection's hourly cap (said once, then
  * silence). Then 👀, and a turn in the agent's chat for that conversation (Keep context), whose prompt is the message
  * with names and a header; the wake is recorded (`inbound`) and audited. A turn that cannot start says why in the thread.
+ * Since 2026-11-14 the sender's contact is made or updated first (`sender.ts`), and the turn and the conversation's chat
+ * name it, the turn with the sender and the message as the reader sees it.
  */
 
 export const HOUR_MS = 60 * 60_000;
@@ -68,9 +71,11 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
   const { t, agent } = picked;
   const where = { channel: message.channel, threadTs: root };
   await reactEyes(deps, conn, message);
-  const { from, names } = await namesOf(deps, conn, w.people, message);
+  const { from, names, author } = await namesOf(deps, conn, w.people, message);
   const text = renderSlackText(message.text, names);
   const link = messageLink(conn.bot.url, message);
+  const listed = w.people.find((person) => person.id === message.user);
+  const sender = await turnFrom(deps, conn, t, { message, from, described: author, listed, link, text });
   const prompt = inboundPrompt({ from, place, link, threaded: root !== null, text });
   const named = picked.how === 'named' ? agent.name : null;
   const title = slackChatTitle(
@@ -91,6 +96,7 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
     title,
     prompt,
     reason,
+    from: sender,
   };
   const sent = await deps.chats.send(t, request);
   if (!sent.ok) {
@@ -100,7 +106,8 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
     );
     return say(deps, conn, where, couldNotAnswer(sent.message));
   }
-  await repo.saveThread(t, { ...key, chatId: sent.chatId, place: placeWords(place) });
+  const started = { chatId: sent.chatId, place: placeWords(place), contactId: sender.contactId };
+  await repo.saveThread(t, { ...key, ...started });
   const use = {
     companyId: t.companyId,
     agentId: agent.id,

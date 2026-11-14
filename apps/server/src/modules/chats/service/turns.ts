@@ -6,6 +6,7 @@ import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
 import { machineBusy } from '../rules/machine.ts';
 import { ranWith } from '../rules/overrides.ts';
+import { fromColumns, type TurnFrom } from '../rules/sender.ts';
 import {
   CHAT_ARCHIVED,
   CHAT_NOT_FOUND,
@@ -74,6 +75,8 @@ export interface TurnCaller {
   readonly roomMessageId?: string | undefined;
   /** What a prompt may do when the agent's machine is stopped: wake it for a message or for work. */
   readonly wake?: TurnWake | undefined;
+  /** A message from outside the turn speaks for (a Slack message: its sender, visible text and contact). */
+  readonly from?: TurnFrom | undefined;
 }
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
@@ -176,6 +179,7 @@ export async function startTurn(
       createdBy: caller.principalId,
       system: caller.system === true,
       roomMessageId: caller.roomMessageId ?? null,
+      ...fromColumns(caller.from),
     },
     how,
   );
