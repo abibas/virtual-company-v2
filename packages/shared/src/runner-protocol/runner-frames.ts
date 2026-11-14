@@ -67,6 +67,8 @@ export const RunnerCaps = protocolObject({
    * turn's spec and writes the step's prompt for them. False from an older runner, whose agents move nothing.
    */
   agentTools: z.boolean().default(false),
+  /** True when its turns offer `record_decision`, the decision log (2026-11-14); false from older ones, which lack it. */
+  decisions: z.boolean().default(false),
   /** True when its turns list and relay the server's own tools (S7.1c, `TurnSpec.serverTools`); false from older ones. */
   serverTools: z.boolean().default(false),
   /** How many server tools a turn's spec may carry (S7.1e: 64); left out by older runners, which parse 32. */

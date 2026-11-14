@@ -74,4 +74,28 @@ describe('the agents’ tools a turn offers', () => {
     expect(both.ok ? '' : both.error).toContain('give exactly one of text, path or url');
     expect(checkToolInput('task_show', { key: 'T-12' })).toEqual({ ok: true, input: { key: 'T-12' } });
   });
+
+  it('knows the decision log’s record_decision (2026-11-14): its words, its input and that it writes', () => {
+    expect(knownTools(['record_decision', 'task_read'])).toEqual(['record_decision', 'task_read']);
+    const listed = agentToolDefinition('record_decision');
+    expect(listed).toMatchObject({
+      name: 'record_decision',
+      title: 'Record a decision',
+      inputSchema: {
+        type: 'object',
+        required: ['what', 'why'],
+        properties: {
+          what: expect.objectContaining({ maxLength: 200 }),
+          why: expect.objectContaining({ maxLength: 1000 }),
+          sources: expect.objectContaining({ type: 'array', maxItems: 20 }),
+          outcome: expect.objectContaining({ enum: expect.arrayContaining(['approved', 'declined']) }),
+        },
+      },
+      annotations: { readOnlyHint: false, idempotentHint: false },
+    });
+    expect(checkToolInput('record_decision', { what: 'Approve', why: 'Tests pass.' })).toEqual({
+      ok: true,
+      input: { what: 'Approve', why: 'Tests pass.' },
+    });
+  });
 });

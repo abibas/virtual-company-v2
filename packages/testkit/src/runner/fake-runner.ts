@@ -130,6 +130,7 @@ export class FakeRunner {
       forks: false,
       reattach: false,
       agentTools: false,
+      decisions: false,
       serverTools: false,
       github: false,
       ...this.#options.caps,

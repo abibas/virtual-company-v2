@@ -76,6 +76,14 @@ export const AGENT_TOOL_INFO: Readonly<
     title: 'Cancel a task',
     description: 'Cancel a task of your flow, saying why. Acts at once.',
   },
+  record_decision: {
+    title: 'Record a decision',
+    description:
+      'Record a real decision you made, for the people you work for to read later: what you decided, why, the ' +
+      'links and references you relied on, and the outcome when one fits. Use it for approving or rejecting a ' +
+      'review, accepting or declining a request, choosing between options that matter, or refusing something; not ' +
+      'for routine steps.',
+  },
 };
 
 /**

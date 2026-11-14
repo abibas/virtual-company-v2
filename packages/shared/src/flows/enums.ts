@@ -137,3 +137,10 @@ export const StepEndAction = z.enum([
   'turn_ended',
 ]);
 export type StepEndAction = z.infer<typeof StepEndAction>;
+
+/**
+ * `decisions.outcome` (the decision log, 2026-11-14, docs/processes.md "Decisions"): what an agent's recorded decision
+ * came to, when it says: approved or rejected (a review), done, declined (a request), deferred, or something else.
+ */
+export const DecisionOutcome = z.enum(['approved', 'rejected', 'done', 'declined', 'deferred', 'other']);
+export type DecisionOutcome = z.infer<typeof DecisionOutcome>;

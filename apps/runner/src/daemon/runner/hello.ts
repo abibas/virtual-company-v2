@@ -54,6 +54,7 @@ export interface CapsNow {
 export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
   const { harness, processes, containerId } = options;
   const { tools } = now;
+  // The runner's own tools: the question, the agents' tools (S6a) with the decision log (2026-11-14), the server's.
   const serverTools = harness?.ask !== undefined && processes !== undefined;
   return {
     harnesses: harness && processes ? harness.versions : NO_HARNESSES,
@@ -66,7 +67,8 @@ export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
     mkdirp: options.folders !== undefined,
     forks: true,
     reattach: harness?.keeper !== undefined && processes !== undefined,
-    agentTools: harness?.ask !== undefined && processes !== undefined,
+    agentTools: serverTools,
+    decisions: serverTools,
     serverTools,
     // S7.1e: the server's tools a turn carries rise from 32 to 64; an older runner says nothing and is sent 32.
     ...(serverTools ? { serverToolsMax: SERVER_TOOLS_MAX } : {}),

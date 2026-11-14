@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ARTIFACT_LIMITS, ArtifactPath, HANDOFF_NOTE } from './artifacts.ts';
+import { DECISION_TOOL, RecordDecisionInput } from './decision-log.ts';
 import { type FlowStepKind, type TaskAction, TaskPriority } from './enums.ts';
 import { taskNumber } from './keys.ts';
 import { STEP_NAME, TASK_DESCRIPTION_MAX, TASK_REASON_MAX, TASK_TITLE } from './limits.ts';
@@ -10,7 +11,8 @@ import { STEP_NAME, TASK_DESCRIPTION_MAX, TASK_REASON_MAX, TASK_TITLE } from './
  * decision and applied when the turn ends. A flow's Lead gets the board tools in its own chats, which act at once. The
  * runner's MCP server offers them (its `tools/list` from these inputs) and relays each call to the server, which checks
  * the input again and decides; nothing here trusts the runner. Both check it with `tool-input.ts`; the tools' words are
- * `tool-words.ts`.
+ * `tool-words.ts`. Every message turn whose runner knows it also gets `record_decision`, the decision log
+ * (`decision-log.ts`, 2026-11-14).
  */
 
 /** A task step's tools. */
@@ -35,7 +37,7 @@ export const LEAD_TOOLS = [
   'task_cancel',
 ] as const;
 
-export const AgentTool = z.enum([...STEP_TOOLS, ...LEAD_TOOLS]);
+export const AgentTool = z.enum([...STEP_TOOLS, ...LEAD_TOOLS, DECISION_TOOL]);
 export type AgentTool = z.infer<typeof AgentTool>;
 
 /** A tool's name on the wire (`TurnSpec.tools`, `turn.tool`): a newer peer's tool parses, and is passed over. */
@@ -159,6 +161,7 @@ export const AGENT_TOOL_INPUTS = {
   task_start: z.object({ key: TaskKey }),
   task_retry: z.object({ key: TaskKey }),
   task_cancel: z.object({ key: TaskKey, reason: Reason }),
+  record_decision: RecordDecisionInput,
 } as const satisfies Record<AgentTool, z.ZodType>;
 
 /** A tool that only reads. */

@@ -55,6 +55,7 @@ describe('the runner on the wire', () => {
         forks: true,
         reattach: false,
         agentTools: false,
+        decisions: false,
         serverTools: false,
         github: false,
       },

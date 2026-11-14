@@ -26,6 +26,7 @@ export const HELLO: RunnerHello = {
     forks: true,
     reattach: false,
     agentTools: false,
+    decisions: false,
     serverTools: false,
     github: false,
   },

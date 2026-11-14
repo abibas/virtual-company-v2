@@ -7,9 +7,10 @@ import { HarnessMessageId, HarnessSessionId } from './specs.ts';
 
 /**
  * What a turn's output means, the same for every harness (docs/harness.md, "Events"): the conversation's id and what
- * it runs on, the assistant's text and thinking, a tool call and its result (summaries only), the to-do list, the
- * subagents it started, the tokens used and how full the context is, a compaction, a notice for the person, a message
- * the person sent into the running turn (S5.2 step 6), and the turn's end. A runner sends them in order as `turn.events`, numbered from 1 (docs/runner-protocol.md, "Chat turns").
+ * it runs on, the assistant's text and thinking, a tool call and its result (summaries, and since 2026-11-14 the
+ * whole input and the result's text the summary cut), the to-do list, the subagents it started, the tokens used and
+ * how full the context is, a compaction, a notice for the person, a message the person sent into the running turn
+ * (S5.2 step 6), and the turn's end. A runner sends them in order as `turn.events`, numbered from 1 (docs/runner-protocol.md, "Chat turns").
  * Two more come from elsewhere (`questions.ts`): a question the agent asked through the runner's tool, and the
  * person's answer to it, which the server adds. Every string and list has a limit; events stored before a field or
  * type was added stay valid.
@@ -19,6 +20,12 @@ import { HarnessMessageId, HarnessSessionId } from './specs.ts';
 export const TOOL_SUMMARY_MAX = 200;
 /** The longest summary of a tool call's result. */
 export const TOOL_RESULT_SUMMARY_MAX = 500;
+/**
+ * The longest whole input of a tool call (its JSON, for the full trace, 2026-11-14) and the longest whole result text
+ * kept beside its summary; a longer one is cut, ending in `TRUNCATED_MARKER`.
+ */
+export const TOOL_INPUT_MAX = 8000;
+export const TOOL_OUTPUT_MAX = 8000;
 /** The longest notice. */
 export const NOTICE_MAX = 2000;
 /** The longest error of a failed turn. */
@@ -94,6 +101,8 @@ export const TurnEvent = z.discriminatedUnion('type', [
     id: ToolId,
     name: z.string().min(1).max(200),
     summary: z.string().max(TOOL_SUMMARY_MAX),
+    /** The whole input as JSON (2026-11-14); absent from older runners and when the call has none. */
+    input: z.string().min(1).max(TOOL_INPUT_MAX).optional(),
     ...belongs,
   }),
   protocolObject({
@@ -101,6 +110,8 @@ export const TurnEvent = z.discriminatedUnion('type', [
     id: ToolId,
     ok: z.boolean(),
     summary: z.string().max(TOOL_RESULT_SUMMARY_MAX),
+    /** The whole result text when the summary cut it (2026-11-14); absent from older runners and when it fits. */
+    output: z.string().min(1).max(TOOL_OUTPUT_MAX).optional(),
     ...belongs,
   }),
   protocolObject({

@@ -33,7 +33,7 @@ describe("the runner's chat turns on the wire", () => {
     expect(await server.frames.next('turn.end')).toEqual({ type: 'turn.end', turnId, ok: true, exitCode: 0 });
   });
 
-  it('offers the agents’ tools only with the runner’s own tools and a way to start processes', async () => {
+  it('offers the agents’ tools and the decision log only with the runner’s own tools and a way to start processes', async () => {
     const server = await fakeServer();
     const { host, root } = fakeHarnessHost();
     startRunner(server, { harness: host, spawn: new FakeSpawn() });
@@ -42,11 +42,12 @@ describe("the runner's chat turns on the wire", () => {
     const ask = testAskHost(memoryLog().log, askRoot(root));
     startRunner(tooled, { harness: { ...host, ask }, spawn: new FakeSpawn() });
     const caps = (await tooled.frames.next('runner.hello')).caps;
-    expect(caps).toMatchObject({ agentTools: true, serverTools: true, serverToolsMax: 64 });
+    expect(caps).toMatchObject({ agentTools: true, decisions: true, serverTools: true, serverToolsMax: 64 });
     const idle = await fakeServer();
     startRunner(idle, { harness: { ...host, ask } });
     const none = (await idle.frames.next('runner.hello')).caps;
     expect(none.agentTools).toBe(false);
+    expect(none.decisions).toBe(false);
     expect(none.serverToolsMax).toBeUndefined();
   });
 

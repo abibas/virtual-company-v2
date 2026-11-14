@@ -175,6 +175,7 @@ describe('when the tunnels cannot be sent', () => {
         forks: false,
         reattach: false,
         agentTools: false,
+        decisions: false,
         serverTools: false,
         github: false,
       },
