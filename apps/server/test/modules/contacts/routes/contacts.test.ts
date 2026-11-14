@@ -134,8 +134,9 @@ describe('a contact’s page', () => {
 
   it('shows their own message as the last one, and the conversation live, while the agent works', async () => {
     const s = await erichScene(w);
-    await wokenAndAnswered(s, w, erichDm());
-    await s.conn.deliver(erichDm({ text: 'and   the\nlogs?' }));
+    const first = erichDm();
+    await wokenAndAnswered(s, w, first);
+    await s.conn.deliver(erichDm({ text: 'and   the\nlogs?', threadTs: first.ts }));
     const start = await (s.runner as FakeRunner).frames.next('turn.start');
     const [row] = await contactRows(w.t.db, s.company.companyId);
     const detail = (await as(w, s.company.owner)('GET', contactsPath(s.company, row?.id))).body as Detail;

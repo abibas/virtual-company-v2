@@ -46,6 +46,8 @@ export interface SystemTurnEnd extends TaskTurnEnd {
   readonly chatId: string;
   readonly turnId: string;
   readonly roomMessageId: string | null;
+  /** The link of the message from outside the turn answers (its stored sender's), where its answer goes; null for none. */
+  readonly senderLink?: string | null | undefined;
 }
 
 /** An agent's turn as its tools see it (S6a): the turn, its chat, the chat's agent, who sent its prompt, its task step. */

@@ -17,7 +17,7 @@ import {
   slackThreads,
   type TenantDb,
 } from '@mwc/db';
-import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
 
 /**
  * Receiving Slack messages' data (2026-11-13): a bot sign-in's inbound settings and the agents' posts (personal rows of
@@ -93,6 +93,28 @@ async function threadPoster(o: OwnedDb, credentialId: string, channelId: string,
     .orderBy(desc(slackPosts.at), desc(slackPosts.id))
     .limit(1);
   return row;
+}
+
+/** The chat of the agent's latest post in a thread through the sign-in (in a chat of its own); undefined for none. */
+async function threadPostChat(
+  o: OwnedDb,
+  at: Pick<SlackPost, 'credentialId' | 'channelId' | 'companyId' | 'agentId'> & { readonly root: string },
+): Promise<string | undefined> {
+  const [row] = await o
+    .select(
+      slackPosts,
+      and(
+        eq(slackPosts.credentialId, at.credentialId),
+        eq(slackPosts.channelId, at.channelId),
+        eq(slackPosts.companyId, at.companyId),
+        eq(slackPosts.agentId, at.agentId),
+        isNotNull(slackPosts.chatId),
+        or(eq(slackPosts.ts, at.root), eq(slackPosts.threadTs, at.root)),
+      ),
+    )
+    .orderBy(desc(slackPosts.at), desc(slackPosts.id))
+    .limit(1);
+  return row?.chatId ?? undefined;
 }
 
 /** The turn's latest post in the conversation (the thread, or the DM itself); undefined when it posted none there. */
@@ -210,6 +232,7 @@ export const slackInboundRepo = {
   profilesUsing,
   recordPost,
   threadPoster,
+  threadPostChat,
   postedInTurn,
   ownerOfSignIn,
   threadOf,

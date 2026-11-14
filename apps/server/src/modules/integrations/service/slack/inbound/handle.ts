@@ -5,6 +5,7 @@ import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
 import { integrationsRepo } from '../../../repo.ts';
 import { inboundKind, mayWake, messageKey, threadRoot } from '../../../rules/slack/inbound/event.ts';
 import { inboundReach } from '../../../rules/slack/inbound/reach.ts';
+import { joinedRoot } from '../../../rules/slack/inbound/scope.ts';
 import { askedText, renderSlackText } from '../../../rules/slack/inbound/text.ts';
 import {
   capWords,
@@ -21,6 +22,7 @@ import { workingRights } from '../../../rules/slack/rights.ts';
 import { excerpt } from '../../reply.ts';
 import { accessOf } from '../call.ts';
 import type { Connection, HandleDeps } from './context.ts';
+import { type ConversationKey, conversationOf, savesThread } from './conversation.ts';
 import { namesOf, notice, peopleOf, placeOf, reactEyes, say } from './notice.ts';
 import { type Picked, pickAgent } from './route.ts';
 import { turnFrom } from './sender.ts';
@@ -34,7 +36,9 @@ import { turnFrom } from './sender.ts';
  * silence). Then 👀, and a turn in the agent's chat for that conversation (Keep context), whose prompt is the message
  * with names and a header; the wake is recorded (`inbound`) and audited. A turn that cannot start says why in the thread.
  * Since 2026-11-14 the sender's contact is made or updated first (`sender.ts`), and the turn and the conversation's chat
- * name it, the turn with the sender and the message as the reader sees it.
+ * name it, the turn with the sender and the message as the reader sees it. Since 2026-11-14 the answer always goes into
+ * the message's own thread, and the conversation is the thread's: a reply's, or the one a message in no thread points
+ * to; else the message starts a new one (`rules/slack/inbound/scope.ts`, `conversation.ts`).
  */
 
 export const HOUR_MS = 60 * 60_000;
@@ -46,7 +50,20 @@ interface Wake {
   readonly message: SlackInboundMessage;
   readonly picked: Extract<Picked, { readonly t: TenantDb }>;
   readonly place: Place;
-  readonly root: string | null;
+  /** The thread whose conversation the message joins (a reply's, or the one it points to); null: a new one. */
+  readonly joined: string | null;
+}
+
+/** The conversation the message goes on in: the joined thread's when it has one, else a new one at its own thread. */
+async function conversationAt(deps: HandleDeps, conn: Connection, w: Wake) {
+  const { message, picked, joined } = w;
+  const base = { agentId: picked.agent.id, credentialId: conn.credentialId, channelId: message.channel };
+  const own: ConversationKey = { ...base, threadTs: threadRoot(message) };
+  if (joined === null) return { key: own, found: await conversationOf(deps, conn, picked.t, own) };
+  const key = { ...base, threadTs: joined };
+  const found = await conversationOf(deps, conn, picked.t, key);
+  const pointedNowhere = found.chatId === null && joined !== message.threadTs;
+  return pointedNowhere ? { key: own, found } : { key, found };
 }
 
 /** The agent's reach there, by its profile's Slack part on this sign-in. */
@@ -67,32 +84,26 @@ async function overCap(deps: HandleDeps, conn: Connection, settings: SlackConnec
 
 /** The turn in the agent's chat for the conversation (see above). */
 async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> {
-  const { message, picked, place, root } = w;
+  const { message, picked, place } = w;
   const { t, agent } = picked;
-  const where = { channel: message.channel, threadTs: root };
+  const where = { channel: message.channel, threadTs: threadRoot(message) };
   await reactEyes(deps, conn, message);
   const { from, names, author } = await namesOf(deps, conn, w.people, message);
   const text = renderSlackText(message.text, names);
   const link = messageLink(conn.bot.url, message);
   const listed = w.people.find((person) => person.id === message.user);
   const sender = await turnFrom(deps, conn, t, { message, from, described: author, listed, link, text });
-  const prompt = inboundPrompt({ from, place, link, threaded: root !== null, text });
+  const prompt = inboundPrompt({ from, place, link, threaded: true, text });
   const named = picked.how === 'named' ? agent.name : null;
   const title = slackChatTitle(
     place,
     renderSlackText(askedText(message.text, conn.bot.userId, named), names),
   );
-  const key = {
-    agentId: agent.id,
-    credentialId: conn.credentialId,
-    channelId: message.channel,
-    threadTs: root,
-  };
-  const thread = await repo.threadOf(t, key);
+  const { key, found } = await conversationAt(deps, conn, w);
   const reason = `Started for a Slack message from ${from} in ${placeWords(place)}`;
   const request = {
     agentPrincipalId: agent.principalId,
-    chatId: thread?.chatId ?? null,
+    chatId: found.chatId,
     title,
     prompt,
     reason,
@@ -107,7 +118,7 @@ async function wake(deps: HandleDeps, conn: Connection, w: Wake): Promise<void> 
     return say(deps, conn, where, couldNotAnswer(sent.message));
   }
   const started = { chatId: sent.chatId, place: placeWords(place), contactId: sender.contactId };
-  await repo.saveThread(t, { ...key, ...started });
+  if (savesThread(found, sent.chatId)) await repo.saveThread(t, { ...key, ...started });
   const use = {
     companyId: t.companyId,
     agentId: agent.id,
@@ -149,9 +160,9 @@ export async function handleMessage(
     );
     return;
   }
-  const root = threadRoot(message);
-  const where = { channel: message.channel, threadTs: root };
-  const picked = await pickAgent(deps, conn, settings, message, what.kind);
+  const where = { channel: message.channel, threadTs: threadRoot(message) };
+  const joined = joinedRoot(message, conn.bot.url);
+  const picked = await pickAgent(deps, conn, settings, message, { kind: what.kind, joined });
   if ('none' in picked) {
     if (picked.none === 'no_default')
       await notice(deps, conn, { key: 'no_default', ...where }, NO_DEFAULT_AGENT);
@@ -167,5 +178,5 @@ export async function handleMessage(
   if (await overCap(deps, conn, settings)) {
     return notice(deps, conn, { key: 'cap', ...where }, capWords(settings.maxPerHour));
   }
-  await wake(deps, conn, { settings, people, message, picked, place, root });
+  await wake(deps, conn, { settings, people, message, picked, place, joined });
 }

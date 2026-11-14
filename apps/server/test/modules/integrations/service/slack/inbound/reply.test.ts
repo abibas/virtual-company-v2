@@ -36,7 +36,7 @@ import { revokeSubscription } from '../../../../../fixtures/org.ts';
  * that thread ("Slack · #general · …", in its chat list), with 👀 first and a prompt of the message with a header; the
  * final reply is posted in the thread under the agent's name and recorded, so the next reply there goes on in the same
  * chat. An agent that posted there itself is not posted for twice; a turn that fails, or cannot start, says why; a stop
- * says nothing; a DM is one conversation; a chat that cannot go on is replaced.
+ * says nothing; a chat that cannot go on is replaced (which conversation a message goes on in: `conversation.test.ts`).
  */
 
 let w: InboundWorld;
@@ -196,23 +196,6 @@ describe('an answer that cannot be posted', () => {
 });
 
 describe('the conversation', () => {
-  it('is the DM itself for a DM’s messages in no thread, answered there', async () => {
-    const s = await inboundScene(w, { rights: { dms: 'post' } });
-    const dm = { type: 'message' as const, channel: 'D0DM2', channelType: 'im' };
-    await s.conn.deliver(message({ ...dm, text: 'hello' }));
-    const start = await runnerOf(s).frames.next('turn.start');
-    answerTurn(runnerOf(s), start, 'Hi.');
-    await posted(1);
-    await s.conn.deliver(message({ ...dm, text: 'again' }));
-    const next = await runnerOf(s).frames.next('turn.start');
-    expect((await turnRow(w.t.db, next.turnId))?.chatId).toBe(await chatOf(s));
-    expect(await threadRows(w.t.db)).toContainEqual(
-      expect.objectContaining({ channelId: 'D0DM2', threadTs: null }),
-    );
-    expect(next.spec.prompt.split('\n')[0]).toContain('in a DM with you');
-    endTurn(runnerOf(s), next.turnId);
-  });
-
   it('gets a new chat when its chat was archived', async () => {
     const s = await inboundScene(w);
     const first = message();

@@ -72,12 +72,12 @@ export const messageKey = (message: Pick<SlackInboundMessage, 'channel' | 'ts'>)
   `${message.channel}/${message.ts}`;
 
 /**
- * The Slack conversation a message belongs to: its thread's first message, or the message itself (its answer starts a
- * thread under it); null for a DM's message in no thread (the DM itself is the conversation).
+ * The thread a message's answer goes into: its thread's first message, or the message itself (its answer starts a thread
+ * under it). Since 2026-11-14 a DM's message in no thread is one too, as a channel's is (until then the DM itself was
+ * one conversation that kept growing; docs/subscriptions.md "One conversation per thread").
  */
-export const threadRoot = (
-  message: Pick<SlackInboundMessage, 'channel' | 'channelType' | 'ts' | 'threadTs'>,
-) => message.threadTs ?? (isDirect(message) ? null : message.ts);
+export const threadRoot = (message: Pick<SlackInboundMessage, 'ts' | 'threadTs'>) =>
+  message.threadTs ?? message.ts;
 
 /** True when this person may wake agents through the connection. */
 export function mayWake(

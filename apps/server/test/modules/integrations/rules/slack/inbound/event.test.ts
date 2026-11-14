@@ -93,7 +93,7 @@ describe('a message', () => {
     expect(messageKey(message())).toBe('C0GENERAL1/2.0');
     expect(threadRoot(message())).toBe('2.0');
     expect(threadRoot(message({ threadTs: '1.0' }))).toBe('1.0');
-    expect(threadRoot(message({ channel: 'D0DM', channelType: 'im' }))).toBeNull();
+    expect(threadRoot(message({ channel: 'D0DM', channelType: 'im' }))).toBe('2.0');
     expect(threadRoot(message({ channel: 'D0DM', channelType: 'im', threadTs: '1.0' }))).toBe('1.0');
     expect(isDirect(message({ channelType: 'mpim' }))).toBe(false);
     expect(isThreadReply(message({ threadTs: '2.0' }))).toBe(false);

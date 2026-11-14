@@ -1,7 +1,7 @@
 import { type Agent, owned, type SlackConnection, type TenantDb, tenant } from '@mwc/db';
 import { isSlackError, type SlackInboundMessage } from '@mwc/tools-core';
 import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
-import { type InboundKind, isThreadReply } from '../../../rules/slack/inbound/event.ts';
+import type { InboundKind } from '../../../rules/slack/inbound/event.ts';
 import { addressedAgent, afterBotMention } from '../../../rules/slack/inbound/text.ts';
 import { type Connection, type InboundDeps, ownerCompanies, ownerTenant } from './context.ts';
 
@@ -11,6 +11,8 @@ import { type Connection, type InboundDeps, ownerCompanies, ownerTenant } from '
  * companies' agents; for a reply in a thread, the agent that last posted there through this sign-in (its recorded
  * posts; else the thread's first message, when the bot posted it under an agent's name); else the connection's default
  * agent. A reply in a thread no agent of ours is in is not ours; a fresh mention or a DM with no default agent says so.
+ * Since 2026-11-14 a message in no thread that points to a message of its channel (`rules/slack/inbound/scope.ts`) goes
+ * to that thread's agent as a reply there would, else to the default agent.
  */
 
 export type Picked =
@@ -47,11 +49,11 @@ async function agentIn(deps: InboundDeps, conn: Connection, companyId: string, a
 async function threadStarter(
   deps: InboundDeps,
   conn: Connection,
-  message: SlackInboundMessage,
+  channel: string,
   root: string,
 ): Promise<{ readonly ours: boolean; readonly name: string | null }> {
   try {
-    const page = await deps.slack.replies(conn.signIn, message.channel, root, { limit: 1 });
+    const page = await deps.slack.replies(conn.signIn, channel, root, { limit: 1 });
     const first = page.items[0];
     const ours = first !== undefined && first.botId !== null && first.botId === conn.bot.botId;
     return { ours, name: ours ? (first?.username ?? null) : null };
@@ -65,23 +67,23 @@ async function threadStarter(
 async function threadAgent(
   deps: InboundDeps,
   conn: Connection,
-  message: SlackInboundMessage,
+  channel: string,
+  root: string,
 ): Promise<Picked | 'ours' | undefined> {
-  const root = message.threadTs as string;
   const o = owned(deps.db, conn.ownerUserId);
-  const post = await repo.threadPoster(o, conn.credentialId, message.channel, root);
+  const post = await repo.threadPoster(o, conn.credentialId, channel, root);
   if (post !== undefined) {
     const found = await agentIn(deps, conn, post.companyId, post.agentId);
     return found === undefined ? undefined : { ...found, how: 'thread' };
   }
   for (const company of await ownerCompanies(deps.db, conn.ownerUserId)) {
     const t = await tenant(deps.db, company.companyId);
-    const at = { credentialId: conn.credentialId, channelId: message.channel, threadTs: root };
+    const at = { credentialId: conn.credentialId, channelId: channel, threadTs: root };
     const chat = await repo.threadChatAt(t, at);
     const agent = chat && (await repo.liveAgent(t, chat.agentId));
     if (agent) return { t, agent, how: 'thread' };
   }
-  const starter = await threadStarter(deps, conn, message, root);
+  const starter = await threadStarter(deps, conn, channel, root);
   if (!starter.ours) return undefined;
   const profiles = await repo.profilesUsing(o, conn.credentialId);
   for (const company of await ownerCompanies(deps.db, conn.ownerUserId)) {
@@ -100,18 +102,19 @@ async function defaultAgent(deps: InboundDeps, conn: Connection, settings: Slack
   return found === undefined ? { none: 'no_default' } : { ...found, how: 'default' };
 }
 
-/** The agent that answers the message (see above). */
+/** The agent that answers the message (see above); `joined`: the thread whose conversation it joins, if any. */
 export async function pickAgent(
   deps: InboundDeps,
   conn: Connection,
   settings: SlackConnection,
   message: SlackInboundMessage,
-  kind: InboundKind,
+  how: { readonly kind: InboundKind; readonly joined: string | null },
 ): Promise<Picked> {
+  const { kind, joined } = how;
   const byName = await named(deps, conn, settings, message);
   if (byName !== undefined) return byName;
-  if (isThreadReply(message)) {
-    const thread = await threadAgent(deps, conn, message);
+  if (joined !== null) {
+    const thread = await threadAgent(deps, conn, message.channel, joined);
     if (thread !== undefined && thread !== 'ours') return thread;
     if (thread === undefined && kind === 'thread') return { none: 'not_ours' };
   }

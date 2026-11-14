@@ -4,6 +4,7 @@ import type { InboundReply, InboundTurnHook, SystemTurnEnd } from '../../../../c
 import { slackInboundRepo as repo } from '../../../repo/slack-inbound.ts';
 import { integrationsRepo } from '../../../repo.ts';
 import { botOf } from '../../../rules/slack/inbound/event.ts';
+import { answerPlace } from '../../../rules/slack/inbound/scope.ts';
 import { answerText, couldNotAnswer, messageLink } from '../../../rules/slack/inbound/words.ts';
 import { excerpt } from '../../reply.ts';
 import { type InboundDeps, postedAs, postIn } from './context.ts';
@@ -16,7 +17,9 @@ import { type InboundDeps, postedAs, postIn } from './context.ts';
  * answer: …"; a stopped one says nothing. The bot sign-in is opened for `inbound_reply`, the post recorded (a reply in
  * the thread comes back to this agent) and audited as the agent. Never throws: a failure is logged. Since 2026-11-14 it
  * gives back the posted reply's link (the agent's own post, when it posted itself), which the turn keeps for "Posted
- * in Slack".
+ * in Slack". Since 2026-11-14 the answer goes into the thread of the message the turn answers (its sender's link), which
+ * may be another thread than the chat's own (a message that pointed to the chat's thread); a turn from before goes into
+ * the chat's. In a DM, a post of the agent's anywhere in that DM during the turn counts as its answer.
  */
 
 /** A post's link in the sign-in's workspace; undefined without the workspace's address or the post's ts. */
@@ -40,8 +43,10 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
   const agent = await repo.liveAgent(t, thread.agentId);
   if (owner === undefined || agent === undefined) return undefined;
   const o = ownedIn(t, owner);
-  const turn = { credentialId: thread.credentialId, turnId: end.turnId, channelId: thread.channelId };
-  const own = done ? await repo.postedInTurn(o, turn, thread.threadTs) : undefined;
+  const where = answerPlace(end.senderLink) ?? { channel: thread.channelId, threadTs: thread.threadTs };
+  const turn = { credentialId: thread.credentialId, turnId: end.turnId, channelId: where.channel };
+  const inDm = where.channel.startsWith('D');
+  const own = done ? await repo.postedInTurn(o, turn, inDm ? null : where.threadTs) : undefined;
   if (own !== undefined) {
     const sign = await repo.signInOf(o, thread.credentialId);
     const url = sign === undefined ? null : botOf(sign.accountMeta).url;
@@ -64,7 +69,6 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
     );
     return undefined;
   }
-  const where = { channel: thread.channelId, threadTs: thread.threadTs };
   const text = done ? answerText(reply) : reply;
   const posted = await postIn(
     deps.slack,
@@ -73,10 +77,10 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
     text,
     postedAs(botOf(opened.meta), agent),
   );
-  const channelId = posted.channel || thread.channelId;
+  const channelId = posted.channel || where.channel;
   if (posted.ts !== '') {
     const at = deps.clock();
-    await repo.recordPost(o, { ...turn, channelId, ts: posted.ts, threadTs: thread.threadTs, at, ...use });
+    await repo.recordPost(o, { ...turn, channelId, ts: posted.ts, threadTs: where.threadTs, at, ...use });
   }
   await integrationsRepo.audit(t, {
     actorKind: 'agent',
@@ -87,13 +91,13 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
     action: done ? 'slack_reply' : 'slack_reply_failed',
     changes: [
       { field: 'place', old: null, new: thread.place },
-      ...(thread.threadTs === null
+      ...(where.threadTs === null
         ? []
-        : [{ field: 'thread', old: null, new: `${channelId}/${thread.threadTs}` }]),
+        : [{ field: 'thread', old: null, new: `${channelId}/${where.threadTs}` }]),
       { field: 'text', old: null, new: excerpt(text) },
     ],
   });
-  return linkOf(botOf(opened.meta).url, { channel: channelId, ts: posted.ts, threadTs: thread.threadTs });
+  return linkOf(botOf(opened.meta).url, { channel: channelId, ts: posted.ts, threadTs: where.threadTs });
 }
 
 /** The hook on these deps. */

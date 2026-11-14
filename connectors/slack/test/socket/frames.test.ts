@@ -48,6 +48,20 @@ describe('a message event', () => {
     expect(messageOf(bot)).toMatchObject({ botId: 'B1', subtype: 'bot_message', user: null, text: '' });
   });
 
+  it('reads the links of the messages it shares, https only, and none without attachments', () => {
+    const link = 'https://airia.slack.com/archives/C1/p1700000000000100';
+    const event = { type: 'message', channel: 'D0DM', user: 'U0IHOR', text: 'see', ts: '2.0' };
+    const attachments = [
+      { is_share: true, from_url: link },
+      { from_url: 'http://x' },
+      { text: 'no link' },
+      'x',
+    ];
+    expect(messageOf({ event: { ...event, attachments } })?.shared).toEqual([link]);
+    expect(messageOf({ event })).not.toHaveProperty('shared');
+    expect(messageOf({ event: { ...event, attachments: [{ text: 'x' }] } })).not.toHaveProperty('shared');
+  });
+
   it('is none for other events, or without a channel or ts', () => {
     expect(messageOf({ event: { type: 'reaction_added' } })).toBeNull();
     expect(messageOf({ event: { type: 'message', ts: '1' } })).toBeNull();

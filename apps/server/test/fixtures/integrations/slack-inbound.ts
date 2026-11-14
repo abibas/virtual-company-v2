@@ -195,6 +195,18 @@ export function answerTurn(runner: FakeRunner, start: TurnStart, reply: string):
   endTurn(runner, start.turnId);
 }
 
+let postTs = 1731600000;
+
+/** Slack answers each post with a `ts` of its own, in the channel it names (the fixed answer gives every post one). */
+export function postsGetTheirOwnTs(w: ChatsWorld): void {
+  answerSlack(w, {
+    'chat.postMessage': (call) => {
+      postTs += 1;
+      return ok({ channel: formOf(call).channel, ts: `${postTs}.000100` })(call);
+    },
+  });
+}
+
 /** The posts the server made (`chat.postMessage`), as their form arguments. */
 export const postsOf = (w: ChatsWorld) => callsOf(w, 'chat.postMessage').map(formOf);
 

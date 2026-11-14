@@ -4,7 +4,8 @@ import { obj, str } from '../map.ts';
 /**
  * Socket Mode's frames (2026-11-13): what Slack sends on the connection (`hello`, `disconnect`, and envelopes that
  * carry an Events API payload, a slash command or an interaction), read into what the connection needs; and the
- * message events read into `SlackInboundMessage`. Anything else is nothing. Pure.
+ * message events read into `SlackInboundMessage` (since 2026-11-14 with the links of the messages they share). Anything
+ * else is nothing. Pure.
  */
 
 /** One frame as the connection reads it. */
@@ -36,6 +37,15 @@ function parsed(data: unknown): Record<string, unknown> | undefined {
   }
 }
 
+/** The links of the messages an event shares or unfurls (its attachments' `from_url`, `https` only). */
+function sharedOf(event: Record<string, unknown>): { readonly shared?: string[] } {
+  const attachments = Array.isArray(event.attachments) ? event.attachments : [];
+  const links = attachments
+    .map((attachment) => str(obj(attachment).from_url))
+    .filter((link): link is string => link?.startsWith('https://') === true);
+  return links.length === 0 ? {} : { shared: links };
+}
+
 /** The message event an Events API payload carries, or null. */
 export function messageOf(payload: Record<string, unknown>): SlackInboundMessage | null {
   const event = obj(payload.event);
@@ -57,6 +67,7 @@ export function messageOf(payload: Record<string, unknown>): SlackInboundMessage
     ts,
     threadTs: str(event.thread_ts),
     edited: event.edited !== undefined && event.edited !== null,
+    ...sharedOf(event),
   };
 }
 

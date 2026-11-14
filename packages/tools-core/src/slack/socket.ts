@@ -30,6 +30,11 @@ export interface SlackInboundMessage {
   readonly threadTs: string | null;
   /** It was edited (`edited` set). */
   readonly edited: boolean;
+  /**
+   * The links of the messages it shares or quotes (Slack's Share message, and a message link it unfurled: each
+   * attachment's `from_url`); left out when it carries none.
+   */
+  readonly shared?: readonly string[];
 }
 
 /** Where a connection is: opening, open (Slack said hello), closed and waiting to try again, or stopped by a refusal. */

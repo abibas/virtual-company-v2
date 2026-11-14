@@ -142,12 +142,12 @@ describe('a reply in a thread', () => {
 });
 
 describe('the default agent', () => {
-  it('answers a DM', async () => {
+  it('answers a DM, in the message’s thread', async () => {
     const s = await inboundScene(w, { rights: { dms: 'post' } });
-    await s.conn.deliver(message({ type: 'message', channel: 'D0DM1', channelType: 'im', text: 'hey' }));
+    const dm = message({ type: 'message', channel: 'D0DM1', channelType: 'im', text: 'hey' });
+    await s.conn.deliver(dm);
     expect(await answeredBy(s)).toBe(s.agentId);
-    expect(postsOf(w).at(-1)).toMatchObject({ channel: 'D0DM1' });
-    expect(postsOf(w).at(-1)?.thread_ts).toBeUndefined();
+    expect(postsOf(w).at(-1)).toMatchObject({ channel: 'D0DM1', thread_ts: dm.ts });
   });
 
   it('when there is none, a fresh mention says so once', async () => {

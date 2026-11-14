@@ -1,4 +1,5 @@
 import type { Chat, ChatTurn, TenantDb } from '@mwc/db';
+import { storedSender } from '@mwc/shared/chats';
 import { agentPlacement } from '../../machines/index.ts';
 import { turnsRepo } from '../repo/turns.ts';
 import { chatsRepo } from '../repo.ts';
@@ -28,7 +29,8 @@ import { turnView } from './views.ts';
  * starts it for a message, and the turn waits for it. Its end, as every system turn's, is told to `InboundTurnHook`.
  * Since 2026-11-14 (docs/subscriptions.md "Contacts") the turn stores whom it speaks for (`from`: the sender, the visible
  * text and the contact), and the hook says where it posted the reply, which the turn keeps (`reply_link`) and its
- * stream hears.
+ * stream hears. Since 2026-11-14 the hook is also told the link of the message the turn answers (its sender's), so the
+ * answer goes into that message's thread.
  */
 
 export const AGENT_PAUSED_INBOUND = refuse(409, 'agent_paused', 'The agent is paused');
@@ -79,7 +81,8 @@ export async function tellInbound(
 ): Promise<void> {
   if (hook === undefined || !row.system || row.kind !== 'message') return;
   const { chatId, id: turnId, roomMessageId, status, resultText, error } = row;
-  const reply = await hook.ended(t, { chatId, turnId, roomMessageId, status, resultText, error });
+  const senderLink = storedSender(row.sender)?.link ?? null;
+  const reply = await hook.ended(t, { chatId, turnId, roomMessageId, status, resultText, error, senderLink });
   if (reply === undefined) return;
   const linked = await turnsRepo.setReplyLink(t, turnId, reply.link);
   if (linked !== undefined) bus.publish(chatId, { kind: 'turn', turn: turnView(linked) });
