@@ -36,7 +36,7 @@ beforeAll(async () => {
 });
 afterAll(() => w.t.close());
 
-const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true };
+const PUSH = { repos: ['AiriaLLC/*'], push: true, pullRequests: true, reviews: 'off' };
 const WIKI = { jira: 'read', jiraProjects: ['AP'], confluence: 'write', confluenceSpaces: ['ENG'] };
 const CHAT = { read: true, post: true, channels: ['general'], dms: 'off', search: false, react: false };
 

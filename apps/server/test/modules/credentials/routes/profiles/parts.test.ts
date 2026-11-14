@@ -48,7 +48,12 @@ const updates = async (id: string) =>
     .filter((row) => row.action === 'update')
     .map((row) => [row.field, row.requestId, row.oldValue, row.newValue]);
 
-const PUSH = { repos: ['AiriaLLC/*', 'abibas/virtual-company-v2'], push: true, pullRequests: true };
+const PUSH = {
+  repos: ['AiriaLLC/*', 'abibas/virtual-company-v2'],
+  push: true,
+  pullRequests: true,
+  reviews: 'off',
+};
 const WIKI = { jira: 'changes', jiraProjects: ['AP'], confluence: 'write', confluenceSpaces: ['ENG'] };
 
 describe('a profile’s tool parts when it is made', () => {
@@ -147,6 +152,18 @@ describe('changing a profile’s tool parts', () => {
       ['githubRights', 'req-add', null, defaultRights('github')],
       ['githubRights', 'req-rights', defaultRights('github'), { ...PUSH, repos: ['AiriaLLC/*'] }],
     ]);
+  });
+
+  it('sets a GitHub part’s reviews, off when the rights leave it out, refusing anything else', async () => {
+    const signIn = await addSignIn(w, keyring, ihor.userId, 'github_token');
+    const profile = await made({ parts: { github: { credentialId: signIn.id, rights: PUSH } } });
+    const set = await patch(profile.id, { parts: { github: { rights: { ...PUSH, reviews: 'approve' } } } });
+    expect(set).toMatchObject({ status: 200, body: { parts: { github: { rights: { reviews: 'approve' } } } } });
+    const { reviews: _, ...before } = PUSH;
+    const old = await patch(profile.id, { parts: { github: { rights: before } } });
+    expect(old).toMatchObject({ status: 200, body: { parts: { github: { rights: { reviews: 'off' } } } } });
+    const merge = await patch(profile.id, { parts: { github: { rights: { ...PUSH, reviews: 'merge' } } } });
+    expect(merge.status).toBe(400);
   });
 
   it('removes a part with null, its sign-in staying in the store; removing one it has not writes nothing', async () => {
