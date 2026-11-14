@@ -1150,6 +1150,67 @@ Now (into the running turn), After this turn (queued) or by Interrupt. The serve
   running turn…") with Edit, Send now, Interrupt and Discard. A message the turn took shows in the reply where it was
   taken, "Sent into the running turn"; a turn that interrupted says "Interrupted the turn" under its prompt.
 
+## Images in a message
+
+Built for T-18 (2026-11-14). Before it, a screenshot dragged onto the chat's composer made the browser open the image
+in place of the app, and a chat message could carry no image at all. Now a person drops images on the composer, or
+pastes them (Cmd+V), and the agent gets them with the message.
+
+- **Limits** (`@mwc/shared/chat-images`): at most `CHAT_IMAGES_MAX` (6) images a message. Each is at most
+  `CHAT_IMAGE_MAX_BYTES` (3 MB), so its base64 (4 MB) stays under the 5 MB per image the model providers take. Each must
+  be a PNG, JPEG, WebP or GIF, which the server tells from the first bytes, as for an agent icon.
+- **Sending** (`POST …/chats/{chatId}/turns {prompt, images?: [{data}]}`): the images go with the message, as plain
+  base64 (no `data:` prefix). The body is limited before it is read (`message_too_large`, 413). The route checks every
+  image before anything is written:
+  - 400 `image_invalid`: not base64;
+  - 413 `image_too_large`: over 3 MB;
+  - 415 `image_type_unsupported`: not one of the four types;
+  - 400 `invalid_request`: more than 6.
+
+  Each refusal names the image. A message with images to a runner older than them (no `caps.images`) is refused with
+  409 `runner_outdated` and nothing is recorded. A waiting message whose runner turns out older is failed with those
+  words when it would start.
+- **Storage** (migration `0042_chat_images`): the bytes go to `chat_images`, through the tenant layer, in the
+  transaction that records the turn. One row per image (`position` 0–5), stored like an agent icon's bytes (not
+  encrypted). The turn names them in `chat_turns.images` (`[{id, contentType, size, sha256}]`, message turns only). So
+  the turn's view (`images: [{id, contentType, size}]`) and its spec carry them without reading the bytes.
+  - This holds whether the message starts at once, waits in the queue, or waits for its machine or a slot.
+  - Discarding a waiting message removes its images (the foreign key cascades).
+  - A wake that fails takes its turn back, so a "Start and send" resends the images.
+- **Reading them**: `GET …/chats/{chatId}/images/{imageId}` (member and above). It goes through the chat's people
+  guard, exactly as reading the chat does. The image is answered as a logo is: its ETag, cached for good, `nosniff`, a
+  CSP that runs nothing.
+- **To the runner**: every `turn.start` of the turn names the images (`TurnSpec.images`, the references, never the
+  bytes, which would not fit a 256 kB frame). This includes the turn started afresh after `session_missing`. Before the
+  turn starts, the runner (`turns/images.ts`, `turns/before.ts`):
+  1. fetches each image from `GET /api/runner/turns/{turnId}/images/{imageId}` with its runner key. The server answers
+     only for a turn on that runner's own machine, with the SHA-256 in `x-mwc-runner-sha256`;
+  2. checks the size and SHA-256 against the spec;
+  3. writes the image into the turn's run folder (`images/1.png`, …, 0600; it goes with the folder).
+
+  An image that cannot be fetched refuses the turn (`images_unavailable: image N could not be fetched (…)`). A turn
+  stopped while it fetches ends `stopped`.
+- **To the harness** (`HarnessDriver.turn(spec, tools, images)`, each image `TurnImage {contentType, base64, path}`):
+  - **Claude Code**: the first stream-json user message on stdin carries them as Messages API image blocks
+    (`{type: 'image', source: {type: 'base64', media_type, data}}`), before the text block.
+  - **Codex**: `--image <file>` per image, the files in the run folder. `codex exec`, `exec resume` and `exec fork` take
+    it (0.167.0). The images come before `--json`, since `exec`'s `--image` takes several files and one right before
+    the closing `-` would take it as a file too.
+
+  A message with images is never sent into a running turn: sent Now, it waits and starts first once that turn ends
+  (`turn.input` carries text only).
+- **The web** (`apps/web/src/features/chats/attach/`, `thread/MessageImages.tsx`, `api/chat-images.ts`):
+  - **Dropping and pasting**: images dropped on the composer's card (it highlights while files are over it) or pasted
+    into its text show as chips above the text, each with a remove ×. A PNG, JPEG or WebP over 3 MB is scaled down in
+    the browser until it fits.
+  - **Refusals**: anything else, a 7th image or a GIF over 3 MB gets one line of words.
+  - **Sending**: Send works with images alone, and the prompt then says "(1 image)" / "(N images)".
+  - **The thread** shows a message's images as thumbnails (fetched through the API client as object URLs, once per
+    image). A click opens one large.
+  - **Dropped files elsewhere**: a file dropped anywhere else on a page is cancelled (`useFileDropGuard` in
+    `app/App.tsx`), so it never navigates away.
+  - **Not covered**: the team room's composer and Slack messages take no images yet.
+
 ### Open in Claude Code
 
 The chat's header has "Open in Claude Code" ("Open in Codex") for admins once the chat has a conversation: a popover of

@@ -657,6 +657,30 @@ agent's page and a tab on the task's. The full trace beside it: a tool row opens
 result's whole text (`tool.input`, `tool_result.output`). Runners need the rebuild and update (the tool's name and
 `caps.decisions`, the whole inputs and results).
 
+### Between S6 and S7: images in a chat message (T-18, Ihor, 2026-11-14)
+
+A screenshot dragged onto an agent's chat opened the image in a new page and left the chat. Ihor reported it and
+handed it to the developer as task T-18.
+
+**Built 2026-11-14** (branch `t-18-chat-images`; docs/harness.md "Images in a message"; waiting for his live test):
+- **The composer**: images (PNG, JPEG, WebP, GIF; at most 6 a message, 3 MB each) dropped on the chat composer or
+  pasted into it show as chips with a remove ×. Larger screenshots are scaled down in the browser, anything else gets
+  one line of words, and a file dropped anywhere else on a page no longer navigates away.
+- **The server**: the images go with the message as base64. It checks them (`image_invalid`, `image_too_large`,
+  `image_type_unsupported`, `message_too_large`) and keeps them with the turn (migration `0042_chat_images`:
+  `chat_images` and `chat_turns.images`). It names them in the turn's view and spec, and serves them to the chat's
+  people (`GET …/chats/{chatId}/images/{imageId}`).
+- **The runner** of the chat's machine fetches them with its key (`GET /api/runner/turns/{turnId}/images/{id}`,
+  `caps.images`) before the turn starts:
+  - Claude Code gets them as image blocks on stdin;
+  - Codex gets them as `--image` files.
+
+  An older runner refuses such a message (`runner_outdated`).
+- **The thread** shows the images as thumbnails that open large.
+- **Not covered**: the team room's composer and Slack images.
+
+Runners need the rebuild and update (`caps.images`).
+
 ### S7 — real work: tool sign-ins, worktrees, pull requests, Jira (one ticket each, behind the same tests discipline)
 
 Reshaped on 2026-11-12 with Ihor ("GitHub LOGIN and Confluence Login. I do wanna have SIMILAR profile to push data as
