@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 42. Migrations: 38, the last is `0037_slack_inbound`.
+Tables: 43. Migrations: 39, the last is `0038_decisions`.
 
 ```mermaid
 erDiagram
@@ -217,6 +217,21 @@ erDiagram
     timestamptz checked_at "nullable"
     text check_error "nullable, provider_unavailable|rate_limited|refused|invalid_response|no_products|check_failed"
     jsonb header_previews "nullable"
+  }
+  decisions {
+    uuid id PK "not null, default newId() (app-side)"
+    uuid company_id FK "not null"
+    uuid agent_id FK "not null"
+    uuid chat_id FK "not null"
+    uuid turn_id FK "not null"
+    uuid task_id FK "nullable"
+    uuid contact_id "nullable"
+    text what "not null"
+    text why "not null"
+    jsonb sources "not null, default '[]'"
+    text outcome "nullable, approved|rejected|done|declined|deferred|other"
+    integer event_seq "nullable"
+    timestamptz created_at "not null, default now()"
   }
   enrollment_tokens {
     uuid id PK "not null, default newId() (app-side)"
@@ -640,6 +655,11 @@ erDiagram
   company_logos }o--o| principals : "company_id, updated_by_principal_id"
   credential_uses }o--|| users : "owner_user_id"
   credentials }o--|| users : "owner_user_id"
+  decisions }o--|| companies : "company_id"
+  decisions }o--|| agents : "company_id, agent_id"
+  decisions }o--|| chats : "company_id, chat_id"
+  decisions }o--|| chat_turns : "company_id, turn_id"
+  decisions }o--o| tasks : "company_id, task_id"
   enrollment_tokens }o--|| companies : "company_id"
   enrollment_tokens }o--|| principals : "company_id, created_by"
   enrollment_tokens }o--o| machines : "company_id, machine_id"
@@ -1198,6 +1218,45 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `credentials_header_previews_check`: `"header_previews" is null or ("kind" = 'gateway' and jsonb_typeof("header_previews") = 'array')`
 - **Indexes:**
   - `credentials_owner_idx` on (`owner_user_id`, `created_at`)
+
+### `decisions`
+
+| Column | Type | Nullable | Default | Key | Allowed values |
+| ------ | ---- | -------- | ------- | --- | -------------- |
+| `id` | `uuid` | no | `newId() (app-side)` | PK |  |
+| `company_id` | `uuid` | no |  | FK |  |
+| `agent_id` | `uuid` | no |  | FK |  |
+| `chat_id` | `uuid` | no |  | FK |  |
+| `turn_id` | `uuid` | no |  | FK |  |
+| `task_id` | `uuid` | yes |  | FK |  |
+| `contact_id` | `uuid` | yes |  |  |  |
+| `what` | `text` | no |  |  |  |
+| `why` | `text` | no |  |  |  |
+| `sources` | `jsonb` | no | `'[]'` |  |  |
+| `outcome` | `text` | yes |  |  | `approved`, `rejected`, `done`, `declined`, `deferred`, `other` |
+| `event_seq` | `integer` | yes |  |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |  |
+
+- **Primary key:** `id`
+- **Foreign keys:**
+  - `company_id` → `companies` (`id`), on delete no action (`decisions_company_id_companies_id_fk`)
+  - (`company_id`, `agent_id`) → `agents` (`company_id`, `id`), on delete no action (`decisions_agent_fk`)
+  - (`company_id`, `chat_id`) → `chats` (`company_id`, `id`), on delete no action (`decisions_chat_fk`)
+  - (`company_id`, `turn_id`) → `chat_turns` (`company_id`, `id`), on delete no action (`decisions_turn_fk`)
+  - (`company_id`, `task_id`) → `tasks` (`company_id`, `id`), on delete no action (`decisions_task_fk`)
+- **Unique:**
+  - `decisions_company_id_id_unique` (`company_id`, `id`)
+- **Checks:**
+  - `decisions_what_check`: `char_length("what") between 1 and 200`
+  - `decisions_why_check`: `char_length("why") between 1 and 1000`
+  - `decisions_sources_check`: `jsonb_typeof("sources") = 'array' and jsonb_array_length("sources") <= 20`
+  - `decisions_outcome_check`: `outcome` is one of `approved`, `rejected`, `done`, `declined`, `deferred`, `other`
+  - `decisions_event_seq_check`: `"event_seq" is null or "event_seq" >= 0`
+- **Indexes:**
+  - `decisions_agent_idx` on (`company_id`, `agent_id`, `created_at`)
+  - `decisions_chat_idx` on (`company_id`, `chat_id`, `created_at`)
+  - `decisions_task_idx` on (`company_id`, `task_id`, `created_at`)
+  - `decisions_contact_idx` on (`company_id`, `contact_id`, `created_at`)
 
 ### `enrollment_tokens`
 

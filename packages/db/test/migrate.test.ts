@@ -49,6 +49,7 @@ describe(`migrateToLatest on ${testDbKind()}`, () => {
       'company_logos',
       'credential_uses',
       'credentials',
+      'decisions',
       'enrollment_tokens',
       'flow_steps',
       'flows',

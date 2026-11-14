@@ -48,6 +48,7 @@ describe('the tenant conventions, on every tenant table', () => {
       'api_keys',
       'chat_turns',
       'chats',
+      'decisions',
       'enrollment_tokens',
       'flow_steps',
       'flows',
@@ -157,7 +158,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(62);
+    expect(composite).toBe(66);
   });
 });
 
