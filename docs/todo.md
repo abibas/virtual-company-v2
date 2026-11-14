@@ -29,13 +29,11 @@ this is the short version Ihor and the main chat work from. Items move to the ro
 - [ ] **Bonus, only after Ihor approves everything works:** the animated assembly-line view of a flow's stages (a
       Fable 5.2 subagent, styled like buildindex.dev's assembly template).
 
-## In progress
-
-- [ ] GitHub PR review tools with a Reviews right (Off/Comment/Approve), Slack thread context for agents, and a
-      clearer stopped-machine reply (branch `review-tools`).
-
 ## Waiting on Ihor
 
+- [ ] Set the "Code Reviewer" profile's GitHub part to **Reviews: Approve**. The PR review tools landed on 2026-11-14
+      (migration `0041`); existing parts default to Off.
+- [ ] Optional: turn on "Start when you message an agent on it" for the Airia devbox, so Slack requests wake it.
 - [ ] **Update runner** on This Mac. The devbox and the Docker runner are current. Until then its agents lack the
       server tools (GitHub, Atlassian, Slack), `record_decision`, the modes, the full trace and session recovery.
 - [ ] Rename one of the two agents named "Code Reviewer" (`test-dev` and the DEVBOX reviewer).
