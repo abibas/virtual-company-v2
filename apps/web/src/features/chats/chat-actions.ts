@@ -7,6 +7,7 @@ import type {
   QuestionAnswer,
 } from '../../api/types.ts';
 import type { ChatLive } from '../../api/use-chat-live.ts';
+import type { ComposerSendOptions } from './Composer.tsx';
 import { AFTER_ONLY, deliveryChoices, splitQueue, waitsForMachine } from './delivery/delivery.ts';
 import type { QueueActions } from './delivery/QueuedMessages.tsx';
 import { questionOf } from './thread/question/question-model.ts';
@@ -53,20 +54,16 @@ export function asking(thread: readonly ChatTurnWithEvents[]): boolean {
 }
 
 /**
- * Send (with its delivery while a turn runs, or with the stopped machine started for it), Stop, an answer and a profile
- * change, each shown at once.
+ * Send (with its delivery while a turn runs, or with the stopped machine started for it, and its images), Stop, an
+ * answer and a profile change, each shown at once.
  */
 export function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: () => void) {
   const running = live.turns.find((turn) => turn.status === 'running');
   const first = live.turns.length === 0;
   return {
     running,
-    send: async (
-      prompt: string,
-      delivery: ChatDelivery | undefined,
-      options: { readonly startMachine?: boolean } = {},
-    ) => {
-      live.putTurn(await calls.send(chat.id, prompt, delivery, options.startMachine === true));
+    send: async (prompt: string, delivery: ChatDelivery | undefined, options: ComposerSendOptions = {}) => {
+      live.putTurn(await calls.send(chat.id, prompt, { ...options, delivery }));
       if (first) onChanged();
     },
     stop: async () => {

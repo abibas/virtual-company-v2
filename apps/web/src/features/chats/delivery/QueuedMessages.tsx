@@ -3,6 +3,7 @@ import { Clock3, Pencil, SendHorizontal, SkipForward, Trash2, Zap } from 'lucide
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
 import { cx } from '../../../components/cx.ts';
+import { count } from '../../../components/data/format.ts';
 import { CONTROL } from '../../../components/forms/Input.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
 import { IconButton } from '../../../components/ui/IconButton.tsx';
@@ -147,6 +148,7 @@ function QueuedRow({ turn, actions }: { readonly turn: ChatTurnWithEvents; reado
           {turn.system
             ? `${turn.from ? `${turn.from.name} via Slack` : 'Most Wanted'} · ${WAITING_NOTE[delivery]}`
             : WAITING_NOTE[delivery]}
+          {turn.images.length > 0 && ` · ${count(turn.images.length, 'image')}`}
         </p>
         {error && (
           <p role="alert" className="text-2xs font-medium text-failed">

@@ -4,7 +4,7 @@ import { chatCalls } from '../../api/chats.ts';
 import { useApi } from '../../api/context.ts';
 import type { AgentPlacement } from '../../api/types.ts';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
-import { Composer } from '../chats/Composer.tsx';
+import { Composer, type ComposerSendOptions } from '../chats/Composer.tsx';
 
 /** Why a new chat cannot begin from the rail now, or undefined (the chat page's own reasons). */
 export function draftClosedWhy(admin: boolean, placement: AgentPlacement | undefined): string | undefined {
@@ -40,9 +40,9 @@ export function DraftChat({
   const api = useApi();
   const calls = useMemo(() => chatCalls(api, companyId), [api, companyId]);
   const begun = useRef<string>(undefined);
-  const send = async (prompt: string) => {
+  const send = async (prompt: string, _delivery: unknown, options: ComposerSendOptions = {}) => {
     begun.current ??= (await calls.create(agentId)).id;
-    await calls.send(begun.current, prompt);
+    await calls.send(begun.current, prompt, { images: options.images });
     onCreated(begun.current);
   };
   return (

@@ -21,12 +21,42 @@ const DesignPage = import.meta.env.DEV
   ? lazy(() => import('../pages/design/DesignPage.tsx').then((m) => ({ default: m.DesignPage })))
   : null;
 
+/** True when the drag carries files from outside the page (a screenshot, a file from the desktop). */
+const carriesFiles = (event: DragEvent): boolean => event.dataTransfer?.types.includes('Files') === true;
+
+/**
+ * A file dropped anywhere on a page never makes the browser open it in place of the app (T-18): on `window`, after the
+ * page's own drop zones had their turn (the composer, the logo and icon pickers cancel the events they take), a file
+ * dragged over anything else shows no drop (`dropEffect` none) and its drop is cancelled. Drags of the page's own
+ * elements (the board's cards, the chart's people) carry no files and are left alone.
+ */
+function useFileDropGuard(): void {
+  useEffect(() => {
+    const onDragOver = (event: DragEvent) => {
+      if (!carriesFiles(event) || event.defaultPrevented) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+    };
+    const onDrop = (event: DragEvent) => {
+      if (carriesFiles(event)) event.preventDefault();
+    };
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, []);
+}
+
 /**
  * The app's boot: it reads `GET /api/config` (so one built image runs anywhere; a server restarting is waited for,
  * about 10 seconds), then starts Clerk with the publishable key it gives, or shows that sign-in is not configured on
- * this server. `/design` in development needs neither.
+ * this server. `/design` in development needs neither. A file dropped outside a drop zone never leaves the app
+ * (`useFileDropGuard`).
  */
 export function App() {
+  useFileDropGuard();
   const { pathname } = useLocation();
   const [boot, setBoot] = useState<Boot>({ status: 'loading' });
   const load = useCallback(() => {

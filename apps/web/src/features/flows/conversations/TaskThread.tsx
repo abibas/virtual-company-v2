@@ -83,8 +83,8 @@ function LiveBody({
         placeholder={
           asking(view.thread) ? 'Answer above, or write your answer here' : 'Reply in this conversation'
         }
-        onSend={async (prompt, delivery) => {
-          live.putTurn(await calls.send(chat.id, prompt, delivery));
+        onSend={async (prompt, delivery, options) => {
+          live.putTurn(await calls.send(chat.id, prompt, { delivery, images: options?.images }));
           onChanged();
         }}
         onStop={async () => {

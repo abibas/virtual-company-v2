@@ -208,6 +208,7 @@ export function TurnView({
           at={turn.createdAt}
           note={note}
           dense={dense}
+          images={{ chatId: turn.chatId, list: turn.images }}
         />
       )}
       <Reply

@@ -5,6 +5,9 @@ import type { ChatDelivery } from '../../api/types.ts';
 import { cx } from '../../components/cx.ts';
 import { Spinner } from '../../components/ui/Button.tsx';
 import { iconButtonClass } from '../../components/ui/IconButton.tsx';
+import { AttachmentChips } from './attach/AttachmentChips.tsx';
+import { ATTACH_REFUSALS, imagesPrompt, imagesRefusal } from './attach/image-files.ts';
+import { useAttachments } from './attach/use-attachments.ts';
 import { DeliveryStrip } from './delivery/DeliveryStrip.tsx';
 import { type DeliveryChoice, offered, rememberDelivery, rememberedDelivery } from './delivery/delivery.ts';
 import { StartAndSend, startable } from './delivery/StartAndSend.tsx';
@@ -12,6 +15,19 @@ import { DictationButton } from './dictation/DictationButton.tsx';
 import { SlackTarget, type SlackTargetValue } from './people/SlackTarget.tsx';
 import { THREAD_WIDTH } from './thread/ChatThread.tsx';
 import { useAction } from './use-action.ts';
+
+/** What a send carries besides the prompt and its delivery: the stopped machine started for it, its images (T-18). */
+export interface ComposerSendOptions {
+  readonly startMachine?: boolean;
+  readonly images?: readonly Blob[];
+}
+
+/** The text box's hint: where the message goes, or that a drag of images can be dropped. */
+function hintOf(placeholder: string, place: string | undefined, running: boolean, dragging: boolean): string {
+  if (dragging) return 'Drop the images to attach them';
+  if (place !== undefined) return `Send in ${place}, as the bot`;
+  return running ? 'Write while the agent works…' : placeholder;
+}
 
 /** Enter sends; Shift+Enter, and Enter while an input method composes a character, make a new line. */
 function enterSends(event: KeyboardEvent<HTMLTextAreaElement>, send: () => void) {
@@ -88,7 +104,9 @@ function RoundAction({
  * refusal (the machine offline, the runner too old, an empty slot) shows above it in plain words, and the text stays so
  * it can be sent again; a stopped machine the person may start offers Start and send. In a Slack conversation's chat
  * its Slack connection's owner chooses above the box where the message goes (2026-11-14): Ask the agent or Send in
- * Slack. Closed, it shows why in one line, with what may open it (an owner's Add me).
+ * Slack. Closed, it shows why in one line, with what may open it (an owner's Add me). Images dropped on the card or
+ * pasted in the text (T-18) show as chips above the text and go to the agent with the message (`attach/`); a message of
+ * images alone says how many.
  */
 export function Composer({
   running,
@@ -114,7 +132,7 @@ export function Composer({
   readonly onSend: (
     prompt: string,
     delivery: ChatDelivery | undefined,
-    options?: { readonly startMachine?: boolean },
+    options?: ComposerSendOptions,
   ) => Promise<void>;
   readonly onStop: () => Promise<void>;
   /** The waiting messages (S5.2 step 6), above the box. */
@@ -136,12 +154,23 @@ export function Composer({
   const [delivery, choose] = useDelivery();
   const { busy, error, failure, run } = useAction();
   const stop = useAction();
-  const ready = text.trim().length > 0 && !busy;
+  const attach = useAttachments(inSlack ? ATTACH_REFUSALS.slack : undefined);
+  const attached = inSlack ? [] : attach.items;
+  const hasText = text.trim().length > 0;
+  const ready = (hasText || attached.length > 0) && attach.preparing === 0 && !busy;
   const how = choices && offered(delivery, choices);
   const send = (event?: FormEvent, options?: { readonly startMachine?: boolean }) => {
     event?.preventDefault();
-    const go = inSlack ? () => slack.onSend(text) : () => onSend(text, how, options);
-    if (ready) void run(go).then((sent) => sent && setText(''));
+    if (!ready) return;
+    attach.dismiss();
+    const prompt = hasText ? text : imagesPrompt(attached.length);
+    const images = attached.map((item) => item.blob);
+    const go = inSlack ? () => slack.onSend(text) : () => onSend(prompt, how, { ...options, images });
+    void run(go).then((sent) => {
+      if (!sent) return;
+      setText('');
+      attach.clear(attached);
+    });
   };
   const stopped = startable(failure);
   if (disabled)
@@ -158,44 +187,50 @@ export function Composer({
         </div>
       </div>
     );
-  const shownError = error ?? stop.error;
+  // While Start and send stands for the refusal, only a refused image still shows.
+  const refusal = imagesRefusal(failure, attached.length) ?? error ?? stop.error;
+  const shownError = attach.error ?? (stopped ? undefined : refusal);
   return (
     <form onSubmit={send} className={dense ? 'px-1 pt-1 pb-0.5' : 'px-4 pt-1 pb-4 md:px-8'}>
       <div className={cx(THREAD_WIDTH, 'grid gap-2')}>
         {queue}
-        {stopped ? (
+        {stopped && (
           <StartAndSend
             machine={stopped}
             busy={busy}
             disabled={!ready}
             onStart={() => send(undefined, { startMachine: true })}
           />
-        ) : (
-          shownError && (
-            <p role="alert" className="text-sm font-medium text-failed">
-              {shownError}
-            </p>
-          )
+        )}
+        {shownError && (
+          <p role="alert" className="text-sm font-medium text-failed">
+            {shownError}
+          </p>
         )}
         {slack && <SlackTarget value={to} place={slack.place} onChange={setTo} />}
         {choices && running && how && !inSlack && (
           <DeliveryStrip choices={choices} value={how} onChange={choose} />
         )}
-        <div className="@container/composer rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-shadow ring-inset focus-within:ring-blue/60">
+        <div
+          {...attach.dropZone}
+          data-dragging={attach.dragging || undefined}
+          className="@container/composer rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-[box-shadow,background-color] ring-inset focus-within:ring-blue/60 data-dragging:bg-blue-soft/50 data-dragging:ring-2 data-dragging:ring-blue"
+        >
+          <AttachmentChips
+            items={attach.items}
+            preparing={attach.preparing}
+            muted={inSlack}
+            onRemove={attach.remove}
+          />
           <textarea
             aria-label="Message"
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => enterSends(event, send)}
+            onPaste={attach.onPaste}
             maxLength={CHAT_PROMPT.max}
             rows={2}
-            placeholder={
-              inSlack
-                ? `Send in ${slack.place}, as the bot`
-                : running
-                  ? 'Write while the agent works…'
-                  : placeholder
-            }
+            placeholder={hintOf(placeholder, inSlack ? slack.place : undefined, running, attach.dragging)}
             className="block max-h-60 min-h-14 w-full resize-none bg-transparent px-4.5 pt-3.5 pb-1 text-[0.9375rem] leading-relaxed text-ink outline-none placeholder:text-faint [field-sizing:content]"
           />
           <div className="flex min-h-12 flex-nowrap items-center gap-1 px-1.5 py-1.5 @sm/composer:px-2">

@@ -1,4 +1,5 @@
 import { CHAT_PAGE } from '@mwc/shared/chats';
+import { imagesBody } from './chat-images.ts';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
@@ -16,6 +17,13 @@ export interface OlderPage {
   readonly beforeSeq: number;
   readonly afterSeq: number;
   readonly limit?: number;
+}
+
+/** How a prompt is sent: its delivery while a turn runs, the stopped machine started for it, its images (T-18). */
+export interface SendOptions {
+  readonly delivery?: ChatDelivery | undefined;
+  readonly startMachine?: boolean | undefined;
+  readonly images?: readonly Blob[] | undefined;
 }
 
 /** An agent's chats, the latest first (archived ones are left out). */
@@ -67,15 +75,19 @@ export function chatCalls(api: Api, companyId: string) {
       call(one.branch.$post({ ...param(chatId), json: { turnId } })),
     /**
      * A prompt; with a `delivery` while a turn runs (S5.2 step 6): into it, after it, or interrupting it; with
-     * `startMachine` the agent's stopped machine is started for it (Start and send), and it waits for it.
+     * `startMachine` the agent's stopped machine is started for it (Start and send), and it waits for it; with `images`
+     * (T-18) those images go with it, as base64.
      */
-    send: (chatId: string, prompt: string, delivery?: ChatDelivery, startMachine = false) =>
-      call(
-        one.turns.$post({
-          ...param(chatId),
-          json: { prompt, ...(delivery ? { delivery } : {}), ...(startMachine ? { startMachine } : {}) },
-        }),
-      ),
+    send: async (chatId: string, prompt: string, options: SendOptions = {}) => {
+      const { delivery, startMachine = false, images = [] } = options;
+      const json = {
+        prompt,
+        ...(delivery ? { delivery } : {}),
+        ...(startMachine ? { startMachine } : {}),
+        ...(images.length > 0 ? { images: await imagesBody(images) } : {}),
+      };
+      return call(one.turns.$post({ ...param(chatId), json }));
+    },
     /** S5.2 step 6: a waiting message's new prompt, its discard (204), and Now or Interrupt for it. */
     edit: (chatId: string, turnId: string, prompt: string) =>
       call(one.turns[':turnId'].$patch({ param: { companyId, chatId, turnId }, json: { prompt } })),
