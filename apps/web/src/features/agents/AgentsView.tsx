@@ -8,6 +8,7 @@ import { nodesById } from '../../components/org/chart.ts';
 import type { ChartFlowItem } from '../flows/access.ts';
 import type { FlowFocus } from '../structure/flow/flow-focus.ts';
 import { OrgChartBoard } from '../structure/OrgChartBoard.tsx';
+import type { ChartRequesters } from '../structure/requesters/use-requesters.ts';
 import { AgentsTable } from './AgentsTable.tsx';
 import type { AgentLinks } from './links.ts';
 
@@ -34,6 +35,8 @@ export interface AgentsViewProps {
   readonly onChanged: (self?: boolean) => void;
   /** The flow highlighted on the org chart (`?flow=`), if any. */
   readonly focus?: FlowFocus | undefined;
+  /** The org chart's Requesters column, unless hidden. */
+  readonly requesters?: ChartRequesters | undefined;
 }
 
 /**
@@ -55,6 +58,7 @@ export function AgentsView({
   flowItem,
   onChanged,
   focus,
+  requesters,
 }: AgentsViewProps) {
   const api = useApi();
   const calls = useMemo(() => orgCalls(api, companyId), [api, companyId]);
@@ -70,6 +74,7 @@ export function AgentsView({
       flowItem={flowItem}
       onChanged={onChanged}
       focus={focus}
+      requesters={requesters}
     />
   ) : (
     <AgentsTable

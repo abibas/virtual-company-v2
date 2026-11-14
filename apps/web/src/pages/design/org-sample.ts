@@ -1,4 +1,5 @@
 import type { AgentStatus, Effort, MembershipRole } from '@mwc/shared/enums';
+import type { ContactInteraction } from '../../api/contacts.ts';
 import { ApiError } from '../../api/errors.ts';
 import type {
   AgentDetail,
@@ -10,6 +11,7 @@ import type {
 } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
 import { nodesById } from '../../components/org/chart.ts';
+import type { RequesterWindow } from '../../features/structure/requesters/requesters.ts';
 import { days, loaded } from './records.ts';
 
 /**
@@ -165,4 +167,47 @@ export function sampleAgent(address: string): Loaded<AgentDetail> {
   if (agent) return loaded(agent);
   const error = new ApiError(404, 'agent_not_found', 'There is no agent at this address.');
   return { data: undefined, error, loading: false, reload: () => undefined };
+}
+
+/**
+ * The Slack people who talked to the sample agents in the last 30 days: name, title, and per agent "slug messages
+ * days-ago" (and "live" while a turn of theirs runs there).
+ */
+const REQUESTERS: readonly (readonly [string, string | null, string])[] = [
+  ['Erich Novak', 'Solutions Engineer', 'mason 14 0 live, vega 5 1'],
+  ['Sam Okafor', 'Partner, Northwind', 'scout 26 0'],
+  ['Priya Raman', 'Customer Success', 'juno 9 2, scout 2 3'],
+  ['Marco Bellini', 'Account Executive', 'vega 3 4'],
+  ['Dana Whitfield', 'Support Lead', 'mason 2 5, pip 1 6'],
+  ['Lea Brandt', null, 'juno 1 6'],
+  ['Tomás Ferreira', 'Field Engineer', 'mason 6 9'],
+  ['Hana Sato', 'Product Marketing', 'vega 4 11'],
+  ['Owen Price', 'Legal', 'scout 3 13'],
+  ['Ruth Adler', 'Finance', 'vega 2 15'],
+  ['Kofi Mensah', 'Partner, Contoso', 'juno 2 18'],
+  ['Ines Duarte', 'Recruiting', 'scout 1 21'],
+  ['Viktor Hale', 'Security', 'mason 1 24'],
+  ['Mia Laine', 'Design partner', 'juno 1 27'],
+];
+
+const requester = ([name, title, spec]: (typeof REQUESTERS)[number], n: number): ContactInteraction => {
+  const agents = spec.split(', ').map((part) => {
+    const [slug, messages, ago, live] = part.split(' ');
+    return {
+      agentId: `a-${slug}`,
+      principalId: `p-${slug}`,
+      messages: Number(messages),
+      lastAt: days(-Number(ago)),
+      live: live === 'live',
+    };
+  });
+  const live = agents.some((agent) => agent.live);
+  return { contact: { id: `ct-${n + 1}`, name, title, avatarUrl: null }, live, agents };
+};
+
+/** `GET …/contacts/interactions` on the samples for a window: 3 contacts in 24 hours, 6 in 7 days, 14 in 30. */
+export function sampleInteractions(window: RequesterWindow): readonly ContactInteraction[] {
+  const within = { '24h': 1, '7d': 7, '30d': 30 }[window];
+  const latest = (spec: string) => Math.min(...spec.split(', ').map((part) => Number(part.split(' ')[2])));
+  return REQUESTERS.map(requester).filter((_, n) => latest(REQUESTERS[n]?.[2] ?? '') < within);
 }

@@ -22,6 +22,8 @@ export type Contact = ContactDetail['contact'];
 export type ContactConversation = ContactDetail['conversations'][number];
 export type ContactAgentCount = ContactDetail['agents'][number];
 export type ContactChange = InferRequestType<OneContact['$patch']>['json'];
+export type ContactInteractions = InferResponseType<ContactRoutes['interactions']['$get'], 200>;
+export type ContactInteraction = ContactInteractions['contacts'][number];
 
 /** How long a burst of the activity's messages is gathered before the page is read again. */
 const BURST_MS = 300;
@@ -75,4 +77,59 @@ export function useContactChange(companyId: string) {
         json: change,
       }),
     );
+}
+
+/** How long the activity's messages are gathered before the org chart's Requesters are read again. */
+const INTERACTIONS_BURST_MS = 1000;
+
+/**
+ * Who talked to which agent since `sinceMs` milliseconds ago (the org chart's Requesters), read again a moment after the
+ * company's chats' activity tells a turn from a contact started, moved or ended, and on each open of the stream (no
+ * polling). Nothing is read while not `enabled` (the column hidden, a viewer).
+ */
+export function useContactInteractions(
+  companyId: string,
+  enabled: boolean,
+  sinceMs: number,
+): Loaded<ContactInteractions | undefined> {
+  const api = useApi();
+  const loaded = useLoad(enabled ? `interactions:${companyId}:${sinceMs}` : 'interactions:off', () =>
+    enabled
+      ? call(
+          api.api.companies[':companyId'].contacts.interactions.$get({
+            param: { companyId },
+            query: { since: new Date(Date.now() - sinceMs).toISOString() },
+          }),
+        )
+      : Promise.resolve(undefined),
+  );
+  const { reload } = loaded;
+  const burst = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(burst.current), []);
+  const soon = () => {
+    clearTimeout(burst.current);
+    burst.current = setTimeout(reload, INTERACTIONS_BURST_MS);
+  };
+  useChatActivity(companyId, enabled, {
+    chat: ({ lastTurn }) => {
+      if (lastTurn?.from?.contactId) soon();
+    },
+    opened: soon,
+  });
+  return loaded;
+}
+
+/**
+ * Whether the company has any contact (not archived): the org chart offers its Requesters only then. Undefined while it
+ * is read; false when not `enabled` or the read failed.
+ */
+export function useHasContacts(companyId: string, enabled: boolean): boolean | undefined {
+  const api = useApi();
+  const loaded = useLoad(enabled ? `contacts:any:${companyId}` : 'contacts:any:off', () =>
+    enabled
+      ? call(api.api.companies[':companyId'].contacts.$get({ param: { companyId }, query: {} }))
+      : Promise.resolve(undefined),
+  );
+  if (!enabled || loaded.error !== undefined) return false;
+  return loaded.data === undefined ? undefined : loaded.data.contacts.length > 0;
 }

@@ -91,3 +91,14 @@ export function focusBox(layout: ChartLayout, focus: FlowFocus): ChartBox | unde
   const bottom = Math.max(...cards.map((card) => card.y + CARD.height));
   return { x, y, width: right - x, height: bottom - y };
 }
+
+/** The smallest box holding `box` and `more` (the requesters beside a flow's members), or undefined without `box`. */
+export function unionBox(box: ChartBox | undefined, more: readonly ChartBox[]): ChartBox | undefined {
+  if (!box) return undefined;
+  const all = [box, ...more];
+  const x = Math.min(...all.map((b) => b.x));
+  const y = Math.min(...all.map((b) => b.y));
+  const right = Math.max(...all.map((b) => b.x + b.width));
+  const bottom = Math.max(...all.map((b) => b.y + b.height));
+  return { x, y, width: right - x, height: bottom - y };
+}

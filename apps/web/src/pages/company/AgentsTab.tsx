@@ -10,19 +10,23 @@ import { companyAgentLinks } from '../../features/agents/links.ts';
 import { chartFlowItems } from '../../features/flows/access.ts';
 import { companyFlowLinks } from '../../features/flows/links.ts';
 import { useHighlightedFlow } from '../../features/structure/flow/use-highlighted-flow.ts';
+import type { ChartRequesters } from '../../features/structure/requesters/use-requesters.ts';
 
 /**
  * The Org chart (`/:slug/structure`: the canvas, where people and agents are dragged to another manager, added,
  * titled and changed from their cards, and `?flow=<lead>` highlights a flow's members) and Agents
  * (`/:slug/structure/agents`: the agents by status) tabs of the Company structure page. `flows`: the company's flows,
- * which the page reads once for its flow picker too.
+ * which the page reads once for its flow picker too; `requesters`: the chart's Requesters column, which the page reads
+ * for its switch too.
  */
 export function AgentsTab({
   tab,
   flows,
+  requesters,
 }: {
   readonly tab: Tab;
   readonly flows: readonly FlowSummary[] | undefined;
+  readonly requesters?: ChartRequesters | undefined;
 }) {
   const { membership, me, agents: team, reload } = useCompany();
   const { companyId } = membership;
@@ -47,6 +51,7 @@ export function AgentsTab({
       company={{ name: membership.name, logo }}
       flowItem={chartFlowItems(viewer, flows, companyFlowLinks(membership.slug))}
       focus={focus}
+      requesters={requesters}
       onChanged={(self) => {
         chart.reload();
         agents.reload();

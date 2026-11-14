@@ -10,11 +10,15 @@ import { chartFlowItems } from '../../features/flows/access.ts';
 import { FLOW_PARAM } from '../../features/flows/links.ts';
 import { FlowPicker } from '../../features/structure/flow/FlowPicker.tsx';
 import { flowAt, flowFocus } from '../../features/structure/flow/flow-focus.ts';
+import {
+  RequestersToggle,
+  useRequestersChoice,
+} from '../../features/structure/requesters/RequestersToggle.tsx';
 import { StructureView } from '../../features/structure/StructureView.tsx';
 import { FLOW_LINKS, SAMPLE_VIEWER } from './flows/FlowsMock.tsx';
 import { SAMPLE_FLOW_LIST, SAMPLE_FLOWS } from './flows/flow-sample.ts';
 import { MockShell } from './MockShell.tsx';
-import { SAMPLE_CHART, sampleAgent, sampleAgentList } from './org-sample.ts';
+import { SAMPLE_CHART, sampleAgent, sampleAgentList, sampleInteractions } from './org-sample.ts';
 import { loaded, SAMPLE_COMPANY, SAMPLE_ME, sampleApi } from './records.ts';
 
 const HERE = '/design/org';
@@ -37,8 +41,9 @@ const LINKS: AgentLinks = {
 const none = () => undefined;
 
 /**
- * The Company structure page on the sample chart, as the owner sees it, with the list filtered in memory and a sample
- * flow highlighted on the chart (`?flow=vega`).
+ * The Company structure page on the sample chart, as the owner sees it, with the list filtered in memory, a sample
+ * flow highlighted on the chart (`?flow=vega`), and the sample Slack contacts in the Requesters column (`?requesters=`
+ * `0`, `24h` or `30d`; 30 days shows the cap and "+2 more").
  */
 function AgentsBody({ list }: { readonly list: boolean }) {
   const [status, setStatus] = useState<AgentFilter>('active');
@@ -47,13 +52,33 @@ function AgentsBody({ list }: { readonly list: boolean }) {
     const flow = SAMPLE_FLOWS.find((f) => f.id === chosen?.id);
     return flow && flowFocus(flow);
   }, [chosen?.id]);
+  const choice = useRequestersChoice();
+  const requesters = useMemo(
+    () =>
+      choice.shown
+        ? {
+            contacts: sampleInteractions(choice.window),
+            window: choice.window,
+            contactHref: () => HERE,
+            moreHref: LINKS.contacts,
+          }
+        : undefined,
+    [choice.shown, choice.window],
+  );
   return (
     <StructureView
       tab={list ? 'agents' : 'chart'}
       links={LINKS}
       hireHref={LINKS.hire}
       admin
-      tools={list ? undefined : <FlowPicker flows={SAMPLE_FLOW_LIST.flows} />}
+      tools={
+        list ? undefined : (
+          <>
+            <FlowPicker flows={SAMPLE_FLOW_LIST.flows} />
+            <RequestersToggle />
+          </>
+        )
+      }
     >
       <AgentsView
         companyId={SAMPLE_COMPANY.id}
@@ -70,6 +95,7 @@ function AgentsBody({ list }: { readonly list: boolean }) {
         flowItem={chartFlowItems(SAMPLE_VIEWER, SAMPLE_FLOW_LIST.flows, FLOW_LINKS)}
         onChanged={none}
         focus={focus}
+        requesters={requesters}
       />
     </StructureView>
   );

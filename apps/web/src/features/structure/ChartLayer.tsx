@@ -82,7 +82,13 @@ export interface ChartLayerProps {
   readonly agentHref: (node: ChartNode & { kind: 'agent' }) => string;
   /** A highlighted flow: its members ringed with their roles, everyone else faded; and the lines that join them. */
   readonly focus?: { readonly flow: FlowFocus; readonly edges: ReadonlySet<string> } | undefined;
+  /** What a hovered requester (or an agent's requesters) lights: these cards stay, the rest and every line fade. */
+  readonly hovered?: ReadonlySet<string> | undefined;
+  /** The pointer entered or left an agent's card (its requesters light up). */
+  readonly onAgentHover?: ((principalId: string | undefined) => void) | undefined;
 }
+
+const NO_EDGES: ReadonlySet<string> = new Set();
 
 /** Where a card sits; outside a highlighted flow it fades and greys, in its place. */
 const PLACE = 'absolute transition-[opacity,filter] duration-200 motion-reduce:transition-none';
@@ -91,19 +97,27 @@ const FADED = 'opacity-40 saturate-0';
 /**
  * What the canvas zooms: the lines, then each card where the layout puts it (the company on top), each a drop target
  * while another card is dragged, and draggable itself for admins and owners. A highlighted flow rings its members and
- * fades the rest.
+ * fades the rest; a hovered requester fades all but the agents they talked to, with the same fade.
  */
 export function ChartLayer(props: ChartLayerProps) {
-  const { layout, nodes, plan, over, buttons, focus } = props;
+  const { layout, nodes, plan, over, buttons, focus, hovered, onAgentHover } = props;
   const faded = plan ? new Set([plan.principalId]) : undefined;
-  const place = (id: string) => cx(PLACE, focus && !focus.flow.members.has(id) && FADED);
+  const kept = hovered ?? focus?.flow.members;
+  const place = (id: string) => cx(PLACE, kept && !kept.has(id) && FADED);
+  const hoverOf = (node: ChartNode) =>
+    node.kind === 'agent' && onAgentHover
+      ? {
+          onPointerEnter: () => onAgentHover(node.principalId),
+          onPointerLeave: () => onAgentHover(undefined),
+        }
+      : {};
   const accentOf = (id: string) => {
     const roles = focus?.flow.members.get(id);
     return roles && { ring: ringOf(roles), tags: <FlowTags roles={roles} /> };
   };
   return (
     <>
-      <ChartLines layout={layout} faded={faded} emphasis={focus?.edges} />
+      <ChartLines layout={layout} faded={faded} emphasis={hovered ? NO_EDGES : focus?.edges} />
       {layout.cards.map((card) => {
         const node = nodes.get(card.id);
         const style = { left: card.x, top: card.y };
@@ -120,7 +134,7 @@ export function ChartLayer(props: ChartLayerProps) {
         }
         if (!node) return null;
         return (
-          <div key={card.id} className={place(card.id)} style={style}>
+          <div key={card.id} className={place(card.id)} style={style} {...hoverOf(node)}>
             <ChartCard
               accent={accentOf(node.principalId)}
               node={node}
