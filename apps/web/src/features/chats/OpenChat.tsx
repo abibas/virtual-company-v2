@@ -2,37 +2,31 @@ import { TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { type ChatCalls, chatCalls } from '../../api/chats.ts';
 import { useApi } from '../../api/context.ts';
-import type {
-  AccessProfile,
-  AgentDetail,
-  AgentPlacement,
-  Chat,
-  ChatDelivery,
-  ChatTurnWithEvents,
-  QuestionAnswer,
-} from '../../api/types.ts';
+import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../api/types.ts';
 import { useEarlierConversations } from '../../api/use-chat-earlier.ts';
 import { type ChatLive, useChatLive } from '../../api/use-chat-live.ts';
 import { cx } from '../../components/cx.ts';
 import { ErrorBlock, LoadingBlock } from '../../components/data/LoadState.tsx';
 import type { Crumb } from '../../components/layout/Breadcrumbs.tsx';
+import { Badge } from '../../components/ui/Badge.tsx';
 import { useMarkSeen } from '../report-chats/seen.ts';
 import { BranchedFrom } from './branch/BranchedFrom.tsx';
 import { ChatTerminal } from './ChatTerminal.tsx';
 import { Composer } from './Composer.tsx';
+import { asking, chatActions, closedWhy, queueActions, queueView } from './chat-actions.ts';
 import { ChatContextMeter } from './context/ChatContextMeter.tsx';
 import { chatRuns } from './context/context-state.ts';
-import { AFTER_ONLY, deliveryChoices, splitQueue, waitsForMachine } from './delivery/delivery.ts';
-import { type QueueActions, QueuedMessages } from './delivery/QueuedMessages.tsx';
+import { QueuedMessages } from './delivery/QueuedMessages.tsx';
 import { CHAT_AREA, ChatBar } from './header/ChatBar.tsx';
 import { ChatHeader, type ChatMode } from './header/ChatHeader.tsx';
 import { chatMachine, fixOf } from './machine-context.ts';
+import { AddMe } from './people/AddMe.tsx';
+import { PeopleMenu } from './people/PeopleMenu.tsx';
+import { type ChatPeople, useChatPeople } from './people/use-chat-people.ts';
 import { RunnerUpdateNotice } from './RunnerUpdateNotice.tsx';
 import { chatRunsMenus } from './runs/chat-runs.tsx';
 import { useThreadAuthors } from './thread/authors.ts';
 import { ChatThread } from './thread/ChatThread.tsx';
-import { questionOf } from './thread/question/question-model.ts';
-import { rememberSent, sentAnswer } from './thread/question/use-question-draft.ts';
 import { ChatMachineContext } from './thread/status/MachineWait.tsx';
 
 export interface OpenChatProps {
@@ -53,19 +47,6 @@ export interface OpenChatProps {
   readonly onBranched: (chat: Chat) => void;
 }
 
-/** Why the composer is closed: an archived chat, a reader who is not an admin, an agent placed nowhere now. */
-export function closedWhy(
-  chat: Chat,
-  admin: boolean,
-  placement: AgentPlacement | undefined,
-): string | undefined {
-  if (chat.archivedAt) return 'This chat is archived: it stays readable, and takes no new message.';
-  if (!admin) return 'Admins and owners send messages to agents; you can read this chat.';
-  if (placement === null)
-    return "The agent doesn't run anywhere now: choose where it runs on its page first.";
-  return undefined;
-}
-
 /** The agent moved to another machine since the chat began: its conversation is not there. */
 function MovedNotice() {
   return (
@@ -74,45 +55,6 @@ function MovedNotice() {
       The agent runs on another machine now, so this chat's conversation isn't there: start a new chat.
     </p>
   );
-}
-
-/** True while the chat's last turn asks the person something they have not answered. */
-export function asking(thread: readonly ChatTurnWithEvents[]): boolean {
-  const last = thread.at(-1);
-  const question = last && questionOf(last.events);
-  return question !== undefined && !question.answered && sentAnswer(question.event.id) === undefined;
-}
-
-/**
- * Send (with its delivery while a turn runs, or with the stopped machine started for it), Stop, an answer and a profile
- * change, each shown at once.
- */
-export function chatActions(calls: ChatCalls, live: ChatLive, chat: Chat, onChanged: () => void) {
-  const running = live.turns.find((turn) => turn.status === 'running');
-  const first = live.turns.length === 0;
-  return {
-    running,
-    send: async (
-      prompt: string,
-      delivery: ChatDelivery | undefined,
-      options: { readonly startMachine?: boolean } = {},
-    ) => {
-      live.putTurn(await calls.send(chat.id, prompt, delivery, options.startMachine === true));
-      if (first) onChanged();
-    },
-    stop: async () => {
-      if (running) live.putTurn(await calls.stop(chat.id, running.id));
-    },
-    answer: async (questionId: string, answers: QuestionAnswer[]) => {
-      const turn = await calls.answer(chat.id, { questionId, answers });
-      rememberSent(questionId, turn.id, answers);
-      live.putTurn(turn);
-    },
-    changeProfile: async (profileId: string | null) => {
-      live.putChat(await calls.update(chat.id, { profileId }));
-      onChanged();
-    },
-  };
 }
 
 /** The thread's Branch (admins and owners) and a branch's "Branched from" line. */
@@ -133,38 +75,6 @@ function branchView(
       : undefined,
     lead: from ? <BranchedFrom from={from} at={chat.createdAt} hrefOf={rest.hrefOf} /> : undefined,
   };
-}
-
-/** Edit, Discard, Now and Interrupt on a waiting message (S5.2 step 6), each shown at once. */
-export function queueActions(
-  calls: ChatCalls,
-  live: ChatLive,
-  chat: Chat,
-  running: ChatTurnWithEvents | undefined,
-) {
-  const actions: QueueActions = {
-    canNow: running !== undefined && deliveryChoices(chat.harness, running).some((c) => c.value === 'now'),
-    running: running !== undefined,
-    edit: async (turnId, prompt) => live.putTurn(await calls.edit(chat.id, turnId, prompt)),
-    discard: async (turnId) => {
-      await calls.discard(chat.id, turnId);
-      live.dropTurn(turnId);
-    },
-    deliver: async (turnId, delivery) => live.putTurn(await calls.deliver(chat.id, turnId, delivery)),
-  };
-  return actions;
-}
-
-/**
- * The thread's turns, the waiting messages in start order, the running turn and how a message may reach it now (after
- * the turns that wait, the one waiting for the stopped machine too).
- */
-export function queueView(live: ChatLive, chat: Chat) {
-  const { thread, queue } = splitQueue(live.turns);
-  const running = live.turns.find((turn) => turn.status === 'running');
-  const waiting = queue.length > 0 || live.turns.some(waitsForMachine) ? AFTER_ONLY : undefined;
-  const choices = running ? deliveryChoices(chat.harness, running) : waiting;
-  return { thread, queue, running, choices };
 }
 
 /** The open chat's area in the page's frame (`CHAT_AREA`): the thread or the terminal; 80% of a narrow window. */
@@ -192,10 +102,42 @@ function Opening({
   );
 }
 
+/** The header's own parts for who is in the chat (2026-11-14): the owner view's mark, and the ⋯ menu's People. */
+function peopleParts(people: ChatPeople) {
+  return {
+    badges: people.looksOn ? (
+      <Badge size="sm" tone="pending" className="shrink-0">
+        Owner view
+      </Badge>
+    ) : undefined,
+    more: people.message ? (
+      <PeopleMenu
+        people={people.people}
+        nodes={people.nodes}
+        reader={people.reader}
+        looksOn={people.looksOn}
+        actions={people.actions}
+      />
+    ) : undefined,
+  };
+}
+
+/** Send in Slack (2026-11-14) for the Slack connection's owner in its conversation's chat; none for anyone else. */
+function slackOf(calls: ChatCalls, live: ChatLive, chat: Chat, people: ChatPeople) {
+  const { slack } = people;
+  if (slack === null || !slack.mayPost) return undefined;
+  return {
+    place: slack.place,
+    onSend: async (text: string) => live.putTurn(await calls.sendInSlack(chat.id, text)),
+  };
+}
+
 /**
  * The open chat (S5.1c): its header across the page's frame, then the live thread with the composer, or the terminal.
  * The chat and its turns come from `useChatLive` (the detail, then the stream); a prompt, a stop and a profile change
- * show their answer at once, before the stream says the same.
+ * show their answer at once, before the stream says the same. Since 2026-11-14 its ⋯ menu lists who is in it (People),
+ * an owner who is not in it reads it in the owner view (a mark, and Add me in place of the composer), and a Slack
+ * conversation's chat lets its Slack connection's owner send in Slack.
  */
 export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ...rest }: OpenChatProps) {
   const api = useApi();
@@ -203,6 +145,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
   const live = useChatLive(companyId, chatId);
   const folds = useEarlierConversations(calls, chatId);
   const authors = useThreadAuthors(companyId, agent);
+  const people = useChatPeople(calls, live.detail, chatId, owner);
   const [mode, setMode] = useState<ChatMode>('chat');
   // The rail's dot for a direct report's chat clears once its reply shows here.
   useMarkSeen(chatId, live.turns);
@@ -217,13 +160,14 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
     agent,
     placement,
     chat,
-    admin,
-    owner,
+    admin: admin && !people.looksOn,
+    owner: owner && !people.looksOn,
     mode,
     profiles: rest.profiles,
     sessionCwd,
+    ...peopleParts(people),
   };
-  const closed = closedWhy(chat, admin, placement);
+  const closed = closedWhy(chat, admin, placement, people.looksOn);
   const placeholder = asking(thread) ? 'Answer above, or write your answer here' : `Message ${agent.name}`;
   const runnerUpdate = admin ? live.detail.data?.runnerUpdateFor : null;
   return (
@@ -231,7 +175,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
       <ChatHeader {...header} stream={live.stream} onMode={setMode} onProfile={actions.changeProfile} />
       <div className={BODY}>
         {placement && placement.machineId !== chat.machineId && <MovedNotice />}
-        {mode === 'terminal' && owner ? (
+        {mode === 'terminal' && owner && !people.looksOn ? (
           <ChatTerminal companyId={companyId} chat={chat} />
         ) : (
           <ChatMachineContext.Provider
@@ -245,7 +189,7 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
               answering={{ answer: actions.answer, closed }}
               history={{ live: live.earlier, folds }}
               decisions={live.decisions}
-              {...branchView(calls, live, chat, admin, rest)}
+              {...branchView(calls, live, chat, admin && !people.looksOn, rest)}
             />
             {runnerUpdate && (
               <RunnerUpdateNotice companyId={companyId} machineId={chat.machineId} tools={runnerUpdate} />
@@ -257,6 +201,8 @@ export function OpenChat({ companyId, chatId, agent, placement, admin, owner, ..
               placeholder={placeholder}
               onSend={actions.send}
               onStop={actions.stop}
+              aside={people.looksOn ? <AddMe people={people} /> : undefined}
+              slack={slackOf(calls, live, chat, people)}
               queue={<QueuedMessages queue={queue} actions={queueActions(calls, live, chat, running)} />}
               runs={chatRunsMenus({ calls, live, chat, closed, agent, mine: rest.profiles })}
               meter={

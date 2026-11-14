@@ -1,136 +1,73 @@
-import { Archive, BellRing, GitBranch, MessageSquarePlus, MessagesSquare } from 'lucide-react';
-import { useState } from 'react';
-import type { Chat } from '../../api/types.ts';
+import { MessageSquarePlus, MessagesSquare } from 'lucide-react';
+import type { ReactNode } from 'react';
+import type { ChatListItem } from '../../api/types.ts';
 import type { Loaded } from '../../api/use-load.ts';
-import { Link } from '../../app/router.tsx';
-import { cx } from '../../components/cx.ts';
-import { fromNow } from '../../components/data/format.ts';
 import { LoadState } from '../../components/data/LoadState.tsx';
 import { Button } from '../../components/ui/Button.tsx';
 import { EmptyState } from '../../components/ui/EmptyState.tsx';
-import { IconButton } from '../../components/ui/IconButton.tsx';
 import { SkeletonRows } from '../../components/ui/Skeleton.tsx';
-import { CHAT_DOT_WORDS, type ChatDot } from './chat-dots.ts';
+import type { ChatDot } from './chat-dots.ts';
+import { ChatRow } from './list/ChatRow.tsx';
+import { useSteadyOrder } from './list/steady-order.ts';
+import { NewChatWith } from './people/NewChatWith.tsx';
 import { useAction } from './use-action.ts';
 
 export interface ChatListProps {
-  readonly chats: Loaded<{ readonly chats: readonly Chat[] }>;
+  readonly chats: Loaded<{ readonly chats: readonly ChatListItem[] }>;
   readonly openId: string | undefined;
   readonly hrefOf: (chatId: string) => string;
   /** Admins and owners begin and archive chats. */
   readonly admin: boolean;
   /** Why a new chat cannot begin (no placement, an archived agent), or undefined. */
   readonly cannotStart: string | undefined;
-  readonly onNew: () => Promise<void>;
+  /** A new chat, with the members it is with besides you (2026-11-14), if any. */
+  readonly onNew: (people?: readonly string[]) => Promise<void>;
   readonly onArchive: (chatId: string) => Promise<void>;
   /** Each chat's dot (2026-11-13: live, from the chats' activity): working, or new activity since you looked. */
   readonly dots?: ReadonlyMap<string, ChatDot> | undefined;
+  /** What goes under the list (an owner's "Other people's chats"). */
+  readonly after?: ReactNode;
 }
 
-const DOT_TONE: Readonly<Record<ChatDot, string>> = { working: 'bg-done', unseen: 'bg-blue' };
-
-/** A chat's dot after its title: green and pulsing while a turn waits or runs, blue for activity you have not seen. */
-function RowDot({ dot }: { readonly dot: ChatDot }) {
-  const tone = DOT_TONE[dot];
-  return (
-    <span className="relative ml-auto flex size-2 shrink-0" role="img" aria-label={CHAT_DOT_WORDS[dot]}>
-      {dot === 'working' && (
-        <span className={cx('absolute inset-0 rounded-full opacity-0 motion-safe:animate-attention', tone)} />
-      )}
-      <span className={cx('relative size-full rounded-full', tone)} />
-    </span>
-  );
-}
-
-/** A chat's title in the list, a branch's after a small branch icon, a flow's team chat (S6c) after a bell; its dot last. */
-function ChatTitle({
-  chat,
-  open,
-  dot,
-}: {
-  readonly chat: Chat;
-  readonly open: boolean;
-  readonly dot: ChatDot | undefined;
-}) {
-  return (
-    <span
-      className={cx('flex min-w-0 items-center gap-1 text-sm font-medium', open ? 'text-ink' : 'text-ink-2')}
-    >
-      {chat.flowId && <BellRing size={12} aria-label="Team chat" className="shrink-0 text-blue" />}
-      {chat.branchedFromChatId && (
-        <GitBranch size={12} aria-label="Branched" className="shrink-0 text-faint" />
-      )}
-      <span className="truncate">{chat.title ?? 'New chat'}</span>
-      {dot && <RowDot dot={dot} />}
-    </span>
-  );
-}
-
-/** One chat in the list: its title (a branch's with a small branch icon) and when it last changed, with Archive for admins. */
-function ChatRow({
-  chat,
-  open,
-  dot,
-  href,
+/** The chats, in their live order, held while the pointer is over them so a row does not jump away from it. */
+function Rows({
+  chats,
+  openId,
+  hrefOf,
   admin,
+  dots,
   onArchive,
-}: {
-  readonly chat: Chat;
-  readonly open: boolean;
-  readonly dot: ChatDot | undefined;
-  readonly href: string;
-  readonly admin: boolean;
-  readonly onArchive: () => void;
+}: Pick<ChatListProps, 'openId' | 'hrefOf' | 'admin' | 'dots'> & {
+  readonly chats: readonly ChatListItem[];
+  readonly onArchive: (chatId: string) => void;
 }) {
-  const [asking, setAsking] = useState(false);
-  if (asking) {
-    return (
-      <li className="grid gap-2 rounded-lg bg-surface-2 px-3 py-2">
-        <p className="text-xs text-ink-2">
-          Archive “{chat.title ?? 'New chat'}”? It leaves this list and takes no new message.
-        </p>
-        <div className="flex gap-2">
-          <Button size="sm" tone="danger" onClick={onArchive}>
-            Archive
-          </Button>
-          <Button size="sm" tone="quiet" onClick={() => setAsking(false)}>
-            Cancel
-          </Button>
-        </div>
-      </li>
-    );
-  }
+  const { shown, hold } = useSteadyOrder(chats);
   return (
-    <li
-      className={cx(
-        'group flex min-w-0 items-center gap-1 rounded-lg',
-        open ? 'bg-surface-3' : 'hover:bg-surface-2',
-      )}
+    // One shrinkable column (`grid-cols-1`): a long title truncates in its row instead of widening the list, which
+    // used to give it a sideways scrollbar.
+    <ul
+      {...hold}
+      className="scroll-quiet -mx-1 grid min-h-0 grid-cols-1 content-start gap-0.5 overflow-x-hidden overflow-y-auto px-1"
     >
-      <Link
-        to={href}
-        aria-current={open ? 'page' : undefined}
-        className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 focus-visible:outline-2 focus-visible:outline-blue"
-      >
-        <ChatTitle chat={chat} open={open} dot={dot} />
-        <span className="block text-2xs text-faint">{fromNow(chat.updatedAt)}</span>
-      </Link>
-      {admin && (
-        <IconButton
-          label="Archive this chat"
-          icon={Archive}
-          size="sm"
-          onClick={() => setAsking(true)}
-          className="mr-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+      {shown.map((chat) => (
+        <ChatRow
+          key={chat.id}
+          chat={chat}
+          open={chat.id === openId}
+          dot={dots?.get(chat.id)}
+          href={hrefOf(chat.id)}
+          admin={admin}
+          onArchive={() => onArchive(chat.id)}
         />
-      )}
-    </li>
+      ))}
+    </ul>
   );
 }
 
 /**
- * The left column (S5.1c): the agent's chats, newest first, with New chat and Archive (admins and owners); live since
- * 2026-11-13 (a new chat on top at once, each with its dot).
+ * The left column (S5.1c): the agent's chats you are in (2026-11-14: each with the faces of who the agent talks with
+ * there), the live ones first, then the latest; with New chat (alone, or With people) and Archive (admins and owners);
+ * live since 2026-11-13 (a new chat in place at once, each with its dot).
  */
 export function ChatList({
   chats,
@@ -141,23 +78,27 @@ export function ChatList({
   onNew,
   onArchive,
   dots,
+  after,
 }: ChatListProps) {
   const { busy, error, run } = useAction();
   return (
     <nav aria-label="Chats" className="flex min-h-0 flex-1 flex-col gap-3">
       {admin && (
         <>
-          <Button
-            tone="primary"
-            size="sm"
-            icon={MessageSquarePlus}
-            busy={busy}
-            disabled={cannotStart !== undefined}
-            onClick={() => void run(onNew)}
-            className="w-full"
-          >
-            New chat
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              tone="primary"
+              size="sm"
+              icon={MessageSquarePlus}
+              busy={busy}
+              disabled={cannotStart !== undefined}
+              onClick={() => void run(() => onNew())}
+              className="min-w-0 flex-1"
+            >
+              New chat
+            </Button>
+            <NewChatWith disabled={cannotStart !== undefined} onStart={onNew} />
+          </div>
           {cannotStart && <p className="text-xs text-dim">{cannotStart}</p>}
         </>
       )}
@@ -173,24 +114,18 @@ export function ChatList({
               {admin ? 'Start one to talk with the agent on its machine.' : 'Admins and owners start chats.'}
             </EmptyState>
           ) : (
-            // One shrinkable column (`grid-cols-1`): a long title truncates in its row instead of widening the
-            // list, which used to give it a sideways scrollbar.
-            <ul className="scroll-quiet -mx-1 grid min-h-0 grid-cols-1 content-start gap-0.5 overflow-x-hidden overflow-y-auto px-1">
-              {data.chats.map((chat) => (
-                <ChatRow
-                  key={chat.id}
-                  chat={chat}
-                  open={chat.id === openId}
-                  dot={dots?.get(chat.id)}
-                  href={hrefOf(chat.id)}
-                  admin={admin}
-                  onArchive={() => void run(() => onArchive(chat.id))}
-                />
-              ))}
-            </ul>
+            <Rows
+              chats={data.chats}
+              openId={openId}
+              hrefOf={hrefOf}
+              admin={admin}
+              dots={dots}
+              onArchive={(chatId) => void run(() => onArchive(chatId))}
+            />
           )
         }
       </LoadState>
+      {after}
     </nav>
   );
 }

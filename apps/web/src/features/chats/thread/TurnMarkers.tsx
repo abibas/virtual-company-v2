@@ -1,11 +1,14 @@
-import { Eraser, FoldVertical, TriangleAlert } from 'lucide-react';
+import { Eraser, FoldVertical, TriangleAlert, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { ChatTurnWithEvents, TurnEvent } from '../../../api/types.ts';
 import { Spinner } from '../../../components/ui/Button.tsx';
 import { tokens, turnErrorText } from '../chat-text.ts';
 import type { TurnModel } from './model/parts.ts';
 
-/** The thread's markers between turns (S5.2): a compaction (its own turn, or during one) and a Clear. */
+/**
+ * The thread's markers between turns (S5.2): a compaction (its own turn, or during one) and a Clear; since 2026-11-14
+ * a quiet line of who joined or left the chat (a `people` turn).
+ */
 
 type CompactEvent = Extract<TurnEvent, { type: 'compact' }>;
 
@@ -96,5 +99,12 @@ export function ClearDivider() {
     <Marker icon={<Eraser size={12} aria-hidden="true" className="shrink-0 text-faint" />}>
       Context cleared · a fresh conversation starts here
     </Marker>
+  );
+}
+
+/** Who joined or left the chat (2026-11-14): "Ihor added Anna", "Anna left the chat". */
+export function PeopleLine({ text }: { readonly text: string }) {
+  return (
+    <Marker icon={<Users size={12} aria-hidden="true" className="shrink-0 text-faint" />}>{text}</Marker>
   );
 }

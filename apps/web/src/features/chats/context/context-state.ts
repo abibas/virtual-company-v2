@@ -8,6 +8,7 @@ import type {
   ChatTurnWithEvents,
   TurnEvent,
 } from '../../../api/types.ts';
+import { talks } from '../thread/talks.ts';
 
 /**
  * How full the chat's conversation is, for its context meter (docs/harness.md, "Compact and Clear"), read from the live
@@ -181,7 +182,7 @@ export function conversationView(
   // The current conversation's Clear may be left out of a long chat's loaded turns: the detail still lists it.
   const afterClear = cleared || (detail?.earlier.conversations.length ?? 0) > 0;
   const { session, lastTurn } = totals(
-    since.filter((turn) => turn.kind !== 'clear'),
+    since.filter((turn) => turn.kind !== 'clear' && talks(turn)),
     afterClear,
   );
   return {

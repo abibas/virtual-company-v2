@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { readEventStream } from './event-stream.ts';
-import type { Chat, ChatTurn } from './types.ts';
+import type { ChatListItem, ChatTurn } from './types.ts';
 
 /**
  * The company's chats, live (2026-11-13, `GET …/chat-activity`, docs/harness.md "Live chat lists"): one connection per
@@ -14,7 +14,7 @@ import type { Chat, ChatTurn } from './types.ts';
  */
 
 export interface ChatActivity {
-  readonly chat: Chat;
+  readonly chat: ChatListItem;
   readonly lastTurn: ChatTurn | null;
 }
 

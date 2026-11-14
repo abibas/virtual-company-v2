@@ -19,6 +19,7 @@ import { ChatList } from '../../features/chats/ChatList.tsx';
 import { chatDots } from '../../features/chats/chat-dots.ts';
 import { CHAT_AREA, ChatBar } from '../../features/chats/header/ChatBar.tsx';
 import { OpenChat } from '../../features/chats/OpenChat.tsx';
+import { OthersChats } from '../../features/chats/people/OthersChats.tsx';
 import { useFillViewport } from '../../features/chats/use-fill-viewport.ts';
 import { markSeen, useSeenMarks } from '../../features/report-chats/seen.ts';
 
@@ -104,13 +105,17 @@ function ChatsOf({
     chats.reload();
     navigate(hrefOf(chat.id));
   };
-  const newChat = async () => opened(await calls.create(agent.id));
+  const newChat = async (people: readonly string[] = []) =>
+    opened(await calls.create(agent.id, null, people));
   const archive = async (chatId: string) => {
     await calls.archive(chatId);
     chats.reload();
     if (chatId === openId) navigate(hrefOf(), { replace: true });
   };
-  const list = { chats, openId, hrefOf, admin, onNew: newChat, onArchive: archive, dots };
+  const others = roleAtLeast(role, 'owner') ? (
+    <OthersChats calls={calls} agentId={agent.id} openId={openId} hrefOf={hrefOf} />
+  ) : undefined;
+  const list = { chats, openId, hrefOf, admin, onNew: newChat, onArchive: archive, dots, after: others };
   const crumbs = chatCrumbs(companyAgentLinks(slug), agent);
   // On wide screens the frame fills the window to its bottom exactly, so only the thread and the list scroll.
   const frame = useRef<HTMLDivElement>(null);
@@ -168,8 +173,9 @@ function NoChatOpen({
 }
 
 /**
- * `/:slug/chats/:agentId` (S5.1c): an agent's chats, newest first and live (2026-11-13: a new chat, a Slack
- * conversation's too, on top at once, each with its dot), and the open one (`?chat=<id>`, else the newest), live, with its access profile picker and, for owners, its terminal, in one frame under one header with the path the
+ * `/:slug/chats/:agentId` (S5.1c): an agent's chats you are in, live (2026-11-13: a new chat, a Slack conversation's
+ * too, at once, each with its dot; 2026-11-14: the live ones first, each with its people's faces, and for owners the
+ * other people's chats under them, opened read-only), and the open one (`?chat=<id>`, else the newest), live, with its access profile picker and, for owners, its terminal, in one frame under one header with the path the
  * person came through. Members read; admins and owners write. The page reads in Inter (`font-reading`).
  */
 export function ChatPage({ agentId }: { readonly agentId: string }) {

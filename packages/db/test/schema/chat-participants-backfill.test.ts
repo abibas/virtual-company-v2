@@ -104,7 +104,13 @@ async function slackChat(agent: Agent, machineId: string, credentialId: string, 
     place: '#general',
     contactId: starter,
   });
-  const sender = { via: 'slack', userId: `U${channelId}2`, name: 'Anna', avatarUrl: null, link: null } as const;
+  const sender = {
+    via: 'slack',
+    userId: `U${channelId}2`,
+    name: 'Anna',
+    avatarUrl: null,
+    link: null,
+  } as const;
   await handle.db.insert(chatTurns).values({
     companyId: agent.companyId,
     chatId,
@@ -136,7 +142,12 @@ describe(`0040_chat_participants on ${testDbKind()}: who is in each chat so far`
     ]);
     const [flow] = await handle.db
       .insert(flows)
-      .values({ companyId: acme.id, leadPrincipalId: managed.principalId, name: 'Delivery', createdBy: writer.principal.id })
+      .values({
+        companyId: acme.id,
+        leadPrincipalId: managed.principalId,
+        name: 'Delivery',
+        createdBy: writer.principal.id,
+      })
       .returning();
     ids.owner = owner.principal.id;
     ids.writer = writer.principal.id;

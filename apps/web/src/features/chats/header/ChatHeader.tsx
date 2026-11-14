@@ -1,4 +1,5 @@
 import { Folder, MessageSquare, Server, SquareTerminal } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { AccessProfile, AgentDetail, AgentPlacement, Chat } from '../../../api/types.ts';
 import type { StreamState } from '../../../api/use-chat-live.ts';
 import { AgentIcon } from '../../../components/feed/AgentIcon.tsx';
@@ -46,7 +47,8 @@ function WhereLine({ placement }: { readonly placement: AgentPlacement | undefin
  * The open chat's header (S5.1c), one row across the page: the path to its chats (Company structure › Agents › the
  * agent › Chats; the open chat is the one marked in the list), the harness, the machine and the folder under it; on the right the access profile picker,
  * the harness CLI on the machine (linking to its tools), "Open in Claude Code" for admins once the chat has a
- * conversation (S5.2 step 6) and the Chat / Terminal switch (the terminal for owners only).
+ * conversation (S5.2 step 6), the Chat / Terminal switch (the terminal for owners only) and (2026-11-14) the ⋯ menu with
+ * People in this chat; an owner who only looks on sees the "Owner view" mark.
  */
 export function ChatHeader({
   crumbs,
@@ -62,6 +64,8 @@ export function ChatHeader({
   stream,
   onMode,
   onProfile,
+  badges,
+  more,
 }: {
   /** The path to the agent's chats. */
   readonly crumbs: readonly Crumb[];
@@ -78,6 +82,10 @@ export function ChatHeader({
   readonly stream: StreamState;
   readonly onMode: (mode: ChatMode) => void;
   readonly onProfile: (profileId: string | null) => Promise<void>;
+  /** Marks after the facts (the owner view's, 2026-11-14). */
+  readonly badges?: ReactNode;
+  /** The last control: the ⋯ menu (People in this chat, 2026-11-14). */
+  readonly more?: ReactNode;
 }) {
   const modes: readonly SegmentOption<ChatMode>[] = [
     { value: 'chat', label: 'Chat', icon: MessageSquare },
@@ -101,6 +109,7 @@ export function ChatHeader({
             {harnessLabel(chat.harness)}
           </Badge>
           <WhereLine placement={placement} />
+          {badges}
           {streamWords && (
             <Badge size="sm" tone={stream === 'gone' ? 'failed' : 'pending'} dot className="shrink-0">
               {streamWords}
@@ -134,6 +143,7 @@ export function ChatHeader({
             size="sm"
             className="bg-surface-2! p-0.5!"
           />
+          {more}
         </>
       }
     />

@@ -16,6 +16,7 @@ import { answerTurnIds } from './question/question-model.ts';
 import { sentTurnIds } from './question/use-question-draft.ts';
 import type { RunsOn } from './status/WorkingStatus.tsx';
 import { TurnView } from './TurnView.tsx';
+import { lastTalk } from './talks.ts';
 import { useFollow } from './use-follow.ts';
 import { useTurnAnchor } from './use-turn-anchor.ts';
 
@@ -167,7 +168,7 @@ export function ChatThread({
             <div className={cx(THREAD_WIDTH, 'grid', dense ? 'gap-6' : 'gap-8')}>
               <Above history={history} root={follow.box} onLoadOlder={loadOlder} agentName={agentName} />
               <ol ref={follow.content} className={cx('grid', dense ? 'gap-6' : 'gap-8')}>
-                {current.map((turn, index) => (
+                {current.map((turn) => (
                   <TurnView
                     key={turn.id}
                     turn={turn}
@@ -175,7 +176,7 @@ export function ChatThread({
                     chatInit={chatInit}
                     decisions={byTurn.get(turn.id)}
                     place={{
-                      last: index === current.length - 1,
+                      last: turn === lastTalk(current),
                       answer: answers.has(turn.id),
                       answering,
                       branch: branchFor(branching, current, turn),

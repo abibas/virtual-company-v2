@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { cx } from '../../../components/cx.ts';
 import { MessageAuthor } from '../../../components/feed/MessageAuthor.tsx';
 import type { Prompter } from './authors.ts';
@@ -14,12 +15,15 @@ export function PromptMessage({
   at,
   note,
   dense,
+  extra,
 }: {
   readonly prompt: string;
   readonly prompter: Prompter;
   readonly at: string;
   readonly note: string | undefined;
   readonly dense: boolean;
+  /** Beside the note (a message sent in Slack: its link there). */
+  readonly extra?: ReactNode;
 }) {
   const { author, own } = prompter;
   const system = author.kind === 'system';
@@ -48,6 +52,7 @@ export function PromptMessage({
       </p>
       <div className="flex min-h-7 items-center gap-2">
         {note && <span className="text-2xs text-dim">{note}</span>}
+        {extra}
         <MessageActions text={prompt} label="Copy message" className={REVEAL_ACTIONS} />
       </div>
     </MessageAuthor>

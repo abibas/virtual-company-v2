@@ -9,6 +9,7 @@ import { DeliveryStrip } from './delivery/DeliveryStrip.tsx';
 import { type DeliveryChoice, offered, rememberDelivery, rememberedDelivery } from './delivery/delivery.ts';
 import { StartAndSend, startable } from './delivery/StartAndSend.tsx';
 import { DictationButton } from './dictation/DictationButton.tsx';
+import { SlackTarget, type SlackTargetValue } from './people/SlackTarget.tsx';
 import { THREAD_WIDTH } from './thread/ChatThread.tsx';
 import { useAction } from './use-action.ts';
 
@@ -85,7 +86,9 @@ function RoundAction({
  * (S5.2 step 6) it stays open with a strip above it that says how the message reaches the agent (Now, After this turn,
  * Interrupt; the last choice remembered in this browser), Stop beside Send, and the waiting messages above it. A
  * refusal (the machine offline, the runner too old, an empty slot) shows above it in plain words, and the text stays so
- * it can be sent again; a stopped machine the person may start offers Start and send.
+ * it can be sent again; a stopped machine the person may start offers Start and send. In a Slack conversation's chat
+ * its Slack connection's owner chooses above the box where the message goes (2026-11-14): Ask the agent or Send in
+ * Slack. Closed, it shows why in one line, with what may open it (an owner's Add me).
  */
 export function Composer({
   running,
@@ -98,6 +101,8 @@ export function Composer({
   meter,
   runs,
   dense = false,
+  aside,
+  slack,
 }: {
   /** A turn of this chat runs: Stop beside Send. */
   readonly running: boolean;
@@ -120,8 +125,14 @@ export function Composer({
   readonly runs?: ReactNode;
   /** Narrow (the right rail's docked chat): tighter margins. */
   readonly dense?: boolean;
+  /** Beside the reason when the box is closed (an owner's Add me, 2026-11-14). */
+  readonly aside?: ReactNode;
+  /** A Slack conversation's chat whose connection the reader owns (2026-11-14): Ask the agent or Send in Slack. */
+  readonly slack?: { readonly place: string; readonly onSend: (text: string) => Promise<void> } | undefined;
 }) {
   const [text, setText] = useState('');
+  const [to, setTo] = useState<SlackTargetValue>('agent');
+  const inSlack = slack !== undefined && to === 'slack';
   const [delivery, choose] = useDelivery();
   const { busy, error, failure, run } = useAction();
   const stop = useAction();
@@ -129,7 +140,8 @@ export function Composer({
   const how = choices && offered(delivery, choices);
   const send = (event?: FormEvent, options?: { readonly startMachine?: boolean }) => {
     event?.preventDefault();
-    if (ready) void run(() => onSend(text, how, options)).then((sent) => sent && setText(''));
+    const go = inSlack ? () => slack.onSend(text) : () => onSend(text, how, options);
+    if (ready) void run(go).then((sent) => sent && setText(''));
   };
   const stopped = startable(failure);
   if (disabled)
@@ -142,7 +154,7 @@ export function Composer({
           )}
         >
           <p className="text-sm text-dim">{disabled}</p>
-          {meter}
+          {aside ?? meter}
         </div>
       </div>
     );
@@ -165,7 +177,10 @@ export function Composer({
             </p>
           )
         )}
-        {choices && running && how && <DeliveryStrip choices={choices} value={how} onChange={choose} />}
+        {slack && <SlackTarget value={to} place={slack.place} onChange={setTo} />}
+        {choices && running && how && !inSlack && (
+          <DeliveryStrip choices={choices} value={how} onChange={choose} />
+        )}
         <div className="@container/composer rounded-3xl bg-surface shadow-card ring-1 ring-line-2 transition-shadow ring-inset focus-within:ring-blue/60">
           <textarea
             aria-label="Message"
@@ -174,7 +189,13 @@ export function Composer({
             onKeyDown={(event) => enterSends(event, send)}
             maxLength={CHAT_PROMPT.max}
             rows={2}
-            placeholder={running ? 'Write while the agent works…' : placeholder}
+            placeholder={
+              inSlack
+                ? `Send in ${slack.place}, as the bot`
+                : running
+                  ? 'Write while the agent works…'
+                  : placeholder
+            }
             className="block max-h-60 min-h-14 w-full resize-none bg-transparent px-4.5 pt-3.5 pb-1 text-[0.9375rem] leading-relaxed text-ink outline-none placeholder:text-faint [field-sizing:content]"
           />
           <div className="flex min-h-12 flex-nowrap items-center gap-1 px-1.5 py-1.5 @sm/composer:px-2">

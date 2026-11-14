@@ -2,7 +2,7 @@ import { CHAT_PAGE } from '@mwc/shared/chats';
 import type { Api } from './client.ts';
 import { useApi } from './context.ts';
 import { call } from './errors.ts';
-import type { AnswerBody, Chat, ChatChanges, ChatDelivery, ChatOverridesChanges } from './types.ts';
+import type { AnswerBody, ChatChanges, ChatDelivery, ChatListItem, ChatOverridesChanges } from './types.ts';
 import { type Loaded, useLoad } from './use-load.ts';
 
 /**
@@ -22,7 +22,7 @@ export interface OlderPage {
 export function useAgentChats(
   companyId: string,
   agentId: string,
-): Loaded<{ readonly chats: readonly Chat[] }> {
+): Loaded<{ readonly chats: readonly ChatListItem[] }> {
   const api = useApi();
   return useLoad(`chats:${companyId}:${agentId}`, () => chatCalls(api, companyId).list(agentId));
 }
@@ -34,8 +34,16 @@ export function chatCalls(api: Api, companyId: string) {
   const param = (chatId: string) => ({ param: { companyId, chatId } });
   return {
     list: (agentId: string) => call(agentChats.$get({ param: { companyId, agentId } })),
-    create: (agentId: string, profileId: string | null = null) =>
-      call(agentChats.$post({ param: { companyId, agentId }, json: { profileId } })),
+    /** An owner's look (2026-11-14): the agent's chats they are not in, each opened read-only. */
+    others: (agentId: string) => call(agentChats.others.$get({ param: { companyId, agentId } })),
+    /** A new chat; `with` the members it is with besides you (a chat with several people). */
+    create: (agentId: string, profileId: string | null = null, people: readonly string[] = []) =>
+      call(
+        agentChats.$post({
+          param: { companyId, agentId },
+          json: { profileId, ...(people.length > 0 ? { with: [...people] } : {}) },
+        }),
+      ),
     get: (chatId: string) => call(one.$get(param(chatId))),
     /** Older turns, the latest `limit` before `beforeSeq` and after `afterSeq` (both exclusive), in order. */
     older: (chatId: string, page: OlderPage) =>
@@ -83,6 +91,14 @@ export function chatCalls(api: Api, companyId: string) {
     /** S5.2 step 4: the person's answers to the agent's open question, sent as the chat's next turn (202). */
     answer: (chatId: string, body: AnswerBody) => call(one.answers.$post({ ...param(chatId), json: body })),
     terminalTicket: (chatId: string) => call(one['terminal-tickets'].$post(param(chatId))),
+    /** Who is in the chat (2026-11-14): add members (an owner not in it: only themselves), take one out or leave. */
+    addPeople: (chatId: string, principalIds: readonly string[]) =>
+      call(one.people.$post({ ...param(chatId), json: { principalIds: [...principalIds] } })),
+    removePerson: (chatId: string, personId: string) =>
+      call(one.people[':personId'].$delete({ param: { companyId, chatId, personId } })),
+    /** Send in Slack (2026-11-14): straight into the chat's Slack conversation, as the bot (201: the `slack` turn). */
+    sendInSlack: (chatId: string, text: string) =>
+      call(one['slack-messages'].$post({ ...param(chatId), json: { text } })),
     /** The raw stream response (its body goes to `readEventStream`); `lastEventId` replays what came after it. */
     stream: (chatId: string, lastEventId: string | undefined, signal: AbortSignal) =>
       one.stream.$get(

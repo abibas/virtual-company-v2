@@ -21,7 +21,7 @@ import { MessageActions, REVEAL_ACTIONS } from './status/MessageActions.tsx';
 import { PostedInSlack } from './status/PostedInSlack.tsx';
 import { TurnFooter } from './status/TurnFooter.tsx';
 import { QueuedStatus, type RunsOn, WorkingStatus } from './status/WorkingStatus.tsx';
-import { ClearDivider, CompactTurn } from './TurnMarkers.tsx';
+import { ClearDivider, CompactTurn, PeopleLine } from './TurnMarkers.tsx';
 import { TodoCard } from './todo/TodoCard.tsx';
 
 /**
@@ -30,19 +30,21 @@ import { TodoCard } from './todo/TodoCard.tsx';
  * blocks), the to-do card, the agent's question (S5.2 step 4), and the live status while it runs (or the machine's
  * progress while it waits for its stopped machine) or the quiet summary once it ended, with Copy and Branch under the
  * reply. A Compact turn is a marker, a Clear a divider; a turn whose prompt carried answers shows no prompt (the
-<<<<<<< HEAD
  * question's receipt stands for it). The decisions the agent recorded show as cards where each was made (2026-11-14).
- * The authors and the faces' size come from the thread (`ThreadLookContext`).
-=======
- * question's receipt stands for it). The authors and the faces' size come from the thread (`ThreadLookContext`). A
- * Slack message's turn (2026-11-14) shows only the message as its sender wrote it (`visibleText`; the agent got the
- * prompt with its header), and its reply says "Posted in Slack" once it was posted there.
->>>>>>> 2978883 (Contacts: the db's table counts with contacts, and the chat thread shows a Slack message as its sender's)
+ * The authors and the faces' size come from the thread (`ThreadLookContext`). A Slack message's turn (2026-11-14) shows
+ * only the message as its sender wrote it (`visibleText`; the agent got the prompt with its header), and its reply says
+ * "Posted in Slack" once it was posted there; a person's message in a chat with several people shows as they wrote it
+ * too (the agent got their name first). A line of who joined or left is a marker, and a message sent in Slack its writer's message marked
+ * "Sent in Slack", with no reply (2026-11-14, docs/harness.md "Who is in a chat").
  */
 
 /** What the reader sees of a turn's prompt: a message from outside as written (an empty one said so), else the prompt. */
 const shownPrompt = (turn: Pick<ChatTurnWithEvents, 'prompt' | 'visibleText'>) =>
   turn.visibleText === null ? turn.prompt : turn.visibleText.trim() || '(no text)';
+
+/** What a person sends again of a turn: what they wrote (a group chat's prompt names them first), else its prompt. */
+const writtenOf = (turn: Pick<ChatTurnWithEvents, 'prompt' | 'visibleText' | 'system'>) =>
+  turn.system ? turn.prompt : (turn.visibleText ?? turn.prompt);
 
 /** A turn's failure; the last turn's missing folder offers Create folder and Send again (`HomeMissingActions`). */
 function FailedBox({ error, fix }: { readonly error: string; readonly fix: string | undefined }) {
@@ -116,7 +118,7 @@ function Reply({
         {model.error !== undefined && (
           <FailedBox
             error={model.error}
-            fix={model.error === 'home_missing' && place.last ? turn.prompt : undefined}
+            fix={model.error === 'home_missing' && place.last ? writtenOf(turn) : undefined}
           />
         )}
         {running && <WorkingStatus turn={turn} model={model} runsOn={runsOn} />}
@@ -171,6 +173,28 @@ export function TurnView({
     return (
       <li>
         <CompactTurn turn={turn} model={model} />
+      </li>
+    );
+  }
+  if (turn.kind === 'people') {
+    return (
+      <li>
+        <PeopleLine text={turn.prompt} />
+      </li>
+    );
+  }
+  if (turn.kind === 'slack') {
+    const link = turn.replyLink;
+    return (
+      <li id={turnAnchor(turn.id)} className="grid scroll-mt-4">
+        <PromptMessage
+          prompt={turn.prompt}
+          prompter={authors.prompter(turn)}
+          at={turn.createdAt}
+          note={link ? undefined : 'Sent in Slack'}
+          dense={dense}
+          extra={link ? <PostedInSlack link={link} words="Sent in Slack" /> : undefined}
+        />
       </li>
     );
   }

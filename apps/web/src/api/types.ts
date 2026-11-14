@@ -97,9 +97,15 @@ export type ToolInstall = InferResponseType<OneMachineRoutes['tools']['install']
 /** Chats with an agent on its machine (S5.1b), their turns and events (`/api/companies/:companyId/.../chats`). */
 type ChatRoutes = CompanyRoutes['chats'][':chatId'];
 
-export type Chat = InferResponseType<AgentRoutes[':agentId']['chats']['$get'], 200>['chats'][number];
+export type Chat = InferResponseType<AgentRoutes[':agentId']['chats']['$post'], 201>;
+/** A chat as the agent's list shows it (2026-11-14): with its people's faces and its latest turn. */
+export type ChatListItem = InferResponseType<AgentRoutes[':agentId']['chats']['$get'], 200>['chats'][number];
 export type ChatDetail = InferResponseType<ChatRoutes['$get'], 200>;
 export type ChatTurnWithEvents = ChatDetail['turns'][number];
+/** Who is in a chat (2026-11-14): a member or a contact, with their name and face. */
+export type ChatPerson = ChatDetail['people'][number];
+/** The Slack conversation a chat is for, and whether the reader may send in Slack from it. */
+export type ChatSlack = NonNullable<ChatDetail['slack']>;
 /** What a chat's detail leaves out: older turns of its current conversation, the conversations before each Clear. */
 export type ChatEarlier = ChatDetail['earlier'];
 export type ChatConversation = ChatEarlier['conversations'][number];

@@ -41,7 +41,13 @@ beforeAll(async () => {
   person = (await insertMember(handle, acme.id)).principal.id;
   const [row] = await handle.db
     .insert(chats)
-    .values({ companyId: acme.id, agentId: agent.id, harness: 'claude_code', machineId: mac.id, createdBy: person })
+    .values({
+      companyId: acme.id,
+      agentId: agent.id,
+      harness: 'claude_code',
+      machineId: mac.id,
+      createdBy: person,
+    })
     .returning();
   chat = row as Chat;
   const seen = new Date(Date.UTC(2026, 10, 14, 9));
@@ -132,7 +138,9 @@ describe('chat_turns that run no process (0040)', () => {
     expect(await constraint(turn({ kind: 'slack', status: 'done', credentialId }))).toBe(
       'chat_turns_note_check',
     );
-    expect(await constraint(turn({ kind: 'mention' as never, status: 'done' }))).toBe('chat_turns_kind_check');
+    expect(await constraint(turn({ kind: 'mention' as never, status: 'done' }))).toBe(
+      'chat_turns_kind_check',
+    );
   });
 
   it("keeps a person's own text beside a prompt that names them, on a message only", async () => {

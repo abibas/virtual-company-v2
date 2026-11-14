@@ -132,7 +132,12 @@ function QueuedRow({ turn, actions }: { readonly turn: ChatTurnWithEvents; reado
       )}
       <div className="grid min-w-0 flex-1 gap-0.5">
         {editing ? (
-          <EditBox initial={turn.prompt} busy={busy} onSave={save} onCancel={() => setEditing(false)} />
+          <EditBox
+            initial={turn.system ? turn.prompt : (turn.visibleText ?? turn.prompt)}
+            busy={busy}
+            onSave={save}
+            onCancel={() => setEditing(false)}
+          />
         ) : (
           <p className="line-clamp-3 text-sm break-words whitespace-pre-wrap text-ink">
             {turn.visibleText ?? turn.prompt}

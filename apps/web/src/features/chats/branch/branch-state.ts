@@ -1,5 +1,6 @@
 import { BRANCH_SUPPORT } from '@mwc/shared/chats';
 import type { ChatTurnWithEvents } from '../../../api/types.ts';
+import { talks } from '../thread/talks.ts';
 
 /**
  * Whether a reply shows Branch (docs/harness.md "Branching"): only on a finished reply that began or continued a
@@ -39,7 +40,9 @@ export function branchState(
     return { kind: 'hidden' };
   if (turns.some((other) => other.status === 'running' || other.status === 'queued'))
     return { kind: 'disabled', why: 'Branch once the agent has finished' };
-  const later = turns.slice(turns.indexOf(turn) + 1).filter((other) => other.kind !== 'clear');
+  const later = turns
+    .slice(turns.indexOf(turn) + 1)
+    .filter((other) => other.kind !== 'clear' && talks(other));
   if (later.length === 0) return { kind: 'enabled' };
   if (support === 'latest') return { kind: 'disabled', why: 'Codex branches from the latest reply only' };
   if (later.some((other) => other.kind === 'compact' || has(other, 'compact')))
