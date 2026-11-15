@@ -46,7 +46,7 @@ describe('formatReport', () => {
         '  packages/a/src/fake.ts: 290 of 300 lines (97%)',
         '  packages/a/src/store.ts: 250 of 300 lines (83%)',
         '',
-        'long-function, 1: named functions over 60 lines',
+        "long-function, 1: named functions over 60 lines (the web's components and hooks: 100)",
         '  packages/a/src/check.ts:62: checkSteps, 73 lines',
         '',
         'big-folder, 0: folders with more than 12 entries',

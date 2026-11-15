@@ -21,7 +21,7 @@ export function warningTitles(rules: StructureRules = STRUCTURE_RULES): Record<W
   const { warn } = rules;
   return {
     'near-limit': `files above ${Math.round(warn.nearLimit * 100)}% of their line limit`,
-    'long-function': `named functions over ${warn.functionLines} lines`,
+    'long-function': `named functions over ${warn.functionLines} lines (the web's components and hooks: ${warn.componentLines.lines})`,
     'big-folder': `folders with more than ${warn.folderEntries} entries`,
     'fan-in': `files that ${warn.fanIn} or more files of their package import (outside test/)`,
     'low-coverage': `files under ${warn.coverage.lines}% lines or ${warn.coverage.branches}% branches in the last coverage run`,

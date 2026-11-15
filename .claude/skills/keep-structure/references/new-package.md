@@ -3,6 +3,19 @@
 Folders: `packages/<name>` (a library), `apps/<name>` (deployed), `connectors/<name>` (an adapter to an
 outside system, implementing a port of a `packages/*-core` package). The name is always `@mwc/<name>`.
 
+## Steps
+
+1. A library goes in `packages/`, something deployed in `apps/`, an adapter to an outside system in
+   `connectors/`. Name it `@mwc/<folder>`.
+2. Create `package.json` (exact versions), `tsconfig.json`, `vitest.config.ts`, `src/` and `test/` with at
+   least one test; templates below. Discovery is automatic (the groups are globbed in `pnpm-workspace.yaml`,
+   the root Vitest config and `mwc check`).
+3. Add `"@mwc/<name>": "workspace:*"` where it is used, then `pnpm install`.
+4. A connector: define or extend the port in its `packages/*-core` package first, with a fake that
+   implements it and tests against the fake; then implement the port in the connector, map the outside
+   system's errors to the core's error type, and wire it in `app.ts`. Secrets come from the environment.
+5. Update `docs/structure.md` (mark the package as built), `README.md` (Layout) and `docs/roadmap.md`.
+
 ## package.json
 
 ```json

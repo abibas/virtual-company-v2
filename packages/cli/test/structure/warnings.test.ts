@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STRUCTURE_RULES } from '../../src/structure/rules.ts';
 import {
+  functionLimit,
   lowCoverage,
   parseCoverage,
   structureWarnings,
@@ -61,6 +62,24 @@ describe('structureWarnings', () => {
       },
       { kind: 'long-function', path: 'packages/db/src/a.ts', line: 61, message: 'long, 61 lines' },
     ]);
+  });
+
+  it('gives the web’s components and hooks 100 lines; its other functions, and components elsewhere, keep 60', () => {
+    const tree = treeOf({
+      'apps/web/src/features/a/Panel.tsx': `${fn('Panel', 100)}${fn('Board', 101)}${fn('panelRows', 61)}`,
+      'apps/web/src/api/use-load.ts': `${fn('useLoad', 100)}${fn('useBoard', 101)}${fn('user', 61)}`,
+      'packages/db/src/Schema.ts': fn('Schema', 61),
+    });
+    const long = structureWarnings(tree, undefined).filter((w) => w.kind === 'long-function');
+    expect(long.map((w) => w.message)).toEqual([
+      'useBoard, 101 lines',
+      'Board, 101 lines',
+      'user, 61 lines',
+      'panelRows, 61 lines',
+      'Schema, 61 lines',
+    ]);
+    expect(functionLimit('apps/web/src/app/Shell.tsx', 'Shell')).toBe(100);
+    expect(functionLimit('apps/web/src/app/shell.ts', 'used')).toBe(60);
   });
 
   it('warns on folders with more than 12 direct entries, files and folders, except generated ones', () => {

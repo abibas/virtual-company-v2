@@ -117,7 +117,7 @@ describe('helpers', () => {
   it('gives the figures of each kind of warning from rules.ts', () => {
     expect(warnFigures(STRUCTURE_RULES)).toEqual({
       'near-limit': ['80%'],
-      'long-function': ['60'],
+      'long-function': ['60', '100'],
       'big-folder': ['12'],
       'fan-in': ['8'],
       'low-coverage': ['95%', '90%'],

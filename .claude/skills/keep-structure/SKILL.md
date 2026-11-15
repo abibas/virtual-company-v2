@@ -32,9 +32,8 @@ Read the `open` lessons in [references/lessons.md](references/lessons.md) first 
 | A periodic job that needs the app's live runtime (the runner hub's sockets, live turns) | its module's `service/<area>/tick.ts`, started by `createApp` behind `MWC_JOBS`, its timers injectable |
 | A WebSocket route                                                      | its module's routes (auth as middleware); the transport in `platform/realtime/` |
 | Anything that talks to an outside system (Clerk, Claude Code, Jira)    | a connector `connectors/<name>/` implementing a `packages/*-core` port |
-| A port for an outside tool the agents use through the server (Atlassian, GitHub) | `packages/tools-core`, its connector in `connectors/<system>`, made in `platform/<system>.ts` |
+| A port for an outside tool the agents use through the server (Atlassian, GitHub); helpers several of them share | `packages/tools-core`, its connector in `connectors/<system>`, made in `platform/<system>.ts`; the shared answers and replies in the integrations module's `rules/` and `service/`, not under one provider's folder |
 | A long-lived connection to an outside system (a socket)                | its client in the connector behind a `*-core` port; its lifecycle in the owning module's `service/<system>/`, started by a `start.ts` the module exports to `app.ts` |
-| Helpers several outside tools' server tools share (an answer, a reply) | the integrations module's `rules/` and `service/`, not under one provider's folder |
 | A small read-only call to an outside system that one module owns (a usage check) | that module's `service/<provider>.ts` behind the injected `providerFetch`; a connector once a second module or the runner needs it |
 | A contract several packages share: zod schemas, ids, enums, protocols  | `packages/shared`                                                 |
 | An area's limits that its contract parts share                         | `packages/shared/src/<area>/limits.ts`, re-exported by the area's barrel, which its parts never import |
@@ -83,21 +82,12 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
    [references/module-template.md](references/module-template.md).
 3. Write the tests first: `apps/server/test/modules/<area>/routes.test.ts` through `app.request()` on
    `createTestApp()`, `rules.test.ts` for the pure rules.
-4. `index.ts` exports `<area>Routes(deps)`; mount it in `apps/server/src/app.ts`.
-5. Tick the step in `docs/roadmap.md`.
+4. `index.ts` exports `<area>Routes(deps)`; mount it in `apps/server/src/app.ts`. Tick the step in `docs/roadmap.md`.
 
 ## New workspace package or connector
 
-1. A library goes in `packages/`, something deployed in `apps/`, an adapter to an outside system in
-   `connectors/`. Name it `@mwc/<folder>`.
-2. Create `package.json` (exact versions), `tsconfig.json`, `vitest.config.ts`, `src/` and `test/` with at
-   least one test; templates in [references/new-package.md](references/new-package.md). Discovery is
-   automatic (the groups are globbed in `pnpm-workspace.yaml`, the root Vitest config and `mwc check`).
-3. Add `"@mwc/<name>": "workspace:*"` where it is used, then `pnpm install`.
-4. A connector: define or extend the port in its `packages/*-core` package first, with a fake that
-   implements it and tests against the fake; then implement the port in the connector, map the outside
-   system's errors to the core's error type, and wire it in `app.ts`. Secrets come from the environment.
-5. Update `docs/structure.md` (mark the package as built), `README.md` (Layout) and `docs/roadmap.md`.
+The steps and the templates: [references/new-package.md](references/new-package.md); a connector defines or
+extends its `packages/*-core` port first, with a fake.
 
 ## Database changes
 
@@ -126,13 +116,13 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
   re-exports. Pass callbacks instead of importing back into the entry (no import cycles).
 - Split the tests along the same seams (`test/x/<part>.test.ts`), move shared helpers to `test/fixtures/`,
   and keep every test body as it was: the test count is the same before and after.
-- A function over about 60 lines is a smell: split it into named steps when you change it.
+- A function over about 60 lines (a web component or hook: 100) is a smell: split it into named steps.
 - `pnpm mwc structure --report` lists the hot spots before anything fails: files above 80% of their limit,
-  functions over 60 lines, folders over 12 entries (20: each web `components/` folder, web `api/`, db schema,
-  shared `src/` and `test/`; a mirrored test folder gets its source's), files that 8 or more files of their
-  package import for their values (not type-only; a server module counts once; never the web's `components/`,
-  `api/`, `app/`, the server's `platform/http/` or the db schema), and the weakest-covered files. `mwc check`
-  ends with a summary. When the file you are changing is listed, split it then; the rest waits for review.
+  functions over 60 lines (a web component or hook: 100), folders over 12 entries (20: each web `components/`
+  folder, web `api/`, db schema, shared `src/` and `test/`; a mirrored test folder gets its source's), files that 8
+  or more files of their package import for their values (not type-only; a server module counts once; never the
+  web's `components/`, `api/`, `app/`, the server's `platform/http/` or the db schema), and the weakest-covered
+  files. `mwc check` ends with a summary. When the file you are changing is listed, split it then; the rest waits.
 - Worked example: [references/splitting.md](references/splitting.md).
 
 ## Tests
@@ -148,10 +138,9 @@ inside a tenant transaction (read before it: PGlite's one connection hangs); log
 
 ## Lessons and review
 
-When the table above did not cover your case, a rule forced an awkward placement, a split went badly or a warning
-keeps coming back, add a dated `open` entry to [references/lessons.md](references/lessons.md) (format at its top).
-Never change a rule or the table yourself. The structure review, at each end of stage before the tag (and when the
-report clearly grows, or Ihor asks), brings at most 5 suggestions to Ihor: [references/review.md](references/review.md).
+A case the table above did not cover, an awkward placement, a split that went badly or a warning that keeps coming
+back: add a dated `open` entry to [references/lessons.md](references/lessons.md). Never change a rule or the table
+yourself: the end-of-stage review brings at most 5 to Ihor ([references/review.md](references/review.md)).
 
 ## Finish line
 

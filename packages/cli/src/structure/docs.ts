@@ -20,7 +20,7 @@ export function warnFigures(rules: StructureRules): Record<WarningKind, string[]
   const { warn } = rules;
   return {
     'near-limit': [`${Math.round(warn.nearLimit * 100)}%`],
-    'long-function': [String(warn.functionLines)],
+    'long-function': [String(warn.functionLines), String(warn.componentLines.lines)],
     'big-folder': [String(warn.folderEntries)],
     'fan-in': [String(warn.fanIn)],
     'low-coverage': [`${warn.coverage.lines}%`, `${warn.coverage.branches}%`],

@@ -38,6 +38,11 @@ export interface StructureRules {
     readonly nearLimit: number;
     /** A named function longer than this many lines, first to last (`long-function`, structure/functions.ts). */
     readonly functionLines: number;
+    /**
+     * A limit of its own for the functions that are one piece by nature: under `under`, a React component (its name
+     * starts with a capital) or a hook (`use` and a capital), as the web's pages and features write them.
+     */
+    readonly componentLines: { readonly under: string; readonly lines: number };
     /** A folder with more direct entries, files and folders, than this (`big-folder`). */
     readonly folderEntries: number;
     /**
@@ -109,6 +114,7 @@ export const STRUCTURE_RULES: StructureRules = {
   warn: {
     nearLimit: 0.8,
     functionLines: 60,
+    componentLines: { under: 'apps/web/src/', lines: 100 },
     folderEntries: 12,
     folderEntriesFor: {
       'apps/web/src/components/*/': 20,

@@ -15,6 +15,7 @@ describe('STRUCTURE_RULES', () => {
     expect(STRUCTURE_RULES.warn).toEqual({
       nearLimit: 0.8,
       functionLines: 60,
+      componentLines: { under: 'apps/web/src/', lines: 100 },
       folderEntries: 12,
       folderEntriesFor: {
         'apps/web/src/components/*/': 20,

@@ -143,11 +143,20 @@ function nearLimit(path: string, size: ReturnType<typeof measure>, rules: Struct
   return [{ kind: 'near-limit', path, message, weight: share }];
 }
 
-/** Named functions over `warn.functionLines` lines. */
+/** A React component's name (`TaskActions`) or a hook's (`useTaskMove`). */
+const COMPONENT = /^(?:[A-Z]|use[A-Z])/;
+
+/** How long a function may be before it is listed: `warn.componentLines` for a web component or hook, else `warn.functionLines`. */
+export function functionLimit(path: string, name: string, rules: StructureRules = STRUCTURE_RULES): number {
+  const own = rules.warn.componentLines;
+  return path.startsWith(own.under) && COMPONENT.test(name) ? own.lines : rules.warn.functionLines;
+}
+
+/** Named functions over their limit (`functionLimit`). */
 function longFunctions(path: string, text: string, rules: StructureRules): Weighed[] {
   return functionSpans(text)
     .map((span) => ({ ...span, lines: span.end - span.line + 1 }))
-    .filter((span) => span.lines > rules.warn.functionLines)
+    .filter((span) => span.lines > functionLimit(path, span.name, rules))
     .map((span) => ({
       kind: 'long-function',
       path,

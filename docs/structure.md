@@ -240,7 +240,7 @@ The first one is `connectors/identity-clerk` (S1.2; `docs/clerk-setup.md`).
   public import path stays stable by keeping the original file as the entry, or a folder `index.ts`
   that only re-exports.
 - A function longer than about 60 lines is a smell: split it (guidance, not enforced; the report below
-  lists it as `long-function`).
+  lists it as `long-function`). A component or a hook of the web is one piece by nature: 100 lines for it.
 
 The structure step of `mwc check` enforces the limits (below); its early warnings show a file before it
 reaches them.
@@ -274,7 +274,7 @@ messages, the response types inferred from the routes, the `useLoad` hook, the A
 org hooks and calls `org.ts`, and the person's own subscriptions, limits and access profiles `subscriptions.ts`),
 `src/styles/` (the Tailwind theme and base
 styles). A hook used by one component stays in its file. Source files keep the 300-line limit and components
-stay under about 60 lines (rows, panels and hooks of their own). No frontend tests for now (no UI unit tests, no
+and hooks stay under about 100 lines (rows, panels and hooks of their own). No frontend tests for now (no UI unit tests, no
 browser smoke): `mwc check` typechecks it in every lane and `--full` builds it.
 
 ## Database changes
@@ -376,7 +376,7 @@ listing. The thresholds are the `warn` section of `rules.ts`:
 | Warning         | Listed when                                                                                       |
 | --------------- | ------------------------------------------------------------------------------------------------- |
 | `near-limit`    | a limited file is above 80% of its line limit (240 lines of source, 400 in `test/`)               |
-| `long-function` | a named function is over 60 lines, from its first line to its last                               |
+| `long-function` | a named function is over 60 lines, from its first line to its last; a React component or hook of the web (`componentLines`: under `apps/web/src/`, a name that starts with a capital or with `use` and a capital) over 100 |
 | `big-folder`    | a folder has more than 12 direct entries, files and folders (generated folders are skipped); the folders that grow by design have their own limit, `folderEntriesFor`: 20 for each folder of `apps/web/src/components/`, for `apps/web/src/api/`, `packages/db/src/schema/`, `packages/shared/src/` and `packages/shared/test/`; a test folder that mirrors a source folder (`<pkg>/test/<path>/` for `<pkg>/src/<path>/`) gets that source folder's limit, so `packages/db/test/schema/` gets 20 |
 | `fan-in`        | 8 or more files of the same package import a file by a relative path for its values (importers outside `test/`; type-only imports and exports do not count; the files of one server module, `fanInGroups`, count as one; the files meant to be imported everywhere, `fanInExempt`: the web's `components/`, `api/` and `app/`, the server's `apps/server/src/platform/http/` (errors, docs, router) and `packages/db/src/schema/` (columns, tenant, principals: designed building blocks), are never listed) |
 | `low-coverage`  | a file is under 95% lines or 90% branches in the last coverage run (`.cache/coverage/coverage-summary.json`, the json-summary report of the root `vitest.config.ts`); left out when there is none |
