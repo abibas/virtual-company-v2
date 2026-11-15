@@ -212,7 +212,7 @@ function MoveButtons({
         <div className="ml-auto">
           <ConfirmInline
             label="Cancel task"
-            question={`Cancel ${task.key}? It leaves the board.`}
+            question={`Cancel ${task.key}?`}
             confirmLabel="Cancel task"
             onConfirm={move.cancel}
           />

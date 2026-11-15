@@ -24,6 +24,8 @@ export const BoardCardSchema = z
     /** Its entries into its step so far; null in Queued and Done. */
     round: z.number().int().min(1).nullable(),
     stepState: TaskStepState.nullable(),
+    /** A card of the Done column that was cancelled rather than done. */
+    cancelled: z.boolean(),
     /** Why it is blocked at its step (S5.3b); null unless `blocked`. */
     blockedReason: z.string().nullable(),
     /** Who has it: the step's assignee, the Lead for an escalated one; null in Queued and Done. */
@@ -46,7 +48,7 @@ export const BoardColumnSchema = z
     /** A step's column: the step, its kind and its assignee. */
     step: z.object({ id: z.string(), kind: FlowStepKind, assignee: PrincipalRefSchema }).nullable(),
     cards: z.array(BoardCardSchema),
-    /** All the column's tasks: Done counts every done task, not only the cards shown. */
+    /** All the column's tasks: Done counts every closed (done or cancelled) task, not only the cards shown. */
     total: z.number().int().min(0),
   })
   .openapi('BoardColumn');

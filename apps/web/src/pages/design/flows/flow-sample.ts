@@ -110,6 +110,7 @@ const card = (
     priority,
     round,
     stepState: state,
+    cancelled: false,
     blockedReason: state === 'blocked' ? BLOCKED_REASON : null,
     assignee: holder ? ref(holder) : null,
     stepId: step,

@@ -71,7 +71,7 @@ function Priority({
 
 /**
  * Where a task stands and whose it is: its flow, step, round, holder and priority, who made it and when it moved, and
- * its status (a menu to cancel it with a reason for those who may, T-27).
+ * its status (a menu with Cancel for those who may cancel it, T-27).
  */
 export function TaskFacts({
   task,

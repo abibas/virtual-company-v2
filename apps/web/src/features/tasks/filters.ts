@@ -43,7 +43,7 @@ export function searchOf(filters: TaskFilters): string {
 
 const API_STATES: Readonly<Record<StateFilter, string | undefined>> = {
   open: 'queued,active,escalated',
-  done: 'done',
+  done: 'done,cancelled',
   cancelled: 'cancelled',
   all: undefined,
 };

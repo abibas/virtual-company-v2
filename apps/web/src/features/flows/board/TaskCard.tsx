@@ -8,7 +8,7 @@ import { ago, formatDateTime } from '../../../components/data/format.ts';
 import { Badge, type Tone } from '../../../components/ui/Badge.tsx';
 import { LiveDot } from '../conversations/LiveDot.tsx';
 import { Face } from '../Face.tsx';
-import { PRIORITY, stepStateLook } from '../words.ts';
+import { PRIORITY, stepStateLook, TASK_STATE } from '../words.ts';
 
 /** The step state's pill: a pulsing dot while the agent's turn runs, and why it is blocked as its tooltip. */
 function StatePill({
@@ -32,8 +32,8 @@ function StatePill({
 /**
  * A task on the board: its key, its priority (unless normal), its artifacts (a files icon and the count) and when it
  * last moved; its title; its step state (pulsing while a turn runs, why it is blocked on hover), its round from the
- * second on, "Lead notified" once its agent Lead was woken about it as it stands (S6c), and who has it. It opens the
- * task's page, and the Lead's people drag it to a step.
+ * second on, "Lead notified" once its agent Lead was woken about it as it stands (S6c), and who has it; a red Cancelled
+ * in the Done column when it was cancelled. It opens the task's page, and the Lead's people drag it to a step.
  */
 export function TaskCard({
   card,
@@ -95,6 +95,13 @@ export function TaskCard({
         </time>
       </span>
       <span className="line-clamp-2 text-sm leading-snug font-semibold text-ink">{card.title}</span>
+      {card.cancelled && (
+        <span className="flex">
+          <Badge tone={TASK_STATE.cancelled.tone} size="sm" dot>
+            {TASK_STATE.cancelled.label}
+          </Badge>
+        </span>
+      )}
       {(state || card.assignee) && (
         <span className="flex min-w-0 items-center gap-1.5">
           {state && <StatePill card={card} look={state} />}

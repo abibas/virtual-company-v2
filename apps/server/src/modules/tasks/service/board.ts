@@ -8,9 +8,9 @@ import { boardCard, holderOf } from './views.ts';
 
 /**
  * A flow's board (`GET …/flows/{flowId}/board`, docs/processes.md): Queued, then a column per step in order, then Done
- * (the latest `done` closed, with the count of all) and Escalated. Each open column lists its cards the most urgent
- * first, then the oldest; a cancelled task is on no column. An open card says when its agent Lead was told of it as it
- * stands (S6c, `leadNotifiedAt`).
+ * (the latest closed, done or cancelled, with the count of all; a cancelled card says so) and Escalated. Each open
+ * column lists its cards the most urgent first, then the oldest. An open card says when its agent Lead was told of it
+ * as it stands (S6c, `leadNotifiedAt`).
  */
 export async function boardOf(
   deps: { readonly db: DbHandle },

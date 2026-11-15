@@ -196,6 +196,7 @@ export function boardCard(
     priority: task.priority,
     round: summary.round,
     stepState: task.stepState,
+    cancelled: task.state === 'cancelled',
     blockedReason: summary.blockedReason,
     assignee: summary.assignee,
     stepId: task.currentStepId,

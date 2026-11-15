@@ -28,6 +28,7 @@ const stateWords = (state: string | null) => (state === null ? '' : (STATE_WORDS
 /** One card's line: `- T-12 · Fix the login · working · round 2 · high`. */
 function cardLine(card: BoardView['columns'][number]['cards'][number]): string {
   const parts = [card.key, card.title];
+  if (card.cancelled) parts.push('cancelled');
   if (card.stepState !== null) parts.push(stateWords(card.stepState));
   if (card.stepState === 'blocked' && card.blockedReason) parts.push(`why: ${card.blockedReason}`);
   if (card.round !== null && card.round > 1) parts.push(`round ${card.round}`);

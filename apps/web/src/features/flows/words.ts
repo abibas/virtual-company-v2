@@ -81,7 +81,7 @@ export const TASK_STATE: Readonly<Record<TaskState, { readonly label: string; re
   active: { label: 'Active', tone: 'blue' },
   escalated: { label: 'Escalated', tone: 'blocked' },
   done: { label: 'Done', tone: 'done' },
-  cancelled: { label: 'Cancelled', tone: 'pending' },
+  cancelled: { label: 'Cancelled', tone: 'failed' },
 };
 
 export const PRIORITY: Readonly<Record<TaskPriority, { readonly label: string; readonly tone: Tone }>> = {
