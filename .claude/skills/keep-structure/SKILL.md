@@ -23,13 +23,24 @@ Read the `open` lessons in [references/lessons.md](references/lessons.md) first 
 | A read across the caller's companies, or of a person's profile         | the identity module's service (`companiesOf`, `profileOf`); never a new raw-access exemption |
 | A store that must see every company (the identity store, the runner hub) | `modules/<area>/repo.ts` with raw access (`@mwc/db/system`), listed in the `biome.json` exemption |
 | Module A acting on a change module B makes, in B's transaction         | a port B defines, implemented by A's service and passed in by `app.ts` (as `withMemberChart`); never an import that closes a module cycle |
+| A check every route of one entity shares (a chat's people)             | the module's own route wrapper in `routes/access.ts`, after the company's guard |
+| A read model of one module over another's tables (a contact's conversations) | its own `repo/<view>.ts` through the tenant layer; the other module's pure rules through its `index.ts` |
+| A read several modules show of another module's rows (names)           | the owning module's service, exported by its `index.ts`; a module the owner itself calls imports that service file directly |
+| Tools a turn gets that the server defines and answers                  | a port the chats module defines (`ServerToolsHook`), implemented by the module that owns the outside system, passed by `app.ts` |
+| An outside message that starts an agent's turn (a Slack message)       | the chats module's `InboundChats`, its end through `InboundTurnHook` |
 | Cross-cutting code without business rules (http, auth, jobs, realtime); code that runs local processes or containers for the server (the sign-in helper) | `apps/server/src/platform/`; those processes in `platform/processes/<area>/`, with `spawn` injected |
+| A periodic job that needs the app's live runtime (the runner hub's sockets, live turns) | its module's `service/<area>/tick.ts`, started by `createApp` behind `MWC_JOBS`, its timers injectable |
 | A WebSocket route                                                      | its module's routes (auth as middleware); the transport in `platform/realtime/` |
 | Anything that talks to an outside system (Clerk, Claude Code, Jira)    | a connector `connectors/<name>/` implementing a `packages/*-core` port |
+| A port for an outside tool the agents use through the server (Atlassian, GitHub) | `packages/tools-core`, its connector in `connectors/<system>`, made in `platform/<system>.ts` |
+| A long-lived connection to an outside system (a socket)                | its client in the connector behind a `*-core` port; its lifecycle in the owning module's `service/<system>/`, started by a `start.ts` the module exports to `app.ts` |
+| Helpers several outside tools' server tools share (an answer, a reply) | the integrations module's `rules/` and `service/`, not under one provider's folder |
 | A small read-only call to an outside system that one module owns (a usage check) | that module's `service/<provider>.ts` behind the injected `providerFetch`; a connector once a second module or the runner needs it |
 | A contract several packages share: zod schemas, ids, enums, protocols  | `packages/shared`                                                 |
+| An area's limits that its contract parts share                         | `packages/shared/src/<area>/limits.ts`, re-exported by the area's barrel, which its parts never import |
 | Runtime code another package reuses that is not a contract (the saved logins, the API client the CLI and the MCP server share) | its owner's `src/`, as a subpath export (`@mwc/cli/credentials`, `@mwc/cli/api/*`) |
 | Tables, columns, constraints                                           | `packages/db/src/schema/` (then the database routine below)       |
+| A constant about a table's columns that several modules share (a profile's parts) | `packages/db/src/<table-part>.ts`, exported by `src/index.ts`; `schema/` holds tables and their types only |
 | A dev tool or a one-shot command                                       | the package's `scripts/`                                          |
 
 | **Tests**: you are writing                                             | It goes in                                                        |
@@ -56,6 +67,7 @@ Read the `open` lessons in [references/lessons.md](references/lessons.md) first 
 | Keeping the machine awake (the hold drivers); its stats (the sampler)  | `hold/`; `stats/`                                                 |
 | A power executor and the tunnels it runs                               | `power/`; the tunnels' supervisor itself in `@mwc/machines-core/tunnels` |
 | Terminal sessions; the self-update                                     | `terminal/`; `update/`                                            |
+| A script the runner writes for a harness's tools (git hooks)           | a string constant in `turns/<tool>/`, tested by running it        |
 | Enrolling the machine and installing it as a service                   | `install/` (enrolling in `install/enroll/`)                       |
 | The daemon (its contract, start, health); the real Node deps and the log | `daemon/`; `system/`, injected everywhere else                    |
 

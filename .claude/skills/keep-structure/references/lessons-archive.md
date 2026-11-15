@@ -2,6 +2,173 @@
 
 Settled lessons, moved out of [lessons.md](lessons.md) so agents do not read them before every change. Their outcomes are in SKILL.md's placement table, the module template and `packages/cli/src/structure/rules.ts`. Read an entry here only to learn why a rule is the way it is. Newest first.
 
+### 2026-11-14: Chat people: a route guard per chat, and turn kinds that run no process
+
+- **What happened:** locking message chats to their people needed one check on 17 routes of one chat; it went in a
+  chats-module wrapper of `companyRoute` (`routes/access.ts`, `chatRoute`: the company's two middlewares and a third,
+  the people's guard), so each route file changed one line. `schemas.ts` sat at 299 lines: `CreateChatSchema` moved to
+  `schemas/people.ts` and `ChatListSchema` to `schemas/activity.ts` (beside the list item it now shares with the
+  activity). Two new `ChatTurnKind`s (`people`, `slack`) touched every reader that took "the last turn" (questions, the
+  inbox, the rail, the activity, the branch and the context meter), each now skipping them (`talks`). On the web,
+  `OpenChat.tsx` (277 lines) moved its helpers to `chat-actions.ts` to take the people's parts.
+- **Where:** the `chat-people` branch.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a check every route of one entity shares (its people) → the module's own
+  route wrapper in `routes/access.ts`, after the company's guard"; and at the next review, whether "the last turn that
+  talks" should be one repo read the modules share instead of each filtering kinds.
+- **Status:** the row `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table); the idea of one read of
+  "the last turn that talks" that the modules share went to the 2026-11-15 entry.
+
+### 2026-11-14: Contacts: a new module that reads the chats' tables, and a turn that names who it speaks for
+
+- **What happened:** the contacts module (`modules/contacts/`, 14 files, all under 160 lines) reads `chat_turns`,
+  `chats`, `slack_threads` and `agents` through its own `repo/conversations.ts` (the tenant layer, grouped reads, no
+  other module's repo) and imports the chats' pure `senderOf`/`visibleTextOf` through `chats/index.ts`; the integrations
+  module calls its `seenOnSlack` before the turn is queued, outside any transaction. The turn's sender travels as
+  `TurnCaller.from` (three insert sites: `turns.ts`, `queue.ts`, `machine-wait.ts`, one `fromColumns` spread each), and
+  `InboundTurnHook.ended` now returns the reply's link, which `tellInbound` keeps (`turns.ts` 276 → 280,
+  `machine-wait.ts` 229 → 232, `chats.ts` of the db schema 243 → 267).
+- **Where:** the `contacts` branch.
+- **What was done:** as above; the map in `docs/structure.md` has the module's line.
+- **Suggested change:** a placement row "a read model of one module over another's tables (a contact's conversations)
+  → its own `repo/<view>.ts` through the tenant layer, the other module's pure rules through its `index.ts`"; at the next
+  review, consider a `TurnCaller` field list in one place instead of each insert site spreading its parts.
+- **Status:** the row `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table); the idea of one
+  `TurnCaller` field list went to the 2026-11-15 entry.
+
+### 2026-11-13: Receiving Slack messages: a module that holds sockets, and a second end hook in the chats
+
+- **What happened:** the server keeps a Socket Mode connection per Slack bot sign-in. The client went to the connector
+  (`connectors/slack/src/socket.ts` 187 lines, `socket/frames.ts`, `socket/options.ts`) behind a port in
+  `tools-core/src/slack/socket.ts`; the connections themselves (start, a 5-minute sync, status rows) went to the
+  integrations module's `service/slack/inbound/connections.ts` (171), with a raw read across people
+  (`repo/slack-inbound-all.ts`, in the Biome exemption) and a second repo file (`repo/slack-inbound.ts`, 205). The
+  placement table has no row for "a long-lived connection to an outside system that a module owns". `app.ts` reached
+  307 lines composing it, so the composition moved to the module (`service/slack/inbound/start.ts`, `slackReceiving`)
+  and `app.ts` is 264. The chats module got `InboundChats` (a turn in an agent's chat for an outside conversation) and
+  `InboundTurnHook` beside `TaskTurnHook.systemEnded`, told from `live-end.ts`, `drain.ts` and `machine-wait.ts`
+  (229 lines); `turns.ts` went 270 → 273.
+- **Where:** the `slack-inbound` branch.
+- **What was done:** as above.
+- **Suggested change:** placement rows "a long-lived connection to an outside system (a socket) → its client in the
+  connector behind a `*-core` port, its lifecycle in the owning module's `service/<system>/`, started by a
+  `start.ts` the module exports to `app.ts`" and "an outside message that starts an agent's turn → the chats module's
+  `InboundChats`, its end through `InboundTurnHook`"; at the next review, consider one list of system-turn listeners
+  in the chats module instead of `systemEnded` plus `InboundTurnHook`.
+- **Status:** both rows `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table); the idea of one list
+  of system-turn listeners went to the 2026-11-15 entry.
+
+### 2026-11-13: S7.1d's GitHub tools beside Atlassian's, and a shell script the runner carries
+
+- **What happened:** GitHub's server tools reused Atlassian's answer and reply helpers, which lived under
+  `rules/atlassian/render.ts` and `service/atlassian/context.ts`; they moved to `integrations/rules/answer.ts` and
+  `service/reply.ts` (re-exported where they were, so S7.1c's tests kept their imports), and a second provider needed one
+  hook merging both plans (`service/tools.ts`, `rules/plans.ts`). The port `tools-core/src/github.ts` reached 298 lines
+  and its result shapes moved to `github/results.ts` (171 + 167). The runner's pre-push hook is a POSIX `sh` script kept
+  as a string constant in `apps/runner/src/turns/git/hooks.ts` and tested with real git in temporary repositories
+  (process starts, as the brief asked); `turns/turns.ts` went 291 → 293 lines (`HarnessHost.gitHooks`), and
+  `runner-protocol/runner-frames.ts` 288 → 290 (`caps.github`).
+- **Where:** the `github-turns` branch.
+- **What was done:** as above.
+- **Suggested change:** placement rows "helpers several outside tools' server tools share → `integrations/rules/` and
+  `service/` at the module's level, not under one provider's folder" and "a script the runner writes for a harness's
+  tools (git hooks) → a string constant in the runner's `turns/<tool>/`, tested by running it"; at the next review, split
+  `runner-frames.ts` (its caps into `runner-protocol/caps.ts`) and `turns/turns.ts` (the `HarnessHost` into its own file)
+  before they pass 300.
+- **Status:** both rows `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server and runner tables); the splits
+  `adopted`: `runner-frames.ts` by the T-26 test pass (ffe41302, `runner-protocol/caps.ts`, 307 → 239 lines) and
+  `turns/turns.ts` by S7 review item 2 (320fe0cd, `turns/host.ts`, 288 → 246).
+
+### 2026-11-13: S7.1c's server tools: a port for outside tools, a connector, and a module that answers a turn's calls
+
+- **What happened:** the agents' Atlassian tools needed a port (`packages/tools-core`, `AtlassianApi` and `AtlassianError`,
+  242 + 61 lines; no fake: the server's tests drive the real connector through the fake provider), a connector
+  (`connectors/atlassian`, 9 files, all under 200 lines; `jiraApi` and `confluenceApi` split into reads and changes
+  before commit, 89 and 65 lines), and the map's planned `modules/integrations/` (its first files: `repo.ts`,
+  `schemas/atlassian.ts` 242 lines, `rules/atlassian/{rights,query,render,words}.ts`, `service/atlassian/{hook,call,
+  context,jira,confluence}.ts`). The placement table has no row for "tools a turn gets that the server defines and
+  answers": the chats module defines the port (`chats/service/server-tools.ts`, `ServerToolsHook`), the integrations
+  module implements it and `app.ts` passes it, as `TaskTurnHook`; the connector is made in `platform/atlassian.ts`.
+  `chats/service/live.ts` went 286 → 289 lines (near its limit), `turns.ts` 247 → 264, `runner-frames.ts` 284 → 286
+  (`caps.serverTools`). The runner's side went to `turns/ask/server-tools.ts`. Test helpers: a new top-level
+  `test/fixtures/integrations/atlassian.ts`, and `FakeProvider.route` (an address whatever its query).
+- **Where:** the `atlassian-tools` branch.
+- **What was done:** as above.
+- **Suggested change:** placement rows "a port for an outside tool the agents use through the server →
+  `packages/tools-core`, its connector in `connectors/<system>`, wired in `platform/<system>.ts`" and "tools a turn gets
+  that the server defines and answers → a port the chats module defines (`ServerToolsHook`), implemented by the module
+  that owns the outside system"; at the next review, split `chats/service/live.ts` (its sink's parts) before it passes 300.
+- **Status:** both rows `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table); the split of
+  `chats/service/live.ts` is not needed now (230 lines).
+
+### 2026-11-13: A column map for a table's repeated parts, which the schema's barrel cannot hold
+
+- **What happened:** a generic profile's parts (`access_profiles.claude_*`, `openai_*`, `github_*`, `atlassian_*`) needed
+  one map of each part's columns that the credentials, org and chats modules all read (`PROFILE_AI_COLUMNS`,
+  `PROFILE_TOOL_COLUMNS`, `aiPartOf`). Exported from `schema/credentials.ts`, the first map broke the diagram test,
+  which treats every export of `schema/index.ts` as a table (`getTableConfig` on a plain object). They went to
+  `packages/db/src/profile-parts.ts` (64 lines), exported by `src/index.ts` beside the schema barrel; tested in
+  `test/schema/access-profiles-parts.test.ts`.
+- **Where:** the `one-profile` branch, 32adcd9.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a constant about a table's columns that several modules share → `packages/db/src/
+  <table-part>.ts`, exported by `src/index.ts`; `schema/` holds tables and their types only".
+- **Status:** the row `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table, beside "Tables, columns,
+  constraints").
+
+### 2026-11-12: The org module's names lookup, which the notifications import by its file
+
+- **What happened:** the S5/S6 review's item 4 moved the principals' names (three `namesOf`, three copies of their reads
+  in the tasks, inbox and notifications repos) to the org module's `principalNames` (`org/service/names.ts`, 58 lines,
+  its reads `org/repo/names.ts`), exported by `org/index.ts`. The org module already calls the notifications service
+  (its notices: `org/service/{lifecycle,positions,agents}.ts`), so the notifications reaching `org/index.ts` would close
+  a file cycle; `notifications/service/names.ts` imports `org/service/names.ts` by its file instead (no file cycle,
+  checked), and org and notifications now import each other as modules, as identity and members already do. The
+  notifications repo keeps `members` for an email's address (`service/delivery.ts`).
+- **Where:** 3619a1a.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a read several modules show of another module's rows (names) → the owning
+  module's service, exported by its index; a module that the owner itself calls imports that service file directly";
+  or a port the notifications define, passed by `app.ts`, if module cycles should stay out altogether.
+- **Status:** the row `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table); the port alternative was
+  not taken.
+
+### 2026-11-12: S6c's Lead wake-ups: a background tick that needs the app's live runtime
+
+- **What happened:** the wake-up tick must start chat turns, which only the process holding the runners' sockets and the
+  chats' live turns can do, so it could not be a jobs-loop job (`moduleJobs` is composed before `createApp` and has no
+  chats runtime). It went to the tasks module as `service/wake/tick.ts` (`leadWakes`, 99 lines), started by `createApp`
+  when MWC_JOBS is on or a test passes `AppDeps.leadWakeTimers`; its cross-company reads are `tasks/repo/wakes-due.ts`
+  (Biome's raw-access exemption, like `notifications/repo/delivery.ts`). `tasks/service/` went 16 → 17 entries (`wake/`:
+  `record.ts`, `message.ts`, `deliver.ts`, `tick.ts`, `settings.ts`, all under 160 lines); the chats module's side is
+  `chats/service/team.ts` behind a `TeamChats` port the tasks module calls (passed by `app.ts`). The test helper went to a
+  top-level `test/fixtures/wakes.ts`, beside `runs.ts` and `tools.ts`.
+- **Where:** the `lead-wake` branch.
+- **What was done:** as above.
+- **Suggested change:** a placement row "a periodic job that needs the app's live runtime (the runner hub's sockets, live
+  turns) → its module's `service/<area>/tick.ts`, started by `createApp` behind MWC_JOBS, its timers injectable"; at the
+  S6 review, group the server's top-level test fixtures by module (`fixtures/tasks/{team,runs,tools,wakes}.ts`).
+- **Status:** the row `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's server table); grouping the server's
+  top-level test fixtures went to the 2026-11-15 entry.
+
+### 2026-11-11: S6a's agents' tools: a contract that needs the area's limits, and the tasks service folder
+
+- **What happened:** the tools' inputs (`packages/shared/src/flows/tools.ts`) need the task limits that lived in the
+  barrel `flows.ts`, which re-exports `flows/*`: importing it back would have been a cycle (a TDZ error at load). The
+  limits moved to `flows/limits.ts`, re-exported by `flows.ts` (public paths unchanged), so `flows/tools.ts` and
+  `flows/prompt.ts` import them directly. `apps/server/src/modules/tasks/service/` went 12 → 16 entries (`decision.ts`,
+  `lead.ts`, `step-tools.ts`, `tools.ts`, all under 140 lines); the hub's `hub/turns.ts` reached 290 lines, so the tool
+  relay went to `hub/tools.ts` (86); the runner's relay went to `turns/turn/tools.ts` and `turn.ts` sits at 284 of 300.
+- **Where:** the S6a commits on the `task-tools` branch.
+- **What was done:** as above.
+- **Suggested change:** a placement line "an area's limits that its contract parts share → `<area>/limits.ts`, never the
+  barrel"; at the S6 review, group the tasks module's agent-facing services as `service/tools/` (decision, lead, step).
+- **Status:** the hub part `adopted` (2026-11-12, S5/S6 review 1, 1f396f4: `hub/turns.ts` 291 → 167 lines with
+  `hub/turn-types.ts` and `hub/turn-resume.ts`, `hub.ts` 289 → 167 with `hub/types.ts`); the contract `adopted`
+  (2026-11-12, S5/S6 review 5, a69a788: the one input check `flows/tool-input.ts`, which the server and the runner both
+  run, and the words `flows/tool-words.ts`; `flows/tools.ts` 275 → 188); the limits line `adopted` (2026-11-15, S7 review item 4 (T-17), SKILL.md's shared row); the tasks
+  module's `service/tools/` went to the 2026-11-15 entry.
+
 ### 2026-11-10: Agent icons grow three folders already over their limit
 
 - **What happened:** an agent's icon (face, emoji or image) added `apps/web/src/api/agent-icon.ts` (the object-URL
