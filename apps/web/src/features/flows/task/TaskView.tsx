@@ -151,6 +151,7 @@ export function TaskView(props: TaskViewProps) {
         </Card>
         <div className="min-w-0 lg:col-start-1">
           <TaskTabs
+            key={task.id}
             task={task}
             flow={flow}
             nodes={nodes}

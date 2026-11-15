@@ -10,12 +10,13 @@ import type { TaskRuns } from './runs.ts';
 import { TaskDescription } from './TaskDescription.tsx';
 import { TaskHistory } from './TaskHistory.tsx';
 
-type Tab = 'story' | 'conversations' | 'decisions' | 'description' | 'log';
+type Tab = 'description' | 'story' | 'conversations' | 'decisions' | 'log';
 
 /**
- * The page's main column: Story (its rounds), Conversations (the open one's thread inline), Decisions (what its agents
- * recorded, for members and above, 2026-11-14), Description (Markdown, with Edit) and Log (every history row). A step's
- * "conversation" link in the story, and a decision's, opens the Conversations tab on it.
+ * The page's main column: Description (Markdown, with Edit; open when the page opens, T-30), Story (its rounds),
+ * Conversations (the open one's thread inline), Decisions (what its agents recorded, for members and above, 2026-11-14)
+ * and Log (every history row). A step's "conversation" link in the story, and a decision's, opens the Conversations
+ * tab on it.
  */
 export function TaskTabs({
   task,
@@ -38,9 +39,10 @@ export function TaskTabs({
   /** Its agents' recorded decisions, for members and above: the company they are read from. */
   readonly decisions?: { readonly companyId: string } | undefined;
 }) {
-  const [tab, setTab] = useState<Tab>('story');
+  const [tab, setTab] = useState<Tab>('description');
   const [chat, setChat] = useState<string>();
   const options: SegmentOption<Tab>[] = [
+    { value: 'description', label: 'Description' },
     { value: 'story', label: 'Story' },
     ...(task.conversations.length > 0
       ? [{ value: 'conversations' as const, label: 'Conversations', note: String(task.conversations.length) }]
@@ -48,7 +50,6 @@ export function TaskTabs({
     ...(decisions && task.conversations.length > 0
       ? [{ value: 'decisions' as const, label: 'Decisions' }]
       : []),
-    { value: 'description', label: 'Description' },
     { value: 'log', label: 'Log', note: String(task.history.length) },
   ];
   const openChat = (chatId: string) => {
