@@ -21,6 +21,8 @@ export const BoardCardSchema = z
     key: z.string().openapi({ example: 'T-12' }),
     title: z.string(),
     priority: TaskPriority,
+    /** Whether the flow's Autotake may take it from Queued by itself (T-34). */
+    autoTake: z.boolean(),
     /** Its entries into its step so far; null in Queued and Done. */
     round: z.number().int().min(1).nullable(),
     stepState: TaskStepState.nullable(),

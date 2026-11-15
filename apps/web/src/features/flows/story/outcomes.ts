@@ -104,7 +104,10 @@ export function eventWords(event: TaskEvent): string {
       if (!event.actor) return `Started by itself${where(event)}`;
       break;
     case 'edited': {
-      const fields = Array.isArray(event.details.fields) ? ` the ${event.details.fields.join(', ')}` : '';
+      const named = Array.isArray(event.details.fields)
+        ? event.details.fields.map((field) => (field === 'autoTake' ? 'Autotake' : String(field)))
+        : undefined;
+      const fields = named ? ` the ${named.join(', ')}` : '';
       return `${who ?? 'Someone'} edited${fields}`;
     }
   }

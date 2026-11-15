@@ -2,7 +2,7 @@ import { TaskEventKind, TaskPriority, TaskState, TaskStepState } from '@mwc/shar
 import { TASK_DESCRIPTION_MAX, TASK_REASON_MAX, TASK_TITLE, type TaskDecision } from '@mwc/shared/flows';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
-import { check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
 import { flowSteps, flows } from './flows.ts';
 import { principals } from './principals.ts';
@@ -31,6 +31,8 @@ export const tasks = pgTable(
     title: text('title').notNull(),
     description: text('description').notNull().default(''),
     priority: text('priority').$type<TaskPriority>().notNull().default('normal'),
+    /** Whether the flow's Autotake may take it from Queued by itself (T-34); off ("Manual") waits for a person. */
+    autoTake: boolean('auto_take').notNull().default(false),
     state: text('state').$type<TaskState>().notNull().default('queued'),
     currentStepId: uuid('current_step_id'),
     stepState: text('step_state').$type<TaskStepState>(),

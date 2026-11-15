@@ -58,6 +58,7 @@ export function BoardView({
                 nodes={nodes}
                 me={me}
                 draggable={moves.draggable && column.kind !== 'done'}
+                queued={column.kind === 'queued'}
                 moving={moves.movingId === card.id}
                 onDragStart={moves.start(card, index)}
                 onDragEnd={moves.end}

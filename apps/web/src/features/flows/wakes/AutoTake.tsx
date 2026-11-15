@@ -43,7 +43,7 @@ export function AutoTakeSection({
         <ListStart size={16} aria-hidden="true" className="text-blue" />
         <h2 className="text-sm font-bold text-ink">Autotake</h2>
         <span className="text-xs text-dim">
-          The next queued task (by priority, then the oldest) enters the first step by itself
+          The next queued task marked Autotake (by priority, then the oldest) enters the first step by itself
         </span>
       </header>
       <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-2">

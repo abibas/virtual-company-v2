@@ -66,6 +66,7 @@ async function create(
     title: input.title,
     description: input.description,
     priority: input.priority,
+    autoTake: input.autoTake,
     stepId: step?.id,
     now,
   });

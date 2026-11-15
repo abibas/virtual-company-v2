@@ -167,6 +167,10 @@ export const AGENT_TOOL_INPUTS = {
     title: text(TASK_TITLE.max, 'The task’s title'),
     description: text(TASK_DESCRIPTION_MAX, 'What to do, Markdown').optional(),
     priority: TaskPriority.optional().describe('low, normal (the default), high or urgent'),
+    autoTake: z
+      .boolean()
+      .optional()
+      .describe('true: Autotake, the flow takes it from Queued by itself when it auto-takes; false (the default): Manual'),
     step: StepRef.optional().describe('A step to put it into at once; left out, it waits in Queued'),
   }),
   task_route: z.object({

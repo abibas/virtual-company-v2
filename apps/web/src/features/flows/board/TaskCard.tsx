@@ -1,4 +1,4 @@
-import { BellRing, Files } from 'lucide-react';
+import { BellRing, Files, ListStart } from 'lucide-react';
 import type { DragEvent } from 'react';
 import type { BoardCard } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
@@ -30,8 +30,8 @@ function StatePill({
 }
 
 /**
- * A task on the board: its key, its priority (unless normal), its artifacts (a files icon and the count) and when it
- * last moved; its title; its step state (pulsing while a turn runs, why it is blocked on hover), its round from the
+ * A task on the board: its key, its priority (unless normal), "auto" in Queued when marked Autotake (T-34), its
+ * artifacts (a files icon and the count) and when it last moved; its title; its step state (pulsing while a turn runs, why it is blocked on hover), its round from the
  * second on, "Lead notified" once its agent Lead was woken about it as it stands (S6c), and who has it; a red Cancelled
  * in the Done column when it was cancelled. It opens the task's page, and the Lead's people drag it to a step.
  */
@@ -41,6 +41,7 @@ export function TaskCard({
   nodes,
   me,
   draggable,
+  queued = false,
   moving = false,
   onDragStart,
   onDragEnd,
@@ -51,6 +52,8 @@ export function TaskCard({
   /** The signed-in person's principal: a task waiting for them "Needs you". */
   readonly me: string | undefined;
   readonly draggable: boolean;
+  /** It sits in Queued: a task marked Autotake says "auto" (the flow's Autotake takes it by itself). */
+  readonly queued?: boolean;
   /** Its move is being saved. */
   readonly moving?: boolean;
   readonly onDragStart?: (event: DragEvent<HTMLElement>) => void;
@@ -76,6 +79,15 @@ export function TaskCard({
           <Badge tone={PRIORITY[card.priority].tone} size="sm">
             {PRIORITY[card.priority].label}
           </Badge>
+        )}
+        {queued && card.autoTake && (
+          <span
+            title="Autotake: the flow takes it from Queued by itself"
+            className="inline-flex items-center gap-0.5 font-semibold text-blue"
+          >
+            <ListStart size={11} aria-hidden="true" />
+            auto
+          </span>
         )}
         {card.artifacts > 0 && (
           <span

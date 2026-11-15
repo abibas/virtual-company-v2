@@ -95,6 +95,7 @@ export function sampleTask(key: string): TaskDetail | undefined {
       flowId: flow.id,
       title: card.title,
       priority: card.priority,
+      autoTake: card.autoTake,
       state,
       step: step ? { id: step.id, name: step.name, kind: step.kind } : null,
       stepState: card.stepState,

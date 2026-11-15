@@ -163,6 +163,7 @@ export async function createTask(
         title: input.title,
         description: input.description ?? '',
         priority: input.priority ?? 'normal',
+        autoTake: input.autoTake ?? false,
         createdBy: caller.principalId,
       };
       const task = await repo.tasks.insert(tx, values);
@@ -203,15 +204,16 @@ async function routeNew(
 }
 
 /**
- * Edits a task's title, description or priority (its creator, its team's Lead people, admins: 403 `not_yours`). Only
- * what differs is written, with an `edited` history row naming the fields and their audit rows.
+ * Edits a task's title, description, priority or Autotake (its creator, its team's Lead people, admins: 403
+ * `not_yours`). Only what differs is written, with an `edited` history row naming the fields and their audit rows.
+ * Autotake changes only while the task is queued; turned on there, the flow takes it at once when it has room (T-34).
  */
 export async function editTask(
   deps: Deps,
   repo: TasksRepo,
   t: TenantDb,
   caller: Caller,
-  change: { readonly ref: TaskRef | undefined; readonly edit: EditTask },
+  change: { readonly ref: TaskRef | undefined; readonly edit: EditTask; readonly now: Date },
 ): Promise<TaskResult<403 | 404>> {
   const found = change.ref === undefined ? undefined : await repo.tasks.get(t, change.ref);
   if (found === undefined) return TASK_NOT_FOUND;
@@ -220,11 +222,10 @@ export async function editTask(
     const task = await repo.tasks.lock(tx, found.id);
     const denied = editRefusal(caller, (await rosterOf(tx)).team(flow.leadPrincipalId), task.createdBy);
     if (denied) return denied;
+    const edit = task.state === 'queued' ? change.edit : { ...change.edit, autoTake: undefined };
     const set = Object.fromEntries(
-      Object.entries(change.edit).filter(
-        ([field, value]) => value !== undefined && task[field as keyof Task] !== value,
-      ),
-    ) as Partial<Pick<Task, 'title' | 'description' | 'priority'>>;
+      Object.entries(edit).filter(([field, value]) => value !== undefined && task[field as keyof Task] !== value),
+    ) as Partial<Pick<Task, 'title' | 'description' | 'priority' | 'autoTake'>>;
     const fields = Object.keys(set);
     if (fields.length === 0) return { ok: true, task };
     const after = await repo.tasks.update(tx, task.id, set);
@@ -238,5 +239,10 @@ export async function editTask(
     });
     return { ok: true, task: after };
   });
-  return done.ok ? { ok: true, task: await shownTask(deps, repo, t, caller, done.task) } : done;
+  if (!done.ok) return done;
+  // Marked Autotake while queued: the flow takes it (or an earlier one) when it auto-takes and has room (T-34).
+  if (done.task.state === 'queued' && done.task.autoTake)
+    await takeQueued(deps, repo, t, done.task.flowId, change.now);
+  const now = (await repo.tasks.get(t, { id: done.task.id })) as Task;
+  return { ok: true, task: await shownTask(deps, repo, t, caller, now) };
 }

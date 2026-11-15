@@ -6,6 +6,7 @@ import type { Flow, FlowCalls, TaskDetail } from '../../../api/flows.ts';
 import { ChoiceField, Field, SelectField, TextField } from '../../../components/forms/Field.tsx';
 import { Textarea } from '../../../components/forms/Input.tsx';
 import { SegmentedControl } from '../../../components/forms/Segmented.tsx';
+import { Switch } from '../../../components/forms/Switch.tsx';
 import { Sheet } from '../../../components/layout/Drawer.tsx';
 import { Button } from '../../../components/ui/Button.tsx';
 import { Notice } from '../../../components/ui/Notice.tsx';
@@ -19,6 +20,7 @@ function useNewTask(flow: Flow, calls: FlowCalls, onCreated: (task: TaskDetail) 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
+  const [autoTake, setAutoTake] = useState(false);
   const [step, setStep] = useState(QUEUED);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -31,6 +33,7 @@ function useNewTask(flow: Flow, calls: FlowCalls, onCreated: (task: TaskDetail) 
         flowId: flow.id,
         title: title.trim(),
         priority,
+        autoTake,
         ...(description.trim() ? { description } : {}),
         ...(step !== QUEUED ? { stepId: step } : {}),
       });
@@ -40,7 +43,10 @@ function useNewTask(flow: Flow, calls: FlowCalls, onCreated: (task: TaskDetail) 
       setBusy(false);
     }
   };
-  const fields = { title, setTitle, description, setDescription, priority, setPriority, step, setStep };
+  const fields = {
+    ...{ title, setTitle, description, setDescription, priority, setPriority },
+    ...{ autoTake, setAutoTake, step, setStep },
+  };
   return { ...fields, busy, error, submit };
 }
 
@@ -72,8 +78,9 @@ function Words({ task }: { readonly task: ReturnType<typeof useNewTask> }) {
 }
 
 /**
- * A new task in the team's flow: its title, its description (Markdown), its priority and, for the Lead's people and
- * admins (`leads`), the step it starts at (Queued without one).
+ * A new task in the team's flow: its title, its description (Markdown), its priority, whether the flow's Autotake may
+ * take it from Queued (T-34; off: Manual) and, for the Lead's people and admins (`leads`), the step it starts at
+ * (Queued without one).
  */
 export function NewTaskSheet({
   flow,
@@ -94,15 +101,20 @@ export function NewTaskSheet({
     <Sheet open onClose={onClose} title={`New task in ${flow.name}`}>
       <form onSubmit={(event) => void task.submit(event)} className="flex flex-col gap-4">
         <Words task={task} />
-        <ChoiceField label="Priority">
-          <SegmentedControl<TaskPriority>
-            label="Priority"
-            size="sm"
-            value={task.priority}
-            onChange={task.setPriority}
-            options={PRIORITY_ORDER.map((p) => ({ value: p, label: PRIORITY[p].label }))}
-          />
-        </ChoiceField>
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+          <ChoiceField label="Priority">
+            <SegmentedControl<TaskPriority>
+              label="Priority"
+              size="sm"
+              value={task.priority}
+              onChange={task.setPriority}
+              options={PRIORITY_ORDER.map((p) => ({ value: p, label: PRIORITY[p].label }))}
+            />
+          </ChoiceField>
+          <ChoiceField label="Autotake" hint="Off: Manual, it waits in Queued until someone starts it">
+            <Switch label="Takes itself from Queued" checked={task.autoTake} onChange={task.setAutoTake} />
+          </ChoiceField>
+        </div>
         {leads && (
           <SelectField
             label="Start at"

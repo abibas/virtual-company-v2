@@ -108,6 +108,7 @@ const card = (
     key: `T-${n}`,
     title,
     priority,
+    autoTake: false,
     round,
     stepState: state,
     cancelled: false,

@@ -113,7 +113,8 @@ export function taskRoutes(deps: ServerDeps, tasks: TasksService) {
     })
     .openapi(editTaskRoute(deps), async (c) => {
       const { taskId } = c.req.valid('param');
-      const result = await tasks.editTask(c.var.tenant, callerOf(c.var), taskId, c.req.valid('json'));
+      const body = c.req.valid('json');
+      const result = await tasks.editTask(c.var.tenant, callerOf(c.var), taskId, body, c.var.clock());
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.task, 200);
     });

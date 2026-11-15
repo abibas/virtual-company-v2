@@ -66,7 +66,8 @@ export const AGENT_TOOL_INFO: Readonly<
   task_create: {
     title: 'Create a task',
     description:
-      'A new task in your flow, queued or put into a step at once (which starts it if the step starts by itself).',
+      'A new task in your flow, queued or put into a step at once (which starts it if the step starts by itself). ' +
+      'Queued with autoTake true, the flow’s Autotake takes it by itself; without it, it waits for a person.',
   },
   task_route: {
     title: 'Route a task',
@@ -107,7 +108,7 @@ export function leadSection(flowName: string): string {
     '## Leading your team (from Most Wanted)',
     '',
     `You lead the flow "${flowName.replace(/\s+/g, ' ').trim()}". Your tools act at once, as you: team_board, ` +
-      'task_show {key}, task_create {title, description?, priority?, step?}, task_route {key, step, reason?}, ' +
+      'task_show {key}, task_create {title, description?, priority?, autoTake?, step?}, task_route {key, step, reason?}, ' +
       'task_start {key}, task_retry {key} and task_cancel {key, reason}. Each step’s agent moves its own task ' +
       'when its turn ends; you distribute the work, unblock it, and decide on escalations.',
     '',

@@ -72,8 +72,8 @@ export function tasksService(deps: RunDeps & Pick<RoomDeps, 'team'>) {
     getTask: (t: TenantDb, caller: Caller, ref: string) => getTask(deps, repo, t, caller, taskRef(ref)),
     createTask: (t: TenantDb, caller: Caller, input: CreateTask, now: Date) =>
       createTask(deps, repo, t, caller, { ...input, now }),
-    editTask: (t: TenantDb, caller: Caller, ref: string, edit: EditTask) =>
-      editTask(deps, repo, t, caller, { ref: taskRef(ref), edit }),
+    editTask: (t: TenantDb, caller: Caller, ref: string, edit: EditTask, now: Date) =>
+      editTask(deps, repo, t, caller, { ref: taskRef(ref), edit, now }),
     act: (t: TenantDb, caller: Caller, ref: string, body: TaskActionRequest, now: Date) =>
       actOnTask(deps, repo, t, caller, { ref: taskRef(ref), body, now }),
     artifacts: (t: TenantDb, ref: string) => listArtifacts(deps, repo, t, taskRef(ref)),

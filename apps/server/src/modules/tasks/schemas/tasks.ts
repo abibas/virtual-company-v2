@@ -52,13 +52,21 @@ export const CreateTaskSchema = z
     title: Title,
     description: Description.optional(),
     priority: TaskPriority.optional(),
+    /** Whether the flow's Autotake may take it from Queued by itself (T-34); off ("Manual") by default. */
+    autoTake: z.boolean().optional(),
     /** Straight into this step of the flow (the Lead's people and admins); queued without it. */
     stepId: z.uuid().optional(),
   })
   .openapi('CreateTask');
 
 export const EditTaskSchema = z
-  .object({ title: Title.optional(), description: Description.optional(), priority: TaskPriority.optional() })
+  .object({
+    title: Title.optional(),
+    description: Description.optional(),
+    priority: TaskPriority.optional(),
+    /** Autotake or Manual (T-34); changes only while the task is queued (ignored after it left Queued). */
+    autoTake: z.boolean().optional(),
+  })
   .openapi('EditTask');
 
 export const TaskActionSchema = z
@@ -89,6 +97,8 @@ export const TaskSummarySchema = z
     flowId: z.string(),
     title: z.string(),
     priority: TaskPriority,
+    /** Whether the flow's Autotake may take it from Queued by itself (T-34); false: Manual. */
+    autoTake: z.boolean(),
     state: TaskState,
     /** The step it is at (active) or escalated from; null when queued or closed. */
     step: StepRefSchema.nullable(),

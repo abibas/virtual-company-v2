@@ -26,13 +26,14 @@ const STATE_WORDS: Readonly<Record<string, string>> = {
 const stateWords = (state: string | null) => (state === null ? '' : (STATE_WORDS[state] ?? state));
 
 /** One card's line: `- T-12 · Fix the login · working · round 2 · high`. */
-function cardLine(card: BoardView['columns'][number]['cards'][number]): string {
+function cardLine(card: BoardView['columns'][number]['cards'][number], queued = false): string {
   const parts = [card.key, card.title];
   if (card.cancelled) parts.push('cancelled');
   if (card.stepState !== null) parts.push(stateWords(card.stepState));
   if (card.stepState === 'blocked' && card.blockedReason) parts.push(`why: ${card.blockedReason}`);
   if (card.round !== null && card.round > 1) parts.push(`round ${card.round}`);
   if (card.priority !== 'normal') parts.push(card.priority);
+  if (queued && card.autoTake) parts.push('autotake');
   return `- ${parts.join(' · ')}`;
 }
 
@@ -42,7 +43,8 @@ export function boardText(board: BoardView): string {
   for (const column of board.columns) {
     const who = column.step ? ` · ${KIND_WORDS[column.step.kind]} · ${column.step.assignee.name}` : '';
     const count = column.kind === 'done' ? `${column.cards.length} of ${column.total}` : `${column.total}`;
-    lines.push('', `${column.title}${who} (${count})`, ...column.cards.map(cardLine));
+    const cards = column.cards.map((card) => cardLine(card, column.kind === 'queued'));
+    lines.push('', `${column.title}${who} (${count})`, ...cards);
   }
   return clipText(lines.join('\n'), TOOL_RESULT_MAX);
 }

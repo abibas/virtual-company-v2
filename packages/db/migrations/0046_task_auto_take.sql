@@ -1,0 +1,1 @@
+ALTER TABLE "tasks" ADD COLUMN "auto_take" boolean DEFAULT false NOT NULL;

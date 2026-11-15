@@ -70,8 +70,44 @@ function Priority({
 }
 
 /**
+ * Autotake or Manual (T-34): a select that saves at once for those who may edit while the task is queued, else words.
+ * Autotake lets the flow's Autotake take it from Queued by itself; Manual waits for a person to start it.
+ */
+function AutoTake({
+  value,
+  editable,
+  onSave,
+}: {
+  readonly value: boolean;
+  readonly editable: boolean;
+  readonly onSave: (next: boolean) => Promise<unknown>;
+}) {
+  const [error, setError] = useState<string>();
+  if (!editable) return <span className={value ? 'text-ink' : 'text-dim'}>{value ? 'Autotake' : 'Manual'}</span>;
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <Select
+        size="sm"
+        aria-label="Autotake"
+        value={value ? 'auto' : 'manual'}
+        className="w-28!"
+        onChange={(event) => {
+          setError(undefined);
+          onSave(event.target.value === 'auto').catch((failure: unknown) => setError(friendlyMessage(failure)));
+        }}
+        options={[
+          { value: 'auto', label: 'Autotake' },
+          { value: 'manual', label: 'Manual' },
+        ]}
+      />
+      {error && <span className="text-2xs text-failed">{error}</span>}
+    </span>
+  );
+}
+
+/**
  * Where a task stands and whose it is: its flow, step, round, holder and priority, who made it and when it moved, and
- * its status (a menu with Cancel for those who may cancel it, T-27).
+ * its status (a menu with Cancel for those who may cancel it, T-27), and whether Autotake may take it (T-34).
  */
 export function TaskFacts({
   task,
@@ -80,6 +116,7 @@ export function TaskFacts({
   editable,
   calls,
   onPriority,
+  onAutoTake,
   onMoved,
 }: {
   readonly task: TaskDetail;
@@ -88,6 +125,7 @@ export function TaskFacts({
   readonly editable: boolean;
   readonly calls: FlowCalls;
   readonly onPriority: (next: TaskPriority) => Promise<unknown>;
+  readonly onAutoTake: (next: boolean) => Promise<unknown>;
   readonly onMoved: () => void;
 }) {
   const cancel = useTaskCancel(task, calls, onMoved);
@@ -132,6 +170,9 @@ export function TaskFacts({
         <StatusValue task={task} cancel={cancel} />
       </Fact>
       <StatusPanel task={task} calls={calls} cancel={cancel} onMoved={onMoved} />
+      <Fact term="Autotake">
+        <AutoTake value={task.autoTake} editable={editable && task.state === 'queued'} onSave={onAutoTake} />
+      </Fact>
       {task.closedAt && (
         <Fact term="Closed">
           <When at={task.closedAt} />

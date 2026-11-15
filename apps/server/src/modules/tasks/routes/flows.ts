@@ -100,8 +100,8 @@ const patchRoute = (deps: ServerDeps) => {
     method: 'patch',
     summary: 'Rename a flow or change its auto-take from Queued (its Lead people, admins and owners)',
     description:
-      'Only what is sent changes. With `autoTake` on, the next queued task (by priority, then the oldest) enters the ' +
-      'first step by itself while fewer than `inProgressLimit` of the flow\'s tasks are active; turning it on or ' +
+      'Only what is sent changes. With `autoTake` on, the next queued task marked `autoTake` (by priority, then the ' +
+      'oldest) enters the first step by itself while fewer than `inProgressLimit` of the flow\'s tasks are active; turning it on or ' +
       'raising the limit takes at once.',
     request: { params: FlowParamsSchema, body: jsonBody(PatchFlowSchema) },
     responses: {

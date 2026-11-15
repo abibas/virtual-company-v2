@@ -158,10 +158,10 @@ async function activeCount(t: TenantDb, flowId: string): Promise<number> {
 const PRIORITY_RANK = sql`case ${tasks.priority}
   when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`;
 
-/** The flow's next queued tasks to take: by priority, then the oldest first. */
+/** The flow's next queued tasks marked Autotake (T-34) to take: by priority, then the oldest first. */
 const nextQueued = (t: TenantDb, flowId: string, limit: number): Promise<Task[]> =>
   t
-    .select(tasks, and(eq(tasks.flowId, flowId), eq(tasks.state, 'queued')))
+    .select(tasks, and(eq(tasks.flowId, flowId), eq(tasks.state, 'queued'), eq(tasks.autoTake, true)))
     .orderBy(PRIORITY_RANK, asc(tasks.createdAt), asc(tasks.number))
     .limit(limit);
 
