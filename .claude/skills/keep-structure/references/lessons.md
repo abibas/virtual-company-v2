@@ -295,3 +295,5 @@ count clearly grew. The review adds a row.
 | 2026-11-12 | S6, after the approved changes        | 30         | 37            | 34         | 12     | –            | 113   |
 | 2026-11-12 | S6c merged, before items 3 and 4      | 30         | 38            | 34         | 12     | –            | 114   |
 | 2026-11-12 | S6, after items 3 and 4 (fresh check) | 29         | 38            | 34         | 12     | 40           | 153   |
+| 2026-11-15 | S7, before the review (T-17)          | 42         | 77            | 47         | 17     | –            | 183   |
+| 2026-11-15 | S7, after the review (fresh check)    | 41         | 34            | 49         | 17     | 85           | 226   |

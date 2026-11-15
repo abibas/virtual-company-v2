@@ -13,17 +13,14 @@ this is the short version Ihor and the main chat work from. Items move to the ro
   - the merge moves the task to Done.
 - [ ] **S7.4 Jira intake:** the flow's Jira sources (a parent's children, labels, single tickets) through an
       Atlassian profile. **Take** puts a ticket in Queued; optionally, a merged PR moves the ticket to Done.
-- [ ] **S7.5 Work in progress:** a per-flow limit on tasks in progress (the old app used 5), with auto-start from
-      Queued under it (off by default).
 - [ ] **S7.6 Confluence as a place for results:** a step publishes its artifacts or a summary to a page.
-- [ ] **S7.7 Sprints tied to releases**, and AI gateway routing per machine.
+- [ ] **S7.7 Sprints tied to releases**, and AI gateway routing per machine. Sprints themselves are built (T-37); what is
+      left is tying them to releases.
 - [ ] **The real-ticket rehearsal**, end to end on one ticket. It waits for Ihor's answers: which repo, what Done
       means, parallel work.
-- [ ] **The stage gate S7→S8:**
-  - the full `pnpm mwc check` with coverage;
-  - the structure review (`.claude/skills/keep-structure/references/review.md`), with at most 5 improvements to
-    Ihor;
-  - tag `v0.7.0`.
+- [ ] **The stage gate S7→S8 (T-17):** the structure review is done (5 of 5 approved) and the full `pnpm mwc check`
+      is green on branch `t-17-stage-gate`, which sits on the T-26 test pass. Left for Put live: merge T-26, then
+      T-17, then tag `v0.7.0` and push.
 - [ ] **S8 cloud deployment:** a hardened compose with TLS and backups, k8s, a staging instance, the runner's signed
       self-update, email over SMTP.
 - [ ] **Bonus, only after Ihor approves everything works:** the animated assembly-line view of a flow's stages (a
@@ -47,8 +44,6 @@ this is the short version Ihor and the main chat work from. Items move to the ro
 
 - [ ] About 60 old agent worktrees under `.claude/worktrees/` (`git worktree list`). List them for Ihor before removing
       any.
-- [ ] Split files near the 300-line limit: `apps/runner/src/turns/turn.ts` (about 298),
-      `apps/server/src/modules/chats/schemas.ts` (about 299).
-- [ ] Open keep-structure lessons from S7 (`.claude/skills/keep-structure/references/lessons.md`) for the stage
-      review.
+- [ ] The next near-limit files, split when they are next changed: `packages/shared/src/enums.ts` (289 of 300),
+      `packages/db/src/schema/chats.ts` (288), `apps/web/src/pages/design/flows/conversation-sample.ts` (292).
 - [ ] Later: Slack could mirror the team structure (a channel per team), Ihor's idea of 2026-11-13.

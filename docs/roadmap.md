@@ -1021,11 +1021,37 @@ Each item names the v1 behaviour it replaces and ships with integration tests.
    its ticket to Done in Jira.
 5. **S7.5 Work in progress:** an in-progress limit per flow (v1 used 5) and auto-start from Queued under it (off by
    default).
+   **Built 2026-11-14/15 as tasks** (docs/processes.md, "The queue, Autotake, reopen and sprints"): Autotake per flow
+   with its in-progress limit (T-25, `flows.auto_take`, `in_progress_limit` 1–20, default 2, off by default), per task
+   (T-34, `tasks.auto_take`, Manual by default), the flow's defaults for new tasks (T-38: Queued or a step, Manual or
+   Autotake), and the queue's order with "waits for" (T-39, `tasks.queue_position`, `task_waits`, drag in Queued).
 6. **S7.6 Confluence as a place for results:** a step can publish its artifacts or a summary to a Confluence page in
    the profile's space, and the task links to it.
 7. Sprints tied to releases (v1's Sprints page), and AI gateway routing per machine.
+   **Sprints built 2026-11-15** (T-37: New sprint… on a flow's board, each sprint's dates and its report, every task
+   in one); not tied to releases yet, and gateway routing per machine is still to do.
+
+**Tasks of the "Company self improvements" flow, built 2026-11-14/15** (Ihor's reports, each a Most Wanted task the
+Developer built and the PM put live; docs/processes.md has the task-side ones): T-18 and T-20 images in a chat message
+(up to 6, `[Image N]` markers in the text); T-19 task conversations in the agent's chats; T-22 a Slack answer that was
+not posted says why (`chat_turns.reply_failure`); T-23 the Slack card refreshes after a new sign-in; T-24 Slack posts
+in mrkdwn; T-4 the runner's `turn.ts` and the chats' `schemas.ts` split before 300 lines; T-27 a Status row with one
+Cancel, cancelled tasks red in Done; T-28 reopen a done task with a correction; T-29 corrections go back to Develop,
+never made at sign-off (`caps.agentToolNames`); T-30 the task page opens on Description; T-31 agents' faces link to
+their page; T-32 Send while dictating; T-33, T-35 and T-36 the composer's dictation bar, mic and Send lined up. The
+test pass for T-18 to T-39 is T-26 (the full suite, its stale tests and the missing ones, docs/processes.md).
+
+Not built in S7, carried on: S7.2 per-task worktrees, S7.3 pull requests, S7.4 Jira intake and S7.6 Confluence results
+(docs/todo.md).
 
 Last item: **Structure review** (`.claude/skills/keep-structure/references/review.md`): `pnpm mwc structure --report` and the open lessons, then at most 5 improvements, each with its evidence, to Ihor before the tag; each one he approves lands as its own commit.
+**Done 2026-11-15** (T-17; all 5 approved, one commit each, pure refactors and one warning rule): (1) the chats'
+`service/turns.ts` 297 → 234 lines (its spec's tools in `service/turn-spec.ts`); (2) the runner's `turns/turns.ts`
+288 → 246 (`HarnessHost` in `turns/host.ts`); (3) the web's `task/TaskActions.tsx` 291 → 180 (`task/MovePanel.tsx`);
+(4) the nine S6–S7 lessons that proposed a placement row became 12 rows of SKILL.md and moved to the archive
+(`lessons.md` 441 → 297 lines); (5) `long-function` gives the web's components and hooks 100 lines (77 → 34 warnings).
+`runner-frames.ts`, over 300 in this batch, was split by T-26 (`runner-protocol/caps.ts`). The report went from 183
+warnings to 140. The tag `v0.7.0` and its push follow at Put live, after T-26 and T-17 are merged.
 
 ### S8 — cloud deployment
 
