@@ -100,8 +100,8 @@ const ACTION: Readonly<Record<'hand_on' | 'pass' | 'approve', StepEndAction>> = 
 
 /**
  * The line of a decision applied as a move (`transition`): handed on, passed or approved to the next step (or Done),
- * sent back to its step, or escalated past the limit; its words are a send-back's reason, else the decision's note, else
- * the turn's reply.
+ * sent back to its step, escalated past the limit, or a closed task reopened (T-28); its words are a send-back's or a
+ * reopen's reason, else the decision's note, else the turn's reply.
  */
 export function movedLine(
   decision: Pick<TaskDecision, 'action' | 'reason' | 'note' | 'round'>,
@@ -114,6 +114,10 @@ export function movedLine(
     const action = transition.outcome === 'escalated' ? 'escalated' : 'send_back';
     const to = action === 'escalated' ? null : transition.to;
     return { details: { action, from, to, round }, words: stepEndWords(decision.reason) };
+  }
+  if (decision.action === 'reopen') {
+    const details = { action: 'reopen' as const, from, to: transition.to, round };
+    return { details, words: stepEndWords(decision.reason) };
   }
   const action = ACTION[decision.action as keyof typeof ACTION] ?? 'hand_on';
   const to = transition.outcome === 'done' ? null : transition.to;

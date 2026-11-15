@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   Play,
   RefreshCw,
+  RotateCcw,
   Route,
   Stamp,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import { ConfirmInline } from '../../../components/forms/ConfirmInline.tsx';
 import { Select, Textarea } from '../../../components/forms/Input.tsx';
 import { Button, type ButtonTone } from '../../../components/ui/Button.tsx';
 import { ForceMove, TurnEnded } from './ForceMove.tsx';
+import { ReopenPanel } from './ReopenPanel.tsx';
 
 /** The buttons of the moves that need nothing more than a press. */
 const PLAIN: Readonly<Partial<Record<TaskAction, { label: string; icon: LucideIcon; tone: ButtonTone }>>> = {
@@ -99,7 +101,7 @@ function MovePanel({
   );
 }
 
-type Panel = 'send_back' | 'route';
+type Panel = 'send_back' | 'route' | 'reopen';
 
 type Sent = Omit<TaskMove, 'fromStepId'>;
 
@@ -176,7 +178,7 @@ function PlainButtons({
   });
 }
 
-/** The row of buttons: the one-press moves, Send back…, Route to step… and Cancel (asked first). */
+/** The row of buttons: the one-press moves, Send back…, Route to step…, Reopen… (T-28) and Cancel (asked first). */
 function MoveButtons({
   task,
   flow,
@@ -201,6 +203,11 @@ function MoveButtons({
           Route to step…
         </Button>
       )}
+      {has('reopen') && (
+        <Button size="sm" tone="primary" icon={RotateCcw} disabled={!idle} onClick={() => move.toggle('reopen')}>
+          Reopen…
+        </Button>
+      )}
       {has('cancel') && (
         <div className="ml-auto">
           <ConfirmInline
@@ -217,7 +224,8 @@ function MoveButtons({
 
 /**
  * The moves the caller may make on the task now (the API's `actions`): Start, the step's outcome (Hand on, Pass or
- * Approve, with where it goes), Send back (a reason is required), Route to a step, Retry, and Cancel (asked first).
+ * Approve, with where it goes), Send back (a reason is required), Route to a step, Retry, Reopen a done or cancelled
+ * task with a correction (T-28), and Cancel (asked first).
  * Each is sent with the step the page shows the task at, so a task that moved meanwhile is refused, not moved twice.
  * A move refused while the step's turn runs offers "Stop the turn and move" (S5.3b); a turn that ended without a
  * hand-off says what to do next.
@@ -237,7 +245,16 @@ export function TaskActions({
   return (
     <div className="flex flex-col gap-2">
       <MoveButtons task={task} flow={flow} move={move} />
-      {move.panel && (
+      {move.panel === 'reopen' && (
+        <ReopenPanel
+          task={task}
+          flow={flow}
+          busy={move.busy !== undefined}
+          onSend={(next) => void move.act(next)}
+          onClose={() => move.setPanel(undefined)}
+        />
+      )}
+      {move.panel && move.panel !== 'reopen' && (
         <MovePanel
           key={move.panel}
           kind={move.panel}

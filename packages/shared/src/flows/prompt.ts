@@ -13,7 +13,15 @@ import type { FlowStepKind, TaskArtifactKind } from './enums.ts';
  */
 
 /** How a task came to the step this time (the history row that brought it), or `new` for none before it. */
-export type ArrivalKind = 'new' | 'handed_on' | 'passed' | 'signed_off' | 'sent_back' | 'routed' | 'retried';
+export type ArrivalKind =
+  | 'new'
+  | 'handed_on'
+  | 'passed'
+  | 'signed_off'
+  | 'sent_back'
+  | 'routed'
+  | 'retried'
+  | 'reopened';
 
 /** One artifact as a prompt lists it. */
 export interface PromptArtifact {
@@ -130,9 +138,14 @@ function toolsAsk(input: StepPromptInput, to: string, back: string): string {
       `your turn.${back}`
     );
   }
+  const reopen = input.next
+    ? ''
+    : ' Once it is done, if the person says in this conversation that it is wrong, call task_reopen {reason, ' +
+      'findings: their correction}: it goes back for another round in the same conversation. Never file a new task ' +
+      'for it.';
   return (
     'Decide whether the task is done. Call task_approve (with a note, if any) or task_send_back {reason, findings}, ' +
-    `and end your turn.${back}`
+    `and end your turn.${back}${reopen}`
   );
 }
 
@@ -153,6 +166,11 @@ function arrivalLine(input: StepPromptInput): string {
       return `The team's Lead put it at this step${from ? ` from "${from}"` : ''}.`;
     case 'retried':
       return "It came back after an escalation to the team's Lead.";
+    case 'reopened':
+      return (
+        `It was closed${from ? ` at "${from}"` : ''}, and is reopened with a correction: back with you for ` +
+        `round ${input.round}. Do what the correction asks, on the work you did before (the same branch, if any).`
+      );
     default:
       return 'The task is new here: no step handed anything on yet.';
   }
@@ -175,7 +193,8 @@ function handoffText(input: StepPromptInput, artifactsTitle: string): string {
   const { arrival, reply } = input.handoff;
   const parts = [arrivalLine(input)];
   if (arrival.reason) {
-    const why = arrival.kind === 'sent_back' ? 'Their reason and findings:' : 'Why:';
+    const why =
+      arrival.kind === 'sent_back' || arrival.kind === 'reopened' ? 'Their reason and findings:' : 'Why:';
     parts.push(`${why}\n${quoted(arrival.reason)}`);
   }
   if (reply && arrival.from)

@@ -5,8 +5,9 @@ import type { TaskTurnContext } from '../../chats/index.ts';
 import type { CollectedArtifact, TurnCollected } from '../../machines/index.ts';
 import { principalNames } from '../../org/index.ts';
 import type { ArtifactRow, TasksRepo } from '../repo.ts';
+import { reopenNote } from '../rules/decision.ts';
 import { noteBytes, skipWords } from '../rules/runs.ts';
-import { type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
+import { type Refusal, refuse, roundsAt, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
 import type { ArtifactView } from '../schemas/artifacts.ts';
 
 /**
@@ -86,6 +87,41 @@ export async function storeNote(repo: TasksRepo, t: TenantDb, turn: TaskTurnCont
   const bytes = noteBytes(text);
   await repo.artifacts.upsert(t, {
     ...(await base(repo, t, turn)),
+    name: HANDOFF_NOTE,
+    kind: 'note',
+    contentType: 'text/markdown; charset=utf-8',
+    size: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    bytes,
+    note: null,
+  });
+}
+
+/**
+ * A reopen's correction (T-28) by a person or the Lead, kept as the hand-off note of the step the task was closed at,
+ * in its last round there (in place of that round's note), as its creator: the step it goes back to reads it.
+ */
+export async function storeReopenNote(
+  repo: TasksRepo,
+  t: TenantDb,
+  reopen: {
+    readonly task: Task;
+    readonly step: { readonly id: string; readonly name: string };
+    readonly by: string;
+    readonly reason: string | undefined;
+    readonly findings: string | undefined;
+  },
+) {
+  const { task, step } = reopen;
+  const bytes = noteBytes(reopenNote(reopen.reason?.trim() ?? null, reopen.findings?.trim() || null));
+  await repo.artifacts.upsert(t, {
+    taskId: task.id,
+    stepId: step.id,
+    stepName: step.name,
+    round: Math.max(1, roundsAt(task.rounds, step.id).entries),
+    chatId: null,
+    turnId: null,
+    createdBy: reopen.by,
     name: HANDOFF_NOTE,
     kind: 'note',
     contentType: 'text/markdown; charset=utf-8',

@@ -49,6 +49,7 @@ const VERB: Readonly<Record<TaskEvent['kind'], string>> = {
   edited: 'edited',
   blocked: 'blocked',
   turn_ended: 'ended its turn',
+  reopened: 'reopened it',
 };
 
 /** A row's dot colour in the log. */
@@ -68,6 +69,7 @@ export const DOT: Readonly<Record<TaskEvent['kind'], string>> = {
   edited: 'bg-faint',
   blocked: 'bg-failed',
   turn_ended: 'bg-input',
+  reopened: 'bg-blue',
 };
 
 /** Where it moved: "Develop → Code review", "at QA". */
@@ -90,6 +92,8 @@ export function eventWords(event: TaskEvent): string {
       return `Entered ${event.to?.name ?? 'a step'}${event.round ? ` · round ${event.round}` : ''}`;
     case 'done':
       return 'Done';
+    case 'reopened':
+      return `Reopened by ${who ?? 'someone'}${where(event)}`;
     case 'blocked':
       return `Blocked${where(event)}${who ? ` · by ${who}` : ''}`;
     case 'turn_ended':
@@ -119,6 +123,8 @@ export function asideWords(event: TaskEvent): string {
     case 'routed':
     case 'retried':
       return `${who} ${VERB[event.kind]} here`;
+    case 'reopened':
+      return `Reopened by ${who}`;
     case 'edited':
       return eventWords(event);
     default:

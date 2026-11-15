@@ -7,8 +7,8 @@ import { moveRefusal } from './moves.ts';
 // create tasks; a step's assignee, when a person, moves the task at their step; the Lead's people (the Lead when a
 // person, and every person above it on the chart) and the company's admins and owners make any move and change the
 // flow, each recorded as themselves. Agents act only through their tools: a flow's Lead agent creates tasks in its own
-// flow and routes, starts, retries and cancels them there; a step's agent makes its step's moves on its own step, only
-// as its turn's decision. People keep all their rights.
+// flow and routes, starts, retries, cancels and reopens them there; a step's agent makes its step's moves on its own
+// step, only as its turn's decision (and reopens a task closed at its step, T-28). People keep all their rights.
 
 /**
  * How an agent acts (S6a): as the Lead of a flow, through its board tools in its own chats, or as a step's agent,
@@ -33,8 +33,8 @@ export interface Team {
 }
 
 /** The moves a Lead agent makes in its flow, and the moves a step's agent makes on its step (S6a). */
-const LEAD_AGENT_MOVES: readonly TaskAction[] = ['route', 'start', 'retry', 'cancel'];
-const STEP_AGENT_MOVES: readonly TaskAction[] = ['hand_on', 'pass', 'approve', 'send_back'];
+const LEAD_AGENT_MOVES: readonly TaskAction[] = ['route', 'start', 'retry', 'cancel', 'reopen'];
+const STEP_AGENT_MOVES: readonly TaskAction[] = ['hand_on', 'pass', 'approve', 'send_back', 'reopen'];
 
 /** True for the team's own Lead agent acting through its board tools. */
 const isLeadAgent = (caller: Caller, team: Team) =>
@@ -85,7 +85,8 @@ export function actRefusal(
   step: StepRule | undefined,
 ): Refusal<403> | undefined {
   if (caller.agent !== undefined) return agentActRefusal(caller, team, action, step);
-  if (action === 'route' || action === 'retry' || action === 'cancel') return leadRefusal(caller, team);
+  if (action === 'route' || action === 'retry' || action === 'cancel' || action === 'reopen')
+    return leadRefusal(caller, team);
   return mayActAt(caller, team, step) ? undefined : NOT_YOUR_STEP;
 }
 

@@ -46,6 +46,14 @@ export const AGENT_TOOL_INFO: Readonly<
     description:
       'You cannot go on: say why. The task is marked blocked when your turn ends, for a person to unblock; end it now.',
   },
+  task_reopen: {
+    title: 'Reopen the task',
+    description:
+      'The task is done (or cancelled) but the person says it is wrong: reopen it with their correction (why, and ' +
+      'your findings: what is wrong, where, what to change). It goes back to the step your step sends back to, as ' +
+      'a new round in that step’s same conversation, when your turn ends; end it now. Never file a new task for ' +
+      'a correction of this one.',
+  },
   team_board: {
     title: 'Team board',
     description:
@@ -62,7 +70,10 @@ export const AGENT_TOOL_INFO: Readonly<
   },
   task_route: {
     title: 'Route a task',
-    description: 'Put a task of your flow into a step (a queued, active or escalated one). Acts at once.',
+    description:
+      'Put a task of your flow into a step (a queued, active or escalated one). A done or cancelled task is ' +
+      'reopened there, as a new round, with a reason (required): use it when someone says a closed task is wrong, ' +
+      'never a new task. Acts at once.',
   },
   task_start: {
     title: 'Start a task',
@@ -96,7 +107,7 @@ export function leadSection(flowName: string): string {
     '## Leading your team (from Most Wanted)',
     '',
     `You lead the flow "${flowName.replace(/\s+/g, ' ').trim()}". Your tools act at once, as you: team_board, ` +
-      'task_show {key}, task_create {title, description?, priority?, step?}, task_route {key, step}, ' +
+      'task_show {key}, task_create {title, description?, priority?, step?}, task_route {key, step, reason?}, ' +
       'task_start {key}, task_retry {key} and task_cancel {key, reason}. Each step’s agent moves its own task ' +
       'when its turn ends; you distribute the work, unblock it, and decide on escalations.',
     '',
@@ -105,5 +116,7 @@ export function leadSection(flowName: string): string {
       'regular check-ins.',
     '- Never edit a step’s files or artifacts: that is its agent’s work. Say what is wrong, then route the task ' +
       'back (task_route) or start the step again (task_start).',
+    '- When someone says a done task is wrong, reopen it: task_route {key, step, reason: their correction} puts it ' +
+      'back into that step as a new round, in its same conversation. Never file a new task for it.',
   ].join('\n');
 }

@@ -1,4 +1,5 @@
 import type { Flow, FlowStep, TenantDb } from '@mwc/db';
+import type { TaskAction } from '@mwc/shared/enums';
 import { type AGENT_TOOL_INPUTS, LEAD_ACTIONS, type LEAD_TOOLS, taskNumber } from '@mwc/shared/flows';
 import type { z } from 'zod';
 import type { AgentToolTurn } from '../../chats/index.ts';
@@ -14,8 +15,8 @@ import { createTask, shownTask } from './tasks.ts';
 /**
  * A flow Lead's tools in its own chats (S6a, docs/processes.md "Built in S6a"): the board, a task, a new task, and the
  * moves `route`, `start`, `retry` and `cancel`, applied at once as the S5.3a actions are, acting as the Lead agent (its
- * history rows and audit rows name it; a step that starts by itself runs as it). Only its own flow: a task of another
- * flow is not found. Every rule of the moves holds (a move while the task's turn runs is refused, never forced).
+ * history rows and audit rows name it; a step that starts by itself runs as it); a route of a done or cancelled task
+ * reopens it into that step with its reason (T-28). Only its own flow: a task of another flow is not found. Every rule of the moves holds (a move while the task's turn runs is refused, never forced).
  */
 
 type LeadTool = (typeof LEAD_TOOLS)[number];
@@ -97,7 +98,10 @@ export async function leadTool(
     toStepId = stepNamed(steps, input.step)?.id;
     if (toStepId === undefined) return noStep(input.step, steps);
   }
-  const body = { action: LEAD_ACTIONS[tool], toStepId, reason: input.reason, fromStepId: task.currentStepId };
+  // A route of a done or cancelled task reopens it there (T-28), with its reason as the correction.
+  const closed = task.state === 'done' || task.state === 'cancelled';
+  const action: TaskAction = tool === 'task_route' && closed ? 'reopen' : LEAD_ACTIONS[tool];
+  const body = { action, toStepId, reason: input.reason, fromStepId: task.currentStepId };
   const done = await actOnTask(deps, repo, t, caller, { ref: { id: task.id }, body, now });
   return done.ok ? { ok: true, text: movedText(done.outcome, done.task) } : { ok: false, text: done.message };
 }

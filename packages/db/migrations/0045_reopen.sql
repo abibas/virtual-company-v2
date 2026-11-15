@@ -1,0 +1,2 @@
+ALTER TABLE "task_events" DROP CONSTRAINT "task_events_kind_check";--> statement-breakpoint
+ALTER TABLE "task_events" ADD CONSTRAINT "task_events_kind_check" CHECK ("task_events"."kind" in ('created', 'entered', 'started', 'handed_on', 'passed', 'sent_back', 'escalated', 'signed_off', 'routed', 'retried', 'done', 'cancelled', 'edited', 'blocked', 'turn_ended', 'reopened'));

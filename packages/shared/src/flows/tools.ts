@@ -24,6 +24,7 @@ export const STEP_TOOLS = [
   'task_send_back',
   'task_attach',
   'task_blocked',
+  'task_reopen',
 ] as const;
 
 /** A flow Lead's tools, in its own chats. */
@@ -60,6 +61,12 @@ export const stepTools = (kind: FlowStepKind): AgentTool[] => [
   'task_blocked',
 ];
 
+/**
+ * The tools of the conversation a task was closed in (T-28), while it is done or cancelled: read it, and reopen it with
+ * the person's correction.
+ */
+export const CLOSED_TOOLS: readonly AgentTool[] = ['task_read', 'task_reopen'];
+
 /** The step tools a turn records as its decision, and what each does when the turn ends. */
 export const DECISION_ACTIONS = {
   task_hand_on: 'hand_on',
@@ -67,6 +74,7 @@ export const DECISION_ACTIONS = {
   task_approve: 'approve',
   task_send_back: 'send_back',
   task_blocked: 'blocked',
+  task_reopen: 'reopen',
 } as const satisfies Partial<Record<AgentTool, TaskAction | 'blocked'>>;
 export type DecisionTool = keyof typeof DECISION_ACTIONS;
 export type DecisionAction = (typeof DECISION_ACTIONS)[DecisionTool];
@@ -149,6 +157,10 @@ export const AGENT_TOOL_INPUTS = {
   }),
   task_attach: AttachInput,
   task_blocked: z.object({ reason: text(TASK_REASON_MAX, 'What stops you, and what would unblock you') }),
+  task_reopen: z.object({
+    reason: text(TASK_REASON_MAX, 'What is wrong with the closed task, in a sentence or two'),
+    findings: text(TOOL_TEXT_MAX, 'The person’s correction: what is wrong, where, and what to change'),
+  }),
   team_board: z.object({}),
   task_show: z.object({ key: TaskKey }),
   task_create: z.object({
@@ -157,7 +169,11 @@ export const AGENT_TOOL_INPUTS = {
     priority: TaskPriority.optional().describe('low, normal (the default), high or urgent'),
     step: StepRef.optional().describe('A step to put it into at once; left out, it waits in Queued'),
   }),
-  task_route: z.object({ key: TaskKey, step: StepRef }),
+  task_route: z.object({
+    key: TaskKey,
+    step: StepRef,
+    reason: text(TASK_REASON_MAX, 'Why; required to reopen a done or cancelled task').optional(),
+  }),
   task_start: z.object({ key: TaskKey }),
   task_retry: z.object({ key: TaskKey }),
   task_cancel: z.object({ key: TaskKey, reason: Reason }),

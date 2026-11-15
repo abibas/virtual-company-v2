@@ -1,11 +1,12 @@
 import type { Flow, Task, TenantDb } from '@mwc/db';
 import type { TasksRepo } from '../repo.ts';
 import { actRefusal } from '../rules/access.ts';
-import { move, type Transition } from '../rules/machine.ts';
+import { closedFromOf, move, type Transition } from '../rules/machine.ts';
 import { moveRefusal } from '../rules/moves.ts';
 import { type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
 import type { TaskActionRequest, TaskDetailView } from '../schemas/tasks.ts';
 import { applyMove } from './apply.ts';
+import { storeReopenNote } from './artifacts.ts';
 import type { Caller } from './audit.ts';
 import { endsProgress, takeQueued } from './auto-take.ts';
 import { type RunDeps, runStep, startedNow } from './runs.ts';
@@ -34,7 +35,9 @@ export type MoveResult =
  * `already_at_step`). A send-back over its step's limit is not refused: it escalates the task to the Lead. While a turn
  * of its step's conversations runs (S5.3b), a move is refused after the caller's own checks (409 `step_running`) unless
  * it says `force`, which stops that turn once the move is written. A move that starts the task at an agent's step runs
- * the step (`runStep`), after the transaction; one that ends its time in progress lets the flow auto-take (T-25).
+ * the step (`runStep`), after the transaction; one that ends its time in progress lets the flow auto-take (T-25). A
+ * reopen (T-28) keeps its reason and findings as the round's hand-off note of the step the task was closed at, so the
+ * step it goes back to reads the correction in its prompt.
  */
 export async function actOnTask(
   deps: Deps,
@@ -64,10 +67,19 @@ export async function actOnTask(
       const denied = actRefusal(caller, roster.team(flow.leadPrincipalId), body.action, current);
       if (denied) return denied;
       if (running !== undefined && task.currentStepId === at && body.force !== true) return STEP_RUNNING;
-      const transition = move(task, steps, body, roster.isPerson);
+      // A reopen (T-28) leaves from the step the task was closed at.
+      const reopening = body.action === 'reopen';
+      const closedFrom = reopening ? closedFromOf(await repo.tasks.events(tx, task.id)) : null;
+      const transition = move(task, steps, { ...body, closedFrom }, roster.isPerson);
       if (!transition.ok) return transition;
-      const moved = { task, flow, from: current, roster, transition, action: body.action, now: request.now };
-      return { ok: true, transition, task: await applyMove(repo, tx, caller, moved) };
+      const from = reopening ? steps.find((step) => step.id === transition.events[0]?.from?.id) : current;
+      const moved = { task, flow, from, roster, transition, action: body.action, now: request.now };
+      const after = await applyMove(repo, tx, caller, moved);
+      if (reopening && from !== undefined) {
+        const note = { task, step: from, by: caller.principalId, reason: body.reason, findings: body.findings };
+        await storeReopenNote(repo, tx, note);
+      }
+      return { ok: true, transition, task: after };
     },
   );
   if (!done.ok) return done;

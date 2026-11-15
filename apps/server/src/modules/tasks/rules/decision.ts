@@ -39,6 +39,10 @@ export function decisionInput(tool: DecisionTool, input: Input<DecisionTool>): D
       const { reason, findings } = input as Input<'task_send_back'>;
       return { action: 'send_back', reason, note: findings };
     }
+    case 'task_reopen': {
+      const { reason, findings } = input as Input<'task_reopen'>;
+      return { action: 'reopen', reason, note: findings };
+    }
     default:
       return { action: 'blocked', reason: (input as Input<'task_blocked'>).reason, note: null };
   }
@@ -52,16 +56,53 @@ export interface StepTurnRef {
 
 const moved = refuse(409, 'task_moved', 'The task is no longer at your step: nothing was recorded.');
 
+const isClosed = (task: TaskNow) => task.state === 'done' || task.state === 'cancelled';
+
+/**
+ * True when the turn is of the conversation the task was closed in (T-28): the task is done or cancelled, and closed at
+ * the turn's step (`closedFrom`), whose agent the turn's is. Its tools are then `CLOSED_TOOLS`.
+ */
+export const closedHere = (
+  task: TaskNow,
+  step: StepRule | undefined,
+  turn: StepTurnRef,
+  closedFrom: string | null,
+): boolean =>
+  isClosed(task) &&
+  closedFrom === turn.stepId &&
+  step !== undefined &&
+  step.assigneePrincipalId === turn.agentPrincipalId;
+
+/** Why this turn may not reopen the task (T-28): it is not closed, or it was not closed at this turn's step. */
+function reopenRefusal(
+  task: TaskNow,
+  step: StepRule | undefined,
+  turn: StepTurnRef,
+  closedFrom: string | null,
+): Refusal<403 | 409> | undefined {
+  if (!isClosed(task))
+    return refuse(409, 'wrong_state', 'The task is not closed: task_reopen is for a done or cancelled task.');
+  if (closedHere(task, step, turn, closedFrom)) return undefined;
+  return refuse(
+    403,
+    'not_your_step',
+    'The task was not closed at your step: only the conversation it was closed in reopens it. Nothing was recorded.',
+  );
+}
+
 /**
  * Why this step's turn may not use `tool` on the task now: the task left the step (409 `task_moved`), the step is gone
- * or another's (403 `not_your_step`), or the tool is not one of the step's kind (422 `wrong_kind`).
+ * or another's (403 `not_your_step`), or the tool is not one of the step's kind (422 `wrong_kind`). `task_reopen` is
+ * the closing conversation's (T-28): the task closed at the turn's step (`closedFrom`).
  */
 export function stepToolRefusal(
   task: TaskNow,
   step: StepRule | undefined,
   turn: StepTurnRef,
   tool: string,
+  closedFrom: string | null = null,
 ): Refusal<403 | 409 | 422> | undefined {
+  if (tool === 'task_reopen') return reopenRefusal(task, step, turn, closedFrom);
   if (task.state !== 'active' || task.currentStepId !== turn.stepId) return moved;
   if (step === undefined || step.assigneePrincipalId !== turn.agentPrincipalId)
     return refuse(403, 'not_your_step', 'This step is no longer yours: nothing was recorded.');
@@ -91,9 +132,11 @@ export function previewDecision(
   steps: readonly StepRule[],
   input: DecisionInput,
   isPerson: IsPerson,
+  closedFrom: string | null = null,
 ): DecisionPreview | Refusal<409 | 422> {
   if (input.action === 'blocked') return { outcome: 'blocked', to: null };
-  const transition = move(task, steps, { action: input.action, reason: input.reason ?? undefined }, isPerson);
+  const asked = { action: input.action, reason: input.reason ?? undefined, closedFrom };
+  const transition = move(task, steps, asked, isPerson);
   if (!transition.ok) return transition;
   if (transition.outcome === 'escalated') {
     const target = steps.find((step) => step.id === transition.task.escalationTargetStepId) ?? null;
@@ -108,6 +151,7 @@ const ACTION_WORDS: Readonly<Record<DecisionAction, string>> = {
   approve: 'approve',
   send_back: 'send back',
   blocked: 'blocked',
+  reopen: 'reopen',
 };
 
 /** A decision's action in words (`hand on`, `send back`). */
@@ -136,6 +180,13 @@ function outcomeWords(
   if (decision.action === 'send_back' && to) {
     const round = roundsAt(task.rounds, to.id).entries + 1;
     return `when your turn ends the task goes back to "${to.name}" for round ${round}`;
+  }
+  if (decision.action === 'reopen' && to) {
+    const round = roundsAt(task.rounds, to.id).entries + 1;
+    return (
+      `when your turn ends the task is reopened: it goes back to "${to.name}" for round ${round}, in that step's ` +
+      'conversation, with your correction'
+    );
   }
   return `when your turn ends the task goes to "${to?.name ?? 'the next step'}"`;
 }
@@ -187,9 +238,14 @@ export const decisionOf = (task: { readonly decision: TaskDecision | null }, tur
 export function decisionNote(decision: TaskDecision): string | null {
   if (decision.action === 'send_back')
     return `**Sent back:** ${decision.reason}\n\n${decision.note ?? ''}`.trimEnd();
+  if (decision.action === 'reopen') return reopenNote(decision.reason, decision.note);
   if (decision.action === 'blocked') return null;
   return decision.note;
 }
+
+/** A reopen's note (T-28), the round's hand-off note of the step it was closed at: the reason, then the findings. */
+export const reopenNote = (reason: string | null, findings: string | null): string =>
+  `**Reopened:** ${reason ?? ''}\n\n${findings ?? ''}`.trimEnd();
 
 const cut = (text: string) =>
   text.length > TASK_REASON_MAX ? `${text.slice(0, TASK_REASON_MAX - 1)}…` : text;

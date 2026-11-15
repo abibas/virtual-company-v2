@@ -24,6 +24,7 @@ const ARRIVALS: Readonly<Partial<Record<TaskEvent['kind'], ArrivalKind>>> = {
   sent_back: 'sent_back',
   routed: 'routed',
   retried: 'retried',
+  reopened: 'reopened',
 };
 
 type HistoryRow = Pick<

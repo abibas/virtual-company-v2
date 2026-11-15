@@ -58,13 +58,15 @@ export const TaskEventKind = z.enum([
   'edited',
   'blocked',
   'turn_ended',
+  'reopened',
 ]);
 export type TaskEventKind = z.infer<typeof TaskEventKind>;
 
 /**
  * What a person does to a task (`POST …/tasks/{taskId}/actions`): start it at its step; the step's outcome (`hand_on`
  * for Work, `pass` or `send_back` for Check, `approve` or `send_back` for Sign-off); and the Lead's moves: `route` it
- * into a step (a queued, an active or an escalated task), `retry` an escalated one, `cancel` it.
+ * into a step (a queued, an active or an escalated task), `retry` an escalated one, `cancel` it; and `reopen` a done or
+ * cancelled task with a correction (T-28): back into the step its last step sends back to, for another round.
  */
 export const TaskAction = z.enum([
   'start',
@@ -75,6 +77,7 @@ export const TaskAction = z.enum([
   'route',
   'retry',
   'cancel',
+  'reopen',
 ]);
 export type TaskAction = z.infer<typeof TaskAction>;
 
@@ -125,7 +128,8 @@ export type RoomMessageKind = z.infer<typeof RoomMessageKind>;
 
 /**
  * What a step-end line says the step's agent did (`room_messages.details.action`): its decision applied (handed on,
- * passed, approved, sent back, sent back over the limit and so escalated, blocked), or its turn ended without one.
+ * passed, approved, sent back, sent back over the limit and so escalated, blocked, a closed task reopened), or its turn
+ * ended without one.
  */
 export const StepEndAction = z.enum([
   'hand_on',
@@ -135,6 +139,7 @@ export const StepEndAction = z.enum([
   'escalated',
   'blocked',
   'turn_ended',
+  'reopen',
 ]);
 export type StepEndAction = z.infer<typeof StepEndAction>;
 

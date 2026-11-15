@@ -50,6 +50,7 @@ const EVENT_WORDS: Readonly<Record<string, string>> = {
   edited: 'edited',
   blocked: 'blocked',
   turn_ended: 'turn ended',
+  reopened: 'reopened',
 };
 
 /** One history line: `2026-11-11 10:02  sent back Code review → Develop by Olga: tests fail`. */

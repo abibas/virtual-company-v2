@@ -11,6 +11,7 @@ const ACTION_WORDS: Readonly<Record<Decision['action'], string>> = {
   approve: 'approve it',
   send_back: 'send it back',
   blocked: 'mark it blocked',
+  reopen: 'reopen it',
 };
 
 /** What the decision makes, in words: "Developer will hand on to Code review". */

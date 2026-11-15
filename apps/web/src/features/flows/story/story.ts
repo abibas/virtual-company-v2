@@ -35,7 +35,7 @@ export interface StoryStep {
   /** Its entries into this step so far, as the artifacts and conversations count them. */
   readonly stepRound: number | null;
   readonly at: string;
-  /** The person's route or retry that brought it here, when it was one. */
+  /** The person's route, retry or reopen that brought it here, when it was one. */
   readonly arrival: TaskEvent | undefined;
   readonly outcome: Outcome;
   /** Who made the outcome (null: by itself, or still there). */
@@ -149,7 +149,7 @@ export function buildStory(
     const stepId = event.to?.id ?? '';
     if (backward(stepId)) rounds.push({ number: rounds.length + 1, opening: [], steps: [], end: undefined });
     const round = rounds.at(-1) as RoundDraft;
-    const move = carry.findLast((e) => e.kind === 'routed' || e.kind === 'retried');
+    const move = carry.findLast((e) => e.kind === 'routed' || e.kind === 'retried' || e.kind === 'reopened');
     const rest = carry.filter((e) => e !== move);
     // An obvious route (out of the queue, no reason) folds into the step.
     const arrival = move && !isNoise(move) ? move : undefined;

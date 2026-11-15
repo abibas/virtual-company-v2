@@ -2,16 +2,19 @@ import type { TenantDb } from '@mwc/db';
 import {
   AgentTool,
   type AttachInput,
+  CLOSED_TOOLS,
   checkToolInput,
   isDecisionTool,
   LEAD_TOOLS,
   leadSection,
   stepTools,
+  taskKey,
 } from '@mwc/shared/flows';
 import type { AgentToolsPlan, AgentToolTurn, TaskTurnContext, TaskTurnDraft } from '../../chats/index.ts';
 import type { TurnToolCall } from '../../machines/index.ts';
 import type { TasksRepo } from '../repo.ts';
-import { decisionInput } from '../rules/decision.ts';
+import { closedHere, decisionInput } from '../rules/decision.ts';
+import { closedFromOf } from '../rules/machine.ts';
 import { recordDecision, type ToolReply } from './decision.ts';
 import { leadTool } from './lead.ts';
 import type { RunDeps } from './runs.ts';
@@ -36,13 +39,32 @@ export async function toolsFor(
   if (turn.task !== undefined) {
     const task = await repo.tasks.get(t, { id: turn.task.taskId });
     const step = task && (await repo.flows.steps(t, task.flowId)).find((s) => s.id === turn.task?.stepId);
-    return { tools: step === undefined ? [] : stepTools(step.kind) };
+    if (task === undefined || step === undefined) return { tools: [] };
+    const closed = task.state === 'done' || task.state === 'cancelled';
+    const closedFrom = closed ? closedFromOf(await repo.tasks.events(t, task.id)) : null;
+    const ref = { stepId: step.id, agentPrincipalId: turn.agentPrincipalId };
+    if (closedHere(task, step, ref, closedFrom))
+      return { tools: [...CLOSED_TOOLS], instructions: closedSection(taskKey(task.number), task.state) };
+    return { tools: stepTools(step.kind) };
   }
   const flow = await repo.flows.byLead(t, turn.agentPrincipalId);
   return flow === undefined
     ? { tools: [] }
     : { tools: [...LEAD_TOOLS], instructions: leadSection(flow.name) };
 }
+
+/**
+ * The standing instructions of the conversation a task was closed in (T-28): a correction reopens it, never a new task.
+ */
+const closedSection = (key: string, state: string) =>
+  [
+    '## This task is closed (from Most Wanted)',
+    '',
+    `${key} is ${state}. If the person says here that it is wrong or asks for a change to it, call task_reopen ` +
+      '{reason, findings: their correction, in full} and end your turn: the task goes back to the step your step ' +
+      'sends back to as a new round, in that step’s same conversation, and comes back to you after. Never file a ' +
+      'new task for a correction of this one, and never tell the person to file one.',
+  ].join('\n');
 
 /** One call of a turn's tool (see above). */
 export async function callTool(

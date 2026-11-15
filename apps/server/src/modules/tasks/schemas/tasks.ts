@@ -8,7 +8,7 @@ import {
   TaskState,
   TaskStepState,
 } from '@mwc/shared/enums';
-import { TASK_DESCRIPTION_MAX, TASK_PAGE, TASK_REASON_MAX, TASK_TITLE } from '@mwc/shared/flows';
+import { TASK_DESCRIPTION_MAX, TASK_PAGE, TASK_REASON_MAX, TASK_TITLE, TOOL_TEXT_MAX } from '@mwc/shared/flows';
 import { CURSOR_PATTERN, STATES_PATTERN } from '../rules/list.ts';
 import { At, PrincipalRefSchema, StepRefSchema } from '../schemas.ts';
 
@@ -66,8 +66,10 @@ export const TaskActionSchema = z
     action: TaskAction,
     /** `route`: the step the task goes to. */
     toStepId: z.uuid().optional(),
-    /** Why: a send-back's findings (required), a cancel's or a route's reason. */
+    /** Why: a send-back's findings (required), a reopen's correction (required), a cancel's or a route's reason. */
     reason: z.string().max(TASK_REASON_MAX).optional(),
+    /** `reopen` (T-28): what is wrong, where and what to change, kept with its reason as the round's hand-off note. */
+    findings: z.string().max(TOOL_TEXT_MAX).optional(),
     /** The step the caller saw the task at; a task that moved since is refused (409 `task_moved`). */
     fromStepId: z.uuid().nullable().optional(),
     /**
@@ -173,12 +175,12 @@ export const TaskConversationSchema = z
 /** The decision a step's agent recorded with its tools in the turn that runs (S6a), applied when the turn ends. */
 export const TaskDecisionSchema = z
   .object({
-    action: z.enum(['hand_on', 'pass', 'approve', 'send_back', 'blocked']),
+    action: z.enum(['hand_on', 'pass', 'approve', 'send_back', 'blocked', 'reopen']),
     /** What it makes when the turn ends, as found when it was recorded. */
     outcome: z.enum(['moved', 'done', 'escalated', 'blocked']),
     /** The step it goes to (an escalation: where the stopped send-back was going); null for none. */
     to: z.object({ id: z.string(), name: z.string() }).nullable(),
-    /** A send-back's or a block's reason. */
+    /** A send-back's, a block's or a reopen's reason. */
     reason: z.string().nullable(),
     by: PrincipalRefSchema,
     at: At,

@@ -65,6 +65,8 @@ export function stepEndMove(details: Pick<StepEndDetails, 'action' | 'from' | 't
       return `${from} escalated → Lead`;
     case 'blocked':
       return `${from} · blocked`;
+    case 'reopen':
+      return `${from} reopened → ${next}`;
     default:
       return `${from} · no hand-off`;
   }

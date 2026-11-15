@@ -2,8 +2,8 @@ import type { TaskAction, TaskState, TaskStepState } from '@mwc/shared/enums';
 import { type Refusal, refuse, type StepRule, type TaskNow } from '../rules.ts';
 
 // Which moves a task has as it stands (docs/processes.md, "Step kinds"): Work hands on, Check passes or sends back,
-// Sign-off approves or sends back, a step's moves only while the task is active there, a start only while it waits, and
-// the Lead's moves on an open task. Who asks is `rules/access.ts`'s question; what the move makes, `rules/machine.ts`'s.
+// Sign-off approves or sends back, a step's moves only while the task is active there, a start only while it waits,
+// the Lead's moves on an open task, and a reopen of a closed one (T-28). Who asks is `rules/access.ts`'s question; what the move makes, `rules/machine.ts`'s.
 
 const STEP_KIND_OF: Readonly<Record<'hand_on' | 'pass' | 'approve', StepRule['kind']>> = {
   hand_on: 'work',
@@ -11,6 +11,7 @@ const STEP_KIND_OF: Readonly<Record<'hand_on' | 'pass' | 'approve', StepRule['ki
   approve: 'signoff',
 };
 const OPEN: readonly TaskState[] = ['queued', 'active', 'escalated'];
+const CLOSED: readonly TaskState[] = ['done', 'cancelled'];
 const STARTABLE: readonly (TaskStepState | null)[] = ['waiting', 'blocked', 'ended_without_handoff'];
 
 const wrongState = (message: string) => refuse(409, 'wrong_state', message);
@@ -30,6 +31,9 @@ export function moveRefusal(
 ): Refusal<409 | 422> | undefined {
   if (action === 'route' || action === 'cancel') {
     return OPEN.includes(task.state) ? undefined : wrongState(`The task is ${task.state}`);
+  }
+  if (action === 'reopen') {
+    return CLOSED.includes(task.state) ? undefined : wrongState('Only a done or cancelled task is reopened');
   }
   if (action === 'retry') {
     return task.state === 'escalated' ? undefined : wrongState('Only an escalated task is retried');

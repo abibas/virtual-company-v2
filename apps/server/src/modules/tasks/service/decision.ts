@@ -4,6 +4,7 @@ import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
 import { actRefusal } from '../rules/access.ts';
 import {
+  closedHere,
   type DecisionInput,
   decidedBlock,
   decisionAnswer,
@@ -13,7 +14,7 @@ import {
   previewDecision,
   stepToolRefusal,
 } from '../rules/decision.ts';
-import { move, type Transition } from '../rules/machine.ts';
+import { closedFromOf, move, type Transition } from '../rules/machine.ts';
 import { moveRefusal } from '../rules/moves.ts';
 import { movedLine, type StepEndLine, stoppedLine } from '../rules/room.ts';
 import { applyMove } from './apply.ts';
@@ -72,10 +73,11 @@ export async function recordDecision(
   return t.transaction(async (tx): Promise<ToolReply> => {
     const { task: now, steps } = await locked(repo, tx, turn.taskId);
     const step = steps.find((s) => s.id === turn.stepId);
-    const refused = stepToolRefusal(now, step, turn, call.tool);
+    const closedFrom = call.tool === 'task_reopen' ? closedFromOf(await repo.tasks.events(tx, now.id)) : null;
+    const refused = stepToolRefusal(now, step, turn, call.tool, closedFrom);
     if (refused) return { ok: false, text: refused.message };
     const roster = await rosterOf(tx);
-    const preview = previewDecision(now, steps, call.decision, roster.isPerson);
+    const preview = previewDecision(now, steps, call.decision, roster.isPerson, closedFrom);
     if ('ok' in preview) return { ok: false, text: `${preview.message}: nothing was recorded.` };
     const replaced = decisionOf(now, turn.turnId)?.action ?? null;
     const decision = decisionRow(turn, turn.agentPrincipalId, call.decision, preview, call.now);
@@ -114,6 +116,15 @@ export async function applyDecision(
     const { flow, task, steps } = await locked(repo, tx, turn.taskId);
     const decision = decisionOf(task, turn.turnId);
     const step = steps.find((s) => s.id === decision?.stepId);
+    if (decision?.action === 'reopen') {
+      // A reopen (T-28) from the conversation the task was closed in, while it still is closed there.
+      const closedFrom = closedFromOf(await repo.tasks.events(tx, task.id));
+      if (!closedHere(task, step, turn, closedFrom)) {
+        await repo.tasks.update(tx, task.id, { decision: null });
+        return undefined;
+      }
+      return reopenNow({ repo, tx, caller, flow, task, steps, step: step as FlowStep, closedFrom }, decision, ended);
+    }
     if (decision === undefined || step === undefined || task.currentStepId !== step.id) return undefined;
     const roster = await rosterOf(tx);
     const write = (change: Parameters<typeof applyStepChange>[2]['change']) =>
@@ -147,6 +158,39 @@ export async function applyDecision(
     const task = await repo.tasks.get(t, { id: turn.taskId });
     if (task) await takeQueued(deps, repo, t, task.flowId, now);
   }
+}
+
+/** Applies a reopen decision (T-28) in `tx`: the task back into its step for a new round, and the agent's room line. */
+async function reopenNow(
+  at: {
+    readonly repo: TasksRepo;
+    readonly tx: TenantDb;
+    readonly caller: Caller;
+    readonly flow: Flow;
+    readonly task: Task;
+    readonly steps: readonly FlowStep[];
+    readonly step: FlowStep;
+    readonly closedFrom: string | null;
+  },
+  decision: NonNullable<ReturnType<typeof decisionOf>>,
+  ended: { readonly now: Date; readonly reply: string | null },
+): Promise<Transition | undefined> {
+  const { repo, tx, caller, flow, task, steps, step } = at;
+  const roster = await rosterOf(tx);
+  const input = { action: 'reopen' as const, reason: decision.reason ?? undefined, closedFrom: at.closedFrom };
+  const transition =
+    actRefusal(caller, roster.team(flow.leadPrincipalId), input.action, step) ??
+    move(task, steps, input, roster.isPerson);
+  if (!transition.ok) {
+    await repo.tasks.update(tx, task.id, { decision: null });
+    return undefined;
+  }
+  const now = ended.now;
+  await applyMove(repo, tx, caller, { task, flow, from: step, roster, transition, action: input.action, now });
+  const to = steps.find((s) => s.id === transition.task.currentStepId)?.name ?? null;
+  const end = movedLine(decision, step.name, { outcome: transition.outcome, to }, ended.reply);
+  await postStepEnd(repo, tx, { flowId: flow.id, task, agentPrincipalId: caller.principalId, end, now });
+  return transition;
 }
 
 /** Drops this turn's decision without applying it (its turn failed, or was stopped, or another turn runs at the step). */

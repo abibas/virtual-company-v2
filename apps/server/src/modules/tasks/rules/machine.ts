@@ -7,14 +7,25 @@ export type { TaskNow } from '../rules.ts';
 
 // What each move makes of a task (docs/processes.md, "Task states"): one straight row of steps, `send_back` the only
 // way back, the last step's pass or approval closing it, a send-back over its step's limit escalating it to the Lead,
-// and the Lead's moves. Pure: the service reads the task and its flow's steps, and writes what this returns.
+// the Lead's moves, and a closed task reopened with a correction (T-28). Pure: the service reads the task and its
+// flow's steps, and writes what this returns.
 
-/** A move as asked: the action, the step a `route` goes to, and why. */
+/**
+ * A move as asked: the action, the step a `route` (or a `reopen`) goes to, and why; a `reopen`'s `closedFrom` is the
+ * step the task was closed at (`closedFromOf` its history).
+ */
 export interface MoveInput {
   readonly action: TaskAction;
   readonly toStepId?: string | undefined;
   readonly reason?: string | undefined;
+  readonly closedFrom?: string | null | undefined;
 }
+
+/** The step a closed task was closed at: its last done or cancel row's step; null for none (cancelled from Queued). */
+export const closedFromOf = (
+  history: readonly { readonly kind: TaskEventKind; readonly fromStepId: string | null }[],
+): string | null =>
+  history.findLast((event) => event.kind === 'done' || event.kind === 'cancelled')?.fromStepId ?? null;
 
 /** One history row to write; `system` rows have no actor (a step that starts by itself). */
 export interface EventDraft {
@@ -166,7 +177,31 @@ export function move(
   }
   if (action === 'route' || action === 'retry')
     return reroute(task, byId, current, { ...input, reason }, isPerson);
+  if (action === 'reopen') return reopen(task, steps, { ...input, reason }, isPerson);
   return forward(task, steps, current as StepRule, action, isPerson);
+}
+
+/**
+ * A closed task reopened with a correction (T-28): into the step asked, else the step the one it closed at sends back
+ * to (Put live → Develop), else that step itself, as a new round there; its reason is required. The closed-at step is
+ * the flow's last when the history names none.
+ */
+function reopen(
+  task: TaskNow,
+  steps: readonly StepRule[],
+  input: MoveInput,
+  isPerson: IsPerson,
+): Transition | Refusal<422> {
+  if (input.reason === undefined)
+    return refuse(422, 'reason_required', 'Say what is wrong: a reopen needs the correction');
+  const byId = new Map(steps.map((step) => [step.id, step]));
+  const from = (input.closedFrom ? byId.get(input.closedFrom) : undefined) ?? inOrder(steps).at(-1);
+  const wanted = input.toStepId ?? from?.sendsBackToStepId ?? from?.id;
+  const to = wanted === undefined ? undefined : byId.get(wanted);
+  if (to === undefined) return refuse(422, 'unknown_step', 'No such step in this flow');
+  const entered = enter(task, to, isPerson);
+  const events: EventDraft[] = [{ kind: 'reopened', from, to, reason: input.reason }, ...entered.events];
+  return { ok: true, task: entered.task, events, outcome: 'moved', entered: to };
 }
 
 /** The Lead's moves into a step: `route` (to the step asked) and `retry` (to the send-back an escalation stopped). */
