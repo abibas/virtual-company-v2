@@ -120,3 +120,20 @@ export function leadSection(flowName: string): string {
       'back into that step as a new round, in its same conversation. Never file a new task for it.',
   ].join('\n');
 }
+
+/**
+ * What a turn's standing instructions get when its runner is too old for some of the tools the server would give it
+ * (T-29, `caps.agentToolNames`): which ones, and that their move is a person's, never the agent's own doing. Without it
+ * a missing tool dropped out unsaid, and an agent told to reopen a task did the work itself.
+ */
+export function missingToolsSection(tools: readonly string[]): string {
+  return [
+    '## Tools you lack on this machine (from Most Wanted)',
+    '',
+    `This machine's runner is older than some of your tools and does not offer them: ${tools.join(', ')}. ` +
+      'Where your instructions say to call one of them, do not work around it and never do yourself the work it ' +
+      'would send to another step (no code, file or deploy changes for it). Say in your reply which tool you lack ' +
+      'and what it would have done (for a task: the move, with its reason and findings), and that the machine’s ' +
+      'runner needs an update; a person then makes the move (a closed task: Reopen… on its page).',
+  ].join('\n');
+}

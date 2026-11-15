@@ -54,7 +54,8 @@ export async function toolsFor(
 }
 
 /**
- * The standing instructions of the conversation a task was closed in (T-28): a correction reopens it, never a new task.
+ * The standing instructions of the conversation a task was closed in (T-28): a correction reopens it, never a new task,
+ * and is never made here (T-29: the sign-off agent built one itself when its runner lacked task_reopen).
  */
 const closedSection = (key: string, state: string) =>
   [
@@ -64,6 +65,11 @@ const closedSection = (key: string, state: string) =>
       '{reason, findings: their correction, in full} and end your turn: the task goes back to the step your step ' +
       'sends back to as a new round, in that step’s same conversation, and comes back to you after. Never file a ' +
       'new task for a correction of this one, and never tell the person to file one.',
+    '',
+    'Never make the correction yourself, even when the person says "fix it": no code, file or deploy changes for ' +
+      'it. The step that does the work makes it, and you sign it off again when it comes back. If you have no ' +
+      'task_reopen tool, change nothing: say so, put their correction in your reply, and tell them to reopen it ' +
+      'with Reopen… on the task page (its runner needs an update).',
   ].join('\n');
 
 /** One call of a turn's tool (see above). */

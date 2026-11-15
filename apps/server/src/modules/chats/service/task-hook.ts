@@ -1,5 +1,6 @@
 import type { Agent, Chat, ChatTurn, TenantDb } from '@mwc/db';
 import { STANDING_INSTRUCTIONS_MAX } from '@mwc/shared/agent-briefing';
+import { missingToolsSection } from '@mwc/shared/flows';
 import type { ChatTurnKind, ChatTurnStatus } from '@mwc/shared/enums';
 import type { CollectedArtifact, TurnCollected, TurnToolCall, TurnToolReply } from '../../machines/index.ts';
 
@@ -131,7 +132,8 @@ export const artifactsOf = (draft: TaskTurnDraft | undefined) =>
 
 /**
  * What a turn's spec adds for the agents' tools (S6a), when its runner offers them (`offers`, `caps.agentTools`): their
- * names, and the standing instructions with the plan's section after them (left out when it would not fit).
+ * names, and the standing instructions with the plan's section after them (left out when it would not fit). A runner
+ * that names the tools it knows (`known`, T-29) is given only those, and the instructions say which ones it lacks.
  */
 export async function toolsOf(
   hook: TaskTurnHook | undefined,
@@ -142,6 +144,7 @@ export async function toolsOf(
     readonly kind: ChatTurnKind;
     readonly draft: TaskTurnDraft | undefined;
     readonly offers: boolean;
+    readonly known?: readonly string[] | undefined;
     readonly instructions: string | undefined;
   },
 ): Promise<{ readonly tools?: string[]; readonly instructions?: string }> {
@@ -152,9 +155,15 @@ export async function toolsOf(
     ...(turn.draft === undefined ? {} : { task: turn.draft }),
   });
   if (plan.tools.length === 0) return {};
-  const joined = [turn.instructions, plan.instructions].filter((part) => part !== undefined).join('\n\n');
-  const fits = plan.instructions !== undefined && joined.length <= STANDING_INSTRUCTIONS_MAX;
-  return { tools: [...plan.tools], ...(fits ? { instructions: joined } : {}) };
+  const { known } = turn;
+  const tools = known === undefined ? [...plan.tools] : plan.tools.filter((tool) => known.includes(tool));
+  const missing = plan.tools.filter((tool) => !tools.includes(tool));
+  const lacking = missing.length > 0 ? missingToolsSection(missing) : undefined;
+  const sections = [plan.instructions, lacking].filter((part) => part !== undefined);
+  if (tools.length === 0 && sections.length === 0) return {};
+  const joined = [turn.instructions, ...sections].filter((part) => part !== undefined).join('\n\n');
+  const fits = sections.length > 0 && joined.length <= STANDING_INSTRUCTIONS_MAX;
+  return { ...(tools.length > 0 ? { tools } : {}), ...(fits ? { instructions: joined } : {}) };
 }
 
 /** The turn's context once it has its id. */

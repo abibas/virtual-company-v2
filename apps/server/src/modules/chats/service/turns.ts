@@ -222,6 +222,7 @@ export async function specTools(
     kind,
     draft: turn.draft,
     offers: target.agentTools,
+    known: target.agentToolNames,
     instructions: target.spec.instructions,
   });
   const decisions = { hook: deps.decisions, offers: target.decisions, kind };

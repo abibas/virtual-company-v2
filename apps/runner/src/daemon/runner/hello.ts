@@ -1,3 +1,4 @@
+import { AgentTool } from '@mwc/shared/flows';
 import { SERVER_TOOLS_MAX } from '@mwc/shared/harness';
 import {
   type HarnessVersions,
@@ -68,6 +69,8 @@ export function capsOf(options: RunnerOptions, now: CapsNow): RunnerCaps {
     forks: true,
     reattach: harness?.keeper !== undefined && processes !== undefined,
     agentTools: serverTools,
+    // T-29: the agents' tools it knows, so the server says which ones a turn misses on an older bundle.
+    ...(serverTools ? { agentToolNames: [...AgentTool.options] } : {}),
     decisions: serverTools,
     serverTools,
     // S7.1e: the server's tools a turn carries rise from 32 to 64; an older runner says nothing and is sent 32.

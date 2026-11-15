@@ -120,8 +120,20 @@ function stepAsk(input: StepPromptInput): string {
       back
     );
   }
-  return `Decide whether the task is done. End your turn with APPROVE or SEND BACK alone on its first line, then why.${back}`;
+  return (
+    `Decide whether the task is done. End your turn with APPROVE or SEND BACK alone on its first line, then why.${back}` +
+    SIGN_OFF_ONLY
+  );
 }
+
+/**
+ * A sign-off's own limit (T-29): it decides, it never does the work it signs off, not even a correction the person asks
+ * for in its conversation; that goes back to the step that does the work (`task_send_back`, or `task_reopen` once done).
+ */
+const SIGN_OFF_ONLY =
+  ' You decide; you never do the work yourself: no changes to the task’s code or files, even when the person asks ' +
+  'you here to fix something. A correction goes back to the step that does the work, as a send-back with their ' +
+  'correction as its findings.';
 
 /** The step's ask with its tools: the move to call, and that the task moves when the turn ends. */
 function toolsAsk(input: StepPromptInput, to: string, back: string): string {
@@ -142,10 +154,10 @@ function toolsAsk(input: StepPromptInput, to: string, back: string): string {
     ? ''
     : ' Once it is done, if the person says in this conversation that it is wrong, call task_reopen {reason, ' +
       'findings: their correction}: it goes back for another round in the same conversation. Never file a new task ' +
-      'for it.';
+      'for it, and never make the correction yourself.';
   return (
     'Decide whether the task is done. Call task_approve (with a note, if any) or task_send_back {reason, findings}, ' +
-    `and end your turn.${back}${reopen}`
+    `and end your turn.${back}${reopen}${SIGN_OFF_ONLY}`
   );
 }
 

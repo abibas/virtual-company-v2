@@ -67,6 +67,14 @@ export const RunnerCaps = protocolObject({
    * turn's spec and writes the step's prompt for them. False from an older runner, whose agents move nothing.
    */
   agentTools: z.boolean().default(false),
+  /**
+   * The agents' tools its turns know by name (T-29): the server offers a turn only these, and tells the agent which of
+   * its tools this runner is too old for instead of their dropping out unsaid. Left out by an older runner.
+   */
+  agentToolNames: z
+    .array(z.string().regex(/^[a-z][a-z_]{0,63}$/))
+    .max(128)
+    .optional(),
   /** True when its turns offer `record_decision`, the decision log (2026-11-14); false from older ones, which lack it. */
   decisions: z.boolean().default(false),
   /** True when its turns list and relay the server's own tools (S7.1c, `TurnSpec.serverTools`); false from older ones. */

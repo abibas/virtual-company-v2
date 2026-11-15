@@ -73,6 +73,8 @@ export interface Target {
   readonly kind: CredentialKind;
   /** True when the machine's runner offers the agents' tools (S6a, `caps.agentTools`). */
   readonly agentTools: boolean;
+  /** The agents' tools it knows by name (T-29, `caps.agentToolNames`); undefined from an older runner, which says none. */
+  readonly agentToolNames?: readonly string[] | undefined;
   /** True when its turns offer the decision log's `record_decision` (2026-11-14, `caps.decisions`). */
   readonly decisions: boolean;
   /** True when it lists and relays the server's own tools (S7.1c, `caps.serverTools`). */
@@ -115,6 +117,7 @@ async function placeOf(deps: TargetDeps, t: TenantDb, chat: Chat, terminal: bool
     agent,
     placement,
     agentTools: caps.agentTools === true,
+    agentToolNames: caps.agentToolNames,
     decisions: caps.decisions === true,
     serverTools: caps.serverTools,
     serverToolsMax: serverToolsLimit(caps),
@@ -210,6 +213,7 @@ export async function resolveTarget(
     ownerUserId: profile.ownerUserId,
     kind: credential.kind,
     agentTools: place.agentTools,
+    agentToolNames: place.agentToolNames,
     decisions: place.decisions,
     serverTools: place.serverTools,
     serverToolsMax: place.serverToolsMax,
