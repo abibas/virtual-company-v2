@@ -97,7 +97,11 @@ export function DictationButton({
         className={iconButtonClass({
           size: 'sm',
           round: true,
-          className: cx(recording && 'bg-failed-soft text-failed hover:bg-failed-soft hover:text-failed'),
+          // Send's box (T-35): the same circle, mirrored in the message box's other corner.
+          className: cx(
+            '@sm/composer:size-9',
+            recording && 'bg-failed-soft text-failed hover:bg-failed-soft hover:text-failed',
+          ),
         })}
       >
         {waiting ? (

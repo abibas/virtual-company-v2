@@ -15,10 +15,12 @@ const TONES: Readonly<Record<IconButtonTone, string>> = {
   inverse: 'bg-white/15 text-white ring-1 ring-white/25 ring-inset hover:bg-white/25',
 };
 
-const SIZES: Readonly<Record<IconButtonSize, { readonly box: string; readonly icon: number }>> = {
-  sm: { box: 'size-8 rounded-md', icon: 16 },
-  md: { box: 'size-10 rounded-lg', icon: 18 },
-  lg: { box: 'size-11 rounded-lg', icon: 20 },
+const SIZES: Readonly<
+  Record<IconButtonSize, { readonly box: string; readonly corners: string; readonly icon: number }>
+> = {
+  sm: { box: 'size-8', corners: 'rounded-md', icon: 16 },
+  md: { box: 'size-10', corners: 'rounded-lg', icon: 18 },
+  lg: { box: 'size-11', corners: 'rounded-lg', icon: 20 },
 };
 
 /** The classes of an icon button, for an element that is not a button (a link in the rail). */
@@ -38,7 +40,8 @@ export function iconButtonClass({
   return cx(
     'relative inline-flex shrink-0 cursor-pointer items-center justify-center transition-[background-color,color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-40',
     SIZES[size].box,
-    round && 'rounded-full',
+    // A round button is always a circle: `round` replaces the size's corners rather than competing with them (T-35).
+    round ? 'rounded-full' : SIZES[size].corners,
     active ? 'bg-blue text-on-blue shadow-primary' : TONES[tone],
     className,
   );
