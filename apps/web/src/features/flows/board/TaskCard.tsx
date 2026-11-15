@@ -119,7 +119,7 @@ export function TaskCard({
           )}
           {card.assignee && (
             <span title={card.assignee.name} className="ml-auto">
-              <Face who={card.assignee} nodes={nodes} />
+              <Face who={card.assignee} nodes={nodes} link="nested" />
             </span>
           )}
         </span>

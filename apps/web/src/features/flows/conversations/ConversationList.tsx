@@ -43,7 +43,7 @@ function Chip({
           : 'bg-surface-2 text-ink-2 hover:bg-surface-3',
       )}
     >
-      {conversation.agent && <Face who={conversation.agent} nodes={nodes} size="xs" />}
+      {conversation.agent && <Face who={conversation.agent} nodes={nodes} size="xs" link={false} />}
       <span className="truncate font-semibold">{conversation.step.name}</span>
       <span className="text-dim">{span ? roundWords(span) : `Round ${conversation.round}`}</span>
       <span className="inline-flex items-center gap-1 text-dim">

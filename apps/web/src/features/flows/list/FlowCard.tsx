@@ -79,7 +79,7 @@ export function FlowCard({
         )}
       >
         <span className="flex items-center gap-3">
-          <Face who={flow.lead} nodes={nodes} size="md" />
+          <Face who={flow.lead} nodes={nodes} size="md" link="nested" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-md font-bold text-ink">{flow.name}</span>
             <span className="block truncate text-xs text-dim">{flow.lead.name}</span>
