@@ -57,7 +57,15 @@ export const BoardColumnSchema = z
 
 export const BoardSchema = z
   .object({
-    flow: z.object({ id: z.string(), name: z.string(), lead: PrincipalRefSchema }),
+    flow: z.object({
+      id: z.string(),
+      name: z.string(),
+      lead: PrincipalRefSchema,
+      /** Where a new task goes when its creator does not say (T-38): a step's id, or null for Queued. */
+      newTaskStepId: z.string().nullable(),
+      /** Whether a new task is Autotake when its creator does not say (T-38). */
+      newTaskAutoTake: z.boolean(),
+    }),
     columns: z.array(BoardColumnSchema),
   })
   .openapi('Board');

@@ -10,7 +10,7 @@ import { ErrorBlock, LoadingBlock } from '../../../components/data/LoadState.tsx
 import { leadsTeam, nodeAddress } from '../../../features/flows/access.ts';
 import { companyFlowLinks, type TeamTab } from '../../../features/flows/links.ts';
 import { TeamView, type TeamViewProps } from '../../../features/flows/team/TeamView.tsx';
-import { LiveAutoTake } from '../../../features/flows/wakes/AutoTake.tsx';
+import { LiveQueue } from '../../../features/flows/wakes/AutoTake.tsx';
 import { LiveLeadWakes } from '../../../features/flows/wakes/LiveLeadWakes.tsx';
 import { LiveRoom } from '../../../features/room/LiveRoom.tsx';
 import { LiveRoomCap } from '../../../features/room/RoomCap.tsx';
@@ -20,7 +20,7 @@ type Common = Omit<TeamViewProps, 'flow' | 'board' | 'text' | 'onBoardChanged'>;
 
 /**
  * A team with its flow: the board (read again every 30 seconds while visible), the written form, the team room and,
- * for those who lead the team, the auto-take from Queued (T-25), the Lead's wake-ups (S6c, when the Lead is an agent)
+ * for those who lead the team, the Queue card (new tasks' defaults, T-38, and the auto-take from Queued, T-25), the Lead's wake-ups (S6c, when the Lead is an agent)
  * and the room's cap.
  */
 function WithFlow({
@@ -38,7 +38,7 @@ function WithFlow({
   const leads = leadsTeam(common.viewer, flow.lead.principalId);
   const wakes = leads ? (
     <>
-      <LiveAutoTake
+      <LiveQueue
         flow={flow}
         calls={common.calls}
         onSaved={() => {

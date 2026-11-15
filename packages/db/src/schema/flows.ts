@@ -40,6 +40,7 @@ const within = (value: SQL | AnyPgColumn, range: { readonly min: number; readonl
  * minutes between two while the flow has work (`wake_check_in_minutes`, 5 by default; null: none). Its team room
  * (`room_messages`) caps the answers people's messages ask of its agents in an hour (`room_max_per_hour`, 30). With
  * `auto_take` on (T-25) it takes its next queued task into its first step while fewer than `in_progress_limit` are active.
+ * A new task its creator says nothing about goes to `new_task_step_id` (null: Queued) as `new_task_auto_take` (T-38).
  */
 export const flows = pgTable(
   'flows',
@@ -71,6 +72,10 @@ export const flows = pgTable(
     autoTake: boolean('auto_take').notNull().default(false),
     /** At most this many of the flow's tasks in progress (active at any step) before auto-take waits. */
     inProgressLimit: integer('in_progress_limit').notNull().default(IN_PROGRESS_LIMIT.default),
+    /** Where a new task goes when its creator does not say (T-38): null: Queued, else a step of this flow (nulled when it is removed). */
+    newTaskStepId: uuid('new_task_step_id'),
+    /** Whether a new task is Autotake when its creator does not say (T-38); false: Manual. */
+    newTaskAutoTake: boolean('new_task_auto_take').notNull().default(false),
     createdBy: uuid('created_by').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -80,6 +85,7 @@ export const flows = pgTable(
     unique('flows_lead_unique').on(t.companyId, t.leadPrincipalId),
     tenantForeignKey('flows_lead_fk', t.companyId, t.leadPrincipalId, principals),
     tenantForeignKey('flows_created_by_fk', t.companyId, t.createdBy, principals),
+    tenantForeignKey('flows_new_task_step_fk', t.companyId, t.newTaskStepId, stepKey()),
     check('flows_name_check', within(sql`char_length(${t.name})`, FLOW_NAME)),
     check(
       'flows_wake_signoff_hours_check',
@@ -97,8 +103,13 @@ export const flows = pgTable(
   ],
 );
 
-/** The steps' key, for a step's send-back target (a function with its type said: the table points at itself). */
-const stepKey = (): { readonly companyId: AnyPgColumn; readonly id: AnyPgColumn } => flowSteps;
+/**
+ * The steps' key, for a step's send-back target and a flow's new-task step (a hoisted function with its type said: the
+ * tables point at each other, and the keys are read only once both exist).
+ */
+function stepKey(): { readonly companyId: AnyPgColumn; readonly id: AnyPgColumn } {
+  return flowSteps;
+}
 
 /**
  * A flow's steps in order (`position`, from 1, unique in the flow): a name, a kind, the person or agent assigned,

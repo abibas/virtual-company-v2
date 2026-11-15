@@ -39,7 +39,7 @@ export const CreateFlowSchema = z
 
 const InProgressLimit = z.number().int().min(IN_PROGRESS_LIMIT.min).max(IN_PROGRESS_LIMIT.max);
 
-/** A flow's name and its auto-take from Queued (T-25); what is left out stays as it is. */
+/** A flow's name, its auto-take from Queued (T-25) and its new tasks' defaults (T-38); what is left out stays as it is. */
 export const PatchFlowSchema = z
   .object({
     name: FlowName.optional(),
@@ -47,6 +47,10 @@ export const PatchFlowSchema = z
     autoTake: z.boolean().optional(),
     /** At most this many of the flow's tasks in progress (active at any step) before auto-take waits. */
     inProgressLimit: InProgressLimit.optional(),
+    /** Where a new task goes when its creator does not say (T-38): a step of this flow, or null for Queued. */
+    newTaskStepId: z.uuid().nullable().optional(),
+    /** Whether a new task is Autotake when its creator does not say (T-38); false: Manual. */
+    newTaskAutoTake: z.boolean().optional(),
   })
   .openapi('PatchFlow');
 
@@ -80,6 +84,10 @@ export const FlowSchema = z
     /** Auto-take from Queued (T-25) and its limit of tasks in progress. */
     autoTake: z.boolean(),
     inProgressLimit: z.number().int(),
+    /** Where a new task goes when its creator does not say (T-38): a step's id, or null for Queued. */
+    newTaskStepId: z.string().nullable(),
+    /** Whether a new task is Autotake when its creator does not say (T-38). */
+    newTaskAutoTake: z.boolean(),
     createdAt: At,
     updatedAt: At,
   })

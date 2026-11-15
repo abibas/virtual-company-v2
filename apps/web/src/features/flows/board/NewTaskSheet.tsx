@@ -15,13 +15,16 @@ import { PRIORITY, PRIORITY_ORDER } from '../words.ts';
 /** The value of "start at" that leaves the task in Queued. */
 const QUEUED = '';
 
-/** The new task's fields and its creation (`POST …/tasks`): queued, or into the step chosen. */
-function useNewTask(flow: Flow, calls: FlowCalls, onCreated: (task: TaskDetail) => void) {
+/**
+ * The new task's fields and its creation (`POST …/tasks`): queued, or into the step chosen. Where it goes and whether it
+ * is Autotake start as the flow's defaults for new tasks (T-38); those who cannot pick a step leave it to the flow.
+ */
+function useNewTask(flow: Flow, leads: boolean, calls: FlowCalls, onCreated: (task: TaskDetail) => void) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
-  const [autoTake, setAutoTake] = useState(false);
-  const [step, setStep] = useState(QUEUED);
+  const [autoTake, setAutoTake] = useState(flow.newTaskAutoTake);
+  const [step, setStep] = useState(flow.newTaskStepId ?? QUEUED);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const submit = async (event: FormEvent) => {
@@ -35,7 +38,7 @@ function useNewTask(flow: Flow, calls: FlowCalls, onCreated: (task: TaskDetail) 
         priority,
         autoTake,
         ...(description.trim() ? { description } : {}),
-        ...(step !== QUEUED ? { stepId: step } : {}),
+        ...(leads ? { stepId: step === QUEUED ? null : step } : {}),
       });
       onCreated(task);
     } catch (failure) {
@@ -80,7 +83,7 @@ function Words({ task }: { readonly task: ReturnType<typeof useNewTask> }) {
 /**
  * A new task in the team's flow: its title, its description (Markdown), its priority, whether the flow's Autotake may
  * take it from Queued (T-34; off: Manual) and, for the Lead's people and admins (`leads`), the step it starts at
- * (Queued without one).
+ * (Queued without one); the last two start as the flow's defaults for new tasks (T-38).
  */
 export function NewTaskSheet({
   flow,
@@ -95,7 +98,7 @@ export function NewTaskSheet({
   readonly onClose: () => void;
   readonly onCreated: (task: TaskDetail) => void;
 }) {
-  const task = useNewTask(flow, calls, onCreated);
+  const task = useNewTask(flow, leads, calls, onCreated);
   const steps = flow.steps.map((s) => ({ value: s.id, label: `${s.position}. ${s.name}` }));
   return (
     <Sheet open onClose={onClose} title={`New task in ${flow.name}`}>

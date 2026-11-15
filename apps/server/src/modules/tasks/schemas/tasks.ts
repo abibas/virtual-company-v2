@@ -52,10 +52,13 @@ export const CreateTaskSchema = z
     title: Title,
     description: Description.optional(),
     priority: TaskPriority.optional(),
-    /** Whether the flow's Autotake may take it from Queued by itself (T-34); off ("Manual") by default. */
+    /** Whether the flow's Autotake may take it from Queued by itself (T-34); left out: the flow's default (T-38). */
     autoTake: z.boolean().optional(),
-    /** Straight into this step of the flow (the Lead's people and admins); queued without it. */
-    stepId: z.uuid().optional(),
+    /**
+     * Straight into this step of the flow (the Lead's people and admins); null: Queued; left out: where the flow puts
+     * new tasks (T-38, Queued unless its Lead chose a step).
+     */
+    stepId: z.uuid().nullable().optional(),
   })
   .openapi('CreateTask');
 

@@ -55,7 +55,13 @@ export async function boardOf(
   const at = (stepId: string) =>
     open.filter((task) => task.state === 'active' && task.currentStepId === stepId);
   return {
-    flow: { id: flow.id, name: flow.name, lead: names(flow.leadPrincipalId) },
+    flow: {
+      id: flow.id,
+      name: flow.name,
+      lead: names(flow.leadPrincipalId),
+      newTaskStepId: flow.newTaskStepId,
+      newTaskAutoTake: flow.newTaskAutoTake,
+    },
     columns: [
       column(
         'queued',

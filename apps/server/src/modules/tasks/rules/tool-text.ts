@@ -1,4 +1,4 @@
-import { clipText, TOOL_RESULT_MAX } from '@mwc/shared/flows';
+import { clipText, newTasksWords, TOOL_RESULT_MAX } from '@mwc/shared/flows';
 import type { BoardView } from '../schemas/board.ts';
 import type { TaskDecisionView, TaskDetailView, TaskEventView, TaskSummaryView } from '../schemas/tasks.ts';
 import { actionWords } from './decision.ts';
@@ -37,9 +37,12 @@ function cardLine(card: BoardView['columns'][number]['cards'][number], queued = 
   return `- ${parts.join(' · ')}`;
 }
 
-/** The board as `team_board` answers it: the flow, then each column with its cards. */
+/** The board as `team_board` answers it: the flow and its defaults for new tasks (T-38), then each column with its cards. */
 export function boardText(board: BoardView): string {
-  const lines = [`Flow "${board.flow.name}" · Lead: ${board.flow.lead.name}`];
+  const into = board.columns.find((column) => column.step?.id === board.flow.newTaskStepId);
+  const stepName = board.flow.newTaskStepId === null ? null : (into?.title ?? null);
+  const newTasks = newTasksWords({ stepName, autoTake: board.flow.newTaskAutoTake });
+  const lines = [`Flow "${board.flow.name}" · Lead: ${board.flow.lead.name} · new tasks: ${newTasks}`];
   for (const column of board.columns) {
     const who = column.step ? ` · ${KIND_WORDS[column.step.kind]} · ${column.step.assignee.name}` : '';
     const count = column.kind === 'done' ? `${column.cards.length} of ${column.total}` : `${column.total}`;

@@ -170,8 +170,13 @@ export const AGENT_TOOL_INPUTS = {
     autoTake: z
       .boolean()
       .optional()
-      .describe('true: Autotake, the flow takes it from Queued by itself when it auto-takes; false (the default): Manual'),
-    step: StepRef.optional().describe('A step to put it into at once; left out, it waits in Queued'),
+      .describe(
+        'true: Autotake, the flow takes it from Queued by itself when it auto-takes; false: Manual; left out: the ' +
+          'flow’s default (team_board’s first line says it)',
+      ),
+    step: StepRef.optional().describe(
+      'A step to put it into at once, or "Queued"; left out: where the flow puts new tasks (team_board’s first line)',
+    ),
   }),
   task_route: z.object({
     key: TaskKey,

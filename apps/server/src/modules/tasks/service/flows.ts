@@ -124,8 +124,9 @@ export async function lockedForLead(repo: TasksRepo, tx: TenantDb, caller: Calle
 }
 
 /**
- * Renames a flow or changes its auto-take from Queued (its Lead people and admins); only what differs is written and
- * audited. With auto-take on after the change (turned on, or its limit changed), the flow takes at once (T-25).
+ * Renames a flow or changes its auto-take from Queued or its new tasks' defaults (its Lead people and admins); only what
+ * differs is written and audited. A new-task step must be one of the flow's (422 `unknown_step`). With auto-take on after
+ * the change (turned on, or its limit changed), the flow takes at once (T-25).
  */
 export async function patchFlow(
   deps: RunDeps,
@@ -133,16 +134,20 @@ export async function patchFlow(
   t: TenantDb,
   caller: Caller,
   change: { readonly flowId: string; readonly patch: PatchFlow; readonly now: Date },
-): Promise<FlowResult<403 | 404>> {
+): Promise<FlowResult<403 | 404 | 422>> {
   const done = await t.transaction(async (tx) => {
     const locked = await lockedForLead(repo, tx, caller, change.flowId);
     if (!locked.ok) return locked;
+    const into = change.patch.newTaskStepId;
+    if (into != null && !locked.steps.some((step: FlowStep) => step.id === into)) {
+      return refuse(422, 'unknown_step', 'New tasks can go only to Queued or a step of this flow');
+    }
     const before = locked.flow;
     const set = Object.fromEntries(
       Object.entries(change.patch).filter(
         ([field, value]) => value !== undefined && before[field as keyof Flow] !== value,
       ),
-    ) as Partial<Pick<Flow, 'name' | 'autoTake' | 'inProgressLimit'>>;
+    ) as Partial<Pick<Flow, 'name' | 'autoTake' | 'inProgressLimit' | 'newTaskStepId' | 'newTaskAutoTake'>>;
     if (Object.keys(set).length === 0) return { ok: true as const, flow: before, takes: false };
     const flow = await repo.flows.update(tx, before.id, set);
     await audit(repo, tx, caller, {

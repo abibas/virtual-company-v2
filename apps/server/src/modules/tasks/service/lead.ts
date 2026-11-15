@@ -48,7 +48,10 @@ async function inFlow(repo: TasksRepo, t: TenantDb, flow: Flow, key: string) {
   return task?.flowId === flow.id ? task : undefined;
 }
 
-/** `task_create`: queued, or into a step of the flow (which starts it when the step starts by itself). */
+/**
+ * `task_create`: queued, or into a step of the flow (which starts it when the step starts by itself); `step: "Queued"`
+ * keeps it in Queued, and what is left out is the flow's default (T-38).
+ */
 async function create(
   deps: RunDeps,
   repo: TasksRepo,
@@ -60,14 +63,15 @@ async function create(
 ) {
   const steps = await repo.flows.steps(t, flow.id);
   const step = input.step === undefined ? undefined : stepNamed(steps, input.step);
-  if (input.step !== undefined && step === undefined) return noStep(input.step, steps);
+  const queued = step === undefined && input.step?.trim().toLowerCase() === 'queued';
+  if (input.step !== undefined && step === undefined && !queued) return noStep(input.step, steps);
   const made = await createTask(deps, repo, t, caller, {
     flowId: flow.id,
     title: input.title,
     description: input.description,
     priority: input.priority,
     autoTake: input.autoTake,
-    stepId: step?.id,
+    stepId: queued ? null : step?.id,
     now,
   });
   return made.ok ? { ok: true, text: createdText(made.task) } : { ok: false, text: made.message };

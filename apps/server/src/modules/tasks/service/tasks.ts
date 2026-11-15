@@ -134,7 +134,9 @@ export async function getTask(
 /**
  * Makes a task in a flow, numbered next in the company (under its lock): queued, or straight into a step of that
  * flow (the Lead's people and admins: 403 `not_lead`; 422 `unknown_step`), which tells the step's assignee when a
- * person. 404 `flow_not_found` for another company's flow. Its history starts with `created`.
+ * person. Where it goes and whether it is Autotake, when the creator does not say, are the flow's defaults (T-38; its
+ * Lead chose them, so its step applies to anyone). 404 `flow_not_found` for another company's flow. Its history starts
+ * with `created`.
  */
 export async function createTask(
   deps: Deps,
@@ -150,27 +152,30 @@ export async function createTask(
       if (flow === undefined) return FLOW_NOT_FOUND;
       const roster = await rosterOf(tx);
       const steps = await repo.flows.steps(tx, flow.id);
-      if (input.stepId !== undefined) {
+      if (input.stepId != null) {
         const denied = intoStepRefusal(caller, roster.team(flow.leadPrincipalId));
         if (denied) return denied;
         if (!steps.some((step) => step.id === input.stepId)) {
           return refuse(422, 'unknown_step', 'No such step in this flow');
         }
       }
+      // Left out: the flow's defaults (T-38).
+      const stepId = input.stepId === undefined ? flow.newTaskStepId : input.stepId;
       const values = {
         number: await repo.tasks.nextNumber(tx),
         flowId: flow.id,
         title: input.title,
         description: input.description ?? '',
         priority: input.priority ?? 'normal',
-        autoTake: input.autoTake ?? false,
+        autoTake: input.autoTake ?? flow.newTaskAutoTake,
         createdBy: caller.principalId,
       };
       const task = await repo.tasks.insert(tx, values);
       await repo.tasks.insertEvents(tx, [eventRow(task.id, caller, { kind: 'created' })]);
       await audit(repo, tx, caller, { entityType: 'task', entityId: task.id, action: 'create', after: task });
-      if (input.stepId === undefined) return { ok: true, task };
-      return { ok: true, task: await routeNew(repo, tx, caller, { task, flow, steps, roster, input }) };
+      if (stepId === null) return { ok: true, task };
+      const into = { stepId, now: input.now };
+      return { ok: true, task: await routeNew(repo, tx, caller, { task, flow, steps, roster, input: into }) };
     },
   );
   if (!made.ok) return made;
@@ -193,7 +198,7 @@ async function routeNew(
     readonly flow: Flow;
     readonly steps: readonly FlowStep[];
     readonly roster: Awaited<ReturnType<typeof rosterOf>>;
-    readonly input: { readonly stepId?: string | undefined; readonly now: Date };
+    readonly input: { readonly stepId: string; readonly now: Date };
   },
 ): Promise<Task> {
   const { task, flow, steps, roster } = made;

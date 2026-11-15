@@ -98,11 +98,12 @@ const patchRoute = (deps: ServerDeps) => {
   return createRoute({
     ...base,
     method: 'patch',
-    summary: 'Rename a flow or change its auto-take from Queued (its Lead people, admins and owners)',
+    summary: "Rename a flow, change its auto-take from Queued or its new tasks' defaults (its Lead people, admins and owners)",
     description:
       'Only what is sent changes. With `autoTake` on, the next queued task marked `autoTake` (by priority, then the ' +
       'oldest) enters the first step by itself while fewer than `inProgressLimit` of the flow\'s tasks are active; turning it on or ' +
-      'raising the limit takes at once.',
+      'raising the limit takes at once. `newTaskStepId` (null: Queued) and `newTaskAutoTake` are where a new task ' +
+      'goes and whether it is Autotake when its creator does not say.',
     request: { params: FlowParamsSchema, body: jsonBody(PatchFlowSchema) },
     responses: {
       200: jsonResponse('The flow', FlowSchema),
@@ -110,6 +111,7 @@ const patchRoute = (deps: ServerDeps) => {
       401: refusals[401],
       403: NOT_LEAD,
       404: NO_FLOW,
+      422: errorResponse('`newTaskStepId` is not a step of this flow (`unknown_step`)'),
     },
   });
 };
@@ -159,7 +161,7 @@ export function flowRoutes(deps: ServerDeps, tasks: TasksService) {
       const { flowId } = c.req.valid('param');
       const patch = c.req.valid('json');
       const result = await tasks.patchFlow(c.var.tenant, callerOf(c.var), flowId, patch, c.var.clock());
-      if (!result.ok) return errorJson(c, result.status, result.code, result.message);
+      if (!result.ok) return errorJson(c, result.status as 403 | 404 | 422, result.code, result.message);
       return c.json(result.flow, 200);
     })
     .openapi(putStepsRoute(deps), async (c) => {

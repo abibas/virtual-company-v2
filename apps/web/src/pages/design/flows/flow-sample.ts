@@ -55,6 +55,8 @@ const flowOf = (id: string, name: string, lead: string, specs: readonly StepSpec
   })),
   autoTake: false,
   inProgressLimit: 2,
+  newTaskStepId: null,
+  newTaskAutoTake: false,
   createdAt: ago(60 * 24 * 9),
   updatedAt: ago(60 * 26),
 });
@@ -147,7 +149,7 @@ function stepColumn(flow: Flow, stepId: string, specs: readonly CardSpec[]): Boa
 }
 
 const DEVBOX_BOARD: Board = {
-  flow: { id: DEVBOX.id, name: DEVBOX.name, lead: DEVBOX.lead },
+  flow: { id: DEVBOX.id, name: DEVBOX.name, lead: DEVBOX.lead, newTaskStepId: null, newTaskAutoTake: false },
   columns: [
     column('queued', 'Queued', [
       card([21, 'Rate-limit the public API', 'high', null, null, 40], null, null),
@@ -181,7 +183,7 @@ const DEVBOX_BOARD: Board = {
 };
 
 const DESIGN_BOARD: Board = {
-  flow: { id: DESIGN.id, name: DESIGN.name, lead: DESIGN.lead },
+  flow: { id: DESIGN.id, name: DESIGN.name, lead: DESIGN.lead, newTaskStepId: null, newTaskAutoTake: false },
   columns: [
     column('queued', 'Queued', [card([23, 'New empty states', 'normal', null, null, 500], null, null)]),
     stepColumn(DESIGN, 's-draft', [[24, 'The flows page in dark mode', 'normal', 'working', 1, 15]]),

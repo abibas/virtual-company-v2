@@ -67,7 +67,8 @@ export const AGENT_TOOL_INFO: Readonly<
     title: 'Create a task',
     description:
       'A new task in your flow, queued or put into a step at once (which starts it if the step starts by itself). ' +
-      'Queued with autoTake true, the flow’s Autotake takes it by itself; without it, it waits for a person.',
+      'Queued with autoTake true, the flow’s Autotake takes it by itself; with false, it waits for a person. ' +
+      'Left out, step and autoTake are the flow’s defaults for new tasks.',
   },
   task_route: {
     title: 'Route a task',
@@ -98,12 +99,22 @@ export const AGENT_TOOL_INFO: Readonly<
   },
 };
 
+/** A flow's defaults for new tasks in words (T-38): `Queued, Autotake`, `"Develop"` (a step skips Queued). */
+export function newTasksWords(defaults: { readonly stepName: string | null; readonly autoTake: boolean }): string {
+  if (defaults.stepName !== null) return `"${defaults.stepName}"`;
+  return `Queued, ${defaults.autoTake ? 'Autotake' : 'Manual'}`;
+}
+
 /**
- * The Lead's section of its chats' standing instructions while its runner offers the tools: brief, naming them. The
- * board is the agent's to read; its steps' agents move their own tasks. It never waits inside a turn (Most Wanted wakes
- * it in its team chat when a task needs it, and at its flow's check-ins) and never does a step's work itself.
+ * The Lead's section of its chats' standing instructions while its runner offers the tools: brief, naming them, and
+ * what task_create does with what is left out (the flow's defaults for new tasks as they are now, T-38). The board is
+ * the agent's to read; its steps' agents move their own tasks. It never waits inside a turn (Most Wanted wakes it in its
+ * team chat when a task needs it, and at its flow's check-ins) and never does a step's work itself.
  */
-export function leadSection(flowName: string): string {
+export function leadSection(
+  flowName: string,
+  newTasks: { readonly stepName: string | null; readonly autoTake: boolean } = { stepName: null, autoTake: false },
+): string {
   return [
     '## Leading your team (from Most Wanted)',
     '',
@@ -112,6 +123,8 @@ export function leadSection(flowName: string): string {
       'task_start {key}, task_retry {key} and task_cancel {key, reason}. Each step’s agent moves its own task ' +
       'when its turn ends; you distribute the work, unblock it, and decide on escalations.',
     '',
+    `- task_create without step or autoTake: left out, the flow’s default (now: new tasks go to ${newTasksWords(newTasks)}). ` +
+      'Say them only to do otherwise for that task (step: "Queued" keeps it in Queued).',
     '- Never wait or poll for a step’s agent inside your turn. Once you have created, started or routed tasks, ' +
       'report in a line and end your turn: Most Wanted wakes you in your team chat when a task needs you, and at ' +
       'regular check-ins.',

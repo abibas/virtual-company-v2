@@ -48,9 +48,11 @@ export async function toolsFor(
     return { tools: stepTools(step.kind) };
   }
   const flow = await repo.flows.byLead(t, turn.agentPrincipalId);
-  return flow === undefined
-    ? { tools: [] }
-    : { tools: [...LEAD_TOOLS], instructions: leadSection(flow.name) };
+  if (flow === undefined) return { tools: [] };
+  const into = flow.newTaskStepId === null ? undefined : await repo.flows.steps(t, flow.id);
+  const stepName = into?.find((step) => step.id === flow.newTaskStepId)?.name ?? null;
+  const newTasks = { stepName, autoTake: flow.newTaskAutoTake };
+  return { tools: [...LEAD_TOOLS], instructions: leadSection(flow.name, newTasks) };
 }
 
 /**

@@ -34,6 +34,9 @@ export async function writeSteps(
   }
   await repo.flows.parkPositions(tx, flow.id, PARKED);
   await repo.flows.clearTargets(tx, flow.id);
+  // New tasks went to a step left out: they wait in Queued again (T-38).
+  if (flow.newTaskStepId !== null && plan.removed.includes(flow.newTaskStepId))
+    await repo.flows.update(tx, flow.id, { newTaskStepId: null });
   await repo.flows.deleteSteps(tx, plan.removed);
   const ids: string[] = [];
   for (const planned of plan.steps) {

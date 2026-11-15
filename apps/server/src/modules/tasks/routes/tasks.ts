@@ -50,7 +50,8 @@ const createTaskRoute = (deps: ServerDeps) => {
     tags: ['tasks'],
     method: 'post',
     summary:
-      'Make a task in a flow (member and above): queued, or straight into a step (the Lead’s people, admins)',
+      'Make a task in a flow (member and above): queued, or straight into a step (the Lead’s people, admins); ' +
+      'without `stepId` or `autoTake`, the flow’s defaults for new tasks',
     request: { params: CompanyParamsSchema, body: jsonBody(CreateTaskSchema) },
     responses: {
       201: jsonResponse('The task', TaskDetailSchema),
