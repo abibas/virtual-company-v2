@@ -1,6 +1,12 @@
 import { CHAT_IMAGE_BASE64_MAX, CHAT_IMAGE_MAX_BYTES } from '@mwc/shared/chat-images';
 import { describe, expect, it } from 'vitest';
-import { decodeImages, imageRecords, imagesOf } from '../../../../src/modules/chats/rules/images.ts';
+import {
+  decodeImages,
+  IMAGE_ORDER_NOTE,
+  imageOrderHeader,
+  imageRecords,
+  imagesOf,
+} from '../../../../src/modules/chats/rules/images.ts';
 import { GIF, JPEG, PNG, pngOfSize, SVG, sha256, WEBP } from '../../../fixtures/companies/logos.ts';
 
 const b64 = (bytes: Uint8Array) => ({ data: Buffer.from(bytes).toString('base64') });
@@ -67,5 +73,19 @@ describe('imageRecords and imagesOf', () => {
     expect(imagesOf({ images: [ref] as never })).toEqual([ref]);
     expect(imagesOf({ images: null })).toEqual([]);
     expect(imagesOf({ images: [{ id: 'x' }] as never })).toEqual([]);
+  });
+});
+
+describe('imageOrderHeader (T-20)', () => {
+  it('says the images come in the order of their [Image N] markers, before a text that marks them', () => {
+    expect(IMAGE_ORDER_NOTE).toBe('Images are attached in the order of their [Image N] markers.');
+    expect(imageOrderHeader('Compare [Image 1] with [Image 2]', 2)).toBe(`${IMAGE_ORDER_NOTE}\n\n`);
+    expect(imageOrderHeader('[Image 12] only', 1)).toBe(`${IMAGE_ORDER_NOTE}\n\n`);
+  });
+
+  it('is nothing without images, or without a marker', () => {
+    expect(imageOrderHeader('Compare [Image 1] with [Image 2]', 0)).toBe('');
+    expect(imageOrderHeader('What is on these?', 2)).toBe('');
+    expect(imageOrderHeader('[Image] [image 1] [Image one] Image 1', 2)).toBe('');
   });
 });

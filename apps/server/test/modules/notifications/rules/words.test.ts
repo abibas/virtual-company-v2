@@ -102,6 +102,51 @@ describe('noticePath', () => {
   });
 });
 
+describe('sign_in_needed (T-22)', () => {
+  const signIn = (signInKind: string | undefined, detail?: string): NoticePayload => ({
+    about: 'm',
+    signIn: 's',
+    change: '2026-11-14T10:00:00.000Z',
+    ...(signInKind === undefined ? {} : { signInKind }),
+    ...(detail === undefined ? {} : { detail }),
+  });
+
+  it('names the sign-in and its provider, a GitHub login to sign in again and a token to add again', () => {
+    expect(say('sign_in_needed', signIn('slack_bot_token', 'Slack Airia Bro'))).toBe(
+      "'Slack Airia Bro' stopped working: Slack refused its token. Add it again",
+    );
+    expect(say('sign_in_needed', signIn('slack_user_token', 'Ihor in Slack'))).toBe(
+      "'Ihor in Slack' stopped working: Slack refused its token. Add it again",
+    );
+    expect(say('sign_in_needed', signIn('github_oauth', 'GitHub login'))).toBe(
+      "'GitHub login' stopped working: GitHub refused its sign-in. Sign in again",
+    );
+    expect(say('sign_in_needed', signIn('github_token', 'Classic'))).toBe(
+      "'Classic' stopped working: GitHub refused its token. Add it again",
+    );
+    expect(say('sign_in_needed', signIn('atlassian_api_token', 'Jira'))).toBe(
+      "'Jira' stopped working: Atlassian refused its token. Add it again",
+    );
+  });
+
+  it('says "A sign-in of yours" without a label, and "its provider" for a kind it does not know', () => {
+    expect(say('sign_in_needed', signIn('slack_bot_token'))).toBe(
+      'A sign-in of yours stopped working: Slack refused its token. Add it again',
+    );
+    expect(say('sign_in_needed', signIn('claude_oauth', 'Claude'))).toBe(
+      "'Claude' stopped working: its provider refused its token. Add it again",
+    );
+    expect(say('sign_in_needed', signIn(undefined))).toBe(
+      'A sign-in of yours stopped working: its provider refused its token. Add it again',
+    );
+  });
+
+  it('points at the person’s sign-ins', () => {
+    expect(noticePath('sign_in_needed', signIn('github_oauth', 'GitHub'), names)).toBe('subscriptions');
+    expect(noticePath('sign_in_needed', { about: 'm' }, names)).toBe('subscriptions');
+  });
+});
+
 describe('noticeEmail', () => {
   const company = { name: 'Acme', slug: 'acme' };
   const origin = 'http://localhost:9951';

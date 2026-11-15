@@ -7,6 +7,7 @@ import {
   inboundPrompt,
   messageLink,
   notAllowedWords,
+  notPostedReason,
   oneLine,
   placeWords,
   slackChatTitle,
@@ -132,5 +133,68 @@ describe('the notices and the answer', () => {
     expect(stoppedWords('Box is stopped.')).toMatch(/^Box is stopped\. Start it/);
     expect(answerText('short')).toBe('short');
     expect(answerText('y'.repeat(ANSWER_POST_MAX + 5))).toHaveLength(ANSWER_POST_MAX);
+  });
+});
+
+describe('why an answer was not posted (T-22)', () => {
+  const LABEL = 'Slack Airia Bro';
+  const said = (code: string, slackError: string | null = null, label: string | null = LABEL) =>
+    notPostedReason(label, { code, slackError });
+
+  it('names the bot sign-in at fault: gone, revoked, not a bot token', () => {
+    expect(notPostedReason(LABEL, { signIn: 'gone' })).toEqual({
+      reason: 'its Slack sign-in is gone',
+      signIn: true,
+    });
+    expect(notPostedReason(LABEL, { signIn: 'revoked' })).toEqual({
+      reason: "the Slack sign-in 'Slack Airia Bro' was revoked",
+      signIn: true,
+    });
+    expect(notPostedReason(null, { signIn: 'revoked' })).toEqual({
+      reason: 'the Slack sign-in was revoked',
+      signIn: true,
+    });
+    expect(notPostedReason(LABEL, { signIn: 'not_bot' })).toEqual({
+      reason: "the Slack sign-in 'Slack Airia Bro' is not a bot token (xoxb-)",
+      signIn: true,
+    });
+    expect(notPostedReason(null, { signIn: 'not_bot' }).reason).toBe(
+      'the Slack sign-in is not a bot token (xoxb-)',
+    );
+  });
+
+  it('blames the sign-in for a refused token or a missing scope, on one line and cut', () => {
+    expect(said('needs_sign_in', 'invalid_auth')).toEqual({
+      reason: "the Slack sign-in 'Slack Airia Bro' needs a new token",
+      signIn: true,
+    });
+    expect(said('needs_sign_in', null, null).reason).toBe('the Slack sign-in needs a new token');
+    expect(said('forbidden', 'missing_scope')).toEqual({
+      reason: "the Slack sign-in 'Slack Airia Bro' lacks a scope to post (chat:write)",
+      signIn: true,
+    });
+    const long = said('needs_sign_in', null, `Bro\n  ${'x'.repeat(100)}`).reason;
+    expect(long).toMatch(/^the Slack sign-in 'Bro x+…' needs a new token$/);
+    expect(long.length).toBeLessThan(120);
+  });
+
+  it('says what Slack did otherwise, no sign-in at fault', () => {
+    expect(said('not_in_channel', 'not_in_channel')).toEqual({
+      reason: 'the bot is not in this channel: invite it there in Slack (/invite)',
+      signIn: false,
+    });
+    expect(said('rate_limited', 'ratelimited')).toEqual({
+      reason: 'Slack was limiting requests',
+      signIn: false,
+    });
+    expect(said('unavailable', 'internal_error')).toEqual({ reason: 'Slack did not answer', signIn: false });
+    expect(said('unavailable')).toEqual({ reason: 'Slack did not answer', signIn: false });
+    expect(said('not_found', 'channel_not_found')).toEqual({
+      reason: 'Slack refused it (channel_not_found)',
+      signIn: false,
+    });
+    expect(said('invalid_response').reason).toBe('Slack refused it (invalid_response)');
+    expect(said('forbidden', 'restricted_action').reason).toBe('Slack refused it (restricted_action)');
+    expect(said('bad_request', `odd ${'y'.repeat(80)}`).reason).toMatch(/^Slack refused it \(odd y+…\)$/);
   });
 });
