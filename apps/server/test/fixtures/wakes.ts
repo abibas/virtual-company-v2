@@ -24,6 +24,8 @@ export interface WakeWorld extends ChatsWorld {
 export async function wakeWorld(): Promise<WakeWorld> {
   const ticks = manualTimers();
   const w = await chatsWorld({}, { leadWakeTimers: ticks.timers });
+  // The first timer on them is the server's one auto-take at its start (T-25): run it now, so `fire()` is the tick.
+  await ticks.fire();
   return { ...w, ticks };
 }
 
