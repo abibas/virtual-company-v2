@@ -138,7 +138,13 @@ export async function noticeSignInNeeded(db: DbHandle, signIn: SignInNeeded): Pr
     const t = await tenant(db, company.companyId);
     const recipient = await repo.memberPrincipal(t, signIn.ownerUserId);
     if (recipient === undefined || (await repo.signInNoticed(t, recipient, signIn.id, change))) continue;
-    const payload = { about: recipient, detail: signIn.label, signIn: signIn.id, signInKind: signIn.kind, change };
+    const payload = {
+      about: recipient,
+      detail: signIn.label,
+      signIn: signIn.id,
+      signInKind: signIn.kind,
+      change,
+    };
     written += await notify(t, null, [{ kind: 'sign_in_needed', recipient, payload }]);
   }
   return written;

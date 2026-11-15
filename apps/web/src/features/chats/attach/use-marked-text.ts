@@ -1,5 +1,12 @@
 import { type RefObject, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { insertMarkers, keepMarkersWhole, markerOrder, markersIn, renumbered, withoutMarker } from './markers.ts';
+import {
+  insertMarkers,
+  keepMarkersWhole,
+  markerOrder,
+  markersIn,
+  renumbered,
+  withoutMarker,
+} from './markers.ts';
 import { type Attachment, type Attachments, type MarkerText, useAttachments } from './use-attachments.ts';
 
 /**
@@ -35,6 +42,7 @@ export function useMarkedText(refused?: string): MarkedText {
     caret.current = at;
     setText(next);
   }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the caret is put back after each new text is drawn.
   useLayoutEffect(() => {
     const at = caret.current;
     const element = box.current;

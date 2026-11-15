@@ -40,7 +40,11 @@ export function LiveSprints({
   const sprints = useSprints(companyId, flowId, version);
   const [chosen, setChosen] = useState<string>();
   return (
-    <LoadState loaded={sprints} label="Loading the sprints…" skeleton={<Skeleton className="h-64 rounded-2xl" />}>
+    <LoadState
+      loaded={sprints}
+      label="Loading the sprints…"
+      skeleton={<Skeleton className="h-64 rounded-2xl" />}
+    >
       {({ sprints: list }) => {
         const sprintId = list.some((sprint) => sprint.id === chosen) ? chosen : list[0]?.id;
         const view = { sprints: list, onSelect: setChosen, flowName, links };

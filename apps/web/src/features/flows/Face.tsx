@@ -58,6 +58,7 @@ function AgentLink({
     else navigate(href);
   };
   return (
+    // biome-ignore lint/a11y/useSemanticElements: inside another link, where an <a> may not go.
     <span
       role="link"
       tabIndex={0}

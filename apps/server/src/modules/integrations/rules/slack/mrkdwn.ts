@@ -40,7 +40,7 @@ const SLOT = /(\d+)/g;
 const BOLD = '';
 
 /** `&`, `<` and `>` as Slack requires them outside its control sequences. */
-const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** A bare URL without the punctuation after it (`https://a.b/c).` → `https://a.b/c` and `).`). */
 function splitUrl(match: string): [string, string] {
@@ -56,9 +56,9 @@ function splitUrl(match: string): [string, string] {
 
 /** Inline code as Slack shows it: one backtick around it; a span with backticks inside kept as written. */
 function code(ticks: string, text: string): string {
-  if (ticks.length === 1) return `\`${escape(text)}\``;
+  if (ticks.length === 1) return `\`${escaped(text)}\``;
   const inner = text.replace(/^ (.*) $/, '$1');
-  return inner.includes('`') ? escape(`${ticks}${text}${ticks}`) : `\`${escape(inner)}\``;
+  return inner.includes('`') ? escaped(`${ticks}${text}${ticks}`) : `\`${escaped(inner)}\``;
 }
 
 /** A Markdown link as Slack's `<url|text>` (`<url>` when the text is the URL or empty). */
@@ -83,24 +83,21 @@ function emphasis(text: string): string {
 function inline(text: string): string {
   const kept: string[] = [];
   const keep = (piece: string) => `${kept.push(piece) - 1}`;
-  const marked = text.replace(
-    TOKEN,
-    (match, ticks?: string, body?: string, label?: string, url?: string) => {
-      if (ticks !== undefined && body !== undefined) return keep(code(ticks, body));
-      if (label !== undefined && url !== undefined) return keep(link(label, url));
-      if (match.startsWith('<')) return keep(match);
-      const [bare, after] = splitUrl(match);
-      return `${keep(bare)}${after}`;
-    },
-  );
-  return escape(emphasis(marked)).replace(SLOT, (_, index: string) => kept[Number(index)] ?? '');
+  const marked = text.replace(TOKEN, (match, ticks?: string, body?: string, label?: string, url?: string) => {
+    if (ticks !== undefined && body !== undefined) return keep(code(ticks, body));
+    if (label !== undefined && url !== undefined) return keep(link(label, url));
+    if (match.startsWith('<')) return keep(match);
+    const [bare, after] = splitUrl(match);
+    return `${keep(bare)}${after}`;
+  });
+  return escaped(emphasis(marked)).replace(SLOT, (_, index: string) => kept[Number(index)] ?? '');
 }
 
 /** One line outside code blocks: a quote's `>` kept, a heading as a bold line, a list item with `•`, then inline. */
 function line(text: string): string {
   const quote = QUOTE.exec(text);
   const [prefix, body] = quote === null ? ['', text] : [quote[1] ?? '', quote[2] ?? ''];
-  if (RULE.test(body)) return `${prefix}${escape(body)}`;
+  if (RULE.test(body)) return `${prefix}${escaped(body)}`;
   const heading = HEADING.exec(body);
   if (heading !== null) {
     const title = inline((heading[1] ?? '').replace(/\*\*|__/g, '').trim());
@@ -118,7 +115,7 @@ export function toMrkdwn(markdown: string): string {
   for (const text of markdown.replace(MARKS, '').split('\n')) {
     if (fence !== null) {
       const close = fence.exec(text);
-      if (close === null) out.push(escape(text));
+      if (close === null) out.push(escaped(text));
       else {
         out.push(`${close[1] ?? ''}\`\`\``);
         fence = null;

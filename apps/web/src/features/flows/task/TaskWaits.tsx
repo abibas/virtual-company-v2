@@ -58,7 +58,9 @@ function useChoices(calls: FlowCalls, task: TaskDetail, enabled: boolean): reado
       live = false;
     };
   }, [calls, task.flowId, enabled]);
-  return open.filter((other) => other.key !== task.key && !task.waitsFor.some((wait) => wait.key === other.key));
+  return open.filter(
+    (other) => other.key !== task.key && !task.waitsFor.some((wait) => wait.key === other.key),
+  );
 }
 
 /**

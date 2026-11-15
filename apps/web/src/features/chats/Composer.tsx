@@ -160,7 +160,8 @@ export function Composer({
   const attached = inSlack ? [] : attach.items;
   // While it records (or transcribes) Send means "stop and send", even with an empty box (T-32).
   const dictating = dictation.state !== 'idle';
-  const ready = (text.trim().length > 0 || attached.length > 0 || dictating) && attach.preparing === 0 && !busy;
+  const ready =
+    (text.trim().length > 0 || attached.length > 0 || dictating) && attach.preparing === 0 && !busy;
   const how = choices && offered(delivery, choices);
   const send = (event?: FormEvent, options?: { readonly startMachine?: boolean }) => {
     event?.preventDefault();

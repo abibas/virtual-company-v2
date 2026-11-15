@@ -115,7 +115,10 @@ async function tellOwner(deps: SecretDeps & { readonly logger: Logger }, row: Cr
     const { id, ownerUserId, label, kind, updatedAt } = row;
     await noticeSignInNeeded(deps.db, { id, ownerUserId, label, kind, updatedAt });
   } catch (error) {
-    deps.logger.error({ err: error, credentialId: row.id }, 'could not tell the owner their sign-in stopped working');
+    deps.logger.error(
+      { err: error, credentialId: row.id },
+      'could not tell the owner their sign-in stopped working',
+    );
   }
 }
 

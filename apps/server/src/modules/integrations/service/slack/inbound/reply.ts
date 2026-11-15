@@ -83,7 +83,13 @@ async function answer(deps: InboundDeps, t: TenantDb, end: SystemTurnEnd): Promi
   const text = done ? answerText(reply) : reply;
   let posted: Awaited<ReturnType<typeof postIn>>;
   try {
-    posted = await postIn(deps.slack, { token: opened.token }, where, text, postedAs(botOf(opened.meta), agent));
+    posted = await postIn(
+      deps.slack,
+      { token: opened.token },
+      where,
+      text,
+      postedAs(botOf(opened.meta), agent),
+    );
   } catch (error) {
     if (!isSlackError(error)) throw error;
     return { failure: await refused(deps, o, thread.credentialId, error, end.turnId) };

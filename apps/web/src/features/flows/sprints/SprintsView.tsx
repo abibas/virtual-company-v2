@@ -2,13 +2,13 @@ import { CalendarRange } from 'lucide-react';
 import type { Sprint, SprintSummary } from '../../../api/flows.ts';
 import type { Loaded } from '../../../api/use-load.ts';
 import { Link } from '../../../app/router.tsx';
+import { cx } from '../../../components/cx.ts';
 import { LoadState } from '../../../components/data/LoadState.tsx';
 import { CopyButton } from '../../../components/forms/CopyButton.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { Card } from '../../../components/ui/Card.tsx';
 import { EmptyState } from '../../../components/ui/EmptyState.tsx';
 import { Skeleton } from '../../../components/ui/Skeleton.tsx';
-import { cx } from '../../../components/cx.ts';
 import type { FlowLinks } from '../links.ts';
 import { PRIORITY } from '../words.ts';
 import { sprintMarkdown, sprintMoment } from './words.ts';
@@ -178,7 +178,11 @@ export function SprintsView({
         ))}
       </Card>
       {report && (
-        <LoadState loaded={report} label="Loading the report…" skeleton={<Skeleton className="h-64 rounded-2xl" />}>
+        <LoadState
+          loaded={report}
+          label="Loading the report…"
+          skeleton={<Skeleton className="h-64 rounded-2xl" />}
+        >
           {(sprint) => <SprintReportCard sprint={sprint} flowName={flowName} links={links} />}
         </LoadState>
       )}

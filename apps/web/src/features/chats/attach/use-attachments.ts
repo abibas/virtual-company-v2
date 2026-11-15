@@ -1,4 +1,12 @@
-import { type ClipboardEvent, type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ClipboardEvent,
+  type DragEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { fitImage } from './fit-image.ts';
 import { ATTACH_REFUSALS, AttachError, CHAT_IMAGES_MAX, draggingFiles, filesOf } from './image-files.ts';
 
@@ -140,7 +148,9 @@ export function useAttachments(markers: MarkerText, refused?: string): Attachmen
   const sent = useCallback(
     (ids: readonly string[]) => {
       const gone = new Set(ids);
-      const rest = list.current.filter((item) => !gone.has(item.id)).map((item, index) => ({ ...item, n: index + 1 }));
+      const rest = list.current
+        .filter((item) => !gone.has(item.id))
+        .map((item, index) => ({ ...item, n: index + 1 }));
       commit(rest);
       return rest.map((item) => item.n);
     },

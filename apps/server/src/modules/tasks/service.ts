@@ -10,6 +10,7 @@ import { actOnTask } from './service/actions.ts';
 import { artifactFile, listArtifacts } from './service/artifacts.ts';
 import type { Caller } from './service/audit.ts';
 import { boardOf } from './service/board.ts';
+import { editTask } from './service/edit.ts';
 import {
   createFlow,
   findFlow,
@@ -25,7 +26,6 @@ import { sayInRoom } from './service/room/say.ts';
 import { putRoomCap } from './service/room/settings.ts';
 import type { RunDeps } from './service/runs.ts';
 import { getSprint, listSprints, newSprint } from './service/sprints.ts';
-import { editTask } from './service/edit.ts';
 import { createTask, getTask, listTasks } from './service/tasks.ts';
 import { leadWakesOf, putLeadWakes } from './service/wake/settings.ts';
 
@@ -69,8 +69,11 @@ export function tasksService(deps: RunDeps & Pick<RoomDeps, 'team'>) {
     sprints: (t: TenantDb, flowId: string) => listSprints(deps, repo, t, flowId),
     sprint: (t: TenantDb, ref: { readonly flowId: string; readonly sprintId: string }) =>
       getSprint(deps, repo, t, ref),
-    newSprint: (t: TenantDb, caller: Caller, input: { flowId: string; name?: string | undefined; now: Date }) =>
-      newSprint(deps, repo, t, caller, input),
+    newSprint: (
+      t: TenantDb,
+      caller: Caller,
+      input: { flowId: string; name?: string | undefined; now: Date },
+    ) => newSprint(deps, repo, t, caller, input),
     createFlow: (t: TenantDb, caller: Caller, input: CreateFlow) => createFlow(deps, repo, t, caller, input),
     patchFlow: (t: TenantDb, caller: Caller, flowId: string, patch: PatchFlow, now: Date) =>
       patchFlow(deps, repo, t, caller, { flowId, patch, now }),

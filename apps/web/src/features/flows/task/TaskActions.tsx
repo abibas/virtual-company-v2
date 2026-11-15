@@ -204,7 +204,13 @@ function MoveButtons({
         </Button>
       )}
       {has('reopen') && (
-        <Button size="sm" tone="primary" icon={RotateCcw} disabled={!idle} onClick={() => move.toggle('reopen')}>
+        <Button
+          size="sm"
+          tone="primary"
+          icon={RotateCcw}
+          disabled={!idle}
+          onClick={() => move.toggle('reopen')}
+        >
           Reopen…
         </Button>
       )}

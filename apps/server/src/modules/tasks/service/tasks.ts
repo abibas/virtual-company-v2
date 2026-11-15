@@ -6,12 +6,7 @@ import { allowedActions, intoStepRefusal } from '../rules/access.ts';
 import { cursorOf, cursorText, searchOf, statesOf } from '../rules/list.ts';
 import { move } from '../rules/machine.ts';
 import { FLOW_NOT_FOUND, type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
-import type {
-  CreateTask,
-  TaskDetailView,
-  TaskListQuery,
-  TaskSummaryView,
-} from '../schemas/tasks.ts';
+import type { CreateTask, TaskDetailView, TaskListQuery, TaskSummaryView } from '../schemas/tasks.ts';
 import { applyMove, eventRow } from './apply.ts';
 import { audit, type Caller } from './audit.ts';
 import { takeQueued } from './auto-take.ts';
@@ -170,7 +165,8 @@ export async function createTask(
       // What it waits for and where it goes in Queued (T-39), checked before anything is written.
       const waits = await flowTasks(repo, tx, flow, input.waitsFor ?? []);
       if (!waits.ok) return waits;
-      const place = stepId === null ? await placeTarget(repo, tx, flow, { id: '' }, { after: input.after }) : undefined;
+      const place =
+        stepId === null ? await placeTarget(repo, tx, flow, { id: '' }, { after: input.after }) : undefined;
       if (place !== undefined && !place.ok) return place;
       // It joins the flow's current sprint (T-37).
       const sprint = await repo.sprints.ensure(tx, flow);

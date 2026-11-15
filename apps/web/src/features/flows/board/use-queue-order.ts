@@ -16,7 +16,10 @@ interface Reorder {
 }
 
 /** The Queued column with a card being reordered shown at its new place. */
-export function withReorder(columns: readonly BoardColumn[], reorder: Reorder | undefined): readonly BoardColumn[] {
+export function withReorder(
+  columns: readonly BoardColumn[],
+  reorder: Reorder | undefined,
+): readonly BoardColumn[] {
   if (!reorder) return columns;
   return columns.map((column) => {
     if (column.kind !== 'queued') return column;

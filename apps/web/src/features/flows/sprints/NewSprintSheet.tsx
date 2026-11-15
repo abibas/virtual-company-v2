@@ -47,8 +47,8 @@ export function NewSprintSheet({
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
         <p className="text-sm text-ink-2">{endQuestion(board)}</p>
         <p className="text-xs text-dim">
-          The closed tasks stay in the sprint that ends, with its report on the Sprints tab. Running turns and Autotake
-          go on.
+          The closed tasks stay in the sprint that ends, with its report on the Sprints tab. Running turns and
+          Autotake go on.
         </p>
         <TextField
           label={`Name of Sprint ${next}`}

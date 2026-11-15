@@ -5,7 +5,9 @@ import { At, FlowParamsSchema, PrincipalRefSchema } from '../schemas.ts';
 // A flow's sprints (T-37): the list, one sprint with its report, and a new sprint.
 
 export const SprintParamsSchema = FlowParamsSchema.extend({
-  sprintId: z.string().openapi({ param: { name: 'sprintId', in: 'path' }, example: '019a4f0c-a1b2-7c3d-8e4f-5a6b7c8d9e0f' }),
+  sprintId: z
+    .string()
+    .openapi({ param: { name: 'sprintId', in: 'path' }, example: '019a4f0c-a1b2-7c3d-8e4f-5a6b7c8d9e0f' }),
 });
 
 /** A sprint's name, as the `sprints_name_check` of the database allows it. */

@@ -1,7 +1,7 @@
 import type { Agent, Chat, ChatTurn, TenantDb } from '@mwc/db';
 import { STANDING_INSTRUCTIONS_MAX } from '@mwc/shared/agent-briefing';
-import { missingToolsSection } from '@mwc/shared/flows';
 import type { ChatTurnKind, ChatTurnStatus } from '@mwc/shared/enums';
+import { missingToolsSection } from '@mwc/shared/flows';
 import type { CollectedArtifact, TurnCollected, TurnToolCall, TurnToolReply } from '../../machines/index.ts';
 
 /**

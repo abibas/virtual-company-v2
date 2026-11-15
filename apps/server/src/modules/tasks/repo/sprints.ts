@@ -31,7 +31,13 @@ async function ensure(
 ): Promise<Sprint> {
   const found = await current(t, flow.id, lock);
   if (found !== undefined) return found;
-  const first = { flowId: flow.id, number: 1, name: 'Sprint 1', startedAt: flow.createdAt, startedBy: flow.createdBy };
+  const first = {
+    flowId: flow.id,
+    number: 1,
+    name: 'Sprint 1',
+    startedAt: flow.createdAt,
+    startedBy: flow.createdBy,
+  };
   await t.insert(sprints, first).onConflictDoNothing();
   return (await current(t, flow.id, lock)) as Sprint;
 }

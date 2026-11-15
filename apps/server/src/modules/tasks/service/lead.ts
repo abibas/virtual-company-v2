@@ -1,6 +1,12 @@
 import type { Flow, FlowStep, Task, TenantDb } from '@mwc/db';
 import type { TaskAction } from '@mwc/shared/enums';
-import { type AGENT_TOOL_INPUTS, LEAD_ACTIONS, type LEAD_TOOLS, taskKey, taskNumber } from '@mwc/shared/flows';
+import {
+  type AGENT_TOOL_INPUTS,
+  LEAD_ACTIONS,
+  type LEAD_TOOLS,
+  taskKey,
+  taskNumber,
+} from '@mwc/shared/flows';
 import type { z } from 'zod';
 import type { AgentToolTurn } from '../../chats/index.ts';
 import type { TasksRepo } from '../repo.ts';
@@ -124,7 +130,8 @@ export async function leadTool(
   if (task === undefined)
     return { ok: false, text: `No task ${input.key.toUpperCase()} in your flow "${flow.name}".` };
   if (tool === 'task_show') return { ok: true, text: taskText(await shownTask(deps, repo, t, caller, task)) };
-  if (tool === 'task_queue') return queue(deps, repo, t, caller, task, call.input as Input<'task_queue'>, now);
+  if (tool === 'task_queue')
+    return queue(deps, repo, t, caller, task, call.input as Input<'task_queue'>, now);
   let toStepId: string | undefined;
   if (input.step !== undefined) {
     const steps = await repo.flows.steps(t, flow.id);

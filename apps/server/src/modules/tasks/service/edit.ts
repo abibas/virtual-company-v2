@@ -9,8 +9,8 @@ import { audit, type Caller } from './audit.ts';
 import { takeQueued } from './auto-take.ts';
 import { flowTasks, placedPriority, placeInQueue, placeTarget, setWaits, waitsRefusal } from './queue.ts';
 import type { RunDeps } from './runs.ts';
-import { rosterOf } from './team.ts';
 import { shownTask, type TaskResult } from './tasks.ts';
+import { rosterOf } from './team.ts';
 
 type Edited = Partial<Pick<Task, 'title' | 'description' | 'priority' | 'autoTake'>>;
 
@@ -24,7 +24,9 @@ const NOT_QUEUED = refuse(
 function changes(task: Task, edit: { readonly [K in keyof Edited]?: Edited[K] | undefined }): Edited {
   const kept = task.state === 'queued' ? edit : { ...edit, autoTake: undefined };
   return Object.fromEntries(
-    Object.entries(kept).filter(([field, value]) => value !== undefined && task[field as keyof Task] !== value),
+    Object.entries(kept).filter(
+      ([field, value]) => value !== undefined && task[field as keyof Task] !== value,
+    ),
   ) as Edited;
 }
 
@@ -33,7 +35,14 @@ function changes(task: Task, edit: { readonly [K in keyof Edited]?: Edited[K] | 
  * place by those who route (403 `not_lead`), among the flow's queued tasks (422); what it waits for, tasks of its flow
  * without a cycle (422).
  */
-async function queuePart(repo: TasksRepo, tx: TenantDb, caller: Caller, flow: Flow, task: Task, edit: EditTask) {
+async function queuePart(
+  repo: TasksRepo,
+  tx: TenantDb,
+  caller: Caller,
+  flow: Flow,
+  task: Task,
+  edit: EditTask,
+) {
   const { waitsFor, before, after } = edit;
   if (waitsFor === undefined && before === undefined && after === undefined)
     return { ok: true as const, place: undefined, waits: undefined };
@@ -68,28 +77,36 @@ export async function editTask(
 ): Promise<TaskResult<403 | 404 | 409 | 422>> {
   const found = change.ref === undefined ? undefined : await repo.tasks.get(t, change.ref);
   if (found === undefined) return TASK_NOT_FOUND;
-  const done = await t.transaction(async (tx): Promise<{ ok: true; task: Task } | Refusal<403 | 409 | 422>> => {
-    const flow = (await repo.flows.lock(tx, found.flowId)) as Flow;
-    const task = await repo.tasks.lock(tx, found.id);
-    const denied = editRefusal(caller, (await rosterOf(tx)).team(flow.leadPrincipalId), task.createdBy);
-    if (denied) return denied;
-    const queue = await queuePart(repo, tx, caller, flow, task, change.edit);
-    if (!queue.ok) return queue;
-    const { title, description, autoTake } = change.edit;
-    const priority = placedPriority(change.edit.priority, queue.place?.target, task.priority);
-    const set = changes(task, { title, description, priority, autoTake });
-    const fields: string[] = Object.keys(set);
-    if (fields.length > 0) await repo.tasks.update(tx, task.id, set);
-    if (queue.place && (await placeInQueue(repo, tx, task, queue.place))) fields.push('queue');
-    const waits = queue.waits;
-    if (waits && (await setWaits(repo, tx, task.id, waits))) fields.push('waitsFor');
-    if (fields.length === 0) return { ok: true, task };
-    const after = await repo.tasks.lock(tx, task.id);
-    const details = waits ? { fields, waitsFor: waits.map((other) => taskKey(other.number)) } : { fields };
-    await repo.tasks.insertEvents(tx, [eventRow(task.id, caller, { kind: 'edited', details })]);
-    await audit(repo, tx, caller, { entityType: 'task', entityId: task.id, action: 'update', before: task, after });
-    return { ok: true, task: after };
-  });
+  const done = await t.transaction(
+    async (tx): Promise<{ ok: true; task: Task } | Refusal<403 | 409 | 422>> => {
+      const flow = (await repo.flows.lock(tx, found.flowId)) as Flow;
+      const task = await repo.tasks.lock(tx, found.id);
+      const denied = editRefusal(caller, (await rosterOf(tx)).team(flow.leadPrincipalId), task.createdBy);
+      if (denied) return denied;
+      const queue = await queuePart(repo, tx, caller, flow, task, change.edit);
+      if (!queue.ok) return queue;
+      const { title, description, autoTake } = change.edit;
+      const priority = placedPriority(change.edit.priority, queue.place?.target, task.priority);
+      const set = changes(task, { title, description, priority, autoTake });
+      const fields: string[] = Object.keys(set);
+      if (fields.length > 0) await repo.tasks.update(tx, task.id, set);
+      if (queue.place && (await placeInQueue(repo, tx, task, queue.place))) fields.push('queue');
+      const waits = queue.waits;
+      if (waits && (await setWaits(repo, tx, task.id, waits))) fields.push('waitsFor');
+      if (fields.length === 0) return { ok: true, task };
+      const after = await repo.tasks.lock(tx, task.id);
+      const details = waits ? { fields, waitsFor: waits.map((other) => taskKey(other.number)) } : { fields };
+      await repo.tasks.insertEvents(tx, [eventRow(task.id, caller, { kind: 'edited', details })]);
+      await audit(repo, tx, caller, {
+        entityType: 'task',
+        entityId: task.id,
+        action: 'update',
+        before: task,
+        after,
+      });
+      return { ok: true, task: after };
+    },
+  );
   if (!done.ok) return done;
   // An Autotake task in Queued that changed: the flow takes it (or an earlier one) when it auto-takes and has room.
   if (done.task.state === 'queued' && done.task.autoTake)

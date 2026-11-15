@@ -45,7 +45,10 @@ function WaitsFor({ waits }: { readonly waits: BoardCard['waitsFor'] }) {
       <Hourglass size={11} aria-hidden="true" />
       waits for
       {waits.map((wait, index) => (
-        <span key={wait.key} className={cx('font-mono font-semibold', wait.closed ? 'text-faint line-through' : 'text-ink')}>
+        <span
+          key={wait.key}
+          className={cx('font-mono font-semibold', wait.closed ? 'text-faint line-through' : 'text-ink')}
+        >
           {wait.key}
           {index < waits.length - 1 ? ',' : ''}
         </span>

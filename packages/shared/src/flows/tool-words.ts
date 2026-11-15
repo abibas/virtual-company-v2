@@ -108,7 +108,10 @@ export const AGENT_TOOL_INFO: Readonly<
 };
 
 /** A flow's defaults for new tasks in words (T-38): `Queued, Autotake`, `"Develop"` (a step skips Queued). */
-export function newTasksWords(defaults: { readonly stepName: string | null; readonly autoTake: boolean }): string {
+export function newTasksWords(defaults: {
+  readonly stepName: string | null;
+  readonly autoTake: boolean;
+}): string {
   if (defaults.stepName !== null) return `"${defaults.stepName}"`;
   return `Queued, ${defaults.autoTake ? 'Autotake' : 'Manual'}`;
 }
@@ -121,7 +124,10 @@ export function newTasksWords(defaults: { readonly stepName: string | null; read
  */
 export function leadSection(
   flowName: string,
-  newTasks: { readonly stepName: string | null; readonly autoTake: boolean } = { stepName: null, autoTake: false },
+  newTasks: { readonly stepName: string | null; readonly autoTake: boolean } = {
+    stepName: null,
+    autoTake: false,
+  },
 ): string {
   return [
     '## Leading your team (from Most Wanted)',

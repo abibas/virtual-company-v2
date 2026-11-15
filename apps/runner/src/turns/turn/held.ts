@@ -11,7 +11,11 @@ import type { TurnLaunch, TurnParts } from './parts.ts';
 export const JOURNAL_POLL_MS = 100;
 
 /** Starts a fresh turn's keeper in its run folder, which starts the harness; throws when it cannot even be spawned. */
-export function spawnTurnKeeper(spawn: Spawn, launch: TurnLaunch, parts: Pick<TurnParts, 'folder' | 'cwd'>): Kept {
+export function spawnTurnKeeper(
+  spawn: Spawn,
+  launch: TurnLaunch,
+  parts: Pick<TurnParts, 'folder' | 'cwd'>,
+): Kept {
   const { process } = launch;
   return spawnKeeper(spawn, launch.keeper, {
     dir: parts.folder.dir,

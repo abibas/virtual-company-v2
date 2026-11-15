@@ -25,7 +25,9 @@ export function markersIn(text: string): MarkerSpan[] {
 }
 
 /** The numbers of the markers in the text, each once, in the order they first appear. */
-export const markerOrder = (text: string): number[] => [...new Set(markersIn(text).map((marker) => marker.n))];
+export const markerOrder = (text: string): number[] => [
+  ...new Set(markersIn(text).map((marker) => marker.n)),
+];
 
 /** True for a text of markers alone (the thread shows the images without a bubble). */
 export const isMarkersOnly = (text: string): boolean => /^\s*(\[Image \d+\]\s*)+$/.test(text);
@@ -83,7 +85,8 @@ function spliceOf(before: string, after: string) {
   let start = 0;
   while (start < most && before[start] === after[start]) start += 1;
   let tail = 0;
-  while (tail < most - start && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail += 1;
+  while (tail < most - start && before[before.length - 1 - tail] === after[after.length - 1 - tail])
+    tail += 1;
   return { start, end: before.length - tail, inserted: after.slice(start, after.length - tail) };
 }
 

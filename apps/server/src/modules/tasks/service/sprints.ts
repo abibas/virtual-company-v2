@@ -53,7 +53,11 @@ export async function reportNow(
   return {
     done: closed.filter((task) => task.state === 'done').map(closedRow),
     cancelled: closed.filter((task) => task.state === 'cancelled').map(closedRow),
-    carriedOver: open.map((task) => ({ key: taskKey(task.number), title: task.title, where: whereOf(task, byId) })),
+    carriedOver: open.map((task) => ({
+      key: taskKey(task.number),
+      title: task.title,
+      where: whereOf(task, byId),
+    })),
     created: await repo.sprints.createdBetween(t, sprint.flowId, sprint.startedAt, sprint.endedAt),
   };
 }

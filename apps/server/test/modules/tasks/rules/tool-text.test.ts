@@ -42,7 +42,13 @@ const card = (key: string, more: Partial<BoardView['columns'][number]['cards'][n
 describe('the board in words', () => {
   it('names the flow, then each column with its cards', () => {
     const board: BoardView = {
-      flow: { id: 'f', name: 'DEVBOX delivery', lead: agent('Coordinator'), newTaskStepId: null, newTaskAutoTake: false },
+      flow: {
+        id: 'f',
+        name: 'DEVBOX delivery',
+        lead: agent('Coordinator'),
+        newTaskStepId: null,
+        newTaskAutoTake: false,
+      },
       sprint: {
         id: 'sp',
         number: 1,
@@ -130,7 +136,13 @@ describe('a task in words', () => {
       priority: 'high',
       assignee: agent('Coordinator'),
       createdBy: person('Ihor'),
-      flow: { id: 'f', name: 'DEVBOX delivery', lead: agent('Coordinator'), newTaskStepId: null, newTaskAutoTake: false },
+      flow: {
+        id: 'f',
+        name: 'DEVBOX delivery',
+        lead: agent('Coordinator'),
+        newTaskStepId: null,
+        newTaskAutoTake: false,
+      },
       blockedReason: 'No repo',
       escalation: { reason: 'Sent back 3 times', retryTo: develop },
       decision,

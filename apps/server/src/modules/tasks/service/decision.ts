@@ -18,8 +18,8 @@ import { closedFromOf, move, type Transition } from '../rules/machine.ts';
 import { moveRefusal } from '../rules/moves.ts';
 import { movedLine, type StepEndLine, stoppedLine } from '../rules/room.ts';
 import { applyMove } from './apply.ts';
-import { endsProgress, takeQueued } from './auto-take.ts';
 import { AUDIT_IGNORED, type Caller } from './audit.ts';
+import { endsProgress, takeQueued } from './auto-take.ts';
 import { postStepEnd } from './room/post.ts';
 import { applyStepChange, type RunDeps, runStep, startedNow } from './runs.ts';
 import { rosterOf } from './team.ts';
@@ -123,7 +123,11 @@ export async function applyDecision(
         await repo.tasks.update(tx, task.id, { decision: null });
         return undefined;
       }
-      return reopenNow({ repo, tx, caller, flow, task, steps, step: step as FlowStep, closedFrom }, decision, ended);
+      return reopenNow(
+        { repo, tx, caller, flow, task, steps, step: step as FlowStep, closedFrom },
+        decision,
+        ended,
+      );
     }
     if (decision === undefined || step === undefined || task.currentStepId !== step.id) return undefined;
     const roster = await rosterOf(tx);
@@ -177,7 +181,11 @@ async function reopenNow(
 ): Promise<Transition | undefined> {
   const { repo, tx, caller, flow, task, steps, step } = at;
   const roster = await rosterOf(tx);
-  const input = { action: 'reopen' as const, reason: decision.reason ?? undefined, closedFrom: at.closedFrom };
+  const input = {
+    action: 'reopen' as const,
+    reason: decision.reason ?? undefined,
+    closedFrom: at.closedFrom,
+  };
   const transition =
     actRefusal(caller, roster.team(flow.leadPrincipalId), input.action, step) ??
     move(task, steps, input, roster.isPerson);
@@ -186,7 +194,15 @@ async function reopenNow(
     return undefined;
   }
   const now = ended.now;
-  await applyMove(repo, tx, caller, { task, flow, from: step, roster, transition, action: input.action, now });
+  await applyMove(repo, tx, caller, {
+    task,
+    flow,
+    from: step,
+    roster,
+    transition,
+    action: input.action,
+    now,
+  });
   const to = steps.find((s) => s.id === transition.task.currentStepId)?.name ?? null;
   const end = movedLine(decision, step.name, { outcome: transition.outcome, to }, ended.reply);
   await postStepEnd(repo, tx, { flowId: flow.id, task, agentPrincipalId: caller.principalId, end, now });

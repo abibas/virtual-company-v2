@@ -42,8 +42,8 @@ export function ReopenPanel({
   return (
     <div className="flex flex-col gap-2 rounded-xl bg-surface-2 p-3">
       <p className="text-xs text-ink-2">
-        {task.key} goes back to {target ?? 'its step'} for another round, in that step's same conversation, with
-        your correction.
+        {task.key} goes back to {target ?? 'its step'} for another round, in that step's same conversation,
+        with your correction.
       </p>
       <Input
         size="sm"

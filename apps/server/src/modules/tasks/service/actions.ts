@@ -76,7 +76,13 @@ export async function actOnTask(
       const moved = { task, flow, from, roster, transition, action: body.action, now: request.now };
       const after = await applyMove(repo, tx, caller, moved);
       if (reopening && from !== undefined) {
-        const note = { task, step: from, by: caller.principalId, reason: body.reason, findings: body.findings };
+        const note = {
+          task,
+          step: from,
+          by: caller.principalId,
+          reason: body.reason,
+          findings: body.findings,
+        };
         await storeReopenNote(repo, tx, note);
       }
       return { ok: true, transition, task: after };

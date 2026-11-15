@@ -8,7 +8,13 @@ import {
   TaskState,
   TaskStepState,
 } from '@mwc/shared/enums';
-import { TASK_DESCRIPTION_MAX, TASK_PAGE, TASK_REASON_MAX, TASK_TITLE, TOOL_TEXT_MAX } from '@mwc/shared/flows';
+import {
+  TASK_DESCRIPTION_MAX,
+  TASK_PAGE,
+  TASK_REASON_MAX,
+  TASK_TITLE,
+  TOOL_TEXT_MAX,
+} from '@mwc/shared/flows';
 import { CURSOR_PATTERN, STATES_PATTERN } from '../rules/list.ts';
 import { At, PrincipalRefSchema, StepRefSchema } from '../schemas.ts';
 
@@ -238,7 +244,9 @@ export const TaskDetailSchema = TaskSummarySchema.extend({
   decision: TaskDecisionSchema.nullable(),
   /** The tasks of its flow it waits for (T-39): Autotake skips it until each is done or cancelled. */
   waitsFor: z.array(
-    z.object({ id: z.string(), key: z.string(), title: z.string(), state: TaskState }).openapi('TaskWaitsFor'),
+    z
+      .object({ id: z.string(), key: z.string(), title: z.string(), state: TaskState })
+      .openapi('TaskWaitsFor'),
   ),
   /** Its place in Queued (T-39): 1 is taken first; null unless queued. */
   queue: z.object({ place: z.number().int().min(1), of: z.number().int().min(1) }).nullable(),

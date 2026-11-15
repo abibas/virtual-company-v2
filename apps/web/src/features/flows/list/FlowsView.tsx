@@ -47,7 +47,9 @@ function CreateFlow({ props, flows }: { readonly props: FlowsViewProps; readonly
         <MenuItem
           key={node.principalId}
           href={props.links.team(nodeAddress(node), 'flow')}
-          leading={<Face who={{ principalId: node.principalId, name: nodeName(node) }} nodes={nodes} link={false} />}
+          leading={
+            <Face who={{ principalId: node.principalId, name: nodeName(node) }} nodes={nodes} link={false} />
+          }
         >
           {nodeName(node)}
         </MenuItem>

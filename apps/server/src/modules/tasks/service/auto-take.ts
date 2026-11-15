@@ -1,4 +1,4 @@
-import { type DbHandle, type Flow, tenant, type TenantDb } from '@mwc/db';
+import { type DbHandle, type Flow, type TenantDb, tenant } from '@mwc/db';
 import { newId } from '@mwc/shared/ids';
 import type { Logger } from 'pino';
 import type { Timers } from '../../../platform/jobs/runner.ts';

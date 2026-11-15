@@ -89,11 +89,7 @@ export async function boardOf(
       cancelled: closed.cancelled,
     },
     columns: [
-      column(
-        'queued',
-        'Queued',
-        open.filter((task) => task.state === 'queued').sort(queueOrder),
-      ),
+      column('queued', 'Queued', open.filter((task) => task.state === 'queued').sort(queueOrder)),
       ...steps.map((step) =>
         column('step', step.name, at(step.id), {
           id: step.id,

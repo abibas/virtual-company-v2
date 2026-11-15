@@ -41,7 +41,8 @@ export class TurnEnding {
   close(): void {
     const { folder } = this.#parts;
     this.exit = folder.exit();
-    const detail = startFailure(this.spawnError, this.exit) ?? stderrTail(this.#deps.readAt, folder.path('err'));
+    const detail =
+      startFailure(this.spawnError, this.exit) ?? stderrTail(this.#deps.readAt, folder.path('err'));
     this.#output.drain();
     // A conversation that is not here gives no failing result: the server starts the turn afresh instead.
     if (this.#missing() === undefined) this.#output.close(this.exit?.code ?? null, detail);

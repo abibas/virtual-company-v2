@@ -28,7 +28,13 @@ async function of(t: TenantDb, taskIds: readonly string[]): Promise<Map<string, 
     .orderBy(asc(tasks.number));
   for (const task of waited)
     for (const edge of edges.filter((e) => e.waitsForTaskId === task.id)) {
-      const row = { taskId: edge.taskId, waitsForTaskId: task.id, number: task.number, title: task.title, state: task.state };
+      const row = {
+        taskId: edge.taskId,
+        waitsForTaskId: task.id,
+        number: task.number,
+        title: task.title,
+        state: task.state,
+      };
       byTask.set(edge.taskId, [...(byTask.get(edge.taskId) ?? []), row]);
     }
   return byTask;

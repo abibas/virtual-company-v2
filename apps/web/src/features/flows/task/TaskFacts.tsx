@@ -84,7 +84,8 @@ function AutoTake({
   readonly onSave: (next: boolean) => Promise<unknown>;
 }) {
   const [error, setError] = useState<string>();
-  if (!editable) return <span className={value ? 'text-ink' : 'text-dim'}>{value ? 'Autotake' : 'Manual'}</span>;
+  if (!editable)
+    return <span className={value ? 'text-ink' : 'text-dim'}>{value ? 'Autotake' : 'Manual'}</span>;
   return (
     <span className="flex flex-col items-end gap-0.5">
       <Select
@@ -94,7 +95,9 @@ function AutoTake({
         className="w-28!"
         onChange={(event) => {
           setError(undefined);
-          onSave(event.target.value === 'auto').catch((failure: unknown) => setError(friendlyMessage(failure)));
+          onSave(event.target.value === 'auto').catch((failure: unknown) =>
+            setError(friendlyMessage(failure)),
+          );
         }}
         options={[
           { value: 'auto', label: 'Autotake' },
@@ -153,7 +156,11 @@ export function TaskFacts({
           </>
         ) : (
           <span className="text-dim">
-            {task.queue ? `Queued · ${task.queue.place} of ${task.queue.of}` : task.state === 'queued' ? 'Queued' : '—'}
+            {task.queue
+              ? `Queued · ${task.queue.place} of ${task.queue.of}`
+              : task.state === 'queued'
+                ? 'Queued'
+                : '—'}
           </span>
         )}
       </Fact>

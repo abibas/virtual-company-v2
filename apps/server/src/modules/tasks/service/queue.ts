@@ -86,7 +86,11 @@ export async function placeTarget(
   const target = found.tasks[0] as Task;
   if (target.id === task.id) return refuse(422, 'same_task', 'A task cannot be put before or after itself');
   if (target.state !== 'queued')
-    return refuse(422, 'target_not_queued', `${taskKey(target.number)} is not queued: place a task among the queued ones`);
+    return refuse(
+      422,
+      'target_not_queued',
+      `${taskKey(target.number)} is not queued: place a task among the queued ones`,
+    );
   return { ok: true, target, side: place.before !== undefined ? 'before' : 'after' };
 }
 
@@ -110,7 +114,8 @@ export async function placeInQueue(
 export async function setWaits(repo: TasksRepo, t: TenantDb, taskId: string, waitsFor: readonly Task[]) {
   const now = (await repo.waits.of(t, [taskId])).get(taskId) ?? [];
   const same =
-    now.length === waitsFor.length && waitsFor.every((task) => now.some((row) => row.waitsForTaskId === task.id));
+    now.length === waitsFor.length &&
+    waitsFor.every((task) => now.some((row) => row.waitsForTaskId === task.id));
   if (same) return false;
   await repo.waits.set(
     t,
@@ -121,5 +126,8 @@ export async function setWaits(repo: TasksRepo, t: TenantDb, taskId: string, wai
 }
 
 /** The priority a placed task takes: the one given, else its target's (so it lands where it was put). */
-export const placedPriority = (given: TaskPriority | undefined, target: Task | undefined, own: TaskPriority) =>
-  given ?? target?.priority ?? own;
+export const placedPriority = (
+  given: TaskPriority | undefined,
+  target: Task | undefined,
+  own: TaskPriority,
+) => given ?? target?.priority ?? own;

@@ -158,7 +158,12 @@ export function flowCalls(api: Api, companyId: string) {
     createTask: (task: NewTask) => call(tasks.$post({ param: { companyId }, json: task })),
     /** A flow's open tasks (queued, active, escalated), the newest first: a task's Waits for picker (T-39). */
     openTasks: (flowId: string) =>
-      call(tasks.$get({ param: { companyId }, query: { flowId, state: 'queued,active,escalated', limit: '100' } })),
+      call(
+        tasks.$get({
+          param: { companyId },
+          query: { flowId, state: 'queued,active,escalated', limit: '100' },
+        }),
+      ),
     editTask: (taskId: string, changes: TaskChanges) =>
       call(tasks[':taskId'].$patch({ param: { companyId, taskId }, json: changes })),
     act: (taskId: string, move: TaskMove) =>

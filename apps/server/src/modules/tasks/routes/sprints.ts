@@ -78,7 +78,11 @@ export function sprintRoutes(deps: ServerDeps, tasks: TasksService) {
     .openapi(newRoute(deps), async (c) => {
       const { flowId } = c.req.valid('param');
       const { name } = c.req.valid('json');
-      const result = await tasks.newSprint(c.var.tenant, callerOf(c.var), { flowId, name, now: c.var.clock() });
+      const result = await tasks.newSprint(c.var.tenant, callerOf(c.var), {
+        flowId,
+        name,
+        now: c.var.clock(),
+      });
       if (!result.ok) return errorJson(c, result.status, result.code, result.message);
       return c.json(result.sprint, 201);
     });

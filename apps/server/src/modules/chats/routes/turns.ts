@@ -122,7 +122,14 @@ export function turnRoutes(deps: ServerDeps & QueueDeps) {
       const decoded = decodeImages(sent ?? []);
       if (!decoded.ok) return errorJson(c, decoded.status, decoded.code, decoded.message);
       const wake = { trigger: 'message' as const, person: { userId, role }, asked: startMachine === true };
-      const written = await writtenIn(deps.db, c.var.tenant, chatId, principalId, prompt, decoded.images.length);
+      const written = await writtenIn(
+        deps.db,
+        c.var.tenant,
+        chatId,
+        principalId,
+        prompt,
+        decoded.images.length,
+      );
       if (!written.ok) return errorJson(c, 422, written.code, written.message);
       const caller = { principalId, wake, shown: written.shown, images: decoded.images };
       const result = await sendMessage(deps, c.var.tenant, caller, chatId, written.prompt, delivery);

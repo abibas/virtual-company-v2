@@ -80,4 +80,7 @@ export const boardOrder = (a: Pick<Task, 'priority' | 'number'>, b: Pick<Task, '
 export const queueOrder = (
   a: Pick<Task, 'priority' | 'queuePosition' | 'number'>,
   b: Pick<Task, 'priority' | 'queuePosition' | 'number'>,
-) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.queuePosition - b.queuePosition || a.number - b.number;
+) =>
+  PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
+  a.queuePosition - b.queuePosition ||
+  a.number - b.number;

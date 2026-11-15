@@ -41,6 +41,7 @@ function queueLine(draft: QueueDraft, steps: readonly QueueStep[]): string {
 /** A label and its control on one row of the card. */
 function Row({ label, children }: { readonly label: string; readonly children: ReactNode }) {
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: the Select or Switch passed as children is its control.
     <label className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-ink-2">
       <span className="w-32 shrink-0">{label}</span>
       <span className="w-48 max-w-full">{children}</span>
