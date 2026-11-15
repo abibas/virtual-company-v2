@@ -195,6 +195,43 @@ describe('a reply in a thread', () => {
     expect(groupReads.map((call) => new URLSearchParams(String(call.body)).get('limit'))).toEqual(['1']);
   });
 
+  it('reads a thread over its pages, and names whoever Slack finds', async () => {
+    const s = await sceneOf();
+    const first = message({ text: `<@${BOT}> Approve` });
+    const reply = message({ text: `<@${BOT}> so?`, threadTs: first.ts });
+    const at = (n: number) => `${first.ts.split('.')[0]}.${String(500 + n).padStart(6, '0')}`;
+    answerSlack(w, {
+      'conversations.replies': (call) => {
+        const body = new URLSearchParams(String(call.body));
+        if (body.get('limit') === '1') return ok({ messages: [root(first.ts)] })(call);
+        return body.get('cursor') === 'page2'
+          ? ok({ messages: [{ ts: at(2), user: 'U0GHOST', text: 'two' }] })(call)
+          : ok({
+              messages: [root(first.ts), { ts: at(1), user: ERICH, text: 'one' }],
+              response_metadata: { next_cursor: 'page2' },
+            })(call);
+      },
+      'users.info': (call) => {
+        const user = new URLSearchParams(String(call.body)).get('user');
+        if (user === 'U0GHOST') return slackError('user_not_found')(call);
+        // Erich has only a display name, Ihor only his user name.
+        const named =
+          user === ERICH
+            ? rawUser(ERICH, 'erich', { real_name: undefined, profile: { display_name: 'Erich Example' } })
+            : rawUser(user ?? '', 'Ihor Herasko', { real_name: undefined, profile: {} });
+        return ok({ user: named })(call);
+      },
+    });
+    const { prompt } = await promptOf(s, reply);
+    const lines = prompt.split('\n').filter((line) => line.startsWith('- '));
+    expect(lines.slice(1)).toEqual(['- Erich Example: one', expect.stringMatching(/U0GHOST.*: two$/)]);
+    const pages = callsOf(w, 'conversations.replies').map((call) => new URLSearchParams(String(call.body)));
+    expect(pages.filter((page) => page.get('limit') === '200').map((page) => page.get('cursor'))).toEqual([
+      null,
+      'page2',
+    ]);
+  });
+
   it('reads nothing for a message in no thread', async () => {
     const s = await sceneOf();
     const { prompt } = await promptOf(s, message({ channel: GENERAL }));
