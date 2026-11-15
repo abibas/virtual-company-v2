@@ -28,8 +28,11 @@ describe('the Lead’s board tools', () => {
     const { start } = await leadTurn(w, s);
     const board = await toolCall(s.runner, start.turnId, 'team_board');
     expect(board.ok).toBe(true);
-    expect(board.text).toContain('Flow "DEVBOX delivery" · Lead: DEVBOX Coordinator');
-    expect(board.text).toContain('Queued (1)\n- T-1 · Fix the docs · high');
+    expect(board.text).toContain(
+      'Flow "DEVBOX delivery" · Lead: DEVBOX Coordinator · new tasks: Queued, Manual',
+    );
+    expect(board.text).toMatch(/\nCurrent sprint: "Sprint 1" · since \d{4}-\d\d-\d\d \d\d:\d\d UTC · /);
+    expect(board.text).toContain('Queued (1)\n- 1. T-1 · Fix the docs · high · manual');
     expect(board.text).toContain('Develop · Work · Developer (1)\n- T-2 · Fix the login · working');
     expect(board.text).toContain('Done (0 of 0)');
     const shown = await toolCall(s.runner, start.turnId, 'task_show', { key: 't-2' });
@@ -44,7 +47,7 @@ describe('the Lead’s board tools', () => {
     const { start } = await leadTurn(w, s);
     expect(await toolCall(s.runner, start.turnId, 'task_create', { title: 'Fix the docs' })).toMatchObject({
       ok: true,
-      text: 'Created T-1 "Fix the docs": queued.',
+      text: 'Created T-1 "Fix the docs": queued (Queue: 1 of 1 · Manual).',
     });
     const into = await toolCall(s.runner, start.turnId, 'task_create', {
       title: 'Fix the login',

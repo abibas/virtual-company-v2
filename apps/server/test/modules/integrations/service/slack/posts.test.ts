@@ -70,9 +70,9 @@ const post = (text: string, channel = '#general') =>
   callTool(s, start, 'slack_post_message', { channel_id: channel, text });
 
 describe('slack_post_message', () => {
-  it('posts its text alone under the agent’s name and icon, no mentions parsed, audited as the agent', async () => {
+  it('posts its text alone, in mrkdwn, under the agent’s name and icon, no mentions parsed, audited as the agent', async () => {
     answerSlack(w, { ...GENERAL, 'chat.postMessage': ok({ channel: 'C0GENERAL1', ts: '1731.5' }) });
-    const result = await post('Test message from *Most Wanted*');
+    const result = await post('Test message from **Most Wanted**');
     expect(answerOf(result)).toEqual({
       posted: true,
       channel: '#general',
@@ -93,7 +93,8 @@ describe('slack_post_message', () => {
     expect(form).not.toHaveProperty('blocks');
     expect(await toolAudit(w.t.db, 'slack_message', 'C0GENERAL1/1731.5')).toEqual([
       ['tool:slack_post_message', agentPrincipal, start.turnId, 'channel', '#general'],
-      ['tool:slack_post_message', agentPrincipal, start.turnId, 'text', 'Test message from *Most Wanted*'],
+      // The audit keeps what the agent wrote; Slack got its mrkdwn (T-24).
+      ['tool:slack_post_message', agentPrincipal, start.turnId, 'text', 'Test message from **Most Wanted**'],
     ]);
   });
 

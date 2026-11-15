@@ -93,7 +93,8 @@ describe('GET /api/companies/:companyId/flows/:flowId/board', () => {
       ['step', 'Code review', ['T-4'], 1],
       ['step', 'QA', [], 0],
       ['step', 'Approve', [], 0],
-      ['done', 'Done', ['T-6', 'T-5'], 2],
+      // Done holds the latest closed tasks, done or cancelled (T-27): T-8 was cancelled last.
+      ['done', 'Done', ['T-8', 'T-6', 'T-5'], 3],
       ['escalated', 'Escalated', ['T-7'], 1],
     ]);
     const [queued, develop, review] = view.columns;
@@ -105,6 +106,8 @@ describe('GET /api/companies/:companyId/flows/:flowId/board', () => {
       assignee: { name: 'Code Reviewer' },
       stepId: stepOf(flow, 'Code review').id,
     });
+    const done = view.columns.find((col) => col.kind === 'done');
+    expect(done?.cards.map((card) => card.cancelled)).toEqual([true, false, false]);
     expect(view.columns.at(-1)?.cards[0]).toMatchObject({
       round: 4,
       stepState: null,
@@ -114,7 +117,7 @@ describe('GET /api/companies/:companyId/flows/:flowId/board', () => {
 
   it('shows as many done tasks as asked, still counting them all', async () => {
     const done = (await board('?done=1')).columns.find((col) => col.kind === 'done');
-    expect([done?.cards.map((card) => card.key), done?.total]).toEqual([['T-6'], 2]);
+    expect([done?.cards.map((card) => card.key), done?.total]).toEqual([['T-8'], 3]);
     expect((await board('?done=0')).columns.find((col) => col.kind === 'done')?.cards).toEqual([]);
     expect((await as(w, c.viewer)('GET', flowsPath(c, `/${flow.id}/board?done=51`))).status).toBe(400);
     expect(

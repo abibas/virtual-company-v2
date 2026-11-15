@@ -92,7 +92,8 @@ describe('POST /api/companies/:companyId/tasks/:taskId/actions: a task through t
     const done = await moved(w, c, c.owner, key, { action: 'approve' });
     expect(done).toMatchObject({ outcome: 'done', task: { state: 'done', step: null, assignee: null } });
     expect(done.task.closedAt).not.toBeNull();
-    expect(done.task.actions).toEqual([]);
+    // A done task's only move is reopen, for whoever leads the team (T-28).
+    expect(done.task.actions).toEqual(['reopen']);
 
     const history = await historyOf(w.t.db, created.id);
     expect(history.slice(0, 9)).toEqual([
