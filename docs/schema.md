@@ -3,7 +3,7 @@
 > Generated from `packages/db/src/schema/` by `pnpm --filter @mwc/db diagram`. Do not edit by
 > hand: `pnpm mwc check` fails when this file and the schema disagree.
 
-Tables: 48. Migrations: 50, the last is `0049_queue_order`.
+Tables: 48. Migrations: 51, the last is `0050_reopen_decision`.
 
 ```mermaid
 erDiagram
@@ -2375,7 +2375,7 @@ from the table holding the foreign key and labelled with its columns: `}o--||` m
   - `tasks_escalation_reason_check`: `char_length("escalation_reason") between 1 and 2000`
   - `tasks_closed_check`: `("state" in ('done', 'cancelled')) = ("closed_at" is not null)`
   - `tasks_blocked_reason_check`: `"blocked_reason" is null or ("step_state" = 'blocked' and char_length("blocked_reason") between 1 and 2000)`
-  - `tasks_decision_check`: `"decision" is null or ("state" = 'active' and jsonb_typeof("decision") = 'object')`
+  - `tasks_decision_check`: `"decision" is null or (jsonb_typeof("decision") = 'object' and ("state" = 'active' or ("state" in ('done', 'cancelled') and "decision" ->> 'action' = 'reopen')))`
 - **Indexes:**
   - `tasks_flow_state_idx` on (`company_id`, `flow_id`, `state`)
   - `tasks_flow_queue_idx` on (`company_id`, `flow_id`, `queue_position`)

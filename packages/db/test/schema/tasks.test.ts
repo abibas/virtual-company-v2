@@ -175,6 +175,30 @@ describe('tasks', () => {
     expect(await constraint(insertTask({ ...active(), decision: notObject }))).toBe('tasks_decision_check');
   });
 
+  it('lets a closed task hold a reopen decision only, from the conversation it closed in (T-28, 0050)', async () => {
+    const reopen = {
+      turnId: 't',
+      chatId: 'c',
+      stepId: step.id,
+      round: 1,
+      action: 'reopen' as const,
+      reason: 'The login still fails',
+      note: 'Empty passwords pass',
+      by: owner.id,
+      at: '2026-11-15T10:00:00.000Z',
+      outcome: 'moved' as const,
+      toStepId: step.id,
+      toStepName: 'Develop',
+    };
+    const closed = { closedAt: new Date() };
+    expect((await insertTask({ ...closed, state: 'done', decision: reopen })).decision).toEqual(reopen);
+    expect((await insertTask({ ...closed, state: 'cancelled', decision: reopen })).state).toBe('cancelled');
+    expect(
+      await constraint(insertTask({ ...closed, state: 'done', decision: { ...reopen, action: 'hand_on' } })),
+    ).toBe('tasks_decision_check');
+    expect(await constraint(insertTask({ decision: reopen }))).toBe('tasks_decision_check');
+  });
+
   it("refuses another company's flow, step or creator, and keeps a step with a task at it", async () => {
     const theirs = await insertPrincipal(handle, globex.id);
     expect(await constraint(insertTask({ createdBy: theirs.id }))).toBe('tasks_created_by_fk');

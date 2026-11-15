@@ -1,0 +1,2 @@
+ALTER TABLE "tasks" DROP CONSTRAINT "tasks_decision_check";--> statement-breakpoint
+ALTER TABLE "tasks" ADD CONSTRAINT "tasks_decision_check" CHECK ("tasks"."decision" is null or (jsonb_typeof("tasks"."decision") = 'object' and ("tasks"."state" = 'active' or ("tasks"."state" in ('done', 'cancelled') and "tasks"."decision" ->> 'action' = 'reopen'))));

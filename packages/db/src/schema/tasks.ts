@@ -70,7 +70,8 @@ export const tasks = pgTable(
     blockedReason: text('blocked_reason'),
     /**
      * The decision the step's agent recorded with its tools during its running turn (S6a: a move or a block), applied
-     * when the turn ends; only while `active`, and gone with any move.
+     * when the turn ends; only while `active` (or, closed, a `reopen` from the conversation it closed in, T-28), and
+     * gone with any move.
      */
     decision: jsonb('decision').$type<TaskDecision>(),
     createdBy: uuid('created_by').notNull(),
@@ -114,9 +115,10 @@ export const tasks = pgTable(
       'tasks_blocked_reason_check',
       sql`${t.blockedReason} is null or (${t.stepState} = 'blocked' and char_length(${t.blockedReason}) between 1 and ${n(TASK_REASON_MAX)})`,
     ),
+    // A decision is an active task's step turn's; a closed task holds one only to be reopened by it (T-28).
     check(
       'tasks_decision_check',
-      sql`${t.decision} is null or (${t.state} = 'active' and jsonb_typeof(${t.decision}) = 'object')`,
+      sql`${t.decision} is null or (jsonb_typeof(${t.decision}) = 'object' and (${t.state} = 'active' or (${t.state} in ('done', 'cancelled') and ${t.decision} ->> 'action' = 'reopen')))`,
     ),
     index('tasks_flow_state_idx').on(t.companyId, t.flowId, t.state),
     index('tasks_flow_queue_idx').on(t.companyId, t.flowId, t.queuePosition),
