@@ -240,7 +240,7 @@ export function Composer({
             placeholder={hintOf(placeholder, inSlack ? slack.place : undefined, running, attach.dragging)}
             className="block max-h-60 min-h-14 w-full resize-none bg-transparent px-4.5 pt-3.5 pb-1 text-[0.9375rem] leading-relaxed text-ink outline-none placeholder:text-faint [field-sizing:content]"
           />
-          <div className="flex min-h-12 flex-nowrap items-center gap-1 px-1.5 py-1.5 @sm/composer:px-2">
+          <div className="flex min-h-12 flex-nowrap items-center gap-1 px-4.5 py-1.5">
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
               <DictationButton dictation={dictation} />
               {runs}
