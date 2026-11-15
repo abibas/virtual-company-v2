@@ -32,6 +32,12 @@ function spliced(value: string, start: number, end: number, text: string) {
   };
 }
 
+/**
+ * Starts in line with the message text above (T-33): the composer's bottom row is padded `px-1.5` (`@sm/composer:px-2`)
+ * and its message box `px-4.5`, so this makes up the difference.
+ */
+const inLine = 'pl-3 @sm/composer:pl-2.5';
+
 /** Beside the button: the level meter and the time while it listens, "Transcribing…", and a message above it. */
 function Status({
   state,
@@ -55,7 +61,7 @@ function Status({
         </p>
       )}
       {state === 'recording' && (
-        <span className="flex items-center gap-1.5 text-xs text-dim tabular-nums" aria-hidden="true">
+        <span className={cx(inLine, 'flex items-center gap-1.5 text-xs text-dim tabular-nums')} aria-hidden="true">
           <span className="h-1.5 w-10 overflow-hidden rounded-full bg-surface-3">
             <span
               className="block h-full origin-left rounded-full bg-blue transition-transform duration-75"
@@ -65,7 +71,7 @@ function Status({
           {clock(elapsedMs)}
         </span>
       )}
-      {state === 'transcribing' && <span className="text-xs text-dim">Transcribing…</span>}
+      {state === 'transcribing' && <span className={cx(inLine, 'text-xs text-dim')}>Transcribing…</span>}
     </>
   );
 }
