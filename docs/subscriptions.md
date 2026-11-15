@@ -951,7 +951,8 @@ a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as
 - **Posting** (`service/slack/posts.ts`): every mention of many people is stripped before Slack sees the text
   (`<!here>`, `<!channel>`, `<!everyone>`, user groups `<!subteam^…>`, and `@here`, `@channel`, `@everyone` typed as
   words; the word stays, the mention goes; the answer and the audit row name what was stripped), with `link_names` off,
-  `parse` none and no unfurls. The text goes as it is, as the post's plain `text`, with no blocks and no footer. On a
+  `parse` none and no unfurls. The text goes as the post's plain `text`, its Markdown converted to Slack's mrkdwn first
+  ("Markdown in Slack" below; before 2026-11-14 it went as written), with no blocks and no footer. On a
   bot token with `chat:write.customize` the post shows under the agent's name, and its icon when the agent's icon is an
   emoji Slack knows by name (`:robot_face:` for 🤖, about forty common ones); agents' uploaded images have no public
   address yet, so none is sent as `icon_url`. Without that scope it shows as the bot; a user token's as its person.
@@ -970,6 +971,28 @@ a post shows as or how far it reaches (`username`, `icon_emoji`, `icon_url`, `as
   start), `mentionsStripped`, `reaction`.
 - **How many tools.** Slack's 9 with GitHub's 14 and Atlassian's 15 pass the 32 a turn's spec carried; a turn now
   carries up to 64, and an older runner still gets 32 with the least important left out (docs/harness.md, "Server tools").
+
+### Markdown in Slack
+
+Since 2026-11-14 (T-24; Ihor saw `**bold**` and `[text](url)` posted as written). Agents write standard Markdown, but a
+post's `text` is Slack mrkdwn, so every post the server makes for an agent (the agent's `slack_post_message` and
+`slack_reply_to_thread`, a turn's answer in its thread, its notices, Send in Slack) goes through `toMrkdwn`
+(`modules/integrations/rules/slack/mrkdwn.ts`, pure) after the mass mentions are stripped:
+
+| Markdown                                | mrkdwn                                                     |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `**bold**`, `__bold__`                  | `*bold*`                                                   |
+| `*italics*`, `_italics_`                | `_italics_`                                                |
+| `***both***`                            | `*_both_*`                                                 |
+| `~~strike~~`                            | `~strike~`                                                 |
+| `## Heading` (any level)                | `*Heading*` on its own line                                |
+| `[text](https://…)`, `![alt](https://…)` | `<https://…\|text>` (`<https://…>` when the text is empty or the address) |
+| `- item`, `* item`, `+ item`            | `• item`, its indent kept (numbered lists stay as written) |
+| `` `code` ``, fenced blocks             | left as written; a fence loses its language                |
+
+`&`, `<` and `>` are escaped (`&amp;`, `&lt;`, `&gt;`) everywhere except inside code, Slack's own `<…>` tokens
+(`<@U…>`, `<#C…>`, `<!…>`, `<https://…|…>`), the links built here, bare addresses (`https://…`, trailing punctuation
+left outside) and a quote's leading `>`. A thematic break (`---`) stays as written.
 
 **Later** (Ihor, 2026-11-13): Slack may help mirror the team structure, a channel per team for example. Not built.
 
@@ -1114,6 +1137,19 @@ without background work stores the settings and says it keeps no connection (`re
   `InboundTurnHook`, told of every system turn's end). A stopped machine whose policy does not start it for a message
   says what to do (2026-11-14; Ihor: it only said "Couldn't answer: Airia devbox is stopped"): "Couldn't answer: Airia
   devbox is stopped. Start it, or turn on "Start when you message an agent on it" for the box." (`stoppedWords`).
+- **Not posted** (T-22, 2026-11-14; Ihor's agent answered, and nothing reached Slack or the chat): when the answer
+  cannot be posted, the turn keeps why (`chat_turns.reply_failure`, migration `0043_reply_failure`: `{reason, signIn}`,
+  `ReplyFailure` of `@mwc/shared/chats`) and the chat shows "Not posted in Slack: <reason>" under the reply in place of
+  "Posted in Slack", linking to Subscriptions when a sign-in is at fault. The reasons (`notPostedReason`,
+  `rules/slack/inbound/words.ts`): its Slack sign-in is gone, was revoked, is not a bot token (xoxb-), needs a new token
+  (Slack refused it), lacks a scope to post (chat:write); the bot is not in the channel (invite it there); Slack was
+  limiting requests, did not answer, or refused it (its own error). A refused token marks the bot sign-in
+  `needs_sign_in`. A later post that works clears the reason.
+- **The sign-in's owner hears of it** (T-22): a tool sign-in (Slack, GitHub, Atlassian) that the system finds
+  `needs_sign_in` (a refused call or answer, or the daily check) tells its owner once per change of it, in each company
+  where their membership is active (`noticeSignInNeeded`, notification kind `sign_in_needed`, bell and email, pointing
+  at Subscriptions): "'<label>' stopped working: Slack refused its token. Add it again" ("…refused its sign-in. Sign in
+  again" for a GitHub login). A person's own Check again tells nothing: they see it on the card.
 - **Records**: each wake is a `credential_uses` row `inbound` (the company, the agent, the chat, the agent as the one
   asking) and audited in the company by the system on `slack_message` `<channel>/<ts>` (action `slack_inbound`: from,
   place, agent, chat, text); each answer opens the sign-in for `inbound_reply` and is audited as the agent

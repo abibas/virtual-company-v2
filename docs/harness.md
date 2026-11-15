@@ -1205,6 +1205,12 @@ pastes them (Cmd+V), and the agent gets them with the message.
     the browser until it fits.
   - **Refusals**: anything else, a 7th image or a GIF over 3 MB gets one line of words.
   - **Sending**: Send works with images alone, and the prompt then says "(1 image)" / "(N images)".
+  - **Markers** (T-20, 2026-11-14): a dropped or pasted image puts an `[Image N]` marker in the text at the cursor,
+    linked to its chip both ways (removing either removes both; a marker is kept whole while editing and dictating).
+    At send the markers are numbered 1..N in the order they appear and the images go in that order; chips and thread
+    thumbnails are labelled "Image N". The server opens such a message, for the agent only, with one line
+    (`imageOrderHeader`, `chats/rules/images.ts`): "Images are attached in the order of their [Image N] markers." The
+    thread shows what was written; the line is dropped when it would make the prompt too long (`service/written.ts`).
   - **The thread** shows a message's images as thumbnails (fetched through the API client as object URLs, once per
     image). A click opens one large.
   - **Dropped files elsewhere**: a file dropped anywhere else on a page is cancelled (`useFileDropGuard` in

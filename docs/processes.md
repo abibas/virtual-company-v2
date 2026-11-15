@@ -1141,3 +1141,113 @@ The tool's schema and answer (shared, runner), offered in every kind of turn and
 its chat, turn, agent, task and place in the turn, streamed and audited, a bad input refused (`chats/service/
 decisions.test.ts`), the list's filters, pages and permissions (`decisions/routes.test.ts`), the table and its
 migration (`db/test/schema/decisions.test.ts`), and both parsers' whole inputs and results.
+
+## The queue, Autotake, reopen and sprints (T-25 … T-39, 2026-11-14/15)
+
+Built while the company's own work ran as tasks in the "Company self improvements" flow (Develop, Work, by MV Company
+Developer; **Put live**, Sign-off, by the flow's Lead agent, Fresh, sending back to Develop with a limit of 2). At Put
+live the Lead puts the task's branch live on the dev stack (typecheck, migrations, fast-forward merge into `main`, the
+runner updated when its code changed) and approves; nothing is pushed there. What went wrong at Put live goes back to
+Develop as a send-back, never fixed by the Sign-off turn itself (T-29, below).
+
+### Autotake (T-25, T-34)
+
+- **The flow** has `auto_take` (default off: Ihor turns it on from the Flow page) and `in_progress_limit` (1–20,
+  default 2; `IN_PROGRESS_LIMIT` of `@mwc/shared/flows`), migration `0044_auto_take`.
+- **The task** has `auto_take` (migration `0046_task_auto_take`, default false: Manual). Only queued tasks marked
+  Autotake are taken; a Manual one waits for a person or the Lead. Its creator, the team's Lead people, admins and the
+  Lead agent set it while the task is queued (the PATCH ignores it afterwards); turned on while the flow has room, the
+  task is taken at once.
+- **The take** (`service/auto-take.ts`, `takeQueued`): under the flow's lock, while fewer of its tasks than the limit
+  are `active` (escalated, queued and closed ones do not count), the next queued Autotake tasks (by priority, urgent
+  first, then their place in Queued, T-39; one waiting for an open task is skipped) enter the first step as the Lead's
+  route would, and start there when that step starts by itself. Its history row is `routed` with no actor
+  (`system`, `details.autoTake`): "Taken from Queued by itself".
+- **When**: after a move or a turn's decision that ends a task's time in progress (done, cancelled, escalated:
+  `endsProgress`), when a task is made in Queued, when the flow PATCH turns Autotake on or changes the limit, when a
+  queued task is edited to Autotake or stops waiting, and once 30 s after the server starts (`autoTakeAtStart`, on the
+  Lead wake-up tick's timers) for what it missed while it was down.
+- **Web**: the Flow page's Queue card (below), the Board's Queued header ("autotake on · 2 at a time"), an `auto`
+  marker on a queued Autotake card, and the task page's Autotake row (Autotake / Manual, editable while queued).
+
+### New tasks' defaults (T-38)
+
+`flows.new_task_step_id` (null: Queued, else one of the flow's steps; nulled when that step is removed) and
+`flows.new_task_auto_take` (default false), migration `0047_new_task_defaults`, sent through the flow PATCH (422
+`unknown_step` for another flow's step). Every create that does not say otherwise takes them: the New task sheet starts
+with them selected, `POST …/tasks` without `stepId`/`autoTake`, and the Lead's `task_create` without `step`/`autoTake`
+(`step: "Queued"` keeps it queued); a default step that starts by itself starts the task at once. The Flow page's
+**Queue** card: New tasks go to [Queued | 1. Develop | …], New tasks are [Manual | Autotake] (greyed out when new tasks
+skip Queued), the Autotake switch, at most N in progress, and one line saying what that adds up to. The Lead's standing
+instructions and `team_board`'s first line ("new tasks: Queued, Autotake") say the defaults as they are now.
+
+### The queue's order and "waits for" (T-39)
+
+- **Data** (migration `0049_queue_order`): `tasks.queue_position` (backfilled per flow from the oldest; the trigger
+  `tasks_queue_at_end` puts a task inserted without one after every task of its flow) and `task_waits`
+  (`company_id, task_id, waits_for_task_id`, its primary key; both composite keys into `tasks`, never itself).
+- **Order**: Queued is listed and taken by priority, then queue position, then number (`queued`, `nextQueued` in
+  `repo/tasks.ts`). A task waiting for a task that is not done or cancelled is never auto-taken; the close of the task
+  it waited for takes it.
+- **The PATCH** (`service/edit.ts`, `service/queue.ts`) takes `waitsFor` (keys or ids of the same flow: 422
+  `unknown_task`; itself 422 `waits_for_itself`; a cycle through other waits 422 `wait_cycle`) and `before`/`after` (a
+  queued task of the flow, for those who route: 403 `not_lead`, 422 `same_task`, `target_not_queued`); the placed task
+  takes its neighbour's priority unless one is given, so it lands where it was put. Either is for a queued task only
+  (409 `not_queued`). Everything is checked before anything is written. `POST …/tasks` takes `waitsFor` and `after`.
+- **Views**: the task detail returns `waitsFor` (key, title, state) and `queue` ({place, of}, null when not queued),
+  board cards their `waitsFor` (key, closed). Board: queued cards drag up and down Queued with a line where they would
+  go; a queued card says "waits for T-5" (struck through once closed). Task page: Step "Queued · 2 of 5" and a Waits
+  for row (chips, × to drop, a picker of the flow's open tasks), editable while queued by whoever edits Priority.
+- **The Lead**: `task_create {…, waitsFor?, after?}`, the new `task_queue {key, before? | after?, waitsFor?, autoTake?,
+  priority?}` (the Lead agent edits its team's tasks: `editRefusal`), `team_board` numbers Queued and says
+  autotake/manual and waits for, `task_show` says "Queue: 2 of 5 · Autotake · waits for T-11 (active)", and the Lead's
+  section gets "Planning the queue".
+
+### Cancel and reopen (T-27, T-28)
+
+- **Cancel**: the task page's Status row shows the state and one Cancel, asked first ("Cancel T-n?") and sent as the
+  cancel move with no reason. A cancelled task is red wherever its state shows; the board's Done column holds the
+  latest closed tasks, done or cancelled, counting both, a cancelled card marked Cancelled (`BoardCard.cancelled`,
+  `cancelled` in `team_board`). The Tasks page's Done filter lists cancelled tasks too.
+- **Reopen** (`reopen`, a `TaskAction` since T-28; migration `0045_reopen` adds the `reopened` history kind and the
+  room's `reopen` action): a done or cancelled task, with a reason, goes back into the step its closing step sends back
+  to (Put live → Develop) as a new round, active and working, `closed_at` cleared, joining the current sprint. Who: the
+  conversation the task was closed in gets `task_read` and `task_reopen {reason, findings}` (`CLOSED_TOOLS`) and a
+  standing line (a correction reopens it, never a new task); the reopen is recorded as its decision and applied when the
+  turn ends, its findings kept as that round's hand-off note, so Develop's kept conversation gets them in its next
+  prompt. The Lead's `task_route` on a done task reopens it with a reason; a person who leads the team has Reopen… on
+  the task page (what is wrong, what to change). `mwc task show` lists `reopen` among the moves for them.
+
+### Corrections never made at sign-off (T-29)
+
+The runner says the agents' tools it knows (`caps.agentToolNames`); the server offers a turn only those and adds a
+"Tools you lack on this machine" section (`missingToolsSection` of `@mwc/shared/flows`) naming the rest: never work
+around one or do the work it would send to another step; say what it would have done, and a person moves the task. The
+Sign-off step's ask and the closed task's section say it never makes a correction itself, even when asked: it goes
+back as a send-back or `task_reopen`. Before this a tool newer than the runner dropped out unsaid, and a Put live turn
+told to reopen a task built the fix itself.
+
+### Sprints (T-37)
+
+- **Data** (migration `0048_sprints`): `sprints` (`company_id`, `flow_id`, `number` per flow from 1, `name` 1–80,
+  `started_at`/`started_by`, `ended_at`/`ended_by`, `report` jsonb written when it ends; one current sprint per flow, a
+  partial unique index on `flow_id` where `ended_at` is null) and `tasks.sprint_id` (composite key, not null). The
+  migration made Sprint 1 for every flow (at its creation, by its creator) with all its tasks; the trigger
+  `tasks_join_current_sprint` puts a task inserted without a sprint into its flow's current one, making Sprint 1 when
+  the flow has none. A reopened task moves into the current sprint.
+- **New sprint** (`POST …/flows/{flowId}/sprints {name?}`, those who lead the team): under the flow's lock the current
+  sprint ends with its report (done and cancelled tasks with key, title, priority, closed at; the open tasks carried
+  over and where they were; how many were made in it), the next one starts (the name given, or "Sprint N · Mon 16
+  Nov") and every open task moves into it; closed ones stay. Both audited; running turns and Autotake go on.
+  `GET …/sprints` (newest first, with counts) and `GET …/sprints/{sprintId}` (its report; the current one's so far).
+- **Web**: the board carries its current sprint and its Done is that sprint's closed tasks; the header row says
+  "Sprint 4 · since Mon 16 Nov, 08:30" with New sprint… (what ends and what carries over, an optional name). The
+  Sprints tab lists them with their dates and counts and the chosen one's report (live for the current one; Copy
+  report as Markdown). `team_board` names the current sprint on its second line.
+
+### Tests
+
+The take's order, limit, waits and triggers, the queue's PATCH refusals, reopen and sprints through the API on PGlite
+(`apps/server/test/modules/tasks/`), their tables, triggers and constraints (`packages/db/test/schema/tasks.test.ts`,
+`flows.test.ts`, `sprints.test.ts`), the tool words and the board text (`shared/test/flows/`,
+`server/test/modules/tasks/rules/tool-text.test.ts`).
