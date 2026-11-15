@@ -1,17 +1,17 @@
 import { Mic, Square } from 'lucide-react';
-import { type RefObject, useCallback, useRef } from 'react';
 import { usePublicConfig } from '../../../api/config.ts';
 import { cx } from '../../../components/cx.ts';
 import { Spinner } from '../../../components/ui/Button.tsx';
 import { iconButtonClass } from '../../../components/ui/IconButton.tsx';
 import { MicPicker } from './MicPicker.tsx';
-import { type DictationState, useDictation } from './use-dictation.ts';
+import type { Dictation, DictationState } from './use-dictation.ts';
 
 /**
  * The composer's microphone (S5.2, docs/speech.md): click, or Alt+Shift+V in the composer, to dictate; click again or
  * Esc to stop. While it listens, a level meter and the time; then the server's computer transcribes the clip and the
- * text goes in at the cursor of the composer's message box, not sent. Beside it, the microphone picker (the default
- * one, or the one chosen, remembered in this browser). Hidden when the server does not transcribe (`speech: false`).
+ * text goes in at the cursor of the composer's message box, not sent (a Send meanwhile stops it and sends the words,
+ * T-32). Beside it, the microphone picker (the default one, or the one chosen, remembered in this browser). Hidden when
+ * the server does not transcribe (`speech: false`).
  */
 
 /** 75 s → `1:15`. */
@@ -19,18 +19,6 @@ const clock = (ms: number) => {
   const seconds = Math.floor(ms / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 };
-
-/** The text with a space before and after it where its neighbours need one. */
-function spliced(value: string, start: number, end: number, text: string) {
-  const before = value.slice(0, start);
-  const after = value.slice(end);
-  const lead = before !== '' && !/\s$/.test(before) ? ' ' : '';
-  const trail = after !== '' && !/^[\s,.;:!?)]/.test(after) ? ' ' : '';
-  return {
-    next: `${before}${lead}${text}${trail}${after}`,
-    caret: before.length + lead.length + text.length,
-  };
-}
 
 /**
  * Starts in line with the message text above (T-33): the composer's bottom row is padded `px-1.5` (`@sm/composer:px-2`)
@@ -76,45 +64,13 @@ function Status({
   );
 }
 
-/** The composer's form (from the button's place) and how text goes in at its message box's cursor. */
-function useInsertAtCursor(
-  anchor: RefObject<HTMLDivElement | null>,
-  value: string,
-  onChange: (next: string) => void,
-) {
-  const valueRef = useRef(value);
-  valueRef.current = value;
-  const getRoot = useCallback(() => anchor.current?.closest('form') ?? null, [anchor]);
-  const insert = useCallback(
-    (text: string) => {
-      const box = getRoot()?.querySelector('textarea') ?? null;
-      const current = valueRef.current;
-      const start = box?.selectionStart ?? current.length;
-      const { next, caret } = spliced(current, start, box?.selectionEnd ?? start, text);
-      const max = box !== null && box.maxLength > 0 ? box.maxLength : next.length;
-      onChange(next.slice(0, max));
-      requestAnimationFrame(() => {
-        box?.focus();
-        box?.setSelectionRange(Math.min(caret, max), Math.min(caret, max));
-      });
-    },
-    [getRoot, onChange],
-  );
-  return { getRoot, insert };
-}
-
 export function DictationButton({
-  value,
-  onChange,
+  dictation,
 }: {
-  /** The message box's text, and its setter: the dictated text goes in at its cursor. */
-  readonly value: string;
-  readonly onChange: (next: string) => void;
+  /** The composer's dictation (`useComposerDictation`): the dictated text goes in at its message box's cursor. */
+  readonly dictation: Dictation;
 }) {
   const { speech } = usePublicConfig();
-  const anchor = useRef<HTMLDivElement>(null);
-  const { getRoot, insert } = useInsertAtCursor(anchor, value, onChange);
-  const dictation = useDictation({ getRoot, insert });
   if (!speech || !dictation.supported) return null;
 
   const { state } = dictation;
@@ -127,7 +83,7 @@ export function DictationButton({
       : 'Dictate (⌥⇧V)';
 
   return (
-    <div ref={anchor} className="relative flex h-9 shrink-0 items-center gap-0.5">
+    <div className="relative flex h-9 shrink-0 items-center gap-0.5">
       <Status state={state} level={dictation.level} elapsedMs={dictation.elapsedMs} error={dictation.error} />
       <button
         type="button"

@@ -10,8 +10,8 @@ import { useMicPicker } from './use-mic-picker.ts';
 
 /**
  * Dictation in the composer (docs/speech.md): the mic button, Alt+Shift+V (in the composer) or Esc (while recording)
- * start and stop it; the clip is transcribed on the server's computer and its text goes in at the cursor, never sent.
- * One composer records at a time.
+ * start and stop it; the clip is transcribed on the server's computer and its text goes in at the cursor, never sent by
+ * itself (a Send while dictating `settle`s first, T-32). One composer records at a time.
  */
 
 /** `starting`: the microphone is opening; `transcribing`: the server is hearing the clip. */
@@ -72,6 +72,8 @@ function useFleeting() {
   return [message, setMessage] as const;
 }
 
+export type Dictation = ReturnType<typeof useDictation>;
+
 export function useDictation(options: {
   /** The composer: where Alt+Shift+V counts. */
   readonly getRoot: () => HTMLElement | null;
@@ -94,17 +96,32 @@ export function useDictation(options: {
     setStateValue(next);
   }, []);
 
-  const finish = useCallback(async () => {
+  /** The transcription under way: true once its words are in (or there were none), false when it failed. */
+  const pendingRef = useRef<Promise<boolean> | undefined>(undefined);
+  /** The microphone opening. */
+  const startingRef = useRef<Promise<void> | undefined>(undefined);
+
+  const finish = useCallback((): Promise<boolean> => {
     const recorder = recorderRef.current;
-    if (stateRef.current !== 'recording' || recorder === undefined) return;
+    if (stateRef.current !== 'recording' || recorder === undefined)
+      return pendingRef.current ?? Promise.resolve(true);
     setState('transcribing');
     if (owner === me) owner = null;
-    const { text, message } = await hear(api, recorder);
-    if (text !== undefined) optionsRef.current.insert(text);
-    setError(message);
-    recorderRef.current = undefined;
-    setMeter({ level: 0, elapsedMs: 0 });
-    setState('idle');
+    const heard = (async () => {
+      const { text, message } = await hear(api, recorder).catch((failure: unknown) => ({
+        text: undefined,
+        message: failureText(failure),
+      }));
+      if (text !== undefined) optionsRef.current.insert(text);
+      setError(message);
+      recorderRef.current = undefined;
+      pendingRef.current = undefined;
+      setMeter({ level: 0, elapsedMs: 0 });
+      setState('idle');
+      return message === undefined;
+    })();
+    pendingRef.current = heard;
+    return heard;
   }, [api, me, setError, setState]);
 
   const start = useCallback(async () => {
@@ -117,23 +134,40 @@ export function useDictation(options: {
     recorderRef.current = recorder;
     setError(undefined);
     setState('starting');
-    try {
-      await startOnChosenMic(recorder, picker.micRef.current);
-      owner = me;
-      setState('recording');
-      void picker.refreshMics();
-    } catch {
-      recorder.cancel();
-      recorderRef.current = undefined;
-      setState('idle');
-      setError("The microphone didn't start. Allow it for this site in the address bar's site settings.");
-    }
+    const opening = (async () => {
+      try {
+        await startOnChosenMic(recorder, picker.micRef.current);
+        owner = me;
+        setState('recording');
+        void picker.refreshMics();
+      } catch {
+        recorder.cancel();
+        recorderRef.current = undefined;
+        setState('idle');
+        setError("The microphone didn't start. Allow it for this site in the address bar's site settings.");
+      } finally {
+        startingRef.current = undefined;
+      }
+    })();
+    startingRef.current = opening;
+    await opening;
   }, [finish, me, picker.micRef, picker.refreshMics, setError, setState, supported]);
 
   const toggle = useCallback(async () => {
     if (stateRef.current === 'recording') await finish();
     else if (stateRef.current === 'idle') await start();
   }, [finish, start]);
+
+  /**
+   * Before a send (T-32): stops the recording (once the microphone has opened), or waits for the clip being
+   * transcribed, and puts its words in at the cursor. True when the box holds everything said (or nothing was said),
+   * false when hearing failed: its message shows and the send waits.
+   */
+  const settle = useCallback(async (): Promise<boolean> => {
+    if (stateRef.current === 'starting') await startingRef.current;
+    if (stateRef.current === 'recording' || stateRef.current === 'transcribing') return finish();
+    return true;
+  }, [finish]);
 
   useDictationKeys({
     getRoot: () => optionsRef.current.getRoot(),
@@ -150,5 +184,5 @@ export function useDictation(options: {
     [me],
   );
 
-  return { supported, state, ...meter, error, toggle, ...picker };
+  return { supported, state, ...meter, error, toggle, settle, ...picker };
 }

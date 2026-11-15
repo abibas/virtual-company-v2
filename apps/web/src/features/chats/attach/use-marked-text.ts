@@ -16,6 +16,8 @@ export interface MarkedText {
   readonly box: RefObject<HTMLTextAreaElement | null>;
   /** A change of the text typed, cut, pasted or dictated. */
   change(next: string): void;
+  /** The text as it is now, with a change made since the last render (dictated words put in before a send, T-32). */
+  now(): string;
   /** What a send carries: the text with its markers numbered from 1 and those images in that order. */
   outgoing(attached: readonly Attachment[]): { readonly prompt: string; readonly images: readonly Blob[] };
   /** After a send: the text emptied and those images forgotten (one attached meanwhile keeps its marker, from 1). */
@@ -80,6 +82,8 @@ export function useMarkedText(refused?: string): MarkedText {
     [write, forget],
   );
 
+  const now = useCallback(() => latest.current, []);
+
   const outgoing = (attached: readonly Attachment[]) => {
     const order = markerOrder(latest.current);
     const rank = (n: number) => {
@@ -101,5 +105,5 @@ export function useMarkedText(refused?: string): MarkedText {
     write(left.length > 0 ? insertMarkers('', 0, 0, left).text : '');
   };
 
-  return { text, attach, box, change, outgoing, sent };
+  return { text, attach, box, change, now, outgoing, sent };
 }

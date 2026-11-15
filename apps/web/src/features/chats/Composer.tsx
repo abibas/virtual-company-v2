@@ -12,6 +12,7 @@ import { DeliveryStrip } from './delivery/DeliveryStrip.tsx';
 import { type DeliveryChoice, offered, rememberDelivery, rememberedDelivery } from './delivery/delivery.ts';
 import { StartAndSend, startable } from './delivery/StartAndSend.tsx';
 import { DictationButton } from './dictation/DictationButton.tsx';
+import { useComposerDictation } from './dictation/use-composer-dictation.ts';
 import { SlackTarget, type SlackTargetValue } from './people/SlackTarget.tsx';
 import { THREAD_WIDTH } from './thread/ChatThread.tsx';
 import { useAction } from './use-action.ts';
@@ -155,18 +156,29 @@ export function Composer({
   const stop = useAction();
   const marked = useMarkedText(inSlack ? ATTACH_REFUSALS.slack : undefined);
   const { text, attach } = marked;
+  const dictation = useComposerDictation({ box: marked.box, now: marked.now, onChange: marked.change });
   const attached = inSlack ? [] : attach.items;
-  const hasText = text.trim().length > 0;
-  const ready = (hasText || attached.length > 0) && attach.preparing === 0 && !busy;
+  // While it records (or transcribes) Send means "stop and send", even with an empty box (T-32).
+  const dictating = dictation.state !== 'idle';
+  const ready = (text.trim().length > 0 || attached.length > 0 || dictating) && attach.preparing === 0 && !busy;
   const how = choices && offered(delivery, choices);
   const send = (event?: FormEvent, options?: { readonly startMachine?: boolean }) => {
     event?.preventDefault();
     if (!ready) return;
     attach.dismiss();
-    const out = marked.outgoing(attached);
-    const prompt = hasText ? out.prompt : imagesPrompt(attached.length);
-    const go = inSlack ? () => slack.onSend(text) : () => onSend(prompt, how, { ...options, images: out.images });
-    void run(go).then((sent) => {
+    let sent = false;
+    void run(async () => {
+      // A recording stops and its words go in at the cursor first (Send's spinner meanwhile); when hearing fails its
+      // message shows and nothing is sent, the text and images kept.
+      if (!(await dictation.settle())) return;
+      const now = marked.now();
+      const hasText = now.trim().length > 0;
+      if (!hasText && attached.length === 0) return;
+      const out = marked.outgoing(attached);
+      const prompt = hasText ? out.prompt : imagesPrompt(attached.length);
+      await (inSlack ? slack.onSend(now) : onSend(prompt, how, { ...options, images: out.images }));
+      sent = true;
+    }).then(() => {
       if (sent) marked.sent(attached);
     });
   };
@@ -218,6 +230,7 @@ export function Composer({
           <textarea
             ref={marked.box}
             aria-label="Message"
+            aria-busy={dictation.state === 'transcribing' || undefined}
             value={text}
             onChange={(event) => marked.change(event.target.value)}
             onKeyDown={(event) => enterSends(event, send)}
@@ -229,7 +242,7 @@ export function Composer({
           />
           <div className="flex min-h-12 flex-nowrap items-center gap-1 px-1.5 py-1.5 @sm/composer:px-2">
             <div className="flex min-w-0 flex-1 items-center gap-0.5">
-              <DictationButton value={text} onChange={marked.change} />
+              <DictationButton dictation={dictation} />
               {runs}
             </div>
             <div className="flex max-w-[60%] min-w-0 items-center justify-end gap-1 @sm/composer:gap-1.5">
