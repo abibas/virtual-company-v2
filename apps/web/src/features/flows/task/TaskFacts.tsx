@@ -12,6 +12,7 @@ import { Badge } from '../../../components/ui/Badge.tsx';
 import { Who } from '../Face.tsx';
 import { KIND, PRIORITY, PRIORITY_ORDER } from '../words.ts';
 import { StatusPanel, StatusValue, useTaskCancel } from './TaskStatus.tsx';
+import { TaskWaits } from './TaskWaits.tsx';
 
 /** One fact: its word on the left, its value on the right. */
 function Fact({ term, children }: { readonly term: string; readonly children: ReactNode }) {
@@ -107,7 +108,8 @@ function AutoTake({
 
 /**
  * Where a task stands and whose it is: its flow, step, round, holder and priority, who made it and when it moved, and
- * its status (a menu with Cancel for those who may cancel it, T-27), and whether Autotake may take it (T-34).
+ * its status (a menu with Cancel for those who may cancel it, T-27), whether Autotake may take it (T-34), and its place
+ * in Queued and the tasks it waits for (T-39).
  */
 export function TaskFacts({
   task,
@@ -117,6 +119,8 @@ export function TaskFacts({
   calls,
   onPriority,
   onAutoTake,
+  onWaitsFor,
+  taskHref,
   onMoved,
 }: {
   readonly task: TaskDetail;
@@ -126,6 +130,9 @@ export function TaskFacts({
   readonly calls: FlowCalls;
   readonly onPriority: (next: TaskPriority) => Promise<unknown>;
   readonly onAutoTake: (next: boolean) => Promise<unknown>;
+  /** What it waits for (T-39), by task key: all of them. */
+  readonly onWaitsFor: (keys: string[]) => Promise<unknown>;
+  readonly taskHref: (key: string) => string;
   readonly onMoved: () => void;
 }) {
   const cancel = useTaskCancel(task, calls, onMoved);
@@ -145,7 +152,9 @@ export function TaskFacts({
             </span>
           </>
         ) : (
-          <span className="text-dim">{task.state === 'queued' ? 'Queued' : '—'}</span>
+          <span className="text-dim">
+            {task.queue ? `Queued · ${task.queue.place} of ${task.queue.of}` : task.state === 'queued' ? 'Queued' : '—'}
+          </span>
         )}
       </Fact>
       {task.round !== null && <Fact term="Round">{task.round}</Fact>}
@@ -172,6 +181,15 @@ export function TaskFacts({
       <StatusPanel task={task} calls={calls} cancel={cancel} onMoved={onMoved} />
       <Fact term="Autotake">
         <AutoTake value={task.autoTake} editable={editable && task.state === 'queued'} onSave={onAutoTake} />
+      </Fact>
+      <Fact term="Waits for">
+        <TaskWaits
+          task={task}
+          editable={editable && task.state === 'queued'}
+          calls={calls}
+          taskHref={taskHref}
+          onSave={onWaitsFor}
+        />
       </Fact>
       {task.closedAt && (
         <Fact term="Closed">

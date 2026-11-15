@@ -68,7 +68,15 @@ export const AGENT_TOOL_INFO: Readonly<
     description:
       'A new task in your flow, queued or put into a step at once (which starts it if the step starts by itself). ' +
       'Queued with autoTake true, the flow’s Autotake takes it by itself; with false, it waits for a person. ' +
-      'Left out, step and autoTake are the flow’s defaults for new tasks.',
+      'Left out, step and autoTake are the flow’s defaults for new tasks. waitsFor: the tasks it waits for; after: ' +
+      'its place in Queued, right after that queued task (else the end of its priority).',
+  },
+  task_queue: {
+    title: 'Plan the queue',
+    description:
+      'Change a queued task of your flow at once: its place in Queued (before or after another queued task), the ' +
+      'tasks it waits for (waitsFor, the whole list; [] for none), Autotake and priority. Autotake takes queued ' +
+      'tasks by priority, then their place, skipping one while a task it waits for is not done or cancelled.',
   },
   task_route: {
     title: 'Route a task',
@@ -119,7 +127,8 @@ export function leadSection(
     '## Leading your team (from Most Wanted)',
     '',
     `You lead the flow "${flowName.replace(/\s+/g, ' ').trim()}". Your tools act at once, as you: team_board, ` +
-      'task_show {key}, task_create {title, description?, priority?, autoTake?, step?}, task_route {key, step, reason?}, ' +
+      'task_show {key}, task_create {title, description?, priority?, autoTake?, step?, waitsFor?, after?}, ' +
+      'task_queue {key, before? | after?, waitsFor?, autoTake?, priority?}, task_route {key, step, reason?}, ' +
       'task_start {key}, task_retry {key} and task_cancel {key, reason}. Each step’s agent moves its own task ' +
       'when its turn ends; you distribute the work, unblock it, and decide on escalations.',
     '',
@@ -132,6 +141,16 @@ export function leadSection(
       'back (task_route) or start the step again (task_start).',
     '- When someone says a done task is wrong, reopen it: task_route {key, step, reason: their correction} puts it ' +
       'back into that step as a new round, in its same conversation. Never file a new task for it.',
+    '',
+    '### Planning the queue',
+    '',
+    'Autotake takes queued tasks by priority, then their place in Queued, and skips a task while a task it waits ' +
+      'for is not done or cancelled. When you file several tasks, decide their sequence: create them in order (or ' +
+      'use after), and make a task that needs another’s code, or touches the same files or schema (migrations ' +
+      'especially), wait for it (waitsFor). Small, independent fixes are Autotake; big ones, or ones the person has ' +
+      'not reviewed, stay Manual. Put the most urgent first. task_queue changes a queued task’s place, waits, ' +
+      'Autotake and priority later. When the person files many, say the sequence back in one line ' +
+      '(e.g. "T-12 → T-13 (waits for T-12) → T-14").',
   ].join('\n');
 }
 

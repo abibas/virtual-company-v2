@@ -23,6 +23,8 @@ export const BoardCardSchema = z
     priority: TaskPriority,
     /** Whether the flow's Autotake may take it from Queued by itself (T-34). */
     autoTake: z.boolean(),
+    /** The tasks it waits for (T-39), each closed (done or cancelled) or not: Autotake skips it while one is open. */
+    waitsFor: z.array(z.object({ key: z.string(), closed: z.boolean() })),
     /** Its entries into its step so far; null in Queued and Done. */
     round: z.number().int().min(1).nullable(),
     stepState: TaskStepState.nullable(),

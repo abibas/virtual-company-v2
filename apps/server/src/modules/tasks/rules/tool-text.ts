@@ -25,15 +25,25 @@ const STATE_WORDS: Readonly<Record<string, string>> = {
 /** A task's step state in words. */
 const stateWords = (state: string | null) => (state === null ? '' : (STATE_WORDS[state] ?? state));
 
-/** One card's line: `- T-12 · Fix the login · working · round 2 · high`. */
-function cardLine(card: BoardView['columns'][number]['cards'][number], queued = false): string {
-  const parts = [card.key, card.title];
+/** What a task waits for (T-39): `waits for T-5, T-6 (done)`; empty for nothing. */
+const waitsWords = (waits: readonly { readonly key: string; readonly closed: boolean }[]) =>
+  waits.length === 0
+    ? ''
+    : `waits for ${waits.map((wait) => (wait.closed ? `${wait.key} (closed)` : wait.key)).join(', ')}`;
+
+/**
+ * One card's line: `- T-12 · Fix the login · working · round 2 · high`; a queued one starts with its place and says
+ * Autotake or Manual and what it waits for (T-39): `- 1. T-12 · Fix the login · autotake · waits for T-11`.
+ */
+function cardLine(card: BoardView['columns'][number]['cards'][number], queued = false, place = 0): string {
+  const parts = [queued ? `${place}. ${card.key}` : card.key, card.title];
   if (card.cancelled) parts.push('cancelled');
   if (card.stepState !== null) parts.push(stateWords(card.stepState));
   if (card.stepState === 'blocked' && card.blockedReason) parts.push(`why: ${card.blockedReason}`);
   if (card.round !== null && card.round > 1) parts.push(`round ${card.round}`);
   if (card.priority !== 'normal') parts.push(card.priority);
-  if (queued && card.autoTake) parts.push('autotake');
+  if (queued) parts.push(card.autoTake ? 'autotake' : 'manual');
+  if (queued && card.waitsFor.length > 0) parts.push(waitsWords(card.waitsFor));
   return `- ${parts.join(' · ')}`;
 }
 
@@ -60,7 +70,7 @@ export function boardText(board: BoardView): string {
   for (const column of board.columns) {
     const who = column.step ? ` · ${KIND_WORDS[column.step.kind]} · ${column.step.assignee.name}` : '';
     const count = column.kind === 'done' ? `${column.cards.length} of ${column.total}` : `${column.total}`;
-    const cards = column.cards.map((card) => cardLine(card, column.kind === 'queued'));
+    const cards = column.cards.map((card, index) => cardLine(card, column.kind === 'queued', index + 1));
     lines.push('', `${column.title}${who} (${count})`, ...cards);
   }
   return clipText(lines.join('\n'), TOOL_RESULT_MAX);
@@ -98,12 +108,32 @@ function historyLine(event: TaskEventView): string {
   return `- ${when} · ${event.kind.replace(/_/g, ' ')}${from}${to}${by}${why}`;
 }
 
+/** A task's waits for in words: `waits for T-5 (active), T-6 (done)`; empty for none. */
+const waitsForWords = (task: Pick<TaskDetailView, 'waitsFor'>) =>
+  task.waitsFor.length === 0
+    ? ''
+    : `waits for ${task.waitsFor.map((wait) => `${wait.key} (${wait.state})`).join(', ')}`;
+
+/**
+ * A queued task's place, Autotake and waits (T-39): `Queue: 2 of 5 · Autotake · waits for T-11 (active)`; for a task
+ * not queued only what it waits for, if anything.
+ */
+function queueFacts(task: Pick<TaskDetailView, 'queue' | 'autoTake' | 'waitsFor'>): string {
+  const waits = waitsForWords(task);
+  if (task.queue === null) return waits === '' ? '' : `Waits for: ${waits.slice('waits for '.length)}`;
+  const parts = [`Queue: ${task.queue.place} of ${task.queue.of}`, task.autoTake ? 'Autotake' : 'Manual'];
+  if (waits) parts.push(waits);
+  return parts.join(' · ');
+}
+
 /** A task as `task_show` answers it: where it is, who has it, its description, its latest history. */
 export function taskText(task: TaskDetailView): string {
   const facts = [
     `State: ${whereText(task)} · priority ${task.priority}`,
     `Has it: ${task.assignee?.name ?? 'nobody'} · flow ${task.flow.name} · made by ${task.createdBy.name}`,
   ];
+  const queue = queueFacts(task);
+  if (queue) facts.push(queue);
   if (task.blockedReason) facts.push(`Blocked: ${task.blockedReason}`);
   if (task.escalation) {
     const retry = task.escalation.retryTo ? `; a retry goes to "${task.escalation.retryTo.name}"` : '';
@@ -136,9 +166,18 @@ export function movedText(outcome: string, task: TaskSummaryView): string {
   return `Done: ${task.key} is now ${whereText(task)}.`;
 }
 
-/** A task the Lead made: `Created T-13 "Fix the docs": queued.` */
-export const createdText = (task: TaskSummaryView): string =>
-  `Created ${task.key} "${task.title}": ${whereText(task)}.`;
+/**
+ * A task the Lead made: `Created T-13 "Fix the docs": queued.`, and a queued one's place, Autotake and waits (T-39):
+ * `Created T-13 "Fix the docs": queued (Queue: 3 of 3 · Manual · waits for T-12 (queued)).`
+ */
+export const createdText = (task: TaskDetailView): string => {
+  const queue = queueFacts(task);
+  return `Created ${task.key} "${task.title}": ${whereText(task)}${queue ? ` (${queue})` : ''}.`;
+};
+
+/** A queued task the Lead planned (T-39): `Done: T-13 · Queue: 1 of 3 · Autotake · priority high · waits for T-12 (done).` */
+export const queuedText = (task: TaskDetailView): string =>
+  `Done: ${[`${task.key} is ${whereText(task)}`, queueFacts(task), `priority ${task.priority}`].filter(Boolean).join(' · ')}.`;
 
 /** An artifact kept: `Attached "QA report" to T-12 (Develop, round 1) as a note.` */
 export const attachedText = (

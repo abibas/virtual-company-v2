@@ -147,6 +147,8 @@ export function TaskView(props: TaskViewProps) {
             calls={calls}
             onPriority={(priority) => calls.editTask(task.key, { priority }).then(onChanged)}
             onAutoTake={(autoTake) => calls.editTask(task.key, { autoTake }).then(onChanged)}
+            onWaitsFor={(waitsFor) => calls.editTask(task.key, { waitsFor }).then(onChanged)}
+            taskHref={links.task}
             onMoved={onChanged}
           />
         </Card>

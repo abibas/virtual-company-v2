@@ -3,6 +3,7 @@ import { friendlyMessage } from '../../../api/errors.ts';
 import type { Board, BoardCard, BoardColumn, FlowCalls } from '../../../api/flows.ts';
 import type { MoveNotice } from '../../structure/use-chart-moves.ts';
 import type { DropLook } from './BoardColumn.tsx';
+import { useQueueOrder, withReorder } from './use-queue-order.ts';
 
 /** A card on its way to a step: shown there at once, until the board is read again (or put back on a refusal). */
 interface Moving {
@@ -77,7 +78,8 @@ function useRoute(
 /**
  * Dragging the board's cards to another step (the Lead's people and admins: `route`): the card being dragged, where it
  * may land, the move shown at once and sent with the step the card was seen at, then the board read again; a refusal
- * puts the card back and shows the server's words.
+ * puts the card back and shows the server's words. A queued card dragged up or down Queued reorders it (T-39,
+ * `use-queue-order.ts`).
  */
 export function useBoardMoves({
   board,
@@ -94,18 +96,37 @@ export function useBoardMoves({
   const [over, setOver] = useState<number>();
   const { notice, say, dismiss } = useNotice();
   const { moving, route } = useRoute(board, calls, say, onMoved);
+  // A card dragged within Queued reorders it (T-39).
+  const queued = board.columns.findIndex((column) => column.kind === 'queued');
+  const dragged = dragging !== undefined && dragging.from === queued ? dragging.card : undefined;
+  const order = useQueueOrder({ board, calls, dragged, say, onMoved });
   const lands = (index: number) =>
     dragging !== undefined && mayLand(board, dragging.card, dragging.from, index);
   const end = () => {
     setDragging(undefined);
     setOver(undefined);
+    order.clear();
+  };
+  const look = (index: number): DropLook => {
+    if (!dragging) return undefined;
+    return lands(index) || (index === queued && dragged !== undefined) ? 'open' : 'closed';
   };
   return {
-    columns: withMove(board, moving),
-    movingId: moving?.card.id,
-    draggable: enabled && moving === undefined,
+    columns: withReorder(withMove(board, moving), order.reorder),
+    movingId: moving?.card.id ?? (order.saving ? order.reorder?.card.id : undefined),
+    draggable: enabled && moving === undefined && !order.saving,
     over,
-    look: (index: number): DropLook => (dragging ? (lands(index) ? 'open' : 'closed') : undefined),
+    look,
+    /** Reordering Queued (T-39): the side of a queued card a dragged one would go to, and its drag handlers. */
+    queueEdge: order.edge,
+    queueDragOver: order.dragOver,
+    queueDrop: (card: BoardCard) => (event: DragEvent<HTMLElement>) => {
+      order.drop(card)(event);
+      if (event.defaultPrevented) {
+        event.stopPropagation();
+        end();
+      }
+    },
     notice,
     dismiss,
     start: (card: BoardCard, from: number) => (event: DragEvent<HTMLElement>) => {

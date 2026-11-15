@@ -90,9 +90,9 @@ export function actRefusal(
   return mayActAt(caller, team, step) ? undefined : NOT_YOUR_STEP;
 }
 
-/** The refusal when the caller may not edit a task: its creator, or whoever leads the team (people only). */
+/** The refusal when the caller may not edit a task: its creator, whoever leads the team, or its Lead agent (task_queue, T-39). */
 export const editRefusal = (caller: Caller, team: Team, createdBy: string): Refusal<403> | undefined =>
-  (caller.agent === undefined && caller.principalId === createdBy) || leads(caller, team)
+  (caller.agent === undefined && caller.principalId === createdBy) || leads(caller, team) || isLeadAgent(caller, team)
     ? undefined
     : refuse(403, 'not_yours', "Only the task's creator and whoever leads the team edit it");
 

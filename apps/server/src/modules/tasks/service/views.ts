@@ -1,7 +1,7 @@
 import type { Flow, FlowStep, Task, TaskEvent } from '@mwc/db';
 import type { TaskAction } from '@mwc/shared/enums';
 import { taskKey } from '@mwc/shared/flows';
-import type { ConversationRow, ConversationTurnRow } from '../repo.ts';
+import type { ConversationRow, ConversationTurnRow, WaitRow } from '../repo.ts';
 import { readableReason } from '../rules/failure.ts';
 import { inOrder, roundsAt } from '../rules.ts';
 import type { BoardCardView } from '../schemas/board.ts';
@@ -147,6 +147,9 @@ export function taskDetail(
     /** Its steps' conversations (S5.3b), and how many artifacts it has. */
     readonly conversations: readonly TaskConversationView[];
     readonly artifacts: number;
+    /** What it waits for, and its place in Queued (T-39). */
+    readonly waitsFor?: readonly WaitRow[];
+    readonly queue?: TaskDetailView['queue'];
   },
 ): TaskDetailView {
   const { flow, steps, names } = context;
@@ -170,6 +173,13 @@ export function taskDetail(
     conversations: [...context.conversations],
     artifacts: context.artifacts,
     decision: decisionView(task, names),
+    waitsFor: (context.waitsFor ?? []).map((row) => ({
+      id: row.waitsForTaskId,
+      key: taskKey(row.number),
+      title: row.title,
+      state: row.state,
+    })),
+    queue: context.queue ?? null,
   };
 }
 
@@ -190,6 +200,7 @@ export function boardCard(
   names: Names,
   artifacts = 0,
   leadNotifiedAt: Date | null = null,
+  waitsFor: readonly WaitRow[] = [],
 ): BoardCardView {
   const summary = taskSummary(task, steps, leadPrincipalId, names);
   return {
@@ -198,6 +209,10 @@ export function boardCard(
     title: task.title,
     priority: task.priority,
     autoTake: task.autoTake,
+    waitsFor: waitsFor.map((row) => ({
+      key: taskKey(row.number),
+      closed: row.state === 'done' || row.state === 'cancelled',
+    })),
     round: summary.round,
     stepState: task.stepState,
     cancelled: task.state === 'cancelled',

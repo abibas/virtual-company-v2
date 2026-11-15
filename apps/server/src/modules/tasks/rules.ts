@@ -75,3 +75,9 @@ const PRIORITY_RANK: Readonly<Record<TaskPriority, number>> = { urgent: 0, high:
 /** The order of a board column's cards: the most urgent first, then the oldest. */
 export const boardOrder = (a: Pick<Task, 'priority' | 'number'>, b: Pick<Task, 'priority' | 'number'>) =>
   PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.number - b.number;
+
+/** The order of the Queued column and of Autotake (T-39): the most urgent first, then the place in the queue. */
+export const queueOrder = (
+  a: Pick<Task, 'priority' | 'queuePosition' | 'number'>,
+  b: Pick<Task, 'priority' | 'queuePosition' | 'number'>,
+) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.queuePosition - b.queuePosition || a.number - b.number;

@@ -61,7 +61,10 @@ const createTaskRoute = (deps: ServerDeps) => {
       404: errorResponse(
         'No such company or not an active member (`not_found`), or no such flow (`flow_not_found`)',
       ),
-      422: errorResponse('The step is not one of the flow’s (`unknown_step`)'),
+      422: errorResponse(
+        'The step is not one of the flow’s (`unknown_step`), a waited-for or `after` task of another flow or none ' +
+          '(`unknown_task`), or `after` a task not queued (`target_not_queued`)',
+      ),
     },
   });
 };
@@ -84,14 +87,24 @@ const editTaskRoute = (deps: ServerDeps) => {
     ...base,
     tags: ['tasks'],
     method: 'patch',
-    summary: "Edit a task's title, description or priority (its creator, its team's Lead people, admins)",
+    summary:
+      "Edit a task's title, description, priority or Autotake, and a queued task's place in the queue and what it " +
+      "waits for (its creator, its team's Lead people, admins; its place: those who route)",
     request: { params: TaskParamsSchema, body: jsonBody(EditTaskSchema) },
     responses: {
       200: jsonResponse('The task', TaskDetailSchema),
       400: INVALID,
       401: refusals[401],
-      403: errorResponse('Below member (`forbidden`), or not its creator nor leading its team (`not_yours`)'),
+      403: errorResponse(
+        'Below member (`forbidden`), not its creator nor leading its team (`not_yours`), or a place without leading ' +
+          'it (`not_lead`)',
+      ),
       404: NO_TASK,
+      409: errorResponse('A place or waits for a task that is not queued (`not_queued`)'),
+      422: errorResponse(
+        'A task of another flow or none (`unknown_task`), a place beside a task not queued (`target_not_queued`) or ' +
+          'itself (`same_task`), a task waiting for itself (`waits_for_itself`) or a cycle (`wait_cycle`)',
+      ),
     },
   });
 };

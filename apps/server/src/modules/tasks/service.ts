@@ -25,7 +25,8 @@ import { sayInRoom } from './service/room/say.ts';
 import { putRoomCap } from './service/room/settings.ts';
 import type { RunDeps } from './service/runs.ts';
 import { getSprint, listSprints, newSprint } from './service/sprints.ts';
-import { createTask, editTask, getTask, listTasks } from './service/tasks.ts';
+import { editTask } from './service/edit.ts';
+import { createTask, getTask, listTasks } from './service/tasks.ts';
 import { leadWakesOf, putLeadWakes } from './service/wake/settings.ts';
 
 export { type Caller, callerOf } from './service/audit.ts';

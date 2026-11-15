@@ -7,9 +7,10 @@ import {
   type TenantValues,
   taskEvents,
   tasks,
+  taskWaits,
 } from '@mwc/db';
 import type { TaskState } from '@mwc/shared/enums';
-import { and, asc, count, desc, eq, ilike, inArray, lt, max, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, lt, max, not, or, type SQL, sql } from 'drizzle-orm';
 import { likeLiteral, type TaskCursor, type TaskSearch } from '../rules/list.ts';
 import type { TaskRef } from '../rules.ts';
 
@@ -158,12 +159,46 @@ async function activeCount(t: TenantDb, flowId: string): Promise<number> {
 const PRIORITY_RANK = sql`case ${tasks.priority}
   when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`;
 
-/** The flow's next queued tasks marked Autotake (T-34) to take: by priority, then the oldest first. */
+/** A task that waits for a task not done or cancelled yet (T-39). */
+const waitsForOpen = sql`exists (
+  select 1 from ${taskWaits} join ${tasks} as "waited" on "waited"."company_id" = ${taskWaits.companyId}
+    and "waited"."id" = ${taskWaits.waitsForTaskId}
+  where ${taskWaits.companyId} = ${tasks.companyId} and ${taskWaits.taskId} = ${tasks.id}
+    and "waited"."state" not in ('done', 'cancelled'))`;
+
+/**
+ * The flow's next queued tasks marked Autotake (T-34) to take: by priority, then their place in the queue (T-39),
+ * skipping those that wait for a task not done or cancelled yet.
+ */
 const nextQueued = (t: TenantDb, flowId: string, limit: number): Promise<Task[]> =>
   t
-    .select(tasks, and(eq(tasks.flowId, flowId), eq(tasks.state, 'queued'), eq(tasks.autoTake, true)))
-    .orderBy(PRIORITY_RANK, asc(tasks.createdAt), asc(tasks.number))
+    .select(
+      tasks,
+      and(eq(tasks.flowId, flowId), eq(tasks.state, 'queued'), eq(tasks.autoTake, true), not(waitsForOpen)),
+    )
+    .orderBy(PRIORITY_RANK, asc(tasks.queuePosition), asc(tasks.number))
     .limit(limit);
+
+/** The flow's queued tasks in the queue's order (T-39): by priority, then their place. */
+const queued = (t: TenantDb, flowId: string): Promise<Task[]> =>
+  t
+    .select(tasks, and(eq(tasks.flowId, flowId), eq(tasks.state, 'queued')))
+    .orderBy(PRIORITY_RANK, asc(tasks.queuePosition), asc(tasks.number));
+
+/**
+ * Numbers the flow's queued tasks 1, 2, 3… in this order (T-39), under the flow's lock; only the places that change are
+ * written (how many is returned), and only the moved task's `updated_at` moves (the others only shifted).
+ */
+async function setQueue(t: TenantDb, order: readonly Task[], movedId: string): Promise<number> {
+  let changed = 0;
+  for (const [index, row] of order.entries()) {
+    if (row.queuePosition === index + 1) continue;
+    const kept = row.id === movedId ? {} : { updatedAt: sql`${tasks.updatedAt}` as unknown as Date };
+    await t.update(tasks, { queuePosition: index + 1, ...kept }, eq(tasks.id, row.id));
+    changed += 1;
+  }
+  return changed;
+}
 
 async function insertEvents(t: TenantDb, rows: readonly TenantValues<typeof taskEvents>[]): Promise<void> {
   if (rows.length > 0) await t.insert(taskEvents, rows);
@@ -186,6 +221,8 @@ export const taskRows = {
   openByFlow,
   activeCount,
   nextQueued,
+  queued,
+  setQueue,
   insertEvents,
   events,
 };

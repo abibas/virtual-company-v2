@@ -14,7 +14,8 @@ import { rosterOf } from './team.ts';
 /**
  * Auto-take from Queued (T-25): while a flow's `auto_take` is on and fewer of its tasks than its `in_progress_limit` are
  * in progress (active at any step; escalated, queued, done and cancelled ones do not count), its next queued task (by
- * priority, urgent first, then the oldest) enters its first step as if the Lead had routed it, under the flow's lock,
+ * priority, urgent first, then its place in Queued, T-39; one waiting for a task not done or cancelled is skipped)
+ * enters its first step as if the Lead had routed it, under the flow's lock,
  * and starts there when that step starts by itself. Its history says it was taken from Queued by itself. It runs after
  * a move that ends a task's time in progress, when a task is created in Queued, when the setting is turned on or its
  * limit changes, and once at the server's start.

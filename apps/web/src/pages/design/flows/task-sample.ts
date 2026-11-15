@@ -122,6 +122,13 @@ export function sampleTask(key: string): TaskDetail | undefined {
       actions: actionsOf(state, { ...column, cards: [card] }),
       conversations: sampleConversations(key),
       artifacts: sampleArtifacts(key).filter((a) => a.kind !== 'skipped').length,
+      waitsFor: card.waitsFor.map((wait) => ({
+        id: `t-${wait.key.slice(2)}`,
+        key: wait.key,
+        title: wait.key,
+        state: wait.closed ? ('done' as const) : ('queued' as const),
+      })),
+      queue: null,
       // T-18's running turn recorded its hand-on (S6a): the page says what happens when the turn ends.
       decision:
         key === 'T-18' && card.assignee

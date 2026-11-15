@@ -1,20 +1,21 @@
-import type { Flow, FlowStep, TenantDb } from '@mwc/db';
+import type { Flow, FlowStep, Task, TenantDb } from '@mwc/db';
 import type { TaskAction } from '@mwc/shared/enums';
-import { type AGENT_TOOL_INPUTS, LEAD_ACTIONS, type LEAD_TOOLS, taskNumber } from '@mwc/shared/flows';
+import { type AGENT_TOOL_INPUTS, LEAD_ACTIONS, type LEAD_TOOLS, taskKey, taskNumber } from '@mwc/shared/flows';
 import type { z } from 'zod';
 import type { AgentToolTurn } from '../../chats/index.ts';
 import type { TasksRepo } from '../repo.ts';
-import { boardText, createdText, movedText, taskText } from '../rules/tool-text.ts';
+import { boardText, createdText, movedText, queuedText, taskText } from '../rules/tool-text.ts';
 import { actOnTask } from './actions.ts';
 import type { Caller } from './audit.ts';
 import { boardOf } from './board.ts';
 import type { ToolReply } from './decision.ts';
+import { editTask } from './edit.ts';
 import type { RunDeps } from './runs.ts';
 import { createTask, shownTask } from './tasks.ts';
 
 /**
- * A flow Lead's tools in its own chats (S6a, docs/processes.md "Built in S6a"): the board, a task, a new task, and the
- * moves `route`, `start`, `retry` and `cancel`, applied at once as the S5.3a actions are, acting as the Lead agent (its
+ * A flow Lead's tools in its own chats (S6a, docs/processes.md "Built in S6a"): the board, a task, a new task, a queued
+ * task's place, waits, Autotake and priority (`task_queue`, T-39), and the moves `route`, `start`, `retry` and `cancel`, applied at once as the S5.3a actions are, acting as the Lead agent (its
  * history rows and audit rows name it; a step that starts by itself runs as it); a route of a done or cancelled task
  * reopens it into that step with its reason (T-28). Only its own flow: a task of another flow is not found. Every rule of the moves holds (a move while the task's turn runs is refused, never forced).
  */
@@ -72,9 +73,35 @@ async function create(
     priority: input.priority,
     autoTake: input.autoTake,
     stepId: queued ? null : step?.id,
+    waitsFor: input.waitsFor,
+    after: input.after,
     now,
   });
   return made.ok ? { ok: true, text: createdText(made.task) } : { ok: false, text: made.message };
+}
+
+/**
+ * `task_queue` (T-39): a queued task's place (before or after another queued task), what it waits for, Autotake and
+ * priority, at once; a task not queued is refused in words.
+ */
+async function queue(
+  deps: RunDeps,
+  repo: TasksRepo,
+  t: TenantDb,
+  caller: Caller,
+  task: Task,
+  input: Input<'task_queue'>,
+  now: Date,
+): Promise<ToolReply> {
+  const key = taskKey(task.number);
+  if (task.state !== 'queued')
+    return { ok: false, text: `${key} is ${task.state}, not queued: task_queue changes only queued tasks.` };
+  if (input.before !== undefined && input.after !== undefined)
+    return { ok: false, text: 'Give before or after, not both.' };
+  const { before, after, waitsFor, autoTake, priority } = input;
+  const edit = { before, after, waitsFor, autoTake, priority };
+  const done = await editTask(deps, repo, t, caller, { ref: { id: task.id }, edit, now });
+  return done.ok ? { ok: true, text: queuedText(done.task) } : { ok: false, text: done.message };
 }
 
 /** One call of a Lead's tool (see above). */
@@ -97,6 +124,7 @@ export async function leadTool(
   if (task === undefined)
     return { ok: false, text: `No task ${input.key.toUpperCase()} in your flow "${flow.name}".` };
   if (tool === 'task_show') return { ok: true, text: taskText(await shownTask(deps, repo, t, caller, task)) };
+  if (tool === 'task_queue') return queue(deps, repo, t, caller, task, call.input as Input<'task_queue'>, now);
   let toStepId: string | undefined;
   if (input.step !== undefined) {
     const steps = await repo.flows.steps(t, flow.id);

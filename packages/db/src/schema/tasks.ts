@@ -2,7 +2,19 @@ import { TaskEventKind, TaskPriority, TaskState, TaskStepState } from '@mwc/shar
 import { TASK_DESCRIPTION_MAX, TASK_REASON_MAX, TASK_TITLE, type TaskDecision } from '@mwc/shared/flows';
 import { newId } from '@mwc/shared/ids';
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { createdAt, oneOf, updatedAt } from './columns.ts';
 import { flowSteps, flows } from './flows.ts';
 import { principals } from './principals.ts';
@@ -41,6 +53,13 @@ export const tasks = pgTable(
     priority: text('priority').$type<TaskPriority>().notNull().default('normal'),
     /** Whether the flow's Autotake may take it from Queued by itself (T-34); off ("Manual") waits for a person. */
     autoTake: boolean('auto_take').notNull().default(false),
+    /**
+     * Its place in its flow's queue (T-39): Queued and Autotake go by priority, then this. Left out on insert, the
+     * trigger `tasks_queue_at_end` puts it after every task of its flow (the end of its priority).
+     */
+    queuePosition: integer('queue_position')
+      .notNull()
+      .$defaultFn(() => sql`null`),
     state: text('state').$type<TaskState>().notNull().default('queued'),
     currentStepId: uuid('current_step_id'),
     stepState: text('step_state').$type<TaskStepState>(),
@@ -100,6 +119,7 @@ export const tasks = pgTable(
       sql`${t.decision} is null or (${t.state} = 'active' and jsonb_typeof(${t.decision}) = 'object')`,
     ),
     index('tasks_flow_state_idx').on(t.companyId, t.flowId, t.state),
+    index('tasks_flow_queue_idx').on(t.companyId, t.flowId, t.queuePosition),
     index('tasks_sprint_state_idx').on(t.companyId, t.sprintId, t.state),
     index('tasks_current_step_idx').on(t.companyId, t.currentStepId),
     index('tasks_escalation_target_idx').on(t.companyId, t.escalationTargetStepId),
@@ -141,7 +161,30 @@ export const taskEvents = pgTable(
   ],
 );
 
+/**
+ * "Waits for" (T-39): a task that needs another of its flow (its code, or the same files or schema). Autotake skips it
+ * while any task it waits for is not done or cancelled; a person or the Lead can still start it. The service keeps both
+ * in one flow and refuses a cycle (422).
+ */
+export const taskWaits = pgTable(
+  'task_waits',
+  {
+    companyId: companyIdColumn(),
+    taskId: uuid('task_id').notNull(),
+    waitsForTaskId: uuid('waits_for_task_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ name: 'task_waits_pk', columns: [t.companyId, t.taskId, t.waitsForTaskId] }),
+    tenantForeignKey('task_waits_task_fk', t.companyId, t.taskId, tasks),
+    tenantForeignKey('task_waits_waits_for_fk', t.companyId, t.waitsForTaskId, tasks),
+    check('task_waits_not_itself_check', sql`${t.taskId} <> ${t.waitsForTaskId}`),
+    index('task_waits_waits_for_idx').on(t.companyId, t.waitsForTaskId),
+  ],
+);
+
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type TaskEvent = typeof taskEvents.$inferSelect;
+export type TaskWait = typeof taskWaits.$inferSelect;
 export type NewTaskEvent = typeof taskEvents.$inferInsert;

@@ -2,7 +2,7 @@ import type { DbHandle, Flow, Task, TenantDb } from '@mwc/db';
 import { BOARD_DONE } from '@mwc/shared/flows';
 import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
-import { boardOrder, inOrder } from '../rules.ts';
+import { boardOrder, inOrder, queueOrder } from '../rules.ts';
 import type { BoardColumnView, BoardView } from '../schemas/board.ts';
 import { boardCard, holderOf } from './views.ts';
 
@@ -10,7 +10,8 @@ import { boardCard, holderOf } from './views.ts';
  * A flow's board (`GET …/flows/{flowId}/board`, docs/processes.md): its current sprint (T-37), Queued, then a column
  * per step in order, then Done (the current sprint's latest closed, done or cancelled, with the count of all; a
  * cancelled card says so) and Escalated. Each open
- * column lists its cards the most urgent first, then the oldest. An open card says when its agent Lead was told of it
+ * column lists its cards the most urgent first, then the oldest; Queued the most urgent first, then by its place in
+ * the queue, each card with the tasks it waits for (T-39). An open card says when its agent Lead was told of it
  * as it stands (S6c, `leadNotifiedAt`).
  */
 export async function boardOf(
@@ -47,8 +48,20 @@ export async function boardOf(
     t,
     open.map((task) => task.id),
   );
+  const waits = await repo.waits.of(
+    t,
+    open.map((task) => task.id),
+  );
   const card = (task: Task) =>
-    boardCard(task, byId, flow.leadPrincipalId, names, counts.get(task.id) ?? 0, told.get(task.id) ?? null);
+    boardCard(
+      task,
+      byId,
+      flow.leadPrincipalId,
+      names,
+      counts.get(task.id) ?? 0,
+      told.get(task.id) ?? null,
+      waits.get(task.id) ?? [],
+    );
   const column = (
     kind: BoardColumnView['kind'],
     title: string,
@@ -79,7 +92,7 @@ export async function boardOf(
       column(
         'queued',
         'Queued',
-        open.filter((task) => task.state === 'queued'),
+        open.filter((task) => task.state === 'queued').sort(queueOrder),
       ),
       ...steps.map((step) =>
         column('step', step.name, at(step.id), {

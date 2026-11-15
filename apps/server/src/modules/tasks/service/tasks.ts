@@ -2,13 +2,12 @@ import type { Flow, FlowStep, Task, TenantDb } from '@mwc/db';
 import { TASK_PAGE } from '@mwc/shared/flows';
 import { principalNames } from '../../org/index.ts';
 import type { TasksRepo } from '../repo.ts';
-import { allowedActions, editRefusal, intoStepRefusal } from '../rules/access.ts';
+import { allowedActions, intoStepRefusal } from '../rules/access.ts';
 import { cursorOf, cursorText, searchOf, statesOf } from '../rules/list.ts';
 import { move } from '../rules/machine.ts';
 import { FLOW_NOT_FOUND, type Refusal, refuse, TASK_NOT_FOUND, type TaskRef } from '../rules.ts';
 import type {
   CreateTask,
-  EditTask,
   TaskDetailView,
   TaskListQuery,
   TaskSummaryView,
@@ -16,11 +15,12 @@ import type {
 import { applyMove, eventRow } from './apply.ts';
 import { audit, type Caller } from './audit.ts';
 import { takeQueued } from './auto-take.ts';
+import { flowTasks, placedPriority, placeInQueue, placeTarget, setWaits } from './queue.ts';
 import { type RunDeps, runStep } from './runs.ts';
 import { rosterOf } from './team.ts';
 import { conversationView, taskDetail, taskPrincipals, taskSummary } from './views.ts';
 
-/** The tasks (S5.3a): the list, one task with its history, a new task, and an edit of its title, text or priority. */
+/** The tasks (S5.3a): the list, one task with its history, and a new task; an edit is `edit.ts`. */
 
 type Deps = RunDeps;
 export type TaskResult<S extends 403 | 404 | 409 | 422> =
@@ -115,7 +115,11 @@ export async function shownTask(deps: Deps, repo: TasksRepo, t: TenantDb, caller
     ),
   );
   const artifacts = (await repo.artifacts.counts(t, [task.id])).get(task.id) ?? 0;
-  return taskDetail(task, { flow, steps, events, names, actions, conversations, artifacts });
+  const waitsFor = (await repo.waits.of(t, [task.id])).get(task.id) ?? [];
+  const queued = task.state === 'queued' ? await repo.tasks.queued(t, flow.id) : [];
+  const place = queued.findIndex((row) => row.id === task.id) + 1;
+  const queue = place > 0 ? { place, of: queued.length } : null;
+  return taskDetail(task, { flow, steps, events, names, actions, conversations, artifacts, waitsFor, queue });
 }
 
 /** One task by id or key, with its history and the caller's moves; 404 for another company's or none. */
@@ -136,7 +140,9 @@ export async function getTask(
  * flow (the Lead's people and admins: 403 `not_lead`; 422 `unknown_step`), which tells the step's assignee when a
  * person. Where it goes and whether it is Autotake, when the creator does not say, are the flow's defaults (T-38; its
  * Lead chose them, so its step applies to anyone). 404 `flow_not_found` for another company's flow. Its history starts
- * with `created`; it joins the flow's current sprint (T-37), wherever it goes.
+ * with `created`; it joins the flow's current sprint (T-37), wherever it goes. It goes to the end of its priority in
+ * Queued, or right after a queued task (`after`, taking its priority unless one is given), and may wait for tasks of its
+ * flow (`waitsFor`, T-39: 422 `unknown_task` for another flow's).
  */
 export async function createTask(
   deps: Deps,
@@ -161,6 +167,11 @@ export async function createTask(
       }
       // Left out: the flow's defaults (T-38).
       const stepId = input.stepId === undefined ? flow.newTaskStepId : input.stepId;
+      // What it waits for and where it goes in Queued (T-39), checked before anything is written.
+      const waits = await flowTasks(repo, tx, flow, input.waitsFor ?? []);
+      if (!waits.ok) return waits;
+      const place = stepId === null ? await placeTarget(repo, tx, flow, { id: '' }, { after: input.after }) : undefined;
+      if (place !== undefined && !place.ok) return place;
       // It joins the flow's current sprint (T-37).
       const sprint = await repo.sprints.ensure(tx, flow);
       const values = {
@@ -169,11 +180,16 @@ export async function createTask(
         sprintId: sprint.id,
         title: input.title,
         description: input.description ?? '',
-        priority: input.priority ?? 'normal',
+        priority: placedPriority(input.priority, place?.target, 'normal'),
         autoTake: input.autoTake ?? flow.newTaskAutoTake,
         createdBy: caller.principalId,
       };
-      const task = await repo.tasks.insert(tx, values);
+      let task = await repo.tasks.insert(tx, values);
+      if (waits.tasks.length > 0) await setWaits(repo, tx, task.id, waits.tasks);
+      if (place !== undefined) {
+        await placeInQueue(repo, tx, task, place);
+        task = await repo.tasks.lock(tx, task.id);
+      }
       await repo.tasks.insertEvents(tx, [eventRow(task.id, caller, { kind: 'created' })]);
       await audit(repo, tx, caller, { entityType: 'task', entityId: task.id, action: 'create', after: task });
       if (stepId === null) return { ok: true, task };
@@ -209,48 +225,4 @@ async function routeNew(
   if (!transition.ok) throw new Error(`a new task could not enter its step: ${transition.code}`);
   const moved = { task, flow, from: undefined, roster, transition, action: 'route', now: made.input.now };
   return applyMove(repo, tx, caller, moved);
-}
-
-/**
- * Edits a task's title, description, priority or Autotake (its creator, its team's Lead people, admins: 403
- * `not_yours`). Only what differs is written, with an `edited` history row naming the fields and their audit rows.
- * Autotake changes only while the task is queued; turned on there, the flow takes it at once when it has room (T-34).
- */
-export async function editTask(
-  deps: Deps,
-  repo: TasksRepo,
-  t: TenantDb,
-  caller: Caller,
-  change: { readonly ref: TaskRef | undefined; readonly edit: EditTask; readonly now: Date },
-): Promise<TaskResult<403 | 404>> {
-  const found = change.ref === undefined ? undefined : await repo.tasks.get(t, change.ref);
-  if (found === undefined) return TASK_NOT_FOUND;
-  const done = await t.transaction(async (tx): Promise<{ ok: true; task: Task } | Refusal<403>> => {
-    const flow = (await repo.flows.lock(tx, found.flowId)) as Flow;
-    const task = await repo.tasks.lock(tx, found.id);
-    const denied = editRefusal(caller, (await rosterOf(tx)).team(flow.leadPrincipalId), task.createdBy);
-    if (denied) return denied;
-    const edit = task.state === 'queued' ? change.edit : { ...change.edit, autoTake: undefined };
-    const set = Object.fromEntries(
-      Object.entries(edit).filter(([field, value]) => value !== undefined && task[field as keyof Task] !== value),
-    ) as Partial<Pick<Task, 'title' | 'description' | 'priority' | 'autoTake'>>;
-    const fields = Object.keys(set);
-    if (fields.length === 0) return { ok: true, task };
-    const after = await repo.tasks.update(tx, task.id, set);
-    await repo.tasks.insertEvents(tx, [eventRow(task.id, caller, { kind: 'edited', details: { fields } })]);
-    await audit(repo, tx, caller, {
-      entityType: 'task',
-      entityId: task.id,
-      action: 'update',
-      before: task,
-      after,
-    });
-    return { ok: true, task: after };
-  });
-  if (!done.ok) return done;
-  // Marked Autotake while queued: the flow takes it (or an earlier one) when it auto-takes and has room (T-34).
-  if (done.task.state === 'queued' && done.task.autoTake)
-    await takeQueued(deps, repo, t, done.task.flowId, change.now);
-  const now = (await repo.tasks.get(t, { id: done.task.id })) as Task;
-  return { ok: true, task: await shownTask(deps, repo, t, caller, now) };
 }

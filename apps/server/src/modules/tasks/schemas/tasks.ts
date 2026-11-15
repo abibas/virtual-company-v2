@@ -15,6 +15,10 @@ import { At, PrincipalRefSchema, StepRefSchema } from '../schemas.ts';
 const Title = z.string().trim().min(TASK_TITLE.min).max(TASK_TITLE.max).openapi({ example: 'Fix the login' });
 const Description = z.string().max(TASK_DESCRIPTION_MAX).openapi({ description: 'Markdown' });
 const query = (name: string, example: string) => ({ param: { name, in: 'query' as const }, example });
+/** A task named by its key (`T-12`) or id. */
+const TaskName = z.string().trim().min(1).max(64).openapi({ example: 'T-12' });
+/** The tasks of the same flow it waits for (T-39), by key or id: Autotake skips it until each is done or cancelled. */
+const WaitsFor = z.array(TaskName).max(20);
 
 /**
  * `?flowId&state&stepId&assignee&q&sort&limit&before&cursor`: the company's tasks, newest first (or the latest activity
@@ -59,6 +63,10 @@ export const CreateTaskSchema = z
      * new tasks (T-38, Queued unless its Lead chose a step).
      */
     stepId: z.uuid().nullable().optional(),
+    /** The tasks of the flow it waits for (T-39), by key or id. */
+    waitsFor: WaitsFor.optional(),
+    /** Put it in Queued right after this queued task (T-39), taking its priority unless one is given; else at the end. */
+    after: TaskName.optional(),
   })
   .openapi('CreateTask');
 
@@ -69,6 +77,18 @@ export const EditTaskSchema = z
     priority: TaskPriority.optional(),
     /** Autotake or Manual (T-34); changes only while the task is queued (ignored after it left Queued). */
     autoTake: z.boolean().optional(),
+    /** A queued task's tasks it waits for (T-39), all of them (an empty list: none). */
+    waitsFor: WaitsFor.optional(),
+    /**
+     * Put the queued task right before (or after) this queued task of its flow (T-39, those who route): it takes that
+     * task's priority unless one is given, so it lands there.
+     */
+    before: TaskName.optional(),
+    after: TaskName.optional(),
+  })
+  .refine((edit) => edit.before === undefined || edit.after === undefined, {
+    message: 'give before or after, not both',
+    path: ['after'],
   })
   .openapi('EditTask');
 
@@ -216,6 +236,12 @@ export const TaskDetailSchema = TaskSummarySchema.extend({
   artifacts: z.number().int().min(0),
   /** The decision recorded in its step's running turn (S6a); null for none. */
   decision: TaskDecisionSchema.nullable(),
+  /** The tasks of its flow it waits for (T-39): Autotake skips it until each is done or cancelled. */
+  waitsFor: z.array(
+    z.object({ id: z.string(), key: z.string(), title: z.string(), state: TaskState }).openapi('TaskWaitsFor'),
+  ),
+  /** Its place in Queued (T-39): 1 is taken first; null unless queued. */
+  queue: z.object({ place: z.number().int().min(1), of: z.number().int().min(1) }).nullable(),
 }).openapi('TaskDetail');
 
 export const TaskMovedSchema = z

@@ -111,6 +111,8 @@ const card = (
     title,
     priority,
     autoTake: false,
+    // T-22 waits for T-21 in Queued (T-39).
+    waitsFor: n === 22 ? [{ key: 'T-21', closed: false }] : [],
     round,
     stepState: state,
     cancelled: false,

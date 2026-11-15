@@ -26,6 +26,7 @@ const card = (key: string, more: Partial<BoardView['columns'][number]['cards'][n
   title: `Task ${key}`,
   priority: 'normal' as const,
   autoTake: false,
+  waitsFor: [],
   round: null,
   stepState: null,
   cancelled: false,

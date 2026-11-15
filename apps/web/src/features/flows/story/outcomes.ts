@@ -33,6 +33,13 @@ export const TONE_DOT: Readonly<Record<Tone, string>> = {
 };
 
 /** A history row's verb after its actor's name. */
+/** An edited field in words: Autotake (T-34), its place in the queue and what it waits for (T-39). */
+const FIELD_WORDS: Readonly<Record<string, string>> = {
+  autoTake: 'Autotake',
+  queue: 'place in the queue',
+  waitsFor: 'waits for',
+};
+
 const VERB: Readonly<Record<TaskEvent['kind'], string>> = {
   created: 'created it',
   entered: 'entered',
@@ -105,10 +112,12 @@ export function eventWords(event: TaskEvent): string {
       break;
     case 'edited': {
       const named = Array.isArray(event.details.fields)
-        ? event.details.fields.map((field) => (field === 'autoTake' ? 'Autotake' : String(field)))
+        ? event.details.fields.map((field) => FIELD_WORDS[String(field)] ?? String(field))
         : undefined;
       const fields = named ? ` the ${named.join(', ')}` : '';
-      return `${who ?? 'Someone'} edited${fields}`;
+      const waits = Array.isArray(event.details.waitsFor) ? event.details.waitsFor.map(String) : undefined;
+      const now = waits ? ` (waits for ${waits.length > 0 ? waits.join(', ') : 'nothing'})` : '';
+      return `${who ?? 'Someone'} edited${fields}${now}`;
     }
   }
   return `${who ?? 'Someone'} ${VERB[event.kind]}${where(event)}`;

@@ -32,6 +32,7 @@ export const LEAD_TOOLS = [
   'team_board',
   'task_show',
   'task_create',
+  'task_queue',
   'task_route',
   'task_start',
   'task_retry',
@@ -107,6 +108,15 @@ const TaskKey = z
   .refine((key) => taskNumber(key) !== undefined, 'a task key such as T-12')
   .describe('The task’s key, e.g. T-12');
 
+/** Tasks of the flow a task waits for (T-39), by key. */
+const WaitsFor = z
+  .array(TaskKey)
+  .max(20)
+  .describe(
+    'Tasks of your flow it waits for (keys): Autotake takes it only once each is done or cancelled; a person or you ' +
+      'can still start it',
+  );
+
 const StepRef = z
   .string()
   .trim()
@@ -177,6 +187,25 @@ export const AGENT_TOOL_INPUTS = {
     step: StepRef.optional().describe(
       'A step to put it into at once, or "Queued"; left out: where the flow puts new tasks (team_board’s first line)',
     ),
+    waitsFor: WaitsFor.optional(),
+    after: TaskKey.optional().describe(
+      'Put it in Queued right after this queued task (it takes that task’s priority unless you give one); left ' +
+        'out: at the end of its priority',
+    ),
+  }),
+  task_queue: z.object({
+    key: TaskKey,
+    before: TaskKey.optional().describe(
+      'Put it right before this queued task (it takes that task’s priority unless you give one)',
+    ),
+    after: TaskKey.optional().describe(
+      'Put it right after this queued task (it takes that task’s priority unless you give one)',
+    ),
+    waitsFor: WaitsFor.optional().describe(
+      'All the tasks it waits for now ([] for none): Autotake skips it until each is done or cancelled',
+    ),
+    autoTake: z.boolean().optional().describe('true: Autotake; false: Manual'),
+    priority: TaskPriority.optional().describe('low, normal, high or urgent'),
   }),
   task_route: z.object({
     key: TaskKey,
