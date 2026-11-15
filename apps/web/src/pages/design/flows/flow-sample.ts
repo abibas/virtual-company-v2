@@ -148,8 +148,20 @@ function stepColumn(flow: Flow, stepId: string, specs: readonly CardSpec[]): Boa
   };
 }
 
+/** A sample board's current sprint (T-37). */
+const sampleSprint = (flow: { id: string; lead: Board['flow']['lead'] }, done: number): Board['sprint'] => ({
+  id: `${flow.id}-sprint-3`,
+  number: 3,
+  name: 'Sprint 3 · Mon 9 Nov',
+  startedAt: '2026-11-09T08:30:00.000Z',
+  startedBy: flow.lead,
+  done,
+  cancelled: 0,
+});
+
 const DEVBOX_BOARD: Board = {
   flow: { id: DEVBOX.id, name: DEVBOX.name, lead: DEVBOX.lead, newTaskStepId: null, newTaskAutoTake: false },
+  sprint: sampleSprint(DEVBOX, 14),
   columns: [
     column('queued', 'Queued', [
       card([21, 'Rate-limit the public API', 'high', null, null, 40], null, null),
@@ -184,6 +196,7 @@ const DEVBOX_BOARD: Board = {
 
 const DESIGN_BOARD: Board = {
   flow: { id: DESIGN.id, name: DESIGN.name, lead: DESIGN.lead, newTaskStepId: null, newTaskAutoTake: false },
+  sprint: sampleSprint(DESIGN, 3),
   columns: [
     column('queued', 'Queued', [card([23, 'New empty states', 'normal', null, null, 500], null, null)]),
     stepColumn(DESIGN, 's-draft', [[24, 'The flows page in dark mode', 'normal', 'working', 1, 15]]),

@@ -35,6 +35,10 @@ export type TaskChanges = InferRequestType<TaskRoutes[':taskId']['$patch']>['jso
 export type TaskMove = InferRequestType<TaskRoutes[':taskId']['actions']['$post']>['json'];
 export type TaskMoved = InferResponseType<TaskRoutes[':taskId']['actions']['$post'], 200>;
 /** S6c: a flow's Lead wake-ups (its settings, its last wake-up, its counts) and the settings a PUT sends. */
+export type SprintList = InferResponseType<FlowRoutes[':flowId']['sprints']['$get'], 200>;
+export type SprintSummary = SprintList['sprints'][number];
+export type Sprint = InferResponseType<FlowRoutes[':flowId']['sprints'][':sprintId']['$get'], 200>;
+export type SprintReport = Sprint['report'];
 export type LeadWakes = InferResponseType<FlowRoutes[':flowId']['lead-wakes']['$get'], 200>;
 export type LeadWakeSettings = InferRequestType<FlowRoutes[':flowId']['lead-wakes']['$put']>['json'];
 
@@ -108,6 +112,24 @@ export function useLeadWakes(companyId: string, flowId: string): Loaded<LeadWake
   );
 }
 
+/** A flow's sprints (T-37), the newest first; `version` (the board's current sprint) reads them again after a new one. */
+export function useSprints(companyId: string, flowId: string, version: string): Loaded<SprintList> {
+  const api = useApi();
+  return useLoad(`sprints:${companyId}:${flowId}:${version}`, () =>
+    call(company(api).flows[':flowId'].sprints.$get({ param: { companyId, flowId } })),
+  );
+}
+
+/** One sprint with its report (the current one's so far, read again every 30 seconds while the page is visible). */
+export function useSprint(companyId: string, flowId: string, sprintId: string): Loaded<Sprint> {
+  const api = useApi();
+  const loaded = useLoad(`sprint:${companyId}:${flowId}:${sprintId}`, () =>
+    call(company(api).flows[':flowId'].sprints[':sprintId'].$get({ param: { companyId, flowId, sprintId } })),
+  );
+  useEvery(BOARD_EVERY_MS, loaded.reload);
+  return loaded;
+}
+
 /** A task by its key (`T-12`) or id, with its history and the moves the caller may make. */
 export function useTask(companyId: string, taskId: string): Loaded<TaskDetail> {
   const api = useApi();
@@ -131,6 +153,8 @@ export function flowCalls(api: Api, companyId: string) {
       call(flows[':flowId'].steps.$put({ param: { companyId, flowId }, json: { steps } })),
     putLeadWakes: (flowId: string, settings: LeadWakeSettings) =>
       call(flows[':flowId']['lead-wakes'].$put({ param: { companyId, flowId }, json: settings })),
+    newSprint: (flowId: string, name?: string) =>
+      call(flows[':flowId'].sprints.$post({ param: { companyId, flowId }, json: name ? { name } : {} })),
     createTask: (task: NewTask) => call(tasks.$post({ param: { companyId }, json: task })),
     editTask: (taskId: string, changes: TaskChanges) =>
       call(tasks[':taskId'].$patch({ param: { companyId, taskId }, json: changes })),

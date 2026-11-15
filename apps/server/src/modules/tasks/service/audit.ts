@@ -27,7 +27,7 @@ type Row = Readonly<Record<string, unknown>> | undefined;
 export const AUDIT_IGNORED = ['createdAt', 'updatedAt', 'companyId', 'id'];
 
 /**
- * The audit rows of a flow, a step or a task changed by `caller` (one per changed field; a create or a delete lists
+ * The audit rows of a flow, a step, a task or a sprint (T-37) changed by `caller` (one per changed field; a create or a delete lists
  * every field), keyed by the entity's id.
  */
 export function audit(
@@ -35,7 +35,7 @@ export function audit(
   t: TenantDb,
   caller: Caller,
   change: {
-    readonly entityType: 'flow' | 'flow_step' | 'task';
+    readonly entityType: 'flow' | 'flow_step' | 'task' | 'sprint';
     readonly entityId: string;
     readonly action: string;
     readonly before?: Row;

@@ -24,6 +24,7 @@ import type { RoomDeps } from './service/room/members.ts';
 import { sayInRoom } from './service/room/say.ts';
 import { putRoomCap } from './service/room/settings.ts';
 import type { RunDeps } from './service/runs.ts';
+import { getSprint, listSprints, newSprint } from './service/sprints.ts';
 import { createTask, editTask, getTask, listTasks } from './service/tasks.ts';
 import { leadWakesOf, putLeadWakes } from './service/wake/settings.ts';
 
@@ -39,7 +40,7 @@ export { type Caller, callerOf } from './service/audit.ts';
  * `service/artifacts.ts`'s. Since S6c an agent Lead wakes up by itself (`service/wake/`): its settings here, the events
  * written by the moves and the runs, and the tick that tells them (`leadWakes`, started by `createApp`). Each flow has a
  * team room (`service/room/`): its feed, a person's message that asks the team's agents through the chats module's
- * `team`, and its cap.
+ * `team`, and its cap. Each flow runs in sprints (T-37, `service/sprints.ts`).
  */
 export function tasksService(deps: RunDeps & Pick<RoomDeps, 'team'>) {
   const repo = tasksRepo;
@@ -63,6 +64,12 @@ export function tasksService(deps: RunDeps & Pick<RoomDeps, 'team'>) {
       const found = await flowOr404(t, { id: flowId });
       return found.ok ? { ok: true as const, board: await boardOf(deps, repo, t, found.flow, done) } : found;
     },
+    /** A flow's sprints (T-37): the list, one with its report, and the next one started. */
+    sprints: (t: TenantDb, flowId: string) => listSprints(deps, repo, t, flowId),
+    sprint: (t: TenantDb, ref: { readonly flowId: string; readonly sprintId: string }) =>
+      getSprint(deps, repo, t, ref),
+    newSprint: (t: TenantDb, caller: Caller, input: { flowId: string; name?: string | undefined; now: Date }) =>
+      newSprint(deps, repo, t, caller, input),
     createFlow: (t: TenantDb, caller: Caller, input: CreateFlow) => createFlow(deps, repo, t, caller, input),
     patchFlow: (t: TenantDb, caller: Caller, flowId: string, patch: PatchFlow, now: Date) =>
       patchFlow(deps, repo, t, caller, { flowId, patch, now }),

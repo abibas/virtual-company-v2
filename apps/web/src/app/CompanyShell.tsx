@@ -13,7 +13,7 @@ import { roleName } from '../components/ui/Badge.tsx';
 import { Notice } from '../components/ui/Notice.tsx';
 import { LogoRetryNotice } from '../features/company/LogoRetryNotice.tsx';
 import { CONTACTS, contactsListPath } from '../features/contacts/links.ts';
-import { CHAT_TAB, FLOW_TAB, type TeamTab } from '../features/flows/links.ts';
+import { CHAT_TAB, FLOW_TAB, SPRINTS_TAB, type TeamTab } from '../features/flows/links.ts';
 import { useCompanyRail } from '../features/inbox/use-company-rail.tsx';
 import { structureTabAt } from '../features/structure/StructureView.tsx';
 import { AgentPage } from '../pages/company/AgentPage.tsx';
@@ -100,10 +100,14 @@ function useCompanyMembership(slug: string) {
 }
 
 /** A team page's tab by the word after its address. */
-const TEAM_TABS: Readonly<Record<string, TeamTab>> = { [FLOW_TAB]: 'flow', [CHAT_TAB]: 'chat' };
+const TEAM_TABS: Readonly<Record<string, TeamTab>> = {
+  [FLOW_TAB]: 'flow',
+  [SPRINTS_TAB]: 'sprints',
+  [CHAT_TAB]: 'chat',
+};
 
 /**
- * A team's page (`flows/<lead>`, `flows/<lead>/flow`, `flows/<lead>/chat`) or a task's (`tasks/<key>`; `tasks` alone is
+ * A team's page (`flows/<lead>`, `flows/<lead>/flow`, `flows/<lead>/sprints`, `flows/<lead>/chat`) or a task's (`tasks/<key>`; `tasks` alone is
  * the task list).
  */
 function flowPageAt(head: string, rest: readonly string[]): ReactNode {

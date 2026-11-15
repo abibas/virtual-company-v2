@@ -50,7 +50,7 @@ export const BoardColumnSchema = z
     /** A step's column: the step, its kind and its assignee. */
     step: z.object({ id: z.string(), kind: FlowStepKind, assignee: PrincipalRefSchema }).nullable(),
     cards: z.array(BoardCardSchema),
-    /** All the column's tasks: Done counts every closed (done or cancelled) task, not only the cards shown. */
+    /** All the column's tasks: Done counts every closed (done or cancelled) task of the sprint, not only the cards shown. */
     total: z.number().int().min(0),
   })
   .openapi('BoardColumn');
@@ -65,6 +65,16 @@ export const BoardSchema = z
       newTaskStepId: z.string().nullable(),
       /** Whether a new task is Autotake when its creator does not say (T-38). */
       newTaskAutoTake: z.boolean(),
+    }),
+    /** The flow's current sprint (T-37): Done is its closed tasks; every open task is in it. */
+    sprint: z.object({
+      id: z.string(),
+      number: z.number().int().min(1),
+      name: z.string(),
+      startedAt: At,
+      startedBy: PrincipalRefSchema,
+      done: z.number().int().min(0),
+      cancelled: z.number().int().min(0),
     }),
     columns: z.array(BoardColumnSchema),
   })

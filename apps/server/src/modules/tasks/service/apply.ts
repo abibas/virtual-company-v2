@@ -33,7 +33,7 @@ export function eventRow(
  * Writes a move the rules made (`move`) in the caller's transaction, under the flow's and the task's locks: the task's
  * new state, its history rows, the audit rows of what changed, and the notices to the people it concerns (the person
  * it came to, the Lead's nearest person on an escalation, its creator and that person when done), and the event that
- * wakes an agent Lead (S6c: escalated, done).
+ * wakes an agent Lead (S6c: escalated, done). A reopened task joins the flow's current sprint (T-37).
  */
 export async function applyMove(
   repo: TasksRepo,
@@ -52,7 +52,11 @@ export async function applyMove(
   const { task, flow, transition } = move;
   const next = transition.task;
   const closes = next.state === 'done' || next.state === 'cancelled';
+  // A reopened task (T-28) moves into the flow's current sprint (T-37).
+  const reopens = !closes && (task.state === 'done' || task.state === 'cancelled');
+  const sprint = reopens ? await repo.sprints.ensure(tx, flow) : undefined;
   const after = await repo.tasks.update(tx, task.id, {
+    ...(sprint === undefined ? {} : { sprintId: sprint.id }),
     state: next.state,
     currentStepId: next.currentStepId,
     stepState: next.stepState,

@@ -118,19 +118,19 @@ const open = (t: TenantDb, flowId: string): Promise<Task[]> =>
     .select(tasks, and(eq(tasks.flowId, flowId), inArray(tasks.state, ['queued', 'active', 'escalated'])))
     .orderBy(asc(tasks.number));
 
-/** The flow's latest closed tasks (done or cancelled: the board's Done column), the latest closed first. */
-const latestDone = (t: TenantDb, flowId: string, limit: number): Promise<Task[]> =>
+/** The sprint's latest closed tasks (done or cancelled: the board's Done column, T-37), the latest closed first. */
+const latestDone = (t: TenantDb, sprintId: string, limit: number): Promise<Task[]> =>
   t
-    .select(tasks, and(eq(tasks.flowId, flowId), inArray(tasks.state, ['done', 'cancelled'])))
+    .select(tasks, and(eq(tasks.sprintId, sprintId), inArray(tasks.state, ['done', 'cancelled'])))
     .orderBy(desc(tasks.closedAt), desc(tasks.number))
     .limit(limit);
 
-/** How many of the flow's tasks are closed (done or cancelled). */
-async function doneCount(t: TenantDb, flowId: string): Promise<number> {
+/** How many of the sprint's tasks are closed (done or cancelled). */
+async function doneCount(t: TenantDb, sprintId: string): Promise<number> {
   const [row] = await t.selectFields(
     tasks,
     { n: count() },
-    and(eq(tasks.flowId, flowId), inArray(tasks.state, ['done', 'cancelled'])),
+    and(eq(tasks.sprintId, sprintId), inArray(tasks.state, ['done', 'cancelled'])),
   );
   return row?.n ?? 0;
 }

@@ -337,6 +337,13 @@
       "when": 1794736807545,
       "tag": "0047_new_task_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794737485137,
+      "tag": "0048_sprints",
+      "breakpoints": true
     }
   ]
 }

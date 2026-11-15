@@ -78,7 +78,7 @@ export async function writtenFlow(deps: Deps, repo: TasksRepo, t: TenantDb, flow
 /**
  * Makes a team's flow with its steps, under the company's lock: the Lead must be on the chart (422 `lead_not_found`),
  * the caller one of its Lead people or an admin (403 `not_lead`), the Lead without a flow yet (409 `flow_exists`) and
- * the steps a valid list (422, `planSteps`). Audited.
+ * the steps a valid list (422, `planSteps`). Audited. It starts with its Sprint 1 (T-37).
  */
 export async function createFlow(
   deps: Deps,
@@ -107,6 +107,8 @@ export async function createFlow(
     };
     const flow = await repo.flows.insert(tx, values);
     await audit(repo, tx, caller, { entityType: 'flow', entityId: flow.id, action: 'create', after: flow });
+    // Its Sprint 1 (T-37): a flow always has one current sprint, which its tasks join.
+    await repo.sprints.ensure(tx, flow);
     await writeSteps(repo, tx, caller, { flow, before: [], plan });
     return { ok: true, flow };
   });

@@ -37,12 +37,26 @@ function cardLine(card: BoardView['columns'][number]['cards'][number], queued = 
   return `- ${parts.join(' · ')}`;
 }
 
-/** The board as `team_board` answers it: the flow and its defaults for new tasks (T-38), then each column with its cards. */
+/** The current sprint (T-37): `Current sprint: "Sprint 4 · Mon 16 Nov" · since 2026-11-16 08:30 UTC · …`. */
+function sprintLine(sprint: BoardView['sprint']): string {
+  const plain = `Sprint ${sprint.number}`;
+  const name = sprint.name.startsWith(plain) ? `"${sprint.name}"` : `${plain} "${sprint.name}"`;
+  const since = `${sprint.startedAt.slice(0, 16).replace('T', ' ')} UTC`;
+  return `Current sprint: ${name} · since ${since} · Done lists only this sprint's closed tasks`;
+}
+
+/**
+ * The board as `team_board` answers it: the flow and its defaults for new tasks (T-38), its current sprint (T-37), then
+ * each column with its cards.
+ */
 export function boardText(board: BoardView): string {
   const into = board.columns.find((column) => column.step?.id === board.flow.newTaskStepId);
   const stepName = board.flow.newTaskStepId === null ? null : (into?.title ?? null);
   const newTasks = newTasksWords({ stepName, autoTake: board.flow.newTaskAutoTake });
-  const lines = [`Flow "${board.flow.name}" · Lead: ${board.flow.lead.name} · new tasks: ${newTasks}`];
+  const lines = [
+    `Flow "${board.flow.name}" · Lead: ${board.flow.lead.name} · new tasks: ${newTasks}`,
+    sprintLine(board.sprint),
+  ];
   for (const column of board.columns) {
     const who = column.step ? ` · ${KIND_WORDS[column.step.kind]} · ${column.step.assignee.name}` : '';
     const count = column.kind === 'done' ? `${column.cards.length} of ${column.total}` : `${column.total}`;

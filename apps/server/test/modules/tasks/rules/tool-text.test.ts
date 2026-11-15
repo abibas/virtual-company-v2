@@ -42,6 +42,15 @@ describe('the board in words', () => {
   it('names the flow, then each column with its cards', () => {
     const board: BoardView = {
       flow: { id: 'f', name: 'DEVBOX delivery', lead: agent('Coordinator'), newTaskStepId: null, newTaskAutoTake: false },
+      sprint: {
+        id: 'sp',
+        number: 1,
+        name: 'Sprint 1',
+        startedAt: '2026-11-11T09:00:00.000Z',
+        startedBy: agent('Coordinator'),
+        done: 0,
+        cancelled: 0,
+      },
       columns: [
         { kind: 'queued', title: 'Queued', step: null, cards: [card('T-3', { priority: 'high' })], total: 1 },
         {

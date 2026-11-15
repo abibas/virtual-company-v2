@@ -7,8 +7,9 @@ import type { BoardColumnView, BoardView } from '../schemas/board.ts';
 import { boardCard, holderOf } from './views.ts';
 
 /**
- * A flow's board (`GET …/flows/{flowId}/board`, docs/processes.md): Queued, then a column per step in order, then Done
- * (the latest closed, done or cancelled, with the count of all; a cancelled card says so) and Escalated. Each open
+ * A flow's board (`GET …/flows/{flowId}/board`, docs/processes.md): its current sprint (T-37), Queued, then a column
+ * per step in order, then Done (the current sprint's latest closed, done or cancelled, with the count of all; a
+ * cancelled card says so) and Escalated. Each open
  * column lists its cards the most urgent first, then the oldest. An open card says when its agent Lead was told of it
  * as it stands (S6c, `leadNotifiedAt`).
  */
@@ -21,7 +22,9 @@ export async function boardOf(
 ): Promise<BoardView> {
   const steps = inOrder(await repo.flows.steps(t, flow.id));
   const open = (await repo.tasks.open(t, flow.id)).sort(boardOrder);
-  const latest = await repo.tasks.latestDone(t, flow.id, done);
+  const sprint = await repo.sprints.ensure(t, flow);
+  const latest = await repo.tasks.latestDone(t, sprint.id, done);
+  const closed = await repo.sprints.closedCounts(t, sprint.id);
   const byId = new Map(steps.map((step) => [step.id, step]));
   const holders = open.map((task) =>
     holderOf(
@@ -32,6 +35,7 @@ export async function boardOf(
   );
   const names = await principalNames(deps.db, t, [
     flow.leadPrincipalId,
+    sprint.startedBy,
     ...steps.map((step) => step.assigneePrincipalId),
     ...holders,
   ]);
@@ -62,6 +66,15 @@ export async function boardOf(
       newTaskStepId: flow.newTaskStepId,
       newTaskAutoTake: flow.newTaskAutoTake,
     },
+    sprint: {
+      id: sprint.id,
+      number: sprint.number,
+      name: sprint.name,
+      startedAt: sprint.startedAt.toISOString(),
+      startedBy: names(sprint.startedBy),
+      done: closed.done,
+      cancelled: closed.cancelled,
+    },
     columns: [
       column(
         'queued',
@@ -75,7 +88,7 @@ export async function boardOf(
           assignee: names(step.assigneePrincipalId),
         }),
       ),
-      column('done', 'Done', latest, null, await repo.tasks.doneCount(t, flow.id)),
+      column('done', 'Done', latest, null, closed.done + closed.cancelled),
       column(
         'escalated',
         'Escalated',

@@ -136,7 +136,7 @@ export async function getTask(
  * flow (the Lead's people and admins: 403 `not_lead`; 422 `unknown_step`), which tells the step's assignee when a
  * person. Where it goes and whether it is Autotake, when the creator does not say, are the flow's defaults (T-38; its
  * Lead chose them, so its step applies to anyone). 404 `flow_not_found` for another company's flow. Its history starts
- * with `created`.
+ * with `created`; it joins the flow's current sprint (T-37), wherever it goes.
  */
 export async function createTask(
   deps: Deps,
@@ -161,9 +161,12 @@ export async function createTask(
       }
       // Left out: the flow's defaults (T-38).
       const stepId = input.stepId === undefined ? flow.newTaskStepId : input.stepId;
+      // It joins the flow's current sprint (T-37).
+      const sprint = await repo.sprints.ensure(tx, flow);
       const values = {
         number: await repo.tasks.nextNumber(tx),
         flowId: flow.id,
+        sprintId: sprint.id,
         title: input.title,
         description: input.description ?? '',
         priority: input.priority ?? 'normal',

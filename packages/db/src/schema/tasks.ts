@@ -6,6 +6,7 @@ import { boolean, check, index, integer, jsonb, pgTable, text, timestamp, unique
 import { createdAt, oneOf, updatedAt } from './columns.ts';
 import { flowSteps, flows } from './flows.ts';
 import { principals } from './principals.ts';
+import { sprints } from './sprints.ts';
 import { companyIdColumn, tenantForeignKey, tenantKey } from './tenant.ts';
 
 const n = (value: number) => sql.raw(String(value));
@@ -28,6 +29,13 @@ export const tasks = pgTable(
     companyId: companyIdColumn(),
     number: integer('number').notNull(),
     flowId: uuid('flow_id').notNull(),
+    /**
+     * The flow's sprint it belongs to (T-37): the current one while open; a closed task stays in the one it closed in.
+     * Left out on insert, the trigger `tasks_join_current_sprint` puts it in its flow's current sprint.
+     */
+    sprintId: uuid('sprint_id')
+      .notNull()
+      .$defaultFn(() => sql`null`),
     title: text('title').notNull(),
     description: text('description').notNull().default(''),
     priority: text('priority').$type<TaskPriority>().notNull().default('normal'),
@@ -55,6 +63,7 @@ export const tasks = pgTable(
     tenantKey('tasks', t),
     unique('tasks_number_unique').on(t.companyId, t.number),
     tenantForeignKey('tasks_flow_fk', t.companyId, t.flowId, flows),
+    tenantForeignKey('tasks_sprint_fk', t.companyId, t.sprintId, sprints),
     tenantForeignKey('tasks_current_step_fk', t.companyId, t.currentStepId, flowSteps),
     tenantForeignKey('tasks_escalation_target_fk', t.companyId, t.escalationTargetStepId, flowSteps),
     tenantForeignKey('tasks_created_by_fk', t.companyId, t.createdBy, principals),
@@ -91,6 +100,7 @@ export const tasks = pgTable(
       sql`${t.decision} is null or (${t.state} = 'active' and jsonb_typeof(${t.decision}) = 'object')`,
     ),
     index('tasks_flow_state_idx').on(t.companyId, t.flowId, t.state),
+    index('tasks_sprint_state_idx').on(t.companyId, t.sprintId, t.state),
     index('tasks_current_step_idx').on(t.companyId, t.currentStepId),
     index('tasks_escalation_target_idx').on(t.companyId, t.escalationTargetStepId),
   ],

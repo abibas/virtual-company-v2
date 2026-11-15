@@ -12,6 +12,7 @@ import { companyFlowLinks, type TeamTab } from '../../../features/flows/links.ts
 import { TeamView, type TeamViewProps } from '../../../features/flows/team/TeamView.tsx';
 import { LiveQueue } from '../../../features/flows/wakes/AutoTake.tsx';
 import { LiveLeadWakes } from '../../../features/flows/wakes/LiveLeadWakes.tsx';
+import { LiveSprints } from '../../../features/flows/sprints/LiveSprints.tsx';
 import { LiveRoom } from '../../../features/room/LiveRoom.tsx';
 import { LiveRoomCap } from '../../../features/room/RoomCap.tsx';
 import { RoomFrame } from '../../../features/room/RoomFrame.tsx';
@@ -59,6 +60,15 @@ function WithFlow({
       board={board}
       text={text}
       wakes={wakes}
+      sprints={
+        <LiveSprints
+          companyId={companyId}
+          flowId={flow.id}
+          flowName={flow.name}
+          version={board.data?.sprint.id ?? ''}
+          links={common.links}
+        />
+      }
       room={
         <RoomFrame>
           <LiveRoom flowId={flow.id} faces />

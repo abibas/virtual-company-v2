@@ -1,5 +1,5 @@
 import { roleAtLeast } from '@mwc/shared/roles';
-import { Pencil, Plus, Workflow } from 'lucide-react';
+import { CalendarPlus, Pencil, Plus, Workflow } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 import type { Board, Flow, FlowCalls } from '../../../api/flows.ts';
 import type { ChartNode, OrgChart } from '../../../api/types.ts';
@@ -18,6 +18,8 @@ import { drawnSteps, FlowDrawing } from '../drawing/FlowDrawing.tsx';
 import { FlowText } from '../drawing/FlowText.tsx';
 import { FlowEditor } from '../editor/FlowEditor.tsx';
 import type { FlowLinks, TeamTab } from '../links.ts';
+import { NewSprintSheet } from '../sprints/NewSprintSheet.tsx';
+import { sprintSince } from '../sprints/words.ts';
 import { TeamHeader } from './TeamHeader.tsx';
 
 export interface TeamViewProps {
@@ -44,6 +46,8 @@ export interface TeamViewProps {
   readonly wakes?: ReactNode;
   /** The Team chat tab: the team room. */
   readonly room?: ReactNode;
+  /** The Sprints tab (T-37): the flow's sprints and their reports. */
+  readonly sprints?: ReactNode;
 }
 
 /** The Flow tab: the drawing and the written form, or the editor in their place; then the Lead's wake-ups (S6c). */
@@ -143,22 +147,38 @@ function BoardTab({
   );
 }
 
-/** The tab's action in the header: New task on the Board (member and up), Edit on the Flow (those who lead the team). */
+/**
+ * The tab's action in the header: on the Board its current sprint ("Sprint 4 · since Mon 16 Nov, 08:30"), New sprint…
+ * (those who lead the team, T-37) and New task (member and up); Edit on the Flow (those who lead the team).
+ */
 function TeamAction({
   props,
   leads,
   onAdd,
+  onNewSprint,
 }: {
   readonly props: TeamViewProps;
   readonly leads: boolean;
   readonly onAdd: () => void;
+  readonly onNewSprint: () => void;
 }) {
   const { flow, tab } = props;
-  if (flow && tab === 'board' && roleAtLeast(props.viewer.role, 'member')) {
+  if (flow && tab === 'board') {
+    const sprint = props.board?.data?.sprint;
     return (
-      <Button size="sm" tone="primary" icon={Plus} onClick={onAdd}>
-        New task
-      </Button>
+      <>
+        {sprint && <span className="text-xs font-medium text-ink-2">{sprintSince(sprint)}</span>}
+        {sprint && leads && (
+          <Button size="sm" icon={CalendarPlus} onClick={onNewSprint}>
+            New sprint…
+          </Button>
+        )}
+        {roleAtLeast(props.viewer.role, 'member') && (
+          <Button size="sm" tone="primary" icon={Plus} onClick={onAdd}>
+            New task
+          </Button>
+        )}
+      </>
     );
   }
   if (!flow || tab !== 'flow' || !leads || props.editing) return null;
@@ -170,13 +190,14 @@ function TeamAction({
 }
 
 /**
- * A team's page (`/:slug/flows/<lead>`): its header row, then the Board (with New task), the Flow (with Edit for the
- * Lead's people and admins) or the Team chat (the team room). The company's route and the design gallery both render it.
+ * A team's page (`/:slug/flows/<lead>`): its header row, then the Board (with its sprint, New sprint… and New task),
+ * the Flow (with Edit for the Lead's people and admins), the Sprints (T-37) or the Team chat (the team room). The company's route and the design gallery both render it.
  */
 export function TeamView(props: TeamViewProps) {
   const { flow, lead, chart, viewer, tab } = props;
   const nodes = useMemo(() => nodesById(chart.nodes), [chart]);
   const [adding, setAdding] = useState(false);
+  const [newSprint, setNewSprint] = useState(false);
   const leads = leadsTeam(viewer, flow?.lead.principalId ?? lead?.principalId ?? '');
   const headLead = flow?.lead ?? (lead ? { principalId: lead.principalId, name: nodeName(lead) } : undefined);
   return (
@@ -188,12 +209,31 @@ export function TeamView(props: TeamViewProps) {
         address={props.address}
         tab={flow ? tab : undefined}
         links={props.links}
-        action={<TeamAction props={props} leads={leads} onAdd={() => setAdding(true)} />}
+        action={
+          <TeamAction
+            props={props}
+            leads={leads}
+            onAdd={() => setAdding(true)}
+            onNewSprint={() => setNewSprint(true)}
+          />
+        }
       />
       {!flow && <NoFlow props={props} lead={lead} />}
       {flow && tab === 'flow' && <FlowTab props={props} flow={flow} nodes={nodes} />}
       {flow && tab === 'board' && <BoardTab props={props} nodes={nodes} leads={leads} />}
+      {flow && tab === 'sprints' && props.sprints}
       {flow && tab === 'chat' && props.room}
+      {newSprint && props.board?.data && (
+        <NewSprintSheet
+          board={props.board.data}
+          calls={props.calls}
+          onClose={() => setNewSprint(false)}
+          onStarted={() => {
+            setNewSprint(false);
+            props.onBoardChanged();
+          }}
+        />
+      )}
       {adding && flow && (
         <NewTaskSheet
           flow={flow}
