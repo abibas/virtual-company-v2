@@ -1,8 +1,8 @@
 import type { ProcessSpec } from '@mwc/harness-core';
 import type { TerminalSpec } from '@mwc/shared/harness';
 import { processEnv } from '../turns/env.ts';
+import type { HarnessHost } from '../turns/host.ts';
 import { type PrivateLease, withPrivateDir } from '../turns/private-dir.ts';
-import type { HarnessHost } from '../turns/turns.ts';
 import { type Env, LOGIN_FLAG, loginShell, terminalEnv } from './shell.ts';
 
 /**

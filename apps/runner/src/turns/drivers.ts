@@ -9,10 +9,10 @@ import type { ArtifactFs } from './artifacts/collect.ts';
 import { askHost } from './ask/bridge.ts';
 import type { Env } from './env.ts';
 import { gitHooksDir } from './git/hooks.ts';
+import type { HarnessHost } from './host.ts';
 import { PrivateDirs, type PrivateFs } from './private-dir.ts';
 import { runsRoot } from './runs/folder.ts';
 import type { KeeperCommand } from './runs/kept.ts';
-import type { HarnessHost } from './turns.ts';
 
 /**
  * The harnesses a runner runs: one driver per CLI it found (on its PATH or in the usual folders, `system/find-cli.ts`)

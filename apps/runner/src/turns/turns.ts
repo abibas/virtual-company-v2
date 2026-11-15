@@ -1,7 +1,4 @@
-import type { HarnessDriver } from '@mwc/harness-core';
-import type { Harness } from '@mwc/shared/enums';
 import type {
-  HarnessVersions,
   HeldTurn,
   ServerHello,
   TurnResume,
@@ -12,17 +9,14 @@ import type {
 import type { Log } from '../system/log.ts';
 import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
-import type { ArtifactFs } from './artifacts/collect.ts';
-import type { AskHost } from './ask/bridge.ts';
 import { type BeforeStart, beforeStart } from './before.ts';
-import type { Env } from './env.ts';
+import type { HarnessHost } from './host.ts';
 import type { FetchedImage, ImageFetch } from './images.ts';
 import { type Prepared, prepareTurn, takeBackParts } from './prepare.ts';
-import type { PrivateDirs } from './private-dir.ts';
-import type { ReadAt } from './runs/journal.ts';
-import type { KeeperCommand } from './runs/kept.ts';
 import { type FoundRun, findRuns } from './runs/reattach.ts';
 import { type TurnParts, TurnProcess } from './turn.ts';
+
+export type { HarnessHost } from './host.ts';
 
 /**
  * The machine's chat turns (docs/harness.md, "How a turn runs" and "Surviving restarts"): `turn.start` runs one turn of
@@ -42,42 +36,6 @@ import { type TurnParts, TurnProcess } from './turn.ts';
  * message's images (T-18) are fetched from the server before the start (`images.ts`); a turn whose images cannot be
  * fetched is refused `images_unavailable: …`.
  */
-
-/** What a runner that runs harnesses has: the drivers of the CLIs it found, their versions, and what a turn needs. */
-export interface HarnessHost {
-  /** The drivers of the harnesses whose CLI is installed here. */
-  readonly drivers: Partial<Record<Harness, HarnessDriver>>;
-  /** Each CLI's version (`caps.harnesses`), null for a missing one. */
-  readonly versions: HarnessVersions;
-  /** The runner's environment, which a process gets less `MWC_*` and the driver's `unsetEnv`. */
-  readonly env: Env;
-  /** The private folders, shared by turns and terminals. */
-  readonly dirs: PrivateDirs;
-  /** Whether the agent's folder is there. */
-  isDirectory(path: string): boolean;
-  /**
-   * A container runner's: makes an agent's home folder that is not there yet, under its work volume, before the turn
-   * (`folders/mkdirp.ts`); true once it is there, and it never throws. Left out elsewhere: a missing one is `home_missing`.
-   */
-  makeHome?(path: string): Promise<boolean>;
-  /** Where the turns' run folders are (`<state>/runs`, S5.4). */
-  readonly runs: string;
-  /** Reads a file from an offset (a turn's output). */
-  readonly readAt: ReadAt;
-  /** How a turn's keeper starts (`<node> <runner.mjs> keep`); without it no turn runs (`unsupported`). */
-  readonly keeper?: KeeperCommand;
-  /** The runner's tools (its MCP server and each turn's question socket); left out, turns run without them. */
-  readonly ask?: AskHost;
-  /** A task step's outputs folder (S5.3b); left out, a turn's `artifacts` is passed over and nothing is collected. */
-  readonly artifacts?: ArtifactFs;
-  /** Its git hooks' folder (S7.1d, `git/hooks.ts`) for a turn with a GitHub sign-in; left out, no turn gets one. */
-  readonly gitHooks?: string;
-  /**
-   * Looks for a harness that has no driver again (no process unless its CLI is found now, then its `--version`); true
-   * once it has one. Left out: a missing harness stays missing.
-   */
-  findAgain?(harness: Harness): Promise<boolean>;
-}
 
 export interface TurnsDeps {
   /** Undefined when this runner runs no harness: every start is `unsupported`. */

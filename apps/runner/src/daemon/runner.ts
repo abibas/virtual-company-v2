@@ -11,7 +11,7 @@ import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Clock, Timers } from '../system/time.ts';
 import type { TerminalHost } from '../terminal/sessions.ts';
 import type { ToolsHost } from '../tools/host.ts';
-import type { HarnessHost } from '../turns/turns.ts';
+import type { HarnessHost } from '../turns/host.ts';
 import type { SelfUpdate } from '../update/self-update.ts';
 import type { HealthStatus } from './health.ts';
 import { RunnerDaemon } from './runner/daemon.ts';

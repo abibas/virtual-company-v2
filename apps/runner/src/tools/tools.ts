@@ -9,7 +9,7 @@ import type {
 import type { Log } from '../system/log.ts';
 import type { KillGroup, Spawn } from '../system/process.ts';
 import type { Timers } from '../system/time.ts';
-import type { HarnessHost } from '../turns/turns.ts';
+import type { HarnessHost } from '../turns/host.ts';
 import type { FoundTools } from './find.ts';
 import type { ToolsHost } from './host.ts';
 import { npmInstallArgs, type RunningInstall, startNpmInstall } from './install.ts';

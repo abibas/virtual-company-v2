@@ -6,9 +6,9 @@ import {
 } from '@mwc/shared/runner-protocol';
 import type { Log } from '../system/log.ts';
 import type { Timers } from '../system/time.ts';
+import type { HarnessHost } from '../turns/host.ts';
 import { releaseLogin } from '../turns/private-dir.ts';
 import { INVALID_LOGIN } from '../turns/turn.ts';
-import type { HarnessHost } from '../turns/turns.ts';
 import { harnessLaunch, shellLaunch, type TerminalLaunch } from './launch.ts';
 import type { PtyProcess, PtySpawn } from './loader.ts';
 import { TerminalSession } from './session.ts';

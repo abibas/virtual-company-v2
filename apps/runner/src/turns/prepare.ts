@@ -7,13 +7,13 @@ import { type AskBridge, turnTools } from './ask/bridge.ts';
 import { serverToolsFile } from './ask/server-tools.ts';
 import { processEnv } from './env.ts';
 import { withGitHub } from './git/env.ts';
+import type { HarnessHost } from './host.ts';
 import { type FetchedImage, turnImages } from './images.ts';
 import { type PrivateLease, withPrivateDir } from './private-dir.ts';
 import { RunFolder } from './runs/folder.ts';
 import type { KeeperCommand } from './runs/kept.ts';
 import type { FoundRun } from './runs/reattach.ts';
 import type { TurnLaunch, TurnParts } from './turn.ts';
-import type { HarnessHost } from './turns.ts';
 
 /**
  * What a turn runs with (`turns.ts`): a fresh one's driver spec, run folder, private folder, environment, parser,

@@ -1,6 +1,6 @@
 import type { TurnStart } from '@mwc/shared/runner-protocol';
+import type { HarnessHost } from './host.ts';
 import { type FetchedImage, fetchImages, type ImageFetch } from './images.ts';
-import type { HarnessHost } from './turns.ts';
 
 /** What a start waited for gave: the message's images fetched, or the refusal that ends the turn before it starts. */
 export interface BeforeStart {
