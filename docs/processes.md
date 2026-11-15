@@ -1215,7 +1215,8 @@ instructions and `team_board`'s first line ("new tasks: Queued, Autotake") say t
   conversation the task was closed in gets `task_read` and `task_reopen {reason, findings}` (`CLOSED_TOOLS`) and a
   standing line (a correction reopens it, never a new task); the reopen is recorded as its decision and applied when the
   turn ends, its findings kept as that round's hand-off note, so Develop's kept conversation gets them in its next
-  prompt. The Lead's `task_route` on a done task reopens it with a reason; a person who leads the team has Reopen… on
+  prompt. The closed task holds that decision until then: migration `0050_reopen_decision` lets a done or cancelled
+  task hold a decision whose action is `reopen` (before it, every agent's `task_reopen` failed on the server). The Lead's `task_route` on a done task reopens it with a reason; a person who leads the team has Reopen… on
   the task page (what is wrong, what to change). `mwc task show` lists `reopen` among the moves for them.
 
 ### Corrections never made at sign-off (T-29)
