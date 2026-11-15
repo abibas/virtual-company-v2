@@ -144,7 +144,9 @@ export function TaskView(props: TaskViewProps) {
             nodes={nodes}
             teamHref={teamHref}
             editable={editable}
+            calls={calls}
             onPriority={(priority) => calls.editTask(task.key, { priority }).then(onChanged)}
+            onMoved={onChanged}
           />
         </Card>
         <div className="min-w-0 lg:col-start-1">

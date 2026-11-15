@@ -2,7 +2,7 @@ import type { TaskPriority } from '@mwc/shared/enums';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { friendlyMessage } from '../../../api/errors.ts';
-import type { TaskDetail } from '../../../api/flows.ts';
+import type { FlowCalls, TaskDetail } from '../../../api/flows.ts';
 import type { ChartNode } from '../../../api/types.ts';
 import { Link } from '../../../app/router.tsx';
 import { cx } from '../../../components/cx.ts';
@@ -11,6 +11,7 @@ import { Select } from '../../../components/forms/Input.tsx';
 import { Badge } from '../../../components/ui/Badge.tsx';
 import { Who } from '../Face.tsx';
 import { KIND, PRIORITY, PRIORITY_ORDER } from '../words.ts';
+import { StatusPanel, StatusValue, useTaskCancel } from './TaskStatus.tsx';
 
 /** One fact: its word on the left, its value on the right. */
 function Fact({ term, children }: { readonly term: string; readonly children: ReactNode }) {
@@ -68,20 +69,28 @@ function Priority({
   );
 }
 
-/** Where a task stands and whose it is: its flow, step, round, holder and priority, who made it and when it moved. */
+/**
+ * Where a task stands and whose it is: its flow, step, round, holder and priority, who made it and when it moved, and
+ * its status (a menu to cancel it with a reason for those who may, T-27).
+ */
 export function TaskFacts({
   task,
   nodes,
   teamHref,
   editable,
+  calls,
   onPriority,
+  onMoved,
 }: {
   readonly task: TaskDetail;
   readonly nodes: ReadonlyMap<string, ChartNode>;
   readonly teamHref: string;
   readonly editable: boolean;
+  readonly calls: FlowCalls;
   readonly onPriority: (next: TaskPriority) => Promise<unknown>;
+  readonly onMoved: () => void;
 }) {
+  const cancel = useTaskCancel(task, calls, onMoved);
   return (
     <dl className="grid gap-x-6 gap-y-0.5 text-sm sm:grid-cols-2 lg:grid-cols-1">
       <Fact term="Flow">
@@ -119,6 +128,10 @@ export function TaskFacts({
       <Fact term="Updated">
         <When at={task.updatedAt} />
       </Fact>
+      <Fact term="Status">
+        <StatusValue task={task} cancel={cancel} />
+      </Fact>
+      <StatusPanel task={task} calls={calls} cancel={cancel} onMoved={onMoved} />
       {task.closedAt && (
         <Fact term="Closed">
           <When at={task.closedAt} />
