@@ -35,6 +35,7 @@ describe('the team room’s contract', () => {
       'escalated',
       'blocked',
       'turn_ended',
+      'reopen',
     ]);
     expect(ROOM.maxPerHour.default).toBe(30);
   });

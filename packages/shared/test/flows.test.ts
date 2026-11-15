@@ -21,8 +21,8 @@ describe('the flows’ enums', () => {
       'blocked',
       'ended_without_handoff',
     ]);
-    expect(TaskEventKind.options).toHaveLength(15);
-    expect(TaskEventKind.options.slice(-2)).toEqual(['blocked', 'turn_ended']);
+    expect(TaskEventKind.options).toHaveLength(16);
+    expect(TaskEventKind.options.slice(-3)).toEqual(['blocked', 'turn_ended', 'reopened']);
     expect(TaskArtifactKind.options).toEqual(['file', 'note', 'link', 'skipped']);
     expect(ArtifactSkipReason.options).toEqual([
       'too_large',
@@ -40,6 +40,7 @@ describe('the flows’ enums', () => {
       'route',
       'retry',
       'cancel',
+      'reopen',
     ]);
   });
 });

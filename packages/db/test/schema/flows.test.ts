@@ -78,6 +78,38 @@ describe('flows', () => {
       'flows_company_id_companies_id_fk',
     );
   });
+
+  it('takes from Queued by hand at first, at most 1 to 20 in progress, new tasks in Queued (T-25, T-38)', async () => {
+    const flow = await insertFlow(await principalId());
+    expect(flow).toMatchObject({
+      autoTake: false,
+      inProgressLimit: 2,
+      newTaskStepId: null,
+      newTaskAutoTake: false,
+    });
+    for (const inProgressLimit of [0, 21])
+      expect(await constraint(insertFlow(await principalId(), { inProgressLimit }))).toBe(
+        'flows_in_progress_limit_check',
+      );
+    expect(
+      (await insertFlow(await principalId(), { autoTake: true, inProgressLimit: 20 })).inProgressLimit,
+    ).toBe(20);
+  });
+
+  it("sends new tasks to a step of its own company, never another company's (T-38)", async () => {
+    const flow = await insertFlow(await principalId());
+    const step = await insertStep(flow);
+    const set = (newTaskStepId: string) =>
+      handle.db.update(flows).set({ newTaskStepId }).where(eq(flows.id, flow.id));
+    await set(step.id);
+    const theirs = await insertPrincipal(handle, globex.id);
+    const [theirFlow] = await handle.db
+      .insert(flows)
+      .values({ companyId: globex.id, leadPrincipalId: theirs.id, name: 'G', createdBy: theirs.id })
+      .returning();
+    const theirStep = await insertStep(theirFlow as Flow, { assigneePrincipalId: theirs.id });
+    expect(await constraint(set(theirStep.id))).toBe('flows_new_task_step_fk');
+  });
 });
 
 describe('flow_steps', () => {

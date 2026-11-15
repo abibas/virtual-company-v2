@@ -144,7 +144,7 @@ describe('mwc task', () => {
       'Flow: DEVBOX delivery · Lead: SLOP BOX',
       'State: done · priority high',
       'Who: - · created by Olga',
-      'You may: nothing',
+      'You may: reopen', // a done task goes back with a correction (T-28)
     ]);
     expect(lines.slice(5, 9)).toEqual(['', 'Do it now', '', 'History:']);
     const history = lines.slice(9, -1).map((line) => line.slice(20));

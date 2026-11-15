@@ -19,6 +19,8 @@ const KEYED_BY_MACHINE = ['machine_logos', 'machine_power', 'machine_samples'];
 const KEYED_BY_TURN = ['chat_events'];
 /** Tenant tables of an agent's rows keyed by it: `(company_id, agent_id)` is their primary key, no `id`. */
 const KEYED_BY_AGENT = ['agent_icons'];
+/** Tenant tables of a pair of tasks: `(company_id, task_id, waits_for_task_id)` is their primary key, no `id` (T-39). */
+const KEYED_BY_TASK = ['task_waits'];
 
 const tables = (Object.values(schema) as unknown[])
   .filter((value): value is PgTable => is(value, PgTable))
@@ -32,13 +34,15 @@ const tenantTables = withCompany.filter(
     !ONE_PER_PRINCIPAL.includes(t.name) &&
     !KEYED_BY_MACHINE.includes(t.name) &&
     !KEYED_BY_TURN.includes(t.name) &&
-    !KEYED_BY_AGENT.includes(t.name),
+    !KEYED_BY_AGENT.includes(t.name) &&
+    !KEYED_BY_TASK.includes(t.name),
 );
 const onePerCompany = withCompany.filter((t) => ONE_PER_COMPANY.includes(t.name));
 const onePerPrincipal = withCompany.filter((t) => ONE_PER_PRINCIPAL.includes(t.name));
 const keyedByMachine = withCompany.filter((t) => KEYED_BY_MACHINE.includes(t.name));
 const keyedByTurn = withCompany.filter((t) => KEYED_BY_TURN.includes(t.name));
 const keyedByAgent = withCompany.filter((t) => KEYED_BY_AGENT.includes(t.name));
+const keyedByTask = withCompany.filter((t) => KEYED_BY_TASK.includes(t.name));
 
 describe('the tenant conventions, on every tenant table', () => {
   it('finds the S1, S2, S4, S5 and S6 tenant tables', () => {
@@ -65,6 +69,7 @@ describe('the tenant conventions, on every tenant table', () => {
       'room_messages',
       'runner_sessions',
       'slack_threads',
+      'sprints',
       'task_artifacts',
       'task_events',
       'tasks',
@@ -74,7 +79,25 @@ describe('the tenant conventions, on every tenant table', () => {
     expect(keyedByMachine.map((t) => t.name).sort()).toEqual(KEYED_BY_MACHINE);
     expect(keyedByTurn.map((t) => t.name)).toEqual(KEYED_BY_TURN);
     expect(keyedByAgent.map((t) => t.name)).toEqual(KEYED_BY_AGENT);
+    expect(keyedByTask.map((t) => t.name)).toEqual(KEYED_BY_TASK);
   });
+
+  it.each(keyedByTask.map((t) => [t.name, t] as const))(
+    '%s: PRIMARY KEY(company_id, task_id, waits_for_task_id), both tasks composite keys, no id',
+    (_, t) => {
+      expect(t.primaryKeys.map((pk) => pk.columns.map((c) => c.name))).toEqual([
+        ['company_id', 'task_id', 'waits_for_task_id'],
+      ]);
+      expect(t.columns.some((c) => c.name === 'id')).toBe(false);
+      const refs = t.foreignKeys.map((fk) => fk.reference());
+      for (const column of ['task_id', 'waits_for_task_id']) {
+        const task = refs.find((r) => r.columns.map((c) => c.name).join() === `company_id,${column}`);
+        expect(getTableConfig(task?.foreignTable as PgTable).name).toBe('tasks');
+      }
+      const companyFk = refs.find((r) => r.columns.length === 1);
+      expect(getTableConfig(companyFk?.foreignTable as PgTable).name).toBe('companies');
+    },
+  );
 
   it.each(keyedByAgent.map((t) => [t.name, t] as const))(
     '%s: PRIMARY KEY(company_id, agent_id), the agent a composite key, no id',
@@ -161,7 +184,7 @@ describe('the tenant conventions, on every tenant table', () => {
         expect(ref.foreignColumns.map((c) => c.name)).toEqual(['company_id', 'id']);
       }
     }
-    expect(composite).toBe(76);
+    expect(composite).toBe(83);
   });
 });
 

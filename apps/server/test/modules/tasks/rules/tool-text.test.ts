@@ -5,6 +5,7 @@ import {
   createdText,
   decisionText,
   movedText,
+  queuedText,
   taskText,
   whereText,
 } from '../../../../src/modules/tasks/rules/tool-text.ts';
@@ -59,7 +60,22 @@ describe('the board in words', () => {
         cancelled: 0,
       },
       columns: [
-        { kind: 'queued', title: 'Queued', step: null, cards: [card('T-3', { priority: 'high' })], total: 1 },
+        {
+          kind: 'queued',
+          title: 'Queued',
+          step: null,
+          cards: [
+            card('T-3', { priority: 'high' }),
+            card('T-4', {
+              autoTake: true,
+              waitsFor: [
+                { key: 'T-3', closed: false },
+                { key: 'T-0', closed: true },
+              ],
+            }),
+          ],
+          total: 2,
+        },
         {
           kind: 'step',
           title: 'Develop',
@@ -76,10 +92,12 @@ describe('the board in words', () => {
     };
     expect(boardText(board)).toBe(
       [
-        'Flow "DEVBOX delivery" · Lead: Coordinator',
+        'Flow "DEVBOX delivery" · Lead: Coordinator · new tasks: Queued, Manual',
+        'Current sprint: "Sprint 1" · since 2026-11-11 09:00 UTC · Done lists only this sprint\'s closed tasks',
         '',
-        'Queued (1)',
-        '- T-3 · Task T-3 · high',
+        'Queued (2)',
+        '- 1. T-3 · Task T-3 · high · manual',
+        '- 2. T-4 · Task T-4 · autotake · waits for T-3, T-0 (closed)',
         '',
         'Develop · Work · Developer (2)',
         '- T-1 · Task T-1 · working · round 2',
@@ -91,6 +109,36 @@ describe('the board in words', () => {
         'Escalated (0)',
       ].join('\n'),
     );
+  });
+
+  it('names the step new tasks skip Queued for, a sprint named by hand, and a cancelled card (T-27, T-37, T-38)', () => {
+    const board: BoardView = {
+      flow: { id: 'f', name: 'Ops', lead: agent('Coordinator'), newTaskStepId: 's1', newTaskAutoTake: true },
+      sprint: {
+        id: 'sp',
+        number: 4,
+        name: 'Release week',
+        startedAt: '2026-11-16T08:30:00.000Z',
+        startedBy: agent('Coordinator'),
+        done: 1,
+        cancelled: 1,
+      },
+      columns: [
+        {
+          kind: 'step',
+          title: 'Develop',
+          step: { id: 's1', kind: 'work', assignee: agent('Developer') },
+          cards: [],
+          total: 0,
+        },
+        { kind: 'done', title: 'Done', step: null, cards: [card('T-9', { cancelled: true })], total: 1 },
+      ],
+    };
+    expect(boardText(board).split('\n').slice(0, 2)).toEqual([
+      'Flow "Ops" · Lead: Coordinator · new tasks: "Develop"',
+      'Current sprint: Sprint 4 "Release week" · since 2026-11-16 08:30 UTC · Done lists only this sprint\'s closed tasks',
+    ]);
+    expect(boardText(board)).toContain('- T-9 · Task T-9 · cancelled');
   });
 });
 
@@ -148,6 +196,9 @@ describe('a task in words', () => {
       decision,
       artifacts: 2,
       conversations: [{}],
+      autoTake: false,
+      queue: null,
+      waitsFor: [],
       description: '',
       history: [
         {
@@ -207,6 +258,9 @@ describe('a task in words', () => {
       step: develop,
       stepState: 'working',
       round: 1,
+      autoTake: false,
+      queue: null,
+      waitsFor: [],
     };
     expect(movedText('moved', summary as never)).toBe(
       'Done: T-1 is now active at "Develop" (working), round 1.',
@@ -218,6 +272,33 @@ describe('a task in words', () => {
     );
     expect(attachedText('Plan', 'note', { key: 'T-1', step: 'Develop', round: 1 })).toBe(
       'Attached "Plan" to T-1 (Develop, round 1) as a note.',
+    );
+  });
+
+  it('says a queued task’s place, Autotake and waits, and what an active one still waits for (T-39)', () => {
+    const queued = {
+      key: 'T-13',
+      title: 'Fix the docs',
+      state: 'queued',
+      step: null,
+      stepState: null,
+      round: null,
+      priority: 'high',
+      autoTake: true,
+      queue: { place: 2, of: 5 },
+      waitsFor: [
+        { key: 'T-12', state: 'active' },
+        { key: 'T-11', state: 'done' },
+      ],
+    } as unknown as TaskDetailView;
+    const facts = 'Queue: 2 of 5 · Autotake · waits for T-12 (active), T-11 (done)';
+    expect(createdText(queued)).toBe(`Created T-13 "Fix the docs": queued (${facts}).`);
+    expect(queuedText(queued)).toBe(`Done: T-13 is queued · ${facts} · priority high.`);
+    const manual = { ...queued, autoTake: false, waitsFor: [], priority: 'normal' } as TaskDetailView;
+    expect(queuedText(manual)).toBe('Done: T-13 is queued · Queue: 2 of 5 · Manual · priority normal.');
+    const active = { ...queued, state: 'active', step: develop, stepState: 'working', round: 1, queue: null };
+    expect(createdText(active as TaskDetailView)).toBe(
+      'Created T-13 "Fix the docs": active at "Develop" (working), round 1 (Waits for: T-12 (active), T-11 (done)).',
     );
   });
 });

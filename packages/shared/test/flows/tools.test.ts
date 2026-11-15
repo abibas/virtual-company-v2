@@ -46,6 +46,7 @@ describe('which tools a turn gets', () => {
       'task_approve',
       'task_send_back',
       'task_blocked',
+      'task_reopen',
     ]);
     expect(LEAD_TOOLS.some(isDecisionTool)).toBe(false);
   });
@@ -91,7 +92,18 @@ describe('the Lead’s section', () => {
       /^## Leading your team \(from Most Wanted\)\n\nYou lead the flow "DEVBOX delivery"\./,
     );
     for (const tool of LEAD_TOOLS) expect(text).toContain(tool);
-    expect(text.length).toBeLessThan(1_200);
+    // Its queue planning (T-39) and the flow's defaults for new tasks (T-38) made it longer; still one screen.
+    expect(text.length).toBeLessThan(2_200);
+  });
+
+  it('names the flow’s defaults for new tasks, and how to plan the queue (T-38, T-39)', () => {
+    expect(leadSection('Delivery')).toContain('(now: new tasks go to Queued, Manual)');
+    expect(leadSection('Delivery', { stepName: null, autoTake: true })).toContain('go to Queued, Autotake)');
+    expect(leadSection('Delivery', { stepName: 'Develop', autoTake: true })).toContain('go to "Develop")');
+    const text = leadSection('Delivery');
+    expect(text).toContain('### Planning the queue');
+    expect(text).toContain('wait for it (waitsFor)');
+    expect(text).toContain('reopen it: task_route {key, step, reason: their correction}');
   });
 
   it('tells it never to wait inside a turn, nor to do a step’s work', () => {

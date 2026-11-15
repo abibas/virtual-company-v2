@@ -10,7 +10,6 @@ import {
   chats,
   contacts,
   credentials,
-  flows,
   orgPositions,
   slackThreads,
 } from '../../src/schema/index.ts';
@@ -23,7 +22,8 @@ import { insertAgent, insertCompany, insertMachine, insertMember, insertUser } f
  * made before it. A person's chat gets its creator; a Slack conversation's chat its contacts (who started it, and who
  * wrote in it) and the Slack connection's owner; one with no member yet the agent's manager, else every active owner. A
  * flow's team chat (as a task's conversation) gets nobody. Seeded at `0039_contacts`, whose tables 0040 leaves as they
- * were, so the rows are written with the schema as it is, except a turn (`0042` adds a column to `chat_turns`).
+ * were, so the rows are written with the schema as it is, except a turn and a flow (`0042` adds a column to `chat_turns`,
+ * `0044` and `0047` theirs to `flows`).
  */
 
 let testDb: TestDb;
@@ -136,21 +136,19 @@ describe(`0040_chat_participants on ${testDbKind()}: who is in each chat so far`
       { companyId: acme.id, principalId: managed.principalId, reportsToPrincipalId: boss.principal.id },
       { companyId: acme.id, principalId: loose.principalId, reportsToPrincipalId: managed.principalId },
     ]);
-    const [flow] = await handle.db
-      .insert(flows)
-      .values({
-        companyId: acme.id,
-        leadPrincipalId: managed.principalId,
-        name: 'Delivery',
-        createdBy: writer.principal.id,
-      })
-      .returning();
+    // Written with the columns `flows` had at `0039` (`0044` and `0047` add their own, which drizzle would name).
+    const flowId = newId();
+    await queryRows(
+      handle,
+      sql`insert into flows (id, company_id, lead_principal_id, name, created_by)
+          values (${flowId}, ${acme.id}, ${managed.principalId}, 'Delivery', ${writer.principal.id})`,
+    );
     ids.owner = owner.principal.id;
     ids.writer = writer.principal.id;
     ids.boss = boss.principal.id;
     ids.slacker = slacker.principal.id;
     ids.own = await chat(managed, mac, writer.principal.id);
-    ids.team = await chat(managed, mac, writer.principal.id, (flow as { id: string }).id);
+    ids.team = await chat(managed, mac, writer.principal.id, flowId);
     const ours = await slackChat(managed, mac, await signIn(slacker.user.id), 'C1');
     ids.slack = ours.chatId;
     ids.starter = ours.starter;

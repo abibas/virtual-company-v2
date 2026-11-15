@@ -100,11 +100,13 @@ describe('agents, through their tools (S6a)', () => {
       expect(actRefusal(stepAgent, team, action, review)).toMatchObject({ code: 'not_your_step' });
   });
 
-  it('never leads, changes the flow or edits a task, even its own', () => {
+  it('never leads or changes the flow; only its own team’s Lead agent edits a task (task_queue, T-39)', () => {
     expect(leads({ ...leadAgent, role: 'owner' }, team)).toBe(false);
     expect(leadRefusal(leadAgent, team)).toMatchObject({ code: 'not_lead' });
     expect(mayActAt(stepAgent, team, review)).toBe(false);
-    expect(editRefusal(leadAgent, team, 'lead-agent')).toMatchObject({ code: 'not_yours' });
+    expect(editRefusal(leadAgent, team, 'maker')).toBeUndefined();
+    expect(editRefusal(otherLead, team, 'other-lead')).toMatchObject({ code: 'not_yours' });
+    expect(editRefusal(stepAgent, team, 'tester')).toMatchObject({ code: 'not_yours' });
     expect(allowedActions(leadAgent, team, atReview, review)).toEqual(['start', 'route', 'cancel']);
   });
 });

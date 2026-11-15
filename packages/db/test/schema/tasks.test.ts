@@ -13,6 +13,7 @@ import {
   type Task,
   taskEvents,
   tasks,
+  taskWaits,
 } from '../../src/schema/index.ts';
 import { pgError, type TestDb } from '../../src/testing.ts';
 import { insertCompany, insertPrincipal, migratedTestDb } from '../fixtures/rows.ts';
@@ -177,7 +178,10 @@ describe('tasks', () => {
   it("refuses another company's flow, step or creator, and keeps a step with a task at it", async () => {
     const theirs = await insertPrincipal(handle, globex.id);
     expect(await constraint(insertTask({ createdBy: theirs.id }))).toBe('tasks_created_by_fk');
-    expect(await constraint(insertTask({ flowId: theirStep.flowId }))).toBe('tasks_flow_fk');
+    // Another company's flow has no sprint here for the trigger to find or make (T-37): sprint_id stays null.
+    expect((await pgError(insertTask({ flowId: theirStep.flowId }))).code).toBe('23502');
+    const { sprintId } = await insertTask();
+    expect(await constraint(insertTask({ flowId: theirStep.flowId, sprintId }))).toBe('tasks_flow_fk');
     expect(await constraint(insertTask({ ...active(), currentStepId: theirStep.id }))).toBe(
       'tasks_current_step_fk',
     );
@@ -188,6 +192,55 @@ describe('tasks', () => {
     expect(await constraint(handle.db.delete(flowSteps).where(eq(flowSteps.id, step.id)))).toBe(
       'tasks_current_step_fk',
     );
+  });
+});
+
+describe('the queue (T-39)', () => {
+  it("puts a task inserted without a place at the end of its flow's queue, and keeps a place given", async () => {
+    const [own] = await flowWithStep(acme, await insertPrincipal(handle, acme.id));
+    const first = await insertTask({ flowId: own.id });
+    const second = await insertTask({ flowId: own.id });
+    expect([first.queuePosition, second.queuePosition]).toEqual([1, 2]);
+    expect((await insertTask({ flowId: own.id, queuePosition: 10 })).queuePosition).toBe(10);
+    expect((await insertTask({ flowId: own.id })).queuePosition).toBe(11);
+    const [other] = await flowWithStep(acme, await insertPrincipal(handle, acme.id));
+    expect((await insertTask({ flowId: other.id })).queuePosition).toBe(1);
+  });
+});
+
+describe('task_waits (T-39)', () => {
+  let a: Task;
+  let b: Task;
+  beforeAll(async () => {
+    a = await insertTask();
+    b = await insertTask();
+  });
+
+  const insertWait = (taskId: string, waitsForTaskId: string, companyId = acme.id) =>
+    handle.db.insert(taskWaits).values({ companyId, taskId, waitsForTaskId }).returning();
+
+  it('keeps that a task waits for another once, never for itself', async () => {
+    expect((await insertWait(a.id, b.id))[0]).toMatchObject({ taskId: a.id, waitsForTaskId: b.id });
+    expect(await constraint(insertWait(a.id, b.id))).toBe('task_waits_pk');
+    expect(await constraint(insertWait(a.id, a.id))).toBe('task_waits_not_itself_check');
+  });
+
+  it("refuses another company's task on either side", async () => {
+    const theirs = await insertPrincipal(handle, globex.id);
+    const [theirFlow] = await flowWithStep(globex, theirs);
+    const [their] = await handle.db
+      .insert(tasks)
+      .values({
+        companyId: globex.id,
+        number: 1,
+        flowId: theirFlow.id,
+        title: 'Theirs',
+        createdBy: theirs.id,
+      })
+      .returning();
+    const id = (their as Task).id;
+    expect(await constraint(insertWait(b.id, id))).toBe('task_waits_waits_for_fk');
+    expect(await constraint(insertWait(id, b.id))).toBe('task_waits_task_fk');
   });
 });
 
