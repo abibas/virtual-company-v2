@@ -10,7 +10,8 @@ import { withImages } from './images.ts';
 import type { LostTurn } from './live-end.ts';
 import { resolveTarget } from './target.ts';
 import { artifactsOf, type TaskTurnContext } from './task-hook.ts';
-import { specTools, type TurnsDeps } from './turns.ts';
+import { specTools } from './turn-spec.ts';
+import type { TurnsDeps } from './turns.ts';
 import { streamEvent } from './views.ts';
 
 /**

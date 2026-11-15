@@ -13,29 +13,20 @@ import {
   CHAT_NOT_FOUND,
   MACHINE_OFFLINE,
   type Refusal,
-  refuse,
   TURN_NOT_FOUND,
   TURN_NOT_RUNNING,
   TURN_RUNNING,
   titleOf,
 } from '../rules.ts';
 import type { ChatTurnView } from '../schemas.ts';
-import { type DecisionsHook, withDecisionTool } from './decisions.ts';
 import { insertTurn, withImages } from './images.ts';
 import type { InboundTurnHook } from './inbound.ts';
 import type { ChatsLive, TurnCredential } from './live.ts';
 import { type MachineWaits, type TurnWake, waitForMachine } from './machine-wait.ts';
-import { type ServerToolsHook, serverToolsOf } from './server-tools.ts';
 import { slotCheck, waitForSlot } from './slot-wait.ts';
-import { resolveTarget, type Target, type TargetDeps } from './target.ts';
-import {
-  artifactsOf,
-  type TaskTurnDraft,
-  type TaskTurnHook,
-  taskContext,
-  taskDraft,
-  toolsOf,
-} from './task-hook.ts';
+import { resolveTarget, type TargetDeps } from './target.ts';
+import { artifactsOf, type TaskTurnDraft, taskContext, taskDraft } from './task-hook.ts';
+import { INVALID_SPEC, type SpecToolsDeps, specIssues, specTools } from './turn-spec.ts';
 import { turnView } from './views.ts';
 
 /**
@@ -53,15 +44,10 @@ import { turnView } from './views.ts';
  * refuses such a message (`runner_outdated`).
  */
 
-export interface TurnsDeps extends TargetDeps {
+/** A turn's deps; its tools' hooks (the tasks', the decision log's, the server's tools) are `SpecToolsDeps`. */
+export interface TurnsDeps extends TargetDeps, SpecToolsDeps {
   readonly live: ChatsLive;
   readonly clock: () => Date;
-  /** The tasks module's side of a task's conversation (S5.3b); none: chats know nothing of tasks. */
-  readonly tasks?: TaskTurnHook | undefined;
-  /** The server's own tools (S7.1c, the Atlassian tools); none: a turn gets none. */
-  readonly serverTools?: ServerToolsHook | undefined;
-  /** The decision log (2026-11-14); none: a turn gets no `record_decision`. */
-  readonly decisions?: DecisionsHook | undefined;
   /** The waits for a stopped machine (the runtime's); none: a stopped machine refuses the turn (`machine_offline`). */
   readonly waits?: MachineWaits | undefined;
   /** What hears the end of a turn Most Wanted queued for a message from outside, one that never started too. */
@@ -88,9 +74,6 @@ export interface TurnCaller {
 }
 
 type Started = { readonly ok: true; readonly turn: ChatTurnView } | Refusal;
-
-export const INVALID_SPEC = (paths: string) =>
-  refuse(422, 'invalid_spec', `The agent's settings cannot start a turn (${paths}): fix them on the agent`);
 
 /** What kind of turn to start (a prompt, a `/compact`), and why this chat may not have one, beyond a turn's checks. */
 export interface TurnKindOptions {
@@ -199,52 +182,6 @@ export async function startTurn(
   const used = { credentialId, ownerUserId, kind };
   return launch(deps, t, turn, { machineId: chat.machineId, agent: target.agent }, used, spec.data, draft);
 }
-
-/**
- * What a turn's spec adds for the tools when its runner offers them: the agents' tools' names (S6a) with the decision
- * log's (2026-11-14), the server's own tools of its profile (S7.1c) with, on a runner that takes it, the GitHub sign-in
- * for git and gh (S7.1d), and its instructions with each one's line.
- */
-export async function specTools(
-  deps: TurnsDeps,
-  t: TenantDb,
-  turn: {
-    readonly chat: Chat;
-    readonly target: Target;
-    readonly kind: ChatTurnKind;
-    readonly draft: TaskTurnDraft | undefined;
-  },
-) {
-  const { target, kind } = turn;
-  const tasks = await toolsOf(deps.tasks, t, {
-    chat: turn.chat,
-    agent: target.agent,
-    kind,
-    draft: turn.draft,
-    offers: target.agentTools,
-    known: target.agentToolNames,
-    instructions: target.spec.instructions,
-  });
-  const decisions = { hook: deps.decisions, offers: target.decisions, kind };
-  const agent = withDecisionTool(tasks, { ...decisions, instructions: target.spec.instructions });
-  const instructions = agent.instructions ?? target.spec.instructions;
-  const offers = target.serverTools;
-  const git = target.github ? { chatId: turn.chat.id, agentId: target.agent.id, by: target.by } : undefined;
-  const server = await serverToolsOf(deps.serverTools, t, {
-    profileId: target.profileId,
-    kind,
-    offers,
-    instructions,
-    git,
-    max: target.serverToolsMax,
-  });
-  return { ...agent, ...server };
-}
-
-/** Why a spec failed its schema: the paths of its issues, once each. */
-export const specIssues = (error: {
-  readonly issues: readonly { readonly path: readonly PropertyKey[] }[];
-}) => [...new Set(error.issues.map((i) => i.path.join('.')))].join(', ');
 
 /**
  * Sends the recorded turn to its machine's runner and tells the stream (and, for a task's turn, the tasks module); one

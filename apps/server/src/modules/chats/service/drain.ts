@@ -12,7 +12,8 @@ import { tellInbound } from './inbound.ts';
 import { holdForSlot, slotCheck } from './slot-wait.ts';
 import { resolveTarget, type Target } from './target.ts';
 import { artifactsOf, taskDraft } from './task-hook.ts';
-import { INVALID_SPEC, launch, specIssues, specTools, type TurnsDeps } from './turns.ts';
+import { INVALID_SPEC, specIssues, specTools } from './turn-spec.ts';
+import { launch, type TurnsDeps } from './turns.ts';
 import { turnView } from './views.ts';
 
 /**
